@@ -170,7 +170,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
-	protected PDKMethodInvoker createPdkMethodInvoker() {
+	public PDKMethodInvoker createPdkMethodInvoker() {
 		return super.createPdkMethodInvoker().maxRetryTimeMinute(0);
 	}
 

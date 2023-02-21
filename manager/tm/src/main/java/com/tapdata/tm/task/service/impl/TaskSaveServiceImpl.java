@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.service.impl;
 
+import cn.hutool.extra.cglib.CglibUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
@@ -15,7 +16,9 @@ import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
@@ -23,6 +26,7 @@ import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.TaskDagCheckLogService;
 import com.tapdata.tm.task.service.TaskSaveService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
@@ -151,51 +155,39 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_START));
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_STOP));
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
+            taskDto.setAlarmSettings(CglibUtil.copyList(alarmSettingDtos, AlarmSettingVO::new));
+        }
 
+        if (CollectionUtils.isEmpty(taskDto.getAlarmRules())) {
             alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
-
-            taskDto.setAlarmSettings(alarmSettingDtos);
-            taskDto.setAlarmRules(alarmRuleDtos);
+            taskDto.setAlarmRules(CglibUtil.copyList(alarmRuleDtos, AlarmRuleVO::new));
         }
 
         if (Objects.nonNull(taskDto.getDag()) && CollectionUtils.isNotEmpty(taskDto.getDag().getNodes())) {
             for (Node<?> node : taskDto.getDag().getNodes()) {
-                alarmSettingDtos = Lists.newArrayList();
-                alarmRuleDtos = Lists.newArrayList();
-                if (node != null) {
-                    if (node.isDataNode()) {
-                        if (CollectionUtils.isEmpty(node.getAlarmSettings())) {
-//                            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_CANNOT_CONNECT));
-                            //alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_HTTP_CONNECT_CONSUME));
-                            //alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_TCP_CONNECT_CONSUME));
-                            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
-                        }
-
-                        if (CollectionUtils.isEmpty(node.getAlarmRules())) {
-                            //alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_HTTP_CONNECT_CONSUME));
-                            //alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_TCP_CONNECT_CONSUME));
-                            alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
-                        }
-
-                    } else {
-
-                        if (CollectionUtils.isEmpty(node.getAlarmSettings())) {
-                            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME));
-                        }
-
-                        if (CollectionUtils.isEmpty(node.getAlarmRules())) {
-                            alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME));
-                        }
-                    }
-                    if (CollectionUtils.isNotEmpty(alarmSettingDtos)) {
-                        node.setAlarmSettings(alarmSettingDtos);
-                    }
-                    if (CollectionUtils.isNotEmpty(alarmRuleDtos)) {
-                        node.setAlarmRules(alarmRuleDtos);
-                    }
-                }
+                List<AlarmSettingDto> nodeSettings = Lists.newArrayList();
+                List<AlarmRuleDto> nodeRules = Lists.newArrayList();
+                FunctionUtils.isTureOrFalse(node.isDataNode()).trueOrFalseHandle(() -> {
+                            if (CollectionUtils.isEmpty(node.getAlarmSettings())) {
+                                nodeSettings.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
+                                node.setAlarmSettings(CglibUtil.copyList(nodeSettings, AlarmSettingVO::new));
+                            }
+                            if (CollectionUtils.isEmpty(node.getAlarmRules())) {
+                                nodeRules.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
+                                node.setAlarmRules(CglibUtil.copyList(nodeRules, AlarmRuleVO::new));
+                            }
+                        },
+                        () -> {
+                            if (CollectionUtils.isEmpty(node.getAlarmSettings())) {
+                                nodeSettings.add(settingDtoMap.get(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME));
+                                node.setAlarmSettings(CglibUtil.copyList(nodeSettings, AlarmSettingVO::new));
+                            }
+                            if (CollectionUtils.isEmpty(node.getAlarmRules())) {
+                                nodeRules.add(ruleDtoMap.get(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME));
+                                node.setAlarmRules(CglibUtil.copyList(nodeRules, AlarmRuleVO::new));
+                            }
+                        });
             }
-
         }
 
     }

@@ -1,0 +1,14 @@
+[
+  {
+    "createIndexes": "monitoringLogs",
+    "indexes":[
+      {
+        "name" : "index_logs_date",
+        "key" : {
+          "date": 1
+        },
+        "background": true
+      }
+    ]
+  }
+]

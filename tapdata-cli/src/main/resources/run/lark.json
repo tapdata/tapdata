@@ -1,72 +1,53 @@
 {
   "connectionConfig": {
     "app_id": "cli_a34d032330f8d00c",
-    "app_secret": "22RXUWAoMwGVoX2iNJ2qCg2G3vDraWKr"
+    "app_secret": "22RXUWAoMwGVoX2iNJ2qCg2G3vDraWKr",
+    "app_name": "Lark"
   },
   "nodeConfig": {
+    "sendType": "dynamic_binding",
+    "receiver": "",
+    "receiverArray": "",
+    "dynamicBinding": [{
+      "receiveType": "open_id",
+      "receiveId": ["phone"]
+    }],
+    "messageConfig": [
+      {"messageType": "text","messageField": "content"}
+    ]
   },
-  "function_params": {
-    "discover_schema": {
+  "functionParams": {
+    "discoverSchema": {
     },
-    "connection_test": {
+    "connectionTest": {
     },
-    "insert_record": {
+    "insertRecord": {
       "eventDataList": [
         {
-          "event_type": "i",
-          "after_data": {},
-          "before_data": {},
-          "reference_time": 0,
-          "table_name": "example_table_lark"
+          "eventType": "i",
+          "afterData": {
+            "phone": "13320063291",
+            "content": "{\"text\":\"<at user_id=\\\"ou_056b8040b36ba4ee19473e08cf56d673\\\">Gavin</at> Hello! This is lark !\"}"
+          },
+          "beforeData": {},
+          "referenceTime": 0,
+          "tableName": "example_table_lark"
         }
       ]
     },
-    "delete_record": {
-      "eventDataList": [
-        {
-          "event_type": "i",
-          "after_data": {},
-          "before_data": {},
-          "reference_time": 0,
-          "table_name": "example_table_lark"
-        }
-      ]
-    },
-    "update_record": {
-      "eventDataList": [
-        {
-          "event_type": "i",
-          "after_data": {},
-          "before_data": {},
-          "reference_time": 0,
-          "table_name": "example_table_lark"
-        }
-      ]
-    },
-    "write_record": {
-      "eventDataList": [
-        {
-          "event_type": "i",
-          "after_data": {},
-          "before_data": {},
-          "reference_time": 0,
-          "table_name": "example_table_lark"
-        }
-      ]
-    },
-    "batch_read": {
+    "batchRead": {
       "offset": {},
       "tableName": "example_table_lark",
       "pageSize": 500
     },
-    "stream_read": {
+    "streamRead": {
       "offset": {},
       "tableNameList": [
         "example_table_lark"
       ],
       "pageSize": 500
     },
-    "command_callback": {
+    "commandCallback": {
       "commandInfo": {
         "command": "",
         "action": "",
@@ -74,16 +55,16 @@
         "time": 0
       }
     },
-    "web_hook_event": {
+    "webhookEvent": {
       "tableNameList": [
         "example_table_lark"
       ],
       "eventDataMap": {
-        "event_type": "i",
-        "after_data": {},
-        "before_data": {},
-        "reference_time": 0,
-        "table_name": "example_table_lark"
+        "eventType": "i",
+        "afterData": {},
+        "beforeData": {},
+        "referenceTime": 0,
+        "tableName": "example_table_lark"
       }
     }
   }

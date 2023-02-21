@@ -14,7 +14,6 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
 import java.math.BigDecimal;
@@ -30,7 +29,7 @@ public class MergeHandel extends BigQueryStart {
     public static final Long FIRST_MERGE_DELAY_SECOND = 33 * 60L;
     public static final Long DEFAULT_MERGE_DELAY_SECOND = 3600L;
 
-    public static final String STREAM_TO_BATCH_TIME = "STREAM_TO_BATCH_TIME";
+    public static final String BATCH_TO_STREAM_TIME = "BATCH_TO_STREAM_TIME";
     public static final String MERGE_KEY_ID = "merge_id";
     public static final String MERGE_KEY_ID_LAST = "merge_id_last";
     public static final String HAS_MERGED = "has_merged";
@@ -166,6 +165,20 @@ public class MergeHandel extends BigQueryStart {
             TapLogger.info(TAG, "Temporary table [" + super.config().tempCursorSchema() + "] already exists.");
             return table;
         }
+//        TapTable eventTable = new TapTable(table.getId(),table.getName());
+//        LinkedHashMap<String, TapField> nameFieldMap = table.getNameFieldMap();
+//        if (Objects.nonNull(nameFieldMap)&&!nameFieldMap.isEmpty()){
+//            for (Map.Entry<String, TapField> entry : nameFieldMap.entrySet()) {
+//                TapField value = entry.getValue();
+//                TapField field = new TapField();
+//                field.setName(value.getName());
+//                field.setComment(value.getComment());
+//                field.setPrimaryKey(value.getPrimaryKey());
+//                field.setNullable(value.getNullable());
+//                eventTable.add(field);
+//            }
+//        }
+//        this.createSchema(eventTable, tableId);
         this.createSchema(table, tableId);
         return table;
     }
@@ -210,16 +223,16 @@ public class MergeHandel extends BigQueryStart {
                     .append("` ")
                     .append(dataType.toUpperCase());
             //DEFAULT
-            String defaultValue = tapField.getDefaultValue() == null ? "" : tapField.getDefaultValue().toString();
-            if (Checker.isNotEmpty(defaultValue)) {
-                if (defaultValue.contains("'")) {
-                    defaultValue = defaultValue.replaceAll("'", "\\'");
-                }
-                if (tapField.getTapType() instanceof TapNumber) {
-                    defaultValue = defaultValue.trim();
-                }
-                structSql.append(" DEFAULT '").append(defaultValue).append("' ");
-            }
+            //String defaultValue = tapField.getDefaultValue() == null ? "" : tapField.getDefaultValue().toString();
+            //if (Checker.isNotEmpty(defaultValue)) {
+            //    if (defaultValue.contains("'")) {
+            //        defaultValue = defaultValue.replaceAll("'", "\\'");
+            //    }
+            //    if (tapField.getTapType() instanceof TapNumber) {
+            //        defaultValue = defaultValue.trim();
+            //    }
+            //    structSql.append(" DEFAULT '").append(defaultValue).append("' ");
+            //}
 
             // comment
             String comment = tapField.getComment();
@@ -399,11 +412,14 @@ public class MergeHandel extends BigQueryStart {
         Object hasMergedTime = this.stateMap.get(MergeHandel.HAS_MERGED);
         this.hasMerged = Objects.nonNull(hasMergedTime) && hasMergedTime instanceof Boolean;
         long time = this.hasMerged ? this.mergeDelaySeconds : MergeHandel.DEFAULT_MERGE_DELAY_SECOND;
-        if (!this.hasMerged) {
-            long now = System.nanoTime();
-            long defaultTimeSecond = (now - (Long) hasMergedTime) / 1000000000L;
-            time = defaultTimeSecond > time - this.mergeDelaySeconds ? this.mergeDelaySeconds : this.mergeDelaySeconds - defaultTimeSecond;
-            this.stateMap.save(MergeHandel.HAS_MERGED,now);
+        synchronized (this){
+            if (!this.hasMerged && Objects.isNull(this.future)) {
+                long now = System.nanoTime();
+                Object batchToStreamTime = this.stateMap.get(MergeHandel.BATCH_TO_STREAM_TIME);
+                long defaultTimeSecond = Objects.isNull(batchToStreamTime)? 0 : (now - (Long) batchToStreamTime) / 1000000000L;
+                time = defaultTimeSecond > time - this.mergeDelaySeconds ? this.mergeDelaySeconds : time - defaultTimeSecond;
+                this.stateMap.save(MergeHandel.HAS_MERGED,now);
+            }
         }
         this.mergeTemporaryTableToMainTable(mainTable,time,false);
     }
@@ -418,7 +434,6 @@ public class MergeHandel extends BigQueryStart {
                 this.future = this.scheduledExecutorService.scheduleWithFixedDelay(this.mergeRunnable(), 0, mergeDelaySeconds, TimeUnit.SECONDS);
             }else if (needRestart){
                 if (!this.future.isCancelled()){
-//                    List<Runnable> runnable = this.scheduledExecutorService.shutdownNow();
                     this.future.cancel(true);
                     this.future = null;
                 }
@@ -454,7 +469,7 @@ public class MergeHandel extends BigQueryStart {
      * return next merge time
      */
     private Long needMergeTime(String tableId) {
-        Long streamToBatchTime = this.stateMap.getLong(tableId, MergeHandel.STREAM_TO_BATCH_TIME);
+        Long streamToBatchTime = this.stateMap.getLong(tableId, MergeHandel.BATCH_TO_STREAM_TIME);
         if (Objects.isNull(streamToBatchTime)) return null;
         Long mergeId = this.stateMap.getLong(tableId, MergeHandel.MERGE_KEY_ID);
         // 启动merge线程

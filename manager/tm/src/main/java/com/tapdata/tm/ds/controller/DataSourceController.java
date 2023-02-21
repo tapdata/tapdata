@@ -17,6 +17,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.bean.NoSchemaFilter;
 import com.tapdata.tm.ds.dto.ConnectionStats;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.param.ValidateTableParam;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.ds.vo.AllDataSourceConnectionVo;
@@ -91,7 +92,27 @@ public class DataSourceController extends BaseController {
     @Operation(summary = "修改数据源连接")
     @PatchMapping
     public ResponseMessage<DataSourceConnectionDto> update(@RequestBody DataSourceConnectionDto updateDto) {
-        return success(dataSourceService.update(getLoginUser(), updateDto));
+        return success(dataSourceService.update(getLoginUser(), updateDto, !(
+                DataSourceEntity.STATUS_TESTING.equals(updateDto.getStatus()) || "loading".equals(updateDto.getLoadFieldsStatus()) // 界面连接测试和加载模型不修改时间
+        )));
+    }
+
+    /**
+     * 测试连接时，以及修改属性，都调用该方法
+     *
+     * @param dataSource dataSource
+     * @return DataSourceConnectionDto
+     */
+    @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
+    @PatchMapping("{id}")
+    public ResponseMessage<DataSourceConnectionDto> updateById(@PathVariable("id") String id, @RequestBody(required = false) DataSourceConnectionDto dataSource) {
+        if (dataSource == null) {
+            dataSource = new DataSourceConnectionDto();
+        }
+        dataSource.setId(MongoUtils.toObjectId(id));
+        return success(dataSourceService.update(getLoginUser(), dataSource, !(
+                DataSourceEntity.STATUS_TESTING.equals(dataSource.getStatus()) || "loading".equals(dataSource.getLoadFieldsStatus()) // 界面连接测试和加载模型不修改时间
+        )));
     }
 
     /**
@@ -215,23 +236,6 @@ public class DataSourceController extends BaseController {
         HashMap<String, Boolean> existsValue = new HashMap<>();
         existsValue.put("exists", count > 0);
         return success(existsValue);
-    }
-
-
-    /**
-     * 测试连接时，以及修改属性，都调用该方法
-     *
-     * @param dataSource dataSource
-     * @return DataSourceConnectionDto
-     */
-    @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
-    @PatchMapping("{id}")
-    public ResponseMessage<DataSourceConnectionDto> updateById(@PathVariable("id") String id, @RequestBody(required = false) DataSourceConnectionDto dataSource) {
-        if (dataSource == null) {
-            dataSource = new DataSourceConnectionDto();
-        }
-        dataSource.setId(MongoUtils.toObjectId(id));
-        return success(dataSourceService.update(getLoginUser(), dataSource));
     }
 
     /**
@@ -427,6 +431,31 @@ public class DataSourceController extends BaseController {
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
     @PostMapping("update")
     public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
+        Where where = parseWhere(whereJson);
+
+        long count;
+        UserDetail user = getLoginUser();
+        if (reqBody.indexOf("\"$set\"") > 0 || reqBody.indexOf("\"$setOnInsert\"") > 0 || reqBody.indexOf("\"$unset\"") > 0) {
+            Document updateDto = InstanceFactory.instance(JsonParser.class).fromJson(reqBody, Document.class);
+            count = dataSourceService.upsertByWhere(where, updateDto, null, user);
+        } else {
+            DataSourceConnectionDto connectionDto = JsonUtil.parseJsonUseJackson(reqBody, DataSourceConnectionDto.class);
+            count = dataSourceService.upsertByWhere(where, null, connectionDto, user);
+        }
+        HashMap<String, Long> countValue = new HashMap<>();
+        countValue.put("count", count);
+        return success(countValue);
+    }
+
+    /**
+     * Update instances of the model matched by {{where}} from the data source.
+     *
+     * @param whereJson whereJson
+     * @return DataSourceConnectionDto
+     */
+    @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
+    @PostMapping("not-change-last/update")
+    public ResponseMessage<Map<String, Long>> updateByWhereNotChangeLast(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
         Where where = parseWhere(whereJson);
 
         long count;

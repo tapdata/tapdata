@@ -13,6 +13,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.protobuf.Descriptors.DescriptorValidationException;
 import io.grpc.LoadBalancerRegistry;
 import io.grpc.internal.PickFirstLoadBalancerProvider;
+import io.tapdata.bigquery.service.stream.v2.WriteBigQueryException;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import org.json.JSONArray;
@@ -156,7 +157,7 @@ public class WriteCommittedStream {
             AppendRowsResponse response = this.writer.append(jsonArr, this.streamOffset.addAndGetBefore(jsonArr.length()));
             //AppendRowsResponse.AppendResult appendResult = response.getAppendResult();
         } catch (Exception e) {
-            throw new CoreException("Stream API write record to target error, data offset is : " + this.streamOffset.get() + ", message:" + e.getMessage());
+            throw new WriteBigQueryException("Stream API write record to target error, data offset is : " + this.streamOffset.get() + ", message:" + e.getMessage());
         }
     }
 

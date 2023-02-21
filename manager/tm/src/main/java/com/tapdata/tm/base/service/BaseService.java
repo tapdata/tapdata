@@ -431,6 +431,11 @@ public abstract class BaseService<Dto extends BaseDto, Entity extends BaseEntity
         return repository.updateFirst(new Query(Criteria.where("_id").is(id)), update, userDetail);
     }
 
+    public UpdateResult updateByIdNotChangeLast(ID id, Update update, UserDetail userDetail) {
+        Assert.notNull(id, "Id must not be null!");
+        return repository.updateFirstNotChangeLast(new Query(Criteria.where("_id").is(id)), update, userDetail);
+    }
+
     public UpdateResult updateById(String id, Update update, UserDetail userDetail) {
         Assert.notNull(id, "Id must not be null!");
 

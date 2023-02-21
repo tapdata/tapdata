@@ -62,9 +62,6 @@ import com.tapdata.tm.proxy.dto.SubscribeDto;
 import com.tapdata.tm.proxy.dto.SubscribeResponseDto;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
 import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.typemappings.constant.TypeMappingDirection;
-import com.tapdata.tm.typemappings.entity.TypeMappingsEntity;
-import com.tapdata.tm.typemappings.service.TypeMappingsService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -75,7 +72,6 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
-import io.tapdata.pdk.core.utils.TapConstants;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -207,7 +203,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	 * @param updateDto
 	 * @return
 	 */
-	public DataSourceConnectionDto update(UserDetail user, DataSourceConnectionDto updateDto) {
+	public DataSourceConnectionDto update(UserDetail user, DataSourceConnectionDto updateDto, boolean changeLast) {
 		Boolean submit = updateDto.getSubmit();
 		String oldName = updateCheck(user, updateDto);
 
@@ -247,7 +243,11 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			update.set("table_filter", null);
 		}
 
-		updateById(updateDto.getId(), update, user);
+		if (changeLast) {
+			updateById(updateDto.getId(), update, user);
+		} else {
+			updateByIdNotChangeLast(updateDto.getId(), update, user);
+		}
 
 		updateDto = findById(updateDto.getId(), user);
 
@@ -1145,7 +1145,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		if (CollectionUtils.isEmpty(availableAgent)) {
 			Criteria.where("id").is(connectionDto.getId());
 			Update updateInvalid = Update.update("status", "invalid").set("errorMsg", "no agent");
-			updateById(connectionDto.getId(), updateInvalid, user);
+			updateByIdNotChangeLast(connectionDto.getId(), updateInvalid, user);
 			log.info("send test connection, agent not found");
 			return;
 
@@ -1321,168 +1321,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 				if (hasSchema) {
 					if (CollectionUtils.isNotEmpty(tables)) {
-
-						//处理自定义加载的表。
-//						Boolean loadAllTable = oldConnectionDto.getLoadAllTables();
-//						if (loadAllTable != null && !loadAllTable) {
-//							String table_filter = oldConnectionDto.getTable_filter();
-//							if (StringUtils.isNotBlank(table_filter)) {
-//								List<String> loadTables = Splitter.on(',').trimResults().omitEmptyStrings().splitToList(table_filter);
-//								if (CollectionUtils.isNotEmpty(loadTables)) {
-//									tables = tables.stream().filter(t -> loadTables.contains(t.getName())).collect(Collectors.toList());
-//
-//								}
-//							}
-//						}
-						for (TapTable table : tables) {
-							if (table.getNameFieldMap() != null && table.getNameFieldMap().size() != 0) {
-								String expression = definitionDto.getExpression();
-								PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(table.getNameFieldMap() == null ? new LinkedHashMap<>() : table.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
-							}
-						}
-
-						List<MetadataInstancesDto> newModels = tables.stream().map(tapTable -> {
-							MetadataInstancesDto instance = PdkSchemaConvert.fromPdk(tapTable);
-							instance.setAncestorsName(instance.getOriginalName());
-							return instance;
-						}).collect(Collectors.toList());
-						//List<MetadataInstancesDto> newModels = SchemaTransformUtils.oldSchema2newSchema(schema);
-						log.info("upsert new models into MetadataInstance: {}, connection id = {}, connection name = {}",
-								newModels.size(), connectionId, oldConnectionDto.getName());
-
-						Map<String, List<TypeMappingsEntity>> typeMapping =
-								typeMappingsService.getTypeMapping(oldConnectionDto.getDatabase_type(), TypeMappingDirection.TO_TAPTYPE);
-						String dbVersion = oldConnectionDto.getDb_version();
-						if (com.tapdata.manager.common.utils.StringUtils.isBlank(dbVersion)) {
-							dbVersion = "*";
-						}
-						String finalDbVersion = dbVersion;
-
-						newModels.forEach(model -> {
-							if (model.getFields() != null) {
-								model.getFields().forEach(field -> {
-									String originalDataType = field.getDataType();
-									if (StringUtils.isEmpty(field.getOriginalDataType())) {
-										field.setOriginalDataType(originalDataType);
-									}
-
-									String cacheKey = originalDataType + "-" + finalDbVersion;
-									List<TypeMappingsEntity> typeMappings = null;
-									if (typeMapping.containsKey(cacheKey)) {
-										typeMappings = typeMapping.get(cacheKey);
-									} else if (typeMapping.containsKey(originalDataType + "-*")) {
-										cacheKey = originalDataType + "-*";
-										typeMappings = typeMapping.get(cacheKey);
-									}
-									if (typeMappings == null || typeMappings.size() == 0) {
-										log.error("Not found tap type mapping rule for databaseType={}, dbVersion={}, dbFieldType={}",
-												oldConnectionDto.getDatabase_type(), finalDbVersion, originalDataType);
-										return;
-									}
-									if (typeMappings.size() == 1) {
-										field.setTapType(typeMappings.get(0).getTapType());
-									} else {
-										Integer precision = field.getPrecision();
-										Integer scale = field.getScale();
-										String dataType = field.getDataType();
-										TypeMappingsEntity optimalType = null;
-
-										Function<TypeMappingsEntity, Integer> sortFactor = (TypeMappingsEntity tm1) -> {
-											long factorPrecision = 0;
-											long factorScale = 0;
-											if (precision != null) {
-												Long tm1MinPrecision = tm1.getMinPrecision();
-												Long tm1MaxPrecision = tm1.getMaxPrecision();
-												factorPrecision = (tm1MaxPrecision != null ? tm1MaxPrecision : 0L) -
-														(tm1MinPrecision != null ? tm1MinPrecision : 0L);
-											}
-											if (scale != null) {
-												Long tm1MinScale = tm1.getMinScale();
-												Long tm1MaxScale = tm1.getMaxScale();
-												factorScale = (tm1MaxScale != null ? tm1MaxScale : 0L) -
-														(tm1MinScale != null ? tm1MinScale : 0L);
-											}
-											return Long.valueOf(factorPrecision + factorScale).intValue();
-										};
-
-										List<TypeMappingsEntity> optimalTypeList = typeMappings.stream().filter(tm -> {
-											if (precision != null) { // 过滤掉 type mapping 中 precision 为 null 或者 min max 范围不包含 字段长度的规则
-												if (tm.getMinPrecision() == null || tm.getMinPrecision() > precision)
-													return false;
-												if (tm.getMaxPrecision() == null || tm.getMaxPrecision() < precision)
-													return false;
-											}
-											if (scale != null && !"String".equalsIgnoreCase(dataType)) { //过滤掉 type mapping 中 scale 为 null 或者 min max 范围不包含 字段精度的规则
-												if (tm.getMinScale() == null || tm.getMinScale() > scale)
-													return false;
-												if (tm.getMaxScale() == null || tm.getMaxScale() < scale)
-													return false;
-											}
-
-											if (precision == null && scale == null) {
-												return tm.getMaxPrecision() == null && tm.getMinPrecision() == null &&
-														tm.getMaxScale() == null && tm.getMinScale() == null;
-											} else if (precision == null) {
-												return tm.getMaxPrecision() == null && tm.getMinPrecision() == null;
-											} else if (scale == null) {
-												return tm.getMaxScale() == null && tm.getMinScale() == null;
-											}
-
-											return true;
-										}).sorted((tm1, tm2) -> { // 按照 长度范围、精度范围排序，将最符合的排在上面
-
-											int tm1Factor = sortFactor.apply(tm1);
-											int tm2Factor = sortFactor.apply(tm2);
-
-											return tm1Factor - tm2Factor;
-
-										}).collect(Collectors.toList());
-
-										//optimalTypeList = _optimalTypeList.size() > 0 ? _optimalTypeList : typeMappings;
-										//}
-
-										if (optimalTypeList.size() == 1) {
-											optimalType = optimalTypeList.get(0);
-										}
-
-										if (optimalType == null) {
-											optimalType = typeMappings.get(0);
-										}
-
-										if (optimalType != null) {
-											field.setTapType(optimalType.getTapType());
-										}
-									}
-								});
-							}
-						});
-
-						if (CollectionUtils.isNotEmpty(newModels)) {
-							for (MetadataInstancesDto newModel : newModels) {
-								List<Field> fields = newModel.getFields();
-								if (CollectionUtils.isNotEmpty(fields)) {
-									for (Field field : fields) {
-										field.setSourceDbType(oldConnectionDto.getDatabase_type());
-									}
-								}
-							}
-
-							Long schemaVersion = (Long) set.get("lastUpdate");
-							String loadFieldsStatus = (String) set.get("loadFieldsStatus");
-							oldConnectionDto.setLoadSchemaField(set.get("loadSchemaField") != null ? ((Boolean) set.get("loadSchemaField")) : true);
-							List<MetadataInstancesDto> newModelList = metadataUtil.modelNext(newModels, oldConnectionDto, databaseId, user);
-
-							Pair<Integer, Integer> pair = metadataInstancesService.bulkUpsetByWhere(newModelList, user);
-							List<String> qualifiedNames = newModelList.stream().filter(Objects::nonNull).map(MetadataInstancesDto::getQualifiedName)
-									.filter(StringUtils::isNotBlank).collect(Collectors.toList());
-							metadataInstancesService.qualifiedNameLinkLogic(qualifiedNames, user);
-							String name = newModelList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList()).toString();
-							log.info("Upsert model, model list = {}, values = {}, modify count = {}, insert count = {}"
-									, newModelList.size(), name, pair.getLeft(), pair.getRight());
-							deleteModels(loadFieldsStatus, connectionId, schemaVersion, user);
-							update.put("loadSchemaTime", new Date());
-
-						}
 						Long schemaVersion = (Long) set.get("lastUpdate");
 						String loadFieldsStatus = (String) set.get("loadFieldsStatus");
 						Boolean loadSchemaField = set.get("loadSchemaField") != null ? ((Boolean) set.get("loadSchemaField")) : true;
@@ -1819,7 +1657,9 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		return findAllDto(query, user);
 	}
 
-	public void batchImport(List<DataSourceConnectionDto> connectionDtos, UserDetail user, boolean cover) {
+	public Map<String, DataSourceConnectionDto> batchImport(List<DataSourceConnectionDto> connectionDtos, UserDetail user, boolean cover) {
+
+		Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
 		for (DataSourceConnectionDto connectionDto : connectionDtos) {
 			Query query = new Query(Criteria.where("_id").is(connectionDto.getId()));
 			query.fields().include("_id");
@@ -1828,7 +1668,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				while (checkRepeatNameBool(user, connectionDto.getName(), null)) {
 					connectionDto.setName(connectionDto.getName() + "_import");
 				}
-				repository.importEntity(convertToEntity(DataSourceEntity.class, connectionDto), user);
+				connection = importEntity(connectionDto, user);
 			} else {
 				if (cover) {
 					ObjectId objectId = connection.getId();
@@ -1842,10 +1682,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					connectionDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
 
 
-					save(connectionDto, user);
+					connection = save(connectionDto, user);
 				}
 			}
+
+			conMap.put(connectionDto.getId().toHexString(), connection);
+
 		}
+		return conMap;
 	}
 
 	public List<DataSourceConnectionDto> listAll(Filter filter, UserDetail loginUser) {
@@ -1973,7 +1817,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			update.set("timeZone", options.getTimeZone());
 		}
 
-		updateById(id, update, user);
+		updateByIdNotChangeLast(id, update, user);
 
 	}
 
@@ -2047,10 +1891,33 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		loadSchema(user, tables, connectionDto, definitionDto.getExpression(), databaseModelId, true);
 	}
 
-	@Data
+	public void batchEncryptConfig() {
+		Query query = Query.query(Criteria
+				.where("config").ne(null)
+				.and("encryptConfig").exists(false));
+		query.fields().include("_id", "config");
+		List<DataSourceEntity> result = repository.findAll(query);
+		result.forEach(entity -> {
+
+			repository.encryptConfig(entity);
+
+			if (entity.getEncryptConfig() != null) {
+				repository.update(Query.query(Criteria.where("id").is(entity.getId())),
+						Update.update("encryptConfig", entity.getEncryptConfig()).unset("config"));
+			}
+		});
+	}
+
+    @Data
 	protected static class Part{
 		private String _id;
 		private long count;
+	}
+
+
+	public DataSourceConnectionDto importEntity(DataSourceConnectionDto dto, UserDetail userDetail) {
+		DataSourceEntity dataSourceEntity = repository.importEntity(convertToEntity(DataSourceEntity.class, dto), userDetail);
+		return convertToDto(dataSourceEntity, DataSourceConnectionDto.class);
 	}
 
 }

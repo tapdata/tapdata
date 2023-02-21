@@ -12,6 +12,7 @@ import org.apache.commons.net.ftp.FTPReply;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -20,7 +21,6 @@ import java.util.function.Consumer;
 
 public class FtpFileStorage implements TapFileStorage {
 
-    private final static String TAG = FtpFileStorage.class.getSimpleName();
     private FtpConfig ftpConfig;
     private FTPClient ftpClient;
 
@@ -129,6 +129,30 @@ public class FtpFileStorage implements TapFileStorage {
             ftpClient.storeFile(encodeISO(path.substring(path.lastIndexOf("/") + 1)), is);
         }
         return getFile(path);
+    }
+
+    public OutputStream openFileOutputStream(String path, boolean append) throws IOException {
+        OutputStream os;
+        if (append) {
+            os = ftpClient.appendFileStream(encodeISO(path));
+        } else {
+            os = ftpClient.storeFileStream(encodeISO(path));
+        }
+
+        return new OutputStream() {
+
+            @Override
+            public void write(int b) throws IOException {
+                os.write(b);
+            }
+
+            @Override
+            public void close() throws IOException {
+                os.close();
+                ftpClient.completePendingCommand();
+            }
+
+        };
     }
 
     @Override

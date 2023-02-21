@@ -85,9 +85,9 @@ public class BigQueryStream extends BigQueryStart {
         return new BigQueryStream(context).stateMap(context);
     }
 
-    public WriteListResult<TapRecordEvent> writeRecord(List<TapRecordEvent> events, TapTable table) throws InterruptedException, IOException, Descriptors.DescriptorValidationException {
+    public synchronized WriteListResult<TapRecordEvent> writeRecord(List<TapRecordEvent> events, TapTable table) throws InterruptedException, IOException, Descriptors.DescriptorValidationException {
         String tableId = table.getId();
-        Long streamToBatchTime = this.stateMap.getLong(tableId, MergeHandel.STREAM_TO_BATCH_TIME);
+        Long streamToBatchTime = this.stateMap.getLong(tableId, MergeHandel.BATCH_TO_STREAM_TIME);
         boolean needCreateTemporaryTable = Objects.isNull(streamToBatchTime);
         Long mergeId = this.stateMap.getLong(tableId, MergeHandel.MERGE_KEY_ID);
         EventAfter eventAfter = new EventAfter(streamToBatchTime)
@@ -100,7 +100,7 @@ public class BigQueryStream extends BigQueryStart {
         if (!eventAfter.appendData().isEmpty()) {
             synchronized (this.lock) {
                 this.createWriteCommittedStream(tableId).append(eventAfter.appendData());
-                this.stateMap.saveForTable(tableId, MergeHandel.STREAM_TO_BATCH_TIME, streamToBatchTime);
+                this.stateMap.saveForTable(tableId, MergeHandel.BATCH_TO_STREAM_TIME, streamToBatchTime);
                 //this.batch.close();
             }
             //this.batch.close();
@@ -109,8 +109,13 @@ public class BigQueryStream extends BigQueryStart {
             // 创建临时表
             if (needCreateTemporaryTable) {
                 String temporaryTableName = super.tempCursorSchema(tableId, this.stateMap);
-                this.merge.createTemporaryTable(table, temporaryTableName);
+                try {
+                    this.merge.createTemporaryTable(table, temporaryTableName);
+                }catch (Exception e){
+                    TapLogger.error(TAG,"Temporary table creation failed. temporary table name: {}, table name: {},  ",temporaryTableName,tableId);
+                }
                 this.stateMap.saveForTable(tableId, ContextConfig.TEMP_CURSOR_SCHEMA_NAME, temporaryTableName);
+                this.stateMap.save(MergeHandel.BATCH_TO_STREAM_TIME, System.nanoTime());
                 TapLogger.info(TAG, String.format(" The data has been written in stream mode,and will be written to a temporary table. A temporary table has been created for [ %s ] which name is: %s", tableId, temporaryTableName));
                 this.tableWithTempTable.put(tableId, temporaryTableName);
             }
@@ -166,7 +171,7 @@ public class BigQueryStream extends BigQueryStart {
             }
             //this.stream.close();
             Optional.ofNullable(eventAfter.mergeKeyId()).ifPresent(e -> this.stateMap.saveForTable(tableId, MergeHandel.MERGE_KEY_ID, e));
-            Optional.ofNullable(eventAfter.streamToBatchTime()).ifPresent(e -> this.stateMap.saveForTable(tableId, MergeHandel.STREAM_TO_BATCH_TIME, e));
+            Optional.ofNullable(eventAfter.streamToBatchTime()).ifPresent(e -> this.stateMap.saveForTable(tableId, MergeHandel.BATCH_TO_STREAM_TIME, e));
         }
         return result.removedCount(eventAfter.delete())
                 .insertedCount(eventAfter.insert())
@@ -247,13 +252,14 @@ public class BigQueryStream extends BigQueryStart {
                     if (this.isAppend) {
                         this.isAppend = false;
                         this.streamToBatchTime = System.nanoTime();
+                        TapLogger.info(TAG,"The full quantity has ended and is entering the increment. The data will be written to the temporary table. Please note.");
                     }
                     if (event instanceof TapUpdateRecordEvent) {
                         this.update++;
                     } else if (event instanceof TapDeleteRecordEvent) {
                         this.delete++;
                     } else {
-                        TapLogger.warn(TAG, "Error Event.");
+                        TapLogger.warn(TAG, "Unable to process invalid time type, invalid record, ignored. ");
                     }
                 }
                 if (this.isAppend) {

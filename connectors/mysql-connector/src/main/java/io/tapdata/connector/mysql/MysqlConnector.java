@@ -24,20 +24,28 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
+import io.tapdata.partition.DatabaseReadPartitionSplitter;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
+import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
+import io.tapdata.pdk.apis.partition.ReadPartition;
+import io.tapdata.pdk.apis.partition.TapPartitionFilter;
+import io.tapdata.pdk.apis.partition.splitter.StringCaseInsensitiveSplitter;
+import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -124,8 +132,58 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
         connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> mysqlJdbcContext.getConnection(), c));
+        connectorFunctions.supportQueryFieldMinMaxValueFunction(this::minMaxValue);
+        connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
     }
 
+    private void getReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions options) {
+        DatabaseReadPartitionSplitter.calculateDatabaseReadPartitions(connectorContext, table, options)
+                .queryFieldMinMaxValue(this::minMaxValue)
+                .typeSplitterMap(options.getTypeSplitterMap().registerSplitter(TypeSplitterMap.TYPE_STRING, StringCaseInsensitiveSplitter.INSTANCE))
+                .startSplitting();
+    }
+
+    private void partitionRead(TapConnectorContext connectorContext, TapTable table, ReadPartition readPartition, int eventBatchSize, Consumer<List<TapEvent>> consumer) {
+
+    }
+
+    private FieldMinMaxValue minMaxValue(TapConnectorContext tapConnectorContext, TapTable tapTable, TapAdvanceFilter tapPartitionFilter, String fieldName) {
+        SqlMaker sqlMaker = new MysqlMaker();
+        FieldMinMaxValue fieldMinMaxValue = FieldMinMaxValue.create().fieldName(fieldName);
+        String selectSql, aaa;
+        try {
+            selectSql = sqlMaker.selectSql(tapConnectorContext, tapTable, TapPartitionFilter.create().fromAdvanceFilter(tapPartitionFilter));
+        } catch (Throwable e) {
+            throw new RuntimeException("Build sql with partition filter failed", e);
+        }
+        // min value
+        String minSql = selectSql.replaceFirst("SELECT \\* FROM", String.format("SELECT MIN(`%s`) AS MIN_VALUE FROM", fieldName));
+        AtomicReference<Object> minObj = new AtomicReference<>();
+        try {
+            mysqlJdbcContext.query(minSql, rs->{
+                if (rs.next()) {
+                    minObj.set(rs.getObject("MIN_VALUE"));
+                }
+            });
+        } catch (Throwable e) {
+            throw new RuntimeException("Query min value failed, sql: " + minSql, e);
+        }
+        Optional.ofNullable(minObj.get()).ifPresent(min -> fieldMinMaxValue.min(min).detectType(min));
+        // max value
+        String maxSql = selectSql.replaceFirst("SELECT \\* FROM", String.format("SELECT MAX(`%s`) AS MAX_VALUE FROM", fieldName));
+        AtomicReference<Object> maxObj = new AtomicReference<>();
+        try {
+            mysqlJdbcContext.query(maxSql, rs->{
+                if (rs.next()) {
+                    maxObj.set(rs.getObject("MAX_VALUE"));
+                }
+            });
+        } catch (Throwable e) {
+            throw new RuntimeException("Query max value failed, sql: " + maxSql, e);
+        }
+        Optional.ofNullable(maxObj.get()).ifPresent(max -> fieldMinMaxValue.max(max).detectType(max));
+        return fieldMinMaxValue;
+    }
 
     private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
         RetryOptions retryOptions = RetryOptions.create();
@@ -334,9 +392,14 @@ public class MysqlConnector extends ConnectorBase {
         FilterResults filterResults = new FilterResults();
         filterResults.setFilter(tapAdvanceFilter);
         try {
+            int batchSize = MAX_FILTER_RESULT_SIZE;
+            if(tapAdvanceFilter.getBatchSize() != null && tapAdvanceFilter.getBatchSize() > 0) {
+                batchSize = tapAdvanceFilter.getBatchSize();
+            }
+            int finalBatchSize = batchSize;
             this.mysqlReader.readWithFilter(tapConnectorContext, tapTable, tapAdvanceFilter, n -> !isAlive(), data -> {
                 filterResults.add(data);
-                if (filterResults.getResults().size() == MAX_FILTER_RESULT_SIZE) {
+                if (filterResults.getResults().size() == finalBatchSize) {
                     consumer.accept(filterResults);
                     filterResults.getResults().clear();
                 }

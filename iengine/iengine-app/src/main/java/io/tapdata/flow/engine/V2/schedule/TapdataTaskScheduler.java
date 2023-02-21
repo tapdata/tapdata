@@ -3,25 +3,27 @@ package io.tapdata.flow.engine.V2.schedule;
 import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.AppType;
-import com.tapdata.entity.ResponseBody;
 import com.tapdata.entity.dataflow.DataFlow;
+import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.sdk.available.TmStatusService;
 import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
-import io.tapdata.exception.RestException;
 import io.tapdata.flow.engine.V2.common.FixScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.common.ScheduleTaskConfig;
+import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
+import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.task.operation.StartTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.StopTaskOperation;
 import io.tapdata.flow.engine.V2.task.operation.TaskOperation;
-import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -37,10 +39,17 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -72,7 +81,6 @@ public class TapdataTaskScheduler {
 	private final LinkedBlockingQueue<TaskOperation> taskOperationsQueue = new LinkedBlockingQueue<>(100);
 	private final ExecutorService taskOperationThreadPool = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors() + 1, Runtime.getRuntime().availableProcessors() + 1,
 			0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
-	private CountDownLatch taskOpCountDown;
 	private Map<String, ScheduleTaskConfig> scheduleTaskConfigs = new ConcurrentHashMap<>();
 	private Map<String, ScheduledFuture<?>> scheduledFutureMap = new ConcurrentHashMap<>();
 
@@ -127,18 +135,8 @@ public class TapdataTaskScheduler {
 			Thread.currentThread().setName("Task-Operation-Consumer");
 			while (true) {
 				try {
-					TaskOperation taskOperation = taskOperationsQueue.poll(3L, TimeUnit.SECONDS);
+					TaskOperation taskOperation = taskOperationsQueue.poll(1L, TimeUnit.SECONDS);
 					if (null == taskOperation) continue;
-					if (null == taskOpCountDown) {
-						taskOpCountDown = new CountDownLatch(1);
-					} else {
-						while (true) {
-							if (taskOpCountDown.await(1L, TimeUnit.SECONDS)) {
-								taskOpCountDown = new CountDownLatch(1);
-								break;
-							}
-						}
-					}
 					handleTaskOperation(taskOperation);
 				} catch (InterruptedException e) {
 					break;
@@ -189,33 +187,30 @@ public class TapdataTaskScheduler {
 
 	private void handleTaskOperation(TaskOperation taskOperation) {
 		taskOperationThreadPool.submit(() -> {
-			String taskId = null;
-			try {
-				if (taskOperation instanceof StartTaskOperation) {
-					StartTaskOperation startTaskOperation = (StartTaskOperation) taskOperation;
-					Thread.currentThread().setName(String.format("Start-Task-Operation-Handler-%s[%s]", startTaskOperation.getTaskDto().getName(), startTaskOperation.getTaskDto().getId()));
-					taskId = startTaskOperation.getTaskDto().getId().toHexString();
-					Object lock = lockTask(taskId);
-					synchronized (lock) {
-						taskOpCountDown.countDown();
+			String taskId;
+			if (taskOperation instanceof StartTaskOperation) {
+				StartTaskOperation startTaskOperation = (StartTaskOperation) taskOperation;
+				Thread.currentThread().setName(String.format("Start-Task-Operation-Handler-%s[%s]", startTaskOperation.getTaskDto().getName(), startTaskOperation.getTaskDto().getId()));
+				taskId = startTaskOperation.getTaskDto().getId().toHexString();
+				Object lock = lockTask(taskId);
+				synchronized (lock) {
+					try {
 						startTask(startTaskOperation.getTaskDto());
+					} finally {
+						unlockTask(taskId);
 					}
-				} else if (taskOperation instanceof StopTaskOperation) {
-					StopTaskOperation stopTaskOperation = (StopTaskOperation) taskOperation;
-					Thread.currentThread().setName(String.format("Stop-Task-Operation-Handler-%s", stopTaskOperation.getTaskId()));
-					taskId = stopTaskOperation.getTaskId();
-					Object lock = lockTask(taskId);
-					synchronized (lock) {
-						taskOpCountDown.countDown();
+				}
+			} else if (taskOperation instanceof StopTaskOperation) {
+				StopTaskOperation stopTaskOperation = (StopTaskOperation) taskOperation;
+				Thread.currentThread().setName(String.format("Stop-Task-Operation-Handler-%s", stopTaskOperation.getTaskId()));
+				taskId = stopTaskOperation.getTaskId();
+				Object lock = lockTask(taskId);
+				synchronized (lock) {
+					try {
 						stopTask(stopTaskOperation.getTaskId());
+					} finally {
+						Optional.ofNullable(taskId).ifPresent(this::unlockTask);
 					}
-				}
-			} finally {
-				if (StringUtils.isNotBlank(taskId)) {
-					unlockTask(taskId);
-				}
-				if (taskOpCountDown.getCount() > 0) {
-					taskOpCountDown.countDown();
 				}
 			}
 			logger.info("Handled task operation: {}", taskOperation);
@@ -260,7 +255,7 @@ public class TapdataTaskScheduler {
 			return;
 		}
 		logger.info("Stop task which agent id is {} and status is {}", instanceNo, TaskDto.STATUS_STOPPING);
-		clientMongoOperator.postOne(null, ConnectorConstant.TASK_COLLECTION+"/stopTaskByAgentId/"+instanceNo, Object.class);
+		clientMongoOperator.postOne(null, ConnectorConstant.TASK_COLLECTION + "/stopTaskByAgentId/" + instanceNo, Object.class);
 	}
 
 	/**
@@ -298,7 +293,7 @@ public class TapdataTaskScheduler {
 	 * Run task(s) already started, find clause: status=running and agentID={@link TapdataTaskScheduler#instanceNo}
 	 */
 	public void runTaskIfNeedWhenEngineStart() {
-		if (!appType.isCloud()) return;
+//		if (!appType.isCloud()) return;
 		Query query = new Query(
 				new Criteria("agentId").is(instanceNo)
 						.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_RUNNING)
@@ -390,28 +385,77 @@ public class TapdataTaskScheduler {
 		Thread.currentThread().setName(String.format(ConnectorConstant.INTERNAL_STOP_TASK_THREAD, instanceNo));
 		try {
 			for (Map.Entry<String, TaskClient<TaskDto>> entry : taskClientMap.entrySet()) {
-
 				TaskClient<TaskDto> taskClient = entry.getValue();
 				final String taskId = taskClient.getTask().getId().toHexString();
 				if (TmStatusService.isNotAllowReport(taskId)) {
 					continue;
 				}
-				final String status = taskClient.getStatus();
-				StopTaskResource stopTaskResource = null;
-				if (TaskDto.STATUS_ERROR.equals(status)) {
-					stopTaskResource = StopTaskResource.RUN_ERROR;
-				} else if (TaskDto.STATUS_STOP.equals(status) || TaskDto.STATUS_STOPPING.equals(status)) {
-					stopTaskResource = StopTaskResource.STOPPED;
-				} else if (TaskDto.STATUS_COMPLETE.equals(status)) {
-					stopTaskResource = StopTaskResource.COMPLETE;
-				}
-				if (null != stopTaskResource) {
-					stopTaskCallAssignApi(taskClient, stopTaskResource);
+				if (!taskClient.isRunning()) {
+					StopTaskResource stopTaskResource = null;
+					TerminalMode terminalMode = taskClient.getTerminalMode();
+					if (TerminalMode.STOP_GRACEFUL == terminalMode) {
+						stopTaskResource = StopTaskResource.STOPPED;
+					} else if (TerminalMode.COMPLETE == terminalMode) {
+						stopTaskResource = StopTaskResource.COMPLETE;
+					} else {
+
+						if (canTaskRetry(taskClient)) {
+							boolean resumeResult = taskClient.resume();
+							if (resumeResult) {
+								logger.info("Resume task[{}] time: {}", taskClient.getTask().getName(), taskClient.getRetryTime());
+							}
+						} else {
+							stopTaskResource = StopTaskResource.RUN_ERROR;
+						}
+					}
+					if (null != stopTaskResource) {
+						stopTaskCallAssignApi(taskClient, stopTaskResource);
+					}
 				}
 			}
 		} catch (Exception e) {
 			logger.error("Scan force stopping data flow failed {}", e.getMessage(), e);
 		}
+	}
+
+	private boolean canTaskRetry(TaskClient<TaskDto> taskClient) {
+		// Check task client implementation of canRetry method
+		if (!taskClient.canRetry()) {
+			return false;
+		}
+		TaskDto task = taskClient.getTask();
+		String taskId = task.getId().toHexString();
+		Query query = Query.query(where("_id").is(taskId));
+		query.fields().include("attrs.syncProgress").include("type");
+		TaskDto findTask = clientMongoOperator.findOne(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+		Map<String, Object> attrs = findTask.getAttrs();
+		if (MapUtils.isNotEmpty(attrs) && attrs.containsKey("syncProgress")) {
+			// Check task sync progress
+			// If all sync pipeline run into cdc, then restart task
+			// If not, then cancel task
+			Object syncProgress = attrs.get("syncProgress");
+			if (syncProgress instanceof Map) {
+				for (Map.Entry<?, ?> syncProgressEntry : ((Map<?, ?>) syncProgress).entrySet()) {
+					Object key = syncProgressEntry.getKey();
+					Object value = syncProgressEntry.getValue();
+					if (!(key instanceof String) || !(value instanceof String)) {
+						return false;
+					}
+					try {
+						SyncProgress progress = JSONUtil.json2POJO((String) value, SyncProgress.class);
+						String streamOffset = progress.getStreamOffset();
+						if (StringUtils.isBlank(streamOffset)) {
+							return false;
+						}
+					} catch (IOException e) {
+						return false;
+					}
+				}
+				return true;
+			}
+		}
+		SyncTypeEnum syncType = SyncTypeEnum.get(findTask.getType());
+		return syncType != SyncTypeEnum.INITIAL_SYNC && syncType != SyncTypeEnum.INITIAL_SYNC_CDC;
 	}
 
 	private void destroyCache(TaskClient<TaskDto> taskClient) {
@@ -517,8 +561,14 @@ public class TapdataTaskScheduler {
 	private void stopTask(String taskId) {
 		TaskClient<TaskDto> taskDtoTaskClient = taskClientMap.get(taskId);
 		if (null == taskDtoTaskClient) {
+			try {
+				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
+			} catch (Exception e) {
+				logger.warn(e.getMessage(), e);
+			}
 			return;
 		}
+		taskDtoTaskClient.terminalMode(TerminalMode.STOP_GRACEFUL);
 		taskDtoTaskClient.getTask().setManualStop(true);
 		stopTaskCallAssignApi(taskDtoTaskClient, StopTaskResource.STOPPED);
 	}

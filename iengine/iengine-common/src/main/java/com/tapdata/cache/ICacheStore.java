@@ -8,9 +8,9 @@ import java.util.Map;
  */
 public interface ICacheStore {
 
-  void cacheRow(String cacheName, String key, List<Map<String, Object>> rows);
+  void cacheRow(String cacheName, String key, List<Map<String, Object>> rows) throws Throwable;
 
-  void removeByKey(String cacheName, String cacheKey, String pkKey);
+  void removeByKey(String cacheName, String cacheKey, String pkKey) throws Throwable;
 
   default void destroy() {
 

@@ -1,10 +1,13 @@
 package io.tapdata.connector.mysql.util;
 
+import io.debezium.util.HexConverter;
 import org.apache.commons.lang3.StringUtils;
 
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.ZonedDateTime;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
 import java.util.Random;
 import java.util.TimeZone;
 import java.util.regex.Pattern;
@@ -15,6 +18,9 @@ import java.util.regex.Pattern;
  * @create 2022-05-06 20:31
  **/
 public class MysqlUtil extends JdbcUtil {
+
+	private static final DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSSSS");
+	private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS");
 
 	public static Integer getSubVersion(String version, int index) {
 		if (StringUtils.isBlank(version)) {
@@ -138,5 +144,31 @@ public class MysqlUtil extends JdbcUtil {
 		int seconds = (int) (time % (1000 * 60) / 1000);
 		timeTemp = (hours < 10 ? ("0" + hours) : hours) + ":" + (minutes < 10 ? ("0" + minutes) : minutes) + ":" + (seconds < 10 ? ("0" + seconds) : seconds);
 		return timeTemp;
+	}
+
+	public static String object2String(Object obj) {
+		String result;
+		if (null == obj) {
+			result = "null";
+		} else if (obj instanceof String) {
+			result = "'" + ((String) obj).replaceAll("\\\\", "\\\\\\\\").replaceAll("'", "\\\\'").replaceAll("\\(", "\\\\(").replaceAll("\\)", "\\\\)") + "'";
+		} else if (obj instanceof Number) {
+			result = obj.toString();
+		} else if (obj instanceof Date) {
+			result = "'" + dateFormat.format(obj) + "'";
+		} else if (obj instanceof Instant) {
+			result = "'" + LocalDateTime.ofInstant((Instant) obj, ZoneId.of("GMT")).format(dateTimeFormatter) + "'";
+		} else if (obj instanceof byte[]) {
+			String hexString = HexConverter.convertToHexString((byte[]) obj);
+			return "X'" + hexString + "'";
+		} else if (obj instanceof Boolean) {
+			if ("true".equalsIgnoreCase(obj.toString())) {
+				return "1";
+			}
+			return "0";
+		} else {
+			return "'" + obj + "'";
+		}
+		return result;
 	}
 }

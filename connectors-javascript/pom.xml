@@ -9,22 +9,19 @@
     <packaging>pom</packaging>
 
 	<modules>
-		<!--<module>metabase-connector</module>
+		<module>js-core</module>
 		<module>coding-demo-connector</module>
-		<module>lark-connector</module>-->
+		<module>lark-connector</module>
 		<module>zoho-crm-connector</module>
-<!--		<module>js-test-connector</module>-->
-<!--		<module>metabase-connector</module>-->
-<!--		<module>fly-book-connector</module>-->
-<!--		<module>demo-connector</module>-->
+		<module>metabase-connector</module>
 	</modules>
 
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
 		<java.version>8</java.version>
 		<tapdata.pdk.runner.version>1.2-SNAPSHOT</tapdata.pdk.runner.version>
-		<tapdata.api.version>1.2-SNAPSHOT</tapdata.api.version>
-		<tapdata.pdk.api.version>1.2-SNAPSHOT</tapdata.pdk.api.version>
+		<tapdata.api.version>1.2.0</tapdata.api.version>
+		<tapdata.pdk.api.version>1.2.0</tapdata.pdk.api.version>
 		<tapdata.pdk.connector.core.version>1.0-SNAPSHOT</tapdata.pdk.connector.core.version>
 		<junit.jupiter.version>5.8.1</junit.jupiter.version>
 		<junit.platform.version>1.8.1</junit.platform.version>
@@ -33,6 +30,7 @@
 		<log4j.version>2.17.1</log4j.version>
 		<guava.version>31.0.1-jre</guava.version>
 	</properties>
+
 	<dependencyManagement>
 		<dependencies>
 			<dependency>
@@ -128,13 +126,18 @@
 
 		</plugins>
 	</build>
-    <distributionManagement>
-        <repository>
-            <!--必须与 settings.xml 的 id 一致-->
-            <id>tapdata-tapdata-maven</id>
-            <name>maven</name>
-            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
-        </repository>
-    </distributionManagement>
+	<repositories>
+		<repository>
+			<id>tapdata-tapdata-maven</id>
+			<name>maven</name>
+			<url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
+			<snapshots>
+				<enabled>true</enabled>
+			</snapshots>
+		</repository>
+	</repositories>
 </project>
 

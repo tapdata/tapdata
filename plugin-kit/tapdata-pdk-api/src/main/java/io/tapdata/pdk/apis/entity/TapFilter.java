@@ -2,7 +2,9 @@ package io.tapdata.pdk.apis.entity;
 
 import io.tapdata.entity.utils.DataMap;
 
-public class TapFilter {
+import java.io.Serializable;
+
+public class TapFilter implements Serializable {
     protected DataMap match;
 
     public static TapFilter create() {

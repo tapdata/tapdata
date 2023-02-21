@@ -1,0 +1,26 @@
+#!/bin/bash
+
+PRG="$0"
+
+while [ -h "$PRG" ]; do
+  ls=`ls -ld "$PRG"`
+  link=`expr "$ls" : '.*-> \(.*\)$'`
+  if expr "$link" : '/.*' > /dev/null; then
+    PRG="$link"
+  else
+    PRG=`dirname "$PRG"`/"$link"
+  fi
+done
+
+PRGDIR=`dirname "$PRG"`
+BASEDIR=`cd "$PRGDIR/.." >/dev/null; pwd`
+
+PLUGIN_CLI=$BASEDIR/target/appassembler/bin/tap-plugin
+
+if [ ! -f $PLUGIN_CLI ]; then
+  echo "Building......"
+  ./mvnw clean install -q
+  echo "Done"
+fi
+
+sh $PLUGIN_CLI $*

@@ -36,6 +36,8 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.customNode.dto.CustomNodeDto;
+import com.tapdata.tm.customNode.service.CustomNodeService;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
@@ -174,6 +176,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private MetadataDefinitionService metadataDefinitionService;
 
     public final static String LOG_COLLECTOR_SAVE_ID = "log_collector_save_id";
+
+    private CustomNodeService customNodeService;
 
     public TaskService(@NonNull TaskRepository repository) {
         super(repository, TaskDto.class, TaskEntity.class);
@@ -1715,6 +1719,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             cacheNode.setMaxMemory(maxMemory == null ? 500 : maxMemory.intValue());
             Integer ttl = MapUtil.getInt(targetNodeMap, "ttl");
             cacheNode.setTtl(ttl == null ? Integer.MAX_VALUE : TimeUtil.parseDayToSeconds(ttl));
+            String externalStorageId = MapUtil.getStr(targetNodeMap, "externalStorageId");
+            cacheNode.setExternalStorageId(externalStorageId);
 
             edge.setSource(sourceId);
             edge.setTarget(targetId);
@@ -2302,6 +2308,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                                 jsonList.add(new TaskUpAndLoadDto("MetadataInstances", JsonUtil.toJsonUseJackson(dataSourceMetadataInstance)));
                                 jsonList.add(new TaskUpAndLoadDto("Connections", JsonUtil.toJsonUseJackson(dataSourceConnectionDto)));
                             }
+
+                            if (node instanceof CustomProcessorNode) {
+                                String customNodeId = ((CustomProcessorNode) node).getCustomNodeId();
+                                CustomNodeDto customNodeDto = customNodeService.findById(MongoUtils.toObjectId(customNodeId), user);
+                                jsonList.add(new TaskUpAndLoadDto("CustomNodeTemps", JsonUtil.toJsonUseJackson(customNodeDto)));
+                            }
                         }
                     } catch (Exception e) {
                         log.error("node data error", e);
@@ -2351,6 +2363,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         List<MetadataInstancesDto> metadataInstancess = new ArrayList<>();
         List<TaskDto> tasks = new ArrayList<>();
         List<DataSourceConnectionDto> connections = new ArrayList<>();
+        List<CustomNodeDto> customNodeDtos = new ArrayList<>();
         for (TaskUpAndLoadDto taskUpAndLoadDto : taskUpAndLoadDtos) {
             try {
                 String dtoJson = taskUpAndLoadDto.getJson();
@@ -2363,30 +2376,41 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     tasks.add(JsonUtil.parseJsonUseJackson(dtoJson, TaskDto.class));
                 } else if ("Connections".equals(taskUpAndLoadDto.getCollectionName())) {
                     connections.add(JsonUtil.parseJsonUseJackson(dtoJson, DataSourceConnectionDto.class));
+                } else if ("CustomNodeTemps".equals(taskUpAndLoadDto.getCollectionName())) {
+                    customNodeDtos.add(JsonUtil.parseJsonUseJackson(dtoJson, CustomNodeDto.class));
                 }
             } catch (Exception e) {
                 log.error("error", e);
             }
         }
 
+        Map<String, CustomNodeDto> customNodeMap = new HashMap<>();
+        Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
+        Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
         try {
-            metadataInstancesService.batchImport(metadataInstancess, user, cover);
+            customNodeMap = customNodeService.batchImport(customNodeDtos, user, cover);
+            conMap = dataSourceService.batchImport(connections, user, cover);
+            metaMap = metadataInstancesService.batchImport(metadataInstancess, user, cover, conMap);
         } catch (Exception e) {
             log.error("metadataInstancesService.batchImport error", e);
         }
         try {
-            dataSourceService.batchImport(connections, user, cover);
-        } catch (Exception e) {
-            log.error("dataSourceService.batchImport error", e);
-        }
-        try {
-            batchImport(tasks, user, cover, tags);
+            batchImport(tasks, user, cover, tags, conMap, metaMap);
         } catch (Exception e) {
             log.error("tasks.batchImport error", e);
         }
     }
 
-    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<String> tags) {
+    /**
+     *
+     * @param taskDtos
+     * @param user
+     * @param cover
+     * @param tags
+     * @param conMap 为后续多租户的调整做准备
+     * @param metaMap 为后续多租户的调整做准备
+     */
+    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<String> tags, Map<String, DataSourceConnectionDto> conMap, Map<String, MetadataInstancesDto> metaMap) {
 
         List<Tag> tagList = new ArrayList<>();
 
@@ -2618,6 +2642,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (taskDto.getAttrs() != null) {
             taskDto.getAttrs().remove("syncProgress");
             taskDto.getAttrs().remove("edgeMilestones");
+            taskDto.getAttrs().remove("milestone");
+            taskDto.getAttrs().remove("nodeMilestones");
             AutoInspectUtil.removeProgress(taskDto.getAttrs());
 
             set.set("attrs", taskDto.getAttrs());
@@ -3404,10 +3430,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public void startPlanCronTask() {
         Criteria migrateCriteria = Criteria.where("crontabExpressionFlag").is(true)
+                .and("type").is(TaskDto.TYPE_INITIAL_SYNC)
                 .and("crontabExpression").exists(true)
                 .and("is_deleted").is(false)
                 .andOperator(Criteria.where("status").nin(TaskDto.STATUS_EDIT,TaskDto.STATUS_STOPPING,
-                        TaskDto.STATUS_RUNNING,TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING,TaskDto.STATUS_SCHEDULING));
+                        TaskDto.STATUS_RUNNING,TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING,TaskDto.STATUS_SCHEDULING,
+                        TaskDto.STATUS_DELETE_FAILED));
         Query taskQuery = new Query(migrateCriteria);
         List<TaskDto> taskList = findAll(taskQuery);
         if (CollectionUtils.isNotEmpty(taskList)) {

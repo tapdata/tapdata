@@ -24,7 +24,7 @@
  *          ];
  * @param connectionConfig  Configuration property information of the connection page
  * */
-function discover_schema(connectionConfig) {
+function discoverSchema(connectionConfig) {
     return ['Leads','Contacts','Accounts','Potentials','Quotes'];
 }
 
@@ -37,7 +37,7 @@ function discover_schema(connectionConfig) {
  * @param pageSize Processing number of each batch of data in the full stage
  * @param batchReadSender  Sender of submitted data
  * */
-function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
+function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
     if(!offset){
         offset = {
             page:1,
@@ -73,23 +73,23 @@ function batch_read(connectionConfig, nodeConfig, offset, tableName, pageSize, b
  * @param pageSize
  * @param streamReadSender
  * */
-var batchStart = nowDate();
+var batchStart = dateUtils.nowDate();
 var startTime = new Date();
-function stream_read(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
+function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
     if (!isParam(offset) || null == offset || typeof(offset) != 'object') offset = {};
     for(let x in tableNameList) {
       let tableName = tableNameList[x];
       let isFirst = false;
       if(!offset[tableName]){
-        offset[tableName] = {tableName:tableName, page: 1, Conditions:[{Key: 'UPDATED_AT',Value: batchStart + '_' + nowDate()}]} ;
+        offset[tableName] = {tableName:tableName, page: 1, Conditions:[{Key: 'UPDATED_AT',Value: batchStart + '_' + dateUtils.nowDate()}]} ;
         isFirst = true;
       }
-        let condition = firstElement(offset[tableName].Conditions);
-        offset[tableName].Conditions = [{Key:"UPDATED_AT",Value: isParam(condition) && null != condition ? firstElement(condition.Value.split('_')) + '_' + nowDate(): batchStart + '_' + nowDate()}];
+        let condition = arrayUtils.firstElement(offset[tableName].Conditions);
+        offset[tableName].Conditions = [{Key:"UPDATED_AT",Value: isParam(condition) && null != condition ? arrayUtils.firstElement(condition.Value.split('_')) + '_' + dateUtils.nowDate(): batchStart + '_' + dateUtils.nowDate()}];
         if(isFirst){
-        offset[tableName]['If-Modified-Since'] = DateUtil.timeStamp2Date((startTime.getTime() - 60000)+"", "yyyy-MM-dd'T'HH:mm:ssXXX");
+        offset[tableName]['If-Modified-Since'] = dateUtils.timeStamp2Date((startTime.getTime() - 60000)+"", "yyyy-MM-dd'T'HH:mm:ssXXX");
         } else {
-        offset[tableName]['If-Modified-Since'] = DateUtil.timeStamp2Date((new Date().getTime() - 60000)+"", "yyyy-MM-dd'T'HH:mm:ssXXX");
+        offset[tableName]['If-Modified-Since'] = dateUtils.timeStamp2Date((new Date().getTime() - 60000)+"", "yyyy-MM-dd'T'HH:mm:ssXXX");
         }
         iterateAllData('getDataA', offset[tableName], (result, offsetNext, error) => {
             let haveNext = false;
@@ -115,20 +115,20 @@ function stream_read(connectionConfig, nodeConfig, offset, tableNameList, pageSi
 /**
  * @return The returned result is not empty and must be in the following form:
  *          [
- *              {"TEST": String, "CODE": Number, "RESULT": String},
- *              {"TEST": String, "CODE": Number, "RESULT": String},
+ *              {"test": String, "code": Number, "result": String},
+ *              {"test": String, "code": Number, "result": String},
  *              ...
  *          ]
- *          param - TEST :  The type is a String, representing the description text of the test item.
- *          param - CODE :  The type is a Number, is the type of test result. It can only be [-1, 0, 1], -1 means failure, 1 means success, 0 means warning.
- *          param - RESULT : The type is a String, descriptive text indicating test results.
+ *          param - test :  The type is a String, representing the description text of the test item.
+ *          param - code :  The type is a Number, is the type of test result. It can only be [-1, 0, 1], -1 means failure, 1 means success, 0 means warning.
+ *          param - result : The type is a String, descriptive text indicating test results.
  * @param connectionConfig  Configuration property information of the connection page
  * */
-function connection_test(connectionConfig) {
+function connectionTest(connectionConfig) {
     return [{
-        "TEST": "Example test item",
-        "CODE": 1,
-        "RESULT": "Pass"
+        "test": "Example test item",
+        "code": 1,
+        "result": "Pass"
     }];
 }
 
@@ -139,7 +139,7 @@ function connection_test(connectionConfig) {
  * @param nodeConfig
  * @param commandInfo
  * */
-function command_callback(connectionConfig, nodeConfig, commandInfo) {
+function commandCallback(connectionConfig, nodeConfig, commandInfo) {
     if (commandInfo.command === 'TokenCommand') {
         let body = {
             client_id:connectionConfig.client_id,
@@ -178,7 +178,7 @@ function command_callback(connectionConfig, nodeConfig, commandInfo) {
  *      - null : Semantics are the same as {}
  *      - {"key":"value",...} : Type is Object and has key-value ,  At this point, these values will be used to call the interface again after the results are returned.
  * */
-function update_token(connectionConfig, nodeConfig, apiResponse) {
+function updateToken(connectionConfig, nodeConfig, apiResponse) {
     if (apiResponse.httpCode === 401 || (apiResponse.result && apiResponse.result.code === 'INVALID_TOKEN')) {
         try{
             let refreshToken = invoker.invokeWithoutIntercept("refreshToken");

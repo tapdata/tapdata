@@ -20,7 +20,7 @@ public interface ICacheGetter {
    * @return 集合
    * @throws InterruptedException 线程中断异常
    */
-  Map<String, Object> getAndSetCache(String cacheName, Boolean lookup, Object... cacheKeys) throws InterruptedException;
+  Map<String, Object> getAndSetCache(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable;
 
   /**
    * 获取并设置缓存
@@ -31,7 +31,7 @@ public interface ICacheGetter {
    * @return 集合
    * @throws InterruptedException 线程中断异常
    */
-  List<Map<String, Object>> getAndSetCacheArray(String cacheName, Boolean lookup, Object... cacheKeys) throws InterruptedException;
+  List<Map<String, Object>> getAndSetCacheArray(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable;
 
   /**
    * 根据 缓存名+键 取缓存集合
@@ -41,7 +41,7 @@ public interface ICacheGetter {
    * @return 集合
    * @throws InterruptedException 线程中断异常
    */
-  Map<String, Object> getCache(String cacheName, Boolean lookup, Object... cacheKeys) throws InterruptedException;
+  Map<String, Object> getCache(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable;
 
   /**
    * 根据 缓存名+键 取缓存集合
@@ -51,7 +51,7 @@ public interface ICacheGetter {
    * @return 集合
    * @throws InterruptedException 线程中断异常
    */
-  default Map<String, Object> getCache(String cacheName, Object... cacheKeys) throws InterruptedException {
+  default Map<String, Object> getCache(String cacheName, Object... cacheKeys) throws Throwable {
     return getCache(cacheName, true, cacheKeys);
   }
 
@@ -65,7 +65,7 @@ public interface ICacheGetter {
    * @return 字段值
    * @throws InterruptedException 线程中断异常
    */
-  Object getCacheItem(String cacheName, String field, Object defaultValue, Object... cacheKeys) throws InterruptedException;
+  Object getCacheItem(String cacheName, String field, Object defaultValue, Object... cacheKeys) throws Throwable;
 
   /**
    * @return

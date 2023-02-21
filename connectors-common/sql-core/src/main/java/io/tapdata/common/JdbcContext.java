@@ -200,4 +200,8 @@ public abstract class JdbcContext {
      * @return List<index info>
      */
     public abstract List<DataMap> queryAllIndexes(List<String> tableNames);
+
+    public HikariDataSource getHikariDataSource() {
+        return hikariDataSource;
+    }
 }

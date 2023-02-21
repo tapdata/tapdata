@@ -15,6 +15,7 @@ import io.tapdata.storage.kit.EmptyKit;
 import io.tapdata.storage.kit.FileMatchKit;
 
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
@@ -132,6 +133,16 @@ public class OssFileStorage implements TapFileStorage {
             ossClient.putObject(ossConfig.getBucket(), path, is, objectMetadata);
         }
         return getFile(path);
+    }
+
+    @Override
+    public OutputStream openFileOutputStream(String path, boolean append) throws Exception {
+        return null;
+    }
+
+    @Override
+    public boolean supportAppendData() {
+        return TapFileStorage.super.supportAppendData();
     }
 
     @Override

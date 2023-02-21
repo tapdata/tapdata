@@ -12,7 +12,7 @@ import java.util.Date;
 import java.util.TimeZone;
 
 public class AnyTimeToDateTime {
-    private static ClassHandlers classHandlers = new ClassHandlers();
+    private static final ClassHandlers classHandlers = new ClassHandlers();
 
     static {
         classHandlers.register(Date.class, DateTime::new);
@@ -29,15 +29,21 @@ public class AnyTimeToDateTime {
     private static Object specialTypeHandler(Object obj) {
         if(obj instanceof Number)
             obj = ((Number) obj).longValue();
+//        else if(obj instanceof DateTime)
+//            return (DateTime) obj;
         return obj;
     }
 
     public static DateTime toDateTime(Object obj) {
-        return (DateTime) classHandlers.handle(specialTypeHandler(obj));
+        if(obj == null)
+            return null;
+        obj = specialTypeHandler(obj);
+        if(obj instanceof DateTime)
+            return (DateTime) obj;
+        return (DateTime) classHandlers.handle(obj);
     }
 
     public static DateTime toDateTime(Object obj, Integer fraction) {
-        obj = specialTypeHandler(obj);
         if(fraction != null && obj instanceof Long) {
             return new DateTime((Long) obj, fraction);
         } else {

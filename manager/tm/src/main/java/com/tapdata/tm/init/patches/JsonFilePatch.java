@@ -12,6 +12,7 @@ import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.SpringContextHelper;
 import lombok.NonNull;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.Document;
@@ -35,12 +36,14 @@ public class JsonFilePatch extends AbsPatch {
     private final @NonNull String fileName;
     private final @NonNull String scriptStr;
     private final @NonNull MongoTemplate mongoTemplate;
+    private final Map<String, String> allVariables;
 
-    public JsonFilePatch(@NonNull PatchType type, @NonNull PatchVersion version, @NonNull String fileName, @NonNull String scriptStr) {
+    public JsonFilePatch(@NonNull PatchType type, @NonNull PatchVersion version, @NonNull String fileName, @NonNull String scriptStr, @NonNull Map<String, String> allVariables) {
         super(type, version);
         this.fileName = fileName;
         this.scriptStr = scriptStr;
         this.mongoTemplate = SpringContextHelper.getBean(MongoTemplate.class);
+        this.allVariables = allVariables;
     }
 
     @Override
@@ -217,11 +220,27 @@ public class JsonFilePatch extends AbsPatch {
         }
     }
     public void executeCommand(String scripts) {
+        scripts = replaceScript(scripts);
         try {
             Document document = mongoTemplate.executeCommand(scripts);
             logger.info("executeCommand result: {}", document);
         } catch (Exception e) {
             logger.warn("execute scripts failed, scripts = "+ scripts, e);
         }
+    }
+
+    private String replaceScript(String script) {
+        if (StringUtils.isBlank(script)) {
+            return script;
+        }
+        String finalScript = script;
+        String findKey = allVariables.keySet().stream().filter(key -> finalScript.contains("${" + key + "}")).findFirst().orElse(null);
+        if (null != findKey) {
+            String replaceValue = allVariables.get(findKey);
+            if (null != replaceValue) {
+                script = script.replaceAll("\\$\\{" + findKey + "}", allVariables.get(findKey));
+            }
+        }
+        return script;
     }
 }

@@ -1,11 +1,14 @@
 package com.tapdata.tm.customNode.service;
 
 import com.tapdata.tm.base.service.BaseService;
+import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.customNode.dto.CustomNodeDto;
 import com.tapdata.tm.customNode.entity.CustomNodeEntity;
 import com.tapdata.tm.customNode.repository.CustomNodeRepository;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.Lists;
@@ -21,8 +24,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -87,6 +92,32 @@ public class CustomNodeService extends BaseService<CustomNodeDto, CustomNodeEnti
 
         List<TaskDto> taskDtos = taskService.findAllDto(query, user);
         return taskDtos;
+    }
+
+    public Map<String, CustomNodeDto> batchImport(List<CustomNodeDto> customNodeDtos, UserDetail user, boolean cover) {
+
+        Map<String, CustomNodeDto> conMap = new HashMap<>();
+        for (CustomNodeDto customNodeDto : customNodeDtos) {
+            Query query = new Query(Criteria.where("_id").is(customNodeDto.getId()));
+            query.fields().include("_id");
+            CustomNodeDto customNode = findOne(query);
+            if (customNode == null) {
+                customNode = importEntity(customNodeDto, user);
+            } else {
+                if (cover) {
+                    customNode = save(customNodeDto, user);
+                }
+            }
+
+            conMap.put(customNodeDto.getId().toHexString(), customNode);
+
+        }
+        return conMap;
+    }
+
+    public CustomNodeDto importEntity(CustomNodeDto dto, UserDetail userDetail) {
+        CustomNodeEntity entity = repository.importEntity(convertToEntity(CustomNodeEntity.class, dto), userDetail);
+        return convertToDto(entity, CustomNodeDto.class);
     }
 }
 

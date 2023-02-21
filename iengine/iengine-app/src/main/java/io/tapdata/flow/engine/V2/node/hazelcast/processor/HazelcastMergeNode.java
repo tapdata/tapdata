@@ -1,18 +1,29 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.hazelcast.core.HazelcastInstance;
-import com.tapdata.constant.*;
-import com.tapdata.entity.*;
+import com.hazelcast.persistence.PersistenceStorage;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.HazelcastUtil;
+import com.tapdata.constant.Log4jUtil;
+import com.tapdata.constant.MapUtilV2;
+import com.tapdata.constant.NotExistsNode;
+import com.tapdata.entity.Connections;
+import com.tapdata.entity.OperationType;
+import com.tapdata.entity.RelateDataBaseTable;
+import com.tapdata.entity.RelateDatabaseField;
+import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
-import io.tapdata.constructImpl.ConstructIMap;
+import io.tapdata.construct.constructImpl.ConstructIMap;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.exception.HazelcastNotExistsException;
+import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
@@ -31,7 +42,13 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -44,6 +61,7 @@ import static com.tapdata.constant.ConnectorConstant.LOOKUP_TABLE_SUFFIX;
  **/
 public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 
+	public static final String TAG = HazelcastMergeNode.class.getSimpleName();
 	private Logger logger = LogManager.getLogger(HazelcastMergeNode.class);
 
 	// 缓存表信息{"前置节点id": "Hazelcast缓存资源{"join value string": {"pk value string": "after data"}}"}
@@ -150,9 +168,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 				if (StringUtils.isBlank(cacheName)) {
 					break;
 				}
-				ConstructIMap<Document> hazelcastConstruct = new ConstructIMap<>(jetContext.hazelcastInstance(), cacheName);
+				ConstructIMap<Document> hazelcastConstruct = new ConstructIMap<>(jetContext.hazelcastInstance(), cacheName, externalStorageDto);
 				this.mergeCacheMap.put(mergeProperty.getId(), hazelcastConstruct);
-				logger.info("Init hazelcast cache, name: " + cacheName + "(" + mergeProperty.getId() + ")");
+				logger.info("Create imap name: {}, external storage: {}", cacheName, externalStorageDto);
+				obsLogger.info("Create imap name: {}, external storage: {}", cacheName, externalStorageDto);
 			}
 		}
 	}
@@ -267,9 +286,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			throw new RuntimeException("Get merge node cache name failed, node id is blank");
 		}
 		if (StringUtils.isBlank(tableName)) {
-			name = nodeId + "_" + LOOKUP_TABLE_SUFFIX;
+			name = TAG + "_" + nodeId + "_" + LOOKUP_TABLE_SUFFIX;
 		} else {
-			name = tableName + "_" + nodeId + "_" + LOOKUP_TABLE_SUFFIX;
+			name = TAG + "_" + tableName + "_" + nodeId + "_" + LOOKUP_TABLE_SUFFIX;
 		}
 		return name;
 	}
@@ -579,7 +598,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			}
 			io.tapdata.pdk.apis.entity.merge.MergeTableProperties pdkMergeTableProperty = copyMergeTableProperty(childMergeProperty);
 			if (MergeTableProperties.MergeType.updateWrite == mergeType) {
-				if (findData.size() > 1) {
+				Set<String> keySet = findData.keySet();
+				keySet.remove("_ts");
+				if (keySet.size() > 1) {
 					logger.warn("Update write merge lookup, find more than one row by join key: " + joinValueKey + ", will use first row: " + data);
 				}
 				String firstKey = findData.keySet().iterator().next();
@@ -632,20 +653,32 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 
 	public static void clearCache(Node<?> node) {
 		if (!(node instanceof MergeTableNode)) return;
-		recursiveClearCache(((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());
+		ExternalStorageDto externalStorage = ExternalStorageUtil.getExternalStorage(node);
+		recursiveClearCache(externalStorage, ((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());
 	}
 
-	private static void recursiveClearCache(List<MergeTableProperties> mergeTableProperties, HazelcastInstance hazelcastInstance) {
+	private static void recursiveClearCache(ExternalStorageDto externalStorageDto, List<MergeTableProperties> mergeTableProperties, HazelcastInstance hazelcastInstance) {
 		if (CollectionUtils.isEmpty(mergeTableProperties)) return;
 		for (MergeTableProperties mergeTableProperty : mergeTableProperties) {
 			String cacheName = getCacheName(mergeTableProperty.getId(), mergeTableProperty.getTableName());
-			ConstructIMap<Document> imap = new ConstructIMap<>(hazelcastInstance, cacheName);
+			ConstructIMap<Document> imap = new ConstructIMap<>(hazelcastInstance, cacheName, externalStorageDto);
 			try {
 				imap.clear();
+				PersistenceStorage.getInstance().destroy(imap.getName());
 			} catch (Exception e) {
 				throw new RuntimeException("Clear imap failed, name: " + cacheName + ", error message: " + e.getMessage(), e);
 			}
-			recursiveClearCache(mergeTableProperty.getChildren(), hazelcastInstance);
+			recursiveClearCache(externalStorageDto, mergeTableProperty.getChildren(), hazelcastInstance);
 		}
+	}
+
+	@Override
+	protected void doClose() throws Exception {
+		if (MapUtils.isNotEmpty(mergeCacheMap)) {
+			for (ConstructIMap<Document> constructIMap : mergeCacheMap.values()) {
+				PersistenceStorage.getInstance().destroy(constructIMap.getName());
+			}
+		}
+		super.doClose();
 	}
 }

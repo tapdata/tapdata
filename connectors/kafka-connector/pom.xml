@@ -11,54 +11,25 @@
     <version>1.0-SNAPSHOT</version>
     <name>kafka-connector</name>
 
+    <properties>
+<!--        <tapdata.pdk.api.version>1.2.0</tapdata.pdk.api.version>-->
+    </properties>
     <!--<dependencyManagement>-->
     <dependencies>
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-api</artifactId>
+            <version>${tapdata.pdk.api.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-runner</artifactId>
-            <scope>provided</scope>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
-            <artifactId>mq-core</artifactId>
-            <version>1.0-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.kafka</groupId>
-            <artifactId>kafka-clients</artifactId>
-            <version>3.1.0</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-api</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.12.6.1</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.kafka</groupId>
-            <artifactId>kafka-streams</artifactId>
-            <version>3.1.0</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-api</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
-        <dependency>
-            <groupId>io.tapdata</groupId>
-            <artifactId>sql-core</artifactId>
+            <artifactId>kafka-core</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
     </dependencies>
@@ -87,7 +58,7 @@
                             <PDK-API-Version>${tapdata.pdk.api.version}</PDK-API-Version>
                             <Tapdata-API-Version>${tapdata.api.version}</Tapdata-API-Version>
                             <Version>${version}</Version>
-                            <Authentication>formal</Authentication>
+                            <Authentication>GA</Authentication>
                             <Git-Build-Time>${git.build.time}</Git-Build-Time>
                             <Git-Branch>${git.branch}</Git-Branch>
                             <Git-Commit-Id>${git.commit.id}</Git-Commit-Id>

@@ -1768,17 +1768,40 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     }
 
 
-    public void batchImport(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user, boolean cover) {
+    public Map<String, MetadataInstancesDto> batchImport(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user, boolean cover, Map<String, DataSourceConnectionDto> conMap) {
+        Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
         for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
+            String connectionId = null;
+            if (metadataInstancesDto.getSource() != null) {
+                connectionId = metadataInstancesDto.getSource().get_id();
+                if (connectionId == null && metadataInstancesDto.getSource().getId() != null) {
+                    connectionId = metadataInstancesDto.getSource().getId().toHexString();
+                }
+            }
+
+            if (connectionId != null) {
+                DataSourceConnectionDto connectionDto = conMap.get(connectionId);
+                if (connectionDto != null) {
+                    SourceDto sourceDto = new SourceDto();
+                    BeanUtils.copyProperties(connectionDto, sourceDto);
+                    metadataInstancesDto.setSource(sourceDto);
+                }
+            }
+            MetadataInstancesDto newMeta = null;
             metadataInstancesDto.setListtags(null);
             long count = count(new Query(new Criteria().orOperator(Criteria.where("_id").is(metadataInstancesDto.getId()),
                     Criteria.where("qualified_name").is(metadataInstancesDto.getQualifiedName()))));
             if (count == 0) {
-                repository.importEntity(convertToEntity(MetadataInstancesEntity.class, metadataInstancesDto), user);
+                newMeta = importEntity(metadataInstancesDto, user);
             } else if (cover) {
-                save(metadataInstancesDto, user);
+                newMeta = save(metadataInstancesDto, user);
+            }
+
+            if (newMeta != null) {
+                metaMap.put(metadataInstancesDto.getId().toHexString(), newMeta);
             }
         }
+        return metaMap;
     }
 
 
@@ -2076,5 +2099,10 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 .where("is_deleted").ne(true)
                 .and("nodeId").is(nodeId);
         return count(Query.query(criteria));
+    }
+
+    public MetadataInstancesDto importEntity(MetadataInstancesDto metadataInstancesDto, UserDetail userDetail) {
+        MetadataInstancesEntity entity = repository.importEntity(convertToEntity(MetadataInstancesEntity.class, metadataInstancesDto), userDetail);
+        return convertToDto(entity, MetadataInstancesDto.class);
     }
 }

@@ -378,6 +378,7 @@ public abstract class TaskCleaner {
 		taskResetEventDto.setNodeName(node.getName());
 		taskResetEventDto.setDescribe(NodeResetDesc.unknown_error.name());
 		taskResetEventDto.failed(throwable);
+		logger.error(throwable);
 		taskCleanerReporter.addEvent(taskCleanerContext.getClientMongoOperator(), taskResetEventDto);
 	}
 }

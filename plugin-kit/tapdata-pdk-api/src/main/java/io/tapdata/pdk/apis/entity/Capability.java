@@ -1,9 +1,10 @@
 package io.tapdata.pdk.apis.entity;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Capability {
+public class Capability implements Serializable {
     public static final int TYPE_DDL = 10;
     public static final int TYPE_FUNCTION = 11;
     public static final int TYPE_OTHER = 20;
