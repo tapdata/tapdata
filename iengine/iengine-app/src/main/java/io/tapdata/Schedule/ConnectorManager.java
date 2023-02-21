@@ -308,10 +308,10 @@ public class ConnectorManager {
 
 		if (!appType.isCloud()) {
 			// init database type(s)
-			initDatabaseTypes();
+//			initDatabaseTypes();
 
 			// init supported list
-			initSupportedList();
+//			initSupportedList();
 
 			// init script task schedule
 			initScriptTaskSchedule(clientMongoOperator);
