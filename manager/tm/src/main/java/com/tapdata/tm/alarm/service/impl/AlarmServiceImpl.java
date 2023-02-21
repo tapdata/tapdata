@@ -121,6 +121,8 @@ public class AlarmServiceImpl implements AlarmService {
                     if (date.after(lastNotifyTime)) {
                         log.info("date:{}",date);
                         info.setLastNotifyTime(date);
+                    }else {
+                        info.setLastNotifyTime(one.getLastNotifyTime());
                     }
                 }
             } else {
