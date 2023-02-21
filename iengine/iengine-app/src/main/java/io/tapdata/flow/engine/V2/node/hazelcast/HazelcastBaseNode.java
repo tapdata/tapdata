@@ -61,7 +61,6 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
-import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
@@ -72,7 +71,6 @@ import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
-import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskClient;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
 import io.tapdata.flow.engine.V2.util.TapCache;
@@ -574,7 +572,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				TaskClient<TaskDto> taskDtoTaskClient = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(processorBaseContext.getTaskDto().getId().toHexString());
 				if (taskDtoTaskClient != null) {
 					TaskDto taskDto = taskDtoTaskClient.getTask();
-					processorBaseContext.getTaskDto().setManualStop(taskDto.isManualStop());
+					processorBaseContext.getTaskDto().setSnapShotInterrupt(taskDto.isSnapShotInterrupt());
 				}
 			}, TAG);
 			obsLogger.info(String.format("Node %s[%s] running status set to false", getNode().getName(), getNode().getId()));
