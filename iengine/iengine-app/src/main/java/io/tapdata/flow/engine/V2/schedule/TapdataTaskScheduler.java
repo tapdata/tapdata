@@ -406,6 +406,7 @@ public class TapdataTaskScheduler {
 					stopTaskResource = StopTaskResource.COMPLETE;
 				}
 				if (null != stopTaskResource) {
+					taskClient.getTask().setSnapShotInterrupt(true);
 					stopTaskCallAssignApi(taskClient, stopTaskResource);
 				}
 			}
@@ -519,7 +520,7 @@ public class TapdataTaskScheduler {
 		if (null == taskDtoTaskClient) {
 			return;
 		}
-		taskDtoTaskClient.getTask().setManualStop(true);
+		taskDtoTaskClient.getTask().setSnapShotInterrupt(true);
 		stopTaskCallAssignApi(taskDtoTaskClient, StopTaskResource.STOPPED);
 	}
 
