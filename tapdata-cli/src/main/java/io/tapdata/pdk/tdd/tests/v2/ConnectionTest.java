@@ -6,9 +6,12 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
-import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.tests.support.LangUtil;
+import io.tapdata.pdk.tdd.tests.support.TapAssert;
+import io.tapdata.pdk.tdd.tests.support.TapGo;
+import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,7 +36,7 @@ public class ConnectionTest extends PDKTestBase {
      * 当实现StreamReadFunction的时候， Read log没有上报时， 输出警告。
      * 当实现WriteRecordFunction的时候， Write没有上报时， 输出警告。
      * */
-    void testConnectionTest(){
+    void testConnectionTest() {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             try {
@@ -41,53 +44,53 @@ public class ConnectionTest extends PDKTestBase {
                 TapConnectorContext connectorContext = prepare.connectorNode().getConnectorContext();
                 ConnectorFunctions connectorFunctions = prepare.connectorNode().getConnectorFunctions();
                 //Version， Connection， Login的TestItem项没有上报时， 输出警告。
-                Map<String,TestItem> testItemMap = new HashMap<>();
-                prepare.connectorNode().getConnector().connectionTest(connectorContext,consumer->{
-                    if (null!=consumer) testItemMap.put(consumer.getItem(),consumer);
+                Map<String, TestItem> testItemMap = new HashMap<>();
+                prepare.connectorNode().getConnector().connectionTest(connectorContext, consumer -> {
+                    if (null != consumer) testItemMap.put(consumer.getItem(), consumer);
                 });
                 //String item = consumer.getItem();
-                TapAssert.asserts(()->
-                    Assertions.assertTrue(
-                testItemMap.containsKey(TestItem.ITEM_CONNECTION)||
-                        testItemMap.containsKey(TestItem.ITEM_VERSION)||
-                        testItemMap.containsKey(TestItem.ITEM_LOGIN),
-                        LangUtil.format("connectionTest.testConnectionTest.errorVCL")
-                    )
+                TapAssert.asserts(() ->
+                        Assertions.assertTrue(
+                                testItemMap.containsKey(TestItem.ITEM_CONNECTION) ||
+                                        testItemMap.containsKey(TestItem.ITEM_VERSION) ||
+                                        testItemMap.containsKey(TestItem.ITEM_LOGIN),
+                                LangUtil.format("connectionTest.testConnectionTest.errorVCL")
+                        )
                 ).acceptAsWarn(testCase,
-                    LangUtil.format("connectionTest.testConnectionTest.succeedVCL")
+                        LangUtil.format("connectionTest.testConnectionTest.succeedVCL")
                 );
                 //当实现BatchReadFunction的时候， Read没有上报时， 输出警告。
                 BatchReadFunction batchReadFunction = connectorFunctions.getBatchReadFunction();
-                if (null!=batchReadFunction) {
+                if (null != batchReadFunction) {
                     TapAssert.asserts(() ->
-                        Assertions.assertTrue(testItemMap.containsKey(TestItem.ITEM_READ),
-                            LangUtil.format("connectionTest.testConnectionTest.errorBatchRead"))
+                            Assertions.assertTrue(testItemMap.containsKey(TestItem.ITEM_READ),
+                                    LangUtil.format("connectionTest.testConnectionTest.errorBatchRead"))
                     ).acceptAsWarn(testCase,
-                        LangUtil.format("connectionTest.testConnectionTest.succeedBatchRead")
+                            LangUtil.format("connectionTest.testConnectionTest.succeedBatchRead")
                     );
                 }
                 //当实现StreamReadFunction的时候， Read log没有上报时， 输出警告。
                 StreamReadFunction streamReadFunction = connectorFunctions.getStreamReadFunction();
-                if (null!=streamReadFunction){
-                    TapAssert.asserts(()->
-                        Assertions.assertTrue(testItemMap.containsKey(TestItem.ITEM_READ_LOG),
-                            LangUtil.format("connectionTest.testConnectionTest.errorStreamRead"))
+                if (null != streamReadFunction) {
+                    TapAssert.asserts(() ->
+                            Assertions.assertTrue(testItemMap.containsKey(TestItem.ITEM_READ_LOG),
+                                    LangUtil.format("connectionTest.testConnectionTest.errorStreamRead"))
                     ).acceptAsWarn(testCase,
-                        LangUtil.format("connectionTest.testConnectionTest.succeedStreamRead")
+                            LangUtil.format("connectionTest.testConnectionTest.succeedStreamRead")
                     );
                 }
 
                 //当实现WriteRecordFunction的时候， Write没有上报时， 输出警告。
                 WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
-                if (null!=writeRecordFunction){
-                    TapAssert.asserts(()->
-                        Assertions.assertTrue(testItemMap.containsKey(TestItem.ITEM_WRITE),
-                            LangUtil.format("connectionTest.testConnectionTest.errorWriteRecord"))
+                if (null != writeRecordFunction) {
+                    TapAssert.asserts(() ->
+                            Assertions.assertTrue(testItemMap.containsKey(TestItem.ITEM_WRITE),
+                                    LangUtil.format("connectionTest.testConnectionTest.errorWriteRecord"))
                     ).acceptAsWarn(testCase,
-                        LangUtil.format("connectionTest.testConnectionTest.succeedWriteRecord")
+                            LangUtil.format("connectionTest.testConnectionTest.succeedWriteRecord")
                     );
                 }
-            }catch (Throwable e){
+            } catch (Throwable e) {
                 throw new RuntimeException(e.getMessage());
             }
         });

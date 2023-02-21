@@ -5,10 +5,13 @@ import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
-import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.tests.support.LangUtil;
+import io.tapdata.pdk.tdd.tests.support.TapAssert;
+import io.tapdata.pdk.tdd.tests.support.TapGo;
+import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,7 +31,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
     /**
      * 指定GetTableNamesFunction方法之后， 至少返回一张表， 即为成功
      * */
-    void discover(){
+    void discover() {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
             try {
@@ -43,22 +46,22 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
 
                 //指定GetTableNamesFunction方法之后， 至少返回一张表， 即为成功
                 tableNamesFun.tableNames(
-                    connectorContext,10,
-                    consumer->{
-                        //执行discoverSchema之后， 至少返回一张表
-                        TapAssert.asserts(()->{
-                            Assertions.assertTrue(
-                                null!=consumer && !consumer.isEmpty(),
-                                LangUtil.format("getTableNames.discover.notAnyTable"));
-                        }).acceptAsError(
-                            testCase,
-                            LangUtil.format("getTableNames.discover.succeed",consumer.size())
-                        );
-                    }
+                        connectorContext, 10,
+                        consumer -> {
+                            //执行discoverSchema之后， 至少返回一张表
+                            TapAssert.asserts(() -> {
+                                Assertions.assertTrue(
+                                        null != consumer && !consumer.isEmpty(),
+                                        LangUtil.format("getTableNames.discover.notAnyTable"));
+                            }).acceptAsError(
+                                    testCase,
+                                    LangUtil.format("getTableNames.discover.succeed", consumer.size())
+                            );
+                        }
                 );
-            }catch (Throwable e) {
+            } catch (Throwable e) {
                 throw new RuntimeException(e);
-            }finally {
+            } finally {
                 super.connectorOnStop(prepare);
             }
         });
@@ -74,7 +77,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
      * 表列表里包含随机创建的表即为成功。
      * 验证结束之后需要删掉随机建的表（依赖DropTableFunction）
      * */
-    void discoverAfterCreateTable(){
+    void discoverAfterCreateTable() {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
             try {
@@ -85,69 +88,69 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                 ConnectorNode connectorNode = prepare.connectorNode();
                 TapConnector connector = connectorNode.getConnector();
                 TapConnectorContext connectorContext = connectorNode.getConnectorContext();
-                connector.discoverSchema(connectorContext,new ArrayList<>(),1000, consumer->{
+                connector.discoverSchema(connectorContext, new ArrayList<>(), 1000, consumer -> {
                     //执行discoverSchema之后， 至少返回一张表
-                    TapAssert.asserts(()->{
+                    TapAssert.asserts(() -> {
                         Assertions.assertTrue(
-                            null!=consumer && !consumer.isEmpty(),
-                            LangUtil.format("discover.notAnyTable"));
+                                null != consumer && !consumer.isEmpty(),
+                                LangUtil.format("discover.notAnyTable"));
                     }).acceptAsError(
-                        testCase,
-                        LangUtil.format("discover.succeed",consumer.size())
+                            testCase,
+                            LangUtil.format("discover.succeed", consumer.size())
                     );
 
-                    Map<String, Map<String,String>> warnFieldMap = new HashMap<>();
-                    consumer.stream().forEach(table->{
-                        if (null == table){
-                            TapAssert.asserts(()->
-                                Assertions.fail(LangUtil.format("discover.nullTable"))
+                    Map<String, Map<String, String>> warnFieldMap = new HashMap<>();
+                    consumer.stream().forEach(table -> {
+                        if (null == table) {
+                            TapAssert.asserts(() ->
+                                    Assertions.fail(LangUtil.format("discover.nullTable"))
                             ).error(testCase);
                             return;
                         }
                         //表里有表名即为成功
                         String tableName = table.getId();
-                        if (null == tableName || "".equals(tableName)){
-                            TapAssert.asserts(()->
-                                Assertions.fail(LangUtil.format("discover.emptyTableName"))
+                        if (null == tableName || "".equals(tableName)) {
+                            TapAssert.asserts(() ->
+                                    Assertions.fail(LangUtil.format("discover.emptyTableName"))
                             ).error(testCase);
                             return;
                         }
                         //表里没有字段描述时，报警告
                         LinkedHashMap<String, TapField> nameFieldMap = table.getNameFieldMap();
-                        TapAssert.asserts(()->
-                            Assertions.assertTrue(
-                                null != nameFieldMap && !nameFieldMap.isEmpty(),
-                                LangUtil.format("discover.emptyTFields",tableName))
+                        TapAssert.asserts(() ->
+                                Assertions.assertTrue(
+                                        null != nameFieldMap && !nameFieldMap.isEmpty(),
+                                        LangUtil.format("discover.emptyTFields", tableName))
                         ).warn(testCase);
 
                         //表里有字段， 但是字段的name或者dataType为空时， 报警告， 具体哪些字段有问题
-                        if (null != nameFieldMap && !nameFieldMap.isEmpty()){
+                        if (null != nameFieldMap && !nameFieldMap.isEmpty()) {
                             for (Map.Entry<String, TapField> field : nameFieldMap.entrySet()) {
                                 TapField value = field.getValue();
                                 String name = value.getName();
                                 String type = value.getDataType();
-                                if ( null == name || "".equals(name) || null == type || "".equals(type) ){
+                                if (null == name || "".equals(name) || null == type || "".equals(type)) {
                                     Map<String, String> stringStringMap = warnFieldMap.computeIfAbsent(tableName, tables -> null == warnFieldMap.get(tables) ? new HashMap<>() : warnFieldMap.get(tables));
-                                    stringStringMap.put(name,type);
+                                    stringStringMap.put(name, type);
                                 }
                             }
                         }
                     });
                     StringBuilder warn = new StringBuilder();
                     final String starLine = "\n\t\t\t\t\t";
-                    warnFieldMap.forEach((table,value)->{
+                    warnFieldMap.forEach((table, value) -> {
                         warn.append(starLine).append(table).append(": ");
-                        value.forEach((name,type)->warn.append(starLine).append("\t").append(name).append(":\t").append(type));
+                        value.forEach((name, type) -> warn.append(starLine).append("\t").append(name).append(":\t").append(type));
                     });
-                    TapAssert.asserts(()->
-                        Assertions.assertTrue(
-                            warnFieldMap.isEmpty(),
-                            LangUtil.format("discover.hasWarnFields",warn.toString()))
-                    ).acceptAsWarn(testCase,LangUtil.format("discover.notWarnFields"));
+                    TapAssert.asserts(() ->
+                            Assertions.assertTrue(
+                                    warnFieldMap.isEmpty(),
+                                    LangUtil.format("discover.hasWarnFields", warn.toString()))
+                    ).acceptAsWarn(testCase, LangUtil.format("discover.notWarnFields"));
                 });
-            }catch (Throwable e) {
+            } catch (Throwable e) {
                 throw new RuntimeException(e);
-            }finally {
+            } finally {
                 super.connectorOnStop(prepare);
             }
         });
@@ -163,7 +166,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
      * 通过Consumer<List<String>> consumer返回了一张表为成功， 否则按警告处理，
      * 如果只有一张表， 直接通过此测试。
      * */
-    void discoverByTableCount(){
+    void discoverByTableCount() {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
             try {
@@ -174,69 +177,69 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
                 ConnectorNode connectorNode = prepare.connectorNode();
                 TapConnector connector = connectorNode.getConnector();
                 TapConnectorContext connectorContext = connectorNode.getConnectorContext();
-                connector.discoverSchema(connectorContext,new ArrayList<>(),1000, consumer->{
+                connector.discoverSchema(connectorContext, new ArrayList<>(), 1000, consumer -> {
                     //执行discoverSchema之后， 至少返回一张表
-                    TapAssert.asserts(()->{
+                    TapAssert.asserts(() -> {
                         Assertions.assertTrue(
-                            null!=consumer && !consumer.isEmpty(),
-                            LangUtil.format("discover.notAnyTable"));
+                                null != consumer && !consumer.isEmpty(),
+                                LangUtil.format("discover.notAnyTable"));
                     }).acceptAsError(
-                        testCase,
-                        LangUtil.format("discover.succeed",consumer.size())
+                            testCase,
+                            LangUtil.format("discover.succeed", consumer.size())
                     );
 
-                    Map<String, Map<String,String>> warnFieldMap = new HashMap<>();
-                    consumer.stream().forEach(table->{
-                        if (null == table){
-                            TapAssert.asserts(()->
-                                Assertions.fail(LangUtil.format("discover.nullTable"))
+                    Map<String, Map<String, String>> warnFieldMap = new HashMap<>();
+                    consumer.stream().forEach(table -> {
+                        if (null == table) {
+                            TapAssert.asserts(() ->
+                                    Assertions.fail(LangUtil.format("discover.nullTable"))
                             ).error(testCase);
                             return;
                         }
                         //表里有表名即为成功
                         String tableName = table.getId();
-                        if (null == tableName || "".equals(tableName)){
-                            TapAssert.asserts(()->
-                                Assertions.fail(LangUtil.format("discover.emptyTableName"))
+                        if (null == tableName || "".equals(tableName)) {
+                            TapAssert.asserts(() ->
+                                    Assertions.fail(LangUtil.format("discover.emptyTableName"))
                             ).error(testCase);
                             return;
                         }
                         //表里没有字段描述时，报警告
                         LinkedHashMap<String, TapField> nameFieldMap = table.getNameFieldMap();
-                        TapAssert.asserts(()->
-                            Assertions.assertTrue(
-                                null != nameFieldMap && !nameFieldMap.isEmpty(),
-                                LangUtil.format("discover.emptyTFields",tableName))
+                        TapAssert.asserts(() ->
+                                Assertions.assertTrue(
+                                        null != nameFieldMap && !nameFieldMap.isEmpty(),
+                                        LangUtil.format("discover.emptyTFields", tableName))
                         ).warn(testCase);
 
                         //表里有字段， 但是字段的name或者dataType为空时， 报警告， 具体哪些字段有问题
-                        if (null != nameFieldMap && !nameFieldMap.isEmpty()){
+                        if (null != nameFieldMap && !nameFieldMap.isEmpty()) {
                             for (Map.Entry<String, TapField> field : nameFieldMap.entrySet()) {
                                 TapField value = field.getValue();
                                 String name = value.getName();
                                 String type = value.getDataType();
-                                if ( null == name || "".equals(name) || null == type || "".equals(type) ){
+                                if (null == name || "".equals(name) || null == type || "".equals(type)) {
                                     Map<String, String> stringStringMap = warnFieldMap.computeIfAbsent(tableName, tables -> null == warnFieldMap.get(tables) ? new HashMap<>() : warnFieldMap.get(tables));
-                                    stringStringMap.put(name,type);
+                                    stringStringMap.put(name, type);
                                 }
                             }
                         }
                     });
                     StringBuilder warn = new StringBuilder();
                     final String starLine = "\n\t\t\t\t\t";
-                    warnFieldMap.forEach((table,value)->{
+                    warnFieldMap.forEach((table, value) -> {
                         warn.append(starLine).append(table).append(": ");
-                        value.forEach((name,type)->warn.append(starLine).append("\t").append(name).append(":\t").append(type));
+                        value.forEach((name, type) -> warn.append(starLine).append("\t").append(name).append(":\t").append(type));
                     });
-                    TapAssert.asserts(()->
-                        Assertions.assertTrue(
-                            warnFieldMap.isEmpty(),
-                            LangUtil.format("discover.hasWarnFields",warn.toString()))
-                    ).acceptAsWarn(testCase,LangUtil.format("discover.notWarnFields"));
+                    TapAssert.asserts(() ->
+                            Assertions.assertTrue(
+                                    warnFieldMap.isEmpty(),
+                                    LangUtil.format("discover.hasWarnFields", warn.toString()))
+                    ).acceptAsWarn(testCase, LangUtil.format("discover.notWarnFields"));
                 });
-            }catch (Throwable e) {
+            } catch (Throwable e) {
                 throw new RuntimeException(e);
-            }finally {
+            } finally {
                 super.connectorOnStop(prepare);
             }
         });
@@ -244,7 +247,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-            support(GetTableNamesFunction.class, LangUtil.format(inNeedFunFormat, "GetTableNamesFunction"))
+                support(GetTableNamesFunction.class, LangUtil.format(inNeedFunFormat, "GetTableNamesFunction"))
         );
     }
 }

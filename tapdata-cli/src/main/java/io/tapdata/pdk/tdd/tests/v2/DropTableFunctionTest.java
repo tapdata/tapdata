@@ -3,10 +3,13 @@ package io.tapdata.pdk.tdd.tests.v2;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
-import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.tests.support.LangUtil;
+import io.tapdata.pdk.tdd.tests.support.TapAssert;
+import io.tapdata.pdk.tdd.tests.support.TapGo;
+import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,11 +30,11 @@ public class DropTableFunctionTest extends PDKTestBase {
      * 然后调用discoverSchema指定该随机表名来验证，
      * 表不存在了为正确， 如果还存在报警告。 （
      * 我们以后会希望最简化PDK API的时候， 可能会让用户手动建表， 所以不做报错处理）
-     * */
+     */
     @DisplayName("dropTable.test")//用例1， 删除表测试
     @TapTestCase(sort = 1)
     @Test
-    void drop(){
+    void drop() {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
@@ -49,15 +52,15 @@ public class DropTableFunctionTest extends PDKTestBase {
                     ConnectorNode connectorNode = prepare.connectorNode();
                     TapConnector connector = connectorNode.getConnector();
                     String tableId = targetTable.getId();
-                    connector.discoverSchema(connectorNode.getConnectorContext(),list(tableId),1000,consumer->{
+                    connector.discoverSchema(connectorNode.getConnectorContext(), list(tableId), 1000, consumer -> {
                         //表不存在了为正确， 如果还存在报警告。
                         //我们以后会希望最简化PDK API的时候， 可能会让用户手动建表， 所以不做报错处理
-                        TapAssert.asserts(()->
-                            Assertions.assertTrue(
-                                null==consumer||consumer.isEmpty(),
-                                LangUtil.format("dropTable.error",tableId)
-                            )
-                        ).acceptAsWarn(testCase,LangUtil.format("dropTable.succeed",tableId));
+                        TapAssert.asserts(() ->
+                                Assertions.assertTrue(
+                                        null == consumer || consumer.isEmpty(),
+                                        LangUtil.format("dropTable.error", tableId)
+                                )
+                        ).acceptAsWarn(testCase, LangUtil.format("dropTable.succeed", tableId));
                     });
                 }
             } catch (Throwable e) {
@@ -70,8 +73,8 @@ public class DropTableFunctionTest extends PDKTestBase {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-            support(WriteRecordFunction.class, LangUtil.format(inNeedFunFormat,"WriteRecordFunction")),
-            support(DropTableFunction.class, LangUtil.format(inNeedFunFormat,"DropTableFunction"))
+                support(WriteRecordFunction.class, LangUtil.format(inNeedFunFormat, "WriteRecordFunction")),
+                support(DropTableFunction.class, LangUtil.format(inNeedFunFormat, "DropTableFunction"))
         );
     }
 }

@@ -1,6 +1,6 @@
 package io.tapdata.pdk.cli;
 
-import picocli.CommandLine;
+import io.tapdata.pdk.cli.Main;
 
 /**
  * Picocli aims to be the easiest way to create rich command line applications that can run on and off the JVM. Considering picocli? Check what happy users say about picocli.

@@ -11,7 +11,10 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface TapGo {
     boolean goTest() default true;
+
     int sort() default 0;
+
     Class<? extends PDKTestBase>[] subTest() default {};
+
     boolean isSub() default false;
 }

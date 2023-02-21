@@ -4,10 +4,10 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
-import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.tests.support.*;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,7 +28,7 @@ public class BatchCountTest extends PDKTestBase {
     @TapTestCase(sort = 1)
     //使用WriteRecordFunction写入2条数据， 使用BatchCountFunction查询记录数， 返回2为正确
     @Test
-    void batchCountAfterInsert(){
+    void batchCountAfterInsert() {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
@@ -39,31 +39,31 @@ public class BatchCountTest extends PDKTestBase {
                 execute.testCase(testCase);
 
                 //使用WriteRecordFunction写入2条数据
-                Record[] records = Record.testRecordWithTapTable(targetTable,2);
+                Record[] records = Record.testRecordWithTapTable(targetTable, 2);
                 execute.builderRecord(records);
                 WriteListResult<TapRecordEvent> insert = execute.insert();
-                TapAssert.asserts(()->{
+                TapAssert.asserts(() -> {
                     Assertions.assertTrue(
-                            null!=insert&&insert.getInsertedCount()==records.length,
-                            LangUtil.format("batchCountTest.insert.error",records.length,null==insert?0:insert.getInsertedCount())
+                            null != insert && insert.getInsertedCount() == records.length,
+                            LangUtil.format("batchCountTest.insert.error", records.length, null == insert ? 0 : insert.getInsertedCount())
                     );
-                }).acceptAsError(testCase, LangUtil.format("batchCountTest.insert",records.length,insert.getInsertedCount()));
+                }).acceptAsError(testCase, LangUtil.format("batchCountTest.insert", records.length, insert.getInsertedCount()));
                 //使用BatchCountFunction查询记录数， 返回2为正确
-                if(createTable = (null!=insert && insert.getInsertedCount() == records.length) ){
+                if (createTable = (null != insert && insert.getInsertedCount() == records.length)) {
                     ConnectorNode connectorNode = prepare.connectorNode();
                     ConnectorFunctions functions = connectorNode.getConnectorFunctions();
-                    if (super.verifyFunctions(functions,testCase)){
+                    if (super.verifyFunctions(functions, testCase)) {
                         return;
                     }
                     BatchCountFunction batchCount = functions.getBatchCountFunction();
                     long count = batchCount.count(connectorNode.getConnectorContext(), targetTable);
-                    TapAssert.asserts(()->{
+                    TapAssert.asserts(() -> {
                         Assertions.assertEquals(records.length, count, LangUtil.format("batchCount.afterInsert.error", records.length, count));
-                    }).acceptAsError(testCase,LangUtil.format("batchCount.afterInsert.succeed",records.length,count));
+                    }).acceptAsError(testCase, LangUtil.format("batchCount.afterInsert.succeed", records.length, count));
                 }
-            }catch (Throwable e) {
+            } catch (Throwable e) {
                 throw new RuntimeException(e);
-            }finally {
+            } finally {
                 if (createTable) execute.dropTable();
                 super.connectorOnStop(prepare);
             }

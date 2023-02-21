@@ -11,7 +11,6 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
-import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
 
 import java.lang.reflect.Method;
@@ -34,7 +33,7 @@ public class PDKBaseRun extends PDKTestBase {
         this.debugConfig = Optional.ofNullable(testConfigMap.get("functionParams")).orElse(new DataMap());
     }
 
-    protected TestNode prepare(TapNodeInfo nodeInfo){
+    protected TestNode prepare(TapNodeInfo nodeInfo) {
         Map<String, DataMap> testConfigMap = readTestConfig(super.testConfigFile);
         assertNotNull(testConfigMap, "testConfigFile " + super.testConfigFile + " read to json failed");
         super.connectionOptions = Optional.ofNullable(testConfigMap.get("connectionConfig")).orElse(new DataMap());
@@ -83,7 +82,7 @@ public class PDKBaseRun extends PDKTestBase {
         String dagId = UUID.randomUUID().toString();
         KVMap<TapTable> kvMap = InstanceFactory.instance(KVMapFactory.class).getCacheMap(dagId, TapTable.class);
         TapNodeSpecification spec = nodeInfo.getTapNodeSpecification();
-        kvMap.put(testTableId,targetTable);
+        kvMap.put(testTableId, targetTable);
         ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
                 .withDagId(dagId)
                 .withAssociateId(UUID.randomUUID().toString())
@@ -98,22 +97,26 @@ public class PDKBaseRun extends PDKTestBase {
                 .withTable(testTableId)
                 .build();
         RecordEventExecute recordEventExecute = RecordEventExecute.create(connectorNode, this);
-        return new TestNode( connectorNode, recordEventExecute);
+        return new TestNode(connectorNode, recordEventExecute);
     }
 
-    protected void runError(Method method, String msg){
-        RunAssert.error(method,"[PDK-RUN ERROR] " + msg);
+    protected void runError(Method method, String msg) {
+        RunAssert.error(method, "[PDK-RUN ERROR] " + msg);
     }
-    protected void runSucceed(Method method, String msg){
-        RunAssert.succeed(method,"[PDK-RUN SUCCEED] " + msg);
+
+    protected void runSucceed(Method method, String msg) {
+        RunAssert.succeed(method, "[PDK-RUN SUCCEED] " + msg);
     }
-    protected void runWarn(Method method, String msg){
-        RunAssert.warn(method,"[PDK-RUN WARN] " + msg);
+
+    protected void runWarn(Method method, String msg) {
+        RunAssert.warn(method, "[PDK-RUN WARN] " + msg);
     }
-    protected String formatPatten(Object formatObj){
+
+    protected String formatPatten(Object formatObj) {
         return toJson(formatObj, JsonParser.ToJsonFeature.PrettyFormat, JsonParser.ToJsonFeature.WriteMapNullValue);
     }
-    protected String formatDefault(Object formatObj){
+
+    protected String formatDefault(Object formatObj) {
         return toJson(formatObj);
     }
 }
