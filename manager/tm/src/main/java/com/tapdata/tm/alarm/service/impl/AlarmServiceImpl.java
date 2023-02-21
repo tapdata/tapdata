@@ -97,6 +97,8 @@ public class AlarmServiceImpl implements AlarmService {
         log.info("query:{}",JSON.toJSONString(query));
         AlarmInfo one = mongoTemplate.findOne(query, AlarmInfo.class);
         log.info("one:{}", JSON.toJSONString(one));
+        log.info("info:{}", JSON.toJSONString(info));
+
         DateTime date = DateUtil.date();
         if (Objects.nonNull(one)) {
             info.setId(one.getId());
