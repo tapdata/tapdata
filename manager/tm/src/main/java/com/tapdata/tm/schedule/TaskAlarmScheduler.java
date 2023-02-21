@@ -439,7 +439,7 @@ public class TaskAlarmScheduler {
                     .name(task.getName()).metric(AlarmKeyEnum.TASK_INCREMENT_DELAY)
                     .build();
             alarmInfo.setUserId(task.getUserId());
-            if (count >= alarmRuleDto.getPoint()) {
+            if (count >= alarmRuleDto.getPoint() || delay.get()>=alarmRuleDto.getMs()) {
                 String summary;
                 Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus())).findFirst();
                 alarmInfo.setStatus(AlarmStatusEnum.ING);
@@ -470,7 +470,7 @@ public class TaskAlarmScheduler {
                     alarmInfo.setSummary(summary);
                     alarmInfo.setRecoveryTime(DateUtil.date());
                     alarmInfo.setLastOccurrenceTime(null);
-                    alarmService.save(alarmInfo);
+                    //alarmService.save(alarmInfo);
                 }
             }
         }
