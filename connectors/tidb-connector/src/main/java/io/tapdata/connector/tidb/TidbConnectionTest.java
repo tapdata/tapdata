@@ -445,7 +445,7 @@ public class TidbConnectionTest extends CommonDbTest {
 
     public Boolean testKafkaHostPort() {
         try (
-                TicdcKafkaService ticdcKafkaService = new TicdcKafkaService(kafkaConfig);
+                TicdcKafkaService ticdcKafkaService = new TicdcKafkaService(kafkaConfig, tidbConfig);
         ) {
             TestItem testHostAndPort = ticdcKafkaService.testHostAndPort();
             consumer.accept(testHostAndPort);

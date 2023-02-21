@@ -3,9 +3,9 @@ package io.tapdata.connector.tidb;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import io.tapdata.common.MqConfig;
 import io.tapdata.connector.kafka.KafkaService;
 import io.tapdata.connector.kafka.config.KafkaConfig;
+import io.tapdata.connector.tidb.config.TidbConfig;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -24,19 +24,12 @@ import java.util.function.BiConsumer;
 
 public class TicdcKafkaService extends KafkaService {
 
-    public TicdcKafkaService(KafkaConfig mqConfig) {
-        super();
-        this.config(mqConfig);
-    }
+    private final TidbConfig tidbConfig;
 
-    public void config(KafkaConfig config) {
-        if (Objects.isNull(super.mqConfig)) {
-            super.mqConfig = new MqConfig();
-        }
-        super.mqConfig.setNameSrvAddr(config.getNameSrvAddr());
-        super.mqConfig.setMqTopicString(config.getMqTopicString());
-        super.mqConfig.setMqUsername(config.getMqUsername());
-        super.mqConfig.setMqPassword(config.getMqPassword());
+    public TicdcKafkaService(KafkaConfig mqConfig, TidbConfig tidbConfig) {
+        super();
+        this.tidbConfig = tidbConfig;
+        this.mqConfig = mqConfig;
     }
 
     @Override
@@ -52,7 +45,7 @@ public class TicdcKafkaService extends KafkaService {
         properties.put(ConsumerConfig.GROUP_ID_CONFIG, "test");
         KafkaConsumer<String, String> kafkaConsumer = new KafkaConsumer<>(properties);
         //kafkaConsumer.subscribe(tableList);
-        kafkaConsumer.subscribe(Collections.singletonList(mqConfig.getMqTopicString()));
+        kafkaConsumer.subscribe(Collections.singletonList(tidbConfig.getMqTopic()));
         List<TapEvent> list = TapSimplify.list();
         while (consuming.get()) {
             ConsumerRecords<String, String> consumerRecords = kafkaConsumer.poll(Duration.ofSeconds(1));
@@ -74,9 +67,8 @@ public class TicdcKafkaService extends KafkaService {
     }
 
     private void makeMessage(ConsumerRecord<String, String> consumerRecord, List<TapEvent> list) {
-        Map<String, Object> data = new HashMap<>();
         JSONObject jsonObject = JSON.parseObject(consumerRecord.value());
-        data.put("data", jsonObject.getString("data"));
+        Map<String, Object> data = new HashMap<>(jsonObject.getJSONArray("data").getJSONObject(0).getInnerMap());
         switch (jsonObject.getString("type")) {
             case "INSERT":
                 list.add(new TapInsertRecordEvent().init().table(jsonObject.getString("table")).after(data).referenceTime(System.currentTimeMillis()));
