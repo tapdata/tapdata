@@ -4,7 +4,7 @@ import io.tapdata.common.support.core.ConnectorLog;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.logger.TapLogger;
 
-import java.util.Objects;
+import java.util.*;
 
 import static io.tapdata.base.ConnectorBase.toJson;
 
@@ -53,7 +53,7 @@ public class TapConnectorLog extends ConnectorLog {
 //        }
 //    }
 
-    public void warn(Object... params) {
+    public void warn(String msg, Object... params) {
         LogEntity logEntity = new LogEntity(params);
         if (Objects.isNull(this.log)) {
             TapLogger.warn(TAG, logEntity.msg(), this.args(logEntity.params()));
@@ -111,15 +111,37 @@ class LogEntity {
     }
 
     public LogEntity(Object... logEntities) {
-        if (Objects.nonNull(logEntities) && logEntities.length > 0) {
-            Object msg = logEntities[0];
-            this.msg = msg instanceof String ? (String) msg : toJson(msg);
-            if (logEntities.length > 1) {
-                this.params = new Object[logEntities.length - 1];
-                for (int i = 1; i < logEntities.length; i++) {
-                    this.params[i - 1] = logEntities[i];
-                }
+        Object[] todo = this.todo(logEntities);
+        List<Object> o = (List<Object>) todo[0];
+        if (o.size()>0) {
+            this.msg = String.valueOf(o.get(0));
+            if (o.size() > 1) {
+                this.params = o.subList(1, o.size()).toArray();
             }
         }
+        //if (Objects.nonNull(logEntities) && logEntities.length > 0) {
+       //    Object msg = logEntities[0];
+       //    this.msg = msg instanceof String ? (String) msg : toJson(msg);
+       //    if (logEntities.length > 1) {
+       //        this.params = new Object[logEntities.length - 1];
+       //        for (int i = 1; i < logEntities.length; i++) {
+       //            this.params[i - 1] = logEntities[i];
+       //        }
+       //    }
+       //}
+    }
+
+    private Object[] todo(Object ... params){
+        Object[] obj = new Object[params.length];
+        for (int index = 0; index < params.length; index++) {
+            Iterator<Object> l = ((List<Object>) params[index]).iterator();
+            List<Object> value = new ArrayList<>();
+            while (l.hasNext()) {
+                Object next = l.next();
+                value.add(next);
+            }
+            obj[index] = value;
+        }
+        return obj;
     }
 }

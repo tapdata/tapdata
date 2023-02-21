@@ -56,8 +56,6 @@ function connectionTest(connectionConfig) {
     return testItem;
 }
 
-var receiveOpenIdMap = {};
-
 function insertRecord(connectionConfig, nodeConfig, eventDataList) {
     let createTask1 = new CreateTask();
     return createTask1.create(connectionConfig, nodeConfig, eventDataList);
@@ -66,29 +64,6 @@ function insertRecord(connectionConfig, nodeConfig, eventDataList) {
 function updateToken(connectionConfig, nodeConfig, apiResponse) {
     if (apiResponse.result.code != 99991663 && apiResponse.result.code != 99991661) return null;
     let result = invoker.invokeWithoutIntercept("Obtain the App Token and Tenant Token");
-    if (result.result.code === 0) return {"Authorization": "Bearer " +  result.result.tenant_access_token};
+    if (result.result.code === 0) return {"Authorization": "Bearer " + result.result.tenant_access_token};
     else log.error('Cannot get tenant access token, please check your app_id or app_secret or check api named GetAppToken. ');
-}
-
-/**
- *
- * @param connectionConfig
- * @param nodeConfig
- * @param commandInfo
- *
- *  "commandInfo": {
- *      "command": String,   //command类型
- *      "action": String,    //action类型
- *      "argMap": Object,    //查询参数
- *      "time": Number       //command发起时间
- *  }
- * */
-function commandCallback(connectionConfig, nodeConfig, commandInfo) {
-    //
-    // let commandName = commandInfo.command;
-    // let exec = new CommandStage().exec(commandInfo.command);
-    // if (null != exec) {
-    //     return exec.command(connectionConfig, nodeConfig, commandInfo);
-    // }
-    return null;
 }
