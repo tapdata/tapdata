@@ -32,6 +32,8 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
@@ -123,7 +125,7 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
 
         connectorFunctions.supportWriteRecord(this::writeRecord);
-        connectorFunctions.supportCreateTable(this::createTable);
+        connectorFunctions.supportCreateTableV2(this::createTableV2);
 //        connectorFunctions.supportAlterTable(this::alterTable);
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
@@ -204,8 +206,8 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
         listConsumer.accept(filterResults);
     }
 
-    private void createTable(TapConnectionContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
-        dorisSchemaLoader.createTable(tapCreateTableEvent.getTable());
+    public CreateTableOptions createTableV2(TapConnectionContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws Throwable {
+        return dorisSchemaLoader.createTableV2(tapConnectorContext, tapCreateTableEvent);
     }
 
 //FIXME DOIRS异步执行alter命令，无回调接口，没次对同一个table同时执行一个alter命令；不能保证某个时刻是否存在alter命令正在执行
