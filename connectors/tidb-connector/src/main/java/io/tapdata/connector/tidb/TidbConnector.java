@@ -5,7 +5,6 @@ import com.google.common.collect.Maps;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
-import io.tapdata.connector.kafka.KafkaService;
 import io.tapdata.connector.kafka.config.KafkaConfig;
 import io.tapdata.connector.mysql.SqlMaker;
 import io.tapdata.connector.tidb.config.TidbConfig;
@@ -42,7 +41,6 @@ import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.http.ParseException;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -64,7 +62,7 @@ public class TidbConnector extends ConnectorBase {
     private String version;
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
     private static final int MAX_FILTER_RESULT_SIZE = 100;
-    HttpUtil httpUtil = new HttpUtil();
+    private HttpUtil httpUtil;
 
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
@@ -150,13 +148,14 @@ public class TidbConnector extends ConnectorBase {
 
     private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
         KafkaConfig kafkaConfig = (KafkaConfig) new KafkaConfig().load(nodeContext.getConnectionConfig());
+        httpUtil = new HttpUtil();
         Changefeed changefeed = new Changefeed();
         changefeed.setSinkUri("kafka://" + kafkaConfig.getNameSrvAddr() + "/" + tidbConfig.getMqTopic() + "?" + "kafka-version=2.4.0&partition-num=1&max-message-bytes=67108864&replication-factor=1&protocol=canal-json&auto-create-topic=true");
         changefeed.setChangefeedId(tidbConfig.getChangefeedId());
         changefeed.setForceReplicate(true);
         changefeed.setSyncDdl(true);
         if (httpUtil.createChangefeed(changefeed, tidbConfig.getTicdcUrl())) {
-            ticdcKafkaService = new TicdcKafkaService(kafkaConfig);
+            ticdcKafkaService = new TicdcKafkaService(kafkaConfig, tidbConfig);
             ticdcKafkaService.streamConsume(tableList, recordSize, consumer);
         }
     }
@@ -332,7 +331,7 @@ public class TidbConnector extends ConnectorBase {
     }
 
     @Override
-    public void onStop(TapConnectionContext connectionContext) throws Throwable {
+    public void onStop(TapConnectionContext connectionContext) throws Exception {
         if (EmptyKit.isNotNull(tidbContext)) {
             tidbContext.finish(connectionContext.getId());
         }
@@ -342,14 +341,11 @@ public class TidbConnector extends ConnectorBase {
         if (EmptyKit.isNotNull(ticdcKafkaService)) {
             ticdcKafkaService.close();
         }
-        if (EmptyKit.isNotNull(connectionContext.getConnectionConfig().get("changefeedId"))) {
-            try {
-                httpUtil.deleteChangefeed((String) connectionContext.getConnectionConfig().get("changefeedId"),
-                        (String) connectionContext.getConnectionConfig().get("ticdcUrl"));
-            } catch (ParseException e) {
-                e.printStackTrace();
+        if (EmptyKit.isNotNull(httpUtil)) {
+            if (EmptyKit.isNotNull(tidbConfig.getChangefeedId())) {
+                httpUtil.deleteChangefeed(tidbConfig.getChangefeedId(), tidbConfig.getTicdcUrl());
             }
-
+            httpUtil.close();
         }
     }
 
