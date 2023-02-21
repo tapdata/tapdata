@@ -7,7 +7,6 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.cglib.CglibUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import cn.hutool.json.JSONUtil;
-import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
@@ -94,10 +93,7 @@ public class AlarmServiceImpl implements AlarmService {
             criteria.and("nodeId").is(info.getNodeId());
         }
         Query query = new Query(criteria);
-        log.info("query:{}",JSON.toJSONString(query));
         AlarmInfo one = mongoTemplate.findOne(query, AlarmInfo.class);
-        log.info("one:{}", JSON.toJSONString(one));
-        log.info("info:{}", JSON.toJSONString(info));
 
         DateTime date = DateUtil.date();
         if (Objects.nonNull(one)) {
@@ -113,13 +109,8 @@ public class AlarmServiceImpl implements AlarmService {
                 UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(info.getUserId()));
                 AlarmSettingDto alarmSettingDto = alarmSettingService.findByKey(info.getMetric(),userDetail);
                 if (Objects.nonNull(alarmSettingDto)) {
-                    log.info("taskname:{}",info.getName());
-                    log.info("getUnit{}",alarmSettingDto.getUnit());
-                    log.info("getInterval{}",alarmSettingDto.getInterval());
                     DateTime lastNotifyTime = DateUtil.offset(one.getLastNotifyTime(), parseDateUnit(alarmSettingDto.getUnit()), alarmSettingDto.getInterval());
-                    log.info("lastNotifyTime{}",lastNotifyTime);
                     if (date.after(lastNotifyTime)) {
-                        log.info("date:{}",date);
                         info.setLastNotifyTime(date);
                     }else {
                         info.setLastNotifyTime(one.getLastNotifyTime());
@@ -131,7 +122,6 @@ public class AlarmServiceImpl implements AlarmService {
 
             mongoTemplate.save(info);
         } else {
-            log.info("insert:{}", JSON.toJSONString(info));
             info.setFirstOccurrenceTime(date);
             info.setLastOccurrenceTime(date);
             info.setLastNotifyTime(date);
