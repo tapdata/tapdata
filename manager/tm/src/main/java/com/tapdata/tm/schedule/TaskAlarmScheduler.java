@@ -470,7 +470,7 @@ public class TaskAlarmScheduler {
                     alarmInfo.setSummary(summary);
                     alarmInfo.setRecoveryTime(DateUtil.date());
                     alarmInfo.setLastOccurrenceTime(null);
-                    //alarmService.save(alarmInfo);
+                    alarmService.save(alarmInfo);
                 }
             }
         }
