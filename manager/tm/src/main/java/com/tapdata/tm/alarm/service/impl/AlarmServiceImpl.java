@@ -198,6 +198,7 @@ public class AlarmServiceImpl implements AlarmService {
                 .and("lastNotifyTime").lt(DateUtil.date()).gt(DateUtil.offsetSecond(DateUtil.date(), -30)
                 );
         Query needNotifyQuery = new Query(criteria);
+        needNotifyQuery.with(Sort.by("lastNotifyTime").ascending());
         List<AlarmInfo> alarmInfos = mongoTemplate.find(needNotifyQuery, AlarmInfo.class);
 
         if (CollectionUtils.isEmpty(alarmInfos)) {
