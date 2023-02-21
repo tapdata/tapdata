@@ -94,6 +94,7 @@ public class AlarmServiceImpl implements AlarmService {
             criteria.and("nodeId").is(info.getNodeId());
         }
         Query query = new Query(criteria);
+        log.info("query:{}",JSON.toJSONString(query));
         AlarmInfo one = mongoTemplate.findOne(query, AlarmInfo.class);
         log.info("one:{}", JSON.toJSONString(one));
         DateTime date = DateUtil.date();
