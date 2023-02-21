@@ -18,7 +18,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n\t\"app_id\": \"cli_a302e1fcf4b9900d\",\n\t\"app_secret\": \"bLuYRsGYUAbS87ethAas3g2gJaWm5ah6\"\n}"
+					"raw": "{\n    \"app_id\": \"{{app_id}}\",\n    \"app_secret\": \"{{app_secret}}\"\n}\n"
 				},
 				"url": "https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal"
 			},

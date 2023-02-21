@@ -1,9 +1,5 @@
 package connector;
 
-import com.sun.xml.internal.ws.api.pipe.Engine;
-import io.tapdata.entity.script.ScriptFactory;
-import io.tapdata.entity.script.ScriptOptions;
-import io.tapdata.entity.utils.InstanceFactory;
 import org.junit.Assert;
 import org.junit.Test;
 
