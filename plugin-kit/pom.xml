@@ -123,7 +123,7 @@
 							<goal>write-project-properties</goal>
 						</goals>
 						<configuration>
-							<outputFile>${project.parent.relativePath}/../../iengine/iengine-app/target/classes/pluginKit.properties</outputFile>
+							<outputFile>${basedir}/../iengine/iengine-app/src/main/resources/pluginKit.properties</outputFile>
 						</configuration>
 					</execution>
 				</executions>
