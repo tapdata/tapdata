@@ -46,8 +46,10 @@ public class KafkaService extends AbstractMqService {
     private static final String TAG = KafkaService.class.getSimpleName();
     private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
     private String connectorId;
-    private final KafkaProducer<byte[], byte[]> kafkaProducer;
+    private  KafkaProducer<byte[], byte[]> kafkaProducer;
+    public KafkaService() {
 
+    }
     public KafkaService(KafkaConfig mqConfig) {
         this.mqConfig = mqConfig;
         ProducerConfiguration producerConfiguration = new ProducerConfiguration(mqConfig, connectorId);

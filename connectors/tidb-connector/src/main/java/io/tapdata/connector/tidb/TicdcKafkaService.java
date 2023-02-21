@@ -7,6 +7,7 @@ import io.tapdata.common.MqConfig;
 import io.tapdata.common.constant.MqOp;
 import io.tapdata.connector.kafka.KafkaService;
 import io.tapdata.connector.kafka.config.KafkaConfig;
+import io.tapdata.constant.MqTestItem;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -15,22 +16,27 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.util.NetUtil;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.*;
 
 import java.util.function.BiConsumer;
 
+import static io.tapdata.base.ConnectorBase.testItem;
+
 public class TicdcKafkaService extends KafkaService {
     private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
     private String connectorId;
     public TicdcKafkaService(KafkaConfig mqConfig) {
-        super(mqConfig);
+        super();
        this.config(mqConfig);
     }
     public TicdcKafkaService config(KafkaConfig config) {
@@ -92,5 +98,38 @@ public class TicdcKafkaService extends KafkaService {
                 break;
         }
     }
-
+    public TestItem testHostAndPort() {
+        if (EmptyKit.isBlank(mqConfig.getNameSrvAddr())) {
+            try {
+                NetUtil.validateHostPortWithSocket(mqConfig.getMqHost(), mqConfig.getMqPort());
+                return testItem(MqTestItem.HOST_PORT.getContent(), TestItem.RESULT_SUCCESSFULLY);
+            } catch (IOException e) {
+                return testItem(MqTestItem.HOST_PORT.getContent(), TestItem.RESULT_FAILED, e.getMessage());
+            }
+        } else {
+            String[] hostAndPort = mqConfig.getNameSrvAddr().split(",");
+            int failedCount = 0;
+            for (String hostAndPortItem : hostAndPort) {
+                String[] strs = hostAndPortItem.split(":");
+                if (strs.length != 2) {
+                    return testItem(MqTestItem.NAME_SERVER.getContent(), TestItem.RESULT_FAILED, "name server address is invalid!");
+                } else {
+                    try {
+                        NetUtil.validateHostPortWithSocket(strs[0], Integer.parseInt(strs[1]));
+                    } catch (IOException e) {
+                        failedCount++;
+                    } catch (NumberFormatException e) {
+                        return testItem(MqTestItem.NAME_SERVER.getContent(), TestItem.RESULT_FAILED, "name server address is invalid!");
+                    }
+                }
+            }
+            if (failedCount == 0) {
+                return testItem(MqTestItem.NAME_SERVER.getContent(), TestItem.RESULT_SUCCESSFULLY);
+            } else if (failedCount == hostAndPort.length) {
+                return testItem(MqTestItem.NAME_SERVER.getContent(), TestItem.RESULT_FAILED, "all addresses of name server is down!");
+            } else {
+                return testItem(MqTestItem.NAME_SERVER.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN, "some addresses of name server is down!");
+            }
+        }
+    }
 }
