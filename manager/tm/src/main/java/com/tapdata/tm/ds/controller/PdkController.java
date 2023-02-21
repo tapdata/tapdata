@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.commons.CommonsMultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -58,6 +59,12 @@ public class PdkController extends BaseController {
 
     @GetMapping(value = "/jar", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     public void downloadJar(@RequestParam("pdkHash") String pdkHash,
+                            HttpServletResponse response) throws IOException {
+        response.sendError(HttpServletResponse.SC_METHOD_NOT_ALLOWED, "Please upgrade engine");
+    }
+
+    @GetMapping(value = "/jar/v2", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    public void downloadJarV2(@RequestParam("pdkHash") String pdkHash,
                             @RequestParam(value = "pdkBuildNumber", defaultValue = "0", required = false) Integer pdkBuildNumber,
                             HttpServletResponse response) {
         pkdSourceService.uploadAndView(pdkHash, pdkBuildNumber, getLoginUser(), PdkFileTypeEnum.JAR, response);
