@@ -79,7 +79,9 @@ public class ConnectorLog {
                 }
                 return toString;
             }
-        } else {
+        } else if(apply.getClass().isArray()){
+            return ConnectorBase.toJson(apply);
+        }else {
             return String.valueOf(apply);
         }
     }

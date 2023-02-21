@@ -3,7 +3,6 @@ package io.tapdata.js.connector;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.APIFactoryImpl;
 import io.tapdata.common.support.APIFactory;
-import io.tapdata.common.support.core.ConnectorLog;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
