@@ -138,7 +138,7 @@ public class TaskDto extends ParentTaskDto {
 
     private int stopRetryTimes;
 
-    private boolean isManualStop;
+    private boolean isSnapShotInterrupt;
 
     public DAG getDag() {
         if (dag != null) {
