@@ -1,0 +1,14 @@
+[
+  {
+    "createIndexes": "monitoringLogs",
+    "indexes":[
+      {
+        "name" : "index_api_call_create_time-1",
+        "key" : {
+          "createTime": -1
+        },
+        "background": true
+      }
+    ]
+  }
+]
