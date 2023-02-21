@@ -22,7 +22,7 @@ function discoverSchema(connectionConfig) {
                 'nullable': false
             },
             'time': {
-                'type': 'Date',
+                'type': 'String',
                 'comment': 'It is used to represent the deadline for a task. ',
                 'nullable': false
             },

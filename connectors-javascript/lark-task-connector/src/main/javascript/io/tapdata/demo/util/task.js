@@ -5,9 +5,18 @@ class CreateTask {
         let succeedDataArr = [];
         for (let index = 0; index < eventDataList.length; index++) {
             let event = eventDataList[index];
-            let data = this.convertEventAndCreateTask(event);
-            if (this.sendHttp(data)) {
-                succeedDataArr.push(event);
+            try {
+                    let data = this.convertEventAndCreateTask(event);
+                    if (data == null) {
+                        continue;
+                    }
+                if (this.sendHttp(data)) {
+                    succeedDataArr.push(event);
+                } else {
+                    log.warn("Failed to invoke interface. Please check parameters： {} or permissions. ", data)
+                }
+            } catch (e) {
+                log.warn("The entered parameter is null. Please check the parameter. ", )
             }
         }
         return succeedDataArr;
@@ -24,23 +33,25 @@ class CreateTask {
         let url = event.url;
 
         if (!this.checkParam(richSummary)) {
-            log.error('RichSummary is the title of the task and cannot be empty. ');
+            log.warn('RichSummary is the title of the task and cannot be empty. ');
+            return null;
         }
         if (!this.checkParam(richDescription)) {
-            log.error('RichDescription is the description in the task. It cannot be left empty. ');
+            log.warn('RichDescription is the description in the task. It cannot be left empty. ');
+            return null;
         }
         if (!this.checkParam(collaboratorIds)) {
-            log.error('The collaboratorIds are in charge of the task and cannot be empty. ');
+            log.warn('The collaboratorIds are in charge of the task and cannot be empty. ');
+            return null;
         }
         let cUserIds = this.getUserId(collaboratorIds.split(","));
         if (!this.checkParam(time)) {
-            log.error('Time Indicates the end time of the task and cannot be empty. ');
-        }
-        if (!this.checkParam(richDescription)) {
-            log.error('RichDescription is the description in the task. It cannot be left empty. ');
+            log.warn('Time Indicates the end time of the task and cannot be empty. ');
+            return null;
         }
         if (!this.checkParam(followerIds)) {
-            log.error('FollowerIds is mandatory and cannot be empty. ');
+            log.warn('FollowerIds is mandatory and cannot be empty. ');
+            return null;
         }
         let fUserIds = this.getUserId(followerIds.split(","));
 
@@ -60,8 +71,10 @@ class CreateTask {
         try {
             writeResult = invoker.invoke("Create task", sendData);
         } catch (e) {
-            throw e;
+            log.warn("Failed to create the task: {} Please check your parameters: {}", e, sendData)
+            return false;
         }
+        log.warn("httpCode: {}",writeResult.httpCode)
         if (writeResult.result.code === 0) {
             return true;
         } else {
