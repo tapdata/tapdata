@@ -96,7 +96,7 @@ public class TidbConnector extends ConnectorBase {
         connectorFunctions.supportConnectionCheckFunction(this::checkConnection);
         // target functions
         connectorFunctions.supportCreateTableV2(this::createTableV2);
-        connectorFunctions.supportClearTable(this::clearTable);
+        //connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportCreateIndex(this::createIndex);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
@@ -153,6 +153,8 @@ public class TidbConnector extends ConnectorBase {
         Changefeed changefeed = new Changefeed();
         changefeed.setSinkUri("kafka://" + kafkaConfig.getNameSrvAddr() + "/" + tidbConfig.getMqTopic() + "?" + "kafka-version=2.4.0&partition-num=1&max-message-bytes=67108864&replication-factor=1&protocol=canal-json&auto-create-topic=true");
         changefeed.setChangefeedId(tidbConfig.getChangefeedId());
+        changefeed.setForceReplicate(true);
+        changefeed.setSyncDdl(true);
         if (httpUtil.createChangefeed(changefeed, tidbConfig.getTicdcUrl())) {
             kafkaService = new KafkaService(kafkaConfig);
             kafkaService.streamConsume(tableList, recordSize, consumer);
