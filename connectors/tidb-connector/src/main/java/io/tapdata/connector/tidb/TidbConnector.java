@@ -56,7 +56,7 @@ public class TidbConnector extends ConnectorBase {
     private static final String TAG = TidbConnector.class.getSimpleName();
     private TidbConfig tidbConfig;
     private TidbContext tidbContext;
-    private KafkaService kafkaService;
+    private TicdcKafkaService ticdcKafkaService;
     private TidbReader tidbReader;
     private String connectionTimezone;
     private TidbSqlMaker tidbSqlMaker;
@@ -156,8 +156,8 @@ public class TidbConnector extends ConnectorBase {
         changefeed.setForceReplicate(true);
         changefeed.setSyncDdl(true);
         if (httpUtil.createChangefeed(changefeed, tidbConfig.getTicdcUrl())) {
-            kafkaService = new KafkaService(kafkaConfig);
-            kafkaService.streamConsume(tableList, recordSize, consumer);
+            ticdcKafkaService = new TicdcKafkaService(kafkaConfig);
+            ticdcKafkaService.streamConsume(tableList, recordSize, consumer);
         }
     }
 
@@ -339,8 +339,8 @@ public class TidbConnector extends ConnectorBase {
         if (EmptyKit.isNotNull(tidbConnectionTest)) {
             tidbConnectionTest.close();
         }
-        if (EmptyKit.isNotNull(kafkaService)) {
-            kafkaService.close();
+        if (EmptyKit.isNotNull(ticdcKafkaService)) {
+            ticdcKafkaService.close();
         }
         if (EmptyKit.isNotNull(connectionContext.getConnectionConfig().get("changefeedId"))) {
             try {
