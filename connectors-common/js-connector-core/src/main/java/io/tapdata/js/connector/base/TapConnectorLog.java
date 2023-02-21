@@ -3,13 +3,15 @@ package io.tapdata.js.connector.base;
 import io.tapdata.common.support.core.ConnectorLog;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.js.utils.Collector;
 
-import java.util.*;
-
-import static io.tapdata.base.ConnectorBase.toJson;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
 
 public class TapConnectorLog extends ConnectorLog {
-    private static final String TAG = ConnectorLog.class.getSimpleName();
+    private static final String TAG = TapConnectorLog.class.getSimpleName();
     private Log log;
 
     public TapConnectorLog() {
@@ -19,7 +21,7 @@ public class TapConnectorLog extends ConnectorLog {
         this.log = log;
     }
 
-    public void debug(Object... params) {
+    public void debug(String msg, Object... params) {
         LogEntity logEntity = new LogEntity(params);
         if (Objects.isNull(this.log)) {
             TapLogger.debug(TAG, logEntity.msg(), this.args(logEntity.params()));
@@ -28,7 +30,7 @@ public class TapConnectorLog extends ConnectorLog {
         }
     }
 
-    public void info(Object... params) {
+    public void info(String msg, Object... params) {
         LogEntity logEntity = new LogEntity(params);
         if (Objects.isNull(this.log)) {
             TapLogger.info(TAG, logEntity.msg(), this.args(logEntity.params()));
@@ -62,7 +64,7 @@ public class TapConnectorLog extends ConnectorLog {
         }
     }
 
-    public void error(Object... params) {
+    public void error(String msg, Object... params) {
         LogEntity logEntity = new LogEntity(params);
         if (Objects.isNull(this.log)) {
             TapLogger.error(TAG, logEntity.msg(), this.args(logEntity.params()));
@@ -71,7 +73,7 @@ public class TapConnectorLog extends ConnectorLog {
         }
     }
 
-    public void fatal(Object... params) {
+    public void fatal(String msg, Object... params) {
         LogEntity logEntity = new LogEntity(params);
         if (Objects.isNull(this.log)) {
             TapLogger.fatal(TAG, logEntity.msg(), this.args(logEntity.params()));
@@ -80,7 +82,7 @@ public class TapConnectorLog extends ConnectorLog {
         }
     }
 
-    public void memory(Object... params) {
+    public void memory(String msg, Object... params) {
         LogEntity logEntity = new LogEntity(params);
         if (Objects.isNull(this.log)) {
             TapLogger.memory(TAG, logEntity.msg(), this.args(logEntity.params()));
@@ -110,28 +112,41 @@ class LogEntity {
         return this.params;
     }
 
+//    public LogEntity(Object... logEntities) {
+//        if (Objects.nonNull(logEntities) && logEntities.length > 0) {
+//            Object msg = logEntities[0];
+//            this.msg = msg instanceof String ? (String) msg : toJson(msg);
+//            if (logEntities.length > 1) {
+//                this.params = new Object[logEntities.length - 1];
+//                for (int i = 1; i < logEntities.length; i++) {
+//                    this.params[i - 1] = logEntities[i];
+//                }
+//            }
+//        }
+//    }
+
     public LogEntity(Object... logEntities) {
-        Object[] todo = this.todo(logEntities);
+        Object[] todo = (Object[]) Collector.convertObj(logEntities);
         List<Object> o = (List<Object>) todo[0];
-        if (o.size()>0) {
+        if (o.size() > 0) {
             this.msg = String.valueOf(o.get(0));
             if (o.size() > 1) {
                 this.params = o.subList(1, o.size()).toArray();
             }
         }
-        //if (Objects.nonNull(logEntities) && logEntities.length > 0) {
-       //    Object msg = logEntities[0];
-       //    this.msg = msg instanceof String ? (String) msg : toJson(msg);
-       //    if (logEntities.length > 1) {
-       //        this.params = new Object[logEntities.length - 1];
-       //        for (int i = 1; i < logEntities.length; i++) {
-       //            this.params[i - 1] = logEntities[i];
-       //        }
-       //    }
-       //}
     }
+//    public LogEntity(Object... logEntities) {
+//        Object[] todo = this.todo(logEntities);
+//        List<Object> o = (List<Object>) todo[0];
+//        if (o.size() > 0) {
+//            this.msg = String.valueOf(o.get(0));
+//            if (o.size() > 1) {
+//                this.params = o.subList(1, o.size()).toArray();
+//            }
+//        }
+//    }
 
-    private Object[] todo(Object ... params){
+    private Object[] todo(Object... params) {
         Object[] obj = new Object[params.length];
         for (int index = 0; index < params.length; index++) {
             Iterator<Object> l = ((List<Object>) params[index]).iterator();

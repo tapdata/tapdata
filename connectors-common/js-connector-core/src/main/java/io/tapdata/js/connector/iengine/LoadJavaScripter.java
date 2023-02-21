@@ -7,7 +7,9 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.js.connector.enums.Constants;
+import io.tapdata.js.utils.Collector;
 
 import javax.script.*;
 import java.io.File;
@@ -275,7 +277,7 @@ public class LoadJavaScripter {
         try {
             Invocable invocable = (Invocable) this.scriptEngine;
             Object apply = invocable.invokeFunction(functionName, params);
-            return LoadJavaScripter.covertData(apply);
+            return Collector.convertObj(apply);//LoadJavaScripter.covertData(apply);
         } catch (Exception e) {
             throw new CoreException(String.format("JavaScript Method execution failed, method name -[%s], params are -[%s], message: %s", functionName, toJson(params), e.getMessage()));
         }
@@ -286,10 +288,10 @@ public class LoadJavaScripter {
         if (Objects.isNull(apply)) {
             return null;
         } else if (apply instanceof Map) {
-            return fromJson(toJson(apply));
+            return InstanceFactory.instance(TapUtils.class).cloneMap((Map<String, Object>) apply);//fromJson(toJson(apply));
         } else if (apply instanceof Collection) {
             try {
-                return ConnectorBase.fromJsonArray(toJson(apply));
+                return new ArrayList<>((List<Object>) apply);//ConnectorBase.fromJsonArray(toJson(apply));
             } catch (Exception e) {
                 String toString = apply.toString();
                 if (toString.matches("\\(([0-9]+)\\)\\[.*]")) {
@@ -297,7 +299,7 @@ public class LoadJavaScripter {
                 }
                 return ConnectorBase.fromJsonArray(toString);
             }
-        } else {
+        } else{
             return apply;
         }
     }
