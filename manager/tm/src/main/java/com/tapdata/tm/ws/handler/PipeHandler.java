@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import java.util.Map;
+import java.util.Optional;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
@@ -102,6 +103,12 @@ public class PipeHandler implements WebSocketHandler {
 				}
 
 				MessageQueueDto messageDto = new MessageQueueDto();
+				Optional.ofNullable(messageInfo.getData()).ifPresent(info -> {
+					Object error = info.get("error");
+					if (Objects.nonNull(error) && (error.toString().contains("config") || error.toString().contains("404"))) {
+						info.put("error", "Please upgrade agent");
+					}
+				});
 				BeanUtils.copyProperties(messageInfo, messageDto);
 				queueService.sendMessage(messageDto);
 			}
