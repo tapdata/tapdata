@@ -183,7 +183,7 @@ public class ObservableAspectTask extends AspectTask {
 				));
 				break;
 			case BatchReadFuncAspect.STATE_END:
-				if (!aspect.getDataProcessorContext().getTaskDto().isManualStop()) {
+				if (!aspect.getDataProcessorContext().getTaskDto().isSnapShotInterrupt()) {
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler -> handler.handleBatchReadFuncEnd(System.currentTimeMillis()));
 					taskSampleHandler.handleBatchReadFuncEnd();
 					break;

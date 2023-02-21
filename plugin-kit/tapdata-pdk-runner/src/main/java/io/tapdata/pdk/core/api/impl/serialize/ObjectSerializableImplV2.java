@@ -290,6 +290,7 @@ public class ObjectSerializableImplV2 implements ObjectSerializable {
 					synchronized (this) {
 						if(firstVersion == null) {
 							firstVersion = new ObjectSerializableImpl();
+							InstanceFactory.injectBean(firstVersion);
 						}
 					}
 				}
