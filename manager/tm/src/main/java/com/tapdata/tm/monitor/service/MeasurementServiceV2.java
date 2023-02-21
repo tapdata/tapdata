@@ -861,16 +861,24 @@ public class MeasurementServiceV2 {
         // inputInsertTotal + inputUpdateTotal + inputDeleteTotal + inputDdlTotal + inputOthersTotal
         AtomicReference<Long> inputTotal = new AtomicReference<>(0L);
         AtomicReference<Long> outputTotal = new AtomicReference<>(0L);
-        vs.remove("inputQps");
-        vs.remove("outputQps");
-        vs.remove("outputQpsAvg");
-        vs.remove("outputQpsMax");
+        List<String> calList = Lists.of("inputDdlTotal",
+                "inputDeleteTotal",
+                "inputInsertTotal",
+                "inputOthersTotal",
+                "inputUpdateTotal",
+                "outputDdlTotal",
+                "outputDeleteTotal",
+                "outputInsertTotal",
+                "outputOthersTotal",
+                "outputUpdateTotal");
         vs.forEach((k, v) -> {
-            Long value = Objects.nonNull(v) ? v.longValue() : 0;
-            if (StringUtils.startsWith(k, "input")) {
-                inputTotal.updateAndGet(v1 -> v1 + value);
-            } else if (StringUtils.startsWith(k, "output")) {
-                outputTotal.updateAndGet(v1 -> v1 + value);
+            if (calList.contains(k)) {
+                Long value = Objects.nonNull(v) ? v.longValue() : 0;
+                if (StringUtils.startsWith(k, "input")) {
+                    inputTotal.updateAndGet(v1 -> v1 + value);
+                } else if (StringUtils.startsWith(k, "output")) {
+                    outputTotal.updateAndGet(v1 -> v1 + value);
+                }
             }
         });
 
