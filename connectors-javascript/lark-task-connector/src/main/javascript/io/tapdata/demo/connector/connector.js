@@ -60,7 +60,7 @@ var receiveOpenIdMap = {};
 
 function insertRecord(connectionConfig, nodeConfig, eventDataList) {
     let createTask1 = new CreateTask();
-    createTask1.create(connectionConfig, nodeConfig, eventDataList);
+    return createTask1.create(connectionConfig, nodeConfig, eventDataList);
 }
 
 function updateToken(connectionConfig, nodeConfig, apiResponse) {
