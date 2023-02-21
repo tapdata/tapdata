@@ -863,6 +863,8 @@ public class MeasurementServiceV2 {
         AtomicReference<Long> outputTotal = new AtomicReference<>(0L);
         vs.remove("inputQps");
         vs.remove("outputQps");
+        vs.remove("outputQpsAvg");
+        vs.remove("outputQpsMax");
         vs.forEach((k, v) -> {
             Long value = Objects.nonNull(v) ? v.longValue() : 0;
             if (StringUtils.startsWith(k, "input")) {
