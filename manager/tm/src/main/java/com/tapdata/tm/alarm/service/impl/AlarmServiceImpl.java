@@ -7,6 +7,7 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.cglib.CglibUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import cn.hutool.json.JSONUtil;
+import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
@@ -94,6 +95,7 @@ public class AlarmServiceImpl implements AlarmService {
         }
         Query query = new Query(criteria);
         AlarmInfo one = mongoTemplate.findOne(query, AlarmInfo.class);
+        log.info("one:{}", JSON.toJSONString(one));
         DateTime date = DateUtil.date();
         if (Objects.nonNull(one)) {
             info.setId(one.getId());
@@ -114,6 +116,7 @@ public class AlarmServiceImpl implements AlarmService {
                     DateTime lastNotifyTime = DateUtil.offset(one.getLastNotifyTime(), parseDateUnit(alarmSettingDto.getUnit()), alarmSettingDto.getInterval());
                     log.info("lastNotifyTime{}",lastNotifyTime);
                     if (date.after(lastNotifyTime)) {
+                        log.info("date:{}",date);
                         info.setLastNotifyTime(date);
                     }
                 }
@@ -123,6 +126,7 @@ public class AlarmServiceImpl implements AlarmService {
 
             mongoTemplate.save(info);
         } else {
+            log.info("insert:{}", JSON.toJSONString(info));
             info.setFirstOccurrenceTime(date);
             info.setLastOccurrenceTime(date);
             info.setLastNotifyTime(date);
