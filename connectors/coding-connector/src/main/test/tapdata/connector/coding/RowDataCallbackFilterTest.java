@@ -1,5 +1,6 @@
 package tapdata.connector.coding;
 
+import com.alibaba.fastjson.JSON;
 import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.entity.utils.DataMap;
@@ -123,6 +124,9 @@ public class RowDataCallbackFilterTest {
 //        RowDataCallbackFilterTest.create().searchProject();
 //        RowDataCallbackFilterTest.create().listProject();
 //        RowDataCallbackFilterTest.create().exportCSV();
-        RowDataCallbackFilterTest.create().exportCSVOfFile();
+//        RowDataCallbackFilterTest.create().exportCSVOfFile();
+
+        System.out.println(JSON.toJSON(JSON.parse("{\"text\":\" Hello! This is lark !\"}")));
     }
+
 }

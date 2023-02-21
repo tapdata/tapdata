@@ -12,6 +12,15 @@ public class Request {
     Url url;
     List<Header> header;
     Body<?> body;
+    public Request copyOne(){
+        Request request = new Request();
+        request.description(description);
+        request.method(method);
+        request.url(url.copyOne());
+        request.header(header);
+        request.body(body.copyOne());
+        return request;
+    }
     public static Request create(){
         return new Request();
     }

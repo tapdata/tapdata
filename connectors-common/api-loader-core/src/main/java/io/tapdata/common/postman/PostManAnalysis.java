@@ -194,6 +194,7 @@ public class PostManAnalysis {
         } else {
             builder.get();
         }
+        //apiBody.cleanCache();
         return builder.build();
     }
 
