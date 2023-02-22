@@ -3,7 +3,9 @@
     "name": "BigQuery",
     "icon": "icons/logo.png",
     "doc" : "${doc}",
-    "id": "bigquery"
+    "id": "bigquery",
+    "authentication": "beta",
+    "tags": [""]
   },
   "configOptions": {
     "pdkExpansion": [],

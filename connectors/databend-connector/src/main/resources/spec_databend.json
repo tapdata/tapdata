@@ -3,7 +3,9 @@
     "name": "Databend",
     "icon": "icons/databend.svg",
     "id": "databend",
-    "doc": "${doc}"
+    "doc": "${doc}",
+    "authentication": "beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "capabilities": [

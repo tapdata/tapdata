@@ -3,7 +3,9 @@
     "name": "Dummy",
     "icon": "icons/dummy.png",
     "doc" : "${doc}",
-    "id": "dummy"
+    "id": "dummy",
+    "authentication": "beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "pdkExpansion": [],
