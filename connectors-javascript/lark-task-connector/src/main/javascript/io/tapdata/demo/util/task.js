@@ -16,7 +16,7 @@ class CreateTask {
                     log.warn("Failed to invoke interface. Please check parameters： {} or permissions. ", data)
                 }
             } catch (e) {
-                log.warn("The entered parameter is null. Please check the parameter. ", )
+                log.warn("The entered parameter is null. Please check the parameter: {}", e )
             }
         }
         return succeedDataArr;
@@ -70,14 +70,14 @@ class CreateTask {
         let writeResult;
         try {
             writeResult = invoker.invoke("Create task", sendData);
+            log.warn("httpCode: {}",writeResult.httpCode)
+            if (writeResult.result.code === 0) {
+                return true;
+            } else {
+                return false;
+            }
         } catch (e) {
             log.warn("Failed to create the task: {} Please check your parameters: {}", e, sendData)
-            return false;
-        }
-        log.warn("httpCode: {}",writeResult.httpCode)
-        if (writeResult.result.code === 0) {
-            return true;
-        } else {
             return false;
         }
     }
