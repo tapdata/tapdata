@@ -1,0 +1,156 @@
+{
+  "properties": {
+    "name": "GitHub",
+    "icon": "icon/github.png",
+    "doc" : "${doc}",
+    "id": "GitHub"
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+        "owner": {
+          "type": "String",
+          "title": "${owner}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "owner",
+          "x-index": 10,
+          "required": true
+        },
+        "repo": {
+          "type": "String",
+          "title": "${repo}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "repo",
+          "x-index": 20,
+          "required": true
+        }
+      }
+    },
+    "connection": {
+      "type": "object",
+      "test": {
+        "code": {
+          "type": "String",
+          "title": "${code}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "code",
+          "x-index": 30,
+          "required": false
+        },
+        "line": {
+          "type": "void",
+          "x-component": "Space",
+          "properties": {
+            "authButton": {
+              "type": "void",
+              "x-decorator": "FormItem",
+              "x-component": "Button",
+              "x-decorator-props": {
+                "style": {
+                  "width": "200px"
+                }
+              },
+              "x-content": "${OAuthButtonTitle}",
+              "title": "",
+              "x-index": 399
+            },
+            "AAA": {
+              "type": "String",
+              "x-decorator": "FormItem",
+              "x-component": "Text",
+              "x-component-props": {
+                "content": "OK",
+                "style": {
+                  "color": "green"
+                }
+              },
+              "apiServerKey": "AAA",
+              "x-index": 400,
+              "required": false
+            }
+          }
+        }
+      },
+      "properties": {
+        "code": {
+          "type": "String",
+          "title": "${code}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "code",
+          "x-index": 30,
+          "required": false,
+          "x-display": "hidden"
+        },
+        "line": {
+          "type": "void",
+          "x-component": "Space",
+          "properties": {
+            "authButton": {
+              "type": "void",
+              "x-decorator": "FormItem",
+              "x-component": "Button",
+              "x-content": "${OAuthButtonTitle}",
+              "title": "",
+              "x-index": 20,
+              "x-component-props": {
+                "onClick": "{{useAsyncDataSourceByConfig({service: goToAuthorized, withoutField: true}, { target: 'https://redirect.tapdata.io/oauth/complete', pdkId: 'github', oauthUrl: 'https://github.com/login/oauth/authorize?scope=repo user&client_id=4e38022897004168c117&redirect_uri=https%3A%2F%2Fredirect.tapdata.io%2Foauth%2Fcomplete%2Fgithub&state=1' })}}"
+              },
+              "x-decorator-props":{"style":{"width":"120px"}}
+            },
+            "OAuthStatus": {
+              "type": "void",
+              "title": "",
+              "x-decorator": "FormItem",
+              "x-component": "Text",
+              "apiServerKey": "AAA",
+              "x-index": 400,
+              "required": false,
+              "x-component-props": {
+                "content": "${OAuthButtonTitle} OK",
+                "style": {"color": "green"}
+              },
+              "x-reactions": [{
+                "dependencies": ["code"],
+                "fulfill": {
+                  "state": {
+                    "display": "{{$deps[0] ? \"visible\" : \"hidden\"}}"
+                  }
+                }
+              }]
+            }
+          }
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "doc/demo_en_US.md",
+      "owner": "GitHub owner",
+      "repo": "GitHub repo",
+      "code": "Grant Token",
+      "OAuthButtonTitle": "Grant Token"
+    },
+    "zh_CN": {
+      "doc": "doc/demo_zh_CN.md",
+      "owner": "GitHub owner",
+      "repo": "GitHub repo",
+      "code": "授予令牌",
+      "OAuthButtonTitle": "授予令牌"
+    },
+    "zh_TW": {
+      "doc": "doc/demo_zh_TW.md",
+      "owner": "GitHub owner",
+      "repo": "GitHub repo",
+      "code": "授予權杖",
+      "OAuthButtonTitle": "授予權杖"
+    }
+  }
+}

@@ -1,0 +1,155 @@
+{
+	"info": {
+		"_postman_id": "8dff69f0-73a6-4ebe-8627-292cc32c4866",
+		"name": "github",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "issues",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/vnd.github.text+json",
+						"type": "text"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{accessToken}}",
+						"type": "text"
+					},
+					{
+						"key": "X-GitHub-Api-Version",
+						"value": " 2022-11-28",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://api.github.com/repos/{{owner}}/{{repo}}/issues?since={{since}}&page={{page}}",
+					"protocol": "https",
+					"host": [
+						"api",
+						"github",
+						"com"
+					],
+					"path": [
+						"repos",
+						"{{owner}}",
+						"{{repo}}",
+						"issues"
+					],
+					"query": [
+						{
+							"key": "since",
+							"value": "{{since}}"
+						},
+						{
+							"key": "page",
+							"value": "{{page}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "getToken",
+			"protocolProfileBehavior": {
+				"disabledSystemHeaders": {}
+			},
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "default"
+					},
+					{
+						"key": "Host",
+						"value": "https://redirect.tapdata.io/oauth/complete/",
+						"type": "default",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://github.com/login/oauth/access_token",
+					"protocol": "https",
+					"host": [
+						"github",
+						"com"
+					],
+					"path": [
+						"login",
+						"oauth",
+						"access_token"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "accessToken",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "since",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "code",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "page",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "owner",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "repo",
+			"value": "",
+			"type": "default"
+		}
+	]
+}
