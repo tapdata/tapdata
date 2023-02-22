@@ -276,7 +276,7 @@ public class TaskSampleHandler extends AbstractHandler {
         inputSpeed.add(size);
         currentSnapshotTableInsertRowTotal += size;
 
-        snapshotInsertRowTotal.inc(size);
+//        snapshotInsertRowTotal.inc(size);
     }
 
     public void handleBatchReadFuncEnd() {
@@ -321,6 +321,8 @@ public class TaskSampleHandler extends AbstractHandler {
         outputUpdateCounter.inc(updated);
         outputDeleteCounter.inc(deleted);
         outputSpeed.add(total);
+
+        snapshotInsertRowTotal.inc(total);
 
         long timeCostTotal = 0L;
         for (TapRecordEvent event : events) {
