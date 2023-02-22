@@ -92,6 +92,7 @@ public class TidbConnector extends ConnectorBase {
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
         connectorFunctions.supportConnectionCheckFunction(this::checkConnection);
+        connectorFunctions.supportReleaseExternalFunction(this::onDestroy);
         // target functions
         connectorFunctions.supportCreateTableV2(this::createTableV2);
         //connectorFunctions.supportClearTable(this::clearTable);
@@ -150,19 +151,35 @@ public class TidbConnector extends ConnectorBase {
         KafkaConfig kafkaConfig = (KafkaConfig) new KafkaConfig().load(nodeContext.getConnectionConfig());
         httpUtil = new HttpUtil();
         Changefeed changefeed = new Changefeed();
-        changefeed.setSinkUri("kafka://" + kafkaConfig.getNameSrvAddr() + "/" + tidbConfig.getMqTopic() + "?" + "kafka-version=2.4.0&partition-num=1&max-message-bytes=67108864&replication-factor=1&protocol=canal-json&auto-create-topic=true");
-        changefeed.setChangefeedId(tidbConfig.getChangefeedId());
-        changefeed.setForceReplicate(true);
-        changefeed.setSyncDdl(true);
-        if (httpUtil.createChangefeed(changefeed, tidbConfig.getTicdcUrl())) {
-            ticdcKafkaService = new TicdcKafkaService(kafkaConfig, tidbConfig);
-            ticdcKafkaService.streamConsume(tableList, recordSize, consumer);
+        String changeFeedId = (String) nodeContext.getStateMap().get("changeFeedId");
+        boolean create = false;
+        if (EmptyKit.isNull(changeFeedId)) {
+            create = true;
+            // TODO: 2023/2/22 构造uuid changeFeedId
+            changeFeedId = "";
+            nodeContext.getStateMap().put("changeFeedId", changeFeedId);
+            changefeed.setSinkUri("kafka://" + kafkaConfig.getNameSrvAddr() + "/" + tidbConfig.getMqTopic() + "?" + "kafka-version=2.4.0&partition-num=1&max-message-bytes=67108864&replication-factor=1&protocol=canal-json&auto-create-topic=true");
+            changefeed.setChangefeedId(changeFeedId);
+            changefeed.setForceReplicate(true);
+            changefeed.setSyncDdl(true);
+        }
+        if (create) {
+            if (httpUtil.createChangefeed(changefeed, tidbConfig.getTicdcUrl())) {
+                ticdcKafkaService = new TicdcKafkaService(kafkaConfig, tidbConfig);
+                ticdcKafkaService.streamConsume(tableList, recordSize, consumer);
+            }
+        } else {
+            // TODO: 2023/2/22
+//            if (httpUtil.resumeChangefeed(changefeed, tidbConfig.getTicdcUrl())) {
+//                ticdcKafkaService = new TicdcKafkaService(kafkaConfig, tidbConfig);
+//                ticdcKafkaService.streamConsume(tableList, recordSize, consumer);
+//            }
         }
     }
 
     private Object timestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) {
         offsetStartTime = System.currentTimeMillis();
-        return (Object) offsetStartTime;
+        return offsetStartTime;
 
     }
 
@@ -342,10 +359,16 @@ public class TidbConnector extends ConnectorBase {
             ticdcKafkaService.close();
         }
         if (EmptyKit.isNotNull(httpUtil)) {
-            if (EmptyKit.isNotNull(tidbConfig.getChangefeedId())) {
-                httpUtil.deleteChangefeed(tidbConfig.getChangefeedId(), tidbConfig.getTicdcUrl());
+            if (!httpUtil.isChangeFeedClosed()) {
+                // TODO: 2023/2/22 httpUtil.stopChangefeed()
             }
             httpUtil.close();
+        }
+    }
+
+    private void onDestroy(TapConnectorContext connectorContext) throws Throwable {
+        if (EmptyKit.isNotNull(tidbConfig.getChangefeedId())) {
+            httpUtil.deleteChangefeed(tidbConfig.getChangefeedId(), tidbConfig.getTicdcUrl());
         }
     }
 

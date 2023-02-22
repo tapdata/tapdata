@@ -69,6 +69,7 @@ public class TicdcKafkaService extends KafkaService {
     private void makeMessage(ConsumerRecord<String, String> consumerRecord, List<TapEvent> list) {
         JSONObject jsonObject = JSON.parseObject(consumerRecord.value());
         Map<String, Object> data = new HashMap<>(jsonObject.getJSONArray("data").getJSONObject(0).getInnerMap());
+        // TODO: 2023/2/22 get before from old
         switch (jsonObject.getString("type")) {
             case "INSERT":
                 list.add(new TapInsertRecordEvent().init().table(jsonObject.getString("table")).after(data).referenceTime(System.currentTimeMillis()));
