@@ -14,6 +14,7 @@ class CreateTask {
                 }
             } catch (e) {
                 log.warn("Failed to create a task: {} please check whether the submitted parameters are correct: {}", e.message, JSON.stringify(event.afterData));
+                continue;
             }
             if (this.sendHttp(data)) {
                 succeedDataArr.push(event);
