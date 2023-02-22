@@ -258,13 +258,13 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         }
 
         String tag = (String) where.get("tag");
-        if(StringUtils.isEmpty(tag)){
-            throw  new BizException("IllegalArgument", "tag");
-        }
+//        if(StringUtils.isEmpty(tag)){
+//            throw  new BizException("IllegalArgument", "tag");
+//        }
         String authentication = (String) where.get("authentication");
-        if(StringUtils.isEmpty(authentication)){
-            throw  new BizException("IllegalArgument", "authentication");
-        }
+//        if(StringUtils.isEmpty(authentication)){
+//            throw  new BizException("IllegalArgument", "authentication");
+//        }
 
 
         //Criteria supplierCriteria = Criteria.where("supplierType").ne("self");
