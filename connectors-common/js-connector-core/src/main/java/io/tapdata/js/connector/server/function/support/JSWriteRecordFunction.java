@@ -15,6 +15,7 @@ import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.server.function.FunctionBase;
 import io.tapdata.js.connector.server.function.FunctionSupport;
 import io.tapdata.js.connector.server.function.JSFunctionNames;
+import io.tapdata.js.connector.server.sender.WriteRecordRender;
 import io.tapdata.js.connector.utli.ObjectUtil;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -106,34 +107,57 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
     private void exec(TapConnectorContext context, List<Map<String, Object>> execData, JSFunctionNames function, AtomicLong insert, AtomicLong update, AtomicLong delete) {
         if (!this.doNotSupport(function)) {
             try {
+                WriteRecordRender writeRecordRender = data -> {
+                    if (Objects.isNull(data)){
+                        this.convertData(data,insert,update,delete);
+                    }
+                    else if (data instanceof Map){
+                        List<Object> dataList = new ArrayList<>();
+                        dataList.add(data);
+                        this.convertData(dataList,insert,update,delete);
+                    }else if (data instanceof Collection){
+                        this.convertData(data,insert,update,delete);
+                    }else if (data.getClass().isArray()){
+                        Object[] dataArr = (Object[])data;
+                        List<Object> list = new ArrayList<>(Arrays.asList(dataArr));
+                        this.convertData(list,insert,update,delete);
+                    }else {
+                        this.convertData(data,insert,update,delete);
+                    }
+                };
                 Object invoker;
                 synchronized (JSConnector.execLock) {
                     invoker = super.javaScripter.invoker(
-                            JSFunctionNames.InsertRecordFunction.jsName(),
+                            function.jsName(),
                             Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()),
                             Optional.ofNullable(context.getNodeConfig()).orElse(new DataMap()),
-                            execData
+                            execData,
+                            writeRecordRender
                     );
                 }
-                List<Map<String, Object>> succeedData = new ArrayList<>();
-                try {
-                    succeedData = (List<Map<String, Object>>) invoker;
-                } catch (Exception ignored) {
-                    TapLogger.warn(TAG, "No normal JavaScript writing return value was received. Please keep the return value structure in line with the format requirements: \n" +
-                            "{\"eventType\":\"i/u/d\",\"afterData\":{},\"beforeData\":{},\"tableName\":\"\",\"referenceTime\":\"\"}");
-                }
-                Map<String, List<Map<String, Object>>> stringListMap = succeedData.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(map -> String.valueOf(map.get(EventTag.EVENT_TYPE))));
-                List<Map<String, Object>> insertData = stringListMap.get(EventType.insert);
-                List<Map<String, Object>> updateData = stringListMap.get(EventType.update);
-                List<Map<String, Object>> deleteData = stringListMap.get(EventType.delete);
-                insert.addAndGet(Objects.isNull(insertData) ? 0 : insertData.size());
-                update.addAndGet(Objects.isNull(updateData) ? 0 : updateData.size());
-                delete.addAndGet(Objects.isNull(deleteData) ? 0 : deleteData.size());
+                this.convertData(invoker,insert,update,delete);
                 this.writeCache = new ConcurrentHashMap<>();
             } catch (Exception e) {
                 throw new CoreException(String.format("Exceptions occurred when executing %s to write data. The operations of adding %s, modifying %s, and deleting %s failed,msg: %s.", function.jsName(), insert.get(), update.get(), delete.get(), e.getMessage()));
             }
         }
+    }
+
+    private void convertData(Object invoker, AtomicLong insert, AtomicLong update, AtomicLong delete){
+        List<Map<String, Object>> succeedData = new ArrayList<>();
+        try {
+            succeedData = (List<Map<String, Object>>) invoker;
+        } catch (Exception ignored) {
+            TapLogger.warn(TAG, "No normal JavaScript writing return value was received. Please keep the return value structure in line with the format requirements: \n" +
+                    "{\"eventType\":\"i/u/d\",\"afterData\":{},\"beforeData\":{},\"tableName\":\"\",\"referenceTime\":\"\"}");
+        }
+        Map<String, List<Map<String, Object>>> stringListMap = succeedData.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(map -> String.valueOf(map.get(EventTag.EVENT_TYPE))));
+        List<Map<String, Object>> insertData = stringListMap.get(EventType.insert);
+        List<Map<String, Object>> updateData = stringListMap.get(EventType.update);
+        List<Map<String, Object>> deleteData = stringListMap.get(EventType.delete);
+        insert.addAndGet(Objects.isNull(insertData) ? 0 : insertData.size());
+        update.addAndGet(Objects.isNull(updateData) ? 0 : updateData.size());
+        delete.addAndGet(Objects.isNull(deleteData) ? 0 : deleteData.size());
     }
 
     private List<Map<String, Object>> machiningEvents(List<TapRecordEvent> tapRecordEvents, final String tableId) {
