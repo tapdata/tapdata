@@ -6,17 +6,17 @@ class CreateTask {
         for (let index = 0; index < eventDataList.length; index++) {
             let event = eventDataList[index];
             try {
-                    let data = this.convertEventAndCreateTask(event);
-                    if (data == null) {
-                        continue;
-                    }
+                let data = this.convertEventAndCreateTask(event);
+                if (data == null) {
+                    continue;
+                }
                 if (this.sendHttp(data)) {
                     succeedDataArr.push(event);
                 } else {
-                    log.warn("Failed to invoke interface. Please check parameters： {} or permissions. ", data)
+                    log.warn("Failed to invoke interface. Please Check whether the parameters are correct: {} or permissions. ", data)
                 }
             } catch (e) {
-                log.warn("The entered parameter is null. Please check the parameter: {}", e )
+                log.warn("Failed to create a task. Please Check whether the parameters are correct: {} or the network connection is normal.", e)
             }
         }
         return succeedDataArr;
@@ -70,7 +70,6 @@ class CreateTask {
         let writeResult;
         try {
             writeResult = invoker.invoke("Create task", sendData);
-            log.warn("httpCode: {}",writeResult.httpCode)
             if (writeResult.result.code === 0) {
                 return true;
             } else {
