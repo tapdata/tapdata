@@ -3,7 +3,9 @@
 		"name": "Tidb",
 		"icon": "icons/tidb.svg",
 		"id": "tidb",
-		"doc": "${doc}"
+		"doc": "${doc}",
+		"authentication": "beta",
+		"tags": ["Database"]
 	},
 "configOptions": {
 	"connection": {

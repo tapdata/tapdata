@@ -3,7 +3,9 @@
     "name": "PostgreSQL",
     "icon": "icons/postgres.png",
     "doc" : "${doc}",
-    "id": "postgres"
+    "id": "postgres",
+    "authentication": "Alpha",
+    "tags": ["Database"]
   },
   "configOptions": {
     "capabilities":[

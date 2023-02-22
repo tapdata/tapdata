@@ -3,7 +3,9 @@
     "name": "Doris",
     "icon": "icons/doris.png",
     "id": "doris",
-    "docs": "${docs}"
+    "docs": "${docs}",
+    "authentication": "beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "connection": {
