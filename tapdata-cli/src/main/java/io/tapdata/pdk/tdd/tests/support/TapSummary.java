@@ -15,6 +15,8 @@ import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
+import io.tapdata.pdk.tdd.tests.support.printf.ChokeTag;
+import io.tapdata.pdk.tdd.tests.support.printf.SummaryData;
 import org.apache.commons.io.FilenameUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -92,6 +94,11 @@ public class TapSummary {
 
     //存放没有实现方法二不能进行测试的测试类
     Map<Class, String> doNotSupportFunTest = new HashMap<>();
+    Map<Class<? extends PDKTestBase>, String> doSupportFunTest = new HashMap<>();
+
+    public Map<Class<? extends PDKTestBase>, String> doSupportFunTest() {
+        return this.doSupportFunTest;
+    }
 
     //存放所有测试类的最终测试结果
     Map<Class<? extends PDKTestBase>, Integer> resultExecution = new HashMap<>();
@@ -104,6 +111,9 @@ public class TapSummary {
     public static String hasPass = "SUCCEED";
 
     SummaryData summaryData = new SummaryData();
+    public SummaryData summaryData(){
+        return this.summaryData;
+    }
 
     //每轮测试结束需要调用这个方法进行清除一些数据
     public void clean() {
@@ -148,9 +158,10 @@ public class TapSummary {
         }
     }
 
-    public void showTestResult(TapSummary summary) {
-        showTest(summary);
+    public ChokeTag showTestResult(TapSummary summary) {
+        ChokeTag chokeTag = showTest(summary);
         clean();
+        return chokeTag;
     }
 
     public void showCapabilities(TapNodeInfo nodeInfo) {
@@ -238,10 +249,11 @@ public class TapSummary {
         return builder;
     }
 
-    private void showTest(TapSummary summary) {
+    private ChokeTag showTest(TapSummary summary) {
+        ChokeTag chokeTag = ChokeTag.tag();
         Map<Class<? extends PDKTestBase>, Integer> resultExecution = summary.resultExecution;
         Map<Class, CapabilitiesExecutionMsg> result = summary.capabilitiesResult;
-        if (null == result || result.isEmpty()) return;
+        if (null == result || result.isEmpty()) return chokeTag;
         StringBuilder builder = new StringBuilder(AREA_SPLIT);
         builder.append("\n");
         int allTestResult = CapabilitiesExecutionMsg.SUCCEED;//default 0 === succeed
@@ -277,7 +289,7 @@ public class TapSummary {
                     TreeMap<String, List<History>> collect = history.stream()
                             .filter(Objects::nonNull)
                             .collect(Collectors.groupingBy(History::tag, TreeMap::new, Collectors.toList()));
-                    if (null == collect || collect.isEmpty()) return;
+                    if (null == collect || collect.isEmpty()) return chokeTag;
                     AtomicInteger index = new AtomicInteger(1);
                     collect.forEach((tag, his) -> {
                         capabilityBuilder.append("\t\t")
@@ -324,6 +336,13 @@ public class TapSummary {
                     .append("\n");
             //获取最终结果，如果出现Error，最终结果为Error.仅出现Warn，最终结果为Warn.
             int resResult = res.executionResult();
+            if (resResult == CapabilitiesExecutionMsg.ERROR) {
+                Optional.ofNullable(cla.getAnnotation(TapGo.class)).ifPresent(go -> {
+                    if (((TapGo) go).block()) {
+                        chokeTag.blocked();//一个需要阻塞的用例执行失败了，其他用例不再执行
+                    }
+                });
+            }
             if (allTestResult == CapabilitiesExecutionMsg.SUCCEED
                     && (resResult == CapabilitiesExecutionMsg.WARN || resResult == CapabilitiesExecutionMsg.ERROR)) {
                 allTestResult = resResult;
@@ -347,6 +366,8 @@ public class TapSummary {
         System.out.print(finalStr);
 
         resultBuilder.append(finalStr);
+
+        return chokeTag;
     }
 
     private String fileChooser() {
@@ -530,13 +551,15 @@ public class TapSummary {
         StringBuilder builderEnd = new StringBuilder("\n\n====================================================================================\n");
         String end = endingShowV2(fileName);
         String connectorName = tapNodeInfo.getTapNodeSpecification().getId();
-        int totalCase = summaryData.totalCase();
+        int needCaseNum = summaryData.needExecCase();
         int exeCase = summaryData.exeCase();
         int error = summaryData.error();
         int succeed = summaryData.succeed();
         int warn = summaryData.warn();
         int dump = summaryData.dump();
-        builderEnd.append(LangUtil.format("SUMMARY_END", connectorName, totalCase, exeCase, succeed, warn, error, dump))
+        int totalCase = needCaseNum + dump;// summaryData.totalCase();
+        int notExecActual = needCaseNum - exeCase;
+        builderEnd.append(LangUtil.format("SUMMARY_END", connectorName, totalCase, exeCase, succeed, warn, error, dump, notExecActual))
                 .append("————————————————————————————————————————————————————————————————————————————————————\n")
                 .append(end)
                 .append("\n")
@@ -592,94 +615,4 @@ public class TapSummary {
 
     }
 
-}
-
-class SummaryData {
-    int totalCase = 0;
-    int exeCase = 0;
-    int error = 0;
-    int succeed = 0;
-    int warn = 0;
-    int dump = 0;
-
-    public void summaryOnce(int totalCase, int exeCase, int succeed, int warn, int error, int dump) {
-        this.totalCase += totalCase;
-        this.exeCase += exeCase;
-        this.error += error;
-        this.succeed += succeed;
-        this.warn += warn;
-        this.dump += dump;
-    }
-
-    public int totalCaseInc() {
-        return ++this.totalCase;
-    }
-
-    public int exeCaseInc() {
-        return ++this.exeCase;
-    }
-
-    public int errorInc() {
-        return ++this.error;
-    }
-
-    public int succeedInc() {
-        return ++this.succeed;
-    }
-
-    public int warnInc() {
-        return ++this.warn;
-    }
-
-    public int dumpInc() {
-        return ++this.dump;
-    }
-
-    public int totalCaseInc(int num) {
-        return this.totalCase += num;
-    }
-
-    public int exeCaseInc(int num) {
-        return this.exeCase += num;
-    }
-
-    public int errorInc(int num) {
-        return this.error += num;
-    }
-
-    public int succeedInc(int num) {
-        return this.succeed += num;
-    }
-
-    public int warnInc(int num) {
-        return this.warn += num;
-    }
-
-    public int dumpInc(int num) {
-        return this.dump += num;
-    }
-
-    public int totalCase() {
-        return this.totalCase;
-    }
-
-    public int exeCase() {
-        return this.exeCase;
-    }
-
-    public int error() {
-        return this.error;
-    }
-
-    public int succeed() {
-        return this.succeed;
-    }
-
-    public int warn() {
-        return this.warn;
-    }
-
-    public int dump() {
-        return this.dump;
-    }
 }

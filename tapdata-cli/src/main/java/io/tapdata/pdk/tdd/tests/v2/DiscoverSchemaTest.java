@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
 @DisplayName("discoverSchema.test")//discoverSchema发现表， 必测方法
-@TapGo(sort = 99, goTest = true, subTest = {DiscoverSchemaTestV2.class})//6
+@TapGo(tag = "V2", sort = 9999, goTest = true, subTest = {DiscoverSchemaTestV2.class})//6
 public class DiscoverSchemaTest extends PDKTestBase {
     @DisplayName("discoverSchema.discover")//用例1， 发现表
     @Test

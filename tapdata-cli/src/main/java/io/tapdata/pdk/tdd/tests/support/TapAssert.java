@@ -92,7 +92,7 @@ public interface TapAssert {
             change(e, e.getMessage(), assertGarde, testCase);
             throw e;
         }
-        change(null, succeedMag, SUCCEED, testCase);
+        change(null, succeedMag, assertGarde, testCase);
     }
 
     public void consumer();

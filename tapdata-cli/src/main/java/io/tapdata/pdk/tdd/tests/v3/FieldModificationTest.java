@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 //After包含全字段修改或者不包含的情况下， 能正常修改数据（依赖WriteRecordFunction）
 @DisplayName("fieldModification")
-@TapGo(sort = 13)
+@TapGo(tag = "V3", sort = 13)
 public class FieldModificationTest extends PDKTestBaseV2 {
     //  构建一个修改事件， after里修改全部5个字段，
     //  如果实现了QueryByFilterFunction，

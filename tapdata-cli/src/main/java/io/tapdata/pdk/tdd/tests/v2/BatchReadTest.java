@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 都需使用随机ID建表， 如果有DropTableFunction实现， 测试用例应该自动删除创建的临时表（无论成功或是失败）
  */
 @DisplayName("batchRead")//BatchReadFunction全量读数据（依赖WriteRecordFunction）
-@TapGo(sort = 12)
+@TapGo(tag = "V2", sort = 120)
 public class BatchReadTest extends PDKTestBase {
     /**
      * 使用WriteRecordFunction插入1条全类型（覆盖TapType的11中类型数据）数据，

@@ -20,7 +20,7 @@ import java.util.List;
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
 @DisplayName("dropTable")//DropTableFunction删除表（依赖CreateTableFunction或者WriteRecordFunction）
-@TapGo(sort = 11)
+@TapGo(tag = "V2", sort = 110)
 public class DropTableFunctionTest extends PDKTestBase {
 
     /**

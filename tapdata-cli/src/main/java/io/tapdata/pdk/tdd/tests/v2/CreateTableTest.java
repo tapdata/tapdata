@@ -29,7 +29,7 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Date;
 
 @DisplayName("createTableTest.test")//CreateTableFunction/CreateTableV2Function建表
-@TapGo(sort = 9)
+@TapGo(tag = "V2", sort = 90)
 public class CreateTableTest extends PDKTestBase {
 
     @DisplayName("createTableV2")//用例1，CreateTableFunction已过期， 应使用CreateTableV2Function

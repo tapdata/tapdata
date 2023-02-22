@@ -31,7 +31,7 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
 
 
 @DisplayName("Test.TestNotImplementFunErr")
-@TapGo(sort = 99, goTest = false)
+@TapGo(tag = "V2", sort = 990, goTest = false)
 public class TestNotImplementFunErr extends PDKTestBase {
     private static final String TAG = TestNotImplementFunErr.class.getSimpleName();
 

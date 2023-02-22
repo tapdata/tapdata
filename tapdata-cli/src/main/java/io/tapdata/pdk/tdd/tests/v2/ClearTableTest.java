@@ -26,7 +26,7 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 
 @DisplayName("clearTable")
 //ClearTableFunction清除表数据（依赖WriteRecordFunction， BatchCountFunction或者QueryByFilterFunction|QueryByAdvanceFilter）
-@TapGo(sort = 10)
+@TapGo(tag = "V2", sort = 100)
 public class ClearTableTest extends PDKTestBase {
     /**
      * 使用WriteRecordFunction写入2条数据，

@@ -17,11 +17,14 @@ import io.tapdata.pdk.tdd.tests.basic.BasicTest;
 import io.tapdata.pdk.tdd.tests.support.LangUtil;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.support.TapSummary;
+import io.tapdata.pdk.tdd.tests.support.printf.ChokeTag;
+import io.tapdata.pdk.tdd.tests.support.printf.SummaryData;
 import io.tapdata.pdk.tdd.tests.v2.WriteRecordTest;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.apache.maven.shared.invoker.*;
+import org.junit.jupiter.api.Test;
 import org.junit.platform.engine.DiscoverySelector;
 import org.junit.platform.engine.discovery.DiscoverySelectors;
 import org.junit.platform.launcher.Launcher;
@@ -35,7 +38,9 @@ import picocli.CommandLine;
 
 import java.io.*;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.fail;
@@ -94,7 +99,9 @@ public class TDDCli extends CommonCli {
         for (DiscoverySelector selector : selectors) {
             LauncherDiscoveryRequestBuilder request = LauncherDiscoveryRequestBuilder.request();
             LauncherDiscoveryRequest build = request.selectors(selector).build();
-            runTests(build, testResultSummary);
+            if (runTests(build, testResultSummary).hasBlocked()) {
+                break;
+            }
         }
         testResultSummary.endingShow(testResultSummary, file.getName());
         testResultSummary.asFileV2(file.getName());
@@ -104,7 +111,7 @@ public class TDDCli extends CommonCli {
         if (this.autoExit) System.exit(0);
     }
 
-    private void runTests(LauncherDiscoveryRequest request, TapSummary testResultSummary) {
+    private ChokeTag runTests(LauncherDiscoveryRequest request, TapSummary testResultSummary) {
         Launcher launcher = LauncherFactory.create();
         //TestPlan testPlan = launcher.discover(request);
         launcher.registerTestExecutionListeners(listener);
@@ -113,7 +120,7 @@ public class TDDCli extends CommonCli {
         String pdkId = CommonUtils.getProperty("pdk_test_pdk_id", null);
         TestExecutionSummary summary = listener.getSummary();
         testResultSummary.summary(summary);
-        testResultSummary.setLanType(new Locale(lan)).showTestResult(testResultSummary);
+        return testResultSummary.setLanType(new Locale(lan)).showTestResult(testResultSummary);
     }
 
     public Integer execute() {
@@ -328,7 +335,13 @@ public class TDDCli extends CommonCli {
                 Annotation annotation1 = cla1.getAnnotation(TapGo.class);
                 Annotation annotation2 = cla2.getAnnotation(TapGo.class);
                 return ((TapGo) annotation1).sort() > ((TapGo) annotation2).sort() ? 0 : -1;
-            }).forEach(testClass -> selectorsAddClass(selectors, testClass, testResultSummary));
+            }).forEach(testClass -> {
+                        //计算需要执行的用例数
+                        SummaryData summaryData = testResultSummary.summaryData();
+                        summaryData.needAny(this.caseNum(testClass));
+                        this.selectorsAddClass(selectors, testClass, testResultSummary);
+                    }
+            );
             //if(connectorFunctions.getWriteRecordFunction() != null && connectorFunctions.getCreateTableFunction() == null) {
             //    selectorsAddClass(selectors, DMLTest.class, testResultSummary);
             //}
@@ -424,5 +437,19 @@ public class TDDCli extends CommonCli {
             }
         }
         return test;
+    }
+
+    private int caseNum(Class<? extends PDKTestBase> aClass) {
+        AtomicInteger caseNum = new AtomicInteger();
+        HashSet<Method> methods = new HashSet<>(Arrays.asList(aClass.getDeclaredMethods()));
+        for (Method method : methods) {
+            Optional.ofNullable(method).ifPresent(m -> {
+                Test testAnn = method.getAnnotation(Test.class);
+                if (null != testAnn) {
+                    caseNum.getAndIncrement();
+                }
+            });
+        }
+        return caseNum.get();
     }
 }

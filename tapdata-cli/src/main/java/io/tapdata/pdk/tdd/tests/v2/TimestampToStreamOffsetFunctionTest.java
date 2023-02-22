@@ -24,7 +24,7 @@ import java.util.List;
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
 @DisplayName("timestamp.test")//TimestampToStreamOffsetFunction基于时间戳返回增量断点
-@TapGo(sort = 8)
+@TapGo(tag = "V2", sort = 80)
 public class TimestampToStreamOffsetFunctionTest extends PDKTestBase {
 
     @DisplayName("timestamp.backStreamOffset")//用例1， 通过时间戳能返回增量断点

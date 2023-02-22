@@ -21,7 +21,7 @@ import java.util.*;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
-@TapGo(sort = 7)
+@TapGo(tag = "V2", sort = 70)
 @DisplayName("getTableNames.test")//GetTableNamesFunction获得表名列表
 public class GetTableNamesFunctionTest extends PDKTestBase {
 

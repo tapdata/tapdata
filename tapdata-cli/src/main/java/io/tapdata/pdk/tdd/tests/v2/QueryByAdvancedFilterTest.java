@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 @DisplayName("queryByAdvanced")//QueryByAdvancedFilterFunction 基于匹配字段高级查询（依赖WriteRecordFunction）
-@TapGo(sort = 3)//都需使用随机ID建表， 如果有DropTableFunction实现， 测试用例应该自动删除创建的临时表（无论成功或是失败）
+@TapGo(tag = "V2", sort = 40)//都需使用随机ID建表， 如果有DropTableFunction实现， 测试用例应该自动删除创建的临时表（无论成功或是失败）
 public class QueryByAdvancedFilterTest extends PDKTestBase {
     private static final String TAG = QueryByAdvancedFilterTest.class.getSimpleName();
 

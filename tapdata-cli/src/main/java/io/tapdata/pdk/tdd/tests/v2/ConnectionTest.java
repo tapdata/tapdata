@@ -23,8 +23,8 @@ import java.util.Map;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
-@DisplayName("connectionTest.test")//连接测试，必测方法
-@TapGo(sort = 4)
+@DisplayName("connectionTest.test")//连接测试，必测方法,
+@TapGo(tag = "V2", sort = 0, block = true)
 public class ConnectionTest extends PDKTestBase {
     //此方法不需要调用PDK数据源的init/stop方法， 直接调用connectionTest即可。 至少返回一个测试项即为成功。
     @DisplayName("connectionTest.testConnectionTest")//用例1， 返回恰当的测试结果
@@ -90,6 +90,7 @@ public class ConnectionTest extends PDKTestBase {
                             LangUtil.format("connectionTest.testConnectionTest.succeedWriteRecord")
                     );
                 }
+                TapAssert.error(testCase,"ERROR Skip!");
             } catch (Throwable e) {
                 throw new RuntimeException(e.getMessage());
             }

@@ -17,7 +17,7 @@ import java.util.List;
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
 @DisplayName("tableCount.test")//tableCount表数量， 必测方法
-@TapGo(sort = 5)
+@TapGo(tag = "V2", sort = 50)
 public class TableCountTest extends PDKTestBase {
 
     @DisplayName("tableCount.findTableCount")//用例1， 查询表数量

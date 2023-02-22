@@ -16,5 +16,9 @@ public @interface TapGo {
 
     Class<? extends PDKTestBase>[] subTest() default {};
 
+    boolean block() default false;
+
     boolean isSub() default false;
+
+    String tag() default "default";
 }

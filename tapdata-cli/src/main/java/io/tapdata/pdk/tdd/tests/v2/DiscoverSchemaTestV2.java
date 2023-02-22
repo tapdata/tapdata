@@ -11,7 +11,7 @@ import java.util.List;
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
 @DisplayName("discoverSchema.test")//discoverSchema发现表， 必测方法
-@TapGo(sort = 98, goTest = true, isSub = true)//6
+@TapGo(tag = "V2", sort = 9800, goTest = true, isSub = true)//6
 public class DiscoverSchemaTestV2 extends DiscoverSchemaTest {
     @DisplayName("discoverSchema.discover")//用例1， 发现表
     @Test

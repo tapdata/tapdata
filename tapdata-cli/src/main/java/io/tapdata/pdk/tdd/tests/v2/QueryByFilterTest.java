@@ -27,7 +27,7 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("test.queryByFilterTest")//QueryByFilterFunction基于匹配字段查询（依赖WriteRecordFunction）
-@TapGo(sort = 2)
+@TapGo(tag = "V2", sort = 30)
 public class QueryByFilterTest extends PDKTestBase {
     private static final String TAG = QueryByFilterTest.class.getSimpleName();
 
