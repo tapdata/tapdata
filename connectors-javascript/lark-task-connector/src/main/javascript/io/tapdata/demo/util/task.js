@@ -18,7 +18,7 @@ class CreateTask {
                     log.warn("Failed to invoke interface. Please Check whether the parameters are correct: {} or permissions. ", JSON.stringify(data))
                 }
                 if(!isAlive()){
-                    break;
+                    return succeedDataArr;
                 }
             } catch (e) {
                 log.warn("Failed to create a task. Please Check whether the parameters are correct: {} or the network connection is normal.", e.message)
