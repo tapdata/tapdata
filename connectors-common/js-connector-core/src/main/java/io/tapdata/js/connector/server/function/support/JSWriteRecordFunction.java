@@ -16,14 +16,10 @@ import io.tapdata.js.connector.server.function.FunctionBase;
 import io.tapdata.js.connector.server.function.FunctionSupport;
 import io.tapdata.js.connector.server.function.JSFunctionNames;
 import io.tapdata.js.connector.server.sender.WriteRecordRender;
-import io.tapdata.js.connector.utli.ObjectUtil;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
-import io.tapdata.write.WriteValve;
 
-import javax.jws.Oneway;
-import javax.script.ScriptEngine;
 import javax.script.ScriptException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -106,26 +102,25 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
 
     private void exec(TapConnectorContext context, List<Map<String, Object>> execData, JSFunctionNames function, AtomicLong insert, AtomicLong update, AtomicLong delete) {
         if (!this.doNotSupport(function)) {
+            WriteRecordRender writeRecordRender = data -> {
+                if (Objects.isNull(data)) {
+                    this.convertData(null, insert, update, delete);
+                } else if (data instanceof Map) {
+                    List<Object> dataList = new ArrayList<>();
+                    dataList.add(data);
+                    this.convertData(dataList, insert, update, delete);
+                } else if (data instanceof Collection) {
+                    this.convertData(data, insert, update, delete);
+                } else if (data.getClass().isArray()) {
+                    Object[] dataArr = (Object[]) data;
+                    List<Object> list = new ArrayList<>(Arrays.asList(dataArr));
+                    this.convertData(list, insert, update, delete);
+                } else {
+                    this.convertData(data, insert, update, delete);
+                }
+            };
+            Object invoker;
             try {
-                WriteRecordRender writeRecordRender = data -> {
-                    if (Objects.isNull(data)){
-                        this.convertData(data,insert,update,delete);
-                    }
-                    else if (data instanceof Map){
-                        List<Object> dataList = new ArrayList<>();
-                        dataList.add(data);
-                        this.convertData(dataList,insert,update,delete);
-                    }else if (data instanceof Collection){
-                        this.convertData(data,insert,update,delete);
-                    }else if (data.getClass().isArray()){
-                        Object[] dataArr = (Object[])data;
-                        List<Object> list = new ArrayList<>(Arrays.asList(dataArr));
-                        this.convertData(list,insert,update,delete);
-                    }else {
-                        this.convertData(data,insert,update,delete);
-                    }
-                };
-                Object invoker;
                 synchronized (JSConnector.execLock) {
                     invoker = super.javaScripter.invoker(
                             function.jsName(),
@@ -135,7 +130,7 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
                             writeRecordRender
                     );
                 }
-                this.convertData(invoker,insert,update,delete);
+                this.convertData(invoker, insert, update, delete);
                 this.writeCache = new ConcurrentHashMap<>();
             } catch (Exception e) {
                 throw new CoreException(String.format("Exceptions occurred when executing %s to write data. The operations of adding %s, modifying %s, and deleting %s failed,msg: %s.", function.jsName(), insert.get(), update.get(), delete.get(), e.getMessage()));
@@ -143,13 +138,13 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
         }
     }
 
-    private void convertData(Object invoker, AtomicLong insert, AtomicLong update, AtomicLong delete){
+    private void convertData(Object invoker, AtomicLong insert, AtomicLong update, AtomicLong delete) {
         List<Map<String, Object>> succeedData = new ArrayList<>();
         try {
             succeedData = (List<Map<String, Object>>) invoker;
         } catch (Exception ignored) {
             TapLogger.warn(TAG, "No normal JavaScript writing return value was received. Please keep the return value structure in line with the format requirements: \n" +
-                    "{\"eventType\":\"i/u/d\",\"afterData\":{},\"beforeData\":{},\"tableName\":\"\",\"referenceTime\":\"\"}");
+                    "[{\"eventType\":\"i/u/d\",\"afterData\":{},\"beforeData\":{},\"tableName\":\"\",\"referenceTime\":\"\"}]");
         }
         Map<String, List<Map<String, Object>>> stringListMap = succeedData.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(map -> String.valueOf(map.get(EventTag.EVENT_TYPE))));
         List<Map<String, Object>> insertData = stringListMap.get(EventType.insert);
