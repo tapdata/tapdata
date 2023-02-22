@@ -1,30 +1,31 @@
 config.setStreamReadIntervalSeconds(600);
+
 function discoverSchema(connectionConfig) {
     let app = invoker.invoke("AppInfo").result;
     let appName = app.data.app.app_name;
     return [{
         'name': appName + '_向群组或用户发送消息',
         'fields': {
-            'receiveType':{
-                'type':'String',
-                'comment':'user | email | phone | chat, it is used to represent the type of message receiver.',
-                'nullable':true
-            },
-            'receiveId':{
-                'type':'String',
-                'comment':'user_open_id | user_email | user_phone | chat_id, it is the message receiver，APP sends messages to specified users or group chat through this field.',
-                'nullable':true
-            },
-            'contentType':{
-                'type':'String',
-                'comment':'contentType contain text | post | image | interactive | share_chat | share_user | audio | media | file | sticker，default is text.\n' +
-                    '  For specific message types, see the description on the official document: https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json',
-                'nullable':true
-            },
-            'content':{
+            'receiveType': {
                 'type': 'String',
-                'comment':' Message content body ',
-                'nullable':true
+                'comment': 'user | email | phone | chat, it is used to represent the type of message receiver.',
+                'nullable': true
+            },
+            'receiveId': {
+                'type': 'String',
+                'comment': 'user_open_id | user_email | user_phone | chat_id, it is the message receiver，APP sends messages to specified users or group chat through this field.',
+                'nullable': true
+            },
+            'contentType': {
+                'type': 'String',
+                'comment': 'contentType contain text | post | image | interactive | share_chat | share_user | audio | media | file | sticker，default is text.\n' +
+                    '  For specific message types, see the description on the official document: https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json',
+                'nullable': true
+            },
+            'content': {
+                'type': 'String',
+                'comment': ' Message content body ',
+                'nullable': true
             }
         }
     }];
@@ -69,9 +70,10 @@ function connectionTest(connectionConfig) {
 
 var receiveOpenIdMap = {};
 
-function insertRecord(connectionConfig, nodeConfig, eventDataList) {
+function insertRecord(connectionConfig, nodeConfig, eventDataList, sender) {
     let sendMsg = new larkSendMsgV2();
-    return sendMsg.sendMsg(connectionConfig, nodeConfig, eventDataList,'V2');
+    sendMsg.writerSender = sender;
+    return sendMsg.sendMsg(connectionConfig, nodeConfig, eventDataList, 'V2');
 }
 
 function updateToken(connectionConfig, nodeConfig, apiResponse) {

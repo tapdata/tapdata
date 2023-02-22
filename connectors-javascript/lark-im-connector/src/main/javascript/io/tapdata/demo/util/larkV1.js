@@ -1,4 +1,5 @@
 class larkSendMsg {
+    writerSender;
     dataConvertConfig = {
         "receiveType": "receiveType",
         "receiveId": "receiveId",

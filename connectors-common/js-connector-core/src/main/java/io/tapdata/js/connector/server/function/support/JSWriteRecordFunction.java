@@ -128,7 +128,7 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
                 Object invoker;
                 synchronized (JSConnector.execLock) {
                     invoker = super.javaScripter.invoker(
-                            JSFunctionNames.InsertRecordFunction.jsName(),
+                            function.jsName(),
                             Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()),
                             Optional.ofNullable(context.getNodeConfig()).orElse(new DataMap()),
                             execData,
