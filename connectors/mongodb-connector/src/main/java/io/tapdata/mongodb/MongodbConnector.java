@@ -868,7 +868,15 @@ public class MongodbConnector extends ConnectorBase {
 
 		if (countDocument.containsKey("ok") && countDocument.containsKey("n")) {
 			if (countDocument.get("ok").equals(1d)) {
-				dbCount = Long.valueOf(countDocument.get("n") + "");
+//				dbCount = Long.valueOf(countDocument.get("n") + "");
+				Object countObj = countDocument.get("n");
+				String countStr = countObj + "";
+				try {
+					dbCount = Long.parseLong(countStr);
+				} catch (NumberFormatException e) {
+					TapLogger.warn("Count result parsing failure of the collection '{}.{}' and type is {}: {}", db, collectionName, countObj.getClass(), e.getMessage(), e);
+					dbCount = (long) Double.parseDouble(countStr);
+				}
 			}
 		}
 

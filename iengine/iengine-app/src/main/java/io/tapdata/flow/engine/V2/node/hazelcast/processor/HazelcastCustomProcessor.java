@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.hazelcast.core.HazelcastInstance;
+import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.MapUtil;
@@ -19,6 +20,7 @@ import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -45,6 +47,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  **/
 public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 
+	public static final String TAG = HazelcastCustomProcessor.class.getSimpleName();
 	public static final String FUNCTION_NAME = "process";
 
 	private Logger logger = LogManager.getLogger(HazelcastCustomProcessor.class);
@@ -169,6 +172,16 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 				messageEntity.setBefore(before);
 			}
 		}
+	}
+
+	@Override
+	protected void doClose() throws Exception {
+		CommonUtils.ignoreAnyError(() -> {
+			if (this.engine instanceof GraalJSScriptEngine) {
+				((GraalJSScriptEngine) this.engine).close();
+			}
+		}, TAG);
+		super.doClose();
 	}
 
 	private static class StateMap implements KVMap<Object> {

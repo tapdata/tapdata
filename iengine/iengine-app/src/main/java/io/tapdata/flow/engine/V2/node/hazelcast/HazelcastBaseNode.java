@@ -61,18 +61,16 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
-import io.tapdata.flow.engine.V2.monitor.Monitor;
-import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
+import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
-import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
-import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskClient;
+import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
 import io.tapdata.flow.engine.V2.util.TapCache;
@@ -145,7 +143,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	/**
 	 * Whether to process data from multiple tables
 	 */
-	protected final boolean multipleTables;
+	protected boolean multipleTables;
 
 	protected ObsLogger obsLogger;
 	protected MonitorManager monitorManager;
@@ -158,47 +156,45 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected ExternalStorageDto externalStorageDto;
 
 	public HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
-//		isJobRunning = new TapCache<Boolean>().expireTime(2000).supplier(this::isJetJobRunning).disableCacheValue(false);
-
 		this.processorBaseContext = processorBaseContext;
-
 		this.obsLogger = ObsLoggerFactory.getInstance().getObsLogger(
 				processorBaseContext.getTaskDto(),
 				processorBaseContext.getNode().getId(),
 				processorBaseContext.getNode().getName()
 		);
+		try {
+			if (null != processorBaseContext.getConfigurationCenter()) {
+				this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 
-		if (null != processorBaseContext.getConfigurationCenter()) {
-			this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
+				this.settingService = new SettingService(clientMongoOperator);
+			}
+			if (null != processorBaseContext.getNode() && null == processorBaseContext.getNode().getGraph()) {
+				Dag dag = new Dag(processorBaseContext.getEdges(), processorBaseContext.getNodes());
+				DAG _DAG = DAG.build(dag);
+				_DAG.setTaskId(processorBaseContext.getTaskDto().getId());
+				processorBaseContext.getTaskDto().setDag(_DAG);
+			}
 
-			this.settingService = new SettingService(clientMongoOperator);
+			threadName = String.format(THREAD_NAME_TEMPLATE, processorBaseContext.getTaskDto().getId().toHexString(), processorBaseContext.getNode() != null ? processorBaseContext.getNode().getName() : null);
+
+			// 如果为迁移任务、且源节点为数据库类型
+			this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getTaskDto().getDag().getSourceNode());
+			if (!StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
+					TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
+				this.monitorManager = new MonitorManager();
+			}
+
+			// Init external storage config
+			externalStorageDto = ExternalStorageUtil.getExternalStorage(
+					processorBaseContext.getTaskConfig().getExternalStorageDtoMap(),
+					processorBaseContext.getNode(),
+					clientMongoOperator,
+					processorBaseContext.getNodes(),
+					(processorBaseContext instanceof DataProcessorContext ? ((DataProcessorContext) processorBaseContext).getConnections() : null)
+			);
+		} catch (Exception e) {
+			errorHandle(e, String.format("Init node[%s] failed", getNode().getName()));
 		}
-		if (null != processorBaseContext.getNode() && null == processorBaseContext.getNode().getGraph()) {
-			Dag dag = new Dag(processorBaseContext.getEdges(), processorBaseContext.getNodes());
-			DAG _DAG = DAG.build(dag);
-			_DAG.setTaskId(processorBaseContext.getTaskDto().getId());
-			processorBaseContext.getTaskDto().setDag(_DAG);
-		}
-
-		threadName = String.format(THREAD_NAME_TEMPLATE, processorBaseContext.getTaskDto().getId().toHexString(), processorBaseContext.getNode() != null ? processorBaseContext.getNode().getName() : null);
-
-		// 如果为迁移任务、且源节点为数据库类型
-		this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getTaskDto().getDag().getSourceNode());
-		if (!StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
-			this.monitorManager = new MonitorManager();
-		}
-
-		// Init external storage config
-		externalStorageDto = ExternalStorageUtil.getExternalStorage(
-				processorBaseContext.getTaskConfig().getExternalStorageDtoMap(),
-				processorBaseContext.getNode(),
-				clientMongoOperator,
-				processorBaseContext.getNodes(),
-				(processorBaseContext instanceof DataProcessorContext ? ((DataProcessorContext) processorBaseContext).getConnections() : null)
-		);
-		logger.info("[External Storage]Node {}[{}]: {}", getNode().getName(), getNode().getId(), externalStorageDto);
-		obsLogger.info("[External Storage]Node {}[{}]: {}", getNode().getName(), getNode().getId(), externalStorageDto);
 	}
 
 	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, CommonUtils.AnyErrorConsumer<T> anyErrorConsumer) {
@@ -574,7 +570,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				TaskClient<TaskDto> taskDtoTaskClient = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(processorBaseContext.getTaskDto().getId().toHexString());
 				if (taskDtoTaskClient != null) {
 					TaskDto taskDto = taskDtoTaskClient.getTask();
-					processorBaseContext.getTaskDto().setManualStop(taskDto.isManualStop());
+					processorBaseContext.getTaskDto().setSnapShotInterrupt(taskDto.isSnapShotInterrupt());
 				}
 			}, TAG);
 			obsLogger.info(String.format("Node %s[%s] running status set to false", getNode().getName(), getNode().getId()));
@@ -720,7 +716,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			currentEx = (NodeException) throwable;
 		} else {
 			currentEx = new NodeException(errorMessage, throwable).context(getProcessorBaseContext());
-			obsLogger.error(errorMessage, throwable);
 		}
 		TaskDto taskDto = processorBaseContext.getTaskDto();
 		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(), TaskDto.SYNC_TYPE_TEST_RUN)) {
@@ -736,7 +731,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 					this.errorMessage = currentEx.getMessage();
 				}
 				logger.error(errorMessage, currentEx);
-				obsLogger.error(errorMessage, currentEx);
+				Optional.ofNullable(obsLogger).ifPresent(log -> log.error(errorMessage, currentEx));
 				this.running.set(false);
 
 				// jetContext async injection, Attempt 5 times to get the instance every 500ms
@@ -758,7 +753,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 					JobStatus status = hazelcastJob.getStatus();
 					if (JobStatus.COMPLETING != status) {
 						logger.info("Job suspend in error handle");
-						obsLogger.info("Job suspend in error handle");
+						Optional.ofNullable(obsLogger).ifPresent(log -> log.info("Job suspend in error handle"));
 						TaskClient<TaskDto> taskDtoTaskClient = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(taskDto.getId().toHexString());
 						if (null != taskDtoTaskClient) {
 							taskDtoTaskClient.terminalMode(TerminalMode.ERROR);
@@ -767,13 +762,14 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 						hazelcastJob.suspend();
 					}
 				} else {
-					logger.warn("The jet instance cannot be found and needs to be stopped manually", currentEx);
-					obsLogger.warn("The jet instance cannot be found and needs to be stopped manually", currentEx);
+					throw currentEx;
 				}
 			}
+		} catch (NodeException e) {
+			throw e;
 		} catch (Exception e) {
 			logger.warn("Error handler failed: " + e.getMessage(), e);
-			obsLogger.warn("Error handler failed: " + e.getMessage(), e);
+			Optional.ofNullable(obsLogger).ifPresent(log -> log.warn("Error handler failed: " + e.getMessage()));
 		}
 
 		return currentEx;
@@ -925,7 +921,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			return StringUtils.isNotBlank(lastTableName) ? lastTableName : tableId;
 		}
 		String nodeId = getNode().getId();
-		return  ((DAGDataServiceImpl) dagDataService).getNameByNodeAndTableName(nodeId, tableId);
+		return ((DAGDataServiceImpl) dagDataService).getNameByNodeAndTableName(nodeId, tableId);
 	}
 
 	public static class TapValueTransform {

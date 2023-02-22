@@ -9,7 +9,7 @@ import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.service.BatchService;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
-import com.tapdata.tm.monitor.vo.BatchResponeVo;
+import com.tapdata.tm.monitor.vo.BatchDataVo;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -24,8 +24,11 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping(value = "/api/measurement")
@@ -61,10 +64,11 @@ public class MeasureController extends BaseController {
 
     @Operation(summary = "可观测性并行请求接口", description = "一个接口返回任务事件统计、任务日志和校验数据")
     @PostMapping("/batch")
-    public ResponseMessage<BatchResponeVo> batch(@Parameter(description = "多个请求的参数集合", required = true,
+    public ResponseMessage<Map<String, Object>> batch(@Parameter(description = "多个请求的参数集合", required = true,
                                                          content = @Content(schema = @Schema(implementation = BatchRequestDto.class)))
                                                  @RequestBody BatchRequestDto batchRequestDto) throws ExecutionException, InterruptedException {
-        return success(batchService.batch(batchRequestDto));
+        Map<String, Object> data = batchService.batch(batchRequestDto);
+        return success(data);
     }
 
     @Operation(summary = "全量信息接口")
