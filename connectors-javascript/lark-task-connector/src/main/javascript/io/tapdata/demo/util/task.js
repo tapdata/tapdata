@@ -1,4 +1,5 @@
 var invoker = loadAPI();
+var userMap = {};
 
 class CreateTask {
     create(connectionConfig, nodeConfig, eventDataList) {
@@ -12,11 +13,15 @@ class CreateTask {
                 }
                 if (this.sendHttp(data)) {
                     succeedDataArr.push(event);
+                    log.warn("data--: {}",JSON.stringify(data))
                 } else {
-                    log.warn("Failed to invoke interface. Please Check whether the parameters are correct: {} or permissions. ", data)
+                    log.warn("Failed to invoke interface. Please Check whether the parameters are correct: {} or permissions. ", JSON.stringify(data))
+                }
+                if(!isAlive()){
+                    break;
                 }
             } catch (e) {
-                log.warn("Failed to create a task. Please Check whether the parameters are correct: {} or the network connection is normal.", e)
+                log.warn("Failed to create a task. Please Check whether the parameters are correct: {} or the network connection is normal.", e.message)
             }
         }
         return succeedDataArr;
@@ -70,13 +75,9 @@ class CreateTask {
         let writeResult;
         try {
             writeResult = invoker.invoke("Create task", sendData);
-            if (writeResult.result.code === 0) {
-                return true;
-            } else {
-                return false;
-            }
+            return (writeResult.httpCode >= 200 || writeResult.httpCode < 300) && this.checkParam(writeResult.result.code) && writeResult.result.code === 0;
         } catch (e) {
-            log.warn("Failed to create the task: {} Please check your parameters: {}", e, sendData)
+            log.warn("Failed to create the task: {} Please check your parameters: {}", e.message, JSON.stringify(sendData))
             return false;
         }
     }
@@ -85,6 +86,10 @@ class CreateTask {
         let userIds = {};
         for (let index = 0; index < receivedUser.length; index++) {
             let spiltUserId = receivedUser[index];
+            let userIdFromCache = userMap[spiltUserId];
+            if(this.checkParam(userIdFromCache)){
+                userIds[spiltUserId] = userIdFromCache;
+            }
             if (this.checkParam(spiltUserId)) {
                 let receiveIdData = invoker.invoke("Get the user ID by phone number or email", {
                     "userMobiles": spiltUserId,
@@ -103,6 +108,7 @@ class CreateTask {
                 if (!this.checkParam(userIds[spiltUserId])) {
                     userIds[spiltUserId] = userId;
                 }
+                userMap[spiltUserId] = userId;
             }
         }
         return "\"" + Object.values(userIds).join("\",\"") + "\"";
