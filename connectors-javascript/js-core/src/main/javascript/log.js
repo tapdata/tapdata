@@ -69,19 +69,19 @@ var log = {
         }
         switch (type) {
             case 'debug' :
-                tapLog.debug(args[0], arg);
+                tapLog.debug(stringUtils.format(args[0], arg));
                 break;
             case 'warn' :
-                tapLog.warn(args[0], arg);
+                tapLog.warn(stringUtils.format(args[0], arg));
                 break;
             case 'error' :
-                tapLog.error(args[0], arg);
+                tapLog.error(stringUtils.format(args[0], arg));
                 break;
             case 'info' :
-                tapLog.info(args[0], arg);
+                tapLog.info(stringUtils.format(args[0], arg));
                 break;
             default:
-                tapLog.debug(args[0], arg);
+                tapLog.debug(stringUtils.format(args[0], arg));
                 break;
         }
     }

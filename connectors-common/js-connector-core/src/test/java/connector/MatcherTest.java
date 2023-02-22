@@ -7,10 +7,8 @@ import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
-
-import java.util.List;
-
-import static io.tapdata.base.ConnectorBase.toJson;
+import java.util.HashMap;
+import java.util.Map;
 
 public class MatcherTest {
     @Test
@@ -42,43 +40,35 @@ public class MatcherTest {
     }
 
     @Test
-    public void testJavaScript() throws ScriptException, NoSuchMethodException {
-        String script = "function test(){" +
-                "   var maps = {\"key\":\"111\",\"key1\":\"values\"};" +
-                "   return \"\\\"\"+Object.values(maps).join(\"\\\",\\\"\") +\"\\\"\"" +
-                "}";
-//        ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
-//        ScriptEngine engine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
-
+    public void function() throws ScriptException, NoSuchMethodException {
+        String script = "function format(msg,args){\n" +
+                "        if ('undefined' === msg || null == msg || \"\" === msg) return \"\";\n" +
+                "        for(let index = 1; index < arguments.length ;index++){\n" +
+                "            let arg = arguments[index];\n" +
+                "            let typeArg = typeof arg;\n" +
+                "            let outputArg = '';\n" +
+                "            switch (typeArg){\n" +
+                "                case \"bigint\":outputArg = arg;break;\n" +
+                "                case \"boolean\":outputArg = arg;break;\n" +
+                "                case \"number\":outputArg = arg;break;\n" +
+                "                case \"string\": outputArg = arg;break;\n" +
+                "                case \"undefined\": outputArg = 'undefined';break;\n" +
+                "                case \"symbol\": outputArg = arg;break;\n" +
+                "                case \"function\": outputArg = arg;break;\n" +
+                "                case \"object\": outputArg = arg;break;\n" +
+                "                default: outputArg = arg;\n" +
+                "            }\n" +
+                "            msg = msg.replace(new RegExp(\"(\\{\\})|(%\\s)\"), outputArg);" +
+                "        }\n" +
+                "        return msg;\n" +
+                "    }";
         ScriptEngineManager manager = new ScriptEngineManager();
         ScriptEngine engine = manager.getEngineByName("graal.js");
-        //ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "engine"); //script factory
-        //ScriptEngine engine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
-
         Object eval = engine.eval(script);
         Invocable invocable = (Invocable) engine;
-        Object invoker = invocable.invokeFunction("test");
+        Map<String,Object> map = new HashMap<>();
+        map.put("key","value");
+        Object invoker = invocable.invokeFunction("format","{}This is message param-1:{},param-2:%s","A",10,map);
         System.out.println(invoker);
-    }
-    @Test
-    public void testJavaScript2() throws ScriptException, NoSuchMethodException {
-        String script = "function test(){" +
-                "   var maps = \"1333,226\";" +
-                "   return maps.split(',')" +
-                "}";
-//        ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
-//        ScriptEngine engine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
-
-        ScriptEngineManager manager = new ScriptEngineManager();
-        ScriptEngine engine = manager.getEngineByName("graal.js");
-        //ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "engine"); //script factory
-        //ScriptEngine engine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
-
-        Object eval = engine.eval(script);
-        Invocable invocable = (Invocable) engine;
-        Object invoker = invocable.invokeFunction("test");
-        System.out.println(invoker);
-
-        System.out.println(System.currentTimeMillis());
     }
 }

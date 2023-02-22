@@ -22,20 +22,18 @@ public class TapConnectorLog extends ConnectorLog {
     }
 
     public void debug(String msg, Object... params) {
-        LogEntity logEntity = new LogEntity(params);
         if (Objects.isNull(this.log)) {
-            TapLogger.debug(TAG, logEntity.msg(), this.args(logEntity.params()));
+            TapLogger.debug(TAG, msg);
         } else {
-            log.debug(logEntity.msg(), this.args(logEntity.params()));
+            log.debug(msg);
         }
     }
 
     public void info(String msg, Object... params) {
-        LogEntity logEntity = new LogEntity(params);
         if (Objects.isNull(this.log)) {
-            TapLogger.info(TAG, logEntity.msg(), this.args(logEntity.params()));
+            TapLogger.info(TAG, msg);
         } else {
-            log.info(logEntity.msg(), this.args(logEntity.params()));
+            log.info(msg);
         }
     }
 
@@ -56,36 +54,32 @@ public class TapConnectorLog extends ConnectorLog {
 //    }
 
     public void warn(String msg, Object... params) {
-        LogEntity logEntity = new LogEntity(params);
         if (Objects.isNull(this.log)) {
-            TapLogger.warn(TAG, logEntity.msg(), this.args(logEntity.params()));
+            TapLogger.warn(TAG, msg);
         } else {
-            log.warn(logEntity.msg(), this.args(logEntity.params()));
+            log.warn(msg);
         }
     }
 
     public void error(String msg, Object... params) {
-        LogEntity logEntity = new LogEntity(params);
         if (Objects.isNull(this.log)) {
-            TapLogger.error(TAG, logEntity.msg(), this.args(logEntity.params()));
+            TapLogger.error(TAG, msg);
         } else {
-            log.error(logEntity.msg(), this.args(logEntity.params()));
+            log.error(msg);
         }
     }
 
     public void fatal(String msg, Object... params) {
-        LogEntity logEntity = new LogEntity(params);
         if (Objects.isNull(this.log)) {
-            TapLogger.fatal(TAG, logEntity.msg(), this.args(logEntity.params()));
+            TapLogger.fatal(TAG, msg);
         } else {
-            log.fatal(logEntity.msg(), this.args(logEntity.params()));
+            log.fatal(msg);
         }
     }
 
     public void memory(String msg, Object... params) {
-        LogEntity logEntity = new LogEntity(params);
         if (Objects.isNull(this.log)) {
-            TapLogger.memory(TAG, logEntity.msg(), this.args(logEntity.params()));
+            TapLogger.memory(TAG, msg);
         }
     }
 }
