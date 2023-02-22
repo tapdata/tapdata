@@ -19,6 +19,7 @@ import java.io.IOException;
 public class HttpUtil {
 
     private final CloseableHttpClient httpClient;
+    private boolean isChangeFeedClosed;
 
     public HttpUtil() {
         httpClient = HttpClientBuilder.create().build();
@@ -38,6 +39,7 @@ public class HttpUtil {
                 CloseableHttpResponse response = httpClient.execute(httpDelete)
         ) {
             if (response.getStatusLine().getStatusCode() == 202) {
+                isChangeFeedClosed = true;
                 return true;
             }
         }
@@ -55,6 +57,7 @@ public class HttpUtil {
                 CloseableHttpResponse response = httpClient.execute(httpPost)
         ) {
             if (response.getStatusLine().getStatusCode() == 202) {
+                isChangeFeedClosed = false;
                 return true;
             }
         }
@@ -63,6 +66,10 @@ public class HttpUtil {
 
     public void close() {
         ErrorKit.ignoreAnyError(httpClient::close);
+    }
+
+    public boolean isChangeFeedClosed() {
+        return isChangeFeedClosed;
     }
 }
 
