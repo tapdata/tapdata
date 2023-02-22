@@ -5,10 +5,10 @@ import java.util.Map;
 
 public class APIResponse implements Serializable {
     public static final long serialversionUID = 1L;
-    private Map<String, Object> result;
-    private int httpCode;
-    private Map<String, Object> headers;
-    private Map<String,Object> error;
+    public Map<String, Object> result;
+    public int httpCode;
+    public Map<String, Object> headers;
+    public Map<String,Object> error;
 
     public static APIResponse create(){
         return new APIResponse();
