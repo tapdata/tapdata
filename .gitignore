@@ -22,7 +22,7 @@
 .cache
 *.iml
 connector/agent.yml
-
+.agentSingletonLock
 #######################by file name
 
 
