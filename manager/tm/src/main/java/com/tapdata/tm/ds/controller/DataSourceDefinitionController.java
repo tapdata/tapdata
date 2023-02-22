@@ -101,7 +101,7 @@ public class DataSourceDefinitionController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        return success(dataSourceDefinitionService.dataSourceTypes(getLoginUser(), filter));
+        return success(dataSourceDefinitionService.dataSourceTypes(null, filter));
     }
 
     /**
@@ -118,6 +118,23 @@ public class DataSourceDefinitionController extends BaseController {
             where.remove("type");
         }
         return success(dataSourceDefinitionService.upsertByWhere(where, dataSourceTypeDto, getLoginUser()));
+    }
+
+
+    /**
+     * 根据条件查询数据源类型列表
+     * @param filterJson
+     * @return
+     */
+    @Operation(summary = "根据条件查询数据源类型列表")
+    @GetMapping("/getDatabases")
+    public ResponseMessage<List<DataSourceTypeDto>> dataSourceTypesV2(@RequestParam(value = "filter", required = false) String filterJson) {
+
+        Filter filter = parseFilter(filterJson);
+        if (filter == null) {
+            filter = new Filter();
+        }
+        return success(dataSourceDefinitionService.dataSourceTypesV2(null, filter));
     }
 
 }
