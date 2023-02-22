@@ -2385,21 +2385,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         Map<String, CustomNodeDto> customNodeMap = new HashMap<>();
-        try {
-            customNodeMap = customNodeService.batchImport(customNodeDtos, user, cover);
-        } catch (Exception e) {
-            log.error("customNodeService.batchImport error", e);
-        }
-
         Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
-        try {
-            conMap = dataSourceService.batchImport(connections, user, cover);
-        } catch (Exception e) {
-            log.error("dataSourceService.batchImport error", e);
-        }
-
         Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
         try {
+            customNodeMap = customNodeService.batchImport(customNodeDtos, user, cover);
+            conMap = dataSourceService.batchImport(connections, user, cover);
             metaMap = metadataInstancesService.batchImport(metadataInstancess, user, cover, conMap);
         } catch (Exception e) {
             log.error("metadataInstancesService.batchImport error", e);

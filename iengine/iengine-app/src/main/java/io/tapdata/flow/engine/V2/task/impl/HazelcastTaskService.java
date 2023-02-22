@@ -457,6 +457,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 									.withTargetConn(connection)
 									.withCacheService(cacheService)
 									.withTapTableMap(tapTableMap)
+									.withTaskConfig(taskConfig)
 									.build()
 					);
 				}
@@ -557,6 +558,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 						.withCacheService(cacheService)
 						.withConfigurationCenter(config)
 						.withTapTableMap(tapTableMap)
+						.withTaskConfig(taskConfig)
 						.build());
 				break;
 			case MIGRATE_FIELD_RENAME_PROCESSOR:
@@ -635,6 +637,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.withEdges(edges)
 								.withConfigurationCenter(config)
 								.withTapTableMap(tapTableMap)
+								.withTaskConfig(taskConfig)
 								.build()
 				);
 				break;
@@ -644,6 +647,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.withTaskDto(taskDto)
 								.withNode(node)
 								.withTapTableMap(tapTableMap)
+								.withTaskConfig(taskConfig)
 								.build()
 				);
 				break;

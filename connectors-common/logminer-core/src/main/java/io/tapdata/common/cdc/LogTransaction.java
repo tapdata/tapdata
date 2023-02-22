@@ -1,11 +1,20 @@
 package io.tapdata.common.cdc;
 
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.ErrorKit;
 import net.openhft.chronicle.map.ChronicleMap;
+import net.openhft.chronicle.queue.ChronicleQueue;
+import net.openhft.chronicle.queue.ExcerptAppender;
+import net.openhft.chronicle.queue.ExcerptTailer;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
+import net.openhft.chronicle.wire.ValueOut;
+import org.springframework.util.FileSystemUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Created by tapdata on 23/03/2018.
@@ -37,6 +46,9 @@ public class LogTransaction {
     private Map<String, List> redoLogContents;
 
     private ChronicleMap<String, List> chronicleMap;
+    private ChronicleQueue keyQueue;
+    private ExcerptAppender keyQueueAppender;
+    private ExcerptTailer keyTailer;
 
     private long size;
 
@@ -78,7 +90,7 @@ public class LogTransaction {
         if (EmptyKit.isNull(redoLogContents)) {
             redoLogContents = new LinkedHashMap<>();
         }
-        if (size >= 1000L) {
+        if (size >= LARGE_TRANSACTION_UPPER_LIMIT) {
             if (EmptyKit.isNull(chronicleMap)) {
                 File cacheDir = new File("cacheTransaction" + File.separator + connectorId);
                 if (!cacheDir.exists()) {
@@ -96,10 +108,15 @@ public class LogTransaction {
                         .entries(500000L)
                         .maxBloatFactor(200)
                         .createPersistedTo(cacheFile);
+                keyQueue = SingleChronicleQueueBuilder.binary("cacheTransaction" + File.separator + connectorId + File.separator + xid + ".key").build();
+                keyQueueAppender = keyQueue.acquireAppender();
+                keyTailer = keyQueue.createTailer();
                 chronicleMap.putAll(redoLogContents);
+                redoLogContents.forEach((k, v) -> pushKey(k));
             }
             if (!chronicleMap.containsKey(rsId)) {
                 chronicleMap.put(rsId, Collections.singletonList(redoLogContent));
+                pushKey(rsId);
             } else {
                 List<RedoLogContent> list = chronicleMap.get(rsId);
                 list.add(redoLogContent);
@@ -113,6 +130,22 @@ public class LogTransaction {
         }
     }
 
+    private void pushKey(String key) {
+        keyQueueAppender.writeDocument(w -> {
+            final ValueOut valueOut = w.getValueOut();
+            valueOut.writeString(key);
+        });
+    }
+
+    public String pollKey() {
+        AtomicReference<String> key = new AtomicReference<>();
+        if (keyTailer.readDocument(r -> key.set(r.getValueIn().readString()))) {
+            return key.get();
+        } else {
+            return null;
+        }
+    }
+
     public void clearRedoLogContents() {
         if (EmptyKit.isNotEmpty(redoLogContents)) {
             redoLogContents.clear();
@@ -121,10 +154,18 @@ public class LogTransaction {
             chronicleMap.clear();
             chronicleMap.close();
         }
-        File cacheFile = new File("cacheTransaction" + File.separator + connectorId + File.separator + xid + ".data");
-        if (cacheFile.exists()) {
-            cacheFile.delete();
+        if (EmptyKit.isNotNull(keyQueueAppender)) {
+            keyQueueAppender.close();
         }
+        if (EmptyKit.isNotNull(keyTailer)) {
+            keyTailer.close();
+        }
+        if (EmptyKit.isNotNull(keyQueue)) {
+//            keyQueue.clear(); //Not yet implemented
+            keyQueue.close();
+        }
+        ErrorKit.ignoreAnyError(() -> FileSystemUtils.deleteRecursively(Paths.get("cacheTransaction" + File.separator + connectorId + File.separator + xid + ".data")));
+        ErrorKit.ignoreAnyError(() -> FileSystemUtils.deleteRecursively(Paths.get("cacheTransaction" + File.separator + connectorId + File.separator + xid + ".key")));
     }
 
     public Long getRacMinimalScn() {

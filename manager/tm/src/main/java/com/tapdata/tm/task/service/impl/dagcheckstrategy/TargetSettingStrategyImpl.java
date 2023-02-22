@@ -112,9 +112,9 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                         for (Field field : metadata.getFields()) {
                             switch (databaseType) {
                                 case "Oracle":
-                                    if (Objects.nonNull(field.getIsNullable()) && (Boolean) field.getIsNullable()) {
+                                    if (Objects.nonNull(field.getIsNullable()) && !(Boolean) field.getIsNullable()) {
                                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                                                .grade(Level.WARNING).nodeId(nodeId)
+                                                .grade(Level.WARN).nodeId(nodeId)
                                                 .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：【{0}】【{1}】该Oracle非空约束字段不支持对“”数据的写入操作。", metadata.getName(), field.getFieldName()))
                                                 .build();
                                         log.setCreateAt(now);
@@ -128,7 +128,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                                                     field.getDataType().contains("Float64") ||
                                                     field.getDataType().contains("Decimal"))) {
                                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                                                .grade(Level.WARNING).nodeId(nodeId)
+                                                .grade(Level.WARN).nodeId(nodeId)
                                                 .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：【{0}】该ClickHouse表主键为浮点数据类型，不支持对更新和删除事件的处理。", metadata.getName()))
                                                 .build();
                                         log.setCreateAt(now);
