@@ -75,7 +75,7 @@ function insertRecord(connectionConfig, nodeConfig, eventDataList) {
 }
 
 function updateToken(connectionConfig, nodeConfig, apiResponse) {
-    if (apiResponse.result.code != 99991663 && apiResponse.result.code != 99991661) return null;
+    if (apiResponse.result.code !== 99991663 && apiResponse.result.code !== 99991661) return null;
     let result = invoker.invokeWithoutIntercept("GetAppToken");
     if (result.result.code === 0) return {"token": result.result.tenant_access_token};
     else log.error('Cannot get tenant access token, please check your app_id or app_secret or check api named GetAppToken. ');

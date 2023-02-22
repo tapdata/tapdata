@@ -43,7 +43,7 @@ class larkSendMsgV2 extends larkSendMsg {
                 "receive_id": id,
                 "msg_type": msgType,
                 "receive_id_type": id.startsWith('ou_') ? 'open_id' : 'chat_id'
-            });
+            }, eventData);
         }
         return true;
     }
@@ -64,8 +64,8 @@ class larkSendMsgV2 extends larkSendMsg {
             for (let i = 0; i < eventDataList.length; i++) {
                 let eData = eventDataList[i];
                 let sendMsgDataMap = this.convertEventAndSend(eData, dataConvertMap);
-                if (super.sendHttp(sendMsgDataMap)) {
-                    backArr.push(eData.afterData);
+                if (super.sendHttp(sendMsgDataMap, eData.afterData)) {
+                    backArr.push(eData);
                 }
             }
         }
@@ -96,7 +96,7 @@ class larkSendMsgV2 extends larkSendMsg {
         }
         if (!this.checkParam(content)) log.error('Receive message cannot be empty. please make sure param [connect] is useful.');
         return {
-            "content": typeof (content) == 'string' ? content.replaceAll('"',"\"") : ("" + JSON.stringify(content).replaceAll('"','\"')),
+            "content": typeof (content) == 'string' ? content.replaceAll('"', "\"") : ("" + JSON.stringify(content).replaceAll('"', '\"')),
             "receive_id": receiveId,
             "msg_type": contentType,
             "receive_id_type": "chat" === receiveType ? 'chat_id' : 'open_id'

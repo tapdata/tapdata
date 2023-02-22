@@ -13,8 +13,14 @@ var log = {
      *  - 使用案例： log.warn('This is a warn log,param1: {}, param2: {}',param1,param2);
      * @date 2023/2/13
      * */
-    warn: function (msg, params) {
-        this.printf('warn', arguments);
+    warn: function (msg, ...params) {
+        let arg = [];
+        if (arguments.length > 0) {
+            for (let argIndex = 1; argIndex < arguments.length; argIndex++) {
+                arg.push(arguments[argIndex]);
+            }
+        }
+        tapLog.warn(stringUtils.format(msg, arg));
     },
     /**
      * @type function
@@ -25,8 +31,12 @@ var log = {
      *  - 使用案例： log.error('This is a error log,param1: {}, param2: {}',param1,param2);
      * @date 2023/2/13
      * */
-    error: function (msg, params) {
-        this.printf('error', arguments);
+    error: function (msg, ...params) {
+        let arg = [];
+        for (let argIndex = 1; argIndex < arguments.length; argIndex++) {
+            arg.push(arguments[argIndex]);
+        }
+        tapLog.error(stringUtils.format(msg, arg));
     },
     /**
      * @type function
@@ -37,8 +47,12 @@ var log = {
      *  - 使用案例： log.info('This is a info log,param1: {}, param2: {}',param1,param2);
      * @date 2023/2/13
      * */
-    info: function (msg, params) {
-        this.printf('info', arguments);
+    info: function (msg, ...params) {
+        let arg = [];
+        for (let argIndex = 1; argIndex < arguments.length; argIndex++) {
+            arg.push(arguments[argIndex]);
+        }
+        tapLog.info(stringUtils.format(msg, arg));
     },
     /**
      * @type function
@@ -49,8 +63,12 @@ var log = {
      *  - 使用案例： log.debug('This is a debug log,param1: {}, param2: {}',param1,param2);
      * @date 2023/2/13
      * */
-    debug: function (msg, params) {
-        this.printf('debug', arguments);
+    debug: function (msg, ...params) {
+        let arg = [];
+        for (let argIndex = 1; argIndex < arguments.length; argIndex++) {
+            arg.push(arguments[argIndex]);
+        }
+        tapLog.debug(stringUtils.format(msg, arg));
     },
     /**
      * @type function
@@ -61,27 +79,28 @@ var log = {
      *  - 使用案例： log.printf('warn','This is a warn log,param1: {}, param2: {}',param1,param2);
      * @date 2023/2/13
      * */
-    printf: function (type, args) {
+    printf: function (type, msg, args) {
         if ('undefined' === type || null == type) type = 'debug';
         let arg = [];
         for (let argIndex = 1; argIndex < arguments.length; argIndex++) {
             arg.push(arguments[argIndex]);
         }
+        msg = stringUtils.format(msg, arg);
         switch (type) {
             case 'debug' :
-                tapLog.debug(stringUtils.format(args[0], arg));
+                tapLog.debug();
                 break;
             case 'warn' :
-                tapLog.warn(stringUtils.format(args[0], arg));
+                tapLog.warn(msg);
                 break;
             case 'error' :
-                tapLog.error(stringUtils.format(args[0], arg));
+                tapLog.error(msg);
                 break;
             case 'info' :
-                tapLog.info(stringUtils.format(args[0], arg));
+                tapLog.info(msg);
                 break;
             default:
-                tapLog.debug(stringUtils.format(args[0], arg));
+                tapLog.debug(msg);
                 break;
         }
     }

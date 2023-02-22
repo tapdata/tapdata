@@ -1,10 +1,12 @@
 package io.tapdata.common.support.entitys;
 
+import java.io.Serializable;
 import java.util.Map;
 
-public class APIResponse {
+public class APIResponse implements Serializable {
+    public static final long serialversionUID = 1L;
     private Map<String, Object> result;
-    private Integer httpCode;
+    private int httpCode;
     private Map<String, Object> headers;
     private Map<String,Object> error;
 
@@ -29,10 +31,10 @@ public class APIResponse {
         this.result = result;
         return this;
     }
-    public Integer httpCode(){
+    public int httpCode(){
         return this.httpCode;
     }
-    public APIResponse httpCode(Integer httpCode){
+    public APIResponse httpCode(int httpCode){
         this.httpCode = httpCode;
         return this;
     }
@@ -59,11 +61,11 @@ public class APIResponse {
         this.result = result;
     }
 
-    public Integer getHttpCode() {
+    public int getHttpCode() {
         return httpCode;
     }
 
-    public void setHttpCode(Integer httpCode) {
+    public void setHttpCode(int httpCode) {
         this.httpCode = httpCode;
     }
 
