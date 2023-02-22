@@ -88,7 +88,7 @@ class larkSendMsg {
             if ((writeResult.httpCode >= 200 || writeResult.httpCode < 300) && writeResult.result.code === 0) {
                 return true;
             } else {
-                log.warn("A message failed to be sent. The following data was not sent successfully: {}, and error message is : {}", historyData, writeResult.result.msg);
+                log.warn("A message failed to be sent. The following data was not sent successfully: {}, and error message is : {}, http code is: {}.", historyData, writeResult.result.msg, writeResult.httpCode);
                 return false;
             }
         } catch (e) {
