@@ -210,23 +210,27 @@ public class PostManAnalysis {
             code = response.code();
             headers = response.headers();
             Optional.ofNullable(response.body()).ifPresent(body -> {
-                try {
-                    Optional.ofNullable(body.string()).ifPresent(str -> {
+                try {String bodyStr = body.string();
+                    if (Objects.isNull(bodyStr)){
+                        result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, new HashMap<>());
+                    }else {
                         try {
-                            result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, fromJson(str));
+                            result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, fromJson(bodyStr));
                         } catch (Exception notMap) {
                             try {
-                                result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, fromJsonArray(str));
+                                result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, fromJsonArray(bodyStr));
                             } catch (Exception notArray) {
-                                result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, str);
+                                result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, bodyStr);
                             }
                         }
-                    });
+                    }
                 } catch (IOException ignored) {
+                    result.putIfAbsent(Api.PAGE_RESULT_PATH_DEFAULT_PATH, new HashMap<>());
                 }
             });
         } catch (Exception e) {
             error.put("msg", e.getMessage());
+            result.putIfAbsent(Api.PAGE_RESULT_PATH_DEFAULT_PATH, new HashMap<>());
             headers = Headers.of();
         }
         if (code < 200 || code >= 300) {
