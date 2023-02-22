@@ -455,10 +455,6 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
             throw new BizException("IllegalArgument", "tag");
         }
         String authentication = (String) where.get("authentication");
-        if (StringUtils.isEmpty(authentication)) {
-            throw new BizException("IllegalArgument", "authentication");
-        }
-
         Criteria criteria =  new Criteria();
         String scope = "public";
         if("Custom".equals(tag)){
@@ -466,13 +462,16 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
             criteria.and("customId").is(user.getCustomerId());
         }
         criteria.and("scope").is(scope);
-        // only return the latest version
         criteria.and("latest").is(true);
         if(!"All".equals(tag) && !"Custom".equals(tag)){
             criteria.and("tags").in(tag);
         }
         if(!"All".equals(authentication)){
-            criteria.and("authentication").is(authentication);
+            if(StringUtils.isEmpty(authentication)){
+                criteria.and("authentication").is("GA");
+            }else {
+                criteria.and("authentication").in(authentication,"GA");
+            }
         }
         query.addCriteria(criteria);
         query.limit(0);
