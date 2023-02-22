@@ -1,26 +1,28 @@
 class larkSendMsg {
     dataConvertConfig = {
-        "receiveType":"receiveType",
-        "receiveId":"receiveId",
-        "contentType":"contentType",
-        "content":"content"
+        "receiveType": "receiveType",
+        "receiveId": "receiveId",
+        "contentType": "contentType",
+        "content": "content"
     };
-    sendMsg(connectionConfig, nodeConfig, eventDataList){
+
+    sendMsg(connectionConfig, nodeConfig, eventDataList) {
         let succeedDataArr = [];
         //let sendConfig = nodeConfig.sendItemConfig;
         for (let index = 0; index < eventDataList.length; index++) {
             let event = eventDataList[index];
-            let data = this.convertEventAndSend(event,this.dataConvertConfig);
+            let data = this.convertEventAndSend(event, this.dataConvertConfig);
             if (null != data) {
-                let r = this.sendHttp(data);
+                let r = this.sendHttp(data, event.afterData);
                 if (this.checkParam(r)) {
-                    succeedDataArr.push(event.afterData);
+                    succeedDataArr.push(event);
                 }
             }
         }
         return succeedDataArr;
     }
-    convertEventAndSend(eventData,convertConfig){
+
+    convertEventAndSend(eventData, convertConfig) {
         let event = eventData.afterData;
         // 消息类型（默认text）：text、post、image、interactive、share_chat、share_user、audio、media、file、sticker
         // https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json#7215e4f6
@@ -32,14 +34,14 @@ class larkSendMsg {
             log.warn('Message type cannot be empty, it will be text now, you must be know message type is only be one of [text | post | image | interactive | share_chat | share_user | audio | media | file | sticker].');
             contentType = 'text';
         }
-        if (!this.checkParam(receiveType)){
+        if (!this.checkParam(receiveType)) {
             log.error('Receive type is user or email or phone or chat,it cannot be empty.please make sure param [receiveType] is useful.');
         }
         if (!this.checkParam(receivedUser)) {
             log.error('Receive id is chat_id or user\'s phone or email or open_id,it cannot be empty.please make sure param [receiveId] is useful.');
         }
         let receiveId = this.getUserId(receiveType, receivedUser);
-        if (!this.checkParam(receiveId)){
+        if (!this.checkParam(receiveId)) {
             return null;
         }
         if (!this.checkParam(content)) log.error('Receive message cannot be empty. please make sure param [connect] is useful.');
@@ -51,10 +53,10 @@ class larkSendMsg {
         };
     }
 
-    getUserId(receiveType, receivedUser){
+    getUserId(receiveType, receivedUser) {
         let receiveId = receiveOpenIdMap[receivedUser];
         switch (receiveType) {
-            case 'phone':{
+            case 'phone': {
                 if (!this.checkParam(receiveId)) {
                     let receiveIdData = invoker.invoke("GetOpenIdByPhone", {
                         "mobiles": receivedUser,
@@ -74,26 +76,28 @@ class larkSendMsg {
                 }
                 return receiveId;
             }
-            default: return receivedUser;
+            default:
+                return receivedUser;
         }
     }
 
-    sendHttp(sendData){
+    sendHttp(sendData, historyData) {
         let writeResult;
         try {
             writeResult = invoker.invoke("flyBookSendMessage", sendData);
+            if ((writeResult.httpCode >= 200 || writeResult.httpCode < 300) && writeResult.result.code === 0) {
+                return true;
+            } else {
+                log.warn("A message failed to be sent. The following data was not sent successfully: {}, and error message is : {}", historyData, writeResult.result.msg);
+                return false;
+            }
         } catch (e) {
-            throw e;
-        }
-        if (writeResult.result.code === 0) {
-            return true;
-        }
-        else {
-            log.warn(writeResult.result.msg);
+            log.warn("A message failed to be sent. The following data was not sent successfully: {}, error message: {}", historyData, e.message);
+            return false;
         }
     }
 
-    checkParam(param){
+    checkParam(param) {
         return 'undefined' !== param && null != param;
     }
 }
