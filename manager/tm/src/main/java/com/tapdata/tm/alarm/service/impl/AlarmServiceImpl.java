@@ -94,6 +94,7 @@ public class AlarmServiceImpl implements AlarmService {
         }
         Query query = new Query(criteria);
         AlarmInfo one = mongoTemplate.findOne(query, AlarmInfo.class);
+
         DateTime date = DateUtil.date();
         if (Objects.nonNull(one)) {
             info.setId(one.getId());
@@ -108,13 +109,11 @@ public class AlarmServiceImpl implements AlarmService {
                 UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(info.getUserId()));
                 AlarmSettingDto alarmSettingDto = alarmSettingService.findByKey(info.getMetric(),userDetail);
                 if (Objects.nonNull(alarmSettingDto)) {
-                    log.info("taskname:{}",info.getName());
-                    log.info("getUnit{}",alarmSettingDto.getUnit());
-                    log.info("getInterval{}",alarmSettingDto.getInterval());
                     DateTime lastNotifyTime = DateUtil.offset(one.getLastNotifyTime(), parseDateUnit(alarmSettingDto.getUnit()), alarmSettingDto.getInterval());
-                    log.info("lastNotifyTime{}",lastNotifyTime);
                     if (date.after(lastNotifyTime)) {
                         info.setLastNotifyTime(date);
+                    }else {
+                        info.setLastNotifyTime(one.getLastNotifyTime());
                     }
                 }
             } else {

@@ -439,11 +439,10 @@ public class TaskAlarmScheduler {
                     .name(task.getName()).metric(AlarmKeyEnum.TASK_INCREMENT_DELAY)
                     .build();
             alarmInfo.setUserId(task.getUserId());
-            if (count >= alarmRuleDto.getPoint()) {
+            if (count >= alarmRuleDto.getPoint() || delay.get()>=alarmRuleDto.getMs()) {
                 String summary;
                 Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus())).findFirst();
                 alarmInfo.setStatus(AlarmStatusEnum.ING);
-                log.info("tashname:{},阀值：{}",task.getName(),alarmRuleDto.getMs());
                 if (first.isPresent()) {
                     AlarmInfo data = first.get();
                     alarmInfo.setId(data.getId());

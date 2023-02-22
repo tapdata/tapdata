@@ -531,7 +531,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				TaskClient<TaskDto> taskDtoTaskClient = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(processorBaseContext.getTaskDto().getId().toHexString());
 				if (taskDtoTaskClient != null) {
 					TaskDto taskDto = taskDtoTaskClient.getTask();
-					processorBaseContext.getTaskDto().setManualStop(taskDto.isManualStop());
+					processorBaseContext.getTaskDto().setSnapShotInterrupt(taskDto.isSnapShotInterrupt());
 				}
 			}, TAG);
 			obsLogger.info(String.format("Node %s[%s] running status set to false", getNode().getName(), getNode().getId()));
