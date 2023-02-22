@@ -3,7 +3,9 @@
     "name": "Aliyun ADB PostgreSQL",
     "icon": "icons/aliyun_adb_postgres.png",
     "doc" : "${doc}",
-    "id": "aliyun-adb-postgres"
+    "id": "aliyun-adb-postgres",
+    "authentication": "beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "capabilities":[

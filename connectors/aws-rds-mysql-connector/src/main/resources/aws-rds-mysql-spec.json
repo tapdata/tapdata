@@ -3,7 +3,9 @@
     "name": "AWS RDS MySQL",
     "icon": "icons/aws_rds_mysql.png",
     "id": "aws-rds-mysql",
-    "doc": "${doc}"
+    "doc": "${doc}",
+    "authentication": "beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "capabilities": [

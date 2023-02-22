@@ -3,7 +3,9 @@
     "name": "Zoho",
     "icon": "icons/zoho.png",
     "doc" : "${doc}",
-    "id": "zoho"
+    "id": "zoho",
+    "authentication": "beta",
+    "tags": ["SaaS"]
   },
   "configOptions": {
     "pdkExpansion": [],
