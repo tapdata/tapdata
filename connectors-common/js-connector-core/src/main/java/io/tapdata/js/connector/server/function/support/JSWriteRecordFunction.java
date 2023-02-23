@@ -174,7 +174,10 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
         }
         Map<String, List<Map<String, Object>>> stringListMap = succeedData.stream().filter(ent->{
             if (Objects.nonNull(ent)){
-                Integer code = ent.hashCode();
+                Object eventType = ent.get(EventTag.EVENT_TYPE);
+                String type = eventType instanceof String ? (String)eventType : String.valueOf(eventType);
+                Object data = EventType.delete.equals(type) ? ent.get(EventTag.BEFORE_DATA) : ent.get(EventTag.AFTER_DATA);
+                Integer code = (Optional.ofNullable(data).orElse(new HashMap<>())).hashCode();
                 this.writeCache.put(code, ent);
                 return true;
             }
