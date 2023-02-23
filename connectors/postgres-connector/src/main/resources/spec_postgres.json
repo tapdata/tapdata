@@ -468,6 +468,10 @@
       "priority": 2,
       "to": "TapTime"
     },
+    "$nothing array": {
+      "queryOnly": true,
+      "to": "TapArray"
+    },
     "point": {
       "to": "TapString",
       "preferByte": 255,

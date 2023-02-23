@@ -35,7 +35,7 @@ public class ApiMapUtil {
     public static Object getKeyFromMap(Object mapObj,String keyName){
         if (mapObj instanceof Map){
             int indexPoint = keyName.indexOf(".");
-            String nameKey = keyName.substring(0, indexPoint < 0 ?keyName.length() : indexPoint);
+            String nameKey = keyName.substring(0, indexPoint < 0 ? keyName.length() : indexPoint);
             Object value = ((Map<String,Object>)mapObj).get(nameKey);
             if(indexPoint > 0 && indexPoint < keyName.length()) {
                 String subKey = keyName.substring(indexPoint + 1);
@@ -53,16 +53,30 @@ public class ApiMapUtil {
         if (Objects.isNull(mapObj) || Objects.isNull(keyName)) return "";
         if (mapObj instanceof Map){
             Map<String,Object> map = (Map<String,Object>)mapObj;
+            List<Object> waitMapList = new ArrayList<>();
             for (Map.Entry<String, Object> entry : map.entrySet()) {
                 String key = entry.getKey();
                 Object value = entry.getValue();
                 if (keyName.equals(key)) return value;
-                if (value instanceof Map || value instanceof Collection)  return depthSearchParamFromMap(entry.getValue(),keyName);
+                if (value instanceof Map || value instanceof Collection){
+                    waitMapList.add(value);
+                }
+            }
+            if (!waitMapList.isEmpty()){
+                for (Object mapOrList : waitMapList) {
+                    Object keyResult = depthSearchParamFromMap(mapOrList,keyName);
+                    if (Objects.nonNull(keyResult)){
+                        return keyResult;
+                    }
+                }
             }
         }else if (mapObj instanceof Collection){
             Collection list = (Collection) mapObj;
             for (Object arr : list) {
-                return depthSearchParamFromMap(arr,keyName);
+                Object keyResult = depthSearchParamFromMap(arr,keyName);
+                if (Objects.nonNull(keyResult)){
+                    return keyResult;
+                }
             }
         }
         return "";

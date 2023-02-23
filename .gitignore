@@ -69,7 +69,6 @@ connector/connector-common/.*
 connector/connector-manager/.*
 connector/debezium/debezium-connector-mongodb/.*
 connector/*/.factorypath
-connector/*/.factorypath
 connector/*/*/.factorypath
 connector/logs/*
 connector/connector-manager/src/main/resources/json/DataFlow.json
@@ -96,7 +95,7 @@ build_profile.js
 /build/version/node_modules/
 /build/version/package-lock.json
 /backend/package-lock.json
-/.agentStartMsg
+.agentStartMsg
 connector/tap-running/
 connector/dist/
 dist/
@@ -120,4 +119,6 @@ CacheObserveLogs/
 partition_storage/
 /manager/tm/src/main/resources/test3/
 null/
+
 .agentSingletonLock
+fileObserveLogAppenderV2/

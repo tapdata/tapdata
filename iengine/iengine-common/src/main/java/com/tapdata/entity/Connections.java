@@ -2230,6 +2230,7 @@ public class Connections implements Serializable {
 		System.out.println(AES256Util.Aes256Decode("2187c6efbef7341042a17dd7ff8d5a94", AES256Util.getKey()));
 	}
 
+
 	public boolean isCaseInSensitive() {
 		boolean flag = false;
 		if (database_type.equalsIgnoreCase("hive")) {
