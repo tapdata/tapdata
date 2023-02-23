@@ -173,9 +173,6 @@ public class ObservableAspectTask extends AspectTask {
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler ->
 							handler.handleBatchReadProcessComplete(System.currentTimeMillis(), recorder)
 					);
-					// batch read should calculate table snapshot insert counter
-
-					Optional.ofNullable(tableSampleHandlers).flatMap(handlers -> Optional.ofNullable(handlers.get(table))).ifPresent(handler -> handler.incrTableSnapshotInsertTotal(recorder.getInsertTotal()));
 				});
 				aspect.enqueuedConsumer(events ->
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
@@ -387,6 +384,7 @@ public class ObservableAspectTask extends AspectTask {
 	private PipelineDelayImpl pipelineDelay = (PipelineDelayImpl) InstanceFactory.instance(PipelineDelay.class);
 	public Void handleWriteRecordFunc(WriteRecordFuncAspect aspect) {
 		String nodeId = aspect.getDataProcessorContext().getNode().getId();
+		String table = aspect.getTable().getName();
 
 		switch (aspect.getState()) {
 			case WriteRecordFuncAspect.STATE_START:
@@ -408,8 +406,10 @@ public class ObservableAspectTask extends AspectTask {
 								handler.handleWriteRecordAccept(System.currentTimeMillis(), result, inner);
 							}
 					);
-					taskSampleHandler.handleWriteRecordAccept(result, events);
+					taskSampleHandler.handleWriteRecordAccept(result, events, table);
 					pipelineDelay.refreshDelay(task.getId().toHexString(), nodeId, inner.getProcessTimeTotal() / inner.getTotal(), inner.getNewestEventTimestamp());
+
+					Optional.ofNullable(tableSampleHandlers).flatMap(handlers -> Optional.ofNullable(handlers.get(table))).ifPresent(handler -> handler.incrTableSnapshotInsertTotal(recorder.getInsertTotal()));
 				});
 				break;
 			case WriteRecordFuncAspect.STATE_END:

@@ -32,7 +32,7 @@
     PAGE_SIZE_PAGE_INDEX：适用于使用页码和页内偏移数进行分页。需要搭配 TAP_PAGE_SIZE 和TAP_PAGE_INDEX 标签指定分页参数。
     FROM_TO：适用于使用记录开始索引和结束索引进行分页的。需要单配 TAP_PAGE_FROM 和 TAP_PAGE_TO 标签指定分页参数。
     PAGE_LIMIT：适用于使用记录索引和页内偏移数进行分页的。需要搭配 TAP_PAGE_OFFSET 和 TAP_PAGE_LIMIT 标签指定分页参数。
-    PAGE_TOKEN：适用于使用缓存分页Token进行分页的，首页传空，下一页使用上次查询返回的token进行查询 。需要搭配使用 TAP_PAGE_TOKEN 标签指定分页参数。
+    PAGE_TOKEN：适用于使用缓存分页Token进行分页的，首页传空，下一页使用上次查询返回的token进行查询 。需要搭配使用 TAP_PAGE_TOKEN 标签指定分页参数，同时使用 TAP_PAGE_SIZE 指定每次分页查询的记录数。
     PAGE_NONE：适用于列表返回不分页的普通数据获取。
   ```
 
