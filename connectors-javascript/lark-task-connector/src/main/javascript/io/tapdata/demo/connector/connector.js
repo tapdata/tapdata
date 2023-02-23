@@ -56,10 +56,9 @@ function connectionTest(connectionConfig) {
     return testItem;
 }
 
-function insertRecord(connectionConfig, nodeConfig, eventDataList) {
-    let createTask1 = new CreateTask();
-
-    return createTask1.create(connectionConfig, nodeConfig, eventDataList);
+function insertRecord(connectionConfig, nodeConfig, eventDataMap) {
+    let createTask = new CreateTask();
+    return createTask.create(connectionConfig, nodeConfig, eventDataMap);
 }
 
 function updateToken(connectionConfig, nodeConfig, apiResponse) {

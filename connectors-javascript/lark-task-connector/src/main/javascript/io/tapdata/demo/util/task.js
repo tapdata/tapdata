@@ -2,29 +2,19 @@ var invoker = loadAPI();
 var userMap = {};
 
 class CreateTask {
-    create(connectionConfig, nodeConfig, eventDataList) {
-        let succeedDataArr = [];
-        for (let index = 0; index < eventDataList.length; index++) {
-            let event = eventDataList[index];
-            let data;
-            try {
-                data = this.convertEventAndCreateTask(event);
-                if (data == null) {
-                    continue;
-                }
-            } catch (e) {
-                log.warn("Failed to create a task: {} please check whether the submitted parameters are correct: {}", e, event.afterData);
+    create(connectionConfig, nodeConfig, event) {
+        let data;
+        try {
+            data = this.convertEventAndCreateTask(event);
+            if(data === null) {
+                return false;
             }
-            if (this.sendHttp(data)) {
-                succeedDataArr.push(event);
-            } else {
-                log.warn("Failed to create a task, please check the network or whether you have the permission to create a task: {}", data)
-            }
-            if (!isAlive()) {
-                return succeedDataArr;
-            }
+        } catch (e) {
+            log.warn("Failed to create a task: {} please check whether the submitted parameters are correct: {}", e, event.afterData);
         }
-        return succeedDataArr;
+        if (!this.sendHttp(data)) {
+            log.warn("Failed to create a task, please check the network or whether you have the permission to create a task: {}", data)
+        }
     }
 
     convertEventAndCreateTask(eventData) {
