@@ -22,7 +22,7 @@
 .cache
 *.iml
 connector/agent.yml
-
+.agentSingletonLock
 #######################by file name
 
 
@@ -120,3 +120,4 @@ CacheObserveLogs/
 partition_storage/
 /manager/tm/src/main/resources/test3/
 null/
+.agentSingletonLock

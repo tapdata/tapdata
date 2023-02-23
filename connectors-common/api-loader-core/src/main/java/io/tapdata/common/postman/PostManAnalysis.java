@@ -202,13 +202,15 @@ public class PostManAnalysis {
         OkHttpClient client = this.configHttp(new OkHttpClient().newBuilder()).build();
         Map<String, Object> error = new HashMap<>();
         Map<String, Object> result = new HashMap<>();
-        Response response;
-        Headers headers;
-        int code = 0;
+        Response response = null;
         try {
             response = client.newCall(request).execute();
-            code = response.code();
-            headers = response.headers();
+        }catch (IOException e){
+            error.put("msg", e.getMessage());
+        }
+        int code = Objects.nonNull(response) ? response.code() : -1;
+        Headers headers = Objects.nonNull(response) ? response.headers() : Headers.of();
+        try {
             Optional.ofNullable(response.body()).ifPresent(body -> {
                 try {String bodyStr = body.string();
                     if (Objects.isNull(bodyStr)){
@@ -229,12 +231,11 @@ public class PostManAnalysis {
                 }
             });
         } catch (Exception e) {
-            error.put("msg", e.getMessage());
+            error.put("msg", Optional.ofNullable(error.get("msg")).orElse("") + " | " + e.getMessage());
             result.putIfAbsent(Api.PAGE_RESULT_PATH_DEFAULT_PATH, new HashMap<>());
-            headers = Headers.of();
         }
         if (code < 200 || code >= 300) {
-            error.put("msg", toJson(result));
+            error.put("msg", Optional.ofNullable(error.get("msg")).orElse("") + " | " + toJson(result));
         }
         return APIResponse.create().httpCode(code)
                 .result(result)
