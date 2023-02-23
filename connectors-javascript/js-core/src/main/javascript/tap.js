@@ -97,8 +97,7 @@ class TapApi {
         return {
             "result": tapUtil.toMap(result.result).data,
             "httpCode": result.httpCode,
-            "headers": tapUtil.toMap(result.headers),
-            "error": tapUtil.toMap(result.error)
+            "headers": tapUtil.toMap(result.headers)
         };
     }
 
@@ -137,8 +136,7 @@ class TapApi {
         return {
             "result": tapUtil.toMap(result.result).data,
             "httpCode": result.httpCode,
-            "headers": result.headers,
-            "error": result.error
+            "headers": result.headers
         };
     }
 
@@ -291,4 +289,5 @@ function cloneObj(obj){
     // return newObj;
     return JSON.parse(JSON.stringify(obj));
 }
+
 

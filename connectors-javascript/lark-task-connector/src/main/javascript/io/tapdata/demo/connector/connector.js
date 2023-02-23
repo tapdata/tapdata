@@ -58,6 +58,7 @@ function connectionTest(connectionConfig) {
 
 function insertRecord(connectionConfig, nodeConfig, eventDataList) {
     let createTask1 = new CreateTask();
+
     return createTask1.create(connectionConfig, nodeConfig, eventDataList);
 }
 

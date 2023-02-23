@@ -13,11 +13,12 @@ class CreateTask {
                     continue;
                 }
             } catch (e) {
-                log.warn("Failed to create a task: {} please check whether the submitted parameters are correct: {}", e.message, JSON.stringify(event.afterData));
-                continue;
+                log.warn("Failed to create a task: {} please check whether the submitted parameters are correct: {}", e, event.afterData);
             }
             if (this.sendHttp(data)) {
                 succeedDataArr.push(event);
+            } else {
+                log.warn("Failed to create a task, please check the network or whether you have the permission to create a task: {}", data)
             }
             if (!isAlive()) {
                 return succeedDataArr;
@@ -58,7 +59,6 @@ class CreateTask {
             return null;
         }
         let fUserIds = this.getUserId(followerIds.split(","));
-
         return {
             "rich_summary": richSummary,
             "rich_description": richDescription,
@@ -76,7 +76,7 @@ class CreateTask {
         if ((writeResult.httpCode >= 200 || writeResult.httpCode < 300) && this.checkParam(writeResult.result.code) && writeResult.result.code === 0) {
             return true;
         } else {
-            throw ("Failed to send the HTTP request. ");
+            throw ("Failed to send the HTTP request, please check whether the parameters you provided: {} or the network is normal. ", sendData);
         }
     }
 
