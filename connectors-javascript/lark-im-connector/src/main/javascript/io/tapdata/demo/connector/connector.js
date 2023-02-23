@@ -1,5 +1,3 @@
-config.setStreamReadIntervalSeconds(600);
-
 function discoverSchema(connectionConfig) {
     let app = invoker.invoke("AppInfo").result;
     let appName = app.data.app.app_name;
@@ -33,73 +31,38 @@ function discoverSchema(connectionConfig) {
 
 function connectionTest(connectionConfig) {
     let app = invoker.invoke("AppInfo").result;
-    let isApp = 'undefined' !== app && null != app && 'undefined' !== app.data && null != app.data && 'undefined' !== app.data.app;
-    let testItem = [{
+    let isApp = 1;
+    if (!sendMsg.checkParam(app) && !sendMsg.checkParam(app.data) && !sendMsg.checkParam(app.data.app)){
+       log.warn("Cannot get Application info, and application name will be empty now.")
+        isApp = -1;
+    }
+    return [{
         "test": "Get App info",
-        "code": isApp ? 1 : -1,
-        "result": isApp ? "App name is:" + app.data.app.app_name : "Can not get App info, please check you App ID and App Secret."
+        "code": isApp,
+        "result": isApp === 1 ? "App name is:" + app.data.app.app_name : "Can not get App info, please check you App ID and App Secret."
     }];
-    // if (isApp){
-    //     let needAuthority = {
-    //         "contact:user.id:readonly":'通过手机号或邮箱获取用户 ID',
-    //         "contact:user.employee_id:readonly":'获取用户 user ID',
-    //         "im:message":'获取与发送单聊、群组消息',
-    //         "im:message:send_as_bot":'以应用的身份发消息'
-    //     }
-    //     let appScopes = app.data.app.scopes;
-    //     let hasEnoughAuthority = true;
-    //     let notSupport = '';
-    //     for (let index=0;index<needAuthority.length;index++){
-    //         let s = needAuthority[index];
-    //         let newVar = needAuthority.get(s.scope);
-    //         if ('undefined' === newVar || null == newVar){
-    //             if (hasEnoughAuthority) {
-    //                 hasEnoughAuthority = false;
-    //             }
-    //             notSupport += s.description + ":" + s.scope + ";";
-    //         }
-    //     }
-    //     testItem.push({
-    //         "test": "Check whether the authority is complete ",
-    //         "code": hasEnoughAuthority ? 1 : -1,
-    //         "result": hasEnoughAuthority ? "Permission configuration meets the requirements" : "The following permissions are configured. Please configure and try again: " + notSupport;
-    //     })
-    // }
-    return testItem;
 }
 
 var receiveOpenIdMap = {};
-// function writeRecord(connectionConfig, nodeConfig, eventDataList, writerResultCollector){
-//
-// }
+var sendMsg = new larkSendMsgV2();
 function insertRecord(connectionConfig, nodeConfig, eventDataMap) {
-    let sendMsg = new larkSendMsgV2();
     return sendMsg.sendMsg(connectionConfig, nodeConfig, eventDataMap, 'V2');
 }
 
 function updateToken(connectionConfig, nodeConfig, apiResponse) {
-    if (apiResponse.httpCode === 200 && apiResponse.result.code !== 99991663 && apiResponse.result.code !== 99991661) return null;
+    if (!sendMsg.checkParam(apiResponse.result.code) ||
+        (apiResponse.result.code !== 99991663 && apiResponse.result.code !== 99991661)) {
+        return null;
+    }
     let result = invoker.invokeWithoutIntercept("GetAppToken");
-    if (result.result.code === 0) return {"token": result.result.tenant_access_token};
-    else log.error('Cannot get tenant access token, please check your app_id or app_secret or check api named GetAppToken. ');
+    if (sendMsg.checkParam(apiResponse.result.code) && result.result.code === 0) {
+        return {"token": result.result.tenant_access_token};
+    } else {
+        log.error('Cannot get tenant access token, please check your app_id or app_secret or check api named GetAppToken. ');
+    }
 }
 
-/**
- *
- * @param connectionConfig
- * @param nodeConfig
- * @param commandInfo
- *
- *  "commandInfo": {
- *      "command": String,   //command类型
- *      "action": String,    //action类型
- *      "argMap": Object,    //查询参数
- *      "time": Number       //command发起时间
- *  }
- * */
 function commandCallback(connectionConfig, nodeConfig, commandInfo) {
-    //
-    let commandName = commandInfo.command;
     let exec = new CommandStage().exec(commandInfo.command);
     if (null != exec) {
         return exec.command(connectionConfig, nodeConfig, commandInfo);
