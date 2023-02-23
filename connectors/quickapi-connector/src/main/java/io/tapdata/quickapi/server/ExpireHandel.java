@@ -1,5 +1,6 @@
 package io.tapdata.quickapi.server;
 
+import io.tapdata.common.postman.entity.params.Api;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.common.support.entitys.APIResponse;
 import io.tapdata.common.postman.util.ApiMapUtil;
@@ -69,7 +70,7 @@ public class ExpireHandel {
                 return codeEquals(key,split[1]);
             }else if(key.startsWith("body.")){
                 key = key.substring(5);
-                return bodyEquals(key,split[1]);
+                return bodyEquals(Api.PAGE_RESULT_PATH_DEFAULT_PATH + "."+key,split[1]);
             }else {
                 return bodyEquals(key,split[1]);
             }
