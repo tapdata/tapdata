@@ -45,7 +45,8 @@ FROM_TO：適用於使用記錄開始索引和結束索引進行分頁的。 需
 
 PAGE_LIMIT：適用於使用記錄索引和頁內偏移數進行分頁的。 需要搭配 TAP_PAGE_OFFSET 和 TAP_PAGE_LIMIT 標籤指定分頁參數。
 
-PAGE_TOKEN：適用於使用緩存分頁Token進行分頁的，首頁傳空，下一頁使用上次査詢返回的token進行査詢。 需要搭配使用 TAP_PAGE_TOKEN 標籤指定分頁參數，同時使用 TAP_PAGE_SIZE 指定每次分頁査詢的記錄數。
+PAGE_TOKEN：適用於使用緩存分頁Token進行分頁的，首頁傳空，下一頁使用上次査詢返回的token進行査詢。 需要搭配使用 TAP_PAGE_TOKEN 標籤指定分頁參數，同時使用 TAP_PAGE_SIZE 指定每次分頁査詢的記錄數，使用TAP_HAS_MORE_PAGE來描述是否有下一頁的欄位名稱（需要在參數列表中指定這個參數並在參數的描述中添加這個標籤）。
+
 
 PAGE_NONE：適用於清單返回不分頁的普通數據獲取。
 
@@ -102,7 +103,7 @@ TAP_TABLE[Issues] (PAGE_SIZE_PAGE_INDEX:Response.Data.List)獲取事項清單
 - 3.2這個狀態描述需要您手動通過PostMan訪問API總結出來（因為我們無法預知這些Saas平臺在access_token過期後以何種響應結果返回）；
 
 
-- 3.3在PostMan對登入（獲取API存取權限）的API介面進行聲明，當執行API過程中發現了access_ token過期後悔調用這個指定的API進行access_token重繪，這個登入介面需要在介面的名稱上加上TAP_LOGIN這樣一個標誌性文字。 例如：對ZoHo權杖重繪介面的名稱為“TAP_LOGIN重繪AccessToken-登入”，其加上了TAP_LOGIN（見左上角）表示此介面用於實現自動權杖重繪操作。
+- 3.3在PostMan對登入（獲取API存取權限）的API介面進行聲明，當執行API過程中發現了access_ token過期後悔調用這個指定的API進行access_token重繪，這個登入介面需要在介面的名稱上加上TAP_GET_TOKEN這樣一個標誌性文字。 例如：對ZoHo權杖重繪介面的名稱為“TAP_GET_TOKEN重繪AccessToken-登入”，其加上了TAP_GET_TOKEN（見左上角）表示此介面用於實現自動權杖重繪操作。
 
 ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/quickAPI/doc/TAP_LOGIN-ZoHo.PNG)
 
