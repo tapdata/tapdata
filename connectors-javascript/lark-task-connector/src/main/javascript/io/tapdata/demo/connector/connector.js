@@ -1,10 +1,8 @@
-config.setStreamReadIntervalSeconds(600);
-
 function discoverSchema(connectionConfig) {
     let app = invoker.invoke("Obtain application information").result;
     let appName = app.data.app.app_name;
     return [{
-        'name': appName + '_向群组或用户发送任务',
+        'name': appName + '_send_tasks',
         'fields': {
             'richSummary': {
                 'type': 'String',
@@ -56,14 +54,14 @@ function connectionTest(connectionConfig) {
     return testItem;
 }
 
+var createTask = new CreateTask();
 function insertRecord(connectionConfig, nodeConfig, eventDataMap) {
-    let createTask = new CreateTask();
     return createTask.create(connectionConfig, nodeConfig, eventDataMap);
 }
 
 function updateToken(connectionConfig, nodeConfig, apiResponse) {
-    if (apiResponse.result.code != 99991663 && apiResponse.result.code != 99991661) return null;
+    if (apiResponse.result.code !== 99991663 && apiResponse.result.code !== 99991661) return null;
     let result = invoker.invokeWithoutIntercept("Obtain the App Token and Tenant Token");
     if (result.result.code === 0) return {"Authorization": "Bearer " + result.result.tenant_access_token};
-    else log.error('Cannot get tenant access token, please check your app_id or app_secret or check api named GetAppToken. ');
+    else log.error('Cannot get tenant access token, please check your app_id or app_secret or check api named GetAppToken. {}', result.result);
 }

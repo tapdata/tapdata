@@ -6,19 +6,27 @@ class CreateTask {
         let data;
         try {
             data = this.convertEventAndCreateTask(event);
-            if(data === null) {
+            if (data === null) {
                 return false;
             }
         } catch (e) {
             log.warn("Failed to create a task: {} please check whether the submitted parameters are correct: {}", e, event.afterData);
+            return false;
         }
-        if (!this.sendHttp(data)) {
-            log.warn("Failed to create a task, please check the network or whether you have the permission to create a task: {}", data)
-        }
+        return this.sendHttp(data);
     }
 
     convertEventAndCreateTask(eventData) {
+        if (!this.checkParam(eventData)) {
+            log.warn("eventData is empty, can not be handled")
+            return null;
+        }
         let event = eventData.afterData;
+        if (!this.checkParam(event)) {
+            log.warn("afterData is empty, can not be handled");
+            return null;
+        }
+
         let richSummary = event.richSummary;
         let richDescription = event.richDescription;
         let collaboratorIds = event.collaboratorIds;
@@ -32,7 +40,7 @@ class CreateTask {
             return null;
         }
         if (!this.checkParam(richDescription)) {
-            log.warn('RichDescription is the description in the task. It cannot be left empty. ');
+            log.warn('RichDescription is the description in the task. It cannot be empty. ');
             return null;
         }
         if (!this.checkParam(collaboratorIds)) {
@@ -61,43 +69,63 @@ class CreateTask {
     }
 
     sendHttp(sendData) {
-        let writeResult;
-        writeResult = invoker.invoke("Create task", sendData);
-        if ((writeResult.httpCode >= 200 || writeResult.httpCode < 300) && this.checkParam(writeResult.result.code) && writeResult.result.code === 0) {
+        let writeResult = invoker.invoke("Create task", sendData);
+        if (writeResult.httpCode < 200 || writeResult.httpCode >= 300) {
+            throw ("create task failed, http code illegal. " + JSON.stringify(writeResult));
+        }
+        if (!this.checkParam(writeResult.result.code)) {
+            throw ("create task failed, lark code illegal. " + JSON.stringify(writeResult));
+        }
+        if (writeResult.result.code !== 0) {
             return true;
         } else {
-            throw ("Failed to send the HTTP request, please check whether the parameters you provided: {} or the network is normal. ", sendData);
+            log.warn("create task failed. {}", writeResult.result);
         }
+        return false;
     }
 
     getUserId(receivedUser) {
         let userIds = {};
         for (let index = 0; index < receivedUser.length; index++) {
-            let spiltUserId = receivedUser[index];
-            let userIdFromCache = userMap[spiltUserId];
+            let splitUserId = receivedUser[index];
+            let userIdFromCache = userMap[splitUserId];
             if (this.checkParam(userIdFromCache)) {
-                userIds[spiltUserId] = userIdFromCache;
+                userIds[splitUserId] = userIdFromCache;
                 continue;
             }
-            if (this.checkParam(spiltUserId)) {
+            if (this.checkParam(splitUserId)) {
                 let receiveIdData = invoker.invoke("Get the user ID by phone number or email", {
-                    "userMobiles": spiltUserId,
-                    "userEmails": spiltUserId
+                    "userMobiles": splitUserId,
+                    "userEmails": splitUserId
                 });
-                let userId = receiveIdData.result.data.user_list[0].user_id;
+                if (!this.checkParam(receiveIdData)) {
+                    log.warn("Get user id by phone or email {} failed", splitUserId);
+                    continue;
+                }
+                if (!this.checkParam(receiveIdData.result.data)) {
+                    log.warn("Get user id by phone or email {}, data is empty", splitUserId);
+                    continue;
+                }
+                let userList = receiveIdData.result.data.user_list;
+                if (!(userList instanceof Array) && userList.length > 0) {
+                    log.warn("Get user id by phone or email {}, user_list is not array or length == 0", splitUserId);
+                }
+                let userId = userList[0].user_id;
                 if (!this.checkParam(userId)) {
                     // 用户：{{phoneOrEmail}}, 这位用户不在应用的可见范围中，
                     // 请确保应用的此用户在当前版本下可见，您可在应用版本管理与发布中查看最新版本下的可见范围，如有必要请在创建新的版本并将此用户添加到可见范围。
-                    userId = receiveIdData.result.data.user_list[1].user_id;
+
+                    if (userList.length > 1)
+                        userId = userList[1].user_id;
                 }
                 if (!this.checkParam(userId)) {
-                    log.warn(' User: {}, this user is not in the visible range of the application. Please ensure that this user of the application is visible under the current version. You can view the visible range under the latest version in the application version management and release. If necessary, create a new version and add this user to the visible range, message is: {}', event.phone, event.content);
+                    log.warn('Get user id by phone or email {} failed, user id can not be found or {} is not visible to your application', splitUserId, splitUserId);
                     continue;
                 }
-                if (!this.checkParam(userIds[spiltUserId])) {
-                    userIds[spiltUserId] = userId;
+                if (!this.checkParam(userIds[splitUserId])) {
+                    userIds[splitUserId] = userId;
                 }
-                userMap[spiltUserId] = userId;
+                userMap[splitUserId] = userId;
             }
         }
         return "\"" + Object.values(userIds).join("\",\"") + "\"";
