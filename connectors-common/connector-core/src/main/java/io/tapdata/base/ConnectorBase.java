@@ -83,7 +83,7 @@ public abstract class ConnectorBase implements TapConnector {
 	public static void fillFieldsByExample(TapTable table, String exampleJson) {
 		DataMap dataMap = fromJsonObject(exampleJson);
 		//TODO fill fields in table.
-		
+
 	}
 
 	public static String toJson(Object obj, JsonParser.ToJsonFeature... features) {
@@ -241,19 +241,27 @@ public abstract class ConnectorBase implements TapConnector {
 		}
 	}
 
-	private final AtomicBoolean isAlive = new AtomicBoolean(false);
-	private final AtomicBoolean isDestroyed = new AtomicBoolean(false);
+    private final AtomicBoolean isAlive = new AtomicBoolean(false);
+    protected String firstConnectorId;
+    private final AtomicBoolean isDestroyed = new AtomicBoolean(false);
 
 	public boolean isAlive() {
 		return isAlive.get() && !Thread.currentThread().isInterrupted();
 	}
 
-	@Override
-	public final void init(TapConnectionContext connectionContext) throws Throwable {
-		if (isAlive.compareAndSet(false, true)) {
-			onStart(connectionContext);
-		}
-	}
+    @Override
+    public final void init(TapConnectionContext connectionContext) throws Throwable {
+        if (isAlive.compareAndSet(false, true)) {
+            isConnectorStarted(connectionContext, connectorContext -> {
+                firstConnectorId = (String) connectorContext.getStateMap().get("firstConnectorId");
+                if (EmptyKit.isNull(firstConnectorId)) {
+                    firstConnectorId = connectionContext.getId();
+                    connectorContext.getStateMap().put("firstConnectorId", firstConnectorId);
+                }
+            });
+            onStart(connectionContext);
+        }
+    }
 
 	public abstract void onStart(TapConnectionContext connectionContext) throws Throwable;
 
