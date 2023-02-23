@@ -1,6 +1,10 @@
 package io.tapdata.exception;
 
-import java.lang.annotation.*;
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
  * Use on static filed with exception code
@@ -12,4 +16,9 @@ import java.lang.annotation.*;
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface TapExCode {
+	String describe() default "";
+
+	String solution() default "";
+
+	boolean recoverable() default false;
 }

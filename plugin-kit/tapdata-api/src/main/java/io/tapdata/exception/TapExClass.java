@@ -12,5 +12,7 @@ import java.lang.annotation.*;
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface TapExClass {
+    int code();
     String module();
+    String describe() default "";
 }

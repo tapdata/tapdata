@@ -6,19 +6,19 @@ import java.util.Optional;
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2022/11/29 14:16 Create
  */
-public class TapdataRuntimeException extends RuntimeException {
-    public TapdataRuntimeException() {
+public abstract class TapRuntimeException extends RuntimeException {
+    public TapRuntimeException() {
     }
 
-    public TapdataRuntimeException(String message) {
+    public TapRuntimeException(String message) {
         super(message);
     }
 
-    public TapdataRuntimeException(String message, Throwable cause) {
+    public TapRuntimeException(String message, Throwable cause) {
         super(message, cause);
     }
 
-    public TapdataRuntimeException(Throwable cause) {
+    public TapRuntimeException(Throwable cause) {
         super(cause);
     }
 
@@ -26,9 +26,9 @@ public class TapdataRuntimeException extends RuntimeException {
         Throwable th = this;
         StringBuilder buf = new StringBuilder();
         do {
-            if (th instanceof TapdataCodeException) {
+            if (th instanceof TapCodeException) {
                 buf.append(th).append("\n");
-            } else if (th instanceof TapdataRuntimeException) {
+            } else if (th instanceof TapRuntimeException) {
                 buf.append(th);
                 for (StackTraceElement t : th.getStackTrace()) {
                     buf.append(t).append(";");
