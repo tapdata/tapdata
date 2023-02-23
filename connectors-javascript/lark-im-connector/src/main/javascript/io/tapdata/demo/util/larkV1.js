@@ -1,26 +1,26 @@
 class larkSendMsg {
-    writerSender;
+    writerResultCollector;
     dataConvertConfig = {
         "receiveType": "receiveType",
         "receiveId": "receiveId",
         "contentType": "contentType",
         "content": "content"
     };
+    markSentResult(event){
+        if ('undefined' === this.writerResultCollector || null == this.writerResultCollector){
+            return;
+        }
+        this.writerResultCollector.markSent(event);
+    }
 
-    sendMsg(connectionConfig, nodeConfig, eventDataList) {
-        let succeedDataArr = [];
-        //let sendConfig = nodeConfig.sendItemConfig;
-        for (let index = 0; index < eventDataList.length; index++) {
-            let event = eventDataList[index];
-            let data = this.convertEventAndSend(event, this.dataConvertConfig);
-            if (null != data) {
-                let r = this.sendHttp(data, event.afterData);
-                if (this.checkParam(r)) {
-                    succeedDataArr.push(event);
-                }
+    sendMsg(connectionConfig, nodeConfig, event) {
+        let data = this.convertEventAndSend(event, this.dataConvertConfig);
+        if (null != data) {
+            let r = this.sendHttp(data, event.afterData);
+            if (!this.checkParam(r)) {
+                throw("Error send message")
             }
         }
-        return succeedDataArr;
     }
 
     convertEventAndSend(eventData, convertConfig) {

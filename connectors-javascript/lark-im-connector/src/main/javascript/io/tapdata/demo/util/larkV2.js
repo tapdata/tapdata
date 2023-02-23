@@ -1,33 +1,28 @@
 class larkSendMsgV2 extends larkSendMsg {
-    sendMsg(connectionConfig, nodeConfig, eventDataList) {
+    sendMsg(connectionConfig, nodeConfig, eventDataMap) {
         let argument = arguments[3];
         if ('undefined' === argument || null == argument || argument === 'V1') {
-            return super.sendMsg(connectionConfig, nodeConfig, eventDataList);
+            super.sendMsg(connectionConfig, nodeConfig, eventDataMap);
         }
         let sendType = nodeConfig.sendType;
         switch (sendType) {
             case 'appoint':
-                return this.appointSend(connectionConfig, nodeConfig, eventDataList);
+                return this.appointSend(connectionConfig, nodeConfig, eventDataMap);
             case 'dynamic_binding':
-                return this.dynamicBindingSend(connectionConfig, nodeConfig, eventDataList);
+                return this.dynamicBindingSend(connectionConfig, nodeConfig, eventDataMap);
             default :
-                return this.defaultSendType(connectionConfig, nodeConfig, eventDataList);
+                return this.defaultSendType(connectionConfig, nodeConfig, eventDataMap);
         }
     }
 
-    defaultSendType(connectionConfig, nodeConfig, eventDataList) {
-        return super.sendMsg(connectionConfig, nodeConfig, eventDataList);
+    defaultSendType(connectionConfig, nodeConfig, event) {
+        return super.sendMsg(connectionConfig, nodeConfig, event);
     }
 
-    appointSend(connectionConfig, nodeConfig, eventDataList) {
-        let succeedDataArr = [];
-        for (let index = 0; index < eventDataList.length; index++) {
-            let event = eventDataList[index];
-            if (this.appointSendWithData(connectionConfig, nodeConfig, event)) {
-                succeedDataArr.push(event);
-            }
+    appointSend(connectionConfig, nodeConfig, event) {
+        if (!this.appointSendWithData(connectionConfig, nodeConfig, event)) {
+            throw("Error send message")
         }
-        return succeedDataArr;
     }
 
     appointSendWithData(connectionConfig, nodeConfig, event) {
@@ -49,9 +44,8 @@ class larkSendMsgV2 extends larkSendMsg {
     }
 
 
-    dynamicBindingSend(connectionConfig, nodeConfig, eventDataList) {
+    dynamicBindingSend(connectionConfig, nodeConfig, eData) {
         let dynamicBinding = nodeConfig.dynamicBinding;
-        let backArr = [];
         let messageConfigArr = nodeConfig.messageConfig;
         for (let index = 0; index < dynamicBinding.length; index++) {
             let dynamicBindingItem = dynamicBinding[index];
@@ -61,15 +55,14 @@ class larkSendMsgV2 extends larkSendMsg {
                 "contentType": messageConfigArr[0].messageType,
                 "content": messageConfigArr[0].messageField
             }
-            for (let i = 0; i < eventDataList.length; i++) {
-                let eData = eventDataList[i];
-                let sendMsgDataMap = this.convertEventAndSend(eData, dataConvertMap);
-                if (super.sendHttp(sendMsgDataMap, eData.afterData)) {
-                    backArr.push(eData);
-                }
+
+            let sendMsgDataMap = this.convertEventAndSend(eData, dataConvertMap);
+            if (!super.sendHttp(sendMsgDataMap, eData.afterData)) {
+                //backArr.push(eData);
+                throw("Error send message")
             }
         }
-        return backArr;
+
     }
 
     convertEventAndSend(eventData, convertConfig) {
