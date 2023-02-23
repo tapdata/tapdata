@@ -54,7 +54,7 @@
 		<module>aliyun-rds-mariadb-connector</module>
 		<module>databend-connector</module>
 		<module>hazelcast-connector</module>
-		<module>openGauss-postgres-connector</module>
+		<module>opengauss-connector</module>
 	</modules>
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>

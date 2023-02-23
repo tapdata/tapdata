@@ -53,8 +53,8 @@ import java.util.stream.Collectors;
 import static io.tapdata.entity.simplify.TapSimplify.index;
 import static io.tapdata.entity.simplify.TapSimplify.indexField;
 
-@TapConnectorClass("spec_open_gauss.json")
-public class OpenGaussPostgresConnector extends ConnectorBase {
+@TapConnectorClass("spec_opengauss.json")
+public class OpenGaussConnector extends ConnectorBase {
 
     private PostgresConfig postgresConfig;
     private PostgresJdbcContext postgresJdbcContext;
