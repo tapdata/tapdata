@@ -69,15 +69,16 @@ function connectionTest(connectionConfig) {
 }
 
 var receiveOpenIdMap = {};
-
-function insertRecord(connectionConfig, nodeConfig, eventDataList, sender) {
+// function writeRecord(connectionConfig, nodeConfig, eventDataList, writerResultCollector){
+//
+// }
+function insertRecord(connectionConfig, nodeConfig, eventDataMap) {
     let sendMsg = new larkSendMsgV2();
-    sendMsg.writerSender = sender;
-    return sendMsg.sendMsg(connectionConfig, nodeConfig, eventDataList, 'V2');
+    return sendMsg.sendMsg(connectionConfig, nodeConfig, eventDataMap, 'V2');
 }
 
 function updateToken(connectionConfig, nodeConfig, apiResponse) {
-    if (apiResponse.result.code !== 99991663 && apiResponse.result.code !== 99991661) return null;
+    if (apiResponse.httpCode === 200 && apiResponse.result.code !== 99991663 && apiResponse.result.code !== 99991661) return null;
     let result = invoker.invokeWithoutIntercept("GetAppToken");
     if (result.result.code === 0) return {"token": result.result.tenant_access_token};
     else log.error('Cannot get tenant access token, please check your app_id or app_secret or check api named GetAppToken. ');
