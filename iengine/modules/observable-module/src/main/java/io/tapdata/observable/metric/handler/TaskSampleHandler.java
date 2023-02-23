@@ -306,7 +306,7 @@ public class TaskSampleHandler extends AbstractHandler {
         sourceNodeHandlers.putIfAbsent(nodeId, handler);
     }
 
-    public void handleWriteRecordAccept(WriteListResult<TapRecordEvent> result, List<TapRecordEvent> events, String table) {
+    public void handleWriteRecordAccept(WriteListResult<TapRecordEvent> result, List<TapRecordEvent> events) {
         long current = System.currentTimeMillis();
 
         long inserted = result.getInsertedCount();
