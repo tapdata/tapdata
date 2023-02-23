@@ -83,8 +83,7 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
                 String cacheEventTypeTemp = String.valueOf(Optional.ofNullable(event.get(EventTag.EVENT_TYPE)).orElse(EventType.insert));
                 if (Objects.isNull(cacheEventType) || !cacheEventType.equals(cacheEventTypeTemp)) {
                     if (!execData.isEmpty()) {
-                        JSFunctionNames functionName = cacheEventType.equals(EventType.insert) ? JSFunctionNames.InsertRecordFunction : (cacheEventType.equals(EventType.update) ? JSFunctionNames.UpdateRecordFunction : JSFunctionNames.DeleteRecordFunction);
-                        this.exec(context, execData, functionName, insert, update, delete);
+                        this.execDrop(cacheEventType, context, execData, insert, update, delete);
                         execData = new ArrayList<>();
                     }
                     cacheEventType = cacheEventTypeTemp;
@@ -92,46 +91,61 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
                 execData.add(event);
             }
             if (!execData.isEmpty()) {
-                JSFunctionNames functionName = cacheEventType.equals(EventType.insert) ? JSFunctionNames.InsertRecordFunction : (cacheEventType.equals(EventType.update) ? JSFunctionNames.UpdateRecordFunction : JSFunctionNames.DeleteRecordFunction);
-                this.exec(context, execData, functionName, insert, update, delete);
+                this.execDrop(cacheEventType, context, execData, insert, update, delete);
             }
         }
         this.exec(context, machiningEvents, JSFunctionNames.WriteRecordFunction, insert, update, delete);
+        //js执行出错不需要清除缓存，重试时需要使用
+        this.writeCache = new ConcurrentHashMap<>();
         writeListResultConsumer.accept(result.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
     }
 
-    private void exec(TapConnectorContext context, List<Map<String, Object>> execData, JSFunctionNames function, AtomicLong insert, AtomicLong update, AtomicLong delete) {
+    private void execDrop(String cacheEventType, TapConnectorContext context, List<Map<String, Object>> execData, AtomicLong insert, AtomicLong update, AtomicLong delete){
+        JSFunctionNames functionName = cacheEventType.equals(EventType.insert) ? JSFunctionNames.InsertRecordFunction : (cacheEventType.equals(EventType.update) ? JSFunctionNames.UpdateRecordFunction : JSFunctionNames.DeleteRecordFunction);
+        for (Map<String, Object> execDatum : execData) {
+            this.exec(context, execDatum, functionName, insert, update, delete);
+        }
+    }
+
+    private void exec(TapConnectorContext context, Object execData, JSFunctionNames function, AtomicLong insert, AtomicLong update, AtomicLong delete) {
         if (!this.doNotSupport(function)) {
-            WriteRecordRender writeRecordRender = data -> {
-                if (Objects.isNull(data)) {
-                    this.convertData(null, insert, update, delete);
-                } else if (data instanceof Map) {
-                    List<Object> dataList = new ArrayList<>();
-                    dataList.add(data);
-                    this.convertData(dataList, insert, update, delete);
-                } else if (data instanceof Collection) {
-                    this.convertData(data, insert, update, delete);
-                } else if (data.getClass().isArray()) {
-                    Object[] dataArr = (Object[]) data;
-                    List<Object> list = new ArrayList<>(Arrays.asList(dataArr));
-                    this.convertData(list, insert, update, delete);
-                } else {
-                    this.convertData(data, insert, update, delete);
+            WriteRecordRender writeResultCollector= data -> {
+                if (Objects.nonNull(data)) {
+                    if (data instanceof Map) {
+                        List<Object> dataList = new ArrayList<>();
+                        dataList.add(data);
+                        this.convertData(dataList, insert, update, delete);
+                    } else if (data instanceof Collection) {
+                        this.convertData(data, insert, update, delete);
+                    } else if (data.getClass().isArray()) {
+                        Object[] dataArr = (Object[]) data;
+                        List<Object> list = new ArrayList<>(Arrays.asList(dataArr));
+                        this.convertData(list, insert, update, delete);
+                    } else {
+                        this.convertData(data, insert, update, delete);
+                    }
                 }
             };
-            Object invoker;
             try {
+                boolean isWriteRecord = JSFunctionNames.WriteRecordFunction.jsName().equals(function.jsName());
                 synchronized (JSConnector.execLock) {
-                    invoker = super.javaScripter.invoker(
+                    super.javaScripter.invoker(
                             function.jsName(),
                             Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()),
                             Optional.ofNullable(context.getNodeConfig()).orElse(new DataMap()),
                             execData,
-                            writeRecordRender
+                            isWriteRecord ? writeResultCollector : null
                     );
                 }
-                this.convertData(invoker, insert, update, delete);
-                this.writeCache = new ConcurrentHashMap<>();
+                if (!isWriteRecord){
+                    List<Object> list = new ArrayList<>();
+                    if (execData instanceof Collection) {
+                        list.addAll((Collection<?>) execData);
+                    }else {
+                        list.add(execData);
+                    }
+                    this.convertData(list,insert,update,delete);
+                }
             } catch (Exception e) {
                 throw new CoreException(String.format("Exceptions occurred when executing %s to write data. The operations of adding %s, modifying %s, and deleting %s failed,msg: %s.", function.jsName(), insert.get(), update.get(), delete.get(), e.getMessage()));
             }
@@ -143,10 +157,18 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
         try {
             succeedData = (List<Map<String, Object>>) invoker;
         } catch (Exception ignored) {
-            TapLogger.warn(TAG, "No normal JavaScript writing return value was received. Please keep the return value structure in line with the format requirements: \n" +
-                    "[{\"eventType\":\"i/u/d\",\"afterData\":{},\"beforeData\":{},\"tableName\":\"\",\"referenceTime\":\"\"}]");
+            TapLogger.warn(TAG, "No normal JavaScript writing return value was received. Please keep the return value structure which is include the following map or list in line with the format requirements: \n" +
+                    "{\"eventType\":\"i/u/d\",\"afterData\":{},\"beforeData\":{},\"tableName\":\"\",\"referenceTime\":\"\"}");
         }
-        Map<String, List<Map<String, Object>>> stringListMap = succeedData.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(map -> String.valueOf(map.get(EventTag.EVENT_TYPE))));
+        Map<String, List<Map<String, Object>>> stringListMap = succeedData.stream().filter(ent->{
+            if (Objects.nonNull(ent)){
+                Integer code = ent.hashCode();
+                this.writeCache.put(code, ent);
+                return true;
+            }
+            return false;
+        }).collect(Collectors.groupingBy(map -> String.valueOf(map.get(EventTag.EVENT_TYPE))));
+
         List<Map<String, Object>> insertData = stringListMap.get(EventType.insert);
         List<Map<String, Object>> updateData = stringListMap.get(EventType.update);
         List<Map<String, Object>> deleteData = stringListMap.get(EventType.delete);
@@ -195,11 +217,7 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
 
     private boolean hasCached(Map<String, Object> data) {
         Integer code = data.hashCode();
-        if (Objects.isNull(this.writeCache.get(code))) {
-            this.writeCache.put(code, data);
-            return false;
-        }
-        return true;
+        return Objects.nonNull(this.writeCache.get(code));
     }
 
     public static JSWriteRecordFunction create(AtomicBoolean isAlive) {

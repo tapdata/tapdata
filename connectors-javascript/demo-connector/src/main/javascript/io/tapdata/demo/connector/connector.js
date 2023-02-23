@@ -147,18 +147,99 @@ function webhookEvent(connectionConfig, nodeConfig, tableNameList, eventDataMap)
  * @param connectionConfig
  * @param nodeConfig
  * @param eventDataList type is js array with data maps.
+ * @param writerResultCollector  Use the function which named is writerResultCollector.markSent(eventData(s)) to collect data after each successful data processing
+ *
+ *  Tip: Use writerResultCollector.markSent(eventData(s)) to collect data in deleteRecord function necessary.
  *  Each data includes five parts:
  *      - eventType : event type ,only with : i , u, d. Respectively insert, update, delete;
  *      - tableName : Data related table;
  *      - referenceTime : Time stamp of event occurrence;
  *      - afterData : After the event, only after_data can be added or deleted as a result of the data
  *      - beforeData : Before the event, the result of the data will be before_data only if the event is modified
- *  @return true or false, default true
+ *  @return void
  * */
-function writeRecord(connectionConfig, nodeConfig, eventDataList) {
+function writeRecord(connectionConfig, nodeConfig, eventDataList, writerResultCollector) {
 
-    //return true;
+    //Please use writerResultCollector.markSent(eventData(s)) to collect data after each successful data processing
+    //writerResultCollector.markSent(eventData(s))
 }
+
+/**
+ * [
+ *  {
+ *      "eventType": "i/u/d",
+ *      "tableName": "${example_table_name}",
+ *      "referenceTime": Number(),
+ *      "afterData": {},
+ *      "beforeData":{}
+ *  },
+ *  ...
+ * ]
+ * @param connectionConfig
+ * @param nodeConfig
+ * @param eventDataMap type is js Map with data map.
+ *
+ *  Each data includes five parts:
+ *      - eventType : event type ,only with : i , u, d. Respectively insert, update, delete;
+ *      - tableName : Data related table;
+ *      - referenceTime : Time stamp of event occurrence;
+ *      - afterData : After the event, only after_data can be added or deleted as a result of the data
+ *      - beforeData : Before the event, the result of the data will be before_data only if the event is modified
+ *  @return void
+ * */
+// function insertRecord(connectionConfig, nodeConfig, eventDataMap){
+//
+// }
+
+/**
+ *  {
+ *      "eventType": "i/u/d",
+ *      "tableName": "${example_table_name}",
+ *      "referenceTime": Number(),
+ *      "afterData": {},
+ *      "beforeData":{}
+ *  }
+ * @param connectionConfig
+ * @param nodeConfig
+ * @param eventDataMap type is js Map with data map.
+ *
+ *  Each data includes five parts:
+ *      - eventType : event type ,only with : i , u, d. Respectively insert, update, delete;
+ *      - tableName : Data related table;
+ *      - referenceTime : Time stamp of event occurrence;
+ *      - afterData : After the event, only after_data can be added or deleted as a result of the data
+ *      - beforeData : Before the event, the result of the data will be before_data only if the event is modified
+ *  @return void
+ * */
+// function updateRecord(connectionConfig, nodeConfig, eventDataMap){
+//
+// }
+
+/**
+ *
+ *  {
+ *      "eventType": "i/u/d",
+ *      "tableName": "${example_table_name}",
+ *      "referenceTime": Number(),
+ *      "afterData": {},
+ *      "beforeData":{}
+ *  }
+ *
+ * @param connectionConfig
+ * @param nodeConfig
+ * @param eventDataMap type is js Map with data map.
+ *
+ *  Each data includes five parts:
+ *      - eventType : event type ,only with : i , u, d. Respectively insert, update, delete;
+ *      - tableName : Data related table;
+ *      - referenceTime : Time stamp of event occurrence;
+ *      - afterData : After the event, only after_data can be added or deleted as a result of the data
+ *      - beforeData : Before the event, the result of the data will be before_data only if the event is modified
+ *  @return void
+ * */
+// function deleteRecord(connectionConfig, nodeConfig, eventDataMap){
+//
+// }
 
 /**
  * This method is used to update the access key
@@ -181,3 +262,4 @@ function updateToken(connectionConfig, nodeConfig, apiResponse) {
     // }
     // return null;
 }
+

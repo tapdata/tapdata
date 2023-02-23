@@ -120,3 +120,4 @@ CacheObserveLogs/
 partition_storage/
 /manager/tm/src/main/resources/test3/
 null/
+.agentSingletonLock
