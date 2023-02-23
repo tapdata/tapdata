@@ -1,18 +1,18 @@
-package io.tapdata.connector.guass;
+package io.tapdata.connector.gauss;
 
 import io.tapdata.common.CommonColumn;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.EmptyKit;
 
-public class GuassColumn extends CommonColumn {
+public class GaussColumn extends CommonColumn {
 
 
-    public GuassColumn() {
+    public GaussColumn() {
 
     }
 
-    public GuassColumn(DataMap dataMap) {
+    public GaussColumn(DataMap dataMap) {
         this.columnName = dataMap.getString("column_name");
         this.dataType = dataMap.getString("dataType"); //'dataType' with precision and scale (postgres has its function)
 //        this.dataType = dataMap.getString("data_type"); //'data_type' without precision or scale

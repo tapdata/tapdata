@@ -16,7 +16,6 @@
         <module>connectors</module>
         <module>connectors-javascript</module>
         <module>tapdata-cli</module>
-        <module>connectors/guass-postgres-connector</module>
     </modules>
 
     <build>

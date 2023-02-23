@@ -1,4 +1,4 @@
-package io.tapdata.connector.guass;
+package io.tapdata.connector.gauss;
 
 import io.tapdata.common.JdbcContext;
 import io.tapdata.common.RecordWriter;
@@ -9,14 +9,14 @@ import io.tapdata.kit.EmptyKit;
 import java.sql.SQLException;
 import java.util.Collections;
 
-public class GuassRecordWriter extends RecordWriter {
+public class GaussRecordWriter extends RecordWriter {
 
-    public GuassRecordWriter(GuassJdbcContext jdbcContext, TapTable tapTable) throws SQLException {
+    public GaussRecordWriter(GaussJdbcContext jdbcContext, TapTable tapTable) throws SQLException {
         super(jdbcContext, tapTable);
         openIdentity(jdbcContext);
-        insertRecorder = new GuassWriteRecorder(connection, tapTable, jdbcContext.getConfig().getSchema(), makeSureHasUnique(jdbcContext, tapTable));
-        updateRecorder = new GuassWriteRecorder(connection, tapTable, jdbcContext.getConfig().getSchema());
-        deleteRecorder = new GuassWriteRecorder(connection, tapTable, jdbcContext.getConfig().getSchema());
+        insertRecorder = new GaussWriteRecorder(connection, tapTable, jdbcContext.getConfig().getSchema(), makeSureHasUnique(jdbcContext, tapTable));
+        updateRecorder = new GaussWriteRecorder(connection, tapTable, jdbcContext.getConfig().getSchema());
+        deleteRecorder = new GaussWriteRecorder(connection, tapTable, jdbcContext.getConfig().getSchema());
     }
 
     private void openIdentity(JdbcContext jdbcContext) throws SQLException {
@@ -26,7 +26,7 @@ public class GuassRecordWriter extends RecordWriter {
         }
     }
 
-    protected boolean makeSureHasUnique(GuassJdbcContext jdbcContext, TapTable tapTable) {
+    protected boolean makeSureHasUnique(GaussJdbcContext jdbcContext, TapTable tapTable) {
         return jdbcContext.queryAllIndexes(Collections.singletonList(tapTable.getId())).stream().anyMatch(v -> (boolean) v.get("is_unique"));
     }
 }

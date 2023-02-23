@@ -1,4 +1,4 @@
-package io.tapdata.connector.guass.config;
+package io.tapdata.connector.gauss.config;
 
 import io.debezium.config.Configuration;
 import io.tapdata.kit.EmptyKit;
@@ -7,25 +7,25 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class GuassDebeziumConfig {
+public class GaussDebeziumConfig {
 
-    private GuassConfig guassConfig;
+    private GaussConfig gaussConfig;
     private List<String> observedTableList;
     private String slotName; //unique for each slot, so create it by postgres config and observed tables
     private String namespace;
 
-    public GuassDebeziumConfig() {
+    public GaussDebeziumConfig() {
 
     }
-    public GuassDebeziumConfig use(GuassConfig guassConfig) {
-        this.guassConfig = guassConfig;
+    public GaussDebeziumConfig use(GaussConfig gaussConfig) {
+        this.gaussConfig = gaussConfig;
         return this;
     }
 
-    public GuassDebeziumConfig watch(List<String> observedTableList) {
+    public GaussDebeziumConfig watch(List<String> observedTableList) {
         this.observedTableList = observedTableList;
         //unique and can find it
-        this.namespace = slotName + "-guass-postgres-connector";
+        this.namespace = slotName + "-openGauss-postgres-connector";
         return this;
     }
 
@@ -37,7 +37,7 @@ public class GuassDebeziumConfig {
         return slotName;
     }
 
-    public GuassDebeziumConfig useSlot(String slotName) {
+    public GaussDebeziumConfig useSlot(String slotName) {
         this.slotName = slotName;
         return this;
     }
@@ -61,12 +61,12 @@ public class GuassDebeziumConfig {
 //                .with("offset.storage.file.filename", "d:/cdc/offset/" + slotName + ".dat") //path must be changed with requirement
                 .with("offset.flush.interval.ms", 60000)
                 .with("name", slotName + "-postgres-connector")
-                .with("database.server.name", guassConfig.getDatabase())
-                .with("database.hostname", guassConfig.getHost())
-                .with("database.port", guassConfig.getPort())
-                .with("database.user", guassConfig.getUser())
-                .with("database.password", guassConfig.getPassword())
-                .with("database.dbname", guassConfig.getDatabase())
+                .with("database.server.name", gaussConfig.getDatabase())
+                .with("database.hostname", gaussConfig.getHost())
+                .with("database.port", gaussConfig.getPort())
+                .with("database.user", gaussConfig.getUser())
+                .with("database.password", gaussConfig.getPassword())
+                .with("database.dbname", gaussConfig.getDatabase())
                 .with("time.precision.mode", "connect")
                 .with("transforms.tsFormat1.type", "org.apache.kafka.connect.transforms.TimestampConverter$Value")
                 .with("transforms.tsFormat1.target.type", "string")
@@ -86,10 +86,10 @@ public class GuassDebeziumConfig {
                 .with("geometry.schema.name", "io.debezium.postgresql.type.Geometry")
                 .with("other.type", "io.tapdata.connector.postgres.converters.OtherConverter")
                 .with("other.schema.name", "io.debezium.postgresql.type.Other")
-                .with("plugin.name", guassConfig.getLogPluginName());
+                .with("plugin.name", gaussConfig.getLogPluginName());
         if (EmptyKit.isNotEmpty(observedTableList)) {
             //construct tableWhiteList with schema.table(,) as <public.Student,postgres.test>
-            String tableWhiteList = observedTableList.stream().map(v -> guassConfig.getSchema() + "." + v).collect(Collectors.joining(", "));
+            String tableWhiteList = observedTableList.stream().map(v -> gaussConfig.getSchema() + "." + v).collect(Collectors.joining(", "));
             builder.with("table.whitelist", tableWhiteList);
         }
         return builder.build();
@@ -114,10 +114,10 @@ public class GuassDebeziumConfig {
             return pluginName;
         }
 
-        private static HashMap<String, GuassDebeziumConfig.LogDecorderPlugins> map = new HashMap<>();
+        private static HashMap<String, GaussDebeziumConfig.LogDecorderPlugins> map = new HashMap<>();
 
         static {
-            for (GuassDebeziumConfig.LogDecorderPlugins value : GuassDebeziumConfig.LogDecorderPlugins.values()) {
+            for (GaussDebeziumConfig.LogDecorderPlugins value : GaussDebeziumConfig.LogDecorderPlugins.values()) {
                 map.put(value.getPluginName(), value);
             }
         }

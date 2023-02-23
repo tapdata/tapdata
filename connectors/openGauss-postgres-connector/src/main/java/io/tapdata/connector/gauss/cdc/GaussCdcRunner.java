@@ -1,13 +1,13 @@
-package io.tapdata.connector.guass.cdc;
+package io.tapdata.connector.gauss.cdc;
 
 
 import io.debezium.embedded.EmbeddedEngine;
 import io.debezium.engine.DebeziumEngine;
-import io.tapdata.connector.guass.GuassJdbcContext;
-import io.tapdata.connector.guass.config.GuassConfig;
-import io.tapdata.connector.guass.config.GuassDebeziumConfig;
-import io.tapdata.connector.guass.offset.GuassOffset;
-import io.tapdata.connector.guass.offset.GuassOffsetStorage;
+import io.tapdata.connector.gauss.GaussJdbcContext;
+import io.tapdata.connector.gauss.config.GaussConfig;
+import io.tapdata.connector.gauss.config.GaussDebeziumConfig;
+import io.tapdata.connector.gauss.offset.GaussOffset;
+import io.tapdata.connector.gauss.offset.GaussOffsetStorage;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -27,40 +27,40 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class GuassCdcRunner extends DebeziumCdcRunner {
+public class GaussCdcRunner extends DebeziumCdcRunner {
 
-    private static final String TAG = GuassCdcRunner.class.getSimpleName();
-    private final GuassConfig guassConfig;
-    private GuassDebeziumConfig guassDebeziumConfig;
-    private GuassOffset guassOffset;
+    private static final String TAG = GaussCdcRunner.class.getSimpleName();
+    private final GaussConfig gaussConfig;
+    private GaussDebeziumConfig gaussDebeziumConfig;
+    private GaussOffset gaussOffset;
     private int recordSize;
     private StreamReadConsumer consumer;
     private final AtomicReference<Throwable> throwableAtomicReference = new AtomicReference<>();
 
-    public GuassCdcRunner(GuassJdbcContext guassJdbcContext) {
-        this.guassConfig = (GuassConfig) guassJdbcContext.getConfig();
+    public GaussCdcRunner(GaussJdbcContext guassJdbcContext) {
+        this.gaussConfig = (GaussConfig) guassJdbcContext.getConfig();
     }
 
-    public GuassCdcRunner useSlot(String slotName) {
+    public GaussCdcRunner useSlot(String slotName) {
         this.runnerName = slotName;
         return this;
     }
 
-    public GuassCdcRunner watch(List<String> observedTableList) {
-        guassDebeziumConfig = new GuassDebeziumConfig()
-                .use(guassConfig)
+    public GaussCdcRunner watch(List<String> observedTableList) {
+        gaussDebeziumConfig = new GaussDebeziumConfig()
+                .use(gaussConfig)
                 .useSlot(runnerName)
                 .watch(observedTableList);
         return this;
     }
 
-    public GuassCdcRunner offset(Object offsetState) {
+    public GaussCdcRunner offset(Object offsetState) {
         if (EmptyKit.isNull(offsetState)) {
-            guassOffset = new GuassOffset();
+            gaussOffset = new GaussOffset();
         } else {
-            this.guassOffset = (GuassOffset) offsetState;
+            this.gaussOffset = (GaussOffset) offsetState;
         }
-        GuassOffsetStorage.guassOffsetMap.put(runnerName, guassOffset);
+        GaussOffsetStorage.guassOffsetMap.put(runnerName, gaussOffset);
         return this;
     }
 
@@ -73,7 +73,7 @@ public class GuassCdcRunner extends DebeziumCdcRunner {
         this.consumer = consumer;
         //build debezium engine
         this.engine = (EmbeddedEngine) EmbeddedEngine.create()
-                .using(guassDebeziumConfig.create())
+                .using(gaussDebeziumConfig.create())
                 .using(new DebeziumEngine.ConnectorCallback() {
                     @Override
                     public void taskStarted() {
@@ -147,16 +147,16 @@ public class GuassCdcRunner extends DebeziumCdcRunner {
                     break;
             }
             if (eventList.size() >= recordSize) {
-                guassOffset.setSourceOffset(TapSimplify.toJson(offset));
-                consumer.accept(eventList, guassOffset);
-                GuassOffsetStorage.guassOffsetMap.put(runnerName, guassOffset);
+                gaussOffset.setSourceOffset(TapSimplify.toJson(offset));
+                consumer.accept(eventList, gaussOffset);
+                GaussOffsetStorage.guassOffsetMap.put(runnerName, gaussOffset);
                 eventList = TapSimplify.list();
             }
         }
         if (EmptyKit.isNotEmpty(eventList)) {
-            guassOffset.setSourceOffset(TapSimplify.toJson(offset));
-            consumer.accept(eventList, guassOffset);
-            GuassOffsetStorage.guassOffsetMap.put(runnerName, guassOffset);
+            gaussOffset.setSourceOffset(TapSimplify.toJson(offset));
+            consumer.accept(eventList, gaussOffset);
+            GaussOffsetStorage.guassOffsetMap.put(runnerName, gaussOffset);
         }
     }
 

@@ -1,8 +1,8 @@
-package io.tapdata.connector.guass;
+package io.tapdata.connector.gauss;
 
 import com.zaxxer.hikari.HikariDataSource;
 import io.tapdata.common.JdbcContext;
-import io.tapdata.connector.guass.config.GuassConfig;
+import io.tapdata.connector.gauss.config.GaussConfig;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
@@ -15,11 +15,11 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-public class GuassJdbcContext extends JdbcContext {
+public class GaussJdbcContext extends JdbcContext {
 
-    private final static String TAG = GuassJdbcContext.class.getSimpleName();
+    private final static String TAG = GaussJdbcContext.class.getSimpleName();
 
-    public GuassJdbcContext(GuassConfig config, HikariDataSource hikariDataSource) {
+    public GaussJdbcContext(GaussConfig config, HikariDataSource hikariDataSource) {
         super(config, hikariDataSource);
     }
 

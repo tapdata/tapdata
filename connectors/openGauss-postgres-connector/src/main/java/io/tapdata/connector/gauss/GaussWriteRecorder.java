@@ -1,4 +1,4 @@
-package io.tapdata.connector.guass;
+package io.tapdata.connector.gauss;
 
 import io.tapdata.common.WriteRecorder;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -15,12 +15,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class GuassWriteRecorder extends WriteRecorder {
-    public GuassWriteRecorder(Connection connection, TapTable tapTable, String schema) {
+public class GaussWriteRecorder extends WriteRecorder {
+    public GaussWriteRecorder(Connection connection, TapTable tapTable, String schema) {
         super(connection, tapTable, schema);
     }
 
-    public GuassWriteRecorder(Connection connection, TapTable tapTable, String schema, boolean hasUnique) {
+    public GaussWriteRecorder(Connection connection, TapTable tapTable, String schema, boolean hasUnique) {
         super(connection, tapTable, schema);
         uniqueConditionIsIndex = uniqueConditionIsIndex && hasUnique;
     }

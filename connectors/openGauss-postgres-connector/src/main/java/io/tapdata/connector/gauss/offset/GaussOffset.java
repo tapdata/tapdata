@@ -1,18 +1,18 @@
-package io.tapdata.connector.guass.offset;
+package io.tapdata.connector.gauss.offset;
 
 import java.io.Serializable;
 
-public class GuassOffset implements Serializable {
+public class GaussOffset implements Serializable {
 
     private String sortString;
     private Long offsetValue;
 
     private String sourceOffset;
 
-    public GuassOffset() {
+    public GaussOffset() {
     }
 
-    public GuassOffset(String sortString, Long offsetValue) {
+    public GaussOffset(String sortString, Long offsetValue) {
         this.sortString = sortString;
         this.offsetValue = offsetValue;
     }
