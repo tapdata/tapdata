@@ -128,8 +128,9 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
             };
             try {
                 boolean isWriteRecord = JSFunctionNames.WriteRecordFunction.jsName().equals(function.jsName());
+                Object invoker;
                 synchronized (JSConnector.execLock) {
-                    super.javaScripter.invoker(
+                    invoker = super.javaScripter.invoker(
                             function.jsName(),
                             Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()),
                             Optional.ofNullable(context.getNodeConfig()).orElse(new DataMap()),
@@ -137,7 +138,13 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
                             isWriteRecord ? writeResultCollector : null
                     );
                 }
-                if (!isWriteRecord){
+                boolean isNotIgnore ;
+                try {
+                    isNotIgnore = invoker instanceof Boolean ? (Boolean)invoker : Boolean.parseBoolean(String.valueOf(invoker));
+                }catch (Exception e){
+                    isNotIgnore = true;
+                }
+                if (!isWriteRecord && isNotIgnore){
                     List<Object> list = new ArrayList<>();
                     if (execData instanceof Collection) {
                         list.addAll((Collection<?>) execData);
