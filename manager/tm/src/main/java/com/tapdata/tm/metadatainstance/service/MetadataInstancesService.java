@@ -2080,6 +2080,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         Criteria criteria = Criteria
                 .where("is_deleted").ne(true)
                 .and("nodeId").is(nodeId)
+                .and("sourceType").is(SourceTypeEnum.VIRTUAL)
                 .and("hasPrimaryKey").is(false)
                 .and("hasUnionIndex").is(false)
                 .and("hasUpdateField").is(false);
@@ -2090,6 +2091,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         Criteria criteria = Criteria
                 .where("is_deleted").ne(true)
                 .and("nodeId").is(nodeId)
+                .and("sourceType").is(SourceTypeEnum.VIRTUAL)
                 .and("resultItems").ne(null);
         return count(Query.query(criteria));
     }
@@ -2097,7 +2099,8 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     public long countTotalNum(String nodeId) {
         Criteria criteria = Criteria
                 .where("is_deleted").ne(true)
-                .and("nodeId").is(nodeId);
+                .and("nodeId").is(nodeId)
+                .and("sourceType").is(SourceTypeEnum.VIRTUAL);
         return count(Query.query(criteria));
     }
 
