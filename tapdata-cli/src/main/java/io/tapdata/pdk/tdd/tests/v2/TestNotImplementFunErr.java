@@ -1,5 +1,6 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -23,7 +24,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -102,7 +102,7 @@ public class TestNotImplementFunErr extends PDKTestBase {
                     .withTable(testTableId)
                     .build();
 
-            TapConnectorContext connectionContext = new TapConnectorContext(spec, connectionOptions, new DataMap());
+            TapConnectorContext connectionContext = new TapConnectorContext(spec, connectionOptions, new DataMap(),new TapLog());
 
             try {
                 PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT,connectorNode::connectorInit,"Init PDK","TEST mongodb");

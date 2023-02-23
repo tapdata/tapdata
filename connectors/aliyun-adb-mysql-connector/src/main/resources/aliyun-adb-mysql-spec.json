@@ -3,7 +3,9 @@
     "name": "Aliyun ADB MySQL",
     "icon": "icons/aliyun_adb_mysql.png",
     "id": "aliyun-adb-mysql",
-    "doc": "${doc}"
+    "doc": "${doc}",
+    "authentication": "beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "capabilities": [

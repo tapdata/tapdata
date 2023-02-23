@@ -3,7 +3,9 @@
     "name": "QuickAPI",
     "icon": "icons/quickapi.png",
     "doc" : "${doc}",
-    "id": "quickapi"
+    "id": "quickapi",
+    "authentication": "beta",
+    "tags": ["SaaS"]
   },
   "configOptions": {
     "pdkExpansion": [],

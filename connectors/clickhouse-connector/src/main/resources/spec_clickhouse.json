@@ -3,7 +3,9 @@
     "name": "Clickhouse",
     "icon": "icons/clickhouse.png",
     "id": "clickhouse",
-    "doc": "${doc}"
+    "doc": "${doc}",
+    "authentication": "Alpha",
+    "tags": ["Database"]
   },
   "configOptions": {
     "capabilities":[

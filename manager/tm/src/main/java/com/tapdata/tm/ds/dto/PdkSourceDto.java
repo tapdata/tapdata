@@ -36,4 +36,6 @@ public class PdkSourceDto {
     private List<Capability> capabilities;
     private String pdkAPIVersion;
     private Integer pdkAPIBuildNumber;
+    private String authentication;
+    private List<String> tags;
 }
