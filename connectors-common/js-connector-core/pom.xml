@@ -14,9 +14,22 @@
 
     <properties>
         <java.version>8</java.version>
+        <tapdata.pdk.api.version>1.2.1</tapdata.pdk.api.version>
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>org.graalvm.js</groupId>
+            <artifactId>js</artifactId>
+            <version>21.3.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.graalvm.js</groupId>
+            <artifactId>js-scriptengine</artifactId>
+            <version>21.3.0</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>connector-core</artifactId>
@@ -24,7 +37,14 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-api</artifactId>
+            <version>${tapdata.pdk.api.version}</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-api</artifactId>
+            <scope>provided</scope>
+            <version>${tapdata.pdk.api.version}</version>
         </dependency>
         <dependency>
             <groupId>commons-io</groupId>

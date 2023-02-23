@@ -24,7 +24,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\"content\":\"\",\"msg_type\":\"\",\"receive_id\":\"{{receive_id}}\"}"
+              "raw": "{\"content\": \"\",\"msg_type\":\"\",\"receive_id\":\"{{receive_id}}\"}"
             },
             "url": {
               "raw": "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type={{receive_id_type}}",
@@ -66,7 +66,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\"mobiles\":[\"{{userMobiles}}\"],\"emails\":[\"{{userEmails}}\"]}"
+              "raw": "{\"mobiles\":[\"{{mobiles}}\"],\"emails\":[\"{{emails}}\"]}"
             },
             "url": {
               "raw": "https://open.feishu.cn/open-apis/contact/v3/users/batch_get_id?user_id_type=open_id",
@@ -352,11 +352,11 @@
       "value": ""
     },
     {
-      "key": "userEmails",
+      "key": "emails",
       "value": ""
     },
     {
-      "key": "userMobiles",
+      "key": "mobiles",
       "value": ""
     }
   ]

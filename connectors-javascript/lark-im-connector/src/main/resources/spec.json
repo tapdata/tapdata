@@ -1,9 +1,9 @@
 {
   "properties": {
-    "name": "Lark",
+    "name": "Lark-IM",
     "icon": "icon/lark.png",
     "doc": "${doc}",
-    "id": "lark"
+    "id": "lark-im"
   },
   "configOptions": {
     "pdkExpansion": [],

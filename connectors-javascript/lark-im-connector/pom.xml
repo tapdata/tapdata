@@ -9,9 +9,9 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>lark-connector</artifactId>
+    <artifactId>lark-im-connector</artifactId>
     <version>1.0-SNAPSHOT</version>
-    <name>lark-connector</name>
+    <name>lark-im-connector</name>
     <packaging>jar</packaging>
 
     <properties>

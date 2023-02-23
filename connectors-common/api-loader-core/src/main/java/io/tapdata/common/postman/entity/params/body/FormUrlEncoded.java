@@ -45,6 +45,17 @@ public class FormUrlEncoded extends Body<List<Map<String, Object>>> {
         return this.raw(Optional.ofNullable((List<Map<String,Object>>) bodyMap.get((String)bodyMap.get(PostParam.METHOD))).orElse(new ArrayList<>()));
     }
 
+
+    @Override
+    public Body<List<Map<String, Object>>> copyOne() {
+        FormUrlEncoded binary = new FormUrlEncoded();
+        binary.mode(super.mode);
+        binary.raw(super.raw);
+        binary.options(super.options);
+        binary.contentType = super.contentType;
+        return binary;
+    }
+
     @Override
     public Body<List<Map<String, Object>>> variableAssignment(Map<String, Object> param) {
         if (Objects.isNull(this.raw) || this.raw.isEmpty()) return this;

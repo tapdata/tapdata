@@ -10,7 +10,7 @@ public abstract class Body<T> {
     protected T raw;
     protected Map<String, Object> options;
     protected String contentType = "application/json";
-
+    public abstract Body<T> copyOne();
     public static Body createNoOne(){
         return new NoOne();
     }
@@ -67,6 +67,10 @@ public abstract class Body<T> {
     public abstract String bodyJson(Map<String,Object> appendMap);
 
     public abstract Body<T> setContentType();
+
+    public void cleanCache(){
+
+    }
 }
 
 
