@@ -14,7 +14,6 @@ import org.apache.commons.lang3.ObjectUtils;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 /**
  * @author Dexter
@@ -185,12 +184,10 @@ public class TaskSampleHandler extends AbstractHandler {
             snapshotDoneAt = retrieveSnapshotDoneAt.longValue();
         }
         collector.addSampler(SNAPSHOT_DONE_AT, () -> {
-            List<Long> collect = sourceNodeHandlers.values().stream()
-                    .map(DataNodeSampleHandler::getSnapshotDoneAt)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-            if (CollectionUtils.isNotEmpty(collect) && collect.size() == sourceNodeHandlers.size()) {
-                snapshotDoneAt = Collections.max(collect);
+            if (ObjectUtils.allNotNull(snapshotRowTotal, snapshotInsertRowTotal, snapshotRowTotal.value(), snapshotInsertRowTotal.value())) {
+                if (snapshotInsertRowTotal.value().longValue() >= snapshotRowTotal.value().longValue()) {
+                    snapshotDoneAt = System.currentTimeMillis();
+                }
             }
             return snapshotDoneAt;
         });
@@ -274,7 +271,7 @@ public class TaskSampleHandler extends AbstractHandler {
     public void handleBatchReadAccept(long size) {
         inputInsertCounter.inc(size);
         inputSpeed.add(size);
-        currentSnapshotTableInsertRowTotal += size;
+//        currentSnapshotTableInsertRowTotal += size;
 
 //        snapshotInsertRowTotal.inc(size);
     }
@@ -309,7 +306,7 @@ public class TaskSampleHandler extends AbstractHandler {
         sourceNodeHandlers.putIfAbsent(nodeId, handler);
     }
 
-    public void handleWriteRecordAccept(WriteListResult<TapRecordEvent> result, List<TapRecordEvent> events) {
+    public void handleWriteRecordAccept(WriteListResult<TapRecordEvent> result, List<TapRecordEvent> events, String table) {
         long current = System.currentTimeMillis();
 
         long inserted = result.getInsertedCount();
@@ -323,6 +320,7 @@ public class TaskSampleHandler extends AbstractHandler {
         outputSpeed.add(total);
 
         snapshotInsertRowTotal.inc(total);
+        currentSnapshotTableInsertRowTotal += total;
 
         long timeCostTotal = 0L;
         for (TapRecordEvent event : events) {
