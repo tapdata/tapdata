@@ -16,18 +16,10 @@ function iterateAllData(apiName, offset, call) {
         log.error("Please specify the corresponding paging API name or URL .");
     }
     let res;
-    let error;
     do {
-        try{
-            let response = invoker.invoke(apiName, offset);
-            res = response.result;
-            error = response.error;
-        }catch (e){
-            log.error('(26)---- error:',e);
-            throw(e)
-            break;
-        }
-    } while (call(res, offset, error));
+        let response = invoker.invoke(apiName, offset);
+        res = response.result;
+    } while (call(res, offset));
 }
 
 function commandAndConvertData(apiName, params, call){

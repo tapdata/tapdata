@@ -265,10 +265,10 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
         offset[tableName]['since'] = dateUtils.timeStamp2Date((new Date().getTime() - 60000)+"", "yyyy-MM-dd'T'HH:mm:ssXXX");
         }
         iterateAllData('issues', offset[tableName], (result, offsetNext, error) => {
-            if(error){
-                log.error(error);
-                throw(error);
-            }
+            // if(error){
+            //     log.error(error);
+            //     throw(error);
+            // }
             let haveNext = false;
             if(result && result !== ''){
                 if(result && result.length > 0){
@@ -359,11 +359,11 @@ function commandCallback(connectionConfig, nodeConfig, commandInfo) {
  *      - {"key":"value",...} : Type is Object and has key-value ,  At this point, these values will be used to call the interface again after the results are returned.
  * */
 function updateToken(connectionConfig, nodeConfig, apiResponse) {
-log.warn("apiResponse:{}",apiResponse);
+// log.warn("apiResponse:{}",apiResponse);
     if (apiResponse.httpCode === 401 || (apiResponse.result && apiResponse.result.code === 'INVALID_TOKEN')) {
         try{
             let getToken = invoker.invokeWithoutIntercept("getToken",{"client_id": "4e38022897004168c117","client_secret": "24961f78b13d5611c05dac6b8f06a1fd454bd431"});
-            log.warn("getToken:{}",getToken);
+            // log.warn("getToken:{}",getToken);
             if(getToken && getToken.result && getToken.result.access_token){
                 return {"accessToken": getToken.result.access_token};
             }
