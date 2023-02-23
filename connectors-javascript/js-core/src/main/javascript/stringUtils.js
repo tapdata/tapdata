@@ -13,7 +13,20 @@ var stringUtils = {
      * 则输出结果为： This is string will replace a number。
      * */
     format(msg, args) {
-        if ('undefined' === msg || null == msg || "" === msg) return "";
+        if ('undefined' === msg || null == msg || "" === msg) {
+            if (args.length>0){
+                msg = "{}";
+                for (let i = 1; i < args.length; i++) {
+                    msg = msg + ", {}"
+                }
+            }else {
+                return "";
+            }
+        }
+        if (typeof msg != 'string'){
+            args = [msg];
+            msg = "{}";
+        }
         for (let index = 0; index < args.length; index++) {
             msg = msg.replace(new RegExp("(\{\})|(%\s)"), args[index]);
         }
