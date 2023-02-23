@@ -68,14 +68,8 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
         if (Objects.isNull(table)) {
             throw new CoreException("Table lists cannot not be empty.");
         }
-
-        AtomicLong insert = new AtomicLong(0);
-        AtomicLong update = new AtomicLong(0);
-        AtomicLong delete = new AtomicLong(0);
-
         List<Map<String, Object>> machiningEvents = this.machiningEvents(tapRecordEvents, table.getId());
 
-        WriteListResult<TapRecordEvent> result = new WriteListResult<>();
         if (!this.doSubFunctionNotSupported()) {
             String cacheEventType = null;
             List<Map<String, Object>> execData = new ArrayList<>();
@@ -83,7 +77,7 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
                 String cacheEventTypeTemp = String.valueOf(Optional.ofNullable(event.get(EventTag.EVENT_TYPE)).orElse(EventType.insert));
                 if (Objects.isNull(cacheEventType) || !cacheEventType.equals(cacheEventTypeTemp)) {
                     if (!execData.isEmpty()) {
-                        this.execDrop(cacheEventType, context, execData, insert, update, delete);
+                        this.execDrop(cacheEventType, context, execData,writeListResultConsumer);
                         execData = new ArrayList<>();
                     }
                     cacheEventType = cacheEventTypeTemp;
@@ -91,25 +85,27 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
                 execData.add(event);
             }
             if (!execData.isEmpty()) {
-                this.execDrop(cacheEventType, context, execData, insert, update, delete);
+                this.execDrop(cacheEventType, context, execData,writeListResultConsumer);
             }
         }
-        this.exec(context, machiningEvents, JSFunctionNames.WriteRecordFunction, insert, update, delete);
+        this.exec(context, machiningEvents, JSFunctionNames.WriteRecordFunction,writeListResultConsumer);
         //js执行出错不需要清除缓存，重试时需要使用
         this.writeCache = new ConcurrentHashMap<>();
-        writeListResultConsumer.accept(result.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
     }
 
-    private void execDrop(String cacheEventType, TapConnectorContext context, List<Map<String, Object>> execData, AtomicLong insert, AtomicLong update, AtomicLong delete){
+    private void execDrop(String cacheEventType, TapConnectorContext context, List<Map<String, Object>> execData,Consumer<WriteListResult<TapRecordEvent>> consumer){
         JSFunctionNames functionName = cacheEventType.equals(EventType.insert) ? JSFunctionNames.InsertRecordFunction : (cacheEventType.equals(EventType.update) ? JSFunctionNames.UpdateRecordFunction : JSFunctionNames.DeleteRecordFunction);
         for (Map<String, Object> execDatum : execData) {
-            this.exec(context, execDatum, functionName, insert, update, delete);
+            this.exec(context, execDatum, functionName,consumer);
         }
     }
 
-    private void exec(TapConnectorContext context, Object execData, JSFunctionNames function, AtomicLong insert, AtomicLong update, AtomicLong delete) {
+    private void exec(TapConnectorContext context, Object execData, JSFunctionNames function,Consumer<WriteListResult<TapRecordEvent>> consumer) {
         if (!this.doNotSupport(function)) {
             WriteRecordRender writeResultCollector= data -> {
+                AtomicLong insert = new AtomicLong();
+                AtomicLong update = new AtomicLong();
+                AtomicLong delete = new AtomicLong();
                 if (Objects.nonNull(data)) {
                     if (data instanceof Map) {
                         List<Object> dataList = new ArrayList<>();
@@ -124,6 +120,8 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
                     } else {
                         this.convertData(data, insert, update, delete);
                     }
+                    WriteListResult<TapRecordEvent> result = new WriteListResult<>();
+                    consumer.accept(result.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
                 }
             };
             try {
@@ -138,23 +136,30 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
                             isWriteRecord ? writeResultCollector : null
                     );
                 }
-                boolean isNotIgnore ;
-                try {
-                    isNotIgnore = Objects.isNull(invoker) || (invoker instanceof Boolean ? (Boolean) invoker : Boolean.parseBoolean(String.valueOf(invoker)));
-                }catch (Exception e){
-                    isNotIgnore = true;
-                }
-                if (!isWriteRecord && isNotIgnore){
-                    List<Object> list = new ArrayList<>();
-                    if (execData instanceof Collection) {
-                        list.addAll((Collection<?>) execData);
-                    }else {
-                        list.add(execData);
+                if (!isWriteRecord) {
+                    boolean isNotIgnore;
+                    try {
+                        isNotIgnore = Objects.isNull(invoker) || (invoker instanceof Boolean ? (Boolean) invoker : Boolean.parseBoolean(String.valueOf(invoker)));
+                    } catch (Exception e) {
+                        isNotIgnore = true;
                     }
-                    this.convertData(list,insert,update,delete);
+                    if (isNotIgnore) {
+                        List<Object> list = new ArrayList<>();
+                        if (execData instanceof Collection) {
+                            list.addAll((Collection<?>) execData);
+                        } else {
+                            list.add(execData);
+                        }
+                        AtomicLong insert = new AtomicLong();
+                        AtomicLong update = new AtomicLong();
+                        AtomicLong delete = new AtomicLong();
+                        this.convertData(list, insert, update, delete);
+                        WriteListResult<TapRecordEvent> result = new WriteListResult<>();
+                        consumer.accept(result.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
+                    }
                 }
             } catch (Exception e) {
-                throw new CoreException(String.format("Exceptions occurred when executing %s to write data. The operations of adding %s, modifying %s, and deleting %s failed,msg: %s.", function.jsName(), insert.get(), update.get(), delete.get(), e.getMessage()));
+                throw new CoreException(String.format("Exceptions occurred when executing %s to write data failed, msg: %s.", function.jsName(), e.getMessage()));
             }
         }
     }
