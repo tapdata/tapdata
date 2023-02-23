@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
 import cn.hutool.core.date.DateUtil;
+import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Sets;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -27,6 +28,7 @@ import java.lang.reflect.Array;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 @Component("targetSettingStrategy")
 @Setter(onMethod_ = {@Autowired})
@@ -83,7 +85,8 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
             } else {
                 TableNode tableNode = (TableNode) node;
                 tableNames.set(Lists.newArrayList(tableNode.getTableName()));
-                if (CollectionUtils.isEmpty(tableNode.getUpdateConditionFields())) {
+                List<String> updateConditionFields = tableNode.getUpdateConditionFields();
+                if (CollectionUtils.isEmpty(updateConditionFields)) {
                     TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                             .grade(Level.ERROR).nodeId(nodeId)
                             .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：目标节点{0}更新条件字段未设置。", name))
@@ -91,6 +94,24 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                     log.setCreateAt(now);
                     log.setCreateUser(userId);
                     result.add(log);
+                } else {
+                    List<MetadataInstancesDto> nodeSchemas = metadataInstancesService.findByNodeId(nodeId, userDetail);
+                    Optional.ofNullable(nodeSchemas).ifPresent(list -> {
+                        list.stream().filter(i -> tableNode.getTableName().equals(i.getName())).findFirst()
+                                .ifPresent(schema -> {
+                                    List<String> fields = schema.getFields().stream().map(Field::getFieldName).collect(Collectors.toList());
+                                    List<String> noExistsFields = updateConditionFields.stream().filter(d -> !fields.contains(d)).collect(Collectors.toList());
+                                    if (CollectionUtils.isNotEmpty(noExistsFields)) {
+                                        TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
+                                                .grade(Level.ERROR).nodeId(nodeId)
+                                                .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：目标节点{0}更新条件字段{1}不存在。", name, JSON.toJSON(noExistsFields)))
+                                                .build();
+                                        log.setCreateAt(now);
+                                        log.setCreateUser(userId);
+                                        result.add(log);
+                                    }
+                                });
+                    });
                 }
             }
 
@@ -140,7 +161,6 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                         }
                     }
                 });
-
             }
 
             String template;
