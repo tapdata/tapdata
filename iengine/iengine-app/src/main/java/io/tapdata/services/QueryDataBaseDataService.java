@@ -36,7 +36,7 @@ public class QueryDataBaseDataService {
     public static final int rows = 100;
 
 
-   public List<Map<String, Object>> getData(String connectionId, String tableName) throws Throwable {
+    public List<Map<String, Object>> getData(String connectionId, String tableName) throws Throwable {
         String associateId = "queryRecords_" + connectionId + "_" + tableName + "_" + UUID.randomUUID();
         try {
             ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
@@ -64,6 +64,11 @@ public class QueryDataBaseDataService {
                 List<Map<String, Object>> maps = resultsAtomic.get();
                 if (CollectionUtils.isNotEmpty(maps)) {
                     for (Map<String, Object> map : maps) {
+                        for (Map.Entry<String, Object> entry : map.entrySet()) {
+                            if (entry.getValue() == null) {
+                                entry.setValue("");
+                            }
+                        }
                         codecsFilterManager.transformToTapValueMap(map, tapTable.getNameFieldMap());
                         codecsFilterManager.transformFromTapValueMap(map);
                     }
