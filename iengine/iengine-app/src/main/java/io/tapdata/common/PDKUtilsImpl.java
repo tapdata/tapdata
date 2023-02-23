@@ -17,6 +17,7 @@ import java.util.Map;
 
 @Implementation(PDKUtils.class)
 public class PDKUtilsImpl implements PDKUtils {
+
 	@Override
 	public Map<String, Object> getConnectionConfig(String connectionId) {
 		if(connectionId == null)

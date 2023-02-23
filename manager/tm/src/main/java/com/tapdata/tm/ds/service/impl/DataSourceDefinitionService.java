@@ -257,24 +257,11 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
             }
         }
 
-        String tag = (String) where.get("tag");
-//        if(StringUtils.isEmpty(tag)){
-//            throw  new BizException("IllegalArgument", "tag");
-//        }
-        String authentication = (String) where.get("authentication");
-//        if(StringUtils.isEmpty(authentication)){
-//            throw  new BizException("IllegalArgument", "authentication");
-//        }
-
-
         //Criteria supplierCriteria = Criteria.where("supplierType").ne("self");
         Criteria supplierCriteria = Criteria.where("pdkType").ne(DataSourceDefinitionDto.PDK_TYPE);
         Criteria criteria = repository.filterBuildCriteria(filter);
-        String scope = "public";
-        if("Custom".equals(tag)){
-            scope = "customer";
-        }
-        criteria.orOperator(userCriteria, supplierCriteria, Criteria.where("scope").is(scope));
+
+        criteria.orOperator(userCriteria, supplierCriteria, Criteria.where("scope").is("public"));
         // only return the latest version
         criteria.and("latest").is(true);
         query.addCriteria(criteria);
