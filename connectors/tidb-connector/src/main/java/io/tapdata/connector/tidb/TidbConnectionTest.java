@@ -178,7 +178,7 @@ public class TidbConnectionTest extends CommonDbTest {
                 return true;
             }
 
-        } else if (grantSql.contains("`" + databaseName + "`" + ".* TO")) {
+        } else if (grantSql.contains( databaseName + ".* TO")) {
             if (privilege) {
                 return true;
             }
