@@ -18,7 +18,17 @@ import java.lang.annotation.Target;
 public @interface TapExCode {
 	String describe() default "";
 
+	String describeCN() default "";
+
 	String solution() default "";
 
+	String solutionCN() default "";
+
 	boolean recoverable() default false;
+
+	TapExLevel level() default TapExLevel.NORMAL;
+
+	TapExType type() default TapExType.RUNTIME;
+
+	Class<? extends Exception> relateException() default RuntimeException.class;
 }

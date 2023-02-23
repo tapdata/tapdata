@@ -34,10 +34,12 @@ public abstract class TapRuntimeException extends RuntimeException {
                     buf.append(t).append(";");
                 }
                 buf.append("\n");
-            } else if (th instanceof NullPointerException || th instanceof ArrayIndexOutOfBoundsException) {
+            } else if (th instanceof NullPointerException
+                    || th instanceof ArrayIndexOutOfBoundsException
+                    || th instanceof NumberFormatException) {
                 buf.append(th.getClass().getSimpleName()).append(":");
                 for (StackTraceElement t : th.getStackTrace()) {
-                    buf.append(t).append(";");
+                    buf.append("\n  ").append(t);
                 }
                 buf.append("\n");
             }
