@@ -459,7 +459,7 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         String scope = "public";
         if("Custom".equals(tag)){
             scope = "customer";
-            criteria.and("customId").is(user.getCustomerId());
+            criteria.and("customeId").is(user.getCustomerId());
         }
         criteria.and("scope").is(scope);
         criteria.and("latest").is(true);
