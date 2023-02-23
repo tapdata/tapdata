@@ -61,7 +61,7 @@ import java.util.function.Consumer;
 public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
 	public static final int DEFAULT_TARGET_BATCH_INTERVAL_MS = 1000;
-	public static final int DEFAULT_TARGET_BATCH = 2000;
+	public static final int DEFAULT_TARGET_BATCH = 10;
 	private static final Logger logger = LogManager.getLogger(HazelcastTargetPdkBaseNode.class);
 	protected Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
 	protected String tableName;
@@ -656,7 +656,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	@NotNull
 	private PartitionConcurrentProcessor initConcurrentProcessor(int cdcConcurrentWriteNum) {
-		int batchSize = Math.max(this.targetBatch / cdcConcurrentWriteNum, DEFAULT_TARGET_BATCH) * 2;
+		int batchSize = Math.max(this.targetBatch / cdcConcurrentWriteNum, DEFAULT_TARGET_BATCH);
 		return new PartitionConcurrentProcessor(
 				cdcConcurrentWriteNum,
 				batchSize,
