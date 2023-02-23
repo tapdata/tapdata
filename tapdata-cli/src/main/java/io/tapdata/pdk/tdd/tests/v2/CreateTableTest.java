@@ -310,13 +310,13 @@ public class CreateTableTest extends PDKTestBase {
                 event.setReferenceTime(System.currentTimeMillis());
 
                 StringJoiner indexStr = new StringJoiner(",");
-                indexList.stream().forEach(indexItem -> {
+                indexList.stream().filter(Objects::nonNull).forEach(indexItem -> {
                     StringBuilder builder = new StringBuilder("(");
                     String name = indexItem.getName();
                     List<TapIndexField> indexFields = indexItem.getIndexFields();
                     builder.append(name).append(":");
                     StringJoiner joiner = new StringJoiner(",");
-                    indexFields.stream().forEach(field -> joiner.add(field.getName()));
+                    indexFields.stream().filter(Objects::nonNull).forEach(field -> joiner.add(field.getName()));
                     builder.append(joiner.toString()).append(")");
                     indexStr.add(builder.toString());
                 });

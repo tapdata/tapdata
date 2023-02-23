@@ -71,9 +71,10 @@ public class Record extends HashMap {
         return records;
     }
 
-    private static void builderKey(Record record, LinkedHashMap<String, TapField> nameFieldMap, Checker checker) {
+    private static Record builderKey(Record record, LinkedHashMap<String, TapField> nameFieldMap, Checker... checker) {
+        //Record item = (Objects.nonNull(checker[0]) && checker[0].check())? ;
         nameFieldMap.forEach((key, field) -> {
-            if (checker.check(field)) {
+            if (Objects.nonNull(checker[0]) && checker[0].check(field)) {
                 String type = field.getDataType();
                 String keyName = field.getName();
                 switch (type) {
@@ -166,10 +167,14 @@ public class Record extends HashMap {
                 }
             }
         });
+        return record;
     }
 
     interface Checker {
         //!field.getPrimaryKey()
         public boolean check(TapField field);
+        public default boolean check(){
+            return true;
+        }
     }
 }

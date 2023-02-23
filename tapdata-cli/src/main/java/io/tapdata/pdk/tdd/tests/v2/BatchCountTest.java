@@ -28,14 +28,14 @@ public class BatchCountTest extends PDKTestBase {
     @TapTestCase(sort = 1)
     //使用WriteRecordFunction写入2条数据， 使用BatchCountFunction查询记录数， 返回2为正确
     @Test
-    void batchCountAfterInsert() {
+    void batchCountAfterInsert() throws NoSuchMethodException {
+        Method testCase = super.getMethod("batchCountAfterInsert");
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             boolean createTable = false;
             try {
                 super.connectorOnStart(prepare);
-                Method testCase = super.getMethod("batchCountAfterInsert");
                 execute.testCase(testCase);
 
                 //使用WriteRecordFunction写入2条数据
@@ -63,6 +63,7 @@ public class BatchCountTest extends PDKTestBase {
                 }
             } catch (Throwable e) {
                 throw new RuntimeException(e);
+                //TapAssert.error(testCase,);
             } finally {
                 if (createTable) execute.dropTable();
                 super.connectorOnStop(prepare);

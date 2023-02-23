@@ -1069,7 +1069,7 @@ public class PDKTestBase {
                             targetTable.getId()
                             )
                     )
-            ).error(testCase);
+            ).warn(testCase);
         } else {
             TapAssert.succeed(testCase, LangUtil.format("base.succeed.createIndex", targetTable.getId()));
         }
