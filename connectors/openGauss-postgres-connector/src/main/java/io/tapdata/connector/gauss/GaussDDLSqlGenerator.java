@@ -1,4 +1,4 @@
-package io.tapdata.connector.guass;
+package io.tapdata.connector.gauss;
 
 import io.tapdata.common.CommonDbConfig;
 import io.tapdata.common.ddl.DDLSqlGenerator;
@@ -15,7 +15,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class GuassDDLSqlGenerator implements DDLSqlGenerator {
+public class GaussDDLSqlGenerator implements DDLSqlGenerator {
     private final static String TABLE_NAME_FORMAT = "\"%s\".\"%s\".\"%s\"";
     private final static String ALTER_TABLE_PREFIX = "alter table " + TABLE_NAME_FORMAT;
     private final static String COLUMN_NAME_FORMAT = "\"%s\"";
@@ -71,7 +71,7 @@ public class GuassDDLSqlGenerator implements DDLSqlGenerator {
 
             Boolean primaryKey = newField.getPrimaryKey();
             if (null != primaryKey && primaryKey) {
-                TapLogger.warn(GuassDDLSqlGenerator.class.getSimpleName(), "Alter postgresql table's primary key does not supported, please do it manually");
+                TapLogger.warn(GaussDDLSqlGenerator.class.getSimpleName(), "Alter postgresql table's primary key does not supported, please do it manually");
             }
         }
         return sqls;
@@ -107,7 +107,7 @@ public class GuassDDLSqlGenerator implements DDLSqlGenerator {
         }
         ValueChange<Integer> primaryChange = tapAlterFieldAttributesEvent.getPrimaryChange();
         if (null != primaryChange && null != primaryChange.getAfter() && primaryChange.getAfter() > 0) {
-            TapLogger.warn(GuassDDLSqlGenerator.class.getSimpleName(), "Alter postgresql table's primary key does not supported, please do it manually");
+            TapLogger.warn(GaussDDLSqlGenerator.class.getSimpleName(), "Alter postgresql table's primary key does not supported, please do it manually");
         }
         return sqls;
     }

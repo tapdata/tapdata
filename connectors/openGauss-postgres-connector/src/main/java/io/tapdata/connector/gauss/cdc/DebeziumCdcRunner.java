@@ -1,4 +1,4 @@
-package io.tapdata.connector.guass.cdc;
+package io.tapdata.connector.gauss.cdc;
 
 import io.debezium.embedded.EmbeddedEngine;
 import io.debezium.engine.DebeziumEngine;
