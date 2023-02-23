@@ -962,6 +962,11 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             param.setPageSize(20);
         }
 
+        if (StringUtils.isBlank(param.getRange())) {
+            //default value
+            param.setRange("currentAndChild");
+        }
+
         Page<DataDirectoryDto> page = new Page<>();
         page.setItems(Lists.newArrayList());
         page.setTotal(0);
@@ -1008,7 +1013,13 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             if (definitionDto != null) {
                 List<String> itemTypes = definitionDto.getItemType();
                 boolean isDefault = itemTypes.contains("default");
-                List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(Lists.newArrayList(MongoUtils.toObjectId(param.getTagId())));
+                List<MetadataDefinitionDto> andChild = new ArrayList<>();
+                if ("currentAndChild".equals(param.getRange())) {
+                    andChild = metadataDefinitionService.findAndChild(Lists.newArrayList(MongoUtils.toObjectId(param.getTagId())));
+                } else {
+                    andChild.add(definitionDto);
+                }
+
                 if (!isDefault) {
 
                     if (StringUtils.isBlank(param.getObjType())) {
@@ -1361,8 +1372,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         return sourceTypes;
     }
 
-
-    public void updateListTags(List<TagBindingParam> tagBindingParams, List<String> tagIds, UserDetail user) {
+    public void addListTags(List<TagBindingParam> tagBindingParams,  List<String> tagIds,  List<String> oldTagIds, UserDetail user, boolean add) {
         Criteria criteriaTags = Criteria.where("_id").in(tagIds);
         Query query = new Query(criteriaTags);
         List<MetadataDefinitionDto> all = metadataDefinitionService.findAll(query);
@@ -1376,51 +1386,17 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             switch (tagBindingParam.getObjCategory()) {
                 case storage:
                     MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(tagBindingParam.getId()), field);
-                    Update update = getUpdate(allTags, metadataInstancesDto.getListtags(), false);
+                    Update update = getUpdate(allTags, oldTagIds, metadataInstancesDto.getListtags(), add);
                     metadataInstancesService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), update, user);
                     break;
                 case job:
                     TaskCollectionObjDto taskDto = taskService.findById(MongoUtils.toObjectId(tagBindingParam.getId()), field);
-                    Update updateJob = getUpdate(allTags, taskDto.getListtags(), false);
+                    Update updateJob = getUpdate(allTags, oldTagIds, taskDto.getListtags(), add);
                     taskService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), updateJob, user);
                     break;
                 case api:
                     ModulesDto modulesDto = modulesService.findById(MongoUtils.toObjectId(tagBindingParam.getId()), field);
-                    Update updateModules = getUpdate(allTags, modulesDto.getListtags(), false);
-                    modulesService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), updateModules, user);
-                    break;
-                default:
-                    break;
-            }
-        }
-
-    }
-
-    public void addListTags(List<TagBindingParam> tagBindingParams,  List<String> tagIds, UserDetail user, boolean add) {
-        Criteria criteriaTags = Criteria.where("_id").in(tagIds);
-        Query query = new Query(criteriaTags);
-        List<MetadataDefinitionDto> all = metadataDefinitionService.findAll(query);
-        List<Tag> allTags = all.stream().map(s -> new Tag(s.getId().toHexString(), s.getValue())).collect(Collectors.toList());
-
-
-        for (TagBindingParam tagBindingParam : tagBindingParams) {
-
-            com.tapdata.tm.base.dto.Field field = new com.tapdata.tm.base.dto.Field();
-            field.put("listtags", true);
-            switch (tagBindingParam.getObjCategory()) {
-                case storage:
-                    MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(tagBindingParam.getId()), field);
-                    Update update = getUpdate(allTags, metadataInstancesDto.getListtags(), add);
-                    metadataInstancesService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), update, user);
-                    break;
-                case job:
-                    TaskCollectionObjDto taskDto = taskService.findById(MongoUtils.toObjectId(tagBindingParam.getId()), field);
-                    Update updateJob = getUpdate(allTags, taskDto.getListtags(), add);
-                    taskService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), updateJob, user);
-                    break;
-                case api:
-                    ModulesDto modulesDto = modulesService.findById(MongoUtils.toObjectId(tagBindingParam.getId()), field);
-                    Update updateModules = getUpdate(allTags, modulesDto.getListtags(), add);
+                    Update updateModules = getUpdate(allTags, oldTagIds, modulesDto.getListtags(), add);
                     modulesService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), updateModules, user);
                     break;
                 default:
@@ -1430,12 +1406,15 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     }
 
     @NotNull
-    private static Update getUpdate(List<Tag> allTags, List<Tag> listtags, boolean add) {
+    private static Update getUpdate(List<Tag> allTags, List<String> oldTagIds, List<Tag> listtags, boolean add) {
         if (listtags == null) {
             listtags = new ArrayList<>();
         }
         for (Tag allTag : allTags) {
             if (add) {
+                if (CollectionUtils.isEmpty(oldTagIds)) {
+                    listtags.remove(allTag);
+                }
                 if (!listtags.contains(allTag)) {
                     listtags.add(allTag);
                 }
