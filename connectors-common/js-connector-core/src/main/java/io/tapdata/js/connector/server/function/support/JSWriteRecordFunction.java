@@ -140,7 +140,7 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
                 }
                 boolean isNotIgnore ;
                 try {
-                    isNotIgnore = invoker instanceof Boolean ? (Boolean)invoker : Boolean.parseBoolean(String.valueOf(invoker));
+                    isNotIgnore = Objects.isNull(invoker) || (invoker instanceof Boolean ? (Boolean) invoker : Boolean.parseBoolean(String.valueOf(invoker)));
                 }catch (Exception e){
                     isNotIgnore = true;
                 }
