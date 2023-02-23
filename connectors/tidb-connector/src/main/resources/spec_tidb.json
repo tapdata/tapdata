@@ -220,15 +220,6 @@
 					"apiServerKey": "mq_nameSrvAddr",
 					"x-index": 10
 				},
-				"changefeedId": {
-					"required": true,
-					"type": "string",
-					"title": "${changefeedId}",
-					"x-decorator": "FormItem",
-					"x-component": "Input",
-					"apiServerKey": "changefeed_id",
-					"x-index": 12
-				},
 				"ticdcUrl": {
 					"required": true,
 					"type": "string",
@@ -276,7 +267,7 @@
 				"mqUsername": "Kafka User Name",
 				"mqPassword": "KafkaPassword",
 				"nameSrvAddr": "DB Host",
-				"changefeedId": "ChangefeedId",
+
 				"mqTopic": "KafkaTopic",
 				"enableIncrement": "enableIncrement"
 			},
@@ -290,7 +281,6 @@
 				"extParams": "其他连接串参数",
 				"timezone": "时间类型的时区",
 				"doc": "docs/tidb_zh_CN.md",
-				"changefeedId": "同步任务Id",
 				"ticdcUrl": "ticdc 地址",
 				"mqUsername": "kafka账号",
 				"mqPassword": "kafka密码",
@@ -308,7 +298,6 @@
 				"extParams": "額外參數",
 				"timezone": "时间类型的时区",
 				"doc": "docs/tidb_zh_TW.md",
-				"changefeedId": "同步任務Id",
 				"ticdcUrl": "ticdc 地址",
 				"mqUsername": "kafka賬號",
 				"mqPassword": "kafka密碼",
@@ -624,27 +613,6 @@
 				"queryOnly": true,
 				"byte": 16383
 			},
-			"OBJECT": {
-				"to": "TapMap"
-			},
-			"ARRAY": {
-				"to": "TapArray"
-			},
-			"NUMBER": {
-				"precision": [
-					1,
-					1000
-				],
-				"scale": [
-					0,
-					1000
-				],
-				"fixed": true,
-				"preferPrecision": 20,
-				"preferScale": 8,
-				"priority": 1,
-				"to": "TapNumber"
-			},
 			"INTEGER": {
 				"bit": 32,
 				"priority": 1,
@@ -656,13 +624,6 @@
 			},
 			"BOOLEAN": {
 				"to": "TapBoolean"
-			},
-			"STRING": {
-				"byte": 200,
-				"priority": 1,
-				"defaultByte": 200,
-				"preferByte": 200,
-				"to": "TapString"
 			},
 			"TEXT": {
 				"to": "TapString"

@@ -46,6 +46,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 
@@ -63,6 +64,7 @@ public class TidbConnector extends ConnectorBase {
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
     private static final int MAX_FILTER_RESULT_SIZE = 100;
     private HttpUtil httpUtil;
+    private  String changeFeedId;
 
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
@@ -150,32 +152,30 @@ public class TidbConnector extends ConnectorBase {
     private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
         KafkaConfig kafkaConfig = (KafkaConfig) new KafkaConfig().load(nodeContext.getConnectionConfig());
         httpUtil = new HttpUtil();
+        changeFeedId = (String) nodeContext.getStateMap().get("changeFeedId");
         Changefeed changefeed = new Changefeed();
-        String changeFeedId = (String) nodeContext.getStateMap().get("changeFeedId");
-        boolean create = false;
         if (EmptyKit.isNull(changeFeedId)) {
-            create = true;
-            // TODO: 2023/2/22 构造uuid changeFeedId
-            changeFeedId = "";
-            nodeContext.getStateMap().put("changeFeedId", changeFeedId);
-            changefeed.setSinkUri("kafka://" + kafkaConfig.getNameSrvAddr() + "/" + tidbConfig.getMqTopic() + "?" + "kafka-version=2.4.0&partition-num=1&max-message-bytes=67108864&replication-factor=1&protocol=canal-json&auto-create-topic=true");
-            changefeed.setChangefeedId(changeFeedId);
-            changefeed.setForceReplicate(true);
-            changefeed.setSyncDdl(true);
-        }
-        if (create) {
-            if (httpUtil.createChangefeed(changefeed, tidbConfig.getTicdcUrl())) {
+                changeFeedId  = UUID.randomUUID().toString().replaceAll("-","");
+                if (Pattern.matches("^[a-zA-Z0-9]+(-[a-zA-Z0-9]+)*$", changeFeedId)) {
+                    nodeContext.getStateMap().put("changeFeedId", changeFeedId);
+                    changefeed.setSinkUri("kafka://" + kafkaConfig.getNameSrvAddr() + "/" + tidbConfig.getMqTopic() + "?" + "kafka-version=2.4.0&partition-num=1&max-message-bytes=67108864&replication-factor=1&protocol=canal-json&auto-create-topic=true");
+                    changefeed.setChangeFeedId(changeFeedId);
+                    changefeed.setForceReplicate(true);
+                    changefeed.setSyncDdl(true);
+                    if(httpUtil.createChangefeed(changefeed, tidbConfig.getTicdcUrl())) {
+                        ticdcKafkaService = new TicdcKafkaService(kafkaConfig, tidbConfig);
+                        ticdcKafkaService.streamConsume(tableList, recordSize, consumer);
+                    }
+                }
+
+        } else {
+            if (httpUtil.resumeChangefeed(changeFeedId, tidbConfig.getTicdcUrl())) {
                 ticdcKafkaService = new TicdcKafkaService(kafkaConfig, tidbConfig);
                 ticdcKafkaService.streamConsume(tableList, recordSize, consumer);
             }
-        } else {
-            // TODO: 2023/2/22
-//            if (httpUtil.resumeChangefeed(changefeed, tidbConfig.getTicdcUrl())) {
-//                ticdcKafkaService = new TicdcKafkaService(kafkaConfig, tidbConfig);
-//                ticdcKafkaService.streamConsume(tableList, recordSize, consumer);
-//            }
         }
     }
+
 
     private Object timestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) {
         offsetStartTime = System.currentTimeMillis();
@@ -360,15 +360,15 @@ public class TidbConnector extends ConnectorBase {
         }
         if (EmptyKit.isNotNull(httpUtil)) {
             if (!httpUtil.isChangeFeedClosed()) {
-                // TODO: 2023/2/22 httpUtil.stopChangefeed()
+                httpUtil.pauseChangefeed(changeFeedId,tidbConfig.getTicdcUrl());
             }
             httpUtil.close();
         }
     }
 
     private void onDestroy(TapConnectorContext connectorContext) throws Throwable {
-        if (EmptyKit.isNotNull(tidbConfig.getChangefeedId())) {
-            httpUtil.deleteChangefeed(tidbConfig.getChangefeedId(), tidbConfig.getTicdcUrl());
+        if (EmptyKit.isNotNull(changeFeedId)) {
+            httpUtil.deleteChangefeed(changeFeedId, tidbConfig.getTicdcUrl());
         }
     }
 

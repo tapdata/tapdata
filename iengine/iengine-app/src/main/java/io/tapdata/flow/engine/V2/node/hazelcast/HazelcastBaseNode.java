@@ -163,8 +163,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 					processorBaseContext.getNodes(),
 					(processorBaseContext instanceof DataProcessorContext ? ((DataProcessorContext) processorBaseContext).getConnections() : null)
 			);
-			logger.info("[External Storage]Node {}[{}]: {}", getNode().getName(), getNode().getId(), externalStorageDto);
-			obsLogger.info("[External Storage]Node {}[{}]: {}", getNode().getName(), getNode().getId(), externalStorageDto);
 		} catch (Exception e) {
 			errorHandle(e, String.format("Init node[%s] failed", getNode().getName()));
 		}
