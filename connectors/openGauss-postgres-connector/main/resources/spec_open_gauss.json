@@ -3,7 +3,7 @@
     "name": "OpenGauss",
     "icon": "icons/open-gauss.png",
     "doc" : "${doc}",
-    "id": "open-gauss"
+    "id": "openGauss"
   },
   "configOptions": {
     "capabilities":[

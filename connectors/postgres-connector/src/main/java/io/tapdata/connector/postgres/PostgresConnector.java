@@ -39,7 +39,6 @@ import org.postgresql.jdbc.PgSQLXML;
 import org.postgresql.util.PGInterval;
 import org.postgresql.util.PGobject;
 
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -59,7 +58,6 @@ import static io.tapdata.entity.simplify.TapSimplify.indexField;
  */
 @TapConnectorClass("spec_postgres.json")
 public class PostgresConnector extends ConnectorBase {
-
     private PostgresConfig postgresConfig;
     private PostgresJdbcContext postgresJdbcContext;
     private PostgresTest postgresTest;
@@ -196,16 +194,7 @@ public class PostgresConnector extends ConnectorBase {
             return "null";
         });
 
-        codecRegistry.registerToTapValue(PgArray.class, (value, tapType) -> {
-            PgArray pgArray = (PgArray) value;
-            try (
-                    ResultSet resultSet = pgArray.getResultSet();
-            ) {
-                return new TapArrayValue(DbKit.getDataArrayByColumnName(resultSet, "VALUE"));
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
-        });
+        codecRegistry.registerToTapValue(PgArray.class, (value, tapType) -> new TapStringValue(toJson(value)));
         codecRegistry.registerToTapValue(PgSQLXML.class, (value, tapType) -> {
             try {
                 return new TapStringValue(((PgSQLXML) value).getString());

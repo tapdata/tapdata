@@ -1,15 +1,19 @@
-package io.tapdata.connector.open.gauss.postgres;
+package io.tapdata.connector.opengauss;
+
 import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.common.ddl.DDLSqlGenerator;
-import io.tapdata.connector.open.gauss.postgres.bean.OpenGaussColumn;
-import io.tapdata.connector.open.gauss.postgres.cdc.OpenGaussCdcRunner;
-import io.tapdata.connector.open.gauss.postgres.cdc.offset.OpenGaussOffset;
-import io.tapdata.connector.open.gauss.postgres.config.OpenGaussConfig;
-import io.tapdata.connector.open.gauss.postgres.ddl.OpenGaussDDLSqlGenerator;
+import io.tapdata.connector.postgres.PostgresJdbcContext;
+import io.tapdata.connector.postgres.PostgresRecordWriter;
+import io.tapdata.connector.postgres.PostgresTest;
+import io.tapdata.connector.postgres.bean.PostgresColumn;
+import io.tapdata.connector.postgres.cdc.PostgresCdcRunner;
+import io.tapdata.connector.postgres.cdc.offset.PostgresOffset;
+import io.tapdata.connector.postgres.config.PostgresConfig;
+import io.tapdata.connector.postgres.ddl.PostgresDDLSqlGenerator;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -52,12 +56,12 @@ import static io.tapdata.entity.simplify.TapSimplify.indexField;
 @TapConnectorClass("spec_open_gauss.json")
 public class OpenGaussPostgresConnector extends ConnectorBase {
 
-    private OpenGaussConfig openGaussConfig;
-    private OpenGaussJdbcContext openGaussJdbcContext;
-    private OpenGaussTest openGaussTest;
-    private OpenGaussCdcRunner cdcRunner; //only when task start-pause this variable~ can be shared
+    private PostgresConfig postgresConfig;
+    private PostgresJdbcContext postgresJdbcContext;
+    private PostgresTest postgresTest;
+    private PostgresCdcRunner cdcRunner; //only when task start-pause this variable~ can be shared
     private Object slotName; //must be stored in stateMap
-    private String openGaussVersion;
+    private String postgresVersion;
     private static final int BATCH_ADVANCE_READ_LIMIT = 1000;
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
     private DDLSqlGenerator ddlSqlGenerator;
@@ -70,14 +74,14 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) {
         //get table info
-        List<DataMap> tableList = openGaussJdbcContext.queryAllTables(tables);
+        List<DataMap> tableList = postgresJdbcContext.queryAllTables(tables);
         //paginate by tableSize
         List<List<DataMap>> tableLists = Lists.partition(tableList, tableSize);
         tableLists.forEach(subList -> {
             List<TapTable> tapTableList = TapSimplify.list();
             List<String> subTableNames = subList.stream().map(v -> v.getString("table_name")).collect(Collectors.toList());
-            List<DataMap> columnList = openGaussJdbcContext.queryAllColumns(subTableNames);
-            List<DataMap> indexList = openGaussJdbcContext.queryAllIndexes(subTableNames);
+            List<DataMap> columnList = postgresJdbcContext.queryAllColumns(subTableNames);
+            List<DataMap> indexList = postgresJdbcContext.queryAllIndexes(subTableNames);
             //make up tapTable
             subList.forEach(subTable -> {
                 //1、table name/comment
@@ -99,7 +103,7 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
                 AtomicInteger keyPos = new AtomicInteger(0);
                 columnList.stream().filter(col -> table.equals(col.getString("table_name")))
                         .forEach(col -> {
-                            TapField tapField = new OpenGaussColumn(col).getTapField(); //make up fields
+                            TapField tapField = new PostgresColumn(col).getTapField(); //make up fields
                             tapField.setPos(keyPos.incrementAndGet());
                             tapField.setPrimaryKey(primaryKey.contains(tapField.getName()));
                             tapField.setPrimaryKeyPos(primaryKey.indexOf(tapField.getName()) + 1);
@@ -122,7 +126,7 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
 
     private List<TapIndex> discoverIndex(String tableName) {
         List<TapIndex> tapIndexList = TapSimplify.list();
-        List<DataMap> indexList = openGaussJdbcContext.queryAllIndexes(Collections.singletonList(tableName));
+        List<DataMap> indexList = postgresJdbcContext.queryAllIndexes(Collections.singletonList(tableName));
         Map<String, List<DataMap>> indexMap = indexList.stream()
                 .collect(Collectors.groupingBy(idx -> idx.getString("index_name"), LinkedHashMap::new, Collectors.toList()));
         indexMap.forEach((key, value) -> tapIndexList.add(makeTapIndex(key, value)));
@@ -131,20 +135,20 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
 
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) {
-        openGaussConfig = (OpenGaussConfig) new OpenGaussConfig().load(connectionContext.getConnectionConfig());
+        postgresConfig = (PostgresConfig) new PostgresConfig().load(connectionContext.getConnectionConfig());
         ConnectionOptions connectionOptions = ConnectionOptions.create();
-        connectionOptions.connectionString(openGaussConfig.getConnectionString());
+        connectionOptions.connectionString(postgresConfig.getConnectionString());
         try (
-                OpenGaussTest openGaussTest = new OpenGaussTest(openGaussConfig, consumer).initContext()
+                PostgresTest postgresTest = new PostgresTest(postgresConfig, consumer).initContext()
         ) {
-            openGaussTest.testOneByOne();
+            postgresTest.testOneByOne();
             return connectionOptions;
         }
     }
 
     @Override
     public int tableCount(TapConnectionContext connectionContext) {
-        return openGaussJdbcContext.queryAllTables(null).size();
+        return postgresJdbcContext.queryAllTables(null).size();
     }
 
     @Override
@@ -162,8 +166,8 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
         // source
         connectorFunctions.supportBatchCount(this::batchCount);
         connectorFunctions.supportBatchRead(this::batchRead);
-        connectorFunctions.supportStreamRead(this::streamRead);
-        connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
+//        connectorFunctions.supportStreamRead(this::streamRead);
+//        connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
         // query
         connectorFunctions.supportQueryByFilter(this::queryByFilter);
         connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilter);
@@ -173,7 +177,7 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
-        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> openGaussJdbcContext.getConnection(), c));
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> postgresJdbcContext.getConnection(), c));
 
         codecRegistry.registerFromTapValue(TapRawValue.class, "text", tapRawValue -> {
             if (tapRawValue != null && tapRawValue.getValue() != null) return toJson(tapRawValue.getValue());
@@ -223,7 +227,7 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
     }
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
-        openGaussJdbcContext.queryAllTables(TapSimplify.list(), batchSize, listConsumer);
+        postgresJdbcContext.queryAllTables(TapSimplify.list(), batchSize, listConsumer);
     }
 
     private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) throws SQLException {
@@ -231,7 +235,7 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
         if (null == sqls) {
             return;
         }
-        openGaussJdbcContext.batchExecute(sqls);
+        postgresJdbcContext.batchExecute(sqls);
     }
 
     private List<String> alterFieldAttr(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
@@ -239,7 +243,7 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
             return null;
         }
         TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent = (TapAlterFieldAttributesEvent) tapFieldBaseEvent;
-        return ddlSqlGenerator.alterColumnAttr(openGaussConfig, tapAlterFieldAttributesEvent);
+        return ddlSqlGenerator.alterColumnAttr(postgresConfig, tapAlterFieldAttributesEvent);
     }
 
     private List<String> dropField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
@@ -247,7 +251,7 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
             return null;
         }
         TapDropFieldEvent tapDropFieldEvent = (TapDropFieldEvent) tapFieldBaseEvent;
-        return ddlSqlGenerator.dropColumn(openGaussConfig, tapDropFieldEvent);
+        return ddlSqlGenerator.dropColumn(postgresConfig, tapDropFieldEvent);
     }
 
     private List<String> alterFieldName(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
@@ -255,7 +259,7 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
             return null;
         }
         TapAlterFieldNameEvent tapAlterFieldNameEvent = (TapAlterFieldNameEvent) tapFieldBaseEvent;
-        return ddlSqlGenerator.alterColumnName(openGaussConfig, tapAlterFieldNameEvent);
+        return ddlSqlGenerator.alterColumnName(postgresConfig, tapAlterFieldNameEvent);
     }
 
     private List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
@@ -263,7 +267,7 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
             return null;
         }
         TapNewFieldEvent tapNewFieldEvent = (TapNewFieldEvent) tapFieldBaseEvent;
-        return ddlSqlGenerator.addColumn(openGaussConfig, tapNewFieldEvent);
+        return ddlSqlGenerator.addColumn(postgresConfig, tapNewFieldEvent);
     }
 
     //clear resource outer and jdbc context
@@ -284,42 +288,44 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
 
     //clear postgres slot
     private void clearSlot() throws Throwable {
-        openGaussJdbcContext.queryWithNext("SELECT COUNT(*) FROM pg_replication_slots WHERE slot_name='" + slotName + "' AND active='false'", resultSet -> {
+        postgresJdbcContext.queryWithNext("SELECT COUNT(*) FROM pg_replication_slots WHERE slot_name='" + slotName + "' AND active='false'", resultSet -> {
             if (resultSet.getInt(1) > 0) {
-                openGaussJdbcContext.execute("SELECT pg_drop_replication_slot('" + slotName + "')");
+                postgresJdbcContext.execute("SELECT pg_drop_replication_slot('" + slotName + "')");
             }
         });
     }
 
     private void buildSlot() throws Throwable {
         slotName = "tapdata_cdc_" + UUID.randomUUID().toString().replaceAll("-", "_");
-        openGaussJdbcContext.execute("SELECT pg_create_logical_replication_slot('" + slotName + "','" + openGaussConfig.getLogPluginName() + "')");
+        postgresJdbcContext.execute("SELECT pg_create_logical_replication_slot('" + slotName + "','" + postgresConfig.getLogPluginName() + "')");
     }
+
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
         if (EmptyKit.isNotNull(cdcRunner)) {
             cdcRunner.closeCdcRunner();
             cdcRunner = null;
         }
-        if (EmptyKit.isNotNull(openGaussTest)) {
-            openGaussTest.close();
-            openGaussTest = null;
+        if (EmptyKit.isNotNull(postgresTest)) {
+            postgresTest.close();
+            postgresTest = null;
         }
-        if (EmptyKit.isNotNull(openGaussJdbcContext)) {
-            openGaussJdbcContext.finish(connectionContext.getId());
+        if (EmptyKit.isNotNull(postgresJdbcContext)) {
+            postgresJdbcContext.finish(connectionContext.getId());
         }
     }
+
     //initialize jdbc context, slot name, version
     private void initConnection(TapConnectionContext connectorContext) {
-        openGaussConfig = (OpenGaussConfig) new OpenGaussConfig().load(connectorContext.getConnectionConfig());
-        openGaussTest = new OpenGaussTest(openGaussConfig, testItem -> {
+        postgresConfig = (PostgresConfig) new PostgresConfig().load(connectorContext.getConnectionConfig());
+        postgresTest = new PostgresTest(postgresConfig, testItem -> {
         }).initContext();
-        if (EmptyKit.isNull(openGaussJdbcContext) || openGaussJdbcContext.isFinish()) {
-            openGaussJdbcContext = (OpenGaussJdbcContext) DataSourcePool.getJdbcContext(openGaussConfig, OpenGaussJdbcContext.class, connectorContext.getId());
+        if (EmptyKit.isNull(postgresJdbcContext) || postgresJdbcContext.isFinish()) {
+            postgresJdbcContext = (PostgresJdbcContext) DataSourcePool.getJdbcContext(postgresConfig, PostgresJdbcContext.class, connectorContext.getId());
         }
         isConnectorStarted(connectorContext, tapConnectorContext -> slotName = tapConnectorContext.getStateMap().get("tapdata_pg_slot"));
-        openGaussVersion = openGaussJdbcContext.queryVersion();
-        ddlSqlGenerator = new OpenGaussDDLSqlGenerator();
+        postgresVersion = postgresJdbcContext.queryVersion();
+        ddlSqlGenerator = new PostgresDDLSqlGenerator();
         fieldDDLHandlers = new BiClassHandlers<>();
         fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
         fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
@@ -332,10 +338,10 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
         Set<String> columnNames = tapTable.getNameFieldMap().keySet();
         List<FilterResult> filterResults = new LinkedList<>();
         for (TapFilter filter : filters) {
-            String sql = "SELECT * FROM \"" + openGaussConfig.getSchema() + "\".\"" + tapTable.getId() + "\" WHERE " + new CommonSqlMaker().buildKeyAndValue(filter.getMatch(), "AND", "=");
+            String sql = "SELECT * FROM \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\" WHERE " + new CommonSqlMaker().buildKeyAndValue(filter.getMatch(), "AND", "=");
             FilterResult filterResult = new FilterResult();
             try {
-                openGaussJdbcContext.queryWithNext(sql, resultSet -> filterResult.setResult(DbKit.getRowFromResultSet(resultSet, columnNames)));
+                postgresJdbcContext.queryWithNext(sql, resultSet -> filterResult.setResult(DbKit.getRowFromResultSet(resultSet, columnNames)));
             } catch (Throwable e) {
                 filterResult.setError(e);
             } finally {
@@ -360,8 +366,8 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
             }
             builder.append("\"");
         }
-        builder.append(" FROM \"").append(openGaussConfig.getSchema()).append("\".\"").append(table.getId()).append("\" ").append(new CommonSqlMaker().buildSqlByAdvanceFilter(filter));
-        openGaussJdbcContext.query(builder.toString(), resultSet -> {
+        builder.append(" FROM \"").append(postgresConfig.getSchema()).append("\".\"").append(table.getId()).append("\" ").append(new CommonSqlMaker().buildSqlByAdvanceFilter(filter));
+        postgresJdbcContext.query(builder.toString(), resultSet -> {
             FilterResults filterResults = new FilterResults();
             while (resultSet.next()) {
                 filterResults.add(DbKit.getRowFromResultSet(resultSet, DbKit.getColumnsFromResultSet(resultSet)));
@@ -380,13 +386,13 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
     private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
         TapTable tapTable = tapCreateTableEvent.getTable();
         CreateTableOptions createTableOptions = new CreateTableOptions();
-        if (openGaussJdbcContext.queryAllTables(Collections.singletonList(tapTable.getId())).size() > 0) {
+        if (postgresJdbcContext.queryAllTables(Collections.singletonList(tapTable.getId())).size() > 0) {
             createTableOptions.setTableExists(true);
             return createTableOptions;
         }
         Collection<String> primaryKeys = tapTable.primaryKeys();
         //pgsql UNIQUE INDEX use 'UNIQUE' not 'UNIQUE KEY' but here use 'PRIMARY KEY'
-        String sql = "CREATE TABLE IF NOT EXISTS \"" + openGaussConfig.getSchema() + "\".\"" + tapTable.getId() + "\"(" + new CommonSqlMaker().buildColumnDefinition(tapTable, false);
+        String sql = "CREATE TABLE IF NOT EXISTS \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\"(" + new CommonSqlMaker().buildColumnDefinition(tapTable, false);
         if (EmptyKit.isNotEmpty(tapTable.primaryKeys())) {
             sql += "," + " PRIMARY KEY (\"" + String.join("\",\"", primaryKeys) + "\" )";
         }
@@ -396,16 +402,16 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
             sqls.add(sql);
             //comment on table and column
             if (EmptyKit.isNotNull(tapTable.getComment())) {
-                sqls.add("COMMENT ON TABLE \"" + openGaussConfig.getSchema() + "\".\"" + tapTable.getId() + "\" IS '" + tapTable.getComment() + "'");
+                sqls.add("COMMENT ON TABLE \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\" IS '" + tapTable.getComment() + "'");
             }
             Map<String, TapField> fieldMap = tapTable.getNameFieldMap();
             for (String fieldName : fieldMap.keySet()) {
                 String fieldComment = fieldMap.get(fieldName).getComment();
                 if (EmptyKit.isNotNull(fieldComment)) {
-                    sqls.add("COMMENT ON COLUMN \"" + openGaussConfig.getSchema() + "\".\"" + tapTable.getId() + "\".\"" + fieldName + "\" IS '" + fieldComment + "'");
+                    sqls.add("COMMENT ON COLUMN \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\".\"" + fieldName + "\" IS '" + fieldComment + "'");
                 }
             }
-            openGaussJdbcContext.batchExecute(sqls);
+            postgresJdbcContext.batchExecute(sqls);
         } catch (Throwable e) {
             e.printStackTrace();
             throw new RuntimeException("Create Table " + tapTable.getId() + " Failed! " + e.getMessage());
@@ -416,8 +422,8 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
         try {
-            if (openGaussJdbcContext.queryAllTables(Collections.singletonList(tapClearTableEvent.getTableId())).size() == 1) {
-                openGaussJdbcContext.execute("TRUNCATE TABLE \"" + openGaussConfig.getSchema() + "\".\"" + tapClearTableEvent.getTableId() + "\"");
+            if (postgresJdbcContext.queryAllTables(Collections.singletonList(tapClearTableEvent.getTableId())).size() == 1) {
+                postgresJdbcContext.execute("TRUNCATE TABLE \"" + postgresConfig.getSchema() + "\".\"" + tapClearTableEvent.getTableId() + "\"");
             }
         } catch (Throwable e) {
             e.printStackTrace();
@@ -427,8 +433,8 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
 
     private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
         try {
-            if (openGaussJdbcContext.queryAllTables(Collections.singletonList(tapDropTableEvent.getTableId())).size() == 1) {
-                openGaussJdbcContext.execute("DROP TABLE IF EXISTS \"" + openGaussConfig.getSchema() + "\".\"" + tapDropTableEvent.getTableId() + "\"");
+            if (postgresJdbcContext.queryAllTables(Collections.singletonList(tapDropTableEvent.getTableId())).size() == 1) {
+                postgresJdbcContext.execute("DROP TABLE IF EXISTS \"" + postgresConfig.getSchema() + "\".\"" + tapDropTableEvent.getTableId() + "\"");
             }
         } catch (Throwable e) {
             e.printStackTrace();
@@ -442,25 +448,25 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
             List<TapIndex> indexList = createIndexEvent.getIndexList().stream().filter(v -> discoverIndex(tapTable.getId()).stream()
                     .noneMatch(i -> DbKit.ignoreCreateIndex(i, v))).collect(Collectors.toList());
             if (EmptyKit.isNotEmpty(indexList)) {
-                if (Integer.parseInt(openGaussVersion) > 90500) {
+                if (Integer.parseInt(postgresVersion) > 90500) {
                     indexList.stream().filter(i -> !i.isPrimary()).forEach(i ->
                             sqls.add("CREATE " + (i.isUnique() ? "UNIQUE " : " ") + "INDEX " +
-                                    (EmptyKit.isNotNull(i.getName()) ? "IF NOT EXISTS \"" + i.getName() + "\"" : "") + " ON \"" + openGaussConfig.getSchema() + "\".\"" + tapTable.getId() + "\"(" +
+                                    (EmptyKit.isNotNull(i.getName()) ? "IF NOT EXISTS \"" + i.getName() + "\"" : "") + " ON \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\"(" +
                                     i.getIndexFields().stream().map(f -> "\"" + f.getName() + "\" " + (f.getFieldAsc() ? "ASC" : "DESC"))
                                             .collect(Collectors.joining(",")) + ')'));
                 } else {
                     List<String> existsIndexes = TapSimplify.list();
-                    openGaussJdbcContext.query("SELECT relname FROM pg_class WHERE relname IN (" +
+                    postgresJdbcContext.query("SELECT relname FROM pg_class WHERE relname IN (" +
                                     indexList.stream().map(i -> "'" + (EmptyKit.isNotNull(i.getName()) ? i.getName() : "") + "'").collect(Collectors.joining(",")) + ") AND relkind = 'i'",
                             resultSet -> existsIndexes.addAll(DbKit.getDataFromResultSet(resultSet).stream().map(v -> v.getString("relname")).collect(Collectors.toList())));
                     indexList.stream().filter(i -> !i.isPrimary() && !existsIndexes.contains(i.getName())).forEach(i ->
                             sqls.add("CREATE " + (i.isUnique() ? "UNIQUE " : " ") + "INDEX " +
-                                    (EmptyKit.isNotNull(i.getName()) ? "\"" + i.getName() + "\"" : "") + " ON \"" + openGaussConfig.getSchema() + "\".\"" + tapTable.getId() + "\"(" +
+                                    (EmptyKit.isNotNull(i.getName()) ? "\"" + i.getName() + "\"" : "") + " ON \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\"(" +
                                     i.getIndexFields().stream().map(f -> "\"" + f.getName() + "\" " + (f.getFieldAsc() ? "ASC" : "DESC"))
                                             .collect(Collectors.joining(",")) + ')'));
                 }
             }
-            openGaussJdbcContext.batchExecute(sqls);
+            postgresJdbcContext.batchExecute(sqls);
         } catch (Throwable e) {
             e.printStackTrace();
             throw new RuntimeException("Create Indexes for " + tapTable.getId() + " Failed! " + e.getMessage());
@@ -478,8 +484,8 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
         if (updateDmlPolicy == null) {
             updateDmlPolicy = ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS;
         }
-        new OpenGaussRecordWriter(openGaussJdbcContext, tapTable)
-                .setVersion(openGaussVersion)
+        new PostgresRecordWriter(postgresJdbcContext, tapTable)
+                .setVersion(postgresVersion)
                 .setInsertPolicy(insertDmlPolicy)
                 .setUpdatePolicy(updateDmlPolicy)
                 .write(tapRecordEvents, writeListResultConsumer);
@@ -487,44 +493,44 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
 
     private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
         AtomicLong count = new AtomicLong(0);
-        String sql = "SELECT COUNT(1) FROM \"" + openGaussConfig.getSchema() + "\".\"" + tapTable.getId() + "\"";
-        openGaussJdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
+        String sql = "SELECT COUNT(1) FROM \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\"";
+        postgresJdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
         return count.get();
     }
 
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
         //test streamRead log plugin
-        boolean canCdc = EmptyKit.isNotNull(openGaussTest.testStreamRead()) && openGaussTest.testStreamRead();
+        boolean canCdc = EmptyKit.isNotNull(postgresTest.testStreamRead()) && postgresTest.testStreamRead();
         if (canCdc && EmptyKit.isNull(slotName)) {
             buildSlot();
             tapConnectorContext.getStateMap().put("tapdata_pg_slot", slotName);
         }
-        OpenGaussOffset openGaussOffset;
+        PostgresOffset postgresOffset;
         //beginning
         if (null == offsetState) {
-            openGaussOffset = new OpenGaussOffset(new CommonSqlMaker().getOrderByUniqueKey(tapTable), 0L);
+            postgresOffset = new PostgresOffset(new CommonSqlMaker().getOrderByUniqueKey(tapTable), 0L);
         }
         //with offset
         else {
-            openGaussOffset = (OpenGaussOffset) offsetState;
+            postgresOffset = (PostgresOffset) offsetState;
         }
-        String sql = "SELECT * FROM \"" + openGaussConfig.getSchema() + "\".\"" + tapTable.getId() + "\"" + openGaussOffset.getSortString() + " OFFSET " + openGaussOffset.getOffsetValue();
-        openGaussJdbcContext.query(sql, resultSet -> {
+        String sql = "SELECT * FROM \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\"" + postgresOffset.getSortString() + " OFFSET " + postgresOffset.getOffsetValue();
+        postgresJdbcContext.query(sql, resultSet -> {
             List<TapEvent> tapEvents = list();
             //get all column names
             List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
             while (isAlive() && resultSet.next()) {
                 tapEvents.add(insertRecordEvent(DbKit.getRowFromResultSet(resultSet, columnNames), tapTable.getId()));
                 if (tapEvents.size() == eventBatchSize) {
-                    openGaussOffset.setOffsetValue(openGaussOffset.getOffsetValue() + eventBatchSize);
-                    eventsOffsetConsumer.accept(tapEvents, openGaussOffset);
+                    postgresOffset.setOffsetValue(postgresOffset.getOffsetValue() + eventBatchSize);
+                    eventsOffsetConsumer.accept(tapEvents, postgresOffset);
                     tapEvents = list();
                 }
             }
             //last events those less than eventBatchSize
             if (EmptyKit.isNotEmpty(tapEvents)) {
-                openGaussOffset.setOffsetValue(openGaussOffset.getOffsetValue() + tapEvents.size());
-                eventsOffsetConsumer.accept(tapEvents, openGaussOffset);
+                postgresOffset.setOffsetValue(postgresOffset.getOffsetValue() + tapEvents.size());
+                eventsOffsetConsumer.accept(tapEvents, postgresOffset);
             }
         });
 
@@ -532,7 +538,7 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
 
     private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
         if (EmptyKit.isNull(cdcRunner)) {
-            cdcRunner = new OpenGaussCdcRunner(openGaussJdbcContext);
+            cdcRunner = new PostgresCdcRunner(postgresJdbcContext);
             if (EmptyKit.isNull(slotName)) {
                 buildSlot();
                 nodeContext.getStateMap().put("tapdata_pg_slot", slotName);
@@ -546,16 +552,16 @@ public class OpenGaussPostgresConnector extends ConnectorBase {
     }
 
     private Object timestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) {
-        return new OpenGaussOffset();
+        return new PostgresOffset();
     }
 
     private void checkConnection(TapConnectionContext connectionContext, List<String> items, Consumer<ConnectionCheckItem> consumer) {
-        ConnectionCheckItem testPing = openGaussTest.testPing();
+        ConnectionCheckItem testPing = postgresTest.testPing();
         consumer.accept(testPing);
         if (testPing.getResult() == ConnectionCheckItem.RESULT_FAILED) {
             return;
         }
-        ConnectionCheckItem testConnection = openGaussTest.testConnection();
+        ConnectionCheckItem testConnection = postgresTest.testConnection();
         consumer.accept(testConnection);
     }
 
