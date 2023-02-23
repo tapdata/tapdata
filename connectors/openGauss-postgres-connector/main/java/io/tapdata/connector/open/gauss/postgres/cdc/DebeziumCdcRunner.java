@@ -8,12 +8,8 @@ import org.apache.kafka.connect.source.SourceRecord;
 import java.io.IOException;
 import java.util.List;
 
-/**
- * Abstract runner for change data capture
- *
- * @author Jarad
- * @date 2022/5/13
- */
+
+
 public abstract class DebeziumCdcRunner implements CdcRunner {
 
     protected EmbeddedEngine engine;

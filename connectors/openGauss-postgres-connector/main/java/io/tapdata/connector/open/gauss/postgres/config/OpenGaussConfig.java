@@ -4,12 +4,6 @@ import io.tapdata.common.CommonDbConfig;
 
 import java.io.Serializable;
 
-/**
- * Postgres database config
- *
- * @author Jarad
- * @date 2022/4/18
- */
 public class OpenGaussConfig extends CommonDbConfig implements Serializable {
 
     private String logPluginName = "pgoutput"; //default log plugin for postgres, pay attention to lower version

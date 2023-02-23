@@ -26,13 +26,6 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-
-/**
- * CDC runner for Postgresql
- *
- * @author Jarad
- * @date 2022/5/13
- */
 public class OpenGaussCdcRunner extends DebeziumCdcRunner {
 
     private static final String TAG = OpenGaussCdcRunner.class.getSimpleName();

@@ -8,12 +8,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * debezium config for postgres
- *
- * @author Jarad
- * @date 2022/5/10
- */
 public class OpenGaussDebeziumConfig {
 
     private OpenGaussConfig openGaussConfig;

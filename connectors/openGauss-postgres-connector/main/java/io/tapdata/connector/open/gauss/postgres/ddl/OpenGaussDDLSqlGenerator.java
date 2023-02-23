@@ -15,11 +15,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * @author samuel
- * @Description
- * @create 2022-07-12 10:56
- **/
 public class OpenGaussDDLSqlGenerator implements DDLSqlGenerator {
     private final static String TABLE_NAME_FORMAT = "\"%s\".\"%s\".\"%s\"";
     private final static String ALTER_TABLE_PREFIX = "alter table " + TABLE_NAME_FORMAT;

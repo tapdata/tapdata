@@ -2,12 +2,7 @@ package io.tapdata.connector.open.gauss.postgres.cdc.offset;
 
 import java.io.Serializable;
 
-/**
- * offset for batch read
- *
- * @author Jarad
- * @date 2022/5/09
- */
+
 public class OpenGaussOffset implements Serializable {
 
     private String sortString;

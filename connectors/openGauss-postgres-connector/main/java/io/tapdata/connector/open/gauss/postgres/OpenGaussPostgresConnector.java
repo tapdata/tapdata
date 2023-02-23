@@ -10,7 +10,6 @@ import io.tapdata.connector.open.gauss.postgres.cdc.OpenGaussCdcRunner;
 import io.tapdata.connector.open.gauss.postgres.cdc.offset.OpenGaussOffset;
 import io.tapdata.connector.open.gauss.postgres.config.OpenGaussConfig;
 import io.tapdata.connector.open.gauss.postgres.ddl.OpenGaussDDLSqlGenerator;
-import io.tapdata.connector.postgres.cdc.offset.PostgresOffset;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -49,7 +48,6 @@ import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.index;
 import static io.tapdata.entity.simplify.TapSimplify.indexField;
-
 
 @TapConnectorClass("spec_open_gauss.json")
 public class OpenGaussPostgresConnector extends ConnectorBase {

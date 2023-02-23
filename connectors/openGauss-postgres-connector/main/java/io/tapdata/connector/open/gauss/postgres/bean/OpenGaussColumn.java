@@ -5,16 +5,11 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.EmptyKit;
 
-/**
- * @author Jarad
- * @date 2022/4/20
- */
 public class OpenGaussColumn extends CommonColumn {
 
     public OpenGaussColumn() {
 
     }
-
     public OpenGaussColumn(DataMap dataMap) {
         this.columnName = dataMap.getString("column_name");
         this.dataType = dataMap.getString("dataType").replaceAll("\\[]", " array"); //'dataType' with precision and scale (postgres has its function)
@@ -25,7 +20,6 @@ public class OpenGaussColumn extends CommonColumn {
         this.columnDefaultValue = null;
 //        this.columnDefaultValue = getDefaultValue(dataMap.getString("column_default"));
     }
-
     @Override
     public TapField getTapField() {
         return new TapField(this.columnName, this.dataType).nullable(this.isNullable()).
