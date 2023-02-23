@@ -10,6 +10,17 @@ public class NoOne extends Body<Object> {
         return this;
     }
 
+
+    @Override
+    public Body<Object> copyOne() {
+        NoOne binary = new NoOne();
+        binary.mode(super.mode);
+        binary.raw(super.raw);
+        binary.options(super.options);
+        binary.contentType = super.contentType;
+        return binary;
+    }
+
     /**
      * {
      * 	"name": "NoOneBody",

@@ -34,6 +34,17 @@ public class GraphQl extends Body<Map<String, Object>> {
         return this;
     }
 
+
+    @Override
+    public Body<Map<String, Object>> copyOne() {
+        GraphQl binary = new GraphQl();
+        binary.mode(super.mode);
+        binary.raw(super.raw);
+        binary.options(super.options);
+        binary.contentType = super.contentType;
+        return binary;
+    }
+
     @Override
     public Body<Map<String, Object>> variableAssignment(Map<String, Object> param) {
         return this;

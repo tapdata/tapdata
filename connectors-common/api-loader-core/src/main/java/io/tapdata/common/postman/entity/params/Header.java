@@ -11,6 +11,13 @@ public class Header {
     String key;
     String value;
     String type;
+    public Header copyOne(){
+        Header header = new Header();
+        header.key(key);
+        header.value(value);
+        header.type(type);
+        return header;
+    }
     public static Header create(){
         return new Header();
     }

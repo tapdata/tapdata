@@ -1,6 +1,9 @@
 package io.tapdata.common.support.entitys;
 
-public class APIEntity {
+import java.io.Serializable;
+
+public class APIEntity implements Serializable {
+    private static final long serialversionUID = 1L;
     String name;
     String url;
     String method;
