@@ -277,12 +277,6 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         criteria.orOperator(userCriteria, supplierCriteria, Criteria.where("scope").is(scope));
         // only return the latest version
         criteria.and("latest").is(true);
-        if(!"All".equals(tag) && !"Custom".equals(tag)){
-            criteria.and("tags").is(tag);
-        }
-        if(!"All".equals(authentication)){
-            criteria.and("authentication").is(authentication);
-        }
         query.addCriteria(criteria);
         query.limit(0);
         query.skip(0);
@@ -459,7 +453,7 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         String scope = "public";
         if("Custom".equals(tag)){
             scope = "customer";
-            criteria.and("customeId").is(user.getCustomerId());
+            criteria.and("customId").is(user.getCustomerId());
         }
         criteria.and("scope").is(scope);
         criteria.and("latest").is(true);
