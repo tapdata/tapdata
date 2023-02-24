@@ -321,8 +321,10 @@ public class MysqlJdbcContext implements AutoCloseable {
 		list.add("TABLE_ROWS");
 		list.add("DATA_LENGTH");
 		try {
-			query(String.format(CHECK_TABLE_EXISTS_SQL, database, tableName), rs -> {
-				dataMap.putAll(DbKit.getRowFromResultSet(rs,list));
+			query(String.format(CHECK_TABLE_EXISTS_SQL, database, tableName),resultSet -> {
+				while (resultSet.next()) {
+					dataMap.putAll(DbKit.getRowFromResultSet(resultSet, list));
+				}
 			});
 
 		}catch (Throwable e) {
