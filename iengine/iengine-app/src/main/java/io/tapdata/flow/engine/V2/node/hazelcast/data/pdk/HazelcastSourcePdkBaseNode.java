@@ -1,8 +1,17 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.alibaba.fastjson.JSON;
-import com.tapdata.constant.*;
-import com.tapdata.entity.*;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.JSONUtil;
+import com.tapdata.constant.Log4jUtil;
+import com.tapdata.constant.MapUtil;
+import com.tapdata.constant.MilestoneUtil;
+import com.tapdata.entity.DatabaseTypeEnum;
+import com.tapdata.entity.SyncStage;
+import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TapdataHeartbeatEvent;
+import com.tapdata.entity.TapdataShareLogEvent;
+import com.tapdata.entity.TapdataTaskErrorEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.cdcdelay.CdcDelayDisable;
@@ -41,7 +50,6 @@ import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
-import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.node.pdk.ConnectorNodeService;
@@ -60,8 +68,21 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
@@ -203,7 +224,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private void initBatchAndStreamOffset(TaskDto taskDto) {
 		if (syncProgress == null) {
 			syncProgress = new SyncProgress();
-			syncProgress.setBatchOffsetObj(new HashMap<>());
 			// null present current
 			Long offsetStartTimeMs = null;
 			switch (syncType) {
@@ -234,6 +254,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					}
 					initStreamOffsetFromTime(offsetStartTimeMs);
 					break;
+			}
+			if (null == offsetStartTimeMs || offsetStartTimeMs.compareTo(0L) <= 0) {
+				offsetStartTimeMs = syncProgress.getEventTime();
+			} else {
+				syncProgress.setEventTime(offsetStartTimeMs);
+				syncProgress.setSourceTime(offsetStartTimeMs);
 			}
 			if (null != syncProgress.getStreamOffsetObj()) {
 				TapdataEvent tapdataEvent = TapdataHeartbeatEvent.create(offsetStartTimeMs, syncProgress.getStreamOffsetObj());
