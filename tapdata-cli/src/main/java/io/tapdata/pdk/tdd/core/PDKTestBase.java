@@ -6,12 +6,14 @@ import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.conversion.TargetTypesGenerator;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.control.PatrolEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLog;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
@@ -31,14 +33,12 @@ import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.TapFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.target.*;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
-import io.tapdata.pdk.tdd.core.base.TestNode;
-import io.tapdata.pdk.tdd.tests.support.*;
-import io.tapdata.pdk.core.api.*;
+import io.tapdata.pdk.core.api.ConnectionNode;
+import io.tapdata.pdk.core.api.ConnectorNode;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.connector.TapConnector;
 import io.tapdata.pdk.core.connector.TapConnectorManager;
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.error.QuiteException;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -47,14 +47,17 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.workflow.engine.DataFlowEngine;
 import io.tapdata.pdk.core.workflow.engine.DataFlowWorker;
 import io.tapdata.pdk.core.workflow.engine.TapDAG;
+import io.tapdata.pdk.tdd.core.base.TestNode;
+import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.tdd.tests.support.connector.TableNameSupport;
 import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.poi.sl.draw.geom.GuideIf;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 
 import java.io.File;
 import java.io.IOException;
@@ -70,7 +73,6 @@ import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
-import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Date;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class PDKTestBase {
@@ -870,6 +872,7 @@ public class PDKTestBase {
     protected boolean createTable(TestNode prepare) {
         return this.createTable(prepare, null, Boolean.TRUE);
     }
+
     protected boolean createTable(TestNode prepare, boolean deleteRecordAfterCreateTable) {
         return this.createTable(prepare, null, deleteRecordAfterCreateTable);
     }
@@ -878,21 +881,23 @@ public class PDKTestBase {
         return this.createTable(prepare, createTable, Boolean.TRUE);
     }
 
-    protected void createTableFailedPrint(Method testCase, TapTable tapTable, TapAssertImpl tapAssert){
-        tapAssert.accept(testCase,LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.errorTable",this.tableInfo( tapTable)));
+    protected void createTableFailedPrint(Method testCase, TapTable tapTable, TapAssertImpl tapAssert) {
+        tapAssert.accept(testCase, LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.errorTable", this.tableInfo(tapTable)));
     }
-    protected String tableInfo( TapTable tapTable){
+
+    protected String tableInfo(TapTable tapTable) {
         StringJoiner joiner = new StringJoiner(",\n");
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-        Optional.ofNullable(nameFieldMap).ifPresent(fields->{
-            fields.forEach((fieldName, field)->{
-                joiner.add(fieldName + ": type( "+
+        Optional.ofNullable(nameFieldMap).ifPresent(fields -> {
+            fields.forEach((fieldName, field) -> {
+                joiner.add(LangUtil.SPILT_GRADE_4 + " |\t[Field] " + fieldName + ": type( " +
                         field.getDataType() + " ) | nullable( " +
                         field.getNullable() + " ) ");
             });
         });
-        return tapTable.getId() + "\n" + joiner.toString();
+        return "\n" + LangUtil.SPILT_GRADE_4 + "Created table name: " + tapTable.getId() + "\n" + joiner.toString();
     }
+
 
     protected boolean createTable(TestNode prepare, TapTable createTable, boolean deleteRecordAfterCreateTable) {
         TapConnectorContext connectorContext = prepare.connectorNode().getConnectorContext();
@@ -933,8 +938,8 @@ public class PDKTestBase {
                     asserts.acceptAsError(testCase, LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.createTableV2Function.succeed", this.tableInfo(finalCreateTable)));
                     return this.verifyCreateTable(prepare, finalCreateTable);
                 } catch (Throwable e) {
-                    TapAssert.asserts(() -> Assertions.fail(LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.createTableV2Function.error", finalTableId, e.getMessage()))).error(testCase);
-                    this.createTableFailedPrint(testCase, finalCreateTable, new TapAssertImpl(TapAssert.ERROR));
+                    TapAssert.error(testCase, LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.createTableV2Function.error", finalTableId, this.tableInfo(finalCreateTable) + "\n\n" + LangUtil.SPILT_GRADE_4 + e.getMessage()));
+                    //this.createTableFailedPrint(testCase, finalCreateTable, new TapAssertImpl(TapAssert.ERROR));
                 }
             } else if (null != createTableFunction) {
                 try {
@@ -942,8 +947,8 @@ public class PDKTestBase {
                     asserts.acceptAsError(testCase, LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.createTableFunction.succeed", this.tableInfo(finalCreateTable)));
                     return this.verifyCreateTable(prepare, finalCreateTable);
                 } catch (Throwable e) {
-                    TapAssert.asserts(() -> Assertions.fail(LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.createTableFunction.error", finalTableId, e.getMessage()))).error(testCase);
-                    this.createTableFailedPrint(testCase, finalCreateTable, new TapAssertImpl(TapAssert.ERROR));
+                    TapAssert.error(testCase, LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.createTableFunction.error", finalTableId, this.tableInfo(finalCreateTable) + "\n\n" + LangUtil.SPILT_GRADE_4 + e.getMessage()));
+                    //this.createTableFailedPrint(testCase, finalCreateTable, new TapAssertImpl(TapAssert.ERROR));
                 }
             } else if (null != writeRecordFunction) {
                 Record[] records = Record.testRecordWithTapTable(finalCreateTable, 1);
@@ -957,7 +962,7 @@ public class PDKTestBase {
                     }
                     return Boolean.TRUE;
                 } catch (Throwable e) {
-                    TapAssert.asserts(() -> Assertions.fail(LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.insertForCreateTable.error", records.length, finalTableId, e.getMessage()))).error(testCase);
+                    TapAssert.error(testCase, LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.insertForCreateTable.error", records.length, finalTableId, e.getMessage()));
                 } finally {
                     prepare.recordEventExecute().resetRecords();
                 }

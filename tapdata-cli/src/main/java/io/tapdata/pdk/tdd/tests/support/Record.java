@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 
-public class Record extends HashMap {
+public class Record extends HashMap<String,Object> {
     public static Record create() {
         return new Record();
     }
@@ -29,6 +29,7 @@ public class Record extends HashMap {
         return new Record();
     }
 
+    @Deprecated()
     public static Record[] testStart(int needCount) {
         if (needCount < 1) return new Record[0];
         Record[] records = new Record[needCount];

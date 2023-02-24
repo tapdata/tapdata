@@ -1,18 +1,24 @@
 package io.tapdata.pdk.tdd.core;
 
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.DataMap;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
+import io.tapdata.pdk.apis.entity.TapFilter;
+import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
+import io.tapdata.pdk.apis.functions.connector.target.QueryByFilterFunction;
 import io.tapdata.pdk.tdd.core.base.TestExec;
 import io.tapdata.pdk.tdd.core.base.TestNode;
 import io.tapdata.pdk.tdd.core.base.TestStart;
 import io.tapdata.pdk.tdd.core.base.TestStop;
 import io.tapdata.pdk.tdd.tests.support.LangUtil;
+import io.tapdata.pdk.tdd.tests.support.Record;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
+import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
 
 import java.lang.reflect.Method;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.StringJoiner;
+import java.util.*;
 
 import static com.tapdata.tm.sdk.util.JacksonUtil.fromJson;
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
@@ -47,14 +53,16 @@ public class PDKTestBaseV2 extends PDKTestBase {
         Method testCase = super.getMethod(testCaseName);
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
+            RecordEventExecute execute = prepare.recordEventExecute();
+            execute.testCase(testCase);
             try {
-                Optional.ofNullable(start).ifPresent(TestStart::start);
+                Optional.ofNullable(start).ifPresent(e->e.start(prepare,testCase));
                 super.connectorOnStart(prepare);
                 Optional.ofNullable(exec).ifPresent(e->e.exec(prepare,testCase));
             } catch (Exception e) {
-                TapAssert.error(testCase, this.langUtil.formatLang("fieldModification.all.throw", e.getMessage()));
+                TapAssert.error(testCase, langUtil.formatLang("fieldModification.all.throw", e.getMessage()));
             } finally {
-                Optional.ofNullable(stop).ifPresent(TestStop::stop);
+                Optional.ofNullable(stop).ifPresent(e->e.stop(prepare,testCase));
                 super.connectorOnStop(prepare);
             }
         });
@@ -64,6 +72,51 @@ public class PDKTestBaseV2 extends PDKTestBase {
     }
     protected void execTest(String testCaseName,TestExec exec, TestStop stop) throws NoSuchMethodException {
         this.execTest(testCaseName,null,exec,stop);
+    }
+
+    protected List<Map<String,Object>> queryRecords(TestNode node, TapTable tapTable, Record[] records){
+        Method testCase = node.recordEventExecute().testCase();
+        Collection<String> primaryKeys = super.targetTable.primaryKeys(true);
+        TapConnectorContext context = node.connectorNode().getConnectorContext();
+        ConnectorFunctions connectorFunctions = node.connectorNode().getConnectorFunctions();
+        QueryByFilterFunction queryByFilter = connectorFunctions.getQueryByFilterFunction();
+        QueryByAdvanceFilterFunction advanceFilter = connectorFunctions.getQueryByAdvanceFilterFunction();
+
+        DataMap dataMap = DataMap.create();
+        for (Record record : records) {
+            for (String primaryKey : primaryKeys) {
+                dataMap.kv(primaryKey, record.get(primaryKey));
+            }
+        }
+        List<TapFilter> filters = new ArrayList<>();
+        List<Map<String,Object>> result = new ArrayList<>();
+        if (Objects.nonNull(queryByFilter)) {
+            TapFilter filter = new TapFilter();
+            filter.setMatch(dataMap);
+            try {
+                queryByFilter.query(context, filters, super.targetTable, consumer -> {
+                    if (Objects.nonNull(consumer) && !consumer.isEmpty()) {
+                        consumer.forEach(res-> result.add(res.getResult()));
+                    }
+                });
+            }catch (Throwable e){
+                TapAssert.error(testCase,"QueryByAdvanceFilterFunction 抛出了一个异常，error: %s.");
+            }
+        } else {
+            Optional.ofNullable(advanceFilter).ifPresent(filter -> {
+                TapAdvanceFilter tapAdvanceFilter = new TapAdvanceFilter();
+                tapAdvanceFilter.match(dataMap);
+                try {
+                    filter.query(context, tapAdvanceFilter, super.targetTable, consumer -> {
+                        result.addAll(consumer.getResults());
+                    });
+                } catch (Throwable throwable) {
+                    TapAssert.error(testCase,"QueryByAdvanceFilterFunction 抛出了一个异常，error: %s.");
+                }
+            });
+        }
+
+        return result;
     }
 }
 

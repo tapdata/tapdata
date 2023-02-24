@@ -401,6 +401,9 @@ public class TDDCli extends CommonCli {
         //返回带有指定注解的所有类对象
         Set<Class<?>> typesAnnotatedWith = reflections.getTypesAnnotatedWith(TapGo.class);
         boolean isDebugMode = "true".equals(System.getProperty("is_debug_mode", "false"));
+        if (isDebugMode){
+            System.out.println("It's debug mode for running test, maybe ignore some case which Annotation of TapGo's debug value is false, note that please.");
+        }
         return typesAnnotatedWith.stream().filter(cls -> {
             try {
                 TapGo tapGo = cls.getAnnotation(TapGo.class);

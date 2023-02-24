@@ -10,6 +10,10 @@ public class LangUtil {
     public static final String LANG_PATH_V2 = "i18n.test_v2";
     public static LangUtil langUtil = new LangUtil(LangUtil.LANG_PATH_V1);
     public static final String DEFAULT_LANG_UN_KNOW_VALUE = "?";
+    public static final String SPILT_GRADE_1 = "\t";
+    public static final String SPILT_GRADE_2 = "\t\t";
+    public static final String SPILT_GRADE_3 = "\t\t\t";
+    public static final String SPILT_GRADE_4 = "\t\t\t\t";
 
     private String langPath;
 

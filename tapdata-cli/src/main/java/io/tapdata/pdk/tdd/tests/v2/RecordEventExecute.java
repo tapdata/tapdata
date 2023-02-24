@@ -55,6 +55,12 @@ public class RecordEventExecute {
 
     List<Record> records = new ArrayList<>();
 
+    public RecordEventExecute builderRecordCleanBefore(Record... records){
+        this.records = new ArrayList<>();
+        this.records.addAll(Arrays.asList(records));
+        return this;
+    }
+
     public RecordEventExecute builderRecord(Record... records) {
         if (null == records || records.length <= 0) return this;
         if (records == null) this.records = new ArrayList<>();

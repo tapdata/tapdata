@@ -2,6 +2,7 @@ package io.tapdata.pdk.tdd.tests.v3;
 
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.mapping.type.TapMapping;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
@@ -11,14 +12,15 @@ import io.tapdata.pdk.cli.support.DataTypesHandler;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBaseV2;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
@@ -29,7 +31,7 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
  * 测试失败按警告上报
  */
 @DisplayName("createTableUsingField")
-@TapGo(tag = "V3", sort = 13, debug = true)
+@TapGo(tag = "V3", sort = 13,debug = true)
 public class CreateTableUsingFieldTypesInTurnTest extends PDKTestBaseV2 {
     public static List<SupportFunction> testFunctions() {
         return list(supportAny(
@@ -54,27 +56,47 @@ public class CreateTableUsingFieldTypesInTurnTest extends PDKTestBaseV2 {
             TapNodeSpecification tapNodeSpecification = node.nodeInfo().getTapNodeSpecification();
             DefaultExpressionMatchingMap dataTypesMap = tapNodeSpecification.getDataTypesMap();
             if (Objects.isNull(dataTypesMap) || dataTypesMap.isEmpty()) {
-
+                TapAssert.error(testCase,langUtil.formatLang("createTableUsingField.notDataTypes"));
                 return;
             }
-            ConnectorNode connectorNode = node.connectorNode();
             RecordEventExecute execute = node.recordEventExecute();
-            execute.testCase(testCase);
             DataTypesHandler handler = DataTypesHandler.create();
-            dataTypesMap.iterate(entry -> {
-                TapTable tapTable = new TapTable(super.testTableId,super.testTableId);
-                String typeName = entry.getKey();
-                DataMap typeConfig = entry.getValue();
-                TapMapping tapMapping = (TapMapping) typeConfig.get(TapMapping.FIELD_TYPE_MAPPING);
-                handler.fillTestFields(tapTable, typeName, tapMapping);
-                //@TODO 建表并验证
-                if (super.createTable(node, tapTable)) {
-                    //@TODO 删除表
-                    execute.dropTable(tapTable);
-                }
-                return false;
-            });
+            try {
+                dataTypesMap.iterate(entry -> {
+                    TapTable tapTable = new TapTable(super.testTableId,super.testTableId);
+                    String typeName = entry.getKey();
+                    DataMap typeConfig = entry.getValue();
+                    Object queryOnlyObj = Optional.ofNullable(typeConfig.get("queryOnly")).orElse(Boolean.FALSE);
+                    if (!((queryOnlyObj instanceof Boolean) && (Boolean) queryOnlyObj)) {
+                        List<TapTable> tapTables = new ArrayList<>();
+                        TapMapping tapMapping = (TapMapping) typeConfig.get(TapMapping.FIELD_TYPE_MAPPING);
+                        handler.fillTestFields(tapTable, typeName, tapMapping);
+                        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+                        if ( nameFieldMap.size() > 1 ){
+                            nameFieldMap.forEach((name,f)->{
+                                TapTable table = new TapTable(super.testTableId,super.testTableId);
+                                LinkedHashMap<String, TapField> subFieldMap = new LinkedHashMap<>();
+                                subFieldMap.put(name,f);
+                                table.setNameFieldMap(subFieldMap);
+                                tapTables.add(table);
+                            });
+                        }else {
+                            tapTables.add(tapTable);
+                        }
+                        for (TapTable table : tapTables) {
+                            // 建表并验证
+                            if (super.createTable(node, table)) {
+                                // 删除表
+                                execute.dropTable(table);
+                            }
+                        }
 
+                    }
+                    return false;
+                });
+            }catch (Throwable e){
+                TapAssert.error(testCase,langUtil.formatLang("createTableUsingField.all.errorFiled","", "",e.getMessage()));
+            }
         });
     }
 }
