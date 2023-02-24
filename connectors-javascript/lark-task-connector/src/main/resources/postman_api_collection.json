@@ -118,7 +118,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n\t\"can_edit\": true,\n\t\"collaborator_ids\": [{{collaboratorIds}}],\n\t\"due\": {\n\t\t\"is_all_day\": false,\n\t\t\"time\": \"{{time}}\",\n\t\t\"timezone\": \"Asia/Shanghai\"\n\t},\n\t\"extra\": \"dGVzdA==\",\n\t\"follower_ids\": [{{followerIds}}],\n\t\"origin\": {\n\t\t\"href\": {\n\t\t\t\"title\": \"{{title}}\",\n\t\t\t\"url\": \"{{url}}\"\n\t\t},\n\t\t\"platform_i18n_name\": \"{\\\"zh_cn\\\": \\\"工单：\\\", \\\"en_us\\\": \\\"IT Workspace\\\"}\"\n\t},\n\t\"repeat_rule\": \"FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR\",\n\t\"rich_description\": \"{{rich_description}}\",\n\t\"rich_summary\": \"{{rich_summary}}\",\n\t\"summary\": \"完成本季度OKR编写\"\n}"
+					"raw": "{\n\t\"can_edit\": true,\n\t\"collaborator_ids\": [{{collaboratorIds}}],\n\t\"due\": {\n\t\t\"is_all_day\": false,\n\t\t\"time\": \"{{time}}\",\n\t\t\"timezone\": \"Asia/Shanghai\"\n\t},\n\t\"extra\": \"dGVzdA==\",\n\t\"follower_ids\": [{{followerIds}}],\n\t\"origin\": {\n\t\t\"href\": {\n\t\t\t\"title\": \"{{title}}\",\n\t\t\t\"url\": \"{{url}}\"\n\t\t},\n\t\t\"platform_i18n_name\": \"{\\\"zh_cn\\\": \\\"工单\\\", \\\"en_us\\\": \\\"IT Workspace\\\"}\"\n\t},\n\t\"repeat_rule\": \"FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR\",\n\t\"rich_description\": \"{{rich_description}}\",\n\t\"rich_summary\": \"{{rich_summary}}\",\n\t\"summary\": \"完成本季度OKR编写\"\n}"
 				},
 				"url": {
 					"raw": "https://open.feishu.cn/open-apis/task/v1/tasks?user_id_type=user_id",

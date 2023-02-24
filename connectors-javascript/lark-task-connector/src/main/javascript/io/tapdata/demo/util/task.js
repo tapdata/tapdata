@@ -48,6 +48,10 @@ class CreateTask {
             return null;
         }
         let cUserIds = this.getUserId(collaboratorIds.split(","));
+        if (!this.checkParam(cUserIds)) {
+            log.warn('The cUserIds are in charge of the task and cannot be empty. ');
+            return null;
+        }
         if (!this.checkParam(time)) {
             log.warn('Time Indicates the end time of the task and cannot be empty. ');
             return null;
@@ -57,6 +61,10 @@ class CreateTask {
             return null;
         }
         let fUserIds = this.getUserId(followerIds.split(","));
+        if (!this.checkParam(fUserIds)) {
+            log.warn('fUserIds is mandatory and cannot be empty. ');
+            return null;
+        }
         return {
             "rich_summary": richSummary,
             "rich_description": richDescription,
@@ -69,14 +77,14 @@ class CreateTask {
     }
 
     sendHttp(sendData) {
-        let writeResult = invoker.invoke("Create task", sendData);
+       let writeResult = invoker.httpConfig({"timeout": 20000}).invoke("Create task", sendData)
         if (writeResult.httpCode < 200 || writeResult.httpCode >= 300) {
             throw ("create task failed, http code illegal. " + JSON.stringify(writeResult));
         }
         if (!this.checkParam(writeResult.result.code)) {
             throw ("create task failed, lark code illegal. " + JSON.stringify(writeResult));
         }
-        if (writeResult.result.code !== 0) {
+        if (writeResult.result.code === 0) {
             return true;
         } else {
             log.warn("create task failed. {}", writeResult.result);
@@ -107,7 +115,7 @@ class CreateTask {
                     continue;
                 }
                 let userList = receiveIdData.result.data.user_list;
-                if (!(userList instanceof Array) && userList.length > 0) {
+                if (!(this.checkParam(userList)) && userList.length > 0) {
                     log.warn("Get user id by phone or email {}, user_list is not array or length == 0", splitUserId);
                 }
                 let userId = userList[0].user_id;
@@ -120,7 +128,7 @@ class CreateTask {
                 }
                 if (!this.checkParam(userId)) {
                     log.warn('Get user id by phone or email {} failed, user id can not be found or {} is not visible to your application', splitUserId, splitUserId);
-                    continue;
+                    return null;
                 }
                 if (!this.checkParam(userIds[splitUserId])) {
                     userIds[splitUserId] = userId;
