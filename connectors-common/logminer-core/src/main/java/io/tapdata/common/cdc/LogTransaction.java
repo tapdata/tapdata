@@ -12,7 +12,6 @@ import org.springframework.util.FileSystemUtils;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -24,7 +23,7 @@ public class LogTransaction {
     public static final String TX_TYPE_DDL = "ddl";
     public static final String TX_TYPE_DML = "dml";
     public static final String TX_TYPE_COMMIT = "commit";
-    public static final long LARGE_TRANSACTION_UPPER_LIMIT = 1000L;
+    private long largeTransactionUpperLimit = 10000L;
 
     private String connectorId;
 
@@ -85,12 +84,20 @@ public class LogTransaction {
         this.connectorId = connectorId;
     }
 
+    public void setLargeTransactionUpperLimit(long largeTransactionUpperLimit) {
+        this.largeTransactionUpperLimit = largeTransactionUpperLimit;
+    }
+
+    public long getLargeTransactionUpperLimit() {
+        return largeTransactionUpperLimit;
+    }
+
     public void addRedoLogContent(RedoLogContent redoLogContent) throws IOException {
         String rsId = redoLogContent.getRsId();
         if (EmptyKit.isNull(redoLogContents)) {
             redoLogContents = new LinkedHashMap<>();
         }
-        if (size >= LARGE_TRANSACTION_UPPER_LIMIT) {
+        if (size >= largeTransactionUpperLimit) {
             if (EmptyKit.isNull(chronicleMap)) {
                 File cacheDir = new File("cacheTransaction" + File.separator + connectorId);
                 if (!cacheDir.exists()) {
@@ -164,8 +171,8 @@ public class LogTransaction {
 //            keyQueue.clear(); //Not yet implemented
             keyQueue.close();
         }
-        ErrorKit.ignoreAnyError(() -> FileSystemUtils.deleteRecursively(Paths.get("cacheTransaction" + File.separator + connectorId + File.separator + xid + ".data")));
-        ErrorKit.ignoreAnyError(() -> FileSystemUtils.deleteRecursively(Paths.get("cacheTransaction" + File.separator + connectorId + File.separator + xid + ".key")));
+        ErrorKit.ignoreAnyError(() -> FileSystemUtils.deleteRecursively(new File("cacheTransaction" + File.separator + connectorId + File.separator + xid + ".data")));
+        ErrorKit.ignoreAnyError(() -> FileSystemUtils.deleteRecursively(new File("cacheTransaction" + File.separator + connectorId + File.separator + xid + ".key")));
     }
 
     public Long getRacMinimalScn() {
@@ -229,7 +236,7 @@ public class LogTransaction {
     }
 
     public boolean isLarge() {
-        return this.size > LARGE_TRANSACTION_UPPER_LIMIT;
+        return this.size > largeTransactionUpperLimit;
     }
 
     public Long getFirstTimestamp() {

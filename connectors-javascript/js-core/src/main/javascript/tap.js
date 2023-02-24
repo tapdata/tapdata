@@ -72,7 +72,9 @@ class TapApi {
      *         "result"：Object, // 结果的结构视具体API而定
      *         "httpCode": “”，  // Http请求状态码：200 <= httpCode < 300时为正常的http结果，其他表示http调用失败
      *         “headers”: {},    // Http请求的请求头
-     *         "error":Object    // Http请求的错误信息
+     *         "error": {
+     *             "msg": ""
+     *         }    // Http请求的错误信息
      *     }
      *  */
     invoke(uriOrNameStr, paramsMap, methodStr) {
@@ -95,8 +97,8 @@ class TapApi {
         return {
             "result": tapUtil.toMap(result.result).data,
             "httpCode": result.httpCode,
-            "headers": result.headers,
-            "error": result.error
+            "headers": tapUtil.toMap(result.headers),
+            "error": tapUtil.toMap(result.error)
         };
     }
 

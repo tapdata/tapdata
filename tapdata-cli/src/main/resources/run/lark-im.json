@@ -9,8 +9,8 @@
     "receiver": "",
     "receiverArray": "",
     "dynamicBinding": [{
-      "receiveType": "open_id",
-      "receiveId": ["phone"]
+      "receiveType": "phone",
+      "receiveId": "phone"
     }],
     "messageConfig": [
       {"messageType": "text","messageField": "content"}
@@ -27,7 +27,7 @@
           "eventType": "i",
           "afterData": {
             "phone": "13320063291",
-            "content": "{\"text\":\"<at user_id=\\\"ou_056b8040b36ba4ee19473e08cf56d673\\\">Gavin</at> Hello! This is lark !\"}"
+            "content": "{\"text\":\" Hello! This is lark !\"}"
           },
           "beforeData": {},
           "referenceTime": 0,

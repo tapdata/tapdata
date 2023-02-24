@@ -3,7 +3,6 @@ package io.tapdata.js.connector;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.APIFactoryImpl;
 import io.tapdata.common.support.APIFactory;
-import io.tapdata.common.support.core.ConnectorLog;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
@@ -11,6 +10,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.js.connector.base.JsUtil;
 import io.tapdata.js.connector.base.TapConfigContext;
+import io.tapdata.js.connector.base.TapConnectorLog;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.server.decorator.APIFactoryDecorator;
 import io.tapdata.js.connector.server.function.FunctionSupport;
@@ -125,7 +125,6 @@ public class JSConnector extends ConnectorBase {
                     interceptor.updateToken(BaseUpdateTokenFunction.create(this.javaScripter, connectionContext));
                     APIFactoryDecorator factory = new APIFactoryDecorator(this.apiFactory).interceptor(interceptor);
                     this.javaScripter.scriptEngine().put("tapAPI", factory);
-                    this.javaScripter.scriptEngine().put("tapLog", new ConnectorLog());
                     //this.javaScripter.scriptEngine().put("tapCache", this.cacheContext);
                     this.javaScripter.scriptEngine().put("tapUtil", new JsUtil());
                     this.javaScripter.scriptEngine().put("nodeIsAlive", isAlive);
@@ -139,6 +138,7 @@ public class JSConnector extends ConnectorBase {
             JSAPIResponseInterceptor interceptor = JSAPIResponseInterceptor.create(config).configMap(configMap);
             if (Objects.nonNull(connectionContext)) {
                 interceptor.updateToken(BaseUpdateTokenFunction.create(this.javaScripter, connectionContext));
+                this.javaScripter.scriptEngine().put("tapLog", new TapConnectorLog(connectionContext.getLog()));
             }
             Object tapAPI = this.javaScripter.scriptEngine().get("tapAPI");
             if (Objects.isNull(tapAPI) || !(tapAPI instanceof APIFactoryDecorator)) {
