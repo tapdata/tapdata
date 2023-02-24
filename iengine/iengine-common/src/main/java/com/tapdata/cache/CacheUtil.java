@@ -11,7 +11,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.construct.constructImpl.BytesIMap;
+import io.tapdata.construct.constructImpl.ConstructIMap;
 import io.tapdata.exception.DataFlowException;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -273,7 +273,7 @@ public class CacheUtil {
 
   }
 
-  public static void removeRecord(BytesIMap<Map<String, Map<String, Object>>> dataMap, String beforeCacheKey, String beforePk) throws Throwable {
+  public static void removeRecord(ConstructIMap<Map<String, Map<String, Object>>> dataMap, String beforeCacheKey, String beforePk) throws Throwable {
     if (dataMap.exists(beforeCacheKey)) {
       Map<String, Map<String, Object>> oldRecordMap = dataMap.find(beforeCacheKey);
       oldRecordMap.remove(beforePk);
