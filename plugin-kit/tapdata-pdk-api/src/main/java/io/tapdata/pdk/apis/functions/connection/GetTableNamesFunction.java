@@ -2,12 +2,13 @@ package io.tapdata.pdk.apis.functions.connection;
 
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.functions.connector.TapConnectionFunction;
 import io.tapdata.pdk.apis.functions.connector.TapFunction;
 
 import java.util.List;
 import java.util.function.Consumer;
 
-public interface GetTableNamesFunction extends TapFunction {
+public interface GetTableNamesFunction extends TapConnectionFunction {
     /**
      * @param nodeContext the node context in a DAG
      */
