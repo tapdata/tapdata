@@ -3,7 +3,7 @@ package io.tapdata.modules.api.pdk;
 import java.util.Map;
 
 public interface PDKUtils {
-	Map<String, Object> getConnectionConfig(String connectionId);
+    Map<String, Object> getConnectionConfig(String connectionId);
 	PDKInfo downloadPdkFileIfNeed(String pdkHash);
 	class PDKInfo {
 		private String pdkId;
