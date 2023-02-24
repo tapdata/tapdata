@@ -14,6 +14,8 @@ import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.GetTableInfoFunction;
+import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -106,6 +108,39 @@ public class QueryDataBaseDataService {
         } catch (Exception e) {
             throw new RuntimeException("Failed to create pdk connector node, database type: " + databaseType + ", message: " + e.getMessage(), e);
         }
+    }
+
+
+    public TableInfo getTableInfo(String connectionId, String tableName) throws Throwable {
+        String associateId = "queryTableInfo_" + connectionId + "_" + tableName + "_" + UUID.randomUUID();
+        try {
+            ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
+            Connections connections = HazelcastTaskService.taskService().getConnection(connectionId);
+            DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
+            ConnectorNode connectorNode = createConnectorNode(associateId, (HttpClientMongoOperator) clientMongoOperator, databaseType, connections.getConfig());
+            String TAG = this.getClass().getSimpleName();
+            try {
+                PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);
+                //queryByAdvanceFilter
+                TableInfo tableInfo = TableInfo.create();
+                TapCodecsFilterManager codecsFilterManager = connectorNode.getCodecsFilterManager();
+                GetTableInfoFunction getTableInfoFunction = connectorNode.getConnectorFunctions().getGetTableInfoFunction();
+                if (getTableInfoFunction == null) {
+                    tableInfo.setNumOfRows(0L);
+                    tableInfo.setStorageSize(0L); // 字节单位
+                    return tableInfo;
+                }
+                tableInfo = getTableInfoFunction.getTableInfo(connectorNode.getConnectorContext(), tableName);
+                return tableInfo;
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to init pdk connector, database type: " + databaseType + ", message: " + e.getMessage(), e);
+            } finally {
+                PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
+            }
+        } finally {
+            PDKIntegration.releaseAssociateId(associateId);
+        }
+
     }
 
 }
