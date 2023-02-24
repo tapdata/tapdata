@@ -27,12 +27,13 @@ public class ApiMap extends HashSet<ApiMap.ApiEntity>{
 
     public ApiEntity quickGet(String urlOrName, String method){
         try {
-            return this.stream().filter(entity -> {
+            ApiEntity apiEntity = this.stream().filter(entity -> {
                 if (null == entity) return false;
                 String name = entity.name();
                 String url = entity.url();
-                return Objects.equals(urlOrName,name) || (Objects.equals(urlOrName,url) && Objects.equals(method,entity.api().request().method()));
+                return Objects.equals(urlOrName, name) || (Objects.equals(urlOrName, url) && Objects.equals(method, entity.api().request().method()));
             }).findFirst().get();
+            return apiEntity.copyOne();
         }catch (Exception e){
             return null;
         }
@@ -160,6 +161,7 @@ public class ApiMap extends HashSet<ApiMap.ApiEntity>{
         public Api generateApiEntity(){
             return generateApiEntity((Map<String, Object>) fromJson(this.apiJson));
         }
+
         public static Api generateApiEntity(Map<String,Object> apiMap){
             try {
                 String id = (String) apiMap.get(PostParam.ID);
@@ -170,6 +172,15 @@ public class ApiMap extends HashSet<ApiMap.ApiEntity>{
             }catch (Exception e){
                 return Api.create();
             }
+        }
+
+        public ApiEntity copyOne(){
+           return ApiEntity.create()
+                   .url(this.url)
+                   .method(this.method)
+                   .name(this.name)
+                   .api(this.api.copyOne())
+                   .apiJson(this.apiJson);
         }
     }
 }

@@ -12,7 +12,7 @@ import java.util.Properties;
 public class OtherConverter implements CustomConverter<SchemaBuilder, RelationalColumn> {
 
     private SchemaBuilder otherSchema;
-    private final List<String> otherTypes = Arrays.asList("bit", "varbit", "tsvector", "tsquery", "regproc", "regprocedure", "regoper", "regoperator", "regclass", "regtype", "regconfig", "regdictionary");
+    private final List<String> otherTypes = Arrays.asList("bit", "varbit", "tsvector", "tsquery", "regproc", "regprocedure", "regoper", "regoperator", "regclass", "regtype", "regconfig", "regdictionary", "pg_lsn");
 
     @Override
     public void configure(Properties props) {

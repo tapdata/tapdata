@@ -5,7 +5,6 @@ import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
@@ -15,18 +14,12 @@ import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
-import com.tapdata.tm.alarm.service.impl.AlarmServiceImpl;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
-import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.DataParentNode;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
-import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
@@ -34,7 +27,6 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -45,9 +37,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections.CollectionUtils;
-import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -71,71 +61,9 @@ public class TaskAlarmScheduler {
     private MeasurementServiceV2 measurementServiceV2;
     private WorkerService workerService;
     private UserService userService;
-    private DataSourceService dataSourceService;
     private SettingsService settingsService;
 
     private final ExecutorService executorService = ExecutorsManager.getInstance().getExecutorService();
-
-
-//    @Scheduled(cron = "0 0/30 * * * ?")
-//    @SchedulerLock(name ="task_dataNode_connect_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
-    public void taskDataNodeConnectAlarm() throws InterruptedException {
-        Thread.currentThread().setName("taskSchedule-taskDataNodeConnectAlarm");
-
-        Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
-                .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
-                .and("is_deleted").is(false));
-        List<TaskDto> taskDtos = taskService.findAll(query);
-        if (CollectionUtils.isEmpty(taskDtos)) {
-            return;
-        }
-
-        Set<ObjectId> connectionIds = Sets.newHashSet();
-        Map<String, List<String>> taskMap = Maps.newHashMap();
-        for (TaskDto taskDto : taskDtos) {
-            String taskId = taskDto.getId().toHexString();
-            DAG dag = taskDto.getDag();
-            dag.getNodes().stream().filter(node -> node instanceof DataParentNode).forEach(node -> {
-                String connectionId = ((DataParentNode<?>) node).getConnectionId();
-                connectionIds.add(MongoUtils.toObjectId(connectionId));
-
-                if (taskMap.containsKey(connectionId)) {
-                    List<String> list = taskMap.get(connectionId);
-                    list.add(taskId);
-                    taskMap.put(connectionId, list);
-                } else {
-                    taskMap.put(connectionId, Lists.of(taskId));
-                }
-            });
-        }
-
-        if (CollectionUtils.isEmpty(connectionIds)) {
-            return;
-        }
-
-        Query connectQuery = new Query(Criteria.where("_id").in(connectionIds));
-        connectQuery.with(Sort.by("testTime"));
-        List<DataSourceConnectionDto> connectionDtos = dataSourceService.findAll(connectQuery);
-        if (CollectionUtils.isEmpty(connectionDtos)) {
-            return;
-        }
-
-        List<String> userIds = connectionDtos.stream().map(DataSourceConnectionDto::getUserId).distinct().collect(Collectors.toList());
-        List<UserDetail> userByIdList = userService.getUserByIdList(userIds);
-        Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
-
-        for (DataSourceConnectionDto connectionDto : connectionDtos) {
-            try {
-                dataSourceService.sendTestConnection(connectionDto, false, connectionDto.getSubmit(), userDetailMap.get(connectionDto.getUserId()));
-            }catch (Exception e) {
-                log.error("taskDataNodeConnectAlarm sendTestConnection error:" + ThrowableUtils.getStackTraceByPn(e));
-            }
-
-            Thread.sleep(1000L);
-        }
-
-    }
-
 
     @Scheduled(cron = "0 0/5 * * * ? ")
     @SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")

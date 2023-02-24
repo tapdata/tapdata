@@ -41,6 +41,16 @@ public class FormData extends Body<List<Map<String, Object>>> {
     }
 
     @Override
+    public Body<List<Map<String, Object>>> copyOne() {
+        FormData binary = new FormData();
+        binary.mode(super.mode);
+        binary.raw(super.raw);
+        binary.options(super.options);
+        binary.contentType = super.contentType;
+        return binary;
+    }
+
+    @Override
     public Body<List<Map<String, Object>>> variableAssignment(Map<String, Object> param) {
         if (Objects.isNull(this.raw) || this.raw.isEmpty()) return this;
         Map<String, Object> jsonObj = new HashMap<>();
