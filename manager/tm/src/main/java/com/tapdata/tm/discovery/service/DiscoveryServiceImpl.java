@@ -687,6 +687,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dto.setSourceType(source.getDatabase_type());
 
         }
+        dto.setComment(metadataInstancesDto.getComment());
         dto.setId(metadataInstancesDto.getId().toHexString());
         dto.setName(metadataInstancesDto.getOriginalName());
         dto.setCategory(DataObjCategoryEnum.storage);
