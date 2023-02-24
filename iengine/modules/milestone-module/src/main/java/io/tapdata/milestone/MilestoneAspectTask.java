@@ -355,17 +355,19 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     }
 
     private void setRunning(MilestoneEntity milestone) {
-        if (null == milestone.getBegin()) {
+        if (MilestoneStatus.RUNNING != milestone.getStatus()) {
             milestone.setBegin(System.currentTimeMillis());
+            milestone.setStatus(MilestoneStatus.RUNNING);
         }
         milestone.setEnd(null);
         milestone.setErrorMessage(null);
-        milestone.setStatus(MilestoneStatus.RUNNING);
     }
 
     private void setFinish(MilestoneEntity milestone) {
-        milestone.setEnd(System.currentTimeMillis());
-        milestone.setStatus(MilestoneStatus.FINISH);
+        if (MilestoneStatus.FINISH != milestone.getStatus()) {
+            milestone.setEnd(System.currentTimeMillis());
+            milestone.setStatus(MilestoneStatus.FINISH);
+        }
     }
 
     private Consumer<MilestoneEntity> getErrorConsumer(String errorMessage) {
