@@ -251,7 +251,6 @@ public abstract class ConnectorBase implements TapConnector {
     }
 
     private final AtomicBoolean isAlive = new AtomicBoolean(false);
-    protected String firstConnectorId;
     private final AtomicBoolean isDestroyed = new AtomicBoolean(false);
 
     public boolean isAlive() {
@@ -261,13 +260,6 @@ public abstract class ConnectorBase implements TapConnector {
     @Override
     public final void init(TapConnectionContext connectionContext) throws Throwable {
         if (isAlive.compareAndSet(false, true)) {
-            isConnectorStarted(connectionContext, connectorContext -> {
-                firstConnectorId = (String) connectorContext.getStateMap().get("firstConnectorId");
-                if (EmptyKit.isNull(firstConnectorId)) {
-                    firstConnectorId = connectionContext.getId();
-                    connectorContext.getStateMap().put("firstConnectorId", firstConnectorId);
-                }
-            });
             onStart(connectionContext);
         }
     }
