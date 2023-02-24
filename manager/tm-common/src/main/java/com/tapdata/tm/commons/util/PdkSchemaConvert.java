@@ -1,21 +1,16 @@
 package com.tapdata.tm.commons.util;
 
-import java.util.*;
-import java.util.stream.Collectors;
-
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Lists;
 import com.tapdata.manager.common.utils.JsonUtil;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.Schema;
-import com.tapdata.tm.commons.schema.TableIndex;
-import com.tapdata.tm.commons.schema.TableIndexColumn;
-import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.TapFieldEx;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.conversion.TargetTypesGenerator;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
@@ -24,11 +19,10 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-
-import io.tapdata.entity.schema.TapField;
-
-import io.tapdata.entity.schema.TapTable;
 import org.springframework.beans.BeanUtils;
+
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class PdkSchemaConvert {
@@ -306,7 +300,7 @@ public class PdkSchemaConvert {
         schema.setPdkVersion(tapTable.getPdkVersion());
         schema.setCharset(tapTable.getCharset());
         schema.setStorageEngine(tapTable.getStorageEngine());
-
+        schema.setComment(tapTable.getComment());
 
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         List<Field> fields = new ArrayList<>();
@@ -458,6 +452,7 @@ public class PdkSchemaConvert {
         schema.setPdkVersion(tapTable.getPdkVersion());
         schema.setCharset(tapTable.getCharset());
         schema.setStorageEngine(tapTable.getStorageEngine());
+        schema.setComment(tapTable.getComment());
 
 
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();

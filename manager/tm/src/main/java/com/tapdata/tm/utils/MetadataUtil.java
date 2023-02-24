@@ -7,11 +7,11 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import lombok.*;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -386,7 +386,7 @@ public class MetadataUtil {
 
             if (oldModel != null && CollectionUtils.isNotEmpty(oldModel.getFields()) && CollectionUtils.isNotEmpty(newModel.getFields())) {
                 newModel.setName(StringUtils.isNotBlank(oldModel.getName()) ? oldModel.getName() : "");
-                newModel.setComment(StringUtils.isNotBlank(oldModel.getComment()) ? oldModel.getComment() : "");
+                //newModel.setComment(StringUtils.isNotBlank(oldModel.getComment()) ? oldModel.getComment() : "");
                 oldModel.setVersionTime(new Date());
 
                 newModel.setHistories(oldModel.getHistories());
