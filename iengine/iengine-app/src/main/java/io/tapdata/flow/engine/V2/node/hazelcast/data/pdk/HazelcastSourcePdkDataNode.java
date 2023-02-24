@@ -619,7 +619,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			if (null != this.syncProgress && null != this.syncProgress.getEventTime() && this.syncProgress.getEventTime().compareTo(0L) > 0) {
 				cdcStartTs = this.syncProgress.getEventTime();
 			} else {
-				cdcStartTs = initialFirstStartTime;
+				throw new RuntimeException("Cannot found share cdc start time from sync progress");
 			}
 		} catch (Exception e) {
 			throw new NodeException("Get cdc start ts failed; Error: " + e.getMessage(), e).context(getProcessorBaseContext());
