@@ -12,6 +12,7 @@ import io.tapdata.pdk.run.base.RunClassMap;
 import io.tapdata.pdk.run.base.RunnerSummary;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.core.base.TestNode;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
@@ -35,7 +36,7 @@ public class StreamReadRun extends PDKBaseRun {
         Method testCase = super.getMethod("streamRead");
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             List<TapEvent> list = new ArrayList<>();
-            PDKTestBase.TestNode prepare = prepare(nodeInfo);
+            TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
                 super.connectorOnStart(prepare);

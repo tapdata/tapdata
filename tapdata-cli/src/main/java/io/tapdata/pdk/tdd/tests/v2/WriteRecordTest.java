@@ -3,21 +3,23 @@ package io.tapdata.pdk.tdd.tests.v2;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
-import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.workflow.engine.DataFlowWorker;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.core.base.TestNode;
+import io.tapdata.pdk.tdd.tests.support.*;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
-import java.util.*;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static io.tapdata.entity.simplify.TapSimplify.*;
+import static io.tapdata.entity.simplify.TapSimplify.list;
 
 
 @DisplayName("test.writeRecordTest")

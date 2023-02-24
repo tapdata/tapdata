@@ -10,10 +10,14 @@ import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.*;
-import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.core.base.TestNode;
+import io.tapdata.pdk.tdd.tests.support.LangUtil;
+import io.tapdata.pdk.tdd.tests.support.TapAssert;
+import io.tapdata.pdk.tdd.tests.support.TapGo;
+import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,9 +28,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
-import static io.tapdata.entity.simplify.TapSimplify.field;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
-import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Date;
 
 @DisplayName("createTableTest.test")//CreateTableFunction/CreateTableV2Function建表
 @TapGo(tag = "V2", sort = 90)
@@ -158,7 +160,7 @@ public class CreateTableTest extends PDKTestBase {
      * */
     void allTapType() {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            TestNode prepare = this.prepare(nodeInfo);
             ConnectorNode connectorNode = prepare.connectorNode();
             //使用TapType的11种类型组织表结构（类型的长度尽量短小）
             this.targetTable = getTableForAllTapType();
@@ -245,7 +247,7 @@ public class CreateTableTest extends PDKTestBase {
     void addIndex() {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             this.targetTable = getTable();
-            PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             boolean hasCreatedTable = false;
             try {
@@ -372,7 +374,7 @@ public class CreateTableTest extends PDKTestBase {
      * */
     void tableIfExist() {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             boolean hasCreateTable = false;
             try {

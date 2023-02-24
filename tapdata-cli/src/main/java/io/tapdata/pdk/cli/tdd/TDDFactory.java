@@ -12,9 +12,9 @@ public class TDDFactory {
     public static final String baseJarPath = "./connectors/dist/";
     public static final String baseConfPath = "tapdata-cli/src/main/resources/config/";
     private enum TddPath{
-//        MySql("mysql-connector-v1.0-SNAPSHOT.jar","mysql.json"),
+        MySql("mysql-connector-v1.0-SNAPSHOT.jar","mysql.json"),
 //        MongoDB("mongodb-connector-v1.0-SNAPSHOT.jar","mongodb.json"),
-        Coding("coding-connector-v1.0-SNAPSHOT.jar","coding.json"),
+//        Coding("coding-connector-v1.0-SNAPSHOT.jar","coding.json"),
 //        KafKa("kafka-connector-v1.0-SNAPSHOT.jar","kafka.json"),
 //        ActiveMQ("activemq-connector-v1.0-SNAPSHOT.jar","activemq.json")
         ;
@@ -41,6 +41,7 @@ public class TDDFactory {
     public static void main(String[] args) {
         CommonUtils.setProperty("pdk_external_jar_path", "./connectors/dist");
         CommonUtils.setProperty("TDD_AUTO_EXIT","0");
+        System.setProperty("is_debug_mode","true");
         args = new String[]{"test", "-c", null, null};
         for (TddPath tddJarPath : TddPath.values()) {
             args[2] = baseConfPath + tddJarPath.getConf();

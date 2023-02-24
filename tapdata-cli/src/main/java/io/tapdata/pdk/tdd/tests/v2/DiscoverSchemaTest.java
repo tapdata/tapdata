@@ -8,6 +8,7 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
+import io.tapdata.pdk.tdd.core.base.TestNode;
 import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
@@ -37,7 +38,7 @@ public class DiscoverSchemaTest extends PDKTestBase {
      * */
     void discover() {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            TestNode prepare = this.prepare(nodeInfo);
             try {
                 super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("discover");
@@ -124,7 +125,7 @@ public class DiscoverSchemaTest extends PDKTestBase {
      * */
     void discoverAfterCreate() {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             boolean hasCreateTable = false;
             try {
@@ -253,7 +254,7 @@ public class DiscoverSchemaTest extends PDKTestBase {
      * */
     void discoverByTableName1() {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            TestNode prepare = this.prepare(nodeInfo);
             try {
                 super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("discoverByTableName1");
@@ -329,7 +330,7 @@ public class DiscoverSchemaTest extends PDKTestBase {
      * */
     void discoverByTableName2() {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             boolean hasCreatedTable = false;
             try {
@@ -392,7 +393,7 @@ public class DiscoverSchemaTest extends PDKTestBase {
      * */
     void discoverByTableCount1() {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            TestNode prepare = this.prepare(nodeInfo);
             try {
                 super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("discoverByTableCount1");
@@ -488,7 +489,7 @@ public class DiscoverSchemaTest extends PDKTestBase {
      * */
     void discoverByTableCount2() {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             boolean hasCreateTable = false;
             try {

@@ -8,6 +8,7 @@ import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.core.base.TestNode;
 import io.tapdata.pdk.tdd.tests.support.LangUtil;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
@@ -33,7 +34,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
      * */
     void discover() {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            TestNode prepare = this.prepare(nodeInfo);
             try {
                 super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("discover");
@@ -79,7 +80,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
      * */
     void discoverAfterCreateTable() {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            TestNode prepare = this.prepare(nodeInfo);
             try {
                 super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("discoverAfterCreateTable");
@@ -168,7 +169,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
      * */
     void discoverByTableCount() {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            TestNode prepare = this.prepare(nodeInfo);
             try {
                 super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("discoverByTableCount");

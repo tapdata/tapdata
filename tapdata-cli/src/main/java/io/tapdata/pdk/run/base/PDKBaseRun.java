@@ -11,6 +11,7 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
+import io.tapdata.pdk.tdd.core.base.TestNode;
 import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
 
 import java.lang.reflect.Method;
@@ -97,7 +98,7 @@ public class PDKBaseRun extends PDKTestBase {
                 .withTable(testTableId)
                 .build();
         RecordEventExecute recordEventExecute = RecordEventExecute.create(connectorNode, this);
-        return new TestNode(connectorNode, recordEventExecute);
+        return new TestNode(nodeInfo, connectorNode, recordEventExecute);
     }
 
     protected void runError(Method method, String msg) {

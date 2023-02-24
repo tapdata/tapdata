@@ -33,6 +33,7 @@ import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
+import io.tapdata.pdk.tdd.core.base.TestNode;
 import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.core.api.*;
 import io.tapdata.pdk.core.connector.TapConnector;
@@ -52,6 +53,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.poi.sl.draw.geom.GuideIf;
 import org.junit.jupiter.api.*;
 
 import java.io.File;
@@ -103,22 +105,22 @@ public class PDKTestBase {
 
     private void tableNameCreator(Collection<TapNodeInfo> tapNodeInfoCollection) {
         if (tapNodeInfoCollection.isEmpty()) {
-            tableNameCreator = TableNameSupport.support(null);
+            this.tableNameCreator = TableNameSupport.support(null);
             return;
         }
         tapNodeInfoCollection.stream().filter(Objects::nonNull).forEach((nodeInfo) -> {
-            testNodeId = nodeInfo.getTapNodeSpecification().getId();
-            tableNameCreator = TableNameSupport.support(testNodeId);
+            this.testNodeId = nodeInfo.getTapNodeSpecification().getId();
+            this.tableNameCreator = TableNameSupport.support(this.testNodeId);
             return;
         });
-        if (null == tableNameCreator) tableNameCreator = TableNameSupport.support(null);
+        if (Objects.isNull(this.tableNameCreator)) this.tableNameCreator = TableNameSupport.support(null);
     }
 
     protected void connectorOnStart(TestNode prepare) {
         PDKInvocationMonitor.invoke(prepare.connectorNode(),
                 PDKMethod.INIT,
                 prepare.connectorNode()::connectorInit,
-                "Init PDK", testNodeId + " connector"
+                "Init PDK", this.testNodeId + " connector"
         );
     }
 
@@ -128,7 +130,7 @@ public class PDKTestBase {
                     PDKMethod.STOP,
                     prepare.connectorNode()::connectorStop,
                     "Stop PDK",
-                    testNodeId + "  connector"
+                    this.testNodeId + "  connector"
             );
             PDKIntegration.releaseAssociateId("releaseAssociateId");
         }
@@ -137,9 +139,9 @@ public class PDKTestBase {
 
     public PDKTestBase() {
         String testConfig = CommonUtils.getProperty("pdk_test_config_file", "");
-        testConfigFile = new File(testConfig);
-        if (!testConfigFile.isFile())
-            throw new IllegalArgumentException("TDD test config file doesn't exist or not a file, please check " + testConfigFile);
+        this.testConfigFile = new File(testConfig);
+        if (!this.testConfigFile.isFile())
+            throw new IllegalArgumentException("TDD test config file doesn't exist or not a file, please check " + this.testConfigFile);
 
         String jarUrl = CommonUtils.getProperty("pdk_test_jar_file", "");
         String tddJarUrl = CommonUtils.getProperty("pdk_external_jar_path", "../connectors/dist") + "/tdd-connector-v1.0-SNAPSHOT.jar";
@@ -149,13 +151,13 @@ public class PDKTestBase {
 
         if (StringUtils.isBlank(jarUrl))
             throw new IllegalArgumentException("Please specify jar file in env properties or java system properties, key is pdk_test_jar_file");
-        jarFile = new File(jarUrl);
-        if (!jarFile.isFile())
-            throw new IllegalArgumentException("PDK jar file " + jarFile.getAbsolutePath() + " is not a file or not exists");
+        this.jarFile = new File(jarUrl);
+        if (!this.jarFile.isFile())
+            throw new IllegalArgumentException("PDK jar file " + this.jarFile.getAbsolutePath() + " is not a file or not exists");
 //        TapConnectorManager.getInstance().start();
-        TapConnectorManager.getInstance().start(Arrays.asList(jarFile, tddJarFile));
-        testConnector = TapConnectorManager.getInstance().getTapConnectorByJarName(jarFile.getName());
-        Collection<TapNodeInfo> tapNodeInfoCollection = testConnector.getTapNodeClassFactory().getConnectorTapNodeInfos();
+        TapConnectorManager.getInstance().start(Arrays.asList(this.jarFile, tddJarFile));
+        this.testConnector = TapConnectorManager.getInstance().getTapConnectorByJarName(this.jarFile.getName());
+        Collection<TapNodeInfo> tapNodeInfoCollection = this.testConnector.getTapNodeClassFactory().getConnectorTapNodeInfos();
         for (TapNodeInfo nodeInfo : tapNodeInfoCollection) {
             TapNodeSpecification specification = nodeInfo.getTapNodeSpecification();
             String iconPath = specification.getIcon();
@@ -168,11 +170,11 @@ public class PDKTestBase {
             }
         }
 
-        tddConnector = TapConnectorManager.getInstance().getTapConnectorByJarName(tddJarFile.getName());
+        this.tddConnector = TapConnectorManager.getInstance().getTapConnectorByJarName(tddJarFile.getName());
         this.tableNameCreator(tapNodeInfoCollection);
 
         PDKInvocationMonitor.getInstance().setErrorListener(errorMessage -> {
-            if (enterWaitCompletedStage.get()) {
+            if (this.enterWaitCompletedStage.get()) {
                 $(() -> {
                     try {
                         fail(errorMessage);
@@ -186,12 +188,17 @@ public class PDKTestBase {
         });
     }
 
-    public String testTableName(String id) {
-        return id.replace('-', '_').replace(" ", "").replace('>', '_') + "_" + RandomStringUtils.randomAlphabetic(6);
-    }
-
     public static SupportFunction supportAny(List<Class<? extends TapFunction>> functions, String errorMessage) {
         return new SupportFunction(functions, errorMessage);
+    }
+
+    @SafeVarargs
+    public static SupportFunction supportAny(String errorMessage, Class<? extends TapFunction>... classes) {
+        List<Class<? extends TapFunction>> functions = new ArrayList<>();
+        if (Objects.nonNull(classes) && classes.length > 0) {
+            functions.addAll(Arrays.asList(classes));
+        }
+        return new SupportFunction(functions, Optional.ofNullable(errorMessage).orElse(""));
     }
 
     public static SupportFunction support(Class<? extends TapFunction> function, String errorMessage) {
@@ -235,12 +242,11 @@ public class PDKTestBase {
     }
 
     protected boolean verifyFunctions(ConnectorFunctions functions, Method testCase) {
-        boolean isNull = null == functions;
-        if (isNull) {
-            TapAssert.asserts(() -> Assertions.fail(LangUtil.format("notFunctions")))
-                    .error(testCase);
+        if (Objects.isNull(functions)) {
+            TapAssert.asserts(() -> Assertions.fail(LangUtil.format("notFunctions"))).error(testCase);
+            return Boolean.TRUE;
         }
-        return isNull;
+        return Boolean.FALSE;
     }
 
     public interface AssertionCall {
@@ -251,7 +257,7 @@ public class PDKTestBase {
         try {
             assertionCall.assertIt();
         } catch (Throwable throwable) {
-            lastThrowable = throwable;
+            this.lastThrowable = throwable;
             completed(true);
         }
     }
@@ -261,11 +267,11 @@ public class PDKTestBase {
     }
 
     public void completed(boolean withError) {
-        if (completed.compareAndSet(false, true)) {
-            finishSuccessfully = !withError;
-//            PDKLogger.enable(false);
-            synchronized (completed) {
-                completed.notifyAll();
+        if (this.completed.compareAndSet(false, true)) {
+            this.finishSuccessfully = !withError;
+            //PDKLogger.enable(false);
+            synchronized (this.completed) {
+                this.completed.notifyAll();
             }
             if (withError) {
                 synchronized (this) {
@@ -283,14 +289,14 @@ public class PDKTestBase {
     private AtomicBoolean enterWaitCompletedStage = new AtomicBoolean(false);
 
     public void waitCompleted(long seconds) throws Throwable {
-        while (!completed.get()) {
-            synchronized (completed) {
-                enterWaitCompletedStage.compareAndSet(false, true);
-                if (!completed.get()) {
+        while (!this.completed.get()) {
+            synchronized (this.completed) {
+                this.enterWaitCompletedStage.compareAndSet(false, true);
+                if (!this.completed.get()) {
                     try {
-                        completed.wait(seconds * 1000);
-                        completed.set(true);
-                        if (lastThrowable == null && !finishSuccessfully)
+                        this.completed.wait(seconds * 1000);
+                        this.completed.set(true);
+                        if (this.lastThrowable == null && !this.finishSuccessfully)
                             throw new TimeoutException("Waited " + seconds + " seconds and still not completed, consider timeout execution.");
                     } catch (InterruptedException interruptedException) {
                         interruptedException.printStackTrace();
@@ -301,10 +307,10 @@ public class PDKTestBase {
             }
         }
         try {
-            if (lastThrowable != null)
-                throw lastThrowable;
+            if (this.lastThrowable != null)
+                throw this.lastThrowable;
         } finally {
-            tearDown();
+            this.tearDown();
             synchronized (this) {
                 this.notifyAll();
             }
@@ -382,13 +388,12 @@ public class PDKTestBase {
     }
 
     public void consumeQualifiedTapNodeInfo(Consumer<TapNodeInfo> consumer) {
-        Collection<TapNodeInfo> tapNodeInfoCollection = testConnector.getTapNodeClassFactory().getConnectorTapNodeInfos();
+        Collection<TapNodeInfo> tapNodeInfoCollection = this.testConnector.getTapNodeClassFactory().getConnectorTapNodeInfos();
         if (tapNodeInfoCollection.isEmpty())
-            throw new CoreException(PDKRunnerErrorCodes.TDD_TAPNODEINFO_NOT_FOUND, "No connector or processor is found in jar " + jarFile);
-
+            throw new CoreException(PDKRunnerErrorCodes.TDD_TAPNODEINFO_NOT_FOUND, "No connector or processor is found in jar " + this.jarFile);
         String pdkId = null;
-        if (testOptions != null) {
-            pdkId = (String) testOptions.get("pdkId");
+        if (this.testOptions != null) {
+            pdkId = (String) this.testOptions.get("pdkId");
         }
         if (pdkId == null) {
             pdkId = CommonUtils.getProperty("pdk_test_pdk_id", null);
@@ -397,9 +402,7 @@ public class PDKTestBase {
         }
         for (TapNodeInfo nodeInfo : tapNodeInfoCollection) {
             if (nodeInfo.getTapNodeSpecification().getId().equals(pdkId)) {
-
                 consumer.accept(nodeInfo);
-
                 break;
             }
         }
@@ -413,8 +416,8 @@ public class PDKTestBase {
     @BeforeEach
     public void setup() {
         TapLogger.info(TAG, "************************{} setup************************", this.getClass().getSimpleName());
-        Map<String, DataMap> testConfigMap = readTestConfig(testConfigFile);
-        assertNotNull(testConfigMap, "testConfigFile " + testConfigFile + " read to json failed");
+        Map<String, DataMap> testConfigMap = readTestConfig(this.testConfigFile);
+        assertNotNull(testConfigMap, "testConfigFile " + this.testConfigFile + " read to json failed");
         this.connectionOptions = Optional.ofNullable(testConfigMap.get("connection")).orElse(new DataMap());
         this.nodeOptions = Optional.ofNullable(testConfigMap.get("node")).orElse(new DataMap());
         this.testOptions = Optional.ofNullable(testConfigMap.get("test")).orElse(new DataMap());
@@ -422,19 +425,18 @@ public class PDKTestBase {
 
     @AfterEach
     public void tearDown() {
-        if (dag != null) {
-            if (DataFlowEngine.getInstance().stopDataFlow(dag.getId())) {
+        Optional.ofNullable(this.dag).ifPresent(d -> {
+            if (DataFlowEngine.getInstance().stopDataFlow(this.dag.getId())) {
                 TapLogger.info(TAG, "************************{} tearDown************************", this.getClass().getSimpleName());
             }
-        }
+        });
     }
 
     public DataMap getTestOptions() {
-        return testOptions;
+        return this.testOptions;
     }
 
     protected boolean mapEquals(Map<String, Object> firstRecord, Map<String, Object> result, StringBuilder builder) {
-//        return InstanceFactory.instance(ValueVerification.class).mapEquals(firstRecord, result, ValueVerification.EQUALS_TYPE_FUZZY);
         MapDifference<String, Object> difference = Maps.difference(firstRecord, result);
         Map<String, MapDifference.ValueDifference<Object>> differenceMap = difference.entriesDiffering();
         builder.append("\t\t\tDifferences: \n");
@@ -443,14 +445,14 @@ public class PDKTestBase {
             MapDifference.ValueDifference<Object> diff = entry.getValue();
             Object leftValue = diff.leftValue();
             Object rightValue = diff.rightValue();
-
             boolean equalResult = objectIsEqual(leftValue, rightValue);
-
             if (!equalResult) {
                 different = true;
                 builder.append("\t\t\t\t").append("Key ").append(entry.getKey()).append("\n");
-                builder.append("\t\t\t\t\t").append("Left ").append(diff.leftValue()).append(" class ").append(diff.leftValue().getClass().getSimpleName()).append("\n");
-                builder.append("\t\t\t\t\t").append("Right ").append(diff.rightValue()).append(" class ").append(diff.rightValue().getClass().getSimpleName()).append("\n");
+                Object valueObj = diff.leftValue();
+                String valueClassName = Objects.isNull(valueObj) ? "" : valueObj.getClass().getSimpleName();
+                builder.append("\t\t\t\t\t").append("Left ").append(diff.leftValue()).append(" class ").append(valueClassName).append("\n");
+                builder.append("\t\t\t\t\t").append("Right ").append(diff.rightValue()).append(" class ").append(valueClassName).append("\n");
             }
         }
         Map<String, Object> onlyOnLeft = difference.entriesOnlyOnLeft();
@@ -463,35 +465,34 @@ public class PDKTestBase {
             }
         }
         //Allow more on right.
-//        Map<String, Object> onlyOnRight = difference.entriesOnlyOnRight();
-//        if(!onlyOnRight.isEmpty()) {
-//            different = true;
-//            for(Map.Entry<String, Object> entry : onlyOnRight.entrySet()) {
-//                builder.append("\t").append("Key ").append(entry.getKey()).append("\n");
-//                builder.append("\t\t").append("Left ").append("N/A").append("\n");
-//                builder.append("\t\t").append("Right ").append(entry.getValue()).append(" class ").append(entry.getValue().getClass().getSimpleName()).append("\n");
-//            }
-//        }
+        //Map<String, Object> onlyOnRight = difference.entriesOnlyOnRight();
+        //if(!onlyOnRight.isEmpty()) {
+        //    different = true;
+        //    for(Map.Entry<String, Object> entry : onlyOnRight.entrySet()) {
+        //        builder.append("\t").append("Key ").append(entry.getKey()).append("\n");
+        //        builder.append("\t\t").append("Left ").append("N/A").append("\n");
+        //        builder.append("\t\t").append("Right ").append(entry.getValue()).append(" class ").append(entry.getValue().getClass().getSimpleName()).append("\n");
+        //    }
+        //}
         return !different;
     }
 
     public boolean objectIsEqual(Object leftValue, Object rightValue) {
         boolean equalResult = false;
-//        if ((leftValue instanceof List) && (rightValue instanceof List)) {
-//            if (((List<?>) leftValue).size() == ((List<?>) rightValue).size()) {
-//                for (int i = 0; i < ((List<?>) leftValue).size(); i++) {
-//                    equalResult = objectIsEqual(((List<?>) leftValue).get(i), ((List<?>) rightValue).get(i));
-//                    if (!equalResult) break;
-//                }
-//            }
-//        }
-
+        //if ((leftValue instanceof List) && (rightValue instanceof List)) {
+        //    if (((List<?>) leftValue).size() == ((List<?>) rightValue).size()) {
+        //        for (int i = 0; i < ((List<?>) leftValue).size(); i++) {
+        //            equalResult = objectIsEqual(((List<?>) leftValue).get(i), ((List<?>) rightValue).get(i));
+        //            if (!equalResult) break;
+        //        }
+        //    }
+        //}
         if ((leftValue instanceof byte[]) && (rightValue instanceof byte[])) {
             equalResult = Arrays.equals((byte[]) leftValue, (byte[]) rightValue);
         } else if ((leftValue instanceof byte[]) && (rightValue instanceof String)) {
             //byte[] vs string, base64 decode string
             try {
-//                    byte[] rightBytes = Base64.getDecoder().decode((String) rightValue);
+                //byte[] rightBytes = Base64.getDecoder().decode((String) rightValue);
                 byte[] rightBytes = Base64.decodeBase64((String) rightValue);
                 equalResult = Arrays.equals((byte[]) leftValue, rightBytes);
             } catch (Throwable ignored) {
@@ -506,10 +507,10 @@ public class PDKTestBase {
             if (rightValue instanceof BigDecimal) {
                 rightB = (BigDecimal) rightValue;
             }
-            if (leftB == null) {
+            if (Objects.isNull(leftB)) {
                 leftB = BigDecimal.valueOf(Double.parseDouble(String.valueOf((leftValue))));
             }
-            if (rightB == null) {
+            if (Objects.isNull(rightB)) {
                 rightB = BigDecimal.valueOf(Double.parseDouble(String.valueOf((rightValue))));
             }
             equalResult = leftB.compareTo(rightB) == 0;
@@ -574,8 +575,8 @@ public class PDKTestBase {
     }
 
     public void sendInsertRecordEvent(DataFlowEngine dataFlowEngine, TapDAG dag, String sourceTable, DataMap after, PatrolEvent patrolEvent) {
-//        TapInsertRecordEvent tapInsertRecordEvent = new TapInsertRecordEvent();
-//        tapInsertRecordEvent.setAfter(after);
+        //TapInsertRecordEvent tapInsertRecordEvent = new TapInsertRecordEvent();
+        //tapInsertRecordEvent.setAfter(after);
         dataFlowEngine.sendExternalTapEvent(dag.getId(), insertRecordEvent(after, sourceTable));
         if (patrolEvent != null)
             dataFlowEngine.sendExternalTapEvent(dag.getId(), patrolEvent);
@@ -586,9 +587,9 @@ public class PDKTestBase {
     }
 
     public void sendUpdateRecordEvent(DataFlowEngine dataFlowEngine, TapDAG dag, String sourceTableId, DataMap before, DataMap after, PatrolEvent patrolEvent) {
-//        TapUpdateRecordEvent tapUpdateRecordEvent = new TapUpdateRecordEvent();
-//        tapUpdateRecordEvent.setAfter(after);
-//        tapUpdateRecordEvent.setBefore(before);
+        //TapUpdateRecordEvent tapUpdateRecordEvent = new TapUpdateRecordEvent();
+        //tapUpdateRecordEvent.setAfter(after);
+        //tapUpdateRecordEvent.setBefore(before);
         dataFlowEngine.sendExternalTapEvent(dag.getId(), updateDMLEvent(before, after, sourceTableId));
         dataFlowEngine.sendExternalTapEvent(dag.getId(), patrolEvent);
     }
@@ -618,12 +619,10 @@ public class PDKTestBase {
     protected void verifyUpdateOneRecord(ConnectorNode targetNode, DataMap before, DataMap verifyRecord) {
         TapFilter filter = new TapFilter();
         filter.setMatch(before);
-//        filter.setTableId(targetNode.getTable());
+        //filter.setTableId(targetNode.getTable());
         TapTable targetTable = targetNode.getConnectorContext().getTableMap().get(targetNode.getTable());
-
         FilterResult filterResult = filterResults(targetNode, filter, targetTable);
         $(() -> assertNotNull(filterResult, "The filter " + InstanceFactory.instance(JsonParser.class).toJson(before) + " can not get any result. Please make sure writeRecord method update record correctly and queryByFilter/queryByAdvanceFilter can query it out for verification. "));
-
         $(() -> assertNotNull(filterResult.getResult().get("tap_int"), "The value of tapInt should not be null"));
         for (Map.Entry<String, Object> entry : verifyRecord.entrySet()) {
             $(() -> assertTrue(objectIsEqual(entry.getValue(), filterResult.getResult().get(entry.getKey())), "The value of \"" + entry.getKey() + "\" should be \"" + entry.getValue() + "\",but actual it is \"" + filterResult.getResult().get(entry.getKey()) + "\", please make sure TapUpdateRecordEvent is handled well in writeRecord method"));
@@ -632,7 +631,7 @@ public class PDKTestBase {
 
     protected FilterResult filterResults(ConnectorNode targetNode, TapFilter filter, TapTable targetTable) {
         QueryByFilterFunction queryByFilterFunction = targetNode.getConnectorFunctions().getQueryByFilterFunction();
-        if (queryByFilterFunction != null) {
+        if (Objects.nonNull(queryByFilterFunction)) {
             List<FilterResult> results = new ArrayList<>();
             List<TapFilter> filters = Collections.singletonList(filter);
             CommonUtils.handleAnyError(() -> queryByFilterFunction.query(targetNode.getConnectorContext(), filters, targetTable, results::addAll));
@@ -654,13 +653,6 @@ public class PDKTestBase {
         return null;
     }
 
-//    protected Object getStreamOffset(SourceNode sourceNode, List<String> tableList, Long offsetStartTime) throws Throwable {
-//        TimestampToStreamOffsetFunction queryByFilterFunction = sourceNode.getConnectorFunctions().getStreamOffsetFunction();
-//        final Object[] offset = {null};
-//        queryByFilterFunction.streamOffset(sourceNode.getConnectorContext(), tableList, offsetStartTime, (o, aLong) -> offset[0] = o);
-//        return offset[0];
-//    }
-
     protected long getBatchCount(ConnectorNode sourceNode, TapTable table) throws Throwable {
         BatchCountFunction batchCountFunction = sourceNode.getConnectorFunctions().getBatchCountFunction();
         return batchCountFunction.count(sourceNode.getConnectorContext(), table);
@@ -669,7 +661,6 @@ public class PDKTestBase {
     protected void verifyTableNotExists(ConnectorNode targetNode, DataMap filterMap) {
         TapFilter filter = new TapFilter();
         filter.setMatch(filterMap);
-//        filter.setTableId(targetNode.getTable());
         TapTable targetTable = targetNode.getConnectorContext().getTableMap().get(targetNode.getTable());
 
         FilterResult filterResult = filterResults(targetNode, filter, targetTable);
@@ -685,7 +676,6 @@ public class PDKTestBase {
     protected void verifyRecordNotExists(ConnectorNode targetNode, DataMap filterMap) {
         TapFilter filter = new TapFilter();
         filter.setMatch(filterMap);
-//        filter.setTableId(targetNode.getTable());
         TapTable targetTable = targetNode.getConnectorContext().getTableMap().get(targetNode.getTable());
 
         FilterResult filterResult = filterResults(targetNode, filter, targetTable);
@@ -717,25 +707,6 @@ public class PDKTestBase {
         StringBuilder builder = new StringBuilder();
         $(() -> assertTrue(mapEquals(buildInsertRecord(), result, builder), builder.toString()));
     }
-
-//    protected void verifyBatchRecordExists(ConnectorNode targetNode, DataMap filterMap,HashMap map) {
-//        TapFilter filter = new TapFilter();
-//        filter.setMatch(filterMap);
-//        TapTable targetTable = targetNode.getConnectorContext().getTableMap().get(targetNode.getTable());
-//
-//        FilterResult filterResult = filterResults(targetNode, filter, targetTable);
-//        $(() -> assertNotNull(filterResult, "The filter " + InstanceFactory.instance(JsonParser.class).toJson(filterMap) + " can not get any result. Please make sure writeRecord method update record correctly and queryByFilter/queryByAdvanceFilter can query it out for verification. "));
-//
-//        $(() -> Assertions.assertNull(filterResult.getError(), "Error occurred while queryByFilter " + InstanceFactory.instance(JsonParser.class).toJson(filterMap) + " error " + filterResult.getError()));
-//        $(() -> assertNotNull(filterResult.getResult(), "Result should not be null, as the record has been inserted"));
-//        Map<String, Object> result = filterResult.getResult();
-//
-//        targetNode.getCodecsFilterManager().transformToTapValueMap(result, targetTable.getNameFieldMap());
-//        targetNode.getCodecsFilterManager().transformFromTapValueMap(result);
-//
-//        StringBuilder builder = new StringBuilder();
-//        $(() -> assertTrue(mapEquals(map, result, builder), builder.toString()));
-//    }
 
     public TapConnector getTestConnector() {
         return testConnector;
@@ -804,23 +775,6 @@ public class PDKTestBase {
         setInsertPolicy(context, UPDATE_POLICY, INSERT_ON_NOT_EXISTS);
     }
 
-    protected class TestNode {
-        ConnectorNode connectorNode;
-        RecordEventExecute recordEventExecute;
-
-        public TestNode(ConnectorNode connectorNode, RecordEventExecute recordEventExecute) {
-            this.connectorNode = connectorNode;
-            this.recordEventExecute = recordEventExecute;
-        }
-
-        public ConnectorNode connectorNode() {
-            return this.connectorNode;
-        }
-
-        public RecordEventExecute recordEventExecute() {
-            return this.recordEventExecute;
-        }
-    }
 
     protected ConnectorNode tddTargetNode;
     protected ConnectorNode sourceNode;
@@ -832,12 +786,12 @@ public class PDKTestBase {
     protected String testTableId;
     protected TapTable targetTable = table(testTableId)
             .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-//            .add(field("TYPE_ARRAY", JAVA_Array).tapType(tapArray()))
+            //.add(field("TYPE_ARRAY", JAVA_Array).tapType(tapArray()))
             .add(field("TYPE_BINARY", JAVA_Binary).tapType(tapBinary().bytes(100L)))
             .add(field("TYPE_BOOLEAN", JAVA_Boolean).tapType(tapBoolean()))
             .add(field("TYPE_DATE", JAVA_Date).tapType(tapDate()))
             .add(field("TYPE_DATETIME", "Date_Time").tapType(tapDateTime().fraction(3)))
-//            .add(field("TYPE_MAP", JAVA_Map).tapType(tapMap()))
+            //.add(field("TYPE_MAP", JAVA_Map).tapType(tapMap()))
             .add(field("TYPE_NUMBER_Long", JAVA_Long).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
             .add(field("TYPE_NUMBER_INTEGER", JAVA_Integer).tapType(tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))))
             .add(field("TYPE_NUMBER_BigDecimal", JAVA_BigDecimal).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(200).scale(55).fixed(true)))
@@ -851,19 +805,17 @@ public class PDKTestBase {
 
 
     protected TestNode prepare(TapNodeInfo nodeInfo) {
-        tapNodeInfo = nodeInfo;
-        originToSourceId = "QueryByAdvanceFilterTest_tddSourceTo" + nodeInfo.getTapNodeSpecification().getId();
-        testTableId = tableNameCreator.tableName();
-        targetTable.setId(testTableId);
+        this.tapNodeInfo = nodeInfo;
+        this.originToSourceId = "QueryByAdvanceFilterTest_tddSourceTo" + nodeInfo.getTapNodeSpecification().getId();
+        this.testTableId = this.tableNameCreator.tableName();
+        this.targetTable.setId(this.testTableId);
         KVMap<Object> stateMap = new KVMap<Object>() {
             @Override
             public void init(String mapKey, Class<Object> valueClass) {
-
             }
 
             @Override
             public void put(String key, Object o) {
-
             }
 
             @Override
@@ -878,12 +830,10 @@ public class PDKTestBase {
 
             @Override
             public void clear() {
-
             }
 
             @Override
             public void reset() {
-
             }
 
             @Override
@@ -894,34 +844,57 @@ public class PDKTestBase {
         String dagId = UUID.randomUUID().toString();
         KVMap<TapTable> kvMap = InstanceFactory.instance(KVMapFactory.class).getCacheMap(dagId, TapTable.class);
         TapNodeSpecification spec = nodeInfo.getTapNodeSpecification();
-        kvMap.put(testTableId, targetTable);
+        kvMap.put(this.testTableId, this.targetTable);
         ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
                 .withDagId(dagId)
                 .withAssociateId(UUID.randomUUID().toString())
-                .withConnectionConfig(connectionOptions)
-                .withNodeConfig(nodeOptions)
+                .withConnectionConfig(this.connectionOptions)
+                .withNodeConfig(this.nodeOptions)
                 .withGroup(spec.getGroup())
                 .withVersion(spec.getVersion())
                 .withTableMap(kvMap)
                 .withPdkId(spec.getId())
                 .withGlobalStateMap(stateMap)
                 .withStateMap(stateMap)
-                .withTable(testTableId)
+                .withTable(this.testTableId)
                 .build();
         RecordEventExecute recordEventExecute = RecordEventExecute.create(connectorNode, this);
-        return new TestNode(connectorNode, recordEventExecute);
+        return new TestNode(nodeInfo, connectorNode, recordEventExecute);
     }
 
     protected void initConnectorFunctions() {
-        tddTargetNode = dataFlowWorker.getTargetNodeDriver(targetNodeId).getTargetNode();
-        sourceNode = dataFlowWorker.getSourceNodeDriver(testSourceNodeId).getSourceNode();
+        this.tddTargetNode = this.dataFlowWorker.getTargetNodeDriver(this.targetNodeId).getTargetNode();
+        this.sourceNode = this.dataFlowWorker.getSourceNodeDriver(this.testSourceNodeId).getSourceNode();
     }
 
-    protected boolean createTable(TestNode prepare) throws Throwable {
-        return createTable(prepare, true);
+    protected boolean createTable(TestNode prepare) {
+        return this.createTable(prepare, null, Boolean.TRUE);
+    }
+    protected boolean createTable(TestNode prepare, boolean deleteRecordAfterCreateTable) {
+        return this.createTable(prepare, null, deleteRecordAfterCreateTable);
     }
 
-    protected boolean createTable(TestNode prepare, boolean deleteRecordAfterCreateTable) throws Throwable {
+    protected boolean createTable(TestNode prepare, TapTable createTable) {
+        return this.createTable(prepare, createTable, Boolean.TRUE);
+    }
+
+    protected void createTableFailedPrint(Method testCase, TapTable tapTable, TapAssertImpl tapAssert){
+        tapAssert.accept(testCase,LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.errorTable",this.tableInfo( tapTable)));
+    }
+    protected String tableInfo( TapTable tapTable){
+        StringJoiner joiner = new StringJoiner(",\n");
+        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+        Optional.ofNullable(nameFieldMap).ifPresent(fields->{
+            fields.forEach((fieldName, field)->{
+                joiner.add(fieldName + ": type( "+
+                        field.getDataType() + " ) | nullable( " +
+                        field.getNullable() + " ) ");
+            });
+        });
+        return tapTable.getId() + "\n" + joiner.toString();
+    }
+
+    protected boolean createTable(TestNode prepare, TapTable createTable, boolean deleteRecordAfterCreateTable) {
         TapConnectorContext connectorContext = prepare.connectorNode().getConnectorContext();
         ConnectorFunctions connectorFunctions = prepare.connectorNode().getConnectorFunctions();
         Method testCase = prepare.recordEventExecute().testCase();
@@ -931,11 +904,17 @@ public class PDKTestBase {
             WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
             TapAssert asserts = TapAssert.asserts(() -> {
             });
-
-            targetTable.setId(tableNameCreator.tableName());
-            targetTable.setName(this.targetTable.getId());
-            TapCreateTableEvent createTableEvent = this.modelDeductionForCreateTableEvent(prepare.connectorNode());
-
+            TapCreateTableEvent createTableEvent;
+            if (Objects.isNull(createTable)) {
+                this.targetTable.setId(this.tableNameCreator.tableName());
+                this.targetTable.setName(this.targetTable.getId());
+                createTableEvent = this.modelDeductionForCreateTableEvent(prepare.connectorNode());
+            } else {
+                createTableEvent = new TapCreateTableEvent();
+                createTableEvent.table(createTable);
+                createTableEvent.setReferenceTime(System.currentTimeMillis());
+                createTableEvent.setTableId(createTable.getId());
+            }
             //LinkedHashMap<String, TapField> modelDeduction = this.modelDeduction(prepare.connectorNode);
             //TapTable tabled = new TapTable();
             //modelDeduction.forEach((name,field)->{
@@ -946,59 +925,64 @@ public class PDKTestBase {
             //createTableEvent.table(tabled);
             //createTableEvent.setReferenceTime(System.currentTimeMillis());
             //createTableEvent.setTableId(targetTable.getId());
+            TapTable finalCreateTable = Optional.ofNullable(createTable).orElse(this.targetTable);
+            String finalTableId = finalCreateTable.getId();
             if (null != createTableV2Function) {
                 try {
                     CreateTableOptions table = createTableV2Function.createTable(connectorContext, createTableEvent);
-                    asserts.acceptAsError(testCase, LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.createTableV2Function.succeed", targetTable.getId()));
-                    return verifyCreateTable(prepare);
-                } catch (Exception e) {
-                    TapAssert.asserts(() -> Assertions.fail(LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.createTableV2Function.error", targetTable.getId()))).error(testCase);
+                    asserts.acceptAsError(testCase, LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.createTableV2Function.succeed", this.tableInfo(finalCreateTable)));
+                    return this.verifyCreateTable(prepare, finalCreateTable);
+                } catch (Throwable e) {
+                    TapAssert.asserts(() -> Assertions.fail(LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.createTableV2Function.error", finalTableId, e.getMessage()))).error(testCase);
+                    this.createTableFailedPrint(testCase, finalCreateTable, new TapAssertImpl(TapAssert.ERROR));
                 }
             } else if (null != createTableFunction) {
                 try {
                     createTableFunction.createTable(connectorContext, createTableEvent);
-                    asserts.acceptAsError(testCase, LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.createTableFunction.succeed", targetTable.getId()));
-                    return verifyCreateTable(prepare);
-                } catch (Exception e) {
-                    TapAssert.asserts(() -> Assertions.fail(LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.createTableFunction.error", targetTable.getId()))).error(testCase);
+                    asserts.acceptAsError(testCase, LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.createTableFunction.succeed", this.tableInfo(finalCreateTable)));
+                    return this.verifyCreateTable(prepare, finalCreateTable);
+                } catch (Throwable e) {
+                    TapAssert.asserts(() -> Assertions.fail(LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.createTableFunction.error", finalTableId, e.getMessage()))).error(testCase);
+                    this.createTableFailedPrint(testCase, finalCreateTable, new TapAssertImpl(TapAssert.ERROR));
                 }
             } else if (null != writeRecordFunction) {
-                Record[] records = Record.testRecordWithTapTable(targetTable, 1);
+                Record[] records = Record.testRecordWithTapTable(finalCreateTable, 1);
                 try {
                     WriteListResult<TapRecordEvent> insert = prepare.recordEventExecute()
                             .builderRecord(records)
                             .insert();
-                    TapAssert.succeed(testCase, LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.insertForCreateTable.succeed", records.length, targetTable.getId()));
-                    if (verifyCreateTable(prepare) && deleteRecordAfterCreateTable) {
+                    TapAssert.succeed(testCase, LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.insertForCreateTable.succeed", records.length, finalTableId));
+                    if (this.verifyCreateTable(prepare, finalCreateTable) && deleteRecordAfterCreateTable) {
                         prepare.recordEventExecute().delete();
-                        return true;
                     }
-                    return true;
-                } catch (Exception e) {
-                    TapAssert.asserts(() -> Assertions.fail(LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.insertForCreateTable.error", records.length, targetTable.getId()))).error(testCase);
+                    return Boolean.TRUE;
+                } catch (Throwable e) {
+                    TapAssert.asserts(() -> Assertions.fail(LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.insertForCreateTable.error", records.length, finalTableId, e.getMessage()))).error(testCase);
                 } finally {
                     prepare.recordEventExecute().resetRecords();
                 }
             } else {
                 String message = LangUtil.format("tableCount.findTableCountAfterNewTable.newTable.error");
                 TapAssert.asserts(() -> Assertions.fail(message)).warn(testCase);
-                throw new RuntimeException(message);
             }
         }
-        return false;
+        return Boolean.FALSE;
     }
 
     private boolean verifyCreateTable(TestNode prepare) throws Throwable {
+        return this.verifyCreateTable(prepare, null);
+    }
+
+    private boolean verifyCreateTable(TestNode prepare, TapTable verifyTable) throws Throwable {
         TapConnectorContext connectorContext = prepare.connectorNode().getConnectorContext();
         List<TapTable> tables = new ArrayList<>();
-        prepare.connectorNode.getConnector().discoverSchema(
-                connectorContext, list(targetTable.getId()), 1000, consumer -> {
-                    if (null != consumer) tables.addAll(consumer);
-                }
+        String tableId = (Optional.ofNullable(verifyTable).orElse(this.targetTable)).getId();
+        prepare.connectorNode().getConnector().discoverSchema(
+                connectorContext, list(tableId), 1000, consumer -> Optional.ofNullable(consumer).ifPresent(tables::addAll)
         );
         TapAssert.asserts(() ->
-                assertFalse(tables.isEmpty(), LangUtil.format("table.create.error", targetTable.getId()))
-        ).acceptAsError(prepare.recordEventExecute.testCase(), LangUtil.format("table.create.succeed", targetTable.getId()));
+                assertFalse(tables.isEmpty(), LangUtil.format("table.create.error", tableId))
+        ).acceptAsError(prepare.recordEventExecute().testCase(), LangUtil.format("table.create.succeed", tableId));
         return !tables.isEmpty();
     }
 
@@ -1008,7 +992,7 @@ public class PDKTestBase {
         }
         if (null == after || after.isEmpty()) {
             TapAssert.asserts(() ->
-                    Assertions.fail(LangUtil.format("base.checkIndex.after.error", targetTable.getId()))
+                    Assertions.fail(LangUtil.format("base.checkIndex.after.error", this.targetTable.getId()))
             ).error(testCase);
             return;
         }
@@ -1036,7 +1020,7 @@ public class PDKTestBase {
             StringJoiner agoIndexStr = new StringJoiner(",");
             StringJoiner afterIndexStr = new StringJoiner(",");
 
-            Map<String, TapIndexField> afterFieldsMap = afterFields.stream().collect(Collectors.toMap(field -> field.getName(), field -> field, (o1, o2) -> o1));
+            Map<String, TapIndexField> afterFieldsMap = afterFields.stream().collect(Collectors.toMap(TapIndexField::getName, field -> field, (o1, o2) -> o1));
             for (TapIndexField indexField : afterFields) {
                 afterIndexStr.add(indexField.getName() + "(" + indexField.getFieldAsc() + ")");
             }
@@ -1076,7 +1060,7 @@ public class PDKTestBase {
     }
 
     protected void contrastTableFieldNameAndType(Method testCase, LinkedHashMap<String, TapField> sourceFields, LinkedHashMap<String, TapField> targetFields) {
-        String tableId = targetTable.getId();
+        String tableId = this.targetTable.getId();
         if (null == sourceFields || sourceFields.isEmpty()) {
             TapAssert.asserts(() -> Assertions.fail(LangUtil.format("base.sourceFields.empty", tableId))).error(testCase);
             return;
@@ -1142,7 +1126,7 @@ public class PDKTestBase {
         TapCodecsFilterManager targetCodecFilterManager = connectorNode.getCodecsFilterManager();
         DefaultExpressionMatchingMap dataTypesMap = connectorNode.getTapNodeInfo().getTapNodeSpecification().getDataTypesMap();
         TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(
-                targetTable.getNameFieldMap(),
+                this.targetTable.getNameFieldMap(),
                 dataTypesMap,
                 targetCodecFilterManager
         );
@@ -1154,8 +1138,8 @@ public class PDKTestBase {
         LinkedHashMap<String, TapField> modelDeduction = this.modelDeduction(connectorNode);
         TapTable tabled = new TapTable();
         modelDeduction.forEach((name, field) -> tabled.add(field));
-        tabled.setName(targetTable.getName());
-        tabled.setId(targetTable.getId());
+        tabled.setName(this.targetTable.getName());
+        tabled.setId(this.targetTable.getId());
         return tabled;
     }
 
@@ -1163,7 +1147,7 @@ public class PDKTestBase {
         TapCreateTableEvent createTableEvent = new TapCreateTableEvent();
         createTableEvent.table(this.modelDeductionForTapTable(connectorNode));
         createTableEvent.setReferenceTime(System.currentTimeMillis());
-        createTableEvent.setTableId(targetTable.getId());
+        createTableEvent.setTableId(this.targetTable.getId());
         return createTableEvent;
     }
 

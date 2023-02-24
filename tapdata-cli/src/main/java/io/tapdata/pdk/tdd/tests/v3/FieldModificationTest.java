@@ -3,7 +3,6 @@ package io.tapdata.pdk.tdd.tests.v3;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.FilterResult;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.TapFilter;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -13,6 +12,7 @@ import io.tapdata.pdk.apis.functions.connector.target.QueryByFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.tdd.core.PDKTestBaseV2;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.core.base.TestNode;
 import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
 import org.junit.jupiter.api.Assertions;
@@ -24,7 +24,6 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 都需使用随机ID建表， 如果有DropTableFunction实现， 测试用例应该自动删除创建的临时表（无论成功或是失败）
@@ -66,7 +65,7 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                 TapAssert.asserts(() ->
                         Assertions.assertTrue(
                                 null != insert && insert.getInsertedCount() == recordCount,
-                                super.langUtil.formatLang("fieldModification.all.insert.error", recordCount, null == insert ? 0 : insert.getInsertedCount())
+                                langUtil.formatLang("fieldModification.all.insert.error", recordCount, null == insert ? 0 : insert.getInsertedCount())
                         )
                 ).acceptAsError(testCase, LangUtil.format("fieldModification.all.insert.succeed", recordCount, null == insert ? 0 : insert.getInsertedCount()));
 
@@ -82,7 +81,7 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                 TapAssert.asserts(() ->
                         Assertions.assertTrue(
                                 null != update && update.getInsertedCount() == recordCount,
-                                super.langUtil.formatLang("fieldModification.all.update.error", recordCount, null == update ? 0 : update.getInsertedCount())
+                                langUtil.formatLang("fieldModification.all.update.error", recordCount, null == update ? 0 : update.getInsertedCount())
                         )
                 ).acceptAsError(testCase, LangUtil.format("fieldModification.all.update.succeed", recordCount, null == update ? 0 : update.getInsertedCount()));
 
@@ -134,10 +133,10 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                     }
                 }else {
                     //没有实现QueryByFilterFunction 和 QueryByAdvanceFilterFunction
-                    TapAssert.warn(testCase, super.langUtil.formatLang(""));
+                    TapAssert.warn(testCase, langUtil.formatLang(""));
                 }
             } catch (Throwable e) {
-                TapAssert.error(testCase, super.langUtil.formatLang("fieldModification.all.throw", e.getMessage()));
+                TapAssert.error(testCase, langUtil.formatLang("fieldModification.all.throw", e.getMessage()));
             } finally {
                 if (createTable) execute.dropTable();
                 super.connectorOnStop(prepare);
@@ -175,7 +174,7 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                 //对比这些数据
 
             } catch (Throwable e) {
-                TapAssert.error(testCase, super.langUtil.formatLang("fieldModification.part.throw", e.getMessage()));
+                TapAssert.error(testCase, langUtil.formatLang("fieldModification.part.throw", e.getMessage()));
             } finally {
                 super.connectorOnStop(prepare);
             }
@@ -211,7 +210,7 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                 //对比这些数据
 
             } catch (Throwable e) {
-                TapAssert.error(testCase, super.langUtil.formatLang("fieldModification.part.throw", e.getMessage()));
+                TapAssert.error(testCase, langUtil.formatLang("fieldModification.part.throw", e.getMessage()));
             } finally {
                 super.connectorOnStop(prepare);
             }
@@ -221,7 +220,7 @@ public class FieldModificationTest extends PDKTestBaseV2 {
 
     public static List<SupportFunction> testFunctions() {
         return list(
-                support(WriteRecordFunction.class, LangUtil.format(inNeedFunFormat, "WriteRecordFunction"))
+                support(WriteRecordFunction.class, langUtil.formatLang(inNeedFunFormat, "WriteRecordFunction"))
         );
     }
 }

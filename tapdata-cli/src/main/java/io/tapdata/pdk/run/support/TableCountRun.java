@@ -4,6 +4,7 @@ import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.run.base.PDKBaseRun;
 import io.tapdata.pdk.run.base.RunnerSummary;
+import io.tapdata.pdk.tdd.core.base.TestNode;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
@@ -24,7 +25,7 @@ public class TableCountRun extends PDKBaseRun {
     public void tableCount() throws NoSuchMethodException {
         Method testCase = super.getMethod("tableCount");
         consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKBaseRun.TestNode prepare = prepare(nodeInfo);
+            TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
                 super.connectorOnStart(prepare);

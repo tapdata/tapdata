@@ -21,4 +21,6 @@ public @interface TapGo {
     boolean isSub() default false;
 
     String tag() default "default";
+
+    boolean debug() default false;
 }

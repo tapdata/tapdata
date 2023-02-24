@@ -8,6 +8,7 @@ import io.tapdata.pdk.run.base.PDKBaseRun;
 import io.tapdata.pdk.run.base.RunClassMap;
 import io.tapdata.pdk.run.base.RunnerSummary;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.core.base.TestNode;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
@@ -23,13 +24,14 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 @TapGo(sort = 4)
 public class BatchCountRun extends PDKBaseRun {
     private static final String jsName = RunClassMap.BATCH_COUNT_RUN.jsName(0);
+
     @DisplayName("batchCountRun.run")
     @TapTestCase(sort = 1)
     @Test
     public void batchCount() throws NoSuchMethodException {
         Method testCase = super.getMethod("batchCount");
         consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKBaseRun.TestNode prepare = prepare(nodeInfo);
+            TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
                 super.connectorOnStart(prepare);
@@ -47,7 +49,7 @@ public class BatchCountRun extends PDKBaseRun {
                     }
                     TapTable table = new TapTable(String.valueOf(tableName), String.valueOf(tableName));
                     long count = batchCountFunction.count(connectorNode.getConnectorContext(), table);
-                    super.runSucceed(testCase,RunnerSummary.format("batchCountRun.succeed",tableName,count));
+                    super.runSucceed(testCase, RunnerSummary.format("batchCountRun.succeed", tableName, count));
                 } else {
                     //Error cannot support batch count function
                     super.runError(testCase, RunnerSummary.format("batchCountRun.noFunction"));
@@ -61,6 +63,6 @@ public class BatchCountRun extends PDKBaseRun {
     }
 
     public static List<SupportFunction> testFunctions() {
-        return list(support(BatchCountFunction.class, RunnerSummary.format("jsFunctionInNeed",BatchCountRun.jsName)));
+        return list(support(BatchCountFunction.class, RunnerSummary.format("jsFunctionInNeed", BatchCountRun.jsName)));
     }
 }

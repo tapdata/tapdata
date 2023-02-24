@@ -6,6 +6,7 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.*;
@@ -20,6 +21,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class RecordEventExecute {
@@ -148,24 +150,35 @@ public class RecordEventExecute {
     }
 
     public void dropTable() {
-        TapAssert.asserts(
-                () -> Assertions.assertDoesNotThrow(this::drop, LangUtil.format("recordEventExecute.drop.table.error"))
-        ).acceptAsWarn(testCase, LangUtil.format("recordEventExecute.drop.notCatch.thrower"));
+        this.drop(this.base.getTargetTable());
     }
 
-    private boolean drop() throws Throwable {
-        DropTableFunction dropTableFunction = connectorFunctions.getDropTableFunction();
+    public void dropTable(TapTable tapTable) {
+        if (Objects.nonNull(tapTable)) {
+            this.drop(tapTable);
+        } else {
+            TapAssert.warn(this.testCase, "Empty table cannot drop.");
+        }
+    }
+
+    private boolean drop(TapTable tapTable) {
+        DropTableFunction dropTableFunction = this.connectorFunctions.getDropTableFunction();
         if (null == dropTableFunction) {
-            TapAssert.asserts(() -> Assertions.fail(LangUtil.format("base.notSupportDropTable", base.getTargetTable().getId()))).warn(testCase);
+            TapAssert.asserts(() -> Assertions.fail(LangUtil.format("base.notSupportDropTable", tapTable.getId()))).warn(this.testCase);
             return false;
         }
         TapAssert.asserts(
                 () -> Assertions.assertNotNull(dropTableFunction, LangUtil.format("recordEventExecute.drop.error.not.support.function"))
-        ).acceptAsError(testCase, LangUtil.format("recordEventExecute.drop.table.succeed", base.getTargetTable().getId()));
+        ).acceptAsError(this.testCase, LangUtil.format("recordEventExecute.drop.table.succeed", tapTable.getId()));
         TapDropTableEvent dropTableEvent = new TapDropTableEvent();
-        dropTableEvent.setTableId(base.getTargetTable().getId());
+        dropTableEvent.setTableId(tapTable.getId());
         dropTableEvent.setReferenceTime(System.currentTimeMillis());
-        dropTableFunction.dropTable(connectorNode.getConnectorContext(), dropTableEvent);
+        try {
+            dropTableFunction.dropTable(this.connectorNode.getConnectorContext(), dropTableEvent);
+            TapAssert.succeed(this.testCase, LangUtil.format("recordEventExecute.drop.notCatch.thrower"));
+        } catch (Throwable e) {
+            TapAssert.warn(this.testCase, LangUtil.format("recordEventExecute.drop.table.error", e.getMessage()));
+        }
         return Boolean.TRUE;
     }
 }

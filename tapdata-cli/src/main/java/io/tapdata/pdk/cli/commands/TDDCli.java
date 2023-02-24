@@ -70,7 +70,7 @@ public class TDDCli extends CommonCli {
     @CommandLine.Option(names = {"-l", "--lang"}, usageHelp = false, description = "TapData cli lang，values zh_CN/zh_TW/en,default is en")
     private String lan = "en";
     @CommandLine.Option(names = {"-p", "--path"}, usageHelp = false, description = "TapData cli path,need test package ,path split as .")
-    private String packagePath = WriteRecordTest.class.getPackage().getName();
+    private String packagePath = "io.tapdata.pdk.tdd.tests";//WriteRecordTest.class.getPackage().getName();
     @CommandLine.Option(names = {"-log", "--logPath"}, usageHelp = false, description = "TapData cli log,need test to log test result ,path to log ,default ./tapdata-pdk-cli/tss-logs/")
     private String logPath = TapSummary.basePath("tdd-logs");
 
@@ -400,12 +400,14 @@ public class TDDCli extends CommonCli {
         Reflections reflections = new Reflections(packagePath);
         //返回带有指定注解的所有类对象
         Set<Class<?>> typesAnnotatedWith = reflections.getTypesAnnotatedWith(TapGo.class);
+        boolean isDebugMode = "true".equals(System.getProperty("is_debug_mode", "false"));
         return typesAnnotatedWith.stream().filter(cls -> {
             try {
                 TapGo tapGo = cls.getAnnotation(TapGo.class);
                 boolean goTest = tapGo.goTest();
                 boolean isSub = tapGo.isSub();
-                return (PDKTestBase.class.isAssignableFrom(cls)) && goTest && !isSub;
+                boolean debug = !isDebugMode || tapGo.debug();
+                return (PDKTestBase.class.isAssignableFrom(cls)) && goTest && !isSub && debug;
             } catch (Exception e) {
                 return false;
             }

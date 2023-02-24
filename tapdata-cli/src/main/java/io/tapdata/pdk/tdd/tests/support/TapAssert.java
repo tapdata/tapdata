@@ -68,11 +68,13 @@ public interface TapAssert {
 
     public static void error(Method testCase, String message) {
         TapAssert.asserts(() -> {
+            throw new AssertionFailedError(message);
         }).accept(testCase, ERROR, message);
     }
 
     public static void warn(Method testCase, String message) {
         TapAssert.asserts(() -> {
+            throw new AssertionFailedError(message);
         }).accept(testCase, WARN, message);
     }
 
@@ -92,7 +94,7 @@ public interface TapAssert {
             change(e, e.getMessage(), assertGarde, testCase);
             throw e;
         }
-        change(null, succeedMag, assertGarde, testCase);
+        change(null, succeedMag, SUCCEED, testCase);
     }
 
     public void consumer();

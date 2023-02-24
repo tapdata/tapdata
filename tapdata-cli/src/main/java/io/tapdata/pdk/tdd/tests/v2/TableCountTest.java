@@ -3,6 +3,7 @@ package io.tapdata.pdk.tdd.tests.v2;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.core.base.TestNode;
 import io.tapdata.pdk.tdd.tests.support.LangUtil;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import io.tapdata.pdk.tdd.tests.support.TapGo;

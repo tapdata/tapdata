@@ -7,6 +7,7 @@ import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFun
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.core.base.TestNode;
 import io.tapdata.pdk.tdd.tests.support.LangUtil;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
@@ -36,7 +37,7 @@ public class TimestampToStreamOffsetFunctionTest extends PDKTestBase {
      * */
     void backStreamOffset() {
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            TestNode prepare = this.prepare(nodeInfo);
             try {
                 super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("backStreamOffset");

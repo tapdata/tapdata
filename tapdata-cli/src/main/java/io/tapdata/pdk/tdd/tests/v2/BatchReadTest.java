@@ -13,6 +13,7 @@ import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.core.base.TestNode;
 import io.tapdata.pdk.tdd.tests.support.*;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -44,7 +45,7 @@ public class BatchReadTest extends PDKTestBase {
     @Test
     void readAfterInsert() {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = prepare(nodeInfo);
+            TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             boolean hasCreateTable = false;
             try {
@@ -183,7 +184,7 @@ public class BatchReadTest extends PDKTestBase {
     @Test
     void readAfterInsertByBatch() {
         consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = prepare(nodeInfo);
+            TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             boolean hasCreatedTable = false;
             try {

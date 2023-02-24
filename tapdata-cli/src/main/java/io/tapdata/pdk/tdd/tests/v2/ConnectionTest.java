@@ -8,6 +8,7 @@ import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.core.base.TestNode;
 import io.tapdata.pdk.tdd.tests.support.LangUtil;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import io.tapdata.pdk.tdd.tests.support.TapGo;

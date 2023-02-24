@@ -8,6 +8,7 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.run.base.PDKBaseRun;
 import io.tapdata.pdk.run.base.RunnerSummary;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
+import io.tapdata.pdk.tdd.core.base.TestNode;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
@@ -28,7 +29,7 @@ public class ConnectionTestRun extends PDKBaseRun {
     public void connectionTest() throws NoSuchMethodException {
         Method testCase = super.getMethod("connectionTest");
         consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = prepare(nodeInfo);
+            TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
                 super.connectorOnStart(prepare);
