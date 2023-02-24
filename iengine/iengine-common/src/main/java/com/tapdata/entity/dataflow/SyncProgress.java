@@ -5,6 +5,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.Serializable;
+import java.util.HashMap;
 import java.util.Optional;
 
 public class SyncProgress implements Serializable, Comparable<SyncProgress> {
@@ -33,6 +34,9 @@ public class SyncProgress implements Serializable, Comparable<SyncProgress> {
 
 	public SyncProgress() {
 		this.eventSerialNo = 1L;
+		this.eventTime = System.currentTimeMillis();
+		this.sourceTime = System.currentTimeMillis();
+		this.batchOffsetObj = new HashMap<>();
 	}
 
 	@Deprecated
