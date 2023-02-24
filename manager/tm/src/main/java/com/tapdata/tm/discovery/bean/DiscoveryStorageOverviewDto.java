@@ -2,7 +2,6 @@ package com.tapdata.tm.discovery.bean;
 
 import lombok.Data;
 
-import java.util.Date;
 import java.util.List;
 
 /**
@@ -11,4 +10,5 @@ import java.util.List;
 @Data
 public class DiscoveryStorageOverviewDto extends DiscoveryStorageDto {
     private List<DiscoveryFieldDto> fields;
+    private String comment;
 }
