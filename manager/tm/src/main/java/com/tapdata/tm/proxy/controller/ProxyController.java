@@ -9,10 +9,7 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.proxy.dto.*;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
-import com.tapdata.tm.sdk.auth.HmacSHA256Signer;
-import com.tapdata.tm.sdk.util.Base64Util;
 import com.tapdata.tm.utils.WebUtils;
-import com.tapdata.tm.verison.dto.VersionDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.tapdata.entity.error.CoreException;
@@ -51,16 +48,13 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
-import static io.tapdata.entity.simplify.TapSimplify.toJson;
 import static org.apache.http.HttpStatus.*;
 
 
@@ -543,8 +537,9 @@ public class ProxyController extends BaseController {
         if(serviceCaller.getMethod() == null)
             throw new BizException("Missing method");
 
-        UserDetail userDetail = getLoginUser();
-        serviceCaller.subscribeIds("userId_" + userDetail.getUserId());
+       // UserDetail userDetail = getLoginUser();
+        UserDetail userDetail = null;
+       // serviceCaller.subscribeIds("userId_" + userDetail.getUserId());
 //        Locale locale = WebUtils.getLocale(request);
         executeServiceCaller(request, response, serviceCaller, userDetail);
     }
