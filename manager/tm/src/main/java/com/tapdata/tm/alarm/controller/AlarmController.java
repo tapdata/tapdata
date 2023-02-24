@@ -1,6 +1,7 @@
 package com.tapdata.tm.alarm.controller;
 
 import com.alibaba.fastjson.JSON;
+import com.tapdata.tm.alarm.dto.AlarmChannelDto;
 import com.tapdata.tm.alarm.dto.AlarmListInfoVo;
 import com.tapdata.tm.alarm.dto.AlarmListReqDto;
 import com.tapdata.tm.alarm.dto.TaskAlarmInfoVo;
@@ -14,6 +15,8 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * @author jiuyetx
@@ -61,5 +64,11 @@ public class AlarmController extends BaseController {
         log.info("接收到新增信息请求  ,  messageDto:{}", JSON.toJSONString(messageDto));
         MessageDto messageDtoRet = alarmService.add(messageDto,getLoginUser());
         return success(messageDtoRet);
+    }
+
+    @Operation(summary = "Get available notification channels")
+    @GetMapping("channels")
+    public ResponseMessage<List<AlarmChannelDto>> alarmChannel (){
+        return success(alarmService.getAvailableChannels());
     }
 }

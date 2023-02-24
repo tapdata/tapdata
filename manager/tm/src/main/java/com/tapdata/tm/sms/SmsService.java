@@ -50,6 +50,13 @@ public class SmsService {
     private static final String TEMPLATE_PARAM_AGENT_NAME = "AgentName";
     private static final String TEMPLATE_PARAM_JOB_NAME = "JobName";
 
+    public boolean enableSms() {
+        return StringUtils.isNotBlank(accessKeyId) && StringUtils.isNotBlank(accessKeySecret);
+    }
+
+    public String getType() {
+        return "sms";
+    }
 
     /**
      * 发送短信
@@ -66,7 +73,7 @@ public class SmsService {
 
         SendStatus sendStatus = new SendStatus("false", "");
 
-        if (StringUtils.isBlank(accessKeyId) || StringUtils.isBlank(accessKeySecret)) {
+        if (!this.enableSms()) {
             sendStatus.setErrorMessage("Send sms fail, please configure {aliyun.accessKey} " +
                     "and {aliyun.accessKeySecret} in application config file.");
             return sendStatus;
@@ -140,7 +147,7 @@ public class SmsService {
     public  SendStatus sendShortMessage(String templateCode, String phoneNumbers, String templateParam) {
         SendStatus sendStatus = new SendStatus("false", "");
         log.info("sendShortMessage  starting");
-        if (StringUtils.isBlank(accessKeyId) || StringUtils.isBlank(accessKeySecret)) {
+        if (!this.enableSms()) {
             sendStatus.setErrorMessage("Send sms fail, please configure {aliyun.accessKey} " +
                     "and {aliyun.accessKeySecret} in application config file.");
             return sendStatus;

@@ -1,5 +1,6 @@
 package com.tapdata.tm.alarm.service;
 
+import com.tapdata.tm.alarm.dto.AlarmChannelDto;
 import com.tapdata.tm.alarm.dto.AlarmListInfoVo;
 import com.tapdata.tm.alarm.dto.AlarmListReqDto;
 import com.tapdata.tm.alarm.dto.TaskAlarmInfoVo;
@@ -44,4 +45,6 @@ public interface AlarmService {
     List<AlarmInfo> query(Query query);
 
     MessageDto add(MessageDto messageDto,UserDetail userDetail);
+
+    List<AlarmChannelDto> getAvailableChannels();
 }

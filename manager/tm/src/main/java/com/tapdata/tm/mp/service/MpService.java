@@ -90,6 +90,10 @@ public class MpService {
         return StringUtils.isNotBlank(this.appId) && StringUtils.isNotBlank(this.appSecret);
     }
 
+    public String getType() {
+        return "wechat";
+    }
+
     public void sendMessage(String openid, Message message) {
 
         Validate.notNull(openid, "OpenId can't be empty on send weChat message.");

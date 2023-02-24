@@ -40,6 +40,7 @@ import com.tapdata.tm.sms.SmsService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
+import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
@@ -48,12 +49,14 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.GetMapping;
 
 import java.text.MessageFormat;
 import java.util.*;
@@ -84,6 +87,11 @@ public class AlarmServiceImpl implements AlarmService {
     MailUtils mailUtils;
     EventsService eventsService;
     private final static String MAIL_SUBJECT = "【Tapdata】";
+
+    @Setter
+    @Getter
+    @Value("${alarm.channel.sms:true}")
+    private boolean enableSms = true;
 
 
     @Override
@@ -831,6 +839,13 @@ public class AlarmServiceImpl implements AlarmService {
                 .receivers(receiverList.get()).protocol(protocol).build();
     }
 
+    public boolean enableEmail() {
+        List<Settings> result = settingsService.findAll(Query.query(Criteria.where("category").is("SMTP")
+                .and("key").in("smtp.server.host", "smtp.server.port", "smtp.server.user", "smtp.server.password", "email.send.address")));
+        return result != null && result.stream().map(Settings::getValue).filter(Objects::nonNull).map(Object::toString)
+                .map(StringUtils::isNotBlank).reduce(false, (v1, v2) -> v1 || v2);
+    }
+
     private void connectPassAlarm(String nodeName, String connectId, String response_body, List<TaskDto> taskEntityList) {
         if (CollectionUtils.isEmpty(taskEntityList)) {
             return;
@@ -974,5 +989,19 @@ public class AlarmServiceImpl implements AlarmService {
         System.out.println(lastNotifyTime);
     }
 
-
+    @Override
+    public List<AlarmChannelDto> getAvailableChannels() {
+        List<AlarmChannelDto> availableChannels = new ArrayList<>();
+        availableChannels.add(new AlarmChannelDto("system"));
+        if (smsService.enableSms() && enableSms) {
+            availableChannels.add(new AlarmChannelDto(smsService.getType()));
+        }
+        if (mpService.enableWeChat()) {
+            availableChannels.add(new AlarmChannelDto(mpService.getType()));
+        }
+        if (enableEmail()) {
+            availableChannels.add(new AlarmChannelDto("email"));
+        }
+        return availableChannels;
+    }
 }
