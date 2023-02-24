@@ -226,6 +226,14 @@ public class MilestoneAspectTask extends AbstractAspectTask {
             case WriteRecordFuncAspect.STATE_START:
                 taskMilestone(KPI_WRITE_RECORD, this::setRunning);
                 nodeMilestones(nodeId, KPI_WRITE_RECORD, this::setRunning);
+                taskMilestone(KPI_TABLE_INIT, milestone -> {
+                    milestone.setProgress(milestone.getTotals());
+                    setFinish(milestone);
+                });
+                nodeMilestones(nodeId, KPI_TABLE_INIT, milestone -> {
+                    milestone.setProgress(milestone.getTotals());
+                    setFinish(milestone);
+                });
                 break;
             case WriteRecordFuncAspect.STATE_END: {
                 Throwable error = aspect.getThrowable();
