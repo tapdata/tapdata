@@ -32,7 +32,6 @@ import org.voovan.tools.collection.CacheMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 
@@ -91,24 +90,21 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 						QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
 						TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create().limit(rows);
 						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
-								PDKMethodInvoker.create()
-										.runnable(
-												() -> queryByAdvanceFilterFunction.query(getConnectorNode().getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
+								createPdkMethodInvoker().runnable(
+										() -> queryByAdvanceFilterFunction.query(getConnectorNode().getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
 
-													List<Map<String, Object>> results = filterResults.getResults();
-													List<TapEvent> events = wrapTapEvent(results, tapTable.getId());
-													if (CollectionUtil.isNotEmpty(events)) {
-														events.forEach(tapEvent -> {
-															tapRecordToTapValue(tapEvent, codecsFilterManager);
-															//Simulate null data
-															SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
-														});
+											List<Map<String, Object>> results = filterResults.getResults();
+											List<TapEvent> events = wrapTapEvent(results, tapTable.getId());
+											if (CollectionUtil.isNotEmpty(events)) {
+												events.forEach(tapEvent -> {
+													tapRecordToTapValue(tapEvent, codecsFilterManager);
+													//Simulate null data
+													SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
+												});
 
-														tapEventList.addAll(events);
-													}
-												})).logTag(TAG)
-										.retryPeriodSeconds(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getRetryIntervalSecond())
-										.maxRetryTimeMinute(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getMaxRetryTime(TimeUnit.MINUTES))
+												tapEventList.addAll(events);
+											}
+										})).logTag(TAG)
 						);
 						sampleDataCacheMap.put(sampleDataId, tapEventList);
 					} catch (Exception e) {
@@ -168,6 +164,11 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 	@Override
 	public boolean complete() {
 		return !isRunning();
+	}
+
+	@Override
+	protected PDKMethodInvoker createPdkMethodInvoker() {
+		return super.createPdkMethodInvoker().maxRetryTimeMinute(0);
 	}
 
 	private List<TapdataEvent> wrapTapdataEvent(List<TapEvent> tapEvents) {

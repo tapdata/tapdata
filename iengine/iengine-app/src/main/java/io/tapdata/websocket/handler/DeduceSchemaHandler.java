@@ -1,14 +1,21 @@
 package io.tapdata.websocket.handler;
 
 import com.alibaba.fastjson.JSON;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.schema.SchemaApplyResult;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.autoinspect.utils.GZIPUtil;
+import com.tapdata.tm.commons.base.convert.DagDeserialize;
+import com.tapdata.tm.commons.base.convert.DagSerialize;
+import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
+import com.tapdata.tm.commons.base.convert.ObjectIdSerialize;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Message;
@@ -22,9 +29,11 @@ import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.WebSocketEventHandler;
 import io.tapdata.websocket.WebSocketEventResult;
+import lombok.Data;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.bson.types.ObjectId;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -71,7 +80,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		) {
 
 			@Override
-			public TapTable loadTapTable(List<Schema> schemas, String script, String nodeId, String virtualId, String customNodeId, Map<String, Object> form, TaskDto taskDto) {
+			public TapTable loadTapTable(String nodeId, String virtualId, TaskDto taskDto) {
 				// 跑任务加载js模型
 				String schemaKey = taskDto.getId() + "-" + virtualId;
 				long startTs = System.currentTimeMillis();
@@ -97,7 +106,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 
 				TaskClient<TaskDto> taskClient = execTask(taskDto);
 
-				logger.info("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
+				logger.info("load MigrateJsResultVos task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
 				if (TaskDto.STATUS_COMPLETE.equals(taskClient.getStatus())) {
 					//成功
 					List<SchemaApplyResult> schemaApplyResultList = HazelcastSchemaTargetNode.getSchemaApplyResultList(schemaKey);
@@ -106,7 +115,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 					}
 
 					if (CollectionUtils.isNotEmpty(schemaApplyResultList)) {
-						return schemaApplyResultList.stream().map(s -> new MigrateJsResultVo(s.getOp(),s.getFieldName(), s.getTapField()))
+						return schemaApplyResultList.stream().map(s -> new MigrateJsResultVo(s.getOp(),s.getFieldName(), s.getTapField(), s.getTapIndex()))
 										.collect(Collectors.toList());
 					}
 
@@ -136,14 +145,24 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		wsMessageResult.setTaskId(request.getTaskDto().getId().toHexString());
 		wsMessageResult.setTransformUuid(request.getOptions().getUuid());
 
-		// Update task's dag
-		TaskDto updateTaskDto = new TaskDto();
-		updateTaskDto.setId(request.getTaskDto().getId());
-		updateTaskDto.setDag(request.getTaskDto().getDag());
-		clientMongoOperator.insertOne(updateTaskDto, ConnectorConstant.TASK_COLLECTION + "/dagNotHistory");
-
 		//返回结果调用接口返回
 		clientMongoOperator.insertOne(wsMessageResult, ConnectorConstant.TASK_COLLECTION + "/transformer/result");
+
+		// Update task's dag
+		UpdateTaskDagDto updateTaskDagDto = new UpdateTaskDagDto();
+		updateTaskDagDto.setId(request.getTaskDto().getId());
+		updateTaskDagDto.setDag(request.getTaskDto().getDag());
+		DAG dag = request.getTaskDto().getDag();
+		if (dag != null) {
+			List<Node> nodes = dag.getNodes();
+			if (CollectionUtils.isNotEmpty(nodes)) {
+				nodes.forEach(f-> {
+					f.setOutputSchema(null);
+					f.setSchema(null);});
+			}
+		}
+		clientMongoOperator.insertOne(updateTaskDagDto, ConnectorConstant.TASK_COLLECTION + "/dagNotHistory");
+
 		return WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.DEDUCE_SCHEMA, true);
 	}
 
@@ -248,6 +267,19 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		public void setTransformerDtoMap(Map<String, MetadataTransformerDto> transformerDtoMap) {
 			this.transformerDtoMap = transformerDtoMap;
 		}
+	}
+
+
+	@Data
+	public static class UpdateTaskDagDto {
+
+		@JsonSerialize( using = ObjectIdSerialize.class)
+		@JsonDeserialize( using = ObjectIdDeserialize.class)
+		private ObjectId id;
+
+		@JsonSerialize( using = DagSerialize.class)
+		@JsonDeserialize( using = DagDeserialize.class)
+		private DAG dag;
 	}
 
 }

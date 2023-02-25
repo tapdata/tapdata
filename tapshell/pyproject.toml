@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tapdata_cli"
-version = "2.2.15"
+version = "2.3.0"
 description = "Tapdata Python Sdk"
 authors = ["Tapdata <team@tapdata.io>"]
 license = "Apache V2"
@@ -26,12 +26,13 @@ PyYAML = "5.4.1"
 requests = "2.25.1"
 toml = "0.10.2"
 urllib3 = "1.26.4"
-websockets = "9.0.2"
+websockets = "10"
 pymongo = "4.1.1"
 javascripthon = "^0.12"
 jupyter = "^1.0.0"
 pytest = "^7.1.2"
 allure-pytest = "^2.9.45"
+pytest-parallel = "^0.1.1"
 
 [tool.poetry.dev-dependencies]
 

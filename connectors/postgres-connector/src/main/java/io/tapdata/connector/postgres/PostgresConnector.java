@@ -32,6 +32,11 @@ import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
+import org.postgresql.geometric.*;
+import org.postgresql.jdbc.PgArray;
+import org.postgresql.jdbc.PgSQLXML;
+import org.postgresql.util.PGInterval;
+import org.postgresql.util.PGobject;
 
 import java.sql.SQLException;
 import java.util.*;
@@ -117,28 +122,15 @@ public class PostgresConnector extends ConnectorBase {
         });
     }
 
-    // TODO: 2022/6/9 need to improve test items
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) {
         postgresConfig = (PostgresConfig) new PostgresConfig().load(connectionContext.getConnectionConfig());
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         connectionOptions.connectionString(postgresConfig.getConnectionString());
         try (
-                PostgresTest postgresTest = new PostgresTest(postgresConfig)
+                PostgresTest postgresTest = new PostgresTest(postgresConfig, consumer).initContext()
         ) {
-            TestItem testHostPort = postgresTest.testHostPort();
-            consumer.accept(testHostPort);
-            if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
-                return connectionOptions;
-            }
-            TestItem testConnect = postgresTest.testConnect();
-            consumer.accept(testConnect);
-            if (testConnect.getResult() == TestItem.RESULT_FAILED) {
-                return connectionOptions;
-            }
-            consumer.accept(postgresTest.testPrivilege());
-            consumer.accept(postgresTest.testReplication());
-            consumer.accept(postgresTest.testLogPlugin());
+            postgresTest.testOneByOne();
             return connectionOptions;
         }
     }
@@ -159,7 +151,7 @@ public class PostgresConnector extends ConnectorBase {
         connectorFunctions.supportCreateTableV2(this::createTableV2);
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
-        connectorFunctions.supportCreateIndex(this::createIndex);
+//        connectorFunctions.supportCreateIndex(this::createIndex);
         // source
         connectorFunctions.supportBatchCount(this::batchCount);
         connectorFunctions.supportBatchRead(this::batchRead);
@@ -186,6 +178,40 @@ public class PostgresConnector extends ConnectorBase {
         codecRegistry.registerFromTapValue(TapArrayValue.class, "text", tapValue -> {
             if (tapValue != null && tapValue.getValue() != null) return toJson(tapValue.getValue());
             return "null";
+        });
+
+        codecRegistry.registerToTapValue(PgArray.class, (value, tapType) -> new TapStringValue(value.toString()));
+
+        codecRegistry.registerToTapValue(PgSQLXML.class, (value, tapType) -> {
+            try {
+                return new TapStringValue(((PgSQLXML) value).getString());
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        codecRegistry.registerToTapValue(PGbox.class, (value, tapType) -> new TapStringValue(value.toString()));
+
+        codecRegistry.registerToTapValue(PGcircle.class, (value, tapType) -> new TapStringValue(value.toString()));
+
+        codecRegistry.registerToTapValue(PGline.class, (value, tapType) -> new TapStringValue(value.toString()));
+
+        codecRegistry.registerToTapValue(PGlseg.class, (value, tapType) -> new TapStringValue(value.toString()));
+
+        codecRegistry.registerToTapValue(PGpath.class, (value, tapType) -> new TapStringValue(value.toString()));
+
+        codecRegistry.registerToTapValue(PGobject.class, (value, tapType) -> new TapStringValue(value.toString()));
+
+        codecRegistry.registerToTapValue(PGpoint.class, (value, tapType) -> new TapStringValue(value.toString()));
+
+        codecRegistry.registerToTapValue(PGpolygon.class, (value, tapType) -> new TapStringValue(value.toString()));
+
+        codecRegistry.registerToTapValue(PGInterval.class, (value, tapType) -> {
+            int hours = ((PGInterval) value).getHours();
+            int minutes = ((PGInterval) value).getMinutes();
+            double seconds = ((PGInterval) value).getSeconds();
+            String time = hours + ":" + minutes + ":" + seconds;
+            return new TapStringValue(time);
         });
         //TapTimeValue, TapDateTimeValue and TapDateValue's value is DateTime, need convert into Date object.
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
@@ -239,14 +265,18 @@ public class PostgresConnector extends ConnectorBase {
 
     //clear resource outer and jdbc context
     private void onDestroy(TapConnectorContext connectorContext) throws Throwable {
-        if (EmptyKit.isNotNull(cdcRunner)) {
-            cdcRunner.closeCdcRunner();
-            cdcRunner = null;
+        try {
+            onStart(connectorContext);
+            if (EmptyKit.isNotNull(cdcRunner)) {
+                cdcRunner.closeCdcRunner();
+                cdcRunner = null;
+            }
+            if (EmptyKit.isNotNull(slotName)) {
+                clearSlot();
+            }
+        } finally {
+            onStop(connectorContext);
         }
-        if (EmptyKit.isNotNull(slotName)) {
-            clearSlot();
-        }
-        //stateMap will be cleared by engine
     }
 
     //clear postgres slot
@@ -281,7 +311,7 @@ public class PostgresConnector extends ConnectorBase {
     //initialize jdbc context, slot name, version
     private void initConnection(TapConnectionContext connectorContext) {
         postgresConfig = (PostgresConfig) new PostgresConfig().load(connectorContext.getConnectionConfig());
-        postgresTest = new PostgresTest(postgresConfig);
+        postgresTest = new PostgresTest(postgresConfig, testItem -> {}).initContext();
         if (EmptyKit.isNull(postgresJdbcContext) || postgresJdbcContext.isFinish()) {
             postgresJdbcContext = (PostgresJdbcContext) DataSourcePool.getJdbcContext(postgresConfig, PostgresJdbcContext.class, connectorContext.getId());
         }
@@ -446,7 +476,8 @@ public class PostgresConnector extends ConnectorBase {
 
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
         //test streamRead log plugin
-        if (postgresTest.testLogPlugin().getResult() == TestItem.RESULT_SUCCESSFULLY && EmptyKit.isNull(slotName)) {
+        boolean canCdc = EmptyKit.isNotNull(postgresTest.testStreamRead()) && postgresTest.testStreamRead();
+        if (canCdc && EmptyKit.isNull(slotName)) {
             buildSlot();
             tapConnectorContext.getStateMap().put("tapdata_pg_slot", slotName);
         }

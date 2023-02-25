@@ -36,6 +36,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class RocketmqService extends AbstractMqService {
@@ -162,7 +163,7 @@ public class RocketmqService extends AbstractMqService {
     }
 
     @Override
-    public void produce(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
+    public void produce(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer, Supplier<Boolean> isAlive) throws Throwable {
         AtomicLong insert = new AtomicLong(0);
         AtomicLong update = new AtomicLong(0);
         AtomicLong delete = new AtomicLong(0);
@@ -172,6 +173,9 @@ public class RocketmqService extends AbstractMqService {
         int u = 0;
         int d = 0;
         for (TapRecordEvent event : tapRecordEvents) {
+            if (null != isAlive && !isAlive.get()) {
+                break;
+            }
             Message message = new Message();
             message.setTopic(tapTable.getId());
             byte[] body = null;

@@ -45,15 +45,15 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
             String name = node.getName();
             Integer value;
             String template;
-            String grade;
+            Level grade;
             if (nameMap.containsKey(name)) {
                 value = nameMap.get(name) + 1;
                 template = templateEnum.getErrorTemplate();
-                grade = Level.ERROR.getValue();
+                grade = Level.ERROR;
             } else {
                 value = NumberUtils.INTEGER_ZERO;
                 template = templateEnum.getInfoTemplate();
-                grade = Level.INFO.getValue();
+                grade = Level.INFO;
             }
             nameMap.put(name, value);
 

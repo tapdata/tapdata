@@ -129,6 +129,7 @@ public abstract class AbstractMongoDAO<T> implements BaseMongoDAO<T> {
     @Override
     public T findOne(Bson filter, Bson sort, String... fields) {
         FindIterable<T> findIterable = mongoCollection.find(filter);
+        findIterable.limit(1);
         if (sort != null) {
             findIterable.sort(sort);
         }

@@ -1,6 +1,5 @@
 package com.tapdata.tm.monitor.controller;
 
-import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
@@ -18,6 +17,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.tapdata.common.sample.request.BulkRequest;
+import io.tapdata.common.sample.request.SampleRequest;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -37,41 +37,26 @@ public class MeasureController extends BaseController {
     private BatchService batchService;
 
     @PostMapping("points/v2")
-    public ResponseMessage pointsV2(@RequestBody BulkRequest bulkRequest) {
-        log.info("MeasureController-- {}", JsonUtil.toJson(bulkRequest));
-        try {
-            List samples = bulkRequest.getSamples();
-            List statistics = bulkRequest.getStatistics();
-            if (CollectionUtils.isNotEmpty(samples)) {
-                measurementServiceV2.addAgentMeasurement(samples);
-            }
-        } catch (Exception e) {
-            log.error("添加秒点异常", e);
-            return failed("添加秒点异常");
+    public ResponseMessage<Void> pointsV2(@RequestBody BulkRequest bulkRequest) {
+//        log.info("MeasureController-- {}", JsonUtil.toJson(bulkRequest));
+        List<SampleRequest> samples = bulkRequest.getSamples();
+        //List statistics = bulkRequest.getStatistics();
+        if (CollectionUtils.isNotEmpty(samples)) {
+            measurementServiceV2.addAgentMeasurement(samples);
         }
         return success();
     }
 
     @PostMapping("points/aggregate")
-    public ResponseMessage pointsAggregate(@RequestBody AggregateMeasurementParam aggregateMeasurementParam) {
-        try {
-            measurementServiceV2.aggregateMeasurement(aggregateMeasurementParam);
-            return success();
-        } catch (Exception e) {
-            e.printStackTrace();
-            return failed(e);
-        }
+    public ResponseMessage<Void> pointsAggregate(@RequestBody AggregateMeasurementParam aggregateMeasurementParam) {
+        measurementServiceV2.aggregateMeasurement(aggregateMeasurementParam);
+        return success();
     }
 
     @PostMapping("query/v2")
-    public ResponseMessage queryV2(@RequestBody MeasurementQueryParam measurementQueryParam) {
-        try {
-            Object data = measurementServiceV2.getSamples(measurementQueryParam);
-            return success(data);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return failed(e);
-        }
+    public ResponseMessage<Object> queryV2(@RequestBody MeasurementQueryParam measurementQueryParam) {
+        Object data = measurementServiceV2.getSamples(measurementQueryParam);
+        return success(data);
     }
 
     @Operation(summary = "可观测性并行请求接口", description = "一个接口返回任务事件统计、任务日志和校验数据")

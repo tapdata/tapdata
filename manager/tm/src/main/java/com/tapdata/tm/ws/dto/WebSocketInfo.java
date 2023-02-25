@@ -6,43 +6,51 @@
  */
 package com.tapdata.tm.ws.dto;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.web.socket.WebSocketSession;
 
 public class WebSocketInfo {
+	/**
+	 * web socket session id
+	 */
+	@Getter
+	@Setter
+	private String id;
 
-	private String uid;
+	/**
+	 * Flow engine process_id
+	 */
+	@Getter
+	@Setter
+	private String agentId;
 
+	/**
+	 * 用户ID
+	 */
+	@Getter
+	@Setter
 	private String userId;
-
+	@Getter
+	@Setter
 	private WebSocketSession session;
+	@Getter
+	@Setter
+	private String ip;
+	/**
+	 * last pong frame response timestamp
+	 */
+	@Getter
+	@Setter
+	private long lastKeepAliveTimestamp;
 
-	public WebSocketInfo(String uid, String userId, WebSocketSession session) {
-		this.uid = uid;
+
+
+	public WebSocketInfo(String id, String agentId, String userId, WebSocketSession session, String ip) {
+		this.id = id;
+		this.agentId = agentId;
 		this.userId = userId;
 		this.session = session;
-	}
-
-	public String getUid() {
-		return uid;
-	}
-
-	public void setUid(String uid) {
-		this.uid = uid;
-	}
-
-	public String getUserId() {
-		return userId;
-	}
-
-	public WebSocketSession getSession() {
-		return session;
-	}
-
-	public void setUserId(String userId) {
-		this.userId = userId;
-	}
-
-	public void setSession(WebSocketSession session) {
-		this.session = session;
+		this.ip = ip;
 	}
 }

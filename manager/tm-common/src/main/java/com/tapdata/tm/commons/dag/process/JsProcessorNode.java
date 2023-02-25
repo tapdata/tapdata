@@ -1,10 +1,13 @@
 package com.tapdata.tm.commons.dag.process;
 
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
-import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
@@ -28,11 +31,9 @@ import java.util.stream.Collectors;
 @Getter
 @Setter
 public class JsProcessorNode extends ProcessorNode {
-    @EqField
     private String script;
 
-    @EqField
-    private String declareScript;
+    protected String declareScript;
 
 
     @Override
@@ -88,8 +89,11 @@ public class JsProcessorNode extends ProcessorNode {
             return null;
         }
         ////用于预跑数据得到模型
-        TapTable tapTable = service.loadTapTable(getInputSchema(), script, getId(), target.getId(), null, null, taskDtoCopy);
+        TapTable tapTable = getTapTable(target, taskDtoCopy);
 
+        if (tapTable == null) {
+            return null;
+        }
 
         String expression = null;
         label:
@@ -107,13 +111,9 @@ public class JsProcessorNode extends ProcessorNode {
         }
 
         if (StringUtils.isNotBlank(expression)) {
-            PdkSchemaConvert.tableFieldTypesGenerator.autoFill(tapTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
+            PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(tapTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
         }
         Schema schema = PdkSchemaConvert.fromPdkSchema(tapTable);
-
-
-
-
 
         Schema schema1 = inputSchema.get(0);
         if (schema1 != null) {
@@ -135,8 +135,6 @@ public class JsProcessorNode extends ProcessorNode {
 
             List<Field> fields = schema.getFields();
 
-            Set<String> fieldNames = fields.stream().map(Field::getFieldName).collect(Collectors.toSet());
-
             if (CollectionUtils.isNotEmpty(fields)) {
                 for (Field field : fields) {
                     field.setDataTypeTemp(field.getDataType());
@@ -146,35 +144,21 @@ public class JsProcessorNode extends ProcessorNode {
                         field1.setDataType(field.getDataType());
                         field1.setColumnPosition(field.getColumnPosition());
                         field1.setTapType(field.getTapType());
+                        field1.setPrimaryKey(field.getPrimaryKey());
+                        field1.setPrimaryKeyPosition(field.getPrimaryKeyPosition());
                         BeanUtils.copyProperties(field1, field);
                     } else {
                         field.setSourceDbType(sourceDbType);
                     }
                 }
             }
-
-            List<TableIndex> indices = new ArrayList<>();
-
-            if (CollectionUtils.isNotEmpty(schema1.getIndices())) {
-                for (TableIndex index : schema1.getIndices()) {
-                    List<TableIndexColumn> columns = index.getColumns();
-                    List<TableIndexColumn> newColumns = new ArrayList<>();
-                    for (TableIndexColumn column : columns) {
-                        if (fieldNames.contains(column.getColumnName())){
-                            newColumns.add(column);
-                        }
-                    }
-                    if (CollectionUtils.isNotEmpty(newColumns)) {
-                        index.setColumns(newColumns);
-                        indices.add(index);
-                    }
-                }
-            }
-
-            schema.setIndices(indices);
         }
 
         return schema;
+    }
+
+    protected TapTable getTapTable(Node target, TaskDto taskDtoCopy) {
+        return service.loadTapTable(getId(), target.getId(), taskDtoCopy);
     }
 
     @Override
@@ -191,34 +175,8 @@ public class JsProcessorNode extends ProcessorNode {
         super("js_processor");
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-
-        if (o instanceof JsProcessorNode) {
-            Class className = JsProcessorNode.class;
-            for (; className != Object.class; className = className.getSuperclass()) {
-                java.lang.reflect.Field[] declaredFields = className.getDeclaredFields();
-                for (java.lang.reflect.Field declaredField : declaredFields) {
-                    EqField annotation = declaredField.getAnnotation(EqField.class);
-                    if (annotation != null) {
-                        try {
-                            Object f2 = declaredField.get(o);
-                            Object f1 = declaredField.get(this);
-                            boolean b = fieldEq(f1, f2);
-                            if (!b) {
-                                return false;
-                            }
-                        } catch (IllegalAccessException e) {
-                        }
-                    }
-                }
-            }
-            return true;
-        }
-        return false;
+    public JsProcessorNode(String type) {
+        super(type);
     }
 
     private void getPrePre(Node node, List<String> preIds) {

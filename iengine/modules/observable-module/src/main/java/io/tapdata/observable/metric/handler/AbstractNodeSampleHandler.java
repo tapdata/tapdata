@@ -2,10 +2,7 @@ package io.tapdata.observable.metric.handler;
 
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.common.sample.sampler.AverageSampler;
-import io.tapdata.common.sample.sampler.CounterSampler;
-import io.tapdata.common.sample.sampler.NumberSampler;
-import io.tapdata.common.sample.sampler.SpeedSampler;
+import io.tapdata.common.sample.sampler.*;
 import lombok.Getter;
 
 import java.util.Arrays;
@@ -36,7 +33,7 @@ abstract class AbstractNodeSampleHandler extends AbstractHandler {
     SpeedSampler outputSpeed;
     AverageSampler timeCostAverage;
     @Getter
-    AverageSampler replicateLag;
+    ResetSampler replicateLag;
     @Getter
     NumberSampler<Long> currentEventTimestamp;
 
@@ -100,6 +97,6 @@ abstract class AbstractNodeSampleHandler extends AbstractHandler {
         Number currentEventTimestampInitial = values.getOrDefault(Constants.CURR_EVENT_TS, null);
         currentEventTimestamp = collector.getNumberCollector(Constants.CURR_EVENT_TS, Long.class,
                 null == currentEventTimestampInitial ? null : currentEventTimestampInitial.longValue());
-        replicateLag = collector.getAverageSampler(Constants.REPLICATE_LAG);
+        replicateLag = collector.getResetSampler(Constants.REPLICATE_LAG);
     }
 }

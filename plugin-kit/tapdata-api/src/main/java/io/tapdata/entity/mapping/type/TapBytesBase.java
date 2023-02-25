@@ -67,6 +67,10 @@ public abstract class TapBytesBase extends TapMapping {
 
         Object byteObj = info.get(KEY_BYTE);
         bytes = objectToNumber(byteObj);
+
+        if(bytes == null) {
+            bytes = Long.MAX_VALUE;
+        }
     }
 
     public Boolean getFixed() {

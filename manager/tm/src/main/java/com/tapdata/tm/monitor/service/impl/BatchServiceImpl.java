@@ -2,7 +2,7 @@ package com.tapdata.tm.monitor.service.impl;
 
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.collect.Lists;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.monitor.constant.BatchServiceEnum;
 import com.tapdata.tm.monitor.dto.BatchRequestDto;
 import com.tapdata.tm.monitor.dto.BatchUriParamDto;
@@ -64,13 +64,13 @@ public class BatchServiceImpl implements BatchService {
                     return result;
                 } catch (ClassNotFoundException | InvocationTargetException | NoSuchMethodException |
                          IllegalAccessException e) {
-                    log.error("ObservabilityService batch method error msg:{}", e.getMessage(), e);
+                    log.error("BatchService batch method error msg:{}", e.getMessage(), e);
                     result.put(k, new BatchDataVo("SystemError", e.getCause().getMessage(), null));
                     return result;
                 }
             }, scheduler);
 
-            final CompletableFuture<BatchResponeVo> chains = within(query, Duration.ofSeconds(10), k);
+            final CompletableFuture<BatchResponeVo> chains = within(query, Duration.ofSeconds(30), k);
             futuresList.add(chains);
         });
         CompletableFuture<Void> allCompletableFuture = CompletableFuture.allOf(futuresList.toArray(new CompletableFuture[0]));

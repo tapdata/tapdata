@@ -18,6 +18,7 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
@@ -34,6 +35,7 @@ import java.util.TimeZone;
 public class DataSourceEntity extends BaseEntity {
     public static final String STATUS_INVALID = "invalid";
     public static final String STATUS_READY = "ready";
+    public static final String STATUS_TESTING = "testing";
 
     /** 数据源连接名称 */
     private String name;
@@ -79,6 +81,7 @@ public class DataSourceEntity extends BaseEntity {
     private Long tableCount;
     /** 检测时间 */
     private Long testTime;
+    private Integer testCount;
 
     private String database_host;
     private String database_username;
@@ -95,6 +98,8 @@ public class DataSourceEntity extends BaseEntity {
     private String fill;
     private String plain_password;
     private String table_filter;
+    private String tableExcludeFilter;
+    private Boolean openTableExcludeFilter;
     private String auth_db;
     private String project;
 
@@ -258,6 +263,8 @@ public class DataSourceEntity extends BaseEntity {
     /** 加载表的规则，true为加载全部，false为加载部分 */
     private Boolean loadAllTables;
     private Integer increaseReadSize;
+
+    private Date loadSchemaTime;
 
     /**
      * 后续 开放可以多选 flow engine 的话，这里一定要删除

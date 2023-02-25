@@ -1,6 +1,6 @@
 package com.tapdata.tm.ws.handler;
 
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.TaskService;
@@ -47,7 +47,7 @@ public class TransformerStatusPushHandler implements WebSocketHandler {
 			try {
 				WebSocketManager.sendMessage(context.getSender(), "Message data cannot be null");
 			} catch (Exception e) {
-				log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
 			return;
 		}
@@ -57,7 +57,7 @@ public class TransformerStatusPushHandler implements WebSocketHandler {
 			try {
 				WebSocketManager.sendMessage(context.getSender(), "data is illegal");
 			} catch (Exception e) {
-				log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
 			return;
 		}
@@ -67,7 +67,7 @@ public class TransformerStatusPushHandler implements WebSocketHandler {
 			try {
 				WebSocketManager.sendMessage(context.getSender(), "DataFlowId is illegal");
 			} catch (Exception e) {
-				log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
 			return;
 		}
@@ -78,7 +78,7 @@ public class TransformerStatusPushHandler implements WebSocketHandler {
 			try {
 				WebSocketManager.sendMessage(context.getSender(), "DataFlowId is illegal");
 			} catch (Exception e) {
-				log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
 			return;
 		}else {
@@ -126,7 +126,7 @@ public class TransformerStatusPushHandler implements WebSocketHandler {
 			map.put("data", data);
 			WebSocketManager.sendMessage(receiver, JsonUtil.toJsonUseJackson(map));
 		} catch (Exception e) {
-			log.error("WebSocket send log message failed,message: {}", e.getMessage(), e);
+			log.error("WebSocket send log message failed,message: {}", e.getMessage());
 		}
 	}
 

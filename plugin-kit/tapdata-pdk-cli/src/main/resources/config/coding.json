@@ -1,0 +1,12 @@
+{
+  "connection": {
+    "teamName": "tapdata",
+    "token": "359c8a7fdc87cd05427bb381bb17fc53a9d32cf1",
+    "projectName": "tapdata",
+    "connectionMode": "DocumentMode",
+    "streamReadType": "Polling"
+  },
+  "node": {
+    "DescribeIterationList": "1,2,3"
+  }
+}

@@ -20,4 +20,8 @@ public interface Monitor<T> extends Closeable {
 	default void consume(Consumer<T> consumer) {
 		throw new UnsupportedOperationException();
 	}
+
+	default String describe() {
+		return this.getClass().getName();
+	}
 }

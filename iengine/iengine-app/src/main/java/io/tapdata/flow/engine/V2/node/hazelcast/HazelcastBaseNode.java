@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast;
 
 import com.hazelcast.jet.core.AbstractProcessor;
+import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.constant.*;
@@ -43,6 +44,8 @@ import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
+import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
+import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -61,11 +64,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -113,6 +116,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	public HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
 		this.processorBaseContext = processorBaseContext;
+
 		this.obsLogger = ObsLoggerFactory.getInstance().getObsLogger(
 				processorBaseContext.getTaskDto(),
 				processorBaseContext.getNode().getId(),
@@ -137,8 +141,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getTaskDto().getDag().getSourceNode());
 	}
 
-	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, Consumer<T> consumer) {
-		return AspectUtils.executeDataFuncAspect(aspectClass, aspectCallable, consumer);
+	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, CommonUtils.AnyErrorConsumer<T> anyErrorConsumer) {
+		return AspectUtils.executeDataFuncAspect(aspectClass, aspectCallable, anyErrorConsumer);
 	}
 
 	public <T extends Aspect> AspectInterceptResult executeAspect(Class<T> aspectClass, Callable<T> aspectCallable) {
@@ -170,7 +174,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			}
 			doInit(context);
 		} catch (Throwable e) {
-			throw errorHandle(e, "Node init failed: " + e.getMessage());
+			errorHandle(e, "Node init failed: " + e.getMessage());
 		}
 	}
 
@@ -230,7 +234,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (null == tapTable)
 			throw new IllegalArgumentException("Transform to TapValue failed, table schema is empty, table name: " + tableName);
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-		if (MapUtils.isEmpty(nameFieldMap))
+		if (nameFieldMap == null)
 			throw new IllegalArgumentException("Transform to TapValue failed, field map is empty, table name: " + tableName);
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 
@@ -307,6 +311,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 	}
 
+	private int bucketIndex = 0;
+
 	protected boolean offer(TapdataEvent dataEvent) {
 
 		if (dataEvent != null) {
@@ -314,21 +320,21 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				dataEvent.addNodeId(processorBaseContext.getNode().getId());
 			}
 			Outbox outbox = getOutbox();
-			if (null == outbox) {
-				return true;
-			}
-			final int bucketCount = outbox.bucketCount();
-			if (bucketCount > 1) {
-				for (int ordinal = 0; ordinal < bucketCount; ordinal++) {
-					final TapdataEvent cloneEvent = (TapdataEvent) dataEvent.clone();
-					if (!tryEmit(ordinal, cloneEvent)) {
-						return false;
+			if (null != outbox) {
+				final int bucketCount = outbox.bucketCount();
+				if (bucketCount > 1) {
+					for (bucketIndex = Math.min(bucketIndex, bucketCount); bucketIndex < bucketCount; bucketIndex++) {
+						final TapdataEvent cloneEvent = (TapdataEvent) dataEvent.clone();
+						if (!tryEmit(bucketIndex, cloneEvent)) {
+							return false;
+						}
 					}
+				} else if (!tryEmit(dataEvent)) {
+					return false;
 				}
-			} else {
-				return tryEmit(dataEvent);
 			}
 		}
+		bucketIndex = 0; // reset to 0 of return true
 		return true;
 	}
 
@@ -474,29 +480,35 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected void doClose() throws Exception {
-		CommonUtils.ignoreAnyError(() -> Optional.ofNullable(processorBaseContext.getTapTableMap()).ifPresent(TapTableMap::reset), TAG);
+		CommonUtils.handleAnyError(() -> {
+			Optional.ofNullable(processorBaseContext.getTapTableMap()).ifPresent(TapTableMap::reset);
+			logger.info(String.format("Node %s[%s] schema data cleaned", getNode().getName(), getNode().getId()));
+			obsLogger.info(String.format("Node %s[%s] schema data cleaned", getNode().getName(), getNode().getId()));
+		}, err -> {
+			logger.warn(String.format("Clean node %s[%s] schema data failed: %s", getNode().getName(), getNode().getId(), err.getMessage()));
+			obsLogger.warn(String.format("Clean node %s[%s] schema data failed: %s", getNode().getName(), getNode().getId(), err.getMessage()));
+		});
 	}
 
 	@Override
 	public final void close() throws Exception {
 		try {
-			try {
-				doClose();
-			} finally {
-				running.set(false);
+			running.set(false);
+			obsLogger.info(String.format("Node %s[%s] running status set to false", getNode().getName(), getNode().getId()));
+			CommonUtils.handleAnyError(this::doClose, err -> {
+				obsLogger.warn(String.format("Close node failed: %s | Node: %s[%s] | Type: %s", err.getMessage(), getNode().getName(), getNode().getId(), this.getClass().getName()));
+			});
+			CommonUtils.ignoreAnyError(() -> {
 				if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
 					AspectUtils.executeAspect(ProcessorNodeCloseAspect.class, () -> new ProcessorNodeCloseAspect().processorBaseContext(processorBaseContext));
 				} else {
 					AspectUtils.executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 				}
-				//		InstanceFactory.instance(AspectManager.class).executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().node(HazelcastBaseNode.this));
-				if (error != null) {
-					throw new RuntimeException(errorMessage, error);
-				}
-			}
+			}, TAG);
 		} finally {
 			ThreadContext.clearAll();
 			super.close();
+			obsLogger.info(String.format("Node %s[%s] close complete", getNode().getName(), getNode().getId()));
 		}
 	}
 
@@ -648,20 +660,30 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 					if (null != hazelcastJob) break;
 					try {
 						Thread.sleep(500);
-					} catch (InterruptedException ignore) {
+					} catch (InterruptedException ignored) {
 						break;
 					}
 				}
 
 				if (hazelcastJob != null) {
-					AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(currentEx));
-					hazelcastJob.cancel();
+					JobStatus status = hazelcastJob.getStatus();
+					if (JobStatus.SUSPENDED != status && JobStatus.SUSPENDED_EXPORTING_SNAPSHOT != status) {
+						logger.info("Job cancel in error handle");
+						obsLogger.info("Job cancel in error handle");
+						hazelcastJob.cancel();
+						TaskClient<TaskDto> taskDtoTaskClient = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(taskDto.getId().toHexString());
+						if (null != taskDtoTaskClient) {
+							taskDtoTaskClient.error(error);
+						}
+					}
 				} else {
 					logger.warn("The jet instance cannot be found and needs to be stopped manually", currentEx);
+					obsLogger.warn("The jet instance cannot be found and needs to be stopped manually", currentEx);
 				}
 			}
 		} catch (Exception e) {
-			logger.warn("error handler failed: " + e.getMessage(), e);
+			logger.warn("Error handler failed: " + e.getMessage(), e);
+			obsLogger.warn("Error handler failed: " + e.getMessage(), e);
 		}
 
 		return currentEx;
@@ -826,5 +848,21 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		public Map<String, TapValue<?, ?>> getAfter() {
 			return after;
 		}
+	}
+
+	@Nullable
+	protected JobStatus getJetJobStatus() {
+		long jobId = jetContext.jobId();
+		com.hazelcast.jet.Job job = jetContext.hazelcastInstance().getJet().getJob(jobId);
+		if (null != job) {
+			return job.getStatus();
+		} else {
+			return null;
+		}
+	}
+
+	protected boolean isJetJobRunning() {
+		JobStatus jetJobStatus = getJetJobStatus();
+		return null == jetJobStatus || jetJobStatus.equals(JobStatus.RUNNING);
 	}
 }

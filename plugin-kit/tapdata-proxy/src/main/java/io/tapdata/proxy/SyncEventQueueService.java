@@ -76,7 +76,7 @@ public class SyncEventQueueService implements EventQueueService {
 						//noinspection unchecked
 						nodeConnection.sendAsync(NewDataReceived.class.getSimpleName(), newDataReceived, Void.class, (o, throwable) -> {
 							if(throwable != null)
-								TapLogger.debug(TAG, "send NewDataReceived {} failed, {}", throwable.getMessage());
+								TapLogger.debug(TAG, "send NewDataReceived {} failed, {}", newDataReceived, throwable.getMessage());
 						});
 					} catch (IOException ioException) {
 						TapLogger.debug(TAG, "Send to nodeId {} failed {} and will try next, newDataReceived {}", nodeId, ioException.getMessage(), newDataReceived);

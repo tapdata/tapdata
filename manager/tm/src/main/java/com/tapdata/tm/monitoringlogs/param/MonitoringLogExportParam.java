@@ -17,20 +17,4 @@ public class MonitoringLogExportParam {
     public boolean isStartEndValid() {
         return null != start && null != end && start < end;
     }
-
-    public Long getStart() {
-        if (isStartEndValid()) {
-            return start;
-        }
-
-        throw new RuntimeException("Invalid value for start or end");
-    }
-
-    public Long getEnd() {
-        if (isStartEndValid()) {
-            return end;
-        }
-
-        throw new RuntimeException("Invalid value for start or end");
-    }
 }

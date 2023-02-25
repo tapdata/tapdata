@@ -1,12 +1,11 @@
 package com.tapdata.tm.ws.cs;
 
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.enums.MessageType;
-import com.tapdata.tm.ws.handler.EditFlushHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.springframework.data.mongodb.core.messaging.Message;
@@ -44,7 +43,7 @@ public class MongoMessageListener implements MessageListener<ChangeStreamDocumen
                 }*/
             }
         } catch (Exception e) {
-            log.error("ChangeStream handle message error,message: {}", e.getMessage(), e);
+            log.error("ChangeStream handle message error,message: {}", e.getMessage());
         }
     }
 }

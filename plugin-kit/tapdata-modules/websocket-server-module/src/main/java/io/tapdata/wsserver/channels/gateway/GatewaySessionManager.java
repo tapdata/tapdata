@@ -147,7 +147,7 @@ public class GatewaySessionManager implements HealthWeightListener, MemoryFetche
                 }
                 for (GatewaySessionHandler gatewaySessionHandler : deletedHandlers) {
                     if (System.currentTimeMillis() - gatewaySessionHandler.getTouch() > sessionInactiveExpireTime) {
-                        TapLogger.info(TAG, "GatewaySessionHandler expired, will be removed, id {}. last touch time {} sessionInactiveExpireTime {}", gatewaySessionHandler.getId(), new Date(gatewaySessionHandler.getTouch()), sessionInactiveExpireTime);
+                        TapLogger.debug(TAG, "GatewaySessionHandler expired, will be removed, id {}. last touch time {} sessionInactiveExpireTime {}", gatewaySessionHandler.getId(), new Date(gatewaySessionHandler.getTouch()), sessionInactiveExpireTime);
                         closeSession(gatewaySessionHandler.getId());
                     }
                 }
@@ -197,14 +197,14 @@ public class GatewaySessionManager implements HealthWeightListener, MemoryFetche
     }
 
     public void stop() {
-        TapLogger.info(TAG, "GatewaySessionManager is stopping...");
+        TapLogger.debug(TAG, "GatewaySessionManager is stopping...");
         long time = System.currentTimeMillis();
         Collection<String> userIds = new ArrayList<String>(userIdGatewaySessionHandlerMap.keySet());
         for (String userId : userIds) {
             closeSession(userId);
         }
         webSocketManager.stop();
-        TapLogger.info(TAG, "RoomSessionManager stopped, takes {}", System.currentTimeMillis() - time);
+        TapLogger.debug(TAG, "RoomSessionManager stopped, takes {}", System.currentTimeMillis() - time);
     }
 
     public SingleThreadBlockingQueue<UserAction> removeUserActionQueue(String userId) {
@@ -561,25 +561,23 @@ public class GatewaySessionManager implements HealthWeightListener, MemoryFetche
     }
 
     @Override
-    public DataMap memory(List<String> mapKeys, String memoryLevel) {
-        DataMap dataMap = DataMap.create()
+    public DataMap memory(String keyRegex, String memoryLevel) {
+        DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
                 .kv("threadPoolExecutor", threadPoolExecutor.toString())
                 .kv("maxChannels", maxChannels)
-                .kv("nodeHealthManager", nodeHealthManager.memory(mapKeys, memoryLevel))
-                .kv("gatewayChannelModule", this.gatewayChannelModule.memory(mapKeys, memoryLevel))
+                .kv("nodeHealthManager", nodeHealthManager.memory(keyRegex, memoryLevel))
+                .kv("gatewayChannelModule", this.gatewayChannelModule.memory(keyRegex, memoryLevel))
                 ;
-        DataMap userIdGatewaySessionHandlerMap = DataMap.create();
+        DataMap userIdGatewaySessionHandlerMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
         dataMap.kv("userIdGatewaySessionHandlerMap", userIdGatewaySessionHandlerMap);
         for(Map.Entry<String, GatewaySessionHandler> entry : this.userIdGatewaySessionHandlerMap.entrySet()) {
-            if(mapKeys != null && !mapKeys.isEmpty() && !mapKeys.contains(entry.getKey()))
-                continue;
-            userIdGatewaySessionHandlerMap.kv(entry.getKey(), entry.getValue().memory(mapKeys, memoryLevel));
+            userIdGatewaySessionHandlerMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));
         }
 
-        DataMap userIdSingleThreadMap = DataMap.create();
+        DataMap userIdSingleThreadMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
         dataMap.kv("userIdSingleThreadMap", userIdSingleThreadMap);
         for(Map.Entry<String, SingleThreadBlockingQueue<UserAction>> entry : this.userIdSingleThreadMap.entrySet()) {
-            userIdSingleThreadMap.put(entry.getKey(), entry.getValue().memory(mapKeys, memoryLevel));
+            userIdSingleThreadMap.put(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));
         }
 
         return dataMap;

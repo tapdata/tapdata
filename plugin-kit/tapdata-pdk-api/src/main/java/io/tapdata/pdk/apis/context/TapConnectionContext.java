@@ -5,12 +5,17 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 
+import java.util.Map;
+import java.util.Objects;
+
 public class TapConnectionContext extends TapContext {
     protected DataMap connectionConfig;
+    protected DataMap nodeConfig;
 
-    public TapConnectionContext(TapNodeSpecification specification, DataMap connectionConfig) {
+    public TapConnectionContext(TapNodeSpecification specification, DataMap connectionConfig, DataMap nodeConfig) {
         super(specification);
         this.connectionConfig = connectionConfig;
+        this.nodeConfig = nodeConfig;
     }
 
     public DataMap getConnectionConfig() {
@@ -21,7 +26,15 @@ public class TapConnectionContext extends TapContext {
         this.connectionConfig = connectionConfig;
     }
 
+    public DataMap getNodeConfig() {
+        return nodeConfig;
+    }
+
+    public void setNodeConfig(DataMap nodeConfig) {
+        this.nodeConfig = nodeConfig;
+    }
+
     public String toString() {
-        return "TapConnectionContext connectionConfig: " + (connectionConfig != null ? InstanceFactory.instance(JsonParser.class).toJson(connectionConfig) : "") + " spec: " + specification + " id: " + id;
+        return "TapConnectionContext connectionConfig: " + (connectionConfig != null ? Objects.requireNonNull(InstanceFactory.instance(JsonParser.class)).toJson(connectionConfig) : "") + "nodeConfig: " + (nodeConfig != null ? Objects.requireNonNull(InstanceFactory.instance(JsonParser.class)).toJson(nodeConfig) : "") + " spec: " + specification + " id: " + id;
     }
 }

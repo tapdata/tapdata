@@ -13,7 +13,7 @@ public class TDDPostgresMain {
                 "test", "-c", "plugin-kit/tapdata-pdk-cli/src/main/resources/config/postgres.json",
 //                "-t", "io.tapdata.pdk.tdd.tests.source.StreamReadTest",
 //                "-t", "io.tapdata.pdk.tdd.tests.source.BatchReadTest",
-                "-t", "io.tapdata.pdk.tdd.tests.target.CreateTableTest",
+//                "-t", "io.tapdata.pdk.tdd.tests.target.CreateTableTest",
 //                "-t", "io.tapdata.pdk.tdd.tests.target.DMLTest",
 //                "B:\\code\\tapdata\\idaas-pdk\\connectors\\aerospike-connector\\target\\aerospike-connector-v1.0-SNAPSHOT.jar",
 //                "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/dist/doris-connector-v1.0-SNAPSHOT.jar",

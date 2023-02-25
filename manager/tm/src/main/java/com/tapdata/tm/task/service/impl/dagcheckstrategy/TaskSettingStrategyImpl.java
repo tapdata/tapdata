@@ -37,15 +37,15 @@ public class TaskSettingStrategyImpl implements DagLogStrategy {
         Date now = new Date();
 
         Query query = new Query(Criteria.where("name").is(taskName).and("_id").ne(taskId).and("is_deleted").ne(true));
-        List<TaskDto> dtos = taskService.findAll(query);
+        List<TaskDto> dtos = taskService.findAllDto(query, userDetail);
         String template;
-        String grade;
+        Level grade;
         if (CollectionUtils. isEmpty(dtos)) {
             template = templateEnum.getInfoTemplate();
-            grade = Level.INFO.getValue();
+            grade = Level.INFO;
         } else {
             template = templateEnum.getErrorTemplate();
-            grade = Level.ERROR.getValue();
+            grade = Level.ERROR;
         }
 
         String content = MessageFormat.format(template, current);

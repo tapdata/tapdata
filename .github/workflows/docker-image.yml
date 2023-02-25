@@ -1,4 +1,4 @@
-name: LDP Continuous Integration
+name: LDP Continuous Integration With TEST
 
 on:
   push:
@@ -35,7 +35,7 @@ jobs:
       - name: Set env
         run: |
           message=`git log -1 --pretty=%B`
-          echo "COMMIT_MESSAGE=$message" >> $GITHUB_ENV
+          echo "COMMIT_MESSAGE="$message"" >> $GITHUB_ENV
       - name: check commit message
         id: check-style
         if: (!startsWith(env.COMMIT_MESSAGE, 'feat')) && 
@@ -46,7 +46,7 @@ jobs:
             (!startsWith(env.COMMIT_MESSAGE, 'Merge'))
         run: |
           echo ${{ env.COMMIT_MESSAGE }}
-          echo "::set-output name=error::true"
+          echo "error=true" >>$GITHUB_OUTPUT
 
   Integration-Testing:
     runs-on: ubuntu-latest
@@ -95,6 +95,10 @@ jobs:
         run: |
           chmod u+x build/build.sh
           build/build.sh -c plugin-kit || exit 1
+      - name: file-storages 模块编译
+        run: |
+          chmod u+x build/build.sh
+          build/build.sh -c file-storages || exit 1
       - name: compile connectors-common module
         run:
           build/build.sh -c connectors-common
@@ -108,16 +112,30 @@ jobs:
         run:
           build/build.sh -c connectors
       - name: package module and make image
-        run: build/build.sh -p 1 -o image
-      - name: run unittest
-        run: ls -al
-      - name: run integrate test
+        run: |
+          cur_timestamp=$((`date '+%s'`))
+          tag=`git describe --tag --long HEAD | awk -F '-' '{print $3}'`"-${cur_timestamp}"
+          docker_tag="ghcr.io/tapdata/${{ env.TAG_BRANCH }}:$tag"
+          echo $docker_tag > build/image/tag
+          echo "docker_tag=$docker_tag" >> $GITHUB_ENV
+          sudo build/build.sh -p 1 -o image
+      - name: "启动本地测试环境"
+        run: |
+          echo $docker_tag
+          docker run -e mode=use --name tapd -d -p 3000:3000 $docker_tag bash
+          bash build/wait_tapd_ready.sh
+      - name: "基本用例集成测试"
         env:
-          RUN_ID: ${{ github.run_id }}
-          RUN_NUMBER: ${{ github.run_number }}
-          RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
-          BRANCH: ${{ github.ref }}
-        run: chmod u+x build/quick-test.sh && build/quick-test.sh && ls -al ./tapshell/test/report/integrate.html/
+          CASE_CONFIG: ${{ secrets.CASE_CONFIG }}
+        run: |
+          sudo apt update -y
+          sudo apt install -y libmysqlclient-dev
+          pip3 install poetry
+          cd tapshell && pip3 install . && cd ..
+          cd auto-test && pip3 install -r requirements.txt && cd -
+          cd auto-test && chmod +x ./test.sh && bash ./test.sh
+          if [[ -f /tmp/fail ]]; then echo "**基本用例集成测试结果: 未通过, 请点开步骤检查详细日志**" >> $GITHUB_STEP_SUMMARY; fi
+          if [[ ! -f /tmp/fail ]]; then echo "**基本用例集成测试结果: 通过**" >> $GITHUB_STEP_SUMMARY; fi
       - name: Setup Poetry
         uses: Gr1N/setup-poetry@v7
       - name: publish pip package if push
@@ -126,7 +144,6 @@ jobs:
           git diff-tree --name-only HEAD^ HEAD | grep tapshell > /dev/null
           if [[ $? -ne 0 ]]; then echo "Do not publish pip package" && exit 0; fi
           cd tapshell && poetry build && poetry publish --username ${{ env.PYPI_USERNAME }} --password ${{ env.PYPI_PASSWORD }}
-
       - name: update github page
         id: gh_pages
         if: always()
@@ -142,29 +159,5 @@ jobs:
           RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
           BRANCH: ${{ github.ref }}
         run: |
-          git diff-tree --name-only HEAD^ HEAD | grep tapshell > /dev/null
-          sed -i "/__version__/${{ env.TAG }}/" tapshell/pyproject.toml
-          if [[ $? -ne 0 ]]; then echo "Do not publish pip package" && exit 0; fi
-          cd tapshell && poetry build && poetry publish --username ${{ env.PYPI_USERNAME }} --password ${{ env.PYPI_PASSWORD }}
-      - name: print summary
-        if: ${{ steps.gh_pages.conclusion == 'success' }}
-        env:
-          RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
-          BRANCH: ${{ github.ref }}
-        run: |
           BRANCH_DIR=`echo $BRANCH | sed "s:/:-:g"`
           echo "[Click to view test report](https://tapdata.github.io/tapdata/$BRANCH_DIR/$RUN_SIGN)" >> $GITHUB_STEP_SUMMARY
-      - name: Send notices to feishu
-        if : ${{ failure() }}
-        run: |
-          pip install requests GitPython
-          python build/feishu_notice.py \
-            --branch ${{ env.CURRENT_BRANCH}} \
-            --runner "LDP Continuous Integration" \
-            --detail_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            --token ${{ secrets.GITHUB_TOKEN }} \
-            --job_id ${{ github.run_id }} \
-            --person_in_charge ${{ env.FEISHU_PERSON_IN_CHARGE }} \
-            --app_id ${{ env.FEISHU_APP_ID }} \
-            --app_secret ${{ env.FEISHU_APP_SECRET}} \
-            --chat_id ${{ env.FEISHU_CHAT_ID }}

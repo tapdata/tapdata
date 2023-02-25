@@ -1,0 +1,59 @@
+name: Connector Plugin Issue
+description: Connector Plugin Guide
+labels: ["type/enhancement"]
+body:
+  - type: textarea
+    id: basic-info
+    attributes:
+      label: Comment
+    validations:
+      required: true
+#   - type: textarea
+#     id: Known-Issues
+#     attributes:
+#       label: 已知问题列表 Known Issues
+#     validations:
+  - type: checkboxes
+    id: feature-as-source
+    attributes:
+      label: 插件实现的源功能 Implemented Features - as Source
+      options:
+        - label: 全量读 source-feature-full-sync
+        - label: 增量读 source-feature-cdc
+        - label: 全量总数统计 source-feature-count
+        - label: 增量指定时间 source-feature-cdc-time-point
+        - label: 高级查询 source-feature-advance-query
+        - label: 查询索引 source-feature-load-index
+        - label: 加载模型 source-feature-load-schema
+        - label: 获取表 source-feature-table-names
+        - label: DDL读取 source-feature-ddl
+  - type: checkboxes
+    id: feature-as-target
+    attributes:
+      label: 插件实现的目标功能 Implemented Features - as Target
+      options:
+        - label: 插入事件 target-feature-insert
+        - label: 删除事件 target-feature-delete
+        - label: 更新事件 target-feature-update
+        - label: 清除数据 target-feature-clear-data
+        - label: 创建表 target-feature-create-table
+        - label: 删除表 target-feature-drop-table
+        - label: 创建索引 target-feature-create-index
+        - label: 删除索引 target-feature-drop-index
+        - label: DDL写入 target-feature-ddl
+#   - type: textarea
+#     id: config-for-source
+#     attributes:
+#       label: 作为源时候的数据库配置 Configuration Notes for Source
+#   - type: textarea
+#     id: config-for-target
+#     attributes:
+#       label: 作为目标时候的数据库配置 Configuration Notes for Target
+#   - type: textarea
+#     id: type-mappings
+#     attributes:
+#       label: 类型映射表 Type Mappings
+#   - type: textarea
+#     id: change-log
+#     attributes:
+#       label: 版本历史 Change Log

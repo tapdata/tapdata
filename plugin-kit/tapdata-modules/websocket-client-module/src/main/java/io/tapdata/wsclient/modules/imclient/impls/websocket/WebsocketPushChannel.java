@@ -1,10 +1,15 @@
 package io.tapdata.wsclient.modules.imclient.impls.websocket;
 
 import com.alibaba.fastjson.JSONObject;
+import io.netty.channel.*;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.modules.api.net.data.*;
 import io.tapdata.modules.api.net.error.NetErrors;
+import io.tapdata.modules.api.net.utils.TapEngineUtils;
 import io.tapdata.wsclient.modules.imclient.impls.MonitorThread;
 import io.tapdata.wsclient.modules.imclient.impls.PushChannel;
 import io.tapdata.wsclient.utils.EventManager;
@@ -12,12 +17,10 @@ import io.tapdata.wsclient.utils.HttpUtils;
 import io.tapdata.wsclient.utils.TimerEx;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
+import java.net.*;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
 import java.util.function.Supplier;
@@ -25,11 +28,6 @@ import java.util.function.Supplier;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.ChannelPipeline;
-import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
@@ -69,14 +67,17 @@ public class WebsocketPushChannel extends PushChannel {
 
     ScheduledFuture<?> pingFuture;
 
+    private EventLoopGroup group;
     @Override
     public void stop() {
-        TapLogger.info(TAG, "stop");
+        TapLogger.debug(TAG, "stop");
         if(pingFuture != null) {
             pingFuture.cancel(true);
         }
         if(channel != null)
             channel.disconnect();
+        if(group != null)
+            group.shutdownGracefully();
     }
 
 //    class IOErrorHandler implements ErrorHandler {
@@ -99,7 +100,7 @@ public class WebsocketPushChannel extends PushChannel {
         if(imClient == null)
             throw new NullPointerException("IMClient is needed for creating channels.");
         eventManager = EventManager.getInstance();
-        TapLogger.info(TAG, "PushChannel started");
+        TapLogger.debug(TAG, "PushChannel started");
 
         CompletableFuture.supplyAsync((Supplier<Void>) () -> {
             login();
@@ -109,17 +110,19 @@ public class WebsocketPushChannel extends PushChannel {
             connectWS(protocol, host, wsPort, path);
             TapLogger.debug(TAG, "WS connected successfully, " + host + " " + wsPort + " " + server + " " + sid);
         }).exceptionally(throwable -> {
+            if(group != null)
+                group.shutdownGracefully();
             TapLogger.error(TAG, "WS connected failed, " + host + " " + wsPort + " " + server + " " + sid);
             eventManager.sendEvent(imClient.getPrefix() + ".status", new ChannelStatus(this, ChannelStatus.STATUS_DISCONNECTED, MonitorThread.CHANNEL_ERRORS_LOGIN_FAILED, throwable.getMessage()));
             return null;
         });
 //        Promise.handle((Handler<Void>) () -> {
 //            login();
-//            TapLogger.info(TAG, "Login successfully, " + host + " " + wsPort + " " + server + " " + sid);
+//            TapLogger.debug(TAG, "Login successfully, " + host + " " + wsPort + " " + server + " " + sid);
 //            return null;
 //        }).then((ThenHandler<Void, Void>) param -> {
 //            connectWS("wss", host, wsPort, null);
-//            TapLogger.info(TAG, "WS connected successfully, " + host + " " + wsPort + " " + server + " " + sid);
+//            TapLogger.debug(TAG, "WS connected successfully, " + host + " " + wsPort + " " + server + " " + sid);
 //            return null;
 //        }).error(throwable -> {
 //            TapLogger.error(TAG, "WS connected failed, " + host + " " + wsPort + " " + server + " " + sid);
@@ -168,14 +171,23 @@ public class WebsocketPushChannel extends PushChannel {
         loginObj.put("service", imClient.getService());
         Map<String, String> headers = new HashMap<>();
         JSONObject data = null;
+        String jsonStr = Objects.requireNonNull(InstanceFactory.instance(JsonParser.class)).toJson(loginObj);
+        String theUrl = baseUrl;
+        TapEngineUtils tapEngineUtils = InstanceFactory.instance(TapEngineUtils.class);
+        if(tapEngineUtils != null) {
+            theUrl = tapEngineUtils.signUrl("POST", theUrl, jsonStr);
+        }
+
         try {
-            data = HttpUtils.post(baseUrl, loginObj, headers);
+            data = HttpUtils.post(theUrl, jsonStr, headers);
         } catch (IOException e) {
             throw new CoreException(NetErrors.WEBSOCKET_LOGIN_FAILED, "Login url {} loginObj {} headers {} failed, {}", baseUrl, loginObj, headers, e.getMessage());
         }
         wsPort = data.getInteger("wsPort");
+        wsPort = tapEngineUtils.getRealWsPort(wsPort, theUrl);
         sid = data.getString("token");
         String wsPath = data.getString("wsPath");
+        wsPath = tapEngineUtils.getRealWsPath(wsPath, theUrl);
         String wsHost = data.getString("wsHost");
         String wsProtocol = data.getString("wsProtocol");
         if(wsProtocol != null) {
@@ -222,51 +234,97 @@ public class WebsocketPushChannel extends PushChannel {
 
         URI uri = null;
         try {
-            uri = new URI(protocol + "://" + host + ":" + port + "/" + path);
-        } catch (URISyntaxException e) {
-            e.printStackTrace();
+            if(!isRemotePortAvailable(sslCtx, host, wsPort)) {
+                TapLogger.debug(TAG, "host {} wsPort {} is not available, will try others", host, wsPort);
+                if("wss".equalsIgnoreCase(protocol)) {
+                    if(isRemotePortAvailable(sslCtx, host, 443)) {
+                        wsPort = 443;
+                        TapLogger.debug(TAG, "host {} wsPort {} is available, will use the new port", host, wsPort);
+                    }
+                } else {
+                    if(isRemotePortAvailable(sslCtx, host, 80)) {
+                        wsPort = 80;
+                        TapLogger.debug(TAG, "host {} wsPort {} is available, will use the new port", host, wsPort);
+                    }
+                }
+            }
+
+            String url = protocol + "://" + host + ":" + wsPort + "/" + path;
+            TapEngineUtils tapEngineUtils = InstanceFactory.instance(TapEngineUtils.class);
+            if(tapEngineUtils != null) {
+                url = tapEngineUtils.signUrl("", url);
+            }
+            try {
+                uri = new URI(url);
+            } catch (URISyntaxException e) {
+                e.printStackTrace();
+            }
+            if(uri == null)
+                throw new CoreException(NetErrors.WEBSOCKET_URL_ILLEGAL, "uri illegal, " + protocol + "://" + host + ":" + port);
+
+            TapLogger.debug(TAG, "Connect uri {} wsPort {}", uri, wsPort);
+            group = new NioEventLoopGroup(20);
+            final WebSocketClientHandler handler = new WebSocketClientHandler(null, WebSocketClientHandshakerFactory
+                    .newHandshaker(uri, WebSocketVersion.V13, null, false, new DefaultHttpHeaders(), 50 * 1024 * 1024));
+            handler.pushChannel = this;
+
+            Bootstrap b = new Bootstrap();
+            b.option(ChannelOption.SO_KEEPALIVE,true)
+                    .option(ChannelOption.TCP_NODELAY,true)
+                    .option(ChannelOption.SO_RCVBUF, 1024 * 1024)
+//                .option(ChannelOption.SO_BACKLOG,1024*1024*10)
+                    .group(group).channel(NioSocketChannel.class).handler(new ChannelInitializer<SocketChannel>() {
+                        @Override
+                        protected void initChannel(SocketChannel ch) {
+                            ChannelPipeline p = ch.pipeline();
+                            if (sslCtx != null) {
+                                p.addLast(sslCtx.newHandler(ch.alloc(), host, port));
+                            }
+                            p.addLast(new HttpClientCodec(), new HttpObjectAggregator(8192), handler);
+                        }
+                    });
+
+            channel = b.connect(uri.getHost(), wsPort).sync().channel();
+            handler.handshakeFuture().sync();
+        } catch (Throwable e) {
+            TapLogger.error(TAG, "Connect uri {} wsPort {} failed, {}", uri, wsPort, e.getMessage());
+            throw new CoreException(NetErrors.WEBSOCKET_CONNECT_FAILED, "Connect and handshake websocket failed, " + e.getMessage(), e);
         }
-        if(uri == null)
-            throw new CoreException(NetErrors.WEBSOCKET_URL_ILLEGAL, "uri illegal, " + protocol + "://" + host + ":" + port);
-
-        EventLoopGroup group = new NioEventLoopGroup();
-        final WebSocketClientHandler handler = new WebSocketClientHandler(null, WebSocketClientHandshakerFactory
-                .newHandshaker(uri, WebSocketVersion.V13, null, false, new DefaultHttpHeaders(), 50 * 1024 * 1024));
-        handler.pushChannel = this;
-
+//        sendServer();
+//        TapLogger.debug(TAG, "connectWS: "+"sendServer");
+        Identity identity = new Identity();
+        identity.setId("id");
+        identity.setToken(sid);
+        identity.setIdType(getImClient().getService());
+        sendIdentity(identity);
+        TapLogger.debug(TAG, "connectWS: "+"sendIdentity"+identity);
+    }
+    private static boolean isRemotePortAvailable(SslContext sslCtx, final String host, int port) {
+        EventLoopGroup group = new NioEventLoopGroup(1);
         Bootstrap b = new Bootstrap();
         b.option(ChannelOption.SO_KEEPALIVE,true)
                 .option(ChannelOption.TCP_NODELAY,true)
                 .option(ChannelOption.SO_RCVBUF, 1024 * 1024)
 //                .option(ChannelOption.SO_BACKLOG,1024*1024*10)
                 .group(group).channel(NioSocketChannel.class).handler(new ChannelInitializer<SocketChannel>() {
-            @Override
-            protected void initChannel(SocketChannel ch) {
-                ChannelPipeline p = ch.pipeline();
-                if (sslCtx != null) {
-                    p.addLast(sslCtx.newHandler(ch.alloc(), host, port));
-                }
-                p.addLast(new HttpClientCodec(), new HttpObjectAggregator(8192), handler);
-            }
-        });
-
+                    @Override
+                    protected void initChannel(SocketChannel ch) {
+                        ChannelPipeline p = ch.pipeline();
+                        if (sslCtx != null) {
+                            p.addLast(sslCtx.newHandler(ch.alloc(), host, port));
+                        }
+                    }
+                });
         try {
-            channel = b.connect(uri.getHost(), port).sync().channel();
-            handler.handshakeFuture().sync();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-            throw new CoreException(NetErrors.WEBSOCKET_CONNECT_FAILED, "Connect and handshake websocket failed, " + e.getMessage(), e);
+            b.connect(host, port).sync().channel();
+            return true;
+        } catch (Throwable e) {
+            TapLogger.debug(TAG, "Try uri {} and port {} failed, {}", host, port, e.getMessage());
+            return false;
+        } finally {
+            group.shutdownGracefully();
         }
-//        sendServer();
-//        TapLogger.info(TAG, "connectWS: "+"sendServer");
-        Identity identity = new Identity();
-        identity.setId("id");
-        identity.setToken(sid);
-        identity.setIdType(getImClient().getService());
-        sendIdentity(identity);
-        TapLogger.info(TAG, "connectWS: "+"sendIdentity"+identity);
     }
-
     private void sendIdentity(Identity data) {
         if(channel == null) {
             TapLogger.debug(TAG, "Channel not initialized before sending identity, {}", data);
@@ -287,10 +345,10 @@ public class WebsocketPushChannel extends PushChannel {
             pingFuture = TimerEx.scheduleInSeconds(() -> {
                 pingFuture = null;
                 stop();
-                TapLogger.info(TAG, "Stop channel because of ping timeout");
+                TapLogger.debug(TAG, "Stop channel because of ping timeout");
             }, 10);
             send(ping);
-//            TapLogger.info(TAG, "ping");
+//            TapLogger.debug(TAG, "ping");
         }
     }
 
@@ -344,5 +402,19 @@ public class WebsocketPushChannel extends PushChannel {
 
     public void setSid(String sid) {
         this.sid = sid;
+    }
+
+    @Override
+    public DataMap memory(String keyRegex, String memoryLevel) {
+        return DataMap.create().keyRegex(keyRegex)
+                .kv("protocol", protocol)
+                .kv("wsPort", wsPort)
+                .kv("path", path)
+                .kv("host", host)
+//                .kv("key", key)
+                .kv("baseUrl", baseUrl)
+//                .kv("sid", sid)
+                .kv("isConnected", isConnected)
+                ;
     }
 }

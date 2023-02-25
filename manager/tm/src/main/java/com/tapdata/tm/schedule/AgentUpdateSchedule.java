@@ -1,14 +1,12 @@
 package com.tapdata.tm.schedule;
 
 
-import com.tapdata.tm.Settings.dto.SettingsDto;
-import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
 import com.tapdata.tm.worker.service.WorkerService;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -17,17 +15,11 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
+@Setter(onMethod_ = {@Autowired})
 public class AgentUpdateSchedule {
-
-    @Autowired
-    ClusterOperationService clusterOperationService;
-
-    @Autowired
-    WorkerService workerService;
-
-
-    @Autowired
-    SettingsService settingsService;
+    private ClusterOperationService clusterOperationService;
+    private WorkerService workerService;
+    private SettingsService settingsService;
 
     /**
      * @desc 执行扫描，每1分钟执行一次

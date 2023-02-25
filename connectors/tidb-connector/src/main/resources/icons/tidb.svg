@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="62px" height="62px" viewBox="0 0 62 62" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>tidb</title>
+    <g id="数据库图标" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="画板" transform="translate(-162.000000, -593.000000)" fill-rule="nonzero">
+            <g id="编组" transform="translate(162.000000, 593.000000)">
+                <polygon id="路径" fill="#E6002D" points="31.0485893 1.24351664e-15 1.29468014e-15 15.4941664 1.29468014e-15 46.4824991 31.0485893 62 62 46.5058336 62 15.5175009"></polygon>
+                <g transform="translate(11.612853, 11.620625)" fill="#FFFFFF" id="路径">
+                    <polygon points="17.3221003 8.77380504 17.3221003 37.708694 9.71786834 33.9284908 9.71786834 12.5773429 0 17.4309371 0 9.68385397 19.411442 0 27.1371473 3.87354159"></polygon>
+                    <polygon points="32.7978056 32.0617237 25.1449843 35.8885962 25.1449843 12.6006775 32.7978056 8.77380504"></polygon>
+                </g>
+            </g>
+        </g>
+    </g>
+</svg>

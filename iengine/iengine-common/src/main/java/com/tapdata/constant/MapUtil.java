@@ -517,6 +517,9 @@ public class MapUtil {
 		}
 		Class<?> clazz = obj.getClass();
 		for (Field field : clazz.getDeclaredFields()) {
+			if (field.getName().equals("$jacocoData")) {
+				continue;
+			}
 			field.setAccessible(true);
 			String fieldName = field.getName();
 			Ignore annotation = field.getAnnotation(Ignore.class);

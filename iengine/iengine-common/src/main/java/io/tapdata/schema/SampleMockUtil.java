@@ -3,6 +3,7 @@ package io.tapdata.schema;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.tm.commons.schema.bean.TapFieldEx;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
@@ -45,9 +46,12 @@ public class SampleMockUtil {
     for (Map.Entry<String, TapField> entry : nameFieldMap.entrySet()) {
       String name = entry.getKey();
       TapField field = entry.getValue();
-      TapType type = field.getTapType();
+      if (field instanceof TapFieldEx && ((TapFieldEx) field).isDeleted()) {
+        continue;
+      }
       Object v = map.get(name);
       if (v == null) {
+        TapType type = field.getTapType();
         TapValue tapValue = sampleDateMap.get(type.getClass());
         map.put(name, tapValue);
         logger.info("field {} mock sample --> {}", name, tapValue.getValue());

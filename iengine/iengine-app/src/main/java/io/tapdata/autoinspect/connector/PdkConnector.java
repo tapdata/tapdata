@@ -1,12 +1,14 @@
 package io.tapdata.autoinspect.connector;
 
 import com.tapdata.constant.HazelcastUtil;
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.autoinspect.connector.IDataCursor;
 import com.tapdata.tm.autoinspect.connector.IPdkConnector;
+import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.entity.CompareRecord;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -16,15 +18,18 @@ import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.apis.entity.SortOn;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableUtil;
 import lombok.NonNull;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.util.*;
@@ -38,7 +43,7 @@ import java.util.function.Supplier;
  */
 public class PdkConnector implements IPdkConnector {
     private static final String TAG = PdkConnector.class.getSimpleName();
-
+    private final Logger logger = LogManager.getLogger(PdkConnector.class);
     private final Connections connections;
     private final ConnectorNode connectorNode;
     private final Supplier<Boolean> isRunning;
@@ -56,8 +61,8 @@ public class PdkConnector implements IPdkConnector {
                 clientMongoOperator,
                 associateId,
                 connections.getConfig(),
-                new PdkTableMap(TapTableUtil.getTapTableMapByNodeId(nodeId)),
-                new PdkStateMap(nodeId, HazelcastUtil.getInstance()),
+                new PdkTableMap(TapTableUtil.getTapTableMapByNodeId(AutoInspectConstants.MODULE_NAME, nodeId, System.currentTimeMillis())),
+                new PdkStateMap(String.format("%s_%s", AutoInspectConstants.MODULE_NAME, nodeId), HazelcastUtil.getInstance(), PdkStateMap.StateMapMode.HTTP_TM),
                 PdkStateMap.globalStateMap(HazelcastUtil.getInstance())
         );
         PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);
@@ -122,9 +127,10 @@ public class PdkConnector implements IPdkConnector {
                                         if (results.isEmpty()) return;
 
                                         for (Map<String, Object> result : results) {
-                                            CompareRecord record = new CompareRecord(tableName, getConnId(), originalKey, keyNames, result);
-                                            codecsFilterManager.transformToTapValueMap(record.getData(), tapTable.getNameFieldMap());
-                                            defaultCodecsFilterManager.transformFromTapValueMap(record.getData());
+                                            codecsFilterManager.transformToTapValueMap(result, tapTable.getNameFieldMap());
+                                            defaultCodecsFilterManager.transformFromTapValueMap(result);
+                                            CompareRecord record = new CompareRecord(tableName, getConnId(), originalKey, keyNames);
+                                            record.setData(result, tapTable.getNameFieldMap());
                                             compareRecord.set(record);
                                             return;
                                         }
@@ -144,8 +150,14 @@ public class PdkConnector implements IPdkConnector {
     @Override
     public void close() throws Exception {
         if (null != connectorNode) {
-            PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
-            PDKIntegration.releaseAssociateId(connectorNode.getAssociateId());
+            CommonUtils.handleAnyError(() -> {
+                PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
+                logger.info("Inspect stop pdk node complete, connection: {}[{}], pdk node: {}", connections.getName(), connections.getId(), connectorNode);
+            }, err -> logger.warn("Inspect stop pdk node failed, connection: {}[{}], pdk node: {}, error: {}\n{}", connections.getName(), connections.getId(), connectorNode, err.getMessage(), Log4jUtil.getStackString(err)));
+            CommonUtils.handleAnyError(() -> {
+                PDKIntegration.releaseAssociateId(connectorNode.getAssociateId());
+                logger.info("Inspect release pdk node complete, connection: {}[{}], pdk node: {}", connections.getName(), connections.getId(), connectorNode);
+            }, err -> logger.warn("Inspect release pdk node failed,  connection: {}[{}], pdk node: {}, error: {}\n{}", connections.getName(), connections.getId(), connectorNode, err.getMessage(), Log4jUtil.getStackString(err)));
         }
     }
 }

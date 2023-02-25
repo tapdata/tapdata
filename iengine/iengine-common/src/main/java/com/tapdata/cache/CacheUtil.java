@@ -6,6 +6,7 @@ import com.tapdata.entity.Job;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -204,7 +205,11 @@ public class CacheUtil {
 
   public static DataFlowCacheConfig getCacheConfig(TaskDto taskDto, ClientMongoOperator clientMongoOperator) {
     try {
-      List<Node> nodes = taskDto.getDag().getNodes();
+      DAG dag = taskDto.getDag();
+      if (dag == null || dag.getNodes() == null) {
+        return null;
+      }
+      List<Node> nodes = dag.getNodes();
       CacheNode cacheNode = null;
       TableNode tableNode = null;
       for (Node node : nodes) {

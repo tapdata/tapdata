@@ -15,6 +15,10 @@ public class DefaultAdmin implements Admin {
         this.adminClient = AdminClient.create(configuration.build());
     }
 
+    public AdminClient getAdminClient() {
+        return adminClient;
+    }
+
     @Override
     public boolean isClusterConnectable() {
         try {

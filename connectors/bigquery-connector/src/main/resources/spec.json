@@ -1,0 +1,246 @@
+{
+  "properties": {
+    "name": "BigQuery",
+    "icon": "icons/logo.png",
+    "doc" : "${doc}",
+    "id": "bigquery"
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+        "serviceAccount": {
+          "type": "String",
+          "title": "${serviceAccount}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-component-props": {
+            "type": "textarea"
+          },
+          "apiServerKey": "database_host",
+          "x-index": 10,
+          "required": true
+        },
+        "tableSet": {
+          "type": "String",
+          "title": "${tableSet}",
+          "apiServerKey": "database_host",
+          "x-index": 20,
+          "required": true,
+          "x-decorator": "FormItem",
+          "x-component": "AsyncSelect",
+          "x-component-props": {
+            "method": "{{loadCommandList}}",
+            "params": "{{ {$values: $values, command: \"SchemaSetList\"} }}"
+          },
+          "x-reactions": [
+            {
+              "dependencies": ["serviceAccount"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0] ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "docs/bigquery_en_US.md",
+      "serviceAccount": "Service Account(JSON)",
+      "tableSet": "Table Set ID"
+    },
+    "zh_CN": {
+      "doc": "docs/bigquery_zh_CN.md",
+      "serviceAccount": "服务账号(JSON)",
+      "tableSet": "数据集ID"
+    },
+    "zh_TW": {
+
+      "doc": "docs/bigquery_zh_TW.md",
+      "serviceAccount": "服務帳號(JSON)",
+      "tableSet": "數据集ID"
+    }
+  },
+  "dataTypes": {
+    "BYTES[($bit)]": {
+      "name": "BYTES",
+      "to": "TapBinary",
+      "byte": 9223372036854775807,
+      "defaultByte": 9223372036854775807
+    },
+    "STRING[($byte)]": {
+      "name": "STRING",
+      "to": "TapString",
+      "byte": 9223372036854775807,
+      "defaultByte": 9223372036854775807
+    },
+    "INT64": {
+      "to": "TapNumber",
+      "bit": 32,
+      "precision": 10,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ]
+    },
+    "FLOAT64": {
+      "to": "TapNumber",
+      "bit": 64,
+      "scale": [
+        0,
+        6
+      ],
+      "fixed": false
+    },
+    "NUMERIC[($precision,$scale)]": {
+      "to": "TapNumber",
+      "name": "NUMERIC",
+      "precision": [
+        1,
+        38
+      ],
+      "scale": [
+        0,
+        9
+      ],
+      "defaultPrecision": 29,
+      "defaultScale": 0,
+      "value": [
+        "-9.9999999999999999999999999999999999999E+28",
+        "9.9999999999999999999999999999999999999E+28"
+      ],
+      "fixed": false
+    },
+    "BIGNUMERIC[($precision,$scale)]": {
+      "to": "TapNumber",
+      "name": "BIGNUMERIC",
+      "precision": [
+        1,
+        38
+      ],
+      "scale": [
+        0,
+        38
+      ],
+      "defaultPrecision": 38,
+      "defaultScale": 0,
+      "value": [
+        "-3.402823466E+38",
+        "3.402823466E+38"
+      ],
+      "unsigned": "unsigned",
+      "fixed": false
+    },
+    "NUMERIC[($precision)]": {
+      "to": "TapNumber",
+      "name": "NUMERIC",
+      "precision": [
+        1,
+        38
+      ],
+      "scale": [
+        0,
+        9
+      ],
+      "defaultPrecision": 29,
+      "defaultScale": 0,
+      "value": [
+        "-9.9999999999999999999999999999999999999E+28",
+        "9.9999999999999999999999999999999999999E+28"
+      ],
+      "fixed": false
+    },
+    "BIGNUMERIC[($precision)]": {
+      "to": "TapNumber",
+      "name": "BIGNUMERIC",
+      "precision": [
+        1,
+        38
+      ],
+      "scale": [
+        0,
+        38
+      ],
+      "defaultPrecision": 38,
+      "defaultScale": 0,
+      "value": [
+        "-3.402823466E+38",
+        "3.402823466E+38"
+      ],
+      "unsigned": "unsigned",
+      "fixed": false
+    },
+    "BOOLEAN": {
+      "to": "TapBoolean"
+    },
+    "TIMESTAMP": {
+      "to": "TapDateTime",
+      "range": [
+        "1970-01-01 00:00:01.000000",
+        "2038-01-19 03:14:07.999999"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss.SSSSSS",
+      "fraction": 6,
+      "withTimeZone": false
+    },
+    "INTERVAL": {
+      "range": [
+        "-838:59:59","838:59:59"
+      ],
+      "pattern": "yyyy-MM dd HH:mm:ss",
+      "to": "TapTime",
+      "queryOnly": true
+    },
+    "DATE": {
+      "to": "TapDate",
+      "range": [
+        "0001-01-01",
+        "9999-12-31"
+      ],
+      "pattern": "yyyy-MM-dd"
+    },
+    "TIME": {
+      "to": "TapTime",
+      "range": [
+        "00:00:00.000000",
+        "23:59:59.999999"
+      ],
+      "pattern": "HH:mm:ss.SSSSSS"
+    },
+    "DATETIME": {
+      "to": "TapDateTime",
+      "range": [
+        "1000-01-01 00:00:00.000000",
+        "9999-12-31 23:59:59.999999"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss.SSSSSS",
+      "defaultFraction": 6
+    },
+    "RECORD": {
+      "to":"TapRaw",
+      "queryOnly": true
+    },
+    "STRUCT<$variable>": {
+      "to":"TapRaw",
+      "queryOnly": true
+    },
+    "ARRAY<$variable>": {
+      "to":"TapRaw",
+      "queryOnly": true
+    },
+    "JSON": {
+      "to": "TapMap"
+    }
+  }
+}

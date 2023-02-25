@@ -117,6 +117,124 @@
               "value": "pgoutput"
             }
           ]
+        },
+        "timezone": {
+          "type": "string",
+          "title": "${timezone}",
+          "default": "",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-index": 9,
+          "enum": [
+            {
+              "label": "Database Timezone",
+              "value": ""
+            },
+            {
+              "label": "UTC -11",
+              "value": "-11:00"
+            },
+            {
+              "label": "UTC -10",
+              "value": "-10:00"
+            },
+            {
+              "label": "UTC -09",
+              "value": "-09:00"
+            },
+            {
+              "label": "UTC -08",
+              "value": "-08:00"
+            },
+            {
+              "label": "UTC -07",
+              "value": "-07:00"
+            },
+            {
+              "label": "UTC -06",
+              "value": "-06:00"
+            },
+            {
+              "label": "UTC -05",
+              "value": "-05:00"
+            },
+            {
+              "label": "UTC -04",
+              "value": "-04:00"
+            },
+            {
+              "label": "UTC -03",
+              "value": "-03:00"
+            },
+            {
+              "label": "UTC -02",
+              "value": "-02:00"
+            },
+            {
+              "label": "UTC -01",
+              "value": "-01:00"
+            },
+            {
+              "label": "UTC",
+              "value": "+00:00"
+            },
+            {
+              "label": "UTC +01",
+              "value": "+01:00"
+            },
+            {
+              "label": "UTC +02",
+              "value": "+02:00"
+            },
+            {
+              "label": "UTC +03",
+              "value": "+03:00"
+            },
+            {
+              "label": "UTC +04",
+              "value": "+04:00"
+            },
+            {
+              "label": "UTC +05",
+              "value": "+05:00"
+            },
+            {
+              "label": "UTC +06",
+              "value": "+06:00"
+            },
+            {
+              "label": "UTC +07",
+              "value": "+07:00"
+            },
+            {
+              "label": "UTC +08",
+              "value": "+08:00"
+            },
+            {
+              "label": "UTC +09",
+              "value": "+09:00"
+            },
+            {
+              "label": "UTC +10",
+              "value": "+10:00"
+            },
+            {
+              "label": "UTC +11",
+              "value": "+11:00"
+            },
+            {
+              "label": "UTC +12",
+              "value": "+12:00"
+            },
+            {
+              "label": "UTC +13",
+              "value": "+13:00"
+            },
+            {
+              "label": "UTC +14",
+              "value": "+14:00"
+            }
+          ]
         }
       }
     }
@@ -132,7 +250,8 @@
       "extParams" : "extParams",
       "user" : "user",
       "password" : "password",
-      "logPluginName" : "logPluginName"
+      "logPluginName" : "logPluginName",
+      "timezone": "timezone"
     },
     "zh_CN": {
       "doc": "docs/postgres_zh_CN.md",
@@ -143,7 +262,8 @@
       "extParams" : "额外参数",
       "user" : "账号",
       "password" : "密码",
-      "logPluginName" : "日志插件"
+      "logPluginName" : "日志插件",
+      "timezone": "时区"
     },
     "zh_TW": {
       "doc": "docs/postgres_zh_TW.md",
@@ -154,7 +274,8 @@
       "extParams" : "額外參數",
       "user" : "賬號",
       "password" : "密碼",
-      "logPluginName" : "日誌插件"
+      "logPluginName" : "日誌插件",
+      "timezone": "時區"
     }
   },
   "dataTypes": {

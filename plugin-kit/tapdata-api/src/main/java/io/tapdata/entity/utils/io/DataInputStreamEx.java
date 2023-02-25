@@ -84,7 +84,7 @@ public class DataInputStreamEx extends InputStream {
 	}
 	public <T> T readJson(Class<T> clazz) throws IOException {
 		if(hasValue()) {
-			String json = dis.readUTF();
+			String json = readLongString();
 			if(clazz != null)
 				return fromJson(json, clazz);
 			else

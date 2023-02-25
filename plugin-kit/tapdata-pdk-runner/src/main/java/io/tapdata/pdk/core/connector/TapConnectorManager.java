@@ -202,15 +202,13 @@ public class TapConnectorManager implements MemoryFetcher {
     }
 
     @Override
-    public DataMap memory(List<String> mapKeys, String memoryLevel) {
-        DataMap dataMap = DataMap.create()
+    public DataMap memory(String keyRegex, String memoryLevel) {
+        DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
                 .kv("isStarted", isStarted)
-                .kv("ExternalJarManager", externalJarManager != null ? externalJarManager.memory(mapKeys, memoryLevel) : null);
+                .kv("ExternalJarManager", externalJarManager != null ? externalJarManager.memory(keyRegex, memoryLevel) : null);
 
         for(Map.Entry<String, TapConnector> entry : jarNameTapConnectorMap.entrySet()) {
-            if(mapKeys != null && !mapKeys.isEmpty() && !mapKeys.contains(entry.getKey()))
-                continue;
-            dataMap.kv(entry.getKey(), entry.getValue().memory(mapKeys, memoryLevel));
+            dataMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));
         }
         return dataMap;
     }

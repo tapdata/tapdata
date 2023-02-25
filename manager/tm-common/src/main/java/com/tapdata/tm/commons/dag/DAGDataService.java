@@ -8,7 +8,6 @@ import io.tapdata.entity.schema.TapTable;
 import org.bson.types.ObjectId;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -38,7 +37,7 @@ public interface DAGDataService {
     public List<Schema> loadSchema(String ownerId, ObjectId dataSourceId, List<String> includes, List<String> excludes);
 
 
-    default TapTable loadTapTable(List<Schema> schemas, String script, String nodeId, String virtualId, String customNodeId, Map<String, Object> form, TaskDto subTaskDto) {
+    default TapTable loadTapTable(String nodeId, String virtualId, TaskDto subTaskDto) {
         return null;
     }
 

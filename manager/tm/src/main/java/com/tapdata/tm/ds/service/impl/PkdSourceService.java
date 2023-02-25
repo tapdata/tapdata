@@ -199,7 +199,13 @@ public class PkdSourceService {
         DataSourceDefinitionDto one = dataSourceDefinitionService.findOne(query);
 
         if (one == null) {
-            throw new BizException("PDK.DOWNLOAD.SOURCE.FAILED");
+            log.error("pdkHash is error pdkHash:{}", pdkHash);
+            try {
+                response.sendError(404);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            return;
         }
 
         if ("customer".equals(one.getScope()) && !user.getCustomerId().equals(one.getCustomId())) {

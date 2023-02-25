@@ -271,7 +271,7 @@ public class QueryByFilterTest extends PDKTestBase {
         );
     }
 
-    private void initConnectorFunctions() {
+    protected void initConnectorFunctions() {
         tddTargetNode = dataFlowWorker.getTargetNodeDriver(targetNodeId).getTargetNode();
         sourceNode = dataFlowWorker.getSourceNodeDriver(testSourceNodeId).getSourceNode();
     }

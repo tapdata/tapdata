@@ -19,5 +19,6 @@ public class MigrateDagSchedule {
     @SchedulerLock(name = "migrateDagPlanStartLock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void migrateDagPlanStart() {
         taskService.startPlanMigrateDagTask();
+        taskService.startPlanCronTask();
     }
 }

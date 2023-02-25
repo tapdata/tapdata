@@ -16,6 +16,8 @@ public enum TaskState {
 	 * 编辑中
 	 **/
 	EDIT(STATUS_EDIT),
+	/** 待启动 */
+	WAIT_START(STATUS_WAIT_START),
 	/**
 	 * 调度中
 	 **/
@@ -47,7 +49,19 @@ public enum TaskState {
 	/**
 	 * 已完成
 	 **/
-	DONE(STATUS_COMPLETE);
+	DONE(STATUS_COMPLETE),
+
+	/** 重置中 **/
+	RENEWING(STATUS_RENEWING),
+	/** 删除中 **/
+	DELETING(STATUS_DELETING),
+	/** 重置失败 **/
+	RENEW_FAILED(STATUS_RENEW_FAILED),
+	/** 删除失败 **/
+	DELETE_FAILED(STATUS_DELETE_FAILED),
+
+
+	;
 
 	private String name;
 

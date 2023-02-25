@@ -4,9 +4,12 @@ import com.alibaba.fastjson.JSON;
 import com.tapdata.constant.FileUtil;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import lombok.SneakyThrows;
+import net.openhft.chronicle.core.threads.InterruptedRuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptTailer;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
+import net.openhft.chronicle.wire.UnrecoverableTimeoutException;
 import net.openhft.chronicle.wire.ValueIn;
 import net.openhft.chronicle.wire.ValueOut;
 import org.apache.commons.collections4.CollectionUtils;
@@ -107,26 +110,29 @@ public class AppenderFactory implements Serializable {
 	}
 
 	public void appendLog(MonitoringLogsDto logsDto) {
-		cacheLogsQueue.acquireAppender().writeDocument(w -> {
-			final ValueOut valueOut = w.getValueOut();
-			final Date date = logsDto.getDate();
-			final String dateString = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(date);
-			valueOut.writeString(dateString);
-			valueOut.writeString(logsDto.getLevel());
-			valueOut.writeString(logsDto.getErrorStack());
-			valueOut.writeString(logsDto.getMessage());
-			valueOut.writeString(logsDto.getTaskId());
-			valueOut.writeString(logsDto.getTaskRecordId());
-			valueOut.writeLong(logsDto.getTimestamp());
-			valueOut.writeString(logsDto.getTaskName());
-			valueOut.writeString(logsDto.getNodeId());
-			valueOut.writeString(logsDto.getNodeName());
-			final String logTagsJoinStr = String.join(",", CollectionUtils.isNotEmpty(logsDto.getLogTags()) ? logsDto.getLogTags() : new ArrayList<>(0));
-			valueOut.writeString(logTagsJoinStr);
-			if (null != logsDto.getData()) {
-				valueOut.writeString(JSON.toJSON(logsDto.getData()).toString());
-			}
-		});
+		try {
+			cacheLogsQueue.acquireAppender().writeDocument(w -> {
+				final ValueOut valueOut = w.getValueOut();
+				final Date date = logsDto.getDate();
+				final String dateString = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(date);
+				valueOut.writeString(dateString);
+				valueOut.writeString(logsDto.getLevel());
+				valueOut.writeString(logsDto.getErrorStack());
+				valueOut.writeString(logsDto.getMessage());
+				valueOut.writeString(logsDto.getTaskId());
+				valueOut.writeString(logsDto.getTaskRecordId());
+				valueOut.writeLong(logsDto.getTimestamp());
+				valueOut.writeString(logsDto.getTaskName());
+				valueOut.writeString(logsDto.getNodeId());
+				valueOut.writeString(logsDto.getNodeName());
+				final String logTagsJoinStr = String.join(",", CollectionUtils.isNotEmpty(logsDto.getLogTags()) ? logsDto.getLogTags() : new ArrayList<>(0));
+				valueOut.writeString(logTagsJoinStr);
+				if (null != logsDto.getData()) {
+					valueOut.writeString(JSON.toJSON(logsDto.getData()).toString());
+				}
+			});
+		} catch (InterruptedRuntimeException ignored) {
+		}
 		if (emptyWaiting.availablePermits() < 1) {
 			emptyWaiting.release(1);
 		}
@@ -172,5 +178,15 @@ public class AppenderFactory implements Serializable {
 
 	private <T> T nullStringProcess(String inputString, Supplier<T> nullSupplier, Supplier<T> getResult) {
 		return "null".equals(inputString) || null == inputString ? nullSupplier.get() : getResult.get();
+	}
+
+	public static void main(String[] args) {
+		SingleChronicleQueue singleChronicleQueue = SingleChronicleQueueBuilder.binary("./"+CACHE_QUEUE_DIR).build();
+		ExcerptTailer tailer = singleChronicleQueue.createTailer();
+		while (true) {
+			tailer.readDocument(r->{
+				System.out.println(r.asText());
+			});
+		}
 	}
 }

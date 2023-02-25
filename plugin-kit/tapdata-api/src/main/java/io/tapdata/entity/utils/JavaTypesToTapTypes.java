@@ -2,7 +2,7 @@ package io.tapdata.entity.utils;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.error.TapAPIErrorCodes;
-import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.schema.type.*;
 import io.tapdata.entity.schema.value.DateTime;
 
 import java.math.BigDecimal;
@@ -103,5 +103,33 @@ public class JavaTypesToTapTypes {
             return toTapType(JAVA_Binary);
         }
         return null;
+    }
+
+    public static TapType toTapType(Class<? extends TapType> aClass) {
+        if (aClass == TapArray.class) {
+            return toTapType(JAVA_Array);
+        } else if (aClass == TapBinary.class) {
+            return toTapType(JAVA_Binary);
+        } else if (aClass == TapBoolean.class) {
+            return toTapType(JAVA_Boolean);
+        } else if (aClass == TapDateTime.class) {
+            return toTapType(JAVA_Date);
+        } else if (aClass == TapDate.class) {
+            return tapDate();
+        } else if (aClass == TapTime.class) {
+            return tapTime();
+        } else if (aClass == TapYear.class) {
+            return tapYear();
+        } else if (aClass == TapMap.class) {
+            return toTapType(JAVA_Map);
+        } else if (aClass == TapNumber.class) {
+            return toTapType(JAVA_Double);
+        } else if (aClass == TapRaw.class) {
+            return tapRaw();
+        } else if (aClass == TapString.class) {
+            return toTapType(JAVA_String);
+        } else {
+            throw new CoreException(TapAPIErrorCodes.ERROR_UNKNOWN_TAP_TYPE, "Unknown tapType {} for TapType conversion", aClass.getName());
+        }
     }
 }

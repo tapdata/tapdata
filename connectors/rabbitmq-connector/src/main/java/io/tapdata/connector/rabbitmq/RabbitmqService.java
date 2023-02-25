@@ -27,6 +27,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class RabbitmqService extends AbstractMqService {
@@ -145,7 +146,7 @@ public class RabbitmqService extends AbstractMqService {
     }
 
     @Override
-    public void produce(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
+    public void produce(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer, Supplier<Boolean> isAlive) throws Throwable {
         AtomicLong insert = new AtomicLong(0);
         AtomicLong update = new AtomicLong(0);
         AtomicLong delete = new AtomicLong(0);
@@ -153,6 +154,9 @@ public class RabbitmqService extends AbstractMqService {
         Channel channel = rabbitmqConnection.createChannel();
         channel.queueDeclare(tapTable.getId(), true, false, false, null);
         for (TapRecordEvent event : tapRecordEvents) {
+            if (null != isAlive && !isAlive.get()) {
+                break;
+            }
             Map<String, Object> headers = new HashMap<>();
             byte[] body = null;
             MqOp mqOp = MqOp.INSERT;

@@ -1,5 +1,7 @@
 package io.tapdata.wsclient.modules.imclient.impls;
 
+import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.data.IncomingData;
 import io.tapdata.modules.api.net.data.IncomingMessage;
@@ -12,8 +14,9 @@ import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
-public class ResultListenerWrapper implements Comparable<ResultListenerWrapper>{
+public class ResultListenerWrapper implements Comparable<ResultListenerWrapper>, MemoryFetcher {
     private String messageId;
     private long time;
     private CompletableFuture<Result> resultHandler;
@@ -109,5 +112,14 @@ public class ResultListenerWrapper implements Comparable<ResultListenerWrapper>{
 
     public void setData(Data data) {
         this.data = data;
+    }
+
+    @Override
+    public DataMap memory(String keyRegex, String memoryLevel) {
+        return DataMap.create().keyRegex(keyRegex)
+                .kv("messageId", messageId)
+                .kv("time", time)
+                .kv("timeoutFuture", timeoutFuture != null ? timeoutFuture.getDelay(TimeUnit.MILLISECONDS) : null)
+                ;
     }
 }

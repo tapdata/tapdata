@@ -21,6 +21,7 @@ import org.apache.commons.lang3.StringUtils;
 import picocli.CommandLine;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.util.*;
 
@@ -30,14 +31,23 @@ import java.util.*;
 )
 public class RegisterCli extends CommonCli {
     private static final String TAG = RegisterCli.class.getSimpleName();
-    @CommandLine.Parameters(paramLabel = "FILE", description = "One ore more pdk jar files")
+    @CommandLine.Parameters(paramLabel = "FILE", description = "One or more pdk jar files")
     File[] files;
 
     @CommandLine.Option(names = {"-l", "--latest"}, required = false, defaultValue = "true", description = "whether replace the latest version")
     private boolean latest;
 
-    @CommandLine.Option(names = {"-a", "--auth"}, required = true, description = "Provide auth token to register")
+    @CommandLine.Option(names = {"-a", "--auth"}, required = false, description = "Provide auth token to register")
     private String authToken;
+
+    @CommandLine.Option(names = {"-ak", "--accessKey"}, required = false, description = "Provide auth accessKey")
+    private String ak;
+
+    @CommandLine.Option(names = {"-sk", "--secretKey"}, required = false, description = "Provide auth secretKey")
+    private String sk;
+
+    @CommandLine.Option(names = {"-b", "--beta"}, required = false, defaultValue = "false", description = "Beta")
+    private boolean beta;
 
     @CommandLine.Option(names = {"-t", "--tm"}, required = true, description = "Tapdata TM url")
     private String tmUrl;
@@ -94,6 +104,7 @@ public class RegisterCli extends CommonCli {
                     }
 
                     JSONObject o = (JSONObject) JSON.toJSON(specification);
+                    o.put("beta", beta);
                     String nodeType = null;
                     switch (nodeInfo.getNodeType()) {
                         case TapNodeInfo.NODE_TYPE_SOURCE:
@@ -192,8 +203,8 @@ public class RegisterCli extends CommonCli {
                     jsons.add(jsonString);
                 }
                 if(file.isFile()) {
-                    System.out.println(file.getName() + " uploading...");
-                    UploadFileService.upload(inputStreamMap, file, jsons, latest, tmUrl, authToken);
+                    System.out.println(file.getName() + " uploading... to url " + tmUrl);
+                    UploadFileService.upload(inputStreamMap, file, jsons, latest, tmUrl, authToken, ak, sk);
                     System.out.println(file.getName() + " registered successfully");
                 } else {
                     System.out.println("File " + file + " doesn't exists");

@@ -1,7 +1,6 @@
 package com.tapdata.tm.utils;
 
 import com.alibaba.fastjson.JSONObject;
-import com.tapdata.manager.common.utils.JsonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

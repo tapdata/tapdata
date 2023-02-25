@@ -172,7 +172,7 @@ public class PostgresCdcRunner extends DebeziumCdcRunner {
             return dataMap;
         }
         struct.schema().fields().forEach(field -> {
-            Object obj = struct.get(field.name());
+            Object obj = struct.getWithoutDefault(field.name());
             if (obj instanceof ByteBuffer) {
                 obj = struct.getBytes(field.name());
             } else if (obj instanceof Struct) {

@@ -3,9 +3,9 @@ package io.tapdata.autoinspect;
 import com.tapdata.tm.autoinspect.compare.IAutoCompare;
 import com.tapdata.tm.autoinspect.connector.IConnector;
 import com.tapdata.tm.autoinspect.connector.IDataCursor;
+import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.constants.CompareStatus;
 import com.tapdata.tm.autoinspect.constants.CompareStep;
-import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.constants.TaskType;
 import com.tapdata.tm.autoinspect.dto.TaskAutoInspectResultDto;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
@@ -15,6 +15,8 @@ import io.tapdata.observable.logging.ObsLogger;
 import lombok.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -26,6 +28,7 @@ public abstract class AutoInspectRunner<S extends IConnector, T extends IConnect
     protected final String taskId;
     protected final TaskType taskType;
     protected AutoInspectProgress progress;
+    protected final AtomicBoolean forceStopping = new AtomicBoolean(false);
 
     public AutoInspectRunner(@NonNull ObsLogger userLogger, @NonNull String taskId, @NonNull TaskType taskType, AutoInspectProgress progress) {
         this.userLogger = userLogger;
@@ -63,6 +66,10 @@ public abstract class AutoInspectRunner<S extends IConnector, T extends IConnect
                     long beginTimes = System.currentTimeMillis();
                     incrementalCompare(sourceConnector, targetConnector, autoCompare);
                     userLogger.info("Completed increment compare use {} ms", System.currentTimeMillis() - beginTimes);
+                }
+
+                while (isRunning() && !autoCompare.stop(forceStopping.get())) {
+                    Thread.sleep(2000);
                 }
             }
         } catch (Throwable e) {
@@ -138,7 +145,7 @@ public abstract class AutoInspectRunner<S extends IConnector, T extends IConnect
                         default:
                             throw new RuntimeException("No support compare result type: " + compareStatus);
                     }
-                } while (isRunning() && !isStopping());
+                } while (isRunning());
             }
         }
         logger.info("Completed '{}' table initial compare", compareItem.getTableName());

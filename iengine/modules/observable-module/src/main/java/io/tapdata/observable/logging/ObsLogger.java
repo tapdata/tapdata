@@ -64,9 +64,12 @@ public abstract class ObsLogger {
 		error(callable, null, message, params);
 	}
 
-
 	public void error(String message, Object... params) {
 		error(this::logBaseBuilder, null, message, params);
+	}
+
+	public void error(String message, Throwable throwable) {
+		error(this::logBaseBuilder, throwable, message);
 	}
 
 	public void error(LogTag logTag1, String message, Object... params) {

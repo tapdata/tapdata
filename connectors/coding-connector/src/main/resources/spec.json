@@ -11,17 +11,24 @@
       "type": "object",
       "properties": {
         "DescribeIterationList":  {
-            "title": "${iterationCodes}",
             "type": "string",
-            "required": true,
-            "x-decorator": "FormItem",
-            "x-component": "AsyncSelect",
-            "x-index": 1,
-            "x-component-props": {
-              "method": "{{loadCommandList}}",
-              "params": "{{ {$values: $values, command: \"DescribeIterationList\"} }}"
-            }
+            "x-display": "hidden"
+        },
+        "DescribeIterationArray":{
+          "x-decorator": "FormItem",
+          "x-component": "AsyncSelect",
+          "x-component-props": {
+            "method": "{{loadCommandList}}",
+            "params": "{{ {$values: $values, command: \"DescribeIterationList\"} }}",
+            "multiple": true,
+            "currentLabel": "{{ $values.nodeConfig.DescribeIterationArrayLabel }}",
+            "@change-label": "{{ val => $values.nodeConfig.DescribeIterationArrayLabel = val }}",
+            "@change": "{{ val => $values.nodeConfig.DescribeIterationList = val.join() || \"-1\" }}"
           },
+          "title": "${iterationCodes}",
+          "type": "array",
+          "x-index": 0
+        },
         "issueType": {
           "type": "String",
           "default": "ALL",
@@ -84,7 +91,7 @@
           "x-component": "AsyncSelect",
           "x-component-props": {
             "method": "{{loadCommandList}}",
-            "params": "{{ {$values: $values, command: \"DescribeCodingProjects\"} }}"
+            "params": "{{ {$values: $values, command: \"DescribeUserProjects\"} }}"
           },
           "x-index": 30,
           "x-reactions": [
@@ -108,10 +115,6 @@
             {
               "label": "${document}",
               "value": "DocumentMode"
-            },
-            {
-              "label": "${csv}",
-              "value": "CSVMode"
             }
           ],
           "x-index": 40,
@@ -171,7 +174,8 @@
             }
           },
           "x-component": "Input",
-          "x-index": 70
+          "x-index": 70,
+          "actionOnCopy" : "NEW_WEB_HOOK_URL"
         }
       }
     }
@@ -183,7 +187,7 @@
       "projectName": "project name",
       "teamName": "Team name",
       "webHook": "Service Hook",
-      "hookButton": "Hook Button",
+      "hookButton": "Generate Service URL",
 
       "iterationCodes": "Iteration",
       "issueType": "Issue Type",
@@ -228,7 +232,7 @@
       "projectName": "项目名称",
       "teamName": "团队名称",
       "webHook": "Service Hook",
-      "hookButton": "Hook Button",
+      "hookButton": "生成服务 URL",
 
       "iterationCodes": "迭代",
       "issueType": "事项类型",
@@ -272,7 +276,7 @@
       "projectName": "項目名稱",
       "teamName": "團隊名稱",
       "webHook": "Service Hook",
-      "hookButton": "Hook Button",
+      "hookButton": "生成服務URL",
 
       "iterationCodes": "迭代",
       "issueType": "事項类型",
@@ -319,19 +323,19 @@
     },
     "StringNormal": {
       "to" : "TapString",
-      "byte" : 512
+      "byte" : 2048
     },
     "StringSmaller": {
       "to" : "TapString",
-      "byte" : 128
+      "byte" : 512
     },
     "StringMinor": {
       "to" : "TapString",
-      "byte" : 64
+      "byte" : 256
     },
     "StringBit": {
       "to" : "TapString",
-      "byte" : 5
+      "byte" : 20
     },
     "Integer": {
       "to": "TapNumber",

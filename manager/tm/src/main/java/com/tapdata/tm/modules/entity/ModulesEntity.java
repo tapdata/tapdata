@@ -2,6 +2,7 @@ package com.tapdata.tm.modules.entity;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.commons.schema.Tag;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.bson.types.ObjectId;
@@ -52,8 +53,7 @@ public class ModulesEntity extends BaseEntity {
 
     private List<com.tapdata.tm.commons.schema.Field> fields;
 
-    @Field("listtags")
-    private List listTags;
+    private List<Tag> listtags;
 
     private String createType;
 
@@ -86,4 +86,6 @@ public class ModulesEntity extends BaseEntity {
     private String connectionType;
 
     private String connectionName;
+
+    private String description;
 }

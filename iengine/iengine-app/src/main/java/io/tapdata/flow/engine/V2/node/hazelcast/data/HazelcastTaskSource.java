@@ -122,7 +122,6 @@ public class HazelcastTaskSource extends HazelcastDataBaseNode {
 	private void initJobOffset() {
 		try {
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
-			Connections sourceConn = dataProcessorContext.getSourceConn();
 			this.syncProgress = initSyncProgress(taskDto.getAttrs());
 
 			if (this.syncProgress == null || StringUtils.isBlank(this.syncProgress.getOffset()) || this.sourceContext == null || this.sourceContext.getJob() == null) {

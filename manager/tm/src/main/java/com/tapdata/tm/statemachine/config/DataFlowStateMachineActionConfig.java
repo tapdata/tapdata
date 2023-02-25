@@ -42,21 +42,21 @@ public class DataFlowStateMachineActionConfig {
 	@Autowired
 	private SettingsService settingsService;
 
-	@OnAction(Transitions.SUBTASK_SCHEDULE_SUCEESS)
-	public StateMachineResult scheduleSuccess(DataFlowStateContext context){
-		DataFlowDto dataFlowDto = context.getData();
-		if (StringUtils.isBlank(dataFlowDto.getAgentId())){
-			throw new BizException("Agent.Not.Found");
-		}
-		Date date = new Date();
-		Update update = Update.update("status", context.getTarget().getName()).set("agentId", dataFlowDto.getAgentId())
-				.set("startTime", date).set("scheduledTime", date);
-		UpdateResult result = dataFlowService.update(Query.query(Criteria.where("_id").is(dataFlowDto.getId())
-						.and("status").is(context.getSource().getName())),
-				update, context.getUserDetail());
-
-		return StateMachineResult.ok(result.getModifiedCount());
-	}
+//	@OnAction(Transitions.SUBTASK_SCHEDULE_SUCEESS)
+//	public StateMachineResult scheduleSuccess(DataFlowStateContext context){
+//		DataFlowDto dataFlowDto = context.getData();
+//		if (StringUtils.isBlank(dataFlowDto.getAgentId())){
+//			throw new BizException("Agent.Not.Found");
+//		}
+//		Date date = new Date();
+//		Update update = Update.update("status", context.getTarget().getName()).set("agentId", dataFlowDto.getAgentId())
+//				.set("startTime", date).set("scheduledTime", date);
+//		UpdateResult result = dataFlowService.update(Query.query(Criteria.where("_id").is(dataFlowDto.getId())
+//						.and("status").is(context.getSource().getName())),
+//				update, context.getUserDetail());
+//
+//		return StateMachineResult.ok(result.getModifiedCount());
+//	}
 
 	/**
 	 * 企业版:  运行中会重新分配agentId, 分配后变为调度中

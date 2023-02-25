@@ -5,10 +5,12 @@ import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
+import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.entity.utils.DataMap;
 
 import java.util.List;
 
-public abstract class AspectTask {
+public abstract class AspectTask implements MemoryFetcher {
 	protected TaskDto task;
 
 	public abstract void onStart(TaskStartAspect startAspect);
@@ -29,5 +31,12 @@ public abstract class AspectTask {
 
 	public void setTask(TaskDto task) {
 		this.task = task;
+	}
+
+	@Override
+	public DataMap memory(String keyRegex, String memoryLevel) {
+		return DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
+				.kv("taskName", task.getName())
+				.kv("taskId", task.getId());
 	}
 }

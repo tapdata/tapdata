@@ -7,7 +7,7 @@
 package com.tapdata.tm.ws.handler;
 
 import cn.hutool.core.thread.ThreadFactoryBuilder;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.dataflow.entity.DataFlow;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightDto;
@@ -15,7 +15,7 @@ import com.tapdata.tm.dataflowinsight.service.DataFlowInsightService;
 import static com.tapdata.tm.dataflowinsight.service.DataFlowInsightService.granularityMap;
 import com.tapdata.tm.utils.MapUtils;
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
-import com.tapdata.tm.ws.annotation.WebSocketMessageHandler;
+
 import com.tapdata.tm.ws.dto.DataFlowInsightCache;
 import com.tapdata.tm.ws.dto.GranularityInfo;
 import com.tapdata.tm.ws.dto.MessageInfo;
@@ -39,7 +39,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
-@WebSocketMessageHandler(type = MessageType.DATA_FLOW_INSIGHT)
+//@WebSocketMessageHandler(type = MessageType.DATA_FLOW_INSIGHT)
 @Slf4j
 public class DataFlowInsightHandler implements WebSocketHandler{
 
@@ -63,7 +63,7 @@ public class DataFlowInsightHandler implements WebSocketHandler{
 			try {
 				WebSocketManager.sendMessage(context.getSender(), "Message data cannot be null");
 			} catch (Exception e) {
-				log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
 			return;
 		}
@@ -117,7 +117,7 @@ public class DataFlowInsightHandler implements WebSocketHandler{
 			}
 
 		}catch (Exception e){
-			log.error("DataFlowInsightExecutor error,message: {}", e.getMessage(), e);
+			log.error("DataFlowInsightExecutor error,message: {}", e.getMessage());
 		}
 	}
 
@@ -186,7 +186,7 @@ public class DataFlowInsightHandler implements WebSocketHandler{
 			map.put("collection", "DataFlowInsight");
 			WebSocketManager.sendMessageBySessionId(dataFlowInsightCache.getSessionId(), JsonUtil.toJson(map));
 		} catch (Exception e) {
-			log.error("WebSocket send dataFlow insight failed,message: {}", e.getMessage(), e);
+			log.error("WebSocket send dataFlow insight failed,message: {}", e.getMessage());
 		}
 	}
 }

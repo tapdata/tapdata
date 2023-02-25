@@ -352,6 +352,7 @@
       ]
     },
     "Float32[($precision,$scale)]": {
+      "queryOnly" : true,
       "to": "TapNumber",
       "name": "float",
       "precision": [
@@ -366,6 +367,7 @@
       "fixed": false
     },
     "Float64": {
+      "queryOnly" : true,
       "to": "TapNumber",
       "precision": [
         0,

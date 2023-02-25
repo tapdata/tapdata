@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class KafkaService extends AbstractMqService {
@@ -44,15 +45,20 @@ public class KafkaService extends AbstractMqService {
     private static final String TAG = KafkaService.class.getSimpleName();
     private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
     private String connectorId;
-    private final ExecutorService produceService;
+    private final KafkaProducer<byte[], byte[]> kafkaProducer;
 
     public KafkaService(KafkaConfig mqConfig) {
         this.mqConfig = mqConfig;
-        produceService = Executors.newFixedThreadPool(concurrency);
+        ProducerConfiguration producerConfiguration = new ProducerConfiguration(mqConfig, connectorId);
+        kafkaProducer = new KafkaProducer<>(producerConfiguration.build());
     }
 
     public void setConnectorId(String connectorId) {
         this.connectorId = connectorId;
+    }
+
+    public String getConnectorId() {
+        return connectorId;
     }
 
     @Override
@@ -207,34 +213,34 @@ public class KafkaService extends AbstractMqService {
     }
 
     @Override
-    public void produce(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
-        ProducerConfiguration producerConfiguration = new ProducerConfiguration(((KafkaConfig) mqConfig), connectorId);
-        KafkaProducer<byte[], byte[]> kafkaProducer = new KafkaProducer<>(producerConfiguration.build());
+    public void produce(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer, Supplier<Boolean> isAlive) {
         AtomicLong insert = new AtomicLong(0);
         AtomicLong update = new AtomicLong(0);
         AtomicLong delete = new AtomicLong(0);
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
-        List<List<TapRecordEvent>> subEventLists = Lists.partition(tapRecordEvents, tapRecordEvents.size() <= concurrency ? tapRecordEvents.size() : (tapRecordEvents.size() - 1) / concurrency + 1);
-        CountDownLatch countDownLatch = new CountDownLatch(subEventLists.size());
-        subEventLists.forEach(subEventList -> produceService.submit(() -> {
-            try {
-                subEventList.forEach(event -> {
-                    Map<String, Object> data;
-                    MqOp mqOp = MqOp.INSERT;
-                    if (event instanceof TapInsertRecordEvent) {
-                        data = ((TapInsertRecordEvent) event).getAfter();
-                    } else if (event instanceof TapUpdateRecordEvent) {
-                        data = ((TapUpdateRecordEvent) event).getAfter();
-                        mqOp = MqOp.UPDATE;
-                    } else if (event instanceof TapDeleteRecordEvent) {
-                        data = ((TapDeleteRecordEvent) event).getBefore();
-                        mqOp = MqOp.DELETE;
-                    } else {
-                        data = new HashMap<>();
-                    }
-                    byte[] body = jsonParser.toJsonBytes(data);
-                    MqOp finalMqOp = mqOp;
-                    Callback callback = (metadata, exception) -> {
+        CountDownLatch countDownLatch = new CountDownLatch(tapRecordEvents.size());
+        try {
+            for (TapRecordEvent event : tapRecordEvents) {
+                if (null != isAlive && !isAlive.get()) {
+                    break;
+                }
+                Map<String, Object> data;
+                MqOp mqOp = MqOp.INSERT;
+                if (event instanceof TapInsertRecordEvent) {
+                    data = ((TapInsertRecordEvent) event).getAfter();
+                } else if (event instanceof TapUpdateRecordEvent) {
+                    data = ((TapUpdateRecordEvent) event).getAfter();
+                    mqOp = MqOp.UPDATE;
+                } else if (event instanceof TapDeleteRecordEvent) {
+                    data = ((TapDeleteRecordEvent) event).getBefore();
+                    mqOp = MqOp.DELETE;
+                } else {
+                    data = new HashMap<>();
+                }
+                byte[] body = jsonParser.toJsonBytes(data);
+                MqOp finalMqOp = mqOp;
+                Callback callback = (metadata, exception) -> {
+                    try {
                         if (EmptyKit.isNotNull(exception)) {
                             listResult.addError(event, exception);
                         }
@@ -249,26 +255,29 @@ public class KafkaService extends AbstractMqService {
                                 delete.incrementAndGet();
                                 break;
                         }
-                    };
-                    ProducerRecord<byte[], byte[]> producerRecord = new ProducerRecord<>(tapTable.getId(),
-                            null, event.getTime(), getKafkaMessageKey(data, tapTable), body,
-                            new RecordHeaders().add("mqOp", mqOp.getOp().getBytes()));
-                    kafkaProducer.send(producerRecord, callback);
-                });
-            } catch (RejectedExecutionException e) {
-                TapLogger.warn(TAG, "task stopped, some data produce failed!", e);
-            } catch (Exception e) {
-                TapLogger.error(TAG, "produce error, or task interrupted!", e);
-            } finally {
-                countDownLatch.countDown();
+                    } finally {
+                        countDownLatch.countDown();
+                    }
+                };
+                ProducerRecord<byte[], byte[]> producerRecord = new ProducerRecord<>(tapTable.getId(),
+                        null, event.getTime(), getKafkaMessageKey(data, tapTable), body,
+                        new RecordHeaders().add("mqOp", mqOp.getOp().getBytes()));
+                kafkaProducer.send(producerRecord, callback);
             }
-        }));
+        } catch (RejectedExecutionException e) {
+            TapLogger.warn(TAG, "task stopped, some data produce failed!", e);
+        } catch (Exception e) {
+            TapLogger.error(TAG, "produce error, or task interrupted!", e);
+        }
         try {
-            countDownLatch.await();
+            while (null != isAlive && isAlive.get()) {
+                if (countDownLatch.await(500L, TimeUnit.MILLISECONDS)) {
+                    break;
+                }
+            }
         } catch (InterruptedException e) {
             TapLogger.error(TAG, "error occur when await", e);
         } finally {
-            kafkaProducer.close();
             writeListResultConsumer.accept(listResult.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
         }
     }
@@ -355,6 +364,6 @@ public class KafkaService extends AbstractMqService {
     @Override
     public void close() {
         super.close();
-        produceService.shutdown();
+        kafkaProducer.close();
     }
 }

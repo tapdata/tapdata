@@ -10,6 +10,7 @@ import java.util.Map;
  */
 public class CodingOffset {
     private Map<String, Long> tableUpdateTimeMap;
+    private Map<Object,Object> offset;
     public CodingOffset() {
         tableUpdateTimeMap = new HashMap<>();
     }
@@ -26,5 +27,13 @@ public class CodingOffset {
 
     public void setTableUpdateTimeMap(Map<String, Long> tableUpdateTimeMap) {
         this.tableUpdateTimeMap = tableUpdateTimeMap;
+    }
+    public Map<Object,Object> offset(){
+        if (null == offset) offset = new HashMap<>();
+        return this.offset;
+    }
+    public CodingOffset offset(Map<Object,Object> offset){
+        this.offset = offset;
+        return this;
     }
 }

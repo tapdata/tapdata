@@ -234,14 +234,21 @@ public class DorisSchemaLoader {
     public void createTable(final TapTable tapTable) {
         final String tableName = tapTable.getName();
         Collection<String> primaryKeys = tapTable.primaryKeys();
+        String sql;
         if (CollectionUtils.isEmpty(primaryKeys)) {
-            throw new RuntimeException("Create Table " + tableName + " Failed with missing primary keys!");
+            String firstColumn = tapTable.getNameFieldMap().values().stream().findFirst().orElseGet(TapField::new).getName();
+            sql = "CREATE TABLE IF NOT EXISTS " + tableName +
+                    "(" + DDLInstance.buildColumnDefinition(tapTable) + ") " +
+                    "DUPLICATE KEY (" + firstColumn + " ) " +
+                    "DISTRIBUTED BY HASH(" + firstColumn + " ) BUCKETS 10 " +
+                    "PROPERTIES(\"replication_num\" = \"1\")";
+        } else {
+            sql = "CREATE TABLE IF NOT EXISTS " + tableName +
+                    "(" + DDLInstance.buildColumnDefinition(tapTable) + ") " +
+                    "UNIQUE KEY (" + DDLInstance.buildDistributedKey(primaryKeys) + " ) " +
+                    "DISTRIBUTED BY HASH(" + DDLInstance.buildDistributedKey(primaryKeys) + " ) BUCKETS 10 " +
+                    "PROPERTIES(\"replication_num\" = \"1\")";
         }
-        String sql = "CREATE TABLE IF NOT EXISTS " + tableName +
-                "(" + DDLInstance.buildColumnDefinition(tapTable) + ") " +
-                "UNIQUE KEY (" + DDLInstance.buildDistributedKey(primaryKeys) + " ) " +
-                "DISTRIBUTED BY HASH(" + DDLInstance.buildDistributedKey(primaryKeys) + " ) BUCKETS 10 " +
-                "PROPERTIES(\"replication_num\" = \"1\")";
 
         try {
             dorisContext.execute(sql);

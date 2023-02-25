@@ -7,6 +7,7 @@ import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.aspect.annotations.AspectObserverClass;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.wsclient.modules.imclient.IMClient;
 import io.tapdata.wsclient.modules.imclient.IMClientBuilder;
 
@@ -32,6 +33,11 @@ public class LoginSuccessfullyObserver implements AspectObserver<LoginSuccessful
         }
         String accessToken = (String) configurationCenter.getConfig(ConfigurationCenter.TOKEN);
         proxySubscriptionManager.startIMClient(baseURLs, accessToken);
+
+        proxySubscriptionManager.setProcessId(ConfigurationCenter.processId);
+        proxySubscriptionManager.setUserId((String) configurationCenter.getConfig(ConfigurationCenter.USER_ID));
+
+        PDKIntegration.registerMemoryFetcher(ProxySubscriptionManager.class.getSimpleName(), proxySubscriptionManager);
     }
 
 

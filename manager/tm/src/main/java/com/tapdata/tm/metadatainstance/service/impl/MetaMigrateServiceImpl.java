@@ -80,7 +80,10 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
 //                    f.setDataType(field.getFieldType());
                     f.setUseDefaultValue(field.isUseDefaultValue());
                     FunctionUtils.isTureOrFalse(field.isUseDefaultValue()).trueOrFalseHandle(
-                            () -> f.setDefaultValue(Objects.isNull(field.getDefaultValue()) ? f.getOriginalDefaultValue() : field.getDefaultValue()),
+                            () -> {
+                                f.setDefaultValue(Objects.isNull(field.getDefaultValue()) ? f.getOriginalDefaultValue() : field.getDefaultValue());
+                                f.setSource("manual");
+                            },
                             () -> f.setDefaultValue(null));
                 }
             });
@@ -94,7 +97,10 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
                     f.setDataType(field.getFieldType());
                     f.setUseDefaultValue(field.isUseDefaultValue());
                     FunctionUtils.isTureOrFalse(field.isUseDefaultValue()).trueOrFalseHandle(
-                            () -> f.setDefaultValue(f.getOriginalDefaultValue()),
+                            () -> {
+                                f.setDefaultValue(f.getOriginalDefaultValue());
+                                f.setSource("manual");
+                            },
                             () -> f.setDefaultValue(null));
                 }
             });
@@ -120,8 +126,13 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
             return;
         }
 
-        List<MetadataInstancesEntity> tableNameList = metadataInstancesService.findEntityBySourceIdAndTableNameList(
-                targetNode.getConnectionId(), tableNames, userDetail, taskId);
+        List<MetadataInstancesEntity> tableNameList = null;
+
+
+        if (targetNode != null) {
+            tableNameList = metadataInstancesService.findEntityBySourceIdAndTableNameList(
+                    targetNode.getConnectionId(), tableNames, userDetail, taskId);
+        }
 
         if (CollectionUtils.isNotEmpty(tableNameList)) {
             List<Pair<Query, Update>> updateList = new ArrayList<>();

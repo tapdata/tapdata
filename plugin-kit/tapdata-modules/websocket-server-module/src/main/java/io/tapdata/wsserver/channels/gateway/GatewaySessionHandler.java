@@ -14,7 +14,6 @@ import io.tapdata.wsserver.channels.gateway.modules.GatewayChannelModule;
 import io.tapdata.wsserver.channels.websocket.utils.ValidateUtils;
 
 import java.util.Date;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -181,8 +180,8 @@ public abstract class GatewaySessionHandler implements MemoryFetcher {
     public void setToken(String token) {
         this.token = token;
     }
-    public DataMap memory(List<String> mapKeys, String memoryLevel) {
-        return DataMap.create()
+    public DataMap memory(String keyRegex, String memoryLevel) {
+        return DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
                 .kv("touch", new Date(touch))
                 .kv("token", token)
                 .kv("id", id)

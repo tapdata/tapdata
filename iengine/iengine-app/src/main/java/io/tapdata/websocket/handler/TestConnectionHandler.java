@@ -1,6 +1,5 @@
 package io.tapdata.websocket.handler;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
@@ -9,14 +8,9 @@ import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.validator.ConnectionValidateResult;
 import com.tapdata.validator.ConnectionValidateResultDetail;
 import com.tapdata.validator.ConnectionValidator;
-import com.tapdata.validator.ValidatorConstant;
 import io.tapdata.Runnable.LoadSchemaRunner;
-import io.tapdata.TapInterface;
 import io.tapdata.common.SettingService;
-import io.tapdata.common.TapInterfaceUtil;
 import io.tapdata.entity.BaseConnectionValidateResult;
-import io.tapdata.entity.BaseConnectionValidateResultDetail;
-import io.tapdata.entity.ConnectionsType;
 import io.tapdata.exception.ConnectionException;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.websocket.EventHandlerAnnotation;

@@ -1,7 +1,7 @@
 package com.tapdata.tm.task.service;
 
 import com.mongodb.ConnectionString;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Field;
@@ -21,7 +21,6 @@ import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.ParentTaskDto;
-import com.tapdata.tm.commons.task.dto.Status;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.CreateTypeEnum;
@@ -487,7 +486,7 @@ public class LogCollectorService {
             try {
                 connectionString = new ConnectionString(value2);
             } catch (Exception e) {
-                log.error("Parse connection string failed ({})", value2, e);
+                log.error("Parse connection string failed ({}), {}", value2, e.getMessage());
             }
 
             if (connectionString != null ) {
@@ -1109,7 +1108,7 @@ public class LogCollectorService {
                 taskService.update(new Query(Criteria.where("_id").is(oldConnHeartbeatTask.getId())), Update.update(ConnHeartbeatUtils.TASK_RELATION_FIELD, heartbeatTasks), user);
             }
             if (heartbeatTasks.size() == 0) {
-                taskService.stop(oldConnHeartbeatTask.getId(), user, false);
+                taskService.pause(oldConnHeartbeatTask.getId(), user, false);
             }
         }
     }

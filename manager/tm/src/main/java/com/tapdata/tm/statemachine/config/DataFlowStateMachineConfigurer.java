@@ -7,13 +7,7 @@
 package com.tapdata.tm.statemachine.config;
 
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.manager.common.utils.JsonUtil;
-import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
-import com.tapdata.tm.message.constant.Level;
-import com.tapdata.tm.message.constant.MsgTypeEnum;
-import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.statemachine.annotation.EnableStateMachine;
 import com.tapdata.tm.statemachine.configuration.AbstractStateMachineConfigurer;
@@ -25,13 +19,10 @@ import com.tapdata.tm.statemachine.model.DataFlowStateContext;
 import com.tapdata.tm.statemachine.model.StateContext;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 
-import static com.tapdata.tm.utils.MongoUtils.toObjectId;
-
 import java.util.Date;
 import java.util.function.Function;
 
 import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.utils.MongoUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;

@@ -18,21 +18,21 @@ public class DataSourcePool {
      */
     public static JdbcContext getJdbcContext(CommonDbConfig config, Class<? extends JdbcContext> clazz, String connectorId) {
         String key = uniqueKeyForDb(config);
-		synchronized (key.intern()) {
-			if (dataPool.containsKey(key) && dataPool.get(key).testValid()) {
-				return dataPool.get(key).incrementConnector(connectorId);
-			} else {
-				JdbcContext context = null;
-				try {
-					context = clazz.getDeclaredConstructor(config.getClass(), HikariDataSource.class).newInstance(config, HikariConnection.getHikariDataSource(config));
-					context.incrementConnector(connectorId);
-					dataPool.put(key, context);
-				} catch (Exception e) {
+        synchronized (key.intern()) {
+            if (dataPool.containsKey(key) && dataPool.get(key).testValid()) {
+                return dataPool.get(key).incrementConnector(connectorId);
+            } else {
+                JdbcContext context = null;
+                try {
+                    context = clazz.getDeclaredConstructor(config.getClass(), HikariDataSource.class).newInstance(config, HikariConnection.getHikariDataSource(config));
+                    context.incrementConnector(connectorId);
+                    dataPool.put(key, context);
+                } catch (Exception e) {
                     throw new RuntimeException(e);
-				}
-				return context;
-			}
-		}
+                }
+                return context;
+            }
+        }
     }
 
     /**
@@ -41,10 +41,10 @@ public class DataSourcePool {
      * @param config DatabaseConfig
      */
     public static void removeJdbcContext(CommonDbConfig config) {
-		final String uniqueKeyForDb = uniqueKeyForDb(config);
-		synchronized (uniqueKeyForDb.intern()) {
-			dataPool.remove(uniqueKeyForDb);
-		}
+        final String uniqueKeyForDb = uniqueKeyForDb(config);
+        synchronized (uniqueKeyForDb.intern()) {
+            dataPool.remove(uniqueKeyForDb);
+        }
     }
 
     private static String uniqueKeyForDb(CommonDbConfig config) {
@@ -67,6 +67,9 @@ public class DataSourcePool {
             hikariDataSource.setJdbcUrl(config.getDatabaseUrl());
             hikariDataSource.setUsername(config.getUser());
             hikariDataSource.setPassword(config.getPassword());
+            if (EmptyKit.isNotNull(config.getProperties())) {
+                hikariDataSource.setDataSourceProperties(config.getProperties());
+            }
             hikariDataSource.setMinimumIdle(1);
             hikariDataSource.setMaximumPoolSize(100); //-1 may be not limited
             hikariDataSource.setAutoCommit(false);

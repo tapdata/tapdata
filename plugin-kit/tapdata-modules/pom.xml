@@ -15,6 +15,7 @@
 		<module>mongodb-storage-module</module>
 		<module>websocket-server-module</module>
 		<module>websocket-client-module</module>
+		<module>service-skeleton-module</module>
     </modules>
 
 	<properties>

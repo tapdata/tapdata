@@ -48,6 +48,11 @@ public class SupportFunction {
         this.type = type;
     }
 
+    public SupportFunction type(int type) {
+        this.type = type;
+        return this;
+    }
+
     public List<Class<? extends TapFunction>> getAnyOfFunctions() {
         return anyOfFunctions;
     }

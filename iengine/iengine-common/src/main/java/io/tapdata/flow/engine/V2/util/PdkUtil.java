@@ -159,9 +159,7 @@ public class PdkUtil {
 					.withStateMap(pdkStateMap)
 					.withGlobalStateMap(globalStateMap);
 			if (MapUtils.isNotEmpty(connectionConfig)) {
-				connectorBuilder.withConnectionConfig(new DataMap() {{
-					putAll(connectionConfig);
-				}});
+				connectorBuilder.withConnectionConfig(DataMap.create(connectionConfig));
 			}
 			if (MapUtils.isNotEmpty(nodeConfig)) {
 				connectorBuilder.withNodeConfig(new DataMap() {{

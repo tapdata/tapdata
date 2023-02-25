@@ -1,0 +1,29 @@
+[
+  {
+	"createIndexes": "MetadataInstances",
+	"indexes": [
+	  {
+		"name": "index_meta_type_1_is_deleted_1_source__id_1_task_id_1_original_name_1",
+		"key": {
+		  "meta_type": 1,
+		  "is_deleted": 1,
+		  "source._id": 1,
+		  "taskId": 1,
+		  "original_name": 1
+		},
+		"background": true
+	  }
+	]
+  },
+  {
+	"delete": "ScheduleTasks",
+	"deletes": [
+	  {
+		"q": {
+		  "task_type": "CLEAR_PG_SLOT"
+		},
+		"limit": 1
+	  }
+	]
+  }
+]

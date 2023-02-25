@@ -10,10 +10,7 @@ import io.tapdata.entity.schema.value.TapTimeValue;
 public class FromTapTimeCodec implements FromTapValueCodec<TapTimeValue> {
     @Override
     public Object fromTapValue(TapTimeValue tapValue) {
-        if(tapValue == null)
-            return null;
-        //TODO need more code
-        DateTime dateTime = tapValue.getValue();
-        return dateTime;
+        if(tapValue == null) return null;
+        return tapValue.getOriginValue();
     }
 }

@@ -1,11 +1,9 @@
 package com.tapdata.tm.inspect.service;
 
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
-import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.inspect.dto.InspectDetailsDto;
-import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.entity.InspectDetailsEntity;
 import com.tapdata.tm.inspect.repository.InspectDetailsRepository;
 import com.tapdata.tm.config.security.UserDetail;

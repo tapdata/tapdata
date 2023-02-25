@@ -3,6 +3,8 @@ package io.tapdata.pdk.apis.spec;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.utils.DataMap;
 
+import java.util.Map;
+
 /**
  * Node specification to register node with form components.
  * When any one is creating a node, need to input information base on form components.
@@ -17,6 +19,8 @@ public class TapNodeSpecification {
     private String icon;
     private DataMap configOptions; //include connection and node
     private DefaultExpressionMatchingMap dataTypesMap;
+
+    private Map<String, String> manifest;
 
     public String verify() {
         if(name == null)
@@ -98,4 +102,11 @@ public class TapNodeSpecification {
         this.dataTypesMap = dataTypesMap;
     }
 
+    public Map<String, String> getManifest() {
+        return manifest;
+    }
+
+    public void setManifest(Map<String, String> manifest) {
+        this.manifest = manifest;
+    }
 }

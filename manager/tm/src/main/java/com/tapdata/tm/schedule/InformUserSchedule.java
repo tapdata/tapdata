@@ -1,11 +1,8 @@
 package com.tapdata.tm.schedule;
 
-import com.tapdata.tm.events.entity.Events;
 import com.tapdata.tm.events.service.EventsService;
 import lombok.extern.slf4j.Slf4j;
-import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
@@ -20,7 +17,7 @@ public class InformUserSchedule {
     /**
      * @desc 执行扫描，每 3分钟执行一次
      */
-    @Scheduled(cron = "0 */3 * * * ?")
+    //@Scheduled(cron = "0 */3 * * * ?")
 //    @SchedulerLock(name ="InformUserSchedule.execute", lockAtMostFor = "5m", lockAtLeastFor = "5m")
     public void execute() {
         log.info("send notified message");

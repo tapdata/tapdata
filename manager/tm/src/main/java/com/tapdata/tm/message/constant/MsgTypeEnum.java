@@ -26,7 +26,9 @@ public enum MsgTypeEnum {
     //校验内容有差异
     CDCLag("CDCLag"),
 
-    STOPPED_BY_ERROR("stoppedByError") ;
+    STOPPED_BY_ERROR("stoppedByError"),
+
+    ALARM("alarm");
 
 
     private final String value;

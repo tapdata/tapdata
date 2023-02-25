@@ -1,20 +1,14 @@
 package io.tapdata.mongodb.entity;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.ConnectionString;
+import io.tapdata.common.CommonDbConfig;
 import io.tapdata.kit.EmptyKit;
-import io.tapdata.pdk.apis.entity.ConnectionOptions;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
-import java.util.Map;
+import java.util.List;
 
-public class MongodbConfig implements Serializable {
+public class MongodbConfig extends CommonDbConfig {
 
 	private boolean isUri = true;
 
@@ -46,17 +40,17 @@ public class MongodbConfig implements Serializable {
 
 	private String updateDmlPolicy;
 
-	public static MongodbConfig load(String jsonFile) throws IOException {
-		ObjectMapper mapper = new ObjectMapper(new JsonFactory());
-		mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-		return mapper.readValue(new File(jsonFile), MongodbConfig.class);
-	}
-
-	public static MongodbConfig load(Map<String, Object> map) throws IOException {
-		ObjectMapper mapper = new ObjectMapper();
-		mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-		return mapper.readValue((new ObjectMapper()).writeValueAsString(map), MongodbConfig.class);
-	}
+//	public static MongodbConfig load(String jsonFile) throws IOException {
+//		ObjectMapper mapper = new ObjectMapper(new JsonFactory());
+//		mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+//		return mapper.readValue(new File(jsonFile), MongodbConfig.class);
+//	}
+//
+//	public static MongodbConfig load(Map<String, Object> map) throws IOException {
+//		ObjectMapper mapper = new ObjectMapper();
+//		mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+//		return mapper.readValue((new ObjectMapper()).writeValueAsString(map), MongodbConfig.class);
+//	}
 
 	public String getUri() {
 		if (isUri) {
@@ -90,6 +84,16 @@ public class MongodbConfig implements Serializable {
 		} else {
 			return database;
 		}
+	}
+
+	public List<String> getHosts() {
+		ConnectionString connectionString = new ConnectionString(getUri());
+		return connectionString.getHosts();
+	}
+
+	@Override
+	public String getConnectionString() {
+		return getUri();
 	}
 
 	public void setUri(String uri) {

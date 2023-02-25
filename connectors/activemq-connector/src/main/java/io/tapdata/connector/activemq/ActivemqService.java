@@ -23,7 +23,6 @@ import org.apache.activemq.ActiveMQConnection;
 import org.apache.activemq.ActiveMQConnectionFactory;
 import org.apache.activemq.command.ActiveMQQueue;
 import org.apache.activemq.command.ActiveMQTextMessage;
-import org.apache.commons.lang3.StringUtils;
 
 import javax.jms.Queue;
 import javax.jms.*;
@@ -33,6 +32,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class ActivemqService extends AbstractMqService {
@@ -46,10 +46,10 @@ public class ActivemqService extends AbstractMqService {
         this.mqConfig = activemqConfig;
         activeMQConnectionFactory = new ActiveMQConnectionFactory();
         activeMQConnectionFactory.setBrokerURL(activemqConfig.getBrokerURL());
-        if (StringUtils.isNotEmpty(activemqConfig.getMqUsername())) {
+        if (EmptyKit.isNotEmpty(activemqConfig.getMqUsername())) {
             activeMQConnectionFactory.setUserName(activemqConfig.getMqUsername());
         }
-        if (StringUtils.isNotEmpty(activemqConfig.getMqPassword())) {
+        if (EmptyKit.isNotEmpty(activemqConfig.getMqPassword())) {
             activeMQConnectionFactory.setPassword(activemqConfig.getMqPassword());
         }
     }
@@ -160,7 +160,7 @@ public class ActivemqService extends AbstractMqService {
     }
 
     @Override
-    public void produce(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
+    public void produce(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer, Supplier<Boolean> isAlive) throws Throwable {
         AtomicLong insert = new AtomicLong(0);
         AtomicLong update = new AtomicLong(0);
         AtomicLong delete = new AtomicLong(0);
@@ -170,6 +170,9 @@ public class ActivemqService extends AbstractMqService {
         String tableName = tapTable.getId();
         Destination destination = session.createQueue(tableName);
         for (TapRecordEvent event : tapRecordEvents) {
+            if (null != isAlive && !isAlive.get()) {
+                break;
+            }
             TextMessage textMessage = new ActiveMQTextMessage();
             MqOp mqOp = MqOp.INSERT;
             if (event instanceof TapInsertRecordEvent) {

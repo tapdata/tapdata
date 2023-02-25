@@ -1,0 +1,228 @@
+[
+  {
+    "insert": "Settings_Alarm",
+    "documents": [
+      {
+        "type": "TASK",
+        "open": true,
+        "key": "TASK_STATUS_ERROR",
+        "sort": 1,
+        "notify": ["SYSTEM"],
+        "interval": 300,
+        "unit": "SECOND"
+      },
+      {
+        "type": "TASK",
+        "open": true,
+        "key": "TASK_INSPECT_ERROR",
+        "sort": 2,
+        "notify": ["SYSTEM"],
+        "interval": 300,
+        "unit": "SECOND"
+      },
+      {
+        "type": "TASK",
+        "open": true,
+        "key": "TASK_FULL_COMPLETE",
+        "sort": 3,
+        "notify": ["SYSTEM"],
+        "interval": 300,
+        "unit": "SECOND"
+      },
+      {
+        "type": "TASK",
+        "open": true,
+        "key": "TASK_INCREMENT_START",
+        "sort": 4,
+        "notify": ["SYSTEM"],
+        "interval": 300,
+        "unit": "SECOND"
+      },
+      {
+        "type": "TASK",
+        "open": true,
+        "key": "TASK_STATUS_STOP",
+        "sort": 5,
+        "notify": ["SYSTEM"],
+        "interval": 300,
+        "unit": "SECOND"
+      },
+      {
+        "type": "TASK",
+        "open": true,
+        "key": "TASK_INCREMENT_DELAY",
+        "sort": 6,
+        "notify": ["SYSTEM"],
+        "interval": 300,
+        "unit": "SECOND"
+      },
+      {
+        "type": "DATANODE",
+        "open": true,
+        "key": "DATANODE_CANNOT_CONNECT",
+        "sort": 1,
+        "notify": ["SYSTEM"],
+        "interval": 300,
+        "unit": "SECOND"
+      },
+      {
+        "type": "DATANODE",
+        "open": true,
+        "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+        "sort": 4,
+        "notify": ["SYSTEM"],
+        "interval": 300,
+        "unit": "SECOND"
+      },
+      {
+        "type": "PROCESSNODE",
+        "open": true,
+        "key": "PROCESSNODE_AVERAGE_HANDLE_CONSUME",
+        "sort": 1,
+        "notify": ["SYSTEM"],
+        "interval": 300,
+        "unit": "SECOND"
+      },
+      {
+        "type": "SYSTEM",
+        "open": true,
+        "key": "SYSTEM_FLOW_EGINGE_DOWN",
+        "sort": 1,
+        "notify": ["SYSTEM"],
+        "interval": 300,
+        "unit": "SECOND"
+      }
+    ]
+  },
+  {
+    "insert": "Settings_Alarm_Rule",
+    "documents": [
+      {
+        "key": "TASK_INCREMENT_DELAY",
+        "point": 3,
+        "equalsFlag": 1,
+        "ms": 500
+      }, {
+        "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+        "point": 3,
+        "equalsFlag": 1,
+        "ms": 500
+      }, {
+        "key": "PROCESSNODE_AVERAGE_HANDLE_CONSUME",
+        "point": 3,
+        "equalsFlag": 1,
+        "ms": 500
+      }
+    ]
+  },
+  {
+    "createIndexes": "AlarmInfo",
+    "indexes":[
+      {
+        "name" : "taskId_1_nodeId_1_metric_1_status_1",
+        "key" : {
+          "taskId" : 1,
+          "nodeId" : 1,
+          "metric" : 1,
+          "status" : 1
+        },
+        "background": true,
+        "sparse": true
+      }
+    ]
+  },
+  {
+    "dropIndexes": "AgentMeasurementV2",
+    "index": "tags.taskId_1_tags.taskRecordId_1_tags.type_1_grnty_1_date_-1"
+  },{
+    "dropIndexes": "AgentMeasurementV2",
+    "index": "tags.taskId_1_tags.taskRecordId_1_tags.engineId_1_tags.type_1_grnty_1_date_-1"
+  },
+  {
+    "createIndexes": "AgentMeasurementV2",
+    "indexes":[
+      {
+        "name" : "grnty_1_tags.type_1_tags.engineId_1_date_-1",
+        "key" : {
+          "grnty" : 1,
+          "tags.type" : 1,
+          "tags.engineId" : 1,
+          "date" : -1
+        },
+        "background": true,
+        "sparse": true
+      }
+    ,{
+        "name" : "tags.taskId_1_tags.taskRecordId_1_tags.type_1_grnty_1_date_-1",
+        "key" : {
+          "tags.taskId" : 1,
+          "tags.taskRecordId" : 1,
+          "tags.type" : 1,
+          "grnty" : 1,
+          "date" : -1
+        },
+        "background": true,
+        "sparse": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "TaskCollectionObj",
+    "indexes":[
+      {
+        "name" : "index_task_coll_obj_syncType",
+        "key" : {
+          "syncType" : 1
+        },
+        "background": true,
+        "sparse": true
+      }
+    ,{
+        "name" : "index_task_coll_obj_agentId",
+        "key" : {
+          "agentId" : 1
+        },
+        "background": true,
+        "sparse": true
+      }
+    ,{
+        "name" : "index_task_coll_obj_name",
+        "key" : {
+          "name" : 1
+        },
+        "background": true,
+        "sparse": true
+      }
+    ,{
+        "name" : "index_task_coll_obj_desc",
+        "key" : {
+          "desc" : 1
+        },
+        "background": true,
+        "sparse": true
+      }
+    ]
+  },
+  {
+    "dropIndexes": "Message",
+    "index": "userId_1_createTime_1"
+  },
+  {
+    "dropIndexes": "Message",
+    "index": "userId_1_read_1"
+  },
+  {
+    "createIndexes": "Message",
+    "indexes":[
+      {
+        "name" : "user_id_1_msg_1",
+        "key" : {
+          "user_id" : 1,
+          "msg" : 1
+        },
+        "background": true,
+        "sparse": true
+      }
+    ]
+  }
+]

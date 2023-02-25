@@ -2,6 +2,7 @@ package io.tapdata.wsclient.modules.imclient.impls;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.data.IncomingData;
 import io.tapdata.modules.api.net.data.IncomingMessage;
@@ -13,6 +14,7 @@ import io.tapdata.wsclient.modules.imclient.impls.websocket.WebsocketPushChannel
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -70,7 +72,7 @@ public class IMClientImpl implements IMClient {
     @Override
     public void start() {
         stop();
-        TapLogger.info(TAG, "IMClient started");
+        TapLogger.debug(TAG, "IMClient started");
         monitorThread = new MonitorThread<>(WebsocketPushChannel.class/*TcpPushChannel.class*/);
         monitorThread.setImClient(this);
 //        messageWorkerQueue.setHandler(monitorThread.new PushHandler());
@@ -92,7 +94,7 @@ public class IMClientImpl implements IMClient {
     @Override
     public CompletableFuture<Result> sendData(IncomingData data, Integer expireSeconds) {
         if(expireSeconds == null)
-            expireSeconds = 600;
+            expireSeconds = 60;
         CompletableFuture<Result> future = new CompletableFuture<>();
         String msgId = data.getId();
         long counter = msgCounter.getAndIncrement();
@@ -235,5 +237,21 @@ public class IMClientImpl implements IMClient {
 
     public void setContentTypeClassMap(ConcurrentHashMap<String, Class<? extends Data>> contentTypeClassMap) {
         this.contentTypeClassMap = contentTypeClassMap;
+    }
+
+    @Override
+    public DataMap memory(String keyRegex, String memoryLevel) {
+        DataMap resultMap = DataMap.create().keyRegex(keyRegex);
+        DataMap memory =  DataMap.create().keyRegex(keyRegex)
+                .kv("clientId", clientId)
+                .kv("baseUrls", baseUrls)
+                .kv("messageQueue", messageQueue.toString())
+                .kv("resultMap", resultMap)
+                .kv("monitorThread", monitorThread.memory(keyRegex, memoryLevel))
+                ;
+        for(Map.Entry<String, ResultListenerWrapper> entry : this.resultMap.entrySet()) {
+            resultMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));
+        }
+        return memory;
     }
 }

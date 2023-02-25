@@ -1,9 +1,12 @@
 package io.tapdata.pdk.core.tapnode;
 
+import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.TapNode;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.core.classloader.DependencyURLClassLoader;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.pdk.core.connector.TapConnector;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.entity.reflection.ClassAnnotationHandler;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -18,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>
  * Will be created for every URIClassloader which load the SDK jar
  */
-public class TapNodeClassFactory {
+public class TapNodeClassFactory implements MemoryFetcher {
     private static final String TAG = TapNodeClassFactory.class.getSimpleName();
 
     private volatile ClassAnnotationHandler[] classAnnotationHandlers;
@@ -175,5 +178,25 @@ public class TapNodeClassFactory {
 
     public Collection<TapNodeInfo> getProcessorTapNodeInfos() {
         return tapProcessorAnnotationHandler.getTapNodeInfos();
+    }
+
+    @Override
+    public DataMap memory(String keyRegex, String memoryLevel) {
+        DataMap idGroupTapNodeInfoMap = DataMap.create().keyRegex(keyRegex);
+        DataMap associateIdTapNodeIdMap = DataMap.create().keyRegex(keyRegex);
+        DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
+                .kv("idGroupTapNodeInfoMap", idGroupTapNodeInfoMap)
+                .kv("associateIdTapNodeIdMap", associateIdTapNodeIdMap);
+        if(classLoader instanceof DependencyURLClassLoader) {
+            dataMap.kv("manifest", ((DependencyURLClassLoader) classLoader).manifest());
+        }
+        for(Map.Entry<String, TapNodeInfo> entry : tapConnectorAnnotationHandler.idGroupTapNodeInfoMap.entrySet()) {
+            idGroupTapNodeInfoMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));
+        }
+
+        for(Map.Entry<String, TapNodeInstance> entry : this.associateIdTapNodeIdMap.entrySet()) {
+            associateIdTapNodeIdMap.kv(entry.getKey(), entry.getValue().getTapNodeInfo().getTapNodeSpecification().idAndGroup());
+        }
+        return dataMap;
     }
 }

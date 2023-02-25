@@ -119,7 +119,13 @@ public class LoggingAspectTask extends AspectTask {
 		TapTable table = null;
 		try {
 			table = context.getTapTableMap().get(tableName);
-		} catch (Throwable ignore) {}
+		} catch (Throwable ignored) {}
+		if (null == table) {
+			try {
+				table = context.getTapTableMap().get(context.getNode().getId());
+			} catch (Throwable ignored) {
+			}
+		}
 		if (null == table) {
 			return Collections.emptyList();
 		}
@@ -269,6 +275,9 @@ public class LoggingAspectTask extends AspectTask {
 		Node<?> node = context.getNode();
 		List<Map<String, Object>> data = new ArrayList<>();
 		TapBaseEvent baseEvent = (TapBaseEvent) event.getTapEvent();
+		if (null == baseEvent) {
+			return;
+		}
 		Collection<String> pkFields = getPkFields(context, baseEvent.getTableId());
 		data.add(LogEventData.builder()
 				.eventType(logEventType)
@@ -359,8 +368,9 @@ public class LoggingAspectTask extends AspectTask {
 		switch (aspect.getState()) {
 			case BatchReadFuncAspect.STATE_START:
 				batchReadCompleteLastTs.put(nodeId, aspect.getTime());
+				Long total = tableCountMap.isEmpty() ? 0L : tableCountMap.get(nodeId).get(aspect.getTable().getName());
 				getObsLogger(node).info("Table {} is going to be initial synced, sync size: {}",
-						aspect.getTable().getName(), tableCountMap.get(nodeId).get(aspect.getTable().getName()));
+						aspect.getTable().getName(), total);
 				aspect.readCompleteConsumer(events -> {
 					long now = System.currentTimeMillis();
 					debug(LogEventData.LOG_EVENT_TYPE_RECEIVE, now - batchReadCompleteLastTs.get(nodeId),

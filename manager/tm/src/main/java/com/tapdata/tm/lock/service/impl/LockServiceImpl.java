@@ -116,7 +116,7 @@ public class LockServiceImpl implements LockService {
 
             return released;
         } catch (Exception e) {
-            log.error("release lock exception", e);
+            log.error("release lock exception {}", e.getMessage());
         } finally {
             lockValue.remove();
         }

@@ -10,12 +10,15 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.io.IOUtils;
 
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -73,6 +76,16 @@ public class TapConnectorAnnotationHandler extends TapBaseAnnotationHandler {
 //                                });
                                 tapNodeSpecification.setDataTypesMap(matchingMap);
                             }
+                            ClassLoader classLoader = clazz.getClassLoader();
+
+                            try {
+                                Method method = classLoader.getClass().getMethod("manifest");
+                                method.setAccessible(true);
+                                tapNodeSpecification.setManifest((Map<String, String>) method.invoke(classLoader));
+                            } catch(Throwable throwable) {
+                                TapLogger.debug(TAG, "Read manifest failed, " + throwable.getMessage());
+                            }
+//                            tapNodeSpecification.setManifest();
                             String connectorType = findConnectorType(clazz);
                             if (connectorType == null) {
                                 TapLogger.error(TAG, "Connector class for id {} title {} only have TapConnector annotation, but not implement the necessary methods, {} will be ignored...", tapNodeSpecification.idAndGroup(), tapNodeSpecification.getName(), clazz);

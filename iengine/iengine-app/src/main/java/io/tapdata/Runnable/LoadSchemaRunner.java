@@ -18,12 +18,12 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.exception.ConvertException;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.schema.SchemaProxy;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -37,6 +37,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -63,11 +64,16 @@ public class LoadSchemaRunner implements Runnable {
 	private LoadSchemaProgress loadSchemaProgress;
 	private String schemaVersion;
 	private Long lastUpdate = System.currentTimeMillis();
+	private Map<String, Object> nodeConfig;
 
 	public LoadSchemaRunner(Connections connections, ClientMongoOperator clientMongoOperator, int tableCount) {
+		this(connections, clientMongoOperator, tableCount, null);
+	}
+	public LoadSchemaRunner(Connections connections, ClientMongoOperator clientMongoOperator, int tableCount, Map<String, Object> nodeConfig) {
 		this.connections = connections;
 		this.clientMongoOperator = clientMongoOperator;
 		this.schemaVersion = UUIDGenerator.uuid();
+		this.nodeConfig = nodeConfig;
 		this.loadSchemaProgress = new LoadSchemaProgress(connections.getId(), tableCount, 0);
 		List<RelateDataBaseTable> tables = new ArrayList<>();
 		List<TapTable> tapTables = new ArrayList<>();
@@ -154,9 +160,8 @@ public class LoadSchemaRunner implements Runnable {
 					try {
 						DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
 						connectionNode = PDKIntegration.createConnectionConnectorBuilder()
-								.withConnectionConfig(new DataMap() {{
-									putAll(connections.getConfig());
-								}})
+								.withConnectionConfig(DataMap.create(connections.getConfig()))
+								.withNodeConfig(DataMap.create(nodeConfig))
 								.withGroup(databaseType.getGroup())
 								.withPdkId(databaseType.getPdkId())
 								.withAssociateId(connections.getName() + "_" + ts)
@@ -207,7 +212,7 @@ public class LoadSchemaRunner implements Runnable {
 
 	public static void loadPdkSchema(Connections connections, ConnectionNode connectionNode, Consumer<TapTable> tableConsumer) throws Exception {
 		try {
-			TableFilter tableFilter = TableFilter.create(connections.getTable_filter());
+			TableFilter tableFilter = TableFilter.create(connections.getTable_filter(), connections.getIfOpenTableExcludeFilter());
 			GetTableNamesFunction getTableNamesFunction = connectionNode.getConnectionFunctions().getGetTableNamesFunction();
 			if (null == getTableNamesFunction) {
 				pdkDiscoverSchema(connectionNode, new ArrayList<>(), tableConsumer);
@@ -238,8 +243,10 @@ public class LoadSchemaRunner implements Runnable {
 	public static void pdkDiscoverSchema(ConnectionNode connectionNode, List<String> tableFilter, Consumer<TapTable> tableConsumer) {
 		DefaultExpressionMatchingMap dataTypesMap = connectionNode.getConnectionContext().getSpecification().getDataTypesMap();
 		PDKInvocationMonitor.invoke(connectionNode, PDKMethod.DISCOVER_SCHEMA,
-				() -> connectionNode.getConnector().discoverSchema(connectionNode.getConnectionContext(), tableFilter, BATCH_SIZE,
-						tables -> consumeTapTable(tableConsumer, dataTypesMap, tables)), TAG);
+				() -> {
+					connectionNode.getConnector().discoverSchema(connectionNode.getConnectionContext(), tableFilter, BATCH_SIZE,
+							tables -> consumeTapTable(tableConsumer, dataTypesMap, tables));
+				}, TAG);
 	}
 
 	public static void pdkDiscoverSchema(ConnectorNode connectorNode, List<String> tableFilter, Consumer<TapTable> tableConsumer) {
@@ -331,8 +338,9 @@ public class LoadSchemaRunner implements Runnable {
 		}
 	}
 
-	private static class TableFilter implements Predicate<String> {
-		private List<Pattern> patterns;
+	public static class TableFilter implements Predicate<String> {
+		private volatile List<Pattern> includePatterns;
+		private volatile List<Pattern> excludePatterns;
 
 		private TableFilter() {
 		}
@@ -346,29 +354,75 @@ public class LoadSchemaRunner implements Runnable {
 			for (String s : split) {
 				s = s.replaceAll("\\*", ".*");
 				Pattern pattern = Pattern.compile(s);
-				tableFilter.add(pattern);
+				tableFilter.addInclude(pattern);
 			}
 			return tableFilter;
 		}
 
-		public void add(Pattern pattern) {
-			if (null == patterns) {
-				patterns = new ArrayList<>();
+		public static TableFilter create(String includeFilterStr, String excludeFilterStr) {
+			TableFilter tableFilter = new TableFilter();
+			if (StringUtils.isNotBlank(includeFilterStr)) {
+				putInPatterns(includeFilterStr, tableFilter::addInclude);
 			}
-			patterns.add(pattern);
+			if (StringUtils.isNotBlank(excludeFilterStr)) {
+				putInPatterns(excludeFilterStr, tableFilter::addExclude);
+			}
+			return tableFilter;
+		}
+
+		private static void putInPatterns(String filterStr, Consumer<Pattern> consumer) {
+			String[] split = filterStr.split(",");
+			for (String s : split) {
+				if (StringUtils.isBlank(s)) {
+					continue;
+				}
+				s = s.trim().replaceAll("\\*", ".*");
+				Pattern pattern = Pattern.compile(s);
+				consumer.accept(pattern);
+			}
+		}
+
+		public void addInclude(Pattern pattern) {
+			if (null == includePatterns) {
+				synchronized (this) {
+					if (null == includePatterns) {
+						includePatterns = new ArrayList<>();
+					}
+				}
+			}
+			includePatterns.add(pattern);
+		}
+
+		public void addExclude(Pattern pattern) {
+			if (null == excludePatterns) {
+				synchronized (this) {
+					if (null == excludePatterns) {
+						excludePatterns = new ArrayList<>();
+					}
+				}
+			}
+			excludePatterns.add(pattern);
 		}
 
 		@Override
 		public boolean test(String s) {
-			if (CollectionUtils.isEmpty(patterns)) {
-				return true;
-			}
-			for (Pattern pattern : patterns) {
-				if (pattern.matcher(s).matches()) {
-					return true;
+			// Exclude if table is both in ExcludePatterns and IncludePatterns
+			if (CollectionUtils.isNotEmpty(excludePatterns)) {
+				for (Pattern pattern : excludePatterns) {
+					if (pattern.matcher(s).matches()) {
+						return false;
+					}
 				}
 			}
-			return false;
+			if (CollectionUtils.isNotEmpty(includePatterns)) {
+				for (Pattern pattern : includePatterns) {
+					if (pattern.matcher(s).matches()) {
+						return true;
+					}
+				}
+				return false;
+			}
+			return true;
 		}
 	}
 }

@@ -2,6 +2,7 @@ package io.tapdata.entity.codec.filter.impl;
 
 import io.tapdata.entity.codec.filter.EntryFilter;
 import io.tapdata.entity.codec.filter.MapIteratorEx;
+import io.tapdata.entity.codec.filter.StopFilterException;
 
 import java.util.*;
 import java.util.function.BiFunction;
@@ -84,20 +85,23 @@ public class AllLayerMapIterator implements MapIteratorEx {
         if(map == null || filter == null) {
             return;
         }
-        Set<Map.Entry<String, Object>> entrySet = map.entrySet();
-        for(Map.Entry<String, Object> entry : entrySet) {
-            Object value = entry.getValue();
-            if(value instanceof Map) {
-                iterateWithPrefix(entry.getKey() + MAP_KEY_SEPARATOR, (Map<String, Object>) value, filter);
-            } else if(value instanceof Collection) {
-                Collection<Object> newList = new ArrayList<>();
-                iterateListWithPrefix(entry.getKey() + ARRAY_KEY_SEPARATOR, (Collection<Object>) value, newList, filter);
-                entry.setValue(newList);
+        try {
+            Set<Map.Entry<String, Object>> entrySet = map.entrySet();
+            for(Map.Entry<String, Object> entry : entrySet) {
+                Object value = entry.getValue();
+                if(value instanceof Map) {
+                    iterateWithPrefix(entry.getKey() + MAP_KEY_SEPARATOR, (Map<String, Object>) value, filter);
+                } else if(value instanceof Collection) {
+                    Collection<Object> newList = new ArrayList<>();
+                    iterateListWithPrefix(entry.getKey() + ARRAY_KEY_SEPARATOR, (Collection<Object>) value, newList, filter);
+                    entry.setValue(newList);
+                }
+                Object newValue = filter.filter(entry.getKey(), entry.getValue(), false);
+                if(newValue != null) {
+                    entry.setValue(newValue);
+                }
             }
-            Object newValue = filter.filter(entry.getKey(), entry.getValue(), false);
-            if(newValue != null) {
-                entry.setValue(newValue);
-            }
+        } catch (StopFilterException ignored) {
         }
     }
 

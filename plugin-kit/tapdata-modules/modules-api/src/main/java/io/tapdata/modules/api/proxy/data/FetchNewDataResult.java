@@ -5,6 +5,7 @@ import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.entity.utils.io.DataOutputStreamEx;
 import io.tapdata.modules.api.net.message.MessageEntity;
 import io.tapdata.modules.api.net.message.TapEntity;
+import io.tapdata.modules.api.net.message.TapEntityEx;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -14,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 @Implementation(value = TapEntity.class, type = "FetchNewDataResult")
-public class FetchNewDataResult implements TapEntity {
+public class FetchNewDataResult extends TapEntityEx {
 	private List<MessageEntity> messages;
 	public FetchNewDataResult messages(List<MessageEntity> messages) {
 		this.messages = messages;

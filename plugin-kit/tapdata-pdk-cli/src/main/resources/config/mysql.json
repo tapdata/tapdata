@@ -1,12 +1,10 @@
 {
   "connection": {
-	"host": "127.0.0.1",
-	"port": 3307,
+	"host": "192.168.1.183",
+	"port": 33063,
 	"username": "root",
-	"password": "tapdata",
-	"database": "tdd",
-	"timezone": "",
-	"addtionalString": ""
+	"password": "Gotapd8",
+	"database": "gavin"
   },
   "node": {
   }

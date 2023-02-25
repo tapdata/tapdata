@@ -32,7 +32,6 @@ import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
@@ -44,7 +43,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -110,7 +108,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		SyncProgress syncProgress = initSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
 		if (null != syncProgress) return;
 		for (String tableId : tapTableMap.keySet()) {
-			if (!this.running.get()) {
+			if (!isRunning()) {
 				break;
 			}
 			TapTable tapTable = tapTableMap.get(tableId);
@@ -506,39 +504,46 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		handleTapTablePrimaryKeys(tapTable);
 		events.forEach(this::addPropertyForMergeEvent);
 		WriteRecordFunction writeRecordFunction = getConnectorNode().getConnectorFunctions().getWriteRecordFunction();
+		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 		if (writeRecordFunction != null) {
 			logger.debug("Write {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
-			long start = System.currentTimeMillis();
 			try {
-				executeDataFuncAspect(WriteRecordFuncAspect.class, () -> new WriteRecordFuncAspect()
-						.recordEvents(tapRecordEvents)
-						.table(tapTable)
-						.connectorContext(getConnectorNode().getConnectorContext())
-						.dataProcessorContext(dataProcessorContext)
-						.start(), (writeRecordFuncAspect ->
-						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_WRITE_RECORD,
-								PDKMethodInvoker.create()
-										.runnable(
-												() -> writeRecordFunction.writeRecord(getConnectorNode().getConnectorContext(), tapRecordEvents, tapTable, writeListResult -> {
-													Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
-													if (MapUtils.isNotEmpty(errorMap)) {
-														for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
-															logger.error(tapRecordEventThrowableEntry.getValue().getMessage(), tapRecordEventThrowableEntry.getValue());
-															obsLogger.error(tapRecordEventThrowableEntry.getValue().getMessage(), tapRecordEventThrowableEntry.getValue());
-															logger.error("Error record: " + tapRecordEventThrowableEntry.getKey());
-															obsLogger.error("Error record: " + tapRecordEventThrowableEntry.getKey());
-														}
-														throw new RuntimeException("Write record failed, will stop task");
+				try {
+					executeDataFuncAspect(WriteRecordFuncAspect.class, () -> new WriteRecordFuncAspect()
+							.recordEvents(tapRecordEvents)
+							.table(tapTable)
+							.connectorContext(getConnectorNode().getConnectorContext())
+							.dataProcessorContext(dataProcessorContext)
+							.start(), (writeRecordFuncAspect ->
+							PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_WRITE_RECORD,
+									pdkMethodInvoker.runnable(
+											() -> writeRecordFunction.writeRecord(getConnectorNode().getConnectorContext(), tapRecordEvents, tapTable, writeListResult -> {
+												Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
+												if (MapUtils.isNotEmpty(errorMap)) {
+													TapRecordEvent lastErrorTapRecord = null;
+													Throwable lastErrorThrowable = null;
+													for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
+														logger.warn(tapRecordEventThrowableEntry.getValue().getMessage() + "\n" + Log4jUtil.getStackString(tapRecordEventThrowableEntry.getValue()));
+														logger.warn("Error record: " + tapRecordEventThrowableEntry.getKey());
+														obsLogger.warn(tapRecordEventThrowableEntry.getValue().getMessage() + "\n" + Log4jUtil.getStackString(tapRecordEventThrowableEntry.getValue()));
+														obsLogger.warn("Error record: " + tapRecordEventThrowableEntry.getKey());
+														lastErrorTapRecord = tapRecordEventThrowableEntry.getKey();
+														lastErrorThrowable = tapRecordEventThrowableEntry.getValue();
 													}
+													throw new RuntimeException(String.format("Write record %s failed", lastErrorTapRecord), lastErrorThrowable);
+												}
 
-													if (writeRecordFuncAspect != null)
-														AspectUtils.accept(writeRecordFuncAspect.state(WriteRecordFuncAspect.STATE_WRITING).getConsumers(), tapRecordEvents, writeListResult);
+												if (writeRecordFuncAspect != null)
+													AspectUtils.accept(writeRecordFuncAspect.state(WriteRecordFuncAspect.STATE_WRITING).getConsumers(), tapRecordEvents, writeListResult);
+												if (logger.isDebugEnabled()) {
 													logger.debug("Wrote {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
-												})
-										).logTag(TAG)
-										.retryPeriodSeconds(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getRetryIntervalSecond())
-										.maxRetryTimeMinute(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getMaxRetryTime(TimeUnit.MINUTES))
-						)));
+												}
+											})
+									)
+							)));
+				} finally {
+					removePdkMethodInvoker(pdkMethodInvoker);
+				}
 			} catch (Exception e) {
 				throw new NodeException(e).context(getDataProcessorContext()).events(events);
 			}
@@ -600,18 +605,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 		public void setCurrentTapEvent(TapEvent currentTapEvent) {
 			this.currentTapEvent = currentTapEvent;
-		}
-	}
-
-	@Override
-	public void doClose() throws Exception {
-		try {
-			if (null != getConnectorNode()) {
-				CommonUtils.ignoreAnyError(() -> PDKInvocationMonitor.stop(getConnectorNode()), TAG);
-				CommonUtils.ignoreAnyError(() -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG), TAG);
-			}
-		} finally {
-			super.doClose();
 		}
 	}
 

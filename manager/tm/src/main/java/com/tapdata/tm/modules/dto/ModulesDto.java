@@ -2,6 +2,7 @@ package com.tapdata.tm.modules.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.modules.entity.Path;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -57,8 +58,7 @@ public class ModulesDto extends BaseDto {
     private List<Path> paths;
     private List<Field> fields;
 
-    @JsonProperty("listtags")
-    private List listTags;
+    private List<Tag> listtags;
 
     private String project;
     private String createType;

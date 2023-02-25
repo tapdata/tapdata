@@ -25,7 +25,7 @@ public class InstanceFactory {
     private static Function<Class<?>, Object> beanInterceptor;
 
     private final static List<FieldAnnotationHandler<?>> fieldAnnotationHandlers = new CopyOnWriteArrayList<>();
-
+    private static final AtomicBoolean initializing = new AtomicBoolean(false);
     private static final AtomicBoolean initialized = new AtomicBoolean(false);
 
     private static class BeanWrapper {
@@ -54,6 +54,9 @@ public class InstanceFactory {
     }
 
     public static void injectBean(Object beanObject) throws CoreException {
+        injectBean(beanObject, false);
+    }
+    public static void injectBean(Object beanObject, boolean needInjectBeans) throws CoreException {
         Field[] fields = ReflectionUtil.getFields(beanObject.getClass());
         for (Field field : fields) {
             Bean bean = field.getAnnotation(Bean.class);
@@ -61,7 +64,7 @@ public class InstanceFactory {
                 Class<?> gClass = field.getType();
                 String type = (bean.type() != null && !bean.type().equals("")) ? bean.type() : null;
 
-                Object beanValue = bean(gClass, type);
+                Object beanValue = bean(gClass, needInjectBeans, type);
 
                 if (beanValue != null) {
                     field.setAccessible(true);
@@ -184,15 +187,16 @@ public class InstanceFactory {
     }
 
     public static <T> T instance(Class<T> instanceClass) {
+        return instance(instanceClass, false);
+    }
+    public static <T> T instance(Class<T> instanceClass, boolean waitUntilInitialized) {
         Object obj = instanceMap.get(instanceClass);
         if(obj == null) {
             obj = ClassFactory.create(instanceClass);
             if(obj == null)
                 return null;
+            injectBeanForInstance(waitUntilInitialized, obj);
             Object old = instanceMap.putIfAbsent(instanceClass, obj);
-            if(old == null && initialized.get()) {
-                injectBean(obj);
-            }
         }
         //noinspection unchecked
         return (T) obj;
@@ -206,17 +210,35 @@ public class InstanceFactory {
 //        });
     }
 
+    private static void injectBeanForInstance(boolean waitUntilInitialized, Object obj) {
+        if(waitUntilInitialized) {
+            while (!initialized.get()) {
+                synchronized (initialized) {
+                    try {
+                        initialized.wait(100L);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        }
+        if(initialized.get()) {
+            injectBean(obj);
+        }
+    }
+
     public static <T> T instance(Class<T> instanceClass, String type) {
+        return instance(instanceClass, type, false);
+    }
+    public static <T> T instance(Class<T> instanceClass, String type, boolean waitUntilInitialized) {
         String key = instanceClass.getName() + "#" + type;
         Object obj = instanceTypeMap.get(key);
         if(obj == null) {
             obj = ClassFactory.create(instanceClass, type);
             if(obj == null)
                 return null;
+            injectBeanForInstance(waitUntilInitialized, obj);
             Object old = instanceTypeMap.putIfAbsent(key, obj);
-            if(old == null && initialized.get()) {
-                injectBean(obj);
-            }
         }
         //noinspection unchecked
         return (T) obj;
@@ -225,7 +247,7 @@ public class InstanceFactory {
     }
 
     public static void injectBeans() {
-        if(initialized.compareAndSet(false, true)) {
+        if(initializing.compareAndSet(false, true)) {
             for(Class<?> beanClass : beanMap.keySet()) {
                 TapLogger.debug(TAG, "inject bean {}", beanClass);
                 long time = System.currentTimeMillis();
@@ -235,15 +257,16 @@ public class InstanceFactory {
             for(Object instanceObj : instanceMap.values()) {
                 TapLogger.debug(TAG, "inject instanceObj {}", instanceObj);
                 long time = System.currentTimeMillis();
-                injectBean(instanceObj);
+                injectBean(instanceObj, true);
                 TapLogger.debug(TAG, "injected instanceObj {} takes ", instanceObj, (System.currentTimeMillis() - time));
             }
             for(Object typeInstanceObj : instanceTypeMap.values()) {
                 TapLogger.debug(TAG, "inject typeInstanceObj {}", typeInstanceObj);
                 long time = System.currentTimeMillis();
-                injectBean(typeInstanceObj);
+                injectBean(typeInstanceObj, true);
                 TapLogger.debug(TAG, "injected typeInstanceObj {} takes ", typeInstanceObj, (System.currentTimeMillis() - time));
             }
+            initialized.set(true);
         }
     }
 }

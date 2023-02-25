@@ -10,6 +10,7 @@ import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public interface MqService extends AutoCloseable {
 
@@ -29,10 +30,9 @@ public interface MqService extends AutoCloseable {
 
     void loadTables(int tableSize, Consumer<List<TapTable>> consumer) throws Throwable;
 
-    void produce(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable;
+    void produce(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer, Supplier<Boolean> isAlive) throws Throwable;
 
     void consumeOne(TapTable tapTable, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable;
 
     void streamConsume(List<String> tableList, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable;
-
 }

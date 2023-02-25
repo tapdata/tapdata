@@ -1,12 +1,14 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.alibaba.fastjson.JSON;
+import com.hazelcast.jet.core.Processor;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.entity.TapdataShareLogEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.autoinspect.compare.IAutoCompare;
 import com.tapdata.tm.autoinspect.connector.IPdkConnector;
+import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.constants.TaskType;
 import com.tapdata.tm.autoinspect.dto.TaskAutoInspectResultDto;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
@@ -24,6 +26,7 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.module.api.PipelineDelay;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,15 +36,22 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2022/8/17 16:47 Create
  */
 public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNode {
-
     private static final Logger logger = LogManager.getLogger(HazelcastTargetPdkAutoInspectNode.class);
+    public static final String TAG = HazelcastTargetPdkAutoInspectNode.class.getSimpleName();
     private static final ExecutorService EXECUTORS = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS, new SynchronousQueue<>());
+
+    private enum STATUS {
+        Init, Running, Stopping, Completed,
+        ;
+    }
+
     private final AtomicBoolean isInitialed = new AtomicBoolean(false);
     private final AtomicLong lastReferenceTimes = new AtomicLong();
     private final AtomicLong processDelay = new AtomicLong();
@@ -49,6 +59,7 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
     private final LinkedBlockingQueue<List<TapEvent>> incrementQueue = new LinkedBlockingQueue<>(1000);//todo: Optimize the queue, restart task maybe lost events
 
     private final String dataNodeId;
+    private final AtomicReference<STATUS> status = new AtomicReference<>(STATUS.Init);
 
     public HazelcastTargetPdkAutoInspectNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);
@@ -58,15 +69,71 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
         }
         AutoInspectNode node = (AutoInspectNode) dataProcessorContext.getNode();
         this.dataNodeId = node.getToNode().getId();
+        this.associateId = this.getClass().getSimpleName() + "-" + node.getId();
+
+    }
+
+    @Override
+    protected void handleTapdataCompleteSnapshotEvent() {
+        super.handleTapdataCompleteSnapshotEvent();
+        isInitialed.set(true);
+    }
+
+    @Override
+    void processEvents(List<TapEvent> tapEvents) {
+        if (null == tapEvents) return;
+        if (!isInitialed.get()) return;
+
+        while (isRunning()) {
+            try {
+                if (incrementQueue.offer(tapEvents, 100, TimeUnit.MILLISECONDS)) {
+                    break;
+                }
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    @Override
+    void processShareLog(List<TapdataShareLogEvent> tapdataShareLogEvents) {
+        throw new UnsupportedOperationException();
+    }
+
+    private CompareRecord toCompareRecord(ObjectId connectionId, TapTable tapTable, Map<String, Object> data) {
+        LinkedHashMap<String, Object> keymap = new LinkedHashMap<>();
+        for (String pk : tapTable.primaryKeys()) {
+            keymap.put(pk, data.get(pk));
+        }
+
+        CompareRecord compareRecord = new CompareRecord(tapTable.getName(), connectionId, keymap, new LinkedHashSet<>(keymap.keySet()));
+        compareRecord.setData(data, tapTable.getNameFieldMap());
+        return compareRecord;
+    }
+
+    @Override
+    protected void doInit(@NonNull Processor.Context context) throws Exception {
+        super.doInit(context);
 
         TaskDto task = dataProcessorContext.getTaskDto();
         String taskId = task.getId().toHexString();
         TaskType taskType = TaskType.parseByTaskType(syncType.getSyncType());
         AutoInspectProgress progress = AutoInspectUtil.toAutoInspectProgress(task.getAttrs());
         ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
-
         HazelcastTargetPdkAutoInspectNode _thisNode = this;
-        EXECUTORS.submit(new PdkAutoInspectRunner(obsLogger, taskId, taskType, progress, node, clientMongoOperator, dataProcessorContext.getTaskConfig()) {
+        EXECUTORS.submit(new PdkAutoInspectRunner(obsLogger, taskId, taskType, progress, (AutoInspectNode) dataProcessorContext.getNode(), clientMongoOperator, dataProcessorContext) {
+            @Override
+            public void run() {
+                try {
+                    if (status.compareAndSet(STATUS.Init, STATUS.Running)) {
+                        super.run();
+                    } else {
+                        logger.warn("{} status not init", AutoInspectConstants.MODULE_NAME);
+                    }
+                } finally {
+                    status.set(STATUS.Completed);
+                }
+            }
 
             @Override
             protected void initialCompare(@NonNull IPdkConnector sourceConnector, @NonNull IPdkConnector targetConnector, @NonNull IAutoCompare autoCompare) throws Exception {
@@ -88,7 +155,7 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
                 while (isRunning()) {
                     do {
                         tapEvents = incrementQueue.poll(1, TimeUnit.SECONDS);
-                        if (!isRunning()) return;
+                        if (!isRunning() || isStopping()) return;
 
 //                        //Output log every 30 seconds
 //                        if (System.currentTimeMillis() / 1000 % 30 == 0) {
@@ -153,12 +220,7 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
                                 continue;
                             }
 
-                            LinkedHashMap<String, Object> keymap = new LinkedHashMap<>();
-                            for (String k : sourceRecord.getKeyNames()) {
-                                keymap.put(k, sourceRecord.getDataValue(k));
-                            }
-
-                            CompareRecord targetRecord = targetConnector.queryByKey(tableName, keymap, sourceRecord.getKeyNames());
+                            CompareRecord targetRecord = targetConnector.queryByKey(tableName, sourceRecord.getOriginalKey(), sourceRecord.getKeyNames());
                             if (tapEvent instanceof TapDeleteRecordEvent) {
                                 if (null != targetRecord) {
                                     targetRecord.getOriginalKey().putAll(sourceRecord.getOriginalKey());
@@ -187,7 +249,6 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
                         }
                     }
                 }
-
             }
 
             @Override
@@ -197,7 +258,7 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
 
             @Override
             protected boolean isStopping() {
-                return false;
+                return STATUS.Stopping == status.get();
             }
 
             @Override
@@ -208,39 +269,23 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
     }
 
     @Override
-    protected void handleTapdataCompleteSnapshotEvent() {
-        super.handleTapdataCompleteSnapshotEvent();
-        isInitialed.set(true);
-    }
+    public void doClose() throws Exception {
+        try {
+            CommonUtils.ignoreAnyError(() -> {
+                if (status.compareAndSet(STATUS.Init, STATUS.Stopping)) return;
 
-    @Override
-    void processEvents(List<TapEvent> tapEvents) {
-        if (null == tapEvents) return;
-        if (!isInitialed.get()) return;
-
-        while (isRunning()) {
-            try {
-                if (incrementQueue.offer(tapEvents, 100, TimeUnit.MILLISECONDS)) {
-                    break;
+                if (status.compareAndSet(STATUS.Running, STATUS.Stopping)) {
+                    while (isRunning() && STATUS.Completed != status.get()) {
+                        try {
+                            Thread.sleep(500L);
+                        } catch (InterruptedException e) {
+                            break;
+                        }
+                    }
                 }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            }, TAG);
+        } finally {
+            super.doClose();
         }
     }
-
-    @Override
-    void processShareLog(List<TapdataShareLogEvent> tapdataShareLogEvents) {
-        throw new UnsupportedOperationException();
-    }
-
-    private CompareRecord toCompareRecord(ObjectId connectionId, TapTable tapTable, Map<String, Object> data) {
-        LinkedHashMap<String, Object> keymap = new LinkedHashMap<>();
-        for (String pk : tapTable.primaryKeys()) {
-            keymap.put(pk, data.get(pk));
-        }
-
-        return new CompareRecord(tapTable.getName(), connectionId, keymap, new LinkedHashSet<>(keymap.keySet()), data);
-    }
-
 }

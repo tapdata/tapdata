@@ -9,7 +9,6 @@ import com.tapdata.tm.task.constant.DagOutputTemplate;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
-import com.tapdata.tm.task.service.TaskDagService;
 import com.tapdata.tm.utils.Lists;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
@@ -51,7 +50,7 @@ public class ModelProcessStrategyImpl implements DagLogStrategy {
         preLog.setCreateAt(DateUtil.date());
         preLog.setCreateUser(userDetail.getUserId());
         preLog.setLog(preContent);
-        preLog.setGrade(Level.INFO.getValue());
+        preLog.setGrade(Level.INFO);
         result.add(preLog);
 
         return result;

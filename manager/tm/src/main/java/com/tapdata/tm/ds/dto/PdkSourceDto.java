@@ -29,6 +29,7 @@ public class PdkSourceDto {
     private String id;
     private String expression;
     private String tapTypeDataTypeMap;
+    private Boolean beta;
     //多语言信息
     private LinkedHashMap<String, Object> messages;
     //数据能力

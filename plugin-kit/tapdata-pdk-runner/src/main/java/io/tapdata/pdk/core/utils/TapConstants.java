@@ -1,8 +1,12 @@
 package io.tapdata.pdk.core.utils;
 
+import com.alibaba.fastjson.parser.ParserConfig;
+import com.alibaba.fastjson.parser.deserializer.ObjectDeserializer;
 import io.tapdata.entity.schema.type.*;
 import io.tapdata.entity.utils.JsonParser;
+import io.tapdata.pdk.core.api.impl.AbstractResultDeserializer;
 
+import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.List;
 
@@ -20,4 +24,18 @@ public class TapConstants {
             JsonParser.AbstractClassDetector.create().key("type").value(TapType.TYPE_STRING).deserializeClass(TapString.class),
             JsonParser.AbstractClassDetector.create().key("type").value(TapType.TYPE_DATE).deserializeClass(TapDate.class)
     );
+
+    public final static ParserConfig tapdataParserConfig = new ParserConfig()/* {
+        @Override
+        public ObjectDeserializer getDeserializer(Type type) {
+            if (type == TapType.class) {
+                return new AbstractResultDeserializer(abstractClassDetectors);
+            }
+            return super.getDeserializer(type);
+        }
+    }*/;
+    static {
+        tapdataParserConfig.putDeserializer(TapType.class, new AbstractResultDeserializer(abstractClassDetectors));
+    }
+
 }

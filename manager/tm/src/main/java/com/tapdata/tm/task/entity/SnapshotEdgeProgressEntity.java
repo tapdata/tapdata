@@ -22,8 +22,6 @@ import java.io.Serializable;
 @NoArgsConstructor
 public class SnapshotEdgeProgressEntity extends BaseEntity implements Serializable {
 
-	private static final long serialVersionUID = -8750390704591699906L;
-
 	//共用属性
 	private Long waitForRunNumber;
 	private Long finishNumber;

@@ -221,17 +221,4 @@ public class BatchReadTest extends PDKTestBase {
                 support(DropTableFunction.class, "DropTable is needed for TDD to drop the table created by tests, please implement it in registerCapabilities method.")
         );
     }
-
-    private void initConnectorFunctions() {
-        tddTargetNode = dataFlowWorker.getTargetNodeDriver(targetNodeId).getTargetNode();
-        sourceNode = dataFlowWorker.getSourceNodeDriver(testSourceNodeId).getSourceNode();
-    }
-
-    public void tearDown() {
-        super.tearDown();
-        if(originDag != null) {
-            DataFlowEngine.getInstance().stopDataFlow(originDag.getId());
-        }
-
-    }
 }

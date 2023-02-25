@@ -32,9 +32,8 @@ import java.util.function.BiConsumer;
  **/
 public class ShareCdcBaseReader implements ShareCdcReader {
 
-	protected static final int DEFAULT_QUEUE_SIZE = 10;
+	protected static final int DEFAULT_QUEUE_SIZE = 100;
 	protected static final Logger logger = LogManager.getLogger(ShareCdcBaseReader.class);
-	private static final String LOG_PREFIX = "[Share CDC Base Reader] - ";
 
 	protected ShareCdcContext shareCdcContext;
 	protected ClientMongoOperator clientMongoOperator;

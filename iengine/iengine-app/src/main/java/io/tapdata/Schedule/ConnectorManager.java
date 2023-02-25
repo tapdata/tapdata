@@ -4,13 +4,16 @@ import com.mongodb.MongoClient;
 import com.mongodb.MongoClientOptions;
 import com.mongodb.MongoClientURI;
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.mongo.CloudSignUtil;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.mongo.RestTemplateOperator;
+import com.tapdata.tm.commons.ping.PingDto;
+import com.tapdata.tm.commons.ping.PingType;
+import com.tapdata.tm.sdk.util.CloudSignUtil;
 import com.tapdata.validator.ConnectionValidateResult;
 import com.tapdata.validator.ConnectionValidator;
 import com.tapdata.validator.ValidatorConstant;
@@ -19,12 +22,15 @@ import io.tapdata.TapInterface;
 import io.tapdata.aspect.LoginSuccessfullyAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.*;
-import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.*;
+import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.metric.MetricManager;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.task.TapdataTaskScheduler;
+import io.tapdata.websocket.ManagementWebsocketHandler;
+import io.tapdata.websocket.WebSocketEvent;
+import io.tapdata.websocket.handler.PongHandler;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -45,6 +51,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.web.socket.TextMessage;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -69,7 +76,7 @@ public class ConnectorManager {
 
 	private final static long LONG_TIME_EXECUTED_CAPACITY = 1000L;
 
-	private Logger logger = LogManager.getLogger(ConnectorManager.class);
+	private static final Logger logger = LogManager.getLogger(ConnectorManager.class);
 
 	private static final ConcurrentHashMap<String, Job> JOB_MAP = new ConcurrentHashMap<>();
 
@@ -283,6 +290,8 @@ public class ConnectorManager {
 		SchemaProxy.schemaProxy = schemaProxy;
 
 		ConnectorConstant.clientMongoOperator = clientMongoOperator;
+
+		GlobalConstant.getInstance().configurationCenter(configCenter);
 	}
 
 	@PreDestroy
@@ -743,7 +752,7 @@ public class ConnectorManager {
 //    }
 //  }
 
-	@Scheduled(fixedDelay = 2000L)
+	//	@Scheduled(fixedDelay = 2000L)
 	private void scanStopJob() {
 		Thread.currentThread().setName(String.format(ConnectorConstant.STOP_JOB_THREAD, CONNECTOR, instanceNo.substring(instanceNo.length() - 6)));
 		try {
@@ -817,7 +826,7 @@ public class ConnectorManager {
 		}
 	}
 
-	@Scheduled(fixedDelay = 2000L)
+	//	@Scheduled(fixedDelay = 2000L)
 	private void scanErrorJob() {
 		Thread.currentThread().setName(String.format(ConnectorConstant.ERROR_JOB_THREAD, CONNECTOR, instanceNo.substring(instanceNo.length() - 6)));
 		// if the job happen runtime exception, remove the jobmap
@@ -839,7 +848,7 @@ public class ConnectorManager {
 		}
 	}
 
-	@Scheduled(fixedDelay = 2000L)
+	//	@Scheduled(fixedDelay = 2000L)
 	public void scanForceStopJob() {
 		Thread.currentThread().setName(String.format(ConnectorConstant.FORCE_STOP_JOB_THREAD, CONNECTOR, instanceNo.substring(instanceNo.length() - 6)));
 		try {
@@ -868,7 +877,7 @@ public class ConnectorManager {
 		}
 	}
 
-	@Scheduled(fixedDelay = 5000L)
+	//	@Scheduled(fixedDelay = 5000L)
 	public void perSecondFlushJobStats() {
 		Thread.currentThread().setName(String.format(ConnectorConstant.STATS_JOB_THREAD, CONNECTOR, instanceNo.substring(instanceNo.length() - 6)));
 		try {
@@ -1010,7 +1019,7 @@ public class ConnectorManager {
 	 * 测试连接方法
 	 * 定时轮询状态为testing的连接
 	 */
-	@Scheduled(fixedDelay = 2000L)
+//	@Scheduled(fixedDelay = 2000L)
 	public void testConnection() {
 		String userId = (String) configCenter.getConfig(ConfigurationCenter.USER_ID);
 		String workerTimeout = settingService.getString("lastHeartbeat", "60");
@@ -1262,61 +1271,15 @@ public class ConnectorManager {
 				}
 			}
 
-			long currentTimeMillis = System.currentTimeMillis();
-
-			List<String> jobIds = new ArrayList<>();
-			for (Map.Entry<String, Job> entry : JOB_MAP.entrySet()) {
-				Job job = entry.getValue();
-				if (StringUtils.isNotEmpty(job.getDataFlowId()) && !jobIds.contains(job.getDataFlowId())) {
-					jobIds.add(job.getDataFlowId());
-				}
-			}
-			int runningThread = jobIds.size();
 			Map<String, Object> params = new HashMap<>();
 			params.put("process_id", instanceNo);
 			params.put("worker_type", ConnectorConstant.WORKER_TYPE_CONNECTOR);
 
-//      List<Worker> workers = pingClientMongoOperator.find(params, ConnectorConstant.WORKER_COLLECTION, Worker.class);
-//      if (CollectionUtils.isEmpty(workers)) {
-//
-//        Worker worker = new Worker(
-//          instanceNo,
-//          currentTimeMillis,
-//          ConnectorConstant.WORKER_TYPE_CONNECTOR,
-//          threshold,
-//          runningThread,
-//          userId,
-//          version,
-//          hostname,
-//          processCpuLoad,
-//          usedMemory
-//        );
-//        worker.setJob_ids(jobIds);
-//        worker.setMetricValues(this.metricManager.getValueMap());
-//        final String version = (String) configCenter.getConfig("version");
-//        if (StringUtils.isNotBlank(version)) {
-//          worker.setVersion(version);
-//        }
-//        final String gitCommitId = (String) configCenter.getConfig("gitCommitId");
-//        if (StringUtils.isNotBlank(gitCommitId)) {
-//          worker.setGitCommitId(gitCommitId);
-//        }
-//
-//        if (StringUtils.isNoneBlank(region, zone)) {
-//          worker.setPlatformInfo(new HashMap<>());
-//          worker.getPlatformInfo().put("region", region);
-//          worker.getPlatformInfo().put("zone", zone);
-//        }
-//
-//        pingClientMongoOperator.insertOne(worker, ConnectorConstant.WORKER_COLLECTION);
-//      } else {
 			List<Worker> workers = pingClientMongoOperator.find(params, ConnectorConstant.WORKER_COLLECTION, Worker.class);
 			Integer finalThreshold = threshold;
 			checkAndExit(workers, isExit -> {
 				Map<String, Object> value = new HashMap<>();
 				value.put("total_thread", finalThreshold);
-				value.put("running_thread", runningThread);
-				value.put("job_ids", jobIds);
 				value.put("process_id", instanceNo);
 				value.put("user_id", userId);
 				value.put("version", version);
@@ -1325,7 +1288,6 @@ public class ConnectorManager {
 				value.put("usedMemory", usedMemory);
 				value.put("metricValues", this.metricManager.getValueMap());
 				value.put("worker_type", ConnectorConstant.WORKER_TYPE_CONNECTOR);
-				value.put("process_id", instanceNo);
 				if (StringUtils.isNoneBlank(region, zone)) {
 					Map<String, String> platformInfo = new HashMap<>();
 					platformInfo.put("region", region);
@@ -1346,11 +1308,44 @@ public class ConnectorManager {
 					value.put("ping_time", 1);
 				}
 
-				pingClientMongoOperator.insertOne(value, ConnectorConstant.WORKER_COLLECTION + "/health");
+				sendWorkerHeartbeat(
+						value,
+						v -> pingClientMongoOperator.insertOne(v, ConnectorConstant.WORKER_COLLECTION + "/health"));
 			});
-//      }
 		} catch (Exception e) {
 			logger.error("Worker heart beat failed {}.", e.getMessage(), e);
+		}
+	}
+
+	public static void sendWorkerHeartbeat(Map<String, Object> value, Consumer<Map<String, Object>> executeWhenError) {
+		try {
+			PingDto pingDto = new PingDto();
+			pingDto.setPingType(PingType.WORKER_PING);
+			pingDto.setData(value);
+			String pingId = UUIDGenerator.uuid();
+			pingDto.setPingId(pingId);
+			WebSocketEvent<PingDto> webSocketEvent = new WebSocketEvent<>();
+			webSocketEvent.setType("ping");
+			webSocketEvent.setData(pingDto);
+			ManagementWebsocketHandler managementWebsocketHandler = BeanUtil.getBean(ManagementWebsocketHandler.class);
+			if (null == managementWebsocketHandler) {
+				return;
+			}
+			managementWebsocketHandler.sendMessage(new TextMessage(JSONUtil.obj2Json(webSocketEvent)));
+			boolean handleResponse = PongHandler.handleResponse(
+					pingId,
+					cache -> {
+						String pingResult = cache.get(PingDto.PING_RESULT).toString();
+						if (PingDto.PingResult.FAIL.name().equals(pingResult)) {
+							throw new RuntimeException("Failed to send worker heartbeat use websocket, will retry http, message: " + cache.getOrDefault(PingDto.ERR_MESSAGE, "unknown error"));
+						}
+					});
+			if (!handleResponse) {
+				throw new RuntimeException("No response from worker heartbeat websocket, will retry http");
+			}
+		} catch (Exception e) {
+			logger.warn(e.getMessage());
+			executeWhenError.accept(value);
 		}
 	}
 
@@ -1544,7 +1539,7 @@ public class ConnectorManager {
 		return clientMongoOperator.find(query, ConnectorConstant.JOB_COLLECTION, Job.class);
 	}
 
-	@Scheduled(fixedDelay = 10000L)
+	//	@Scheduled(fixedDelay = 10000L)
 	private void stoppedJobIfNeed() {
 		Thread.currentThread().setName(String.format(ConnectorConstant.STOP_JOB_THREAD, CONNECTOR, instanceNo.substring(instanceNo.length() - 6)));
 		Map<String, Object> params = new HashMap<>();
@@ -1581,7 +1576,7 @@ public class ConnectorManager {
 		}
 	}
 
-	@Scheduled(fixedDelay = 60000L)
+	//	@Scheduled(fixedDelay = 60000L)
 	private void clearExpiredGridFSFile() {
 		Thread.currentThread().setName(String.format(ConnectorConstant.CLEAR_GRIDFS_EXPIRED_FILE_THREAD, CONNECTOR, instanceNo.substring(instanceNo.length() - 6)));
 		Query query = new Query(where("database_type").is(DatabaseTypeEnum.GRIDFS.getType())

@@ -168,9 +168,7 @@ public class LoadSchemaEventHandler extends BaseEventHandler implements WebSocke
 							List<TapTable> tapTables = new ArrayList<>();
 							DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
 							ConnectionNode connectionNode = PDKIntegration.createConnectionConnectorBuilder()
-									.withConnectionConfig(new DataMap() {{
-										putAll(connection.getConfig());
-									}})
+									.withConnectionConfig(DataMap.create(connection.getConfig()))
 									.withGroup(databaseType.getGroup())
 									.withPdkId(databaseType.getPdkId())
 									.withAssociateId(connection.getName() + "_" + connection.getUser_id())

@@ -4,14 +4,13 @@ import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.MainMethod;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.modules.api.net.error.NetErrors;
-import io.tapdata.modules.api.net.service.CommandExecutionService;
+import io.tapdata.modules.api.net.service.EngineMessageExecutionService;
 import io.tapdata.modules.api.net.service.EventQueueService;
 import io.tapdata.modules.api.net.service.node.connection.NodeConnectionFactory;
 import io.tapdata.modules.api.proxy.data.NewDataReceived;
-import io.tapdata.pdk.apis.entity.CommandInfo;
+import io.tapdata.pdk.apis.entity.message.CommandInfo;
+import io.tapdata.pdk.apis.entity.message.ServiceCaller;
 
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static io.tapdata.entity.simplify.TapSimplify.map;
@@ -22,22 +21,18 @@ public class ProxyMain {
 	@Bean
 	private NodeConnectionFactory nodeConnectionFactory;
 	@Bean
-	private CommandExecutionService commandExecutionService;
+	private EngineMessageExecutionService engineMessageExecutionService;
 
 	@Bean(type = "sync")
 	private EventQueueService eventQueueService;
 	public void main() {
 		nodeConnectionFactory.registerReceiver(CommandInfo.class.getSimpleName(), this::handleCommandInfo);
 		nodeConnectionFactory.registerReceiver(NewDataReceived.class.getSimpleName(), this::handleNewDataReceived);
+		nodeConnectionFactory.registerReceiver(ServiceCaller.class.getSimpleName(), this::handleServiceCaller);
 	}
 
-	private void handleNewDataReceived(String nodeId, NewDataReceived newDataReceived, BiConsumer<Object, Throwable> biConsumer) {
-		eventQueueService.newDataReceived(newDataReceived.getSubscribeIds());
-		biConsumer.accept(null, null);
-	}
-
-	private void handleCommandInfo(String nodeId, CommandInfo commandInfo, BiConsumer<Object, Throwable> biConsumer) {
-		commandExecutionService.callLocal(commandInfo, (result, throwable) -> {
+	private void handleServiceCaller(String nodeId, ServiceCaller serviceCaller, BiConsumer<Object, Throwable> biConsumer) {
+		if(!engineMessageExecutionService.callLocal(serviceCaller, (result, throwable) -> {
 			CoreException coreException = null;
 			if(throwable != null) {
 				if(throwable instanceof CoreException) {
@@ -47,6 +42,29 @@ public class ProxyMain {
 				}
 			}
 			biConsumer.accept(result, coreException);
-		});
+		})) {
+			biConsumer.accept(null, new CoreException(NetErrors.ENGINE_MESSAGE_CALL_LOCAL_FAILED, "Call RPCCall failed, no session available"));
+		}
+	}
+
+	private void handleNewDataReceived(String nodeId, NewDataReceived newDataReceived, BiConsumer<Object, Throwable> biConsumer) {
+		eventQueueService.newDataReceived(newDataReceived.getSubscribeIds());
+		biConsumer.accept(null, null);
+	}
+
+	private void handleCommandInfo(String nodeId, CommandInfo commandInfo, BiConsumer<Object, Throwable> biConsumer) {
+		if(!engineMessageExecutionService.callLocal(commandInfo, (result, throwable) -> {
+			CoreException coreException = null;
+			if(throwable != null) {
+				if(throwable instanceof CoreException) {
+					coreException = (CoreException) throwable;
+				} else {
+					coreException = new CoreException(NetErrors.UNKNOWN_ERROR, throwable.getClass().getSimpleName() + ": " + throwable.getMessage());
+				}
+			}
+			biConsumer.accept(result, coreException);
+		})) {
+			biConsumer.accept(null, new CoreException(NetErrors.ENGINE_MESSAGE_CALL_LOCAL_FAILED, "Call command failed, no session available"));
+		}
 	}
 }

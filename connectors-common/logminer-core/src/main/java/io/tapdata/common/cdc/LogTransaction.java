@@ -40,8 +40,6 @@ public class LogTransaction {
 
     private long size;
 
-    private Set<String> txUpdatedRowIds = new HashSet<>();
-
     private Long racMinimalScn;
 
     private Long firstTimestamp;
@@ -113,15 +111,11 @@ public class LogTransaction {
             }
             redoLogContents.get(rsId).add(redoLogContent);
         }
-        if ("UPDATE".equals(redoLogContent.getOperation())) {
-            txUpdatedRowIds.add(redoLogContent.getRowId());
-        }
     }
 
     public void clearRedoLogContents() {
         if (EmptyKit.isNotEmpty(redoLogContents)) {
             redoLogContents.clear();
-            txUpdatedRowIds.clear();
         }
         if (EmptyKit.isNotEmpty(chronicleMap)) {
             chronicleMap.clear();
@@ -195,14 +189,6 @@ public class LogTransaction {
 
     public boolean isLarge() {
         return this.size > LARGE_TRANSACTION_UPPER_LIMIT;
-    }
-
-    public Set<String> getTxUpdatedRowIds() {
-        return txUpdatedRowIds;
-    }
-
-    public void setTxUpdatedRowIds(Set<String> txUpdatedRowIds) {
-        this.txUpdatedRowIds = txUpdatedRowIds;
     }
 
     public Long getFirstTimestamp() {

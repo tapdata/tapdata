@@ -23,9 +23,9 @@ if [[ $_in_docker == "" ]]; then
 fi
 
 components=""
-all_components=("plugin-kit" "connectors-common" "manager" "iengine" "connectors")
+all_components=("plugin-kit" "file-storages" "connectors-common" "manager" "iengine" "connectors")
 package_all_components=("iengine" "manager")
-source_components=("plugin-kit" "connectors-common" "connectors" "tapshell" "build")
+source_components=("plugin-kit" "file-storages" "connectors-common" "connectors" "tapshell" "build")
 output="package"
 
 check_env() {
@@ -47,6 +47,10 @@ build_component() {
     p=`pwd`
     cd $basepath
     cd ..
+    if [[ ! -d  $_component ]]; then
+        warn "no path $_component found, skip build module $_component"
+        return 0
+    fi
     cd $_component && bash build/build.sh
     if [[ $? -ne 0 ]]; then
         cd $p

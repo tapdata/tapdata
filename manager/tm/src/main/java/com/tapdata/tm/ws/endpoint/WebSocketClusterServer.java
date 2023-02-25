@@ -11,7 +11,7 @@ import cn.hutool.core.bean.copier.CopyOptions;
 import cn.hutool.core.map.MapUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.parser.Feature;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
@@ -169,7 +169,7 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
             try {
                 session.sendMessage(new TextMessage("Handle message failed,message:" + e.getMessage()));
             } catch (Exception ignored) {
-                log.error("Websocket send message failed,message: {}", e.getMessage(), e);
+                log.error("Websocket send message failed,message: {}", e.getMessage());
             }
         }
     }

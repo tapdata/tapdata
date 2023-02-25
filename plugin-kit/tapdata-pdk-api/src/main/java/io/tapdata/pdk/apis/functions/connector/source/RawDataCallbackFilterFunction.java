@@ -4,8 +4,10 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connector.TapFunction;
 
+import java.util.List;
 import java.util.Map;
 
+@Deprecated
 public interface RawDataCallbackFilterFunction extends TapFunction {
-	TapEvent filter(TapConnectorContext context, Map<String, Object> rawData);
+	List<TapEvent> filter(TapConnectorContext context, Map<String, Object> rawData);
 }

@@ -26,7 +26,7 @@ public class TapProcessorAnnotationHandler extends TapBaseAnnotationHandler {
     public void handle(Set<Class<?>> classes) throws CoreException {
         if(classes != null && !classes.isEmpty()) {
             newerIdGroupTapNodeInfoMap = new ConcurrentHashMap<>();
-            TapLogger.info(TAG, "--------------TapProcessor Classes Start------------- {}", classes.size());
+            TapLogger.debug(TAG, "--------------TapProcessor Classes Start------------- {}", classes.size());
             for(Class<?> clazz : classes) {
                 TapProcessorClass tapProcessorClass = clazz.getAnnotation(TapProcessorClass.class);
                 if(tapProcessorClass != null) {
@@ -59,7 +59,7 @@ public class TapProcessorAnnotationHandler extends TapBaseAnnotationHandler {
                                 tapNodeInfo.setNodeType(connectorType);
                                 tapNodeInfo.setNodeClass(clazz);
                                 newerIdGroupTapNodeInfoMap.put(tapNodeSpecification.idAndGroup(), tapNodeInfo);
-                                TapLogger.info(TAG, "Found new processor {} type {} version {} buildNumber {}", tapNodeSpecification.idAndGroup(), connectorType, tapNodeSpecification.getVersion(), tapNodeSpecification.getVersion());
+                                TapLogger.debug(TAG, "Found new processor {} type {} version {} buildNumber {}", tapNodeSpecification.idAndGroup(), connectorType, tapNodeSpecification.getVersion(), tapNodeSpecification.getVersion());
                             } else {
                                 TapNodeSpecification specification = tapNodeInfo.getTapNodeSpecification();
                                 tapNodeInfo.setTapNodeSpecification(specification);
@@ -75,7 +75,7 @@ public class TapProcessorAnnotationHandler extends TapBaseAnnotationHandler {
                     }
                 }
             }
-            TapLogger.info(TAG, "--------------TapProcessor Classes End-------------");
+            TapLogger.debug(TAG, "--------------TapProcessor Classes End-------------");
         }
     }
 

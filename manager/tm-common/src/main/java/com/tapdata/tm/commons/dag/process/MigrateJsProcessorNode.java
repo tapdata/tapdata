@@ -2,7 +2,7 @@ package com.tapdata.tm.commons.dag.process;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.google.common.collect.Lists;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
@@ -11,6 +11,7 @@ import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import lombok.Getter;
 import lombok.Setter;
@@ -105,11 +106,10 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
         try {
             jsResult = service.getJsResult(getId(), target.getId(), taskDtoCopy);
         } catch (Exception e) {
-            log.error("MigrateJsProcessorNode getJsResult ERROR", e);
             throw new RuntimeException(e);
         }
         if (CollectionUtils.isEmpty(jsResult)) {
-            result = getInputSchema().get(0);
+            result = Lists.newArrayList();
         } else {
             Map<String, MigrateJsResultVo> removeMap = jsResult.stream()
                     .filter(n -> "REMOVE".equals(n.getOp()))
@@ -122,6 +122,22 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
             Map<String, TapField> createMap = jsResult.stream()
                     .filter(n -> "CREATE".equals(n.getOp()))
                     .collect(Collectors.toMap(MigrateJsResultVo::getFieldName, MigrateJsResultVo::getTapField, (e1, e2) -> e1));
+
+            Map<String, MigrateJsResultVo> setPkMap = jsResult.stream()
+                    .filter(n -> "SET_PK".equals(n.getOp()))
+                    .collect(Collectors.toMap(MigrateJsResultVo::getFieldName, Function.identity(), (e1, e2) -> e1));
+
+            Map<String, MigrateJsResultVo> unSetPkMap = jsResult.stream()
+                    .filter(n -> "UN_SET_PK".equals(n.getOp()))
+                    .collect(Collectors.toMap(MigrateJsResultVo::getFieldName, Function.identity(), (e1, e2) -> e1));
+
+            Map<String, TapIndex> addIndexMap = jsResult.stream()
+                    .filter(n -> "ADD_INDEX".equals(n.getOp()))
+                    .collect(Collectors.toMap(v -> v.getTapIndex().getName(), MigrateJsResultVo::getTapIndex, (e1, e2) -> e1));
+
+            Map<String, TapIndex> removeIndexMap = jsResult.stream()
+                    .filter(n -> "REMOVE_INDEX".equals(n.getOp()))
+                    .collect(Collectors.toMap(v -> v.getTapIndex().getName(), MigrateJsResultVo::getTapIndex, (e1, e2) -> e1));
 
             List<Schema> inputSchema = getInputSchema().get(0);
             if (CollectionUtils.isEmpty(inputSchema)) {
@@ -149,6 +165,38 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
                     nameFieldMap.putAll(createMap);
                 }
 
+                if (!unSetPkMap.isEmpty()) {
+                    unSetPkMap.keySet().forEach(name -> {
+                        TapField tapField = nameFieldMap.get(name);
+                        if (tapField != null) {
+                            tapField.setPrimaryKey(false);
+                            tapField.setPrimaryKeyPos(null);
+                        }
+                    });
+                }
+
+                if (!setPkMap.isEmpty()) {
+                    setPkMap.keySet().forEach(name -> {
+                        TapField tapField = nameFieldMap.get(name);
+                        if (tapField != null) {
+                            tapField.setPrimaryKey(true);
+                            tapField.setPrimaryKeyPos(tapTable.getMaxPKPos() + 1);
+                        }
+                    });
+                }
+
+                List<TapIndex> indexList = Optional.ofNullable(tapTable.getIndexList()).orElse(new ArrayList<>());
+                if (!removeIndexMap.isEmpty()) {
+                    indexList.removeIf(i -> removeIndexMap.containsKey(i.getName()));
+                }
+
+                if (!addIndexMap.isEmpty()) {
+                    Set<String> existIndexNameSet = indexList.stream().map(TapIndex::getName).collect(Collectors.toSet());
+                    addIndexMap.entrySet().removeIf(e -> existIndexNameSet.contains(e.getKey()));
+                    indexList.addAll(addIndexMap.values());
+                }
+                tapTable.setIndexList(indexList);
+
                 Schema jsSchema = PdkSchemaConvert.fromPdkSchema(tapTable);
                 jsSchema.setDatabaseId(schema.getDatabaseId());
 
@@ -165,6 +213,8 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
                             originField.setIsNullable(field.getIsNullable());
                             originField.setColumnPosition(field.getColumnPosition());
                             originField.setTapType(field.getTapType());
+                            originField.setPrimaryKeyPosition(field.getPrimaryKeyPosition());
+                            originField.setPrimaryKey(field.getPrimaryKey());
                             BeanUtil.copyProperties(originField, field);
 
                             field.setId(new ObjectId().toHexString());

@@ -6,36 +6,49 @@ public class TapFile {
     public static final int TYPE_FILE = 1;
     public static final int TYPE_DIRECTORY = 2;
     private Integer type;
+
     public TapFile type(Integer type) {
         this.type = type;
         return this;
     }
+
     private String name;
+
     public TapFile name(String name) {
         this.name = name;
         return this;
     }
+
     private Long lastModified;
+
     public TapFile lastModified(Long lastModified) {
         this.lastModified = lastModified;
         return this;
     }
+
     private String path;
+
     public TapFile path(String path) {
         this.path = path;
         return this;
     }
+
     private String contentType;
+
     public TapFile contentType(String contentType) {
         this.contentType = contentType;
         return this;
     }
+
     private Long length;
+
     public TapFile length(Long length) {
         this.length = length;
         return this;
     }
+
     private Map<String, Object> metadata;
+
     public TapFile metadata(Map<String, Object> metadata) {
         this.metadata = metadata;
         return this;
@@ -97,5 +110,32 @@ public class TapFile {
         this.metadata = metadata;
     }
 
+    @Override
+    public String toString() {
+        return "TapFile{" + "path='" + path + '\'' +
+                ", type=" + (type == TYPE_FILE ? "FILE" : "DIRECTORY") +
+                ", size='" + length + '\'' +
+                ", lastModified=" + lastModified +
+                '}';
+    }
 
+    @Override
+    public int hashCode() {
+        return this.path.hashCode() + this.type.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (this == obj) {
+            return true;
+        }
+        if (obj instanceof TapFile) {
+            TapFile f = (TapFile) obj;
+            return f.type.equals(this.type) && f.path.equals(this.path);
+        }
+        return false;
+    }
 }

@@ -54,7 +54,7 @@ public class MockAspectTask extends AbstractAspectTask {
 
   @Override
   public void onStart(TaskStartAspect startAspect) {
-    Optional<Node> optional = task.getDag().getNodes().stream().filter(n -> n.getType().equals("virtualTarget")).findFirst();
+    Optional<Node> optional = task.getDag().getNodes().stream().filter(n -> null != n && "virtualTarget".equals(n.getType())).findFirst();
     if (optional.isPresent()) {
       Node virtualTargetNode = optional.get();
       List<Node> targetNodes = task.getDag().predecessors(virtualTargetNode.getId());

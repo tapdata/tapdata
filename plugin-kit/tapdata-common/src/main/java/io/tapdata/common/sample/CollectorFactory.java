@@ -214,8 +214,8 @@ public class CollectorFactory {
     }
 
     private StatisticRequest wrapStatisticRequest(SampleCollector collector, Date date, boolean cache) {
-        collector.calculateInPeriod();
-        if (collector.result.isEmpty()) {
+        Map<String, Number> result = collector.calculateInPeriod();
+        if (result.isEmpty()) {
             return null;
         }
         StatisticRequest statisticRequest = new StatisticRequest();
@@ -224,14 +224,14 @@ public class CollectorFactory {
         statistic.setDate(date);
         if (cache) {
             Map<String, Number> value = new HashMap<>();
-            for (Map.Entry<String, Number> entry : collector.result.entrySet()) {
+            for (Map.Entry<String, Number> entry : result.entrySet()) {
                 if (entry.getValue() != null) {
                     value.put(entry.getKey(), entry.getValue());
                 }
             }
             statistic.setValues(value);
         } else {
-            statistic.setValues(collector.result);
+            statistic.setValues(result);
         }
         statistic.setIncFields(collector.IncrSamples());
         statisticRequest.setStatistic(statistic);
@@ -239,8 +239,8 @@ public class CollectorFactory {
     }
 
     private SampleRequest wrapSampleRequest(SampleCollector collector, Date date, boolean cache) {
-        collector.calculateInPeriod();
-        if (collector.result.isEmpty()) {
+        Map<String, Number> result = collector.calculateInPeriod();
+        if (result.isEmpty()) {
             return null;
         }
         SampleRequest sampleRequest = new SampleRequest();
@@ -249,14 +249,14 @@ public class CollectorFactory {
         sample.setDate(date);
         if (cache) {
             Map<String, Number> value = new HashMap<>();
-            for (Map.Entry<String, Number> entry : collector.result.entrySet()) {
+            for (Map.Entry<String, Number> entry : result.entrySet()) {
                 if (entry.getValue() != null) {
                     value.put(entry.getKey(), entry.getValue());
                 }
             }
             sample.setVs(value);
         } else {
-            sample.setVs(collector.result);
+            sample.setVs(result);
         }
         sampleRequest.setSample(sample);
         return sampleRequest;

@@ -16,11 +16,18 @@ jobs:
       issue-code: ${{ steps.check-style.outputs.issue-code }}
       commit-id: ${{ steps.check-style.outputs.commit-id }}
     steps:
-      - name: Checkout Enterprise Branch
+      - name: Checkout Enterprise Branch if PUSH
+        if: ${{ github.event_name == 'push' }}
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - name: Commit Message End With \#$number
+      - name: Checkout Enterprise Branch if PULL_REQUEST
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - name: Commit Message With \#$number
         id: check-style
         run: |
           message=`git log -1 --pretty=%B`

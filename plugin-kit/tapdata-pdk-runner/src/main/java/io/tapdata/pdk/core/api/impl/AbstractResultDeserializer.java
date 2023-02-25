@@ -20,10 +20,12 @@ public class AbstractResultDeserializer implements ObjectDeserializer {
     @Override
     public <T> T deserialze(DefaultJSONParser parser, Type type, Object object) {
         String text = (String) parser.input; //需要反序列化的文本
+        String oldText = (String) parser.input; //需要反序列化的文本
         int begin = ((JSONScanner) parser.lexer).pos()+1;//当前反序列化进行到的位置
-        text = text.substring(begin,findEndPoint(text,begin));
+        text = text.substring(begin,findEndPoint(text,begin)).trim().replaceAll(" ", "").replaceAll("\n", "");
         for(JsonParser.AbstractClassDetector detector : abstractClassDetectors) {
             String matchingString = detector.matchingString();
+
             int pos = text.indexOf(matchingString);
             if(detector.verify() && pos >= 0) {
                 int charPos = pos + matchingString.length();

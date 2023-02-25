@@ -4,6 +4,7 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.common.sample.BulkReporter;
 import io.tapdata.common.sample.request.BulkRequest;
+import io.tapdata.entity.logger.TapLogger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -29,7 +30,7 @@ public class TaskSampleReporter implements BulkReporter {
             logger.info("The bulk request is empty, skip report process.");
             return;
         }
-
+//        TapLogger.info("XXXX", "bulkRequest " + bulkRequest.toString());
         try {
             operator.insertOne(bulkRequest, ConnectorConstant.SAMPLE_STATISTIC_COLLECTION + "/points/v2");
         } catch (Exception e) {

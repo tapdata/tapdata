@@ -60,4 +60,13 @@ public class WebSocketContext {
 	public void setSessionId(String sessionId) {
 		this.sessionId = sessionId;
 	}
+
+	@Override
+	public String toString() {
+		return "WebSocketContext{" +
+				"sessionId='" + sessionId + '\'' +
+				", sender='" + sender + '\'' +
+				", userId='" + userId + '\'' +
+				'}';
+	}
 }

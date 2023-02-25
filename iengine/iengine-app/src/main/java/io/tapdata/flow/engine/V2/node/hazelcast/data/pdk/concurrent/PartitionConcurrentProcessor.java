@@ -131,7 +131,9 @@ public class PartitionConcurrentProcessor {
 					if (watermarkEvent != null) {
 						final CountDownLatch countDownLatch = watermarkEvent.getCountDownLatch();
 						final TapdataEvent event = watermarkEvent.getEvent();
-						while (isRunning() && !countDownLatch.await(3, TimeUnit.SECONDS)) {
+						while (!countDownLatch.await(3, TimeUnit.SECONDS)) {
+							if (!isRunning()) return; // when task stop, do not need flush offset
+
 							if (logger.isInfoEnabled()) {
 								final Long sourceTime = event.getSourceTime();
 								logger.info("waiting watermark event for all thread process, ts {}", sourceTime != null ? new Date(sourceTime) : null);
@@ -196,7 +198,7 @@ public class PartitionConcurrentProcessor {
 							break;
 						} catch (Throwable throwable) {
 							currentRunning.compareAndSet(true, false);
-							errorHandler.accept(throwable, "process watermark event failed");
+							errorHandler.accept(throwable, "target write record(s) failed");
 						}
 					}
 				} finally {
@@ -258,8 +260,8 @@ public class PartitionConcurrentProcessor {
 		final CountDownLatch countDownLatch = barrierEvent.getCountDownLatch();
 		try {
 			while (isRunning() && !countDownLatch.await(3, TimeUnit.SECONDS)) {
-				if (logger.isInfoEnabled()) {
-					logger.info(LOG_PREFIX + "waiting all events processed for thread");
+				if (logger.isTraceEnabled()) {
+					logger.trace(LOG_PREFIX + "waiting all events processed for thread");
 				}
 			}
 		} catch (InterruptedException e) {
@@ -270,8 +272,8 @@ public class PartitionConcurrentProcessor {
 	private boolean enqueuePartitionEvent(int partition, LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue, NormalEvent<TapdataEvent> normalEvent) {
 		try {
 			while (isRunning() && !queue.offer(normalEvent, 3, TimeUnit.SECONDS)) {
-				if (logger.isInfoEnabled()) {
-					logger.info(LOG_PREFIX + "thread-{} process queue if full, waiting for enqueue.", partition);
+				if (logger.isTraceEnabled()) {
+					logger.trace(LOG_PREFIX + "thread-{} process queue if full, waiting for enqueue.", partition);
 				}
 			}
 		} catch (InterruptedException e) {
@@ -288,8 +290,8 @@ public class PartitionConcurrentProcessor {
 				final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(i);
 				try {
 					while (isRunning() && !queue.offer(watermarkEvent, 3, TimeUnit.SECONDS)) {
-						if (logger.isInfoEnabled()) {
-							logger.info(LOG_PREFIX + "thread {} queue is full when generate barrier event to queue.", i);
+						if (logger.isTraceEnabled()) {
+							logger.trace(LOG_PREFIX + "thread {} queue is full when generate barrier event to queue.", i);
 						}
 					}
 				} catch (InterruptedException e) {
@@ -300,8 +302,8 @@ public class PartitionConcurrentProcessor {
 
 			try {
 				while (isRunning() && !watermarkQueue.offer(watermarkEvent, 3, TimeUnit.SECONDS)) {
-					if (logger.isInfoEnabled()) {
-						logger.info(LOG_PREFIX + "watermark queue is full when generate watermark event to queue.");
+					if (logger.isTraceEnabled()) {
+						logger.trace(LOG_PREFIX + "watermark queue is full when generate watermark event to queue.");
 					}
 				}
 			} catch (InterruptedException e) {
@@ -317,8 +319,8 @@ public class PartitionConcurrentProcessor {
 				final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(i);
 				try {
 					while (isRunning() && !queue.offer(barrierEvent, 3, TimeUnit.SECONDS)){
-						if (logger.isInfoEnabled()) {
-							logger.info(LOG_PREFIX + "thread {} queue is full when generate barrier event to queue.", i);
+						if (logger.isTraceEnabled()) {
+							logger.trace(LOG_PREFIX + "thread {} queue is full when generate barrier event to queue.", i);
 						}
 					}
 				} catch (InterruptedException e) {
@@ -346,7 +348,7 @@ public class PartitionConcurrentProcessor {
 
 	public void forceStop(){
 		currentRunning.compareAndSet(true, false);
-		ExecutorUtil.shutdownEx(this.executorService, 60L, TimeUnit.SECONDS);
+		this.executorService.shutdownNow();
 	}
 
 	private boolean updatePartitionValueEvent(TapEvent tapEvent) {

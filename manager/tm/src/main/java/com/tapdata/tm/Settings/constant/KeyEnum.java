@@ -3,6 +3,7 @@ package com.tapdata.tm.Settings.constant;
 public enum KeyEnum {
     NOTIFICATION("notification"),
     JOB_HEART_TIMEOUT("jobHeartTimeout"),
+    WORKER_HEART_TIMEOUT("lastHeartbeat"),
 
     EMAIL_HREF("emailHref"),
     ALLOW_CONNECTION_TYPE("ALLOW_CONNECTION_TYPE"),

@@ -100,7 +100,7 @@ public class UserDetail implements Serializable, UserDetails {
 	}
 
 	public String getUsername() {
-		return username;
+		return Objects.isNull(username) ? email : username;
 	}
 
 	public boolean isEnabled() {

@@ -39,7 +39,7 @@ public class PDKUtilsImpl implements PDKUtils {
 		if(databaseType.getPdkId() == null || databaseType.getGroup() == null || databaseType.getVersion() == null || databaseType.getJarFile() == null)
 			throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "Illegal arguments, pdkId {}, group {}, version {}, jarFile {}", databaseType.getPdkId(), databaseType.getGroup(), databaseType.getVersion(), databaseType.getJarFile());
 		if(clientMongoOperator instanceof HttpClientMongoOperator)
-			PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator, pdkHash, databaseType.getJarFile(), databaseType.getVersion());
+			PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator, pdkHash, databaseType.getJarFile(), databaseType.getJarRid());
 		else
 			throw new CoreException(NetErrors.UNEXPECTED_MONGO_OPERATOR, "Unexpected mongodb operator");
 		return new PDKInfo().pdkId(databaseType.getPdkId()).group(databaseType.getGroup()).version(databaseType.getVersion());

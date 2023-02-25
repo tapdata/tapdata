@@ -39,7 +39,6 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
     @Override
     public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
         ObjectId taskId = taskDto.getId();
-        String current = DateUtil.now();
         Date now = new Date();
 
         List<TaskDagCheckLog> result = Lists.newArrayList();
@@ -54,13 +53,13 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
             String name = node.getName();
             Integer value;
             String template;
-            String grade;
+            Level grade;
             if (nameMap.containsKey(name)) {
                 value = nameMap.get(name) + 1;
                 template = templateEnum.getErrorTemplate();
-                grade = Level.ERROR.getValue();
+                grade = Level.ERROR;
 
-                String content = MessageFormat.format(template, current, name);
+                String content = MessageFormat.format(template, name);
                 TaskDagCheckLog log = new TaskDagCheckLog();
                 log.setTaskId(taskId.toHexString());
                 log.setCheckType(templateEnum.name());
@@ -82,7 +81,6 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
             Optional.ofNullable(connectionDto).ifPresent(dto -> {
                 List<String> tables = metadataInstancesService.tables(connectionId, SourceTypeEnum.SOURCE.name());
 
-                int loadCount = Objects.nonNull(dto.getLoadCount()) ? dto.getLoadCount() : 0;
                 if (CollectionUtils.isEmpty(tables)) {
                     TaskDagCheckLog schemaLog = new TaskDagCheckLog();
                     schemaLog.setTaskId(taskId.toHexString());
@@ -90,7 +88,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                     schemaLog.setCreateAt(now);
                     schemaLog.setCreateUser(userDetail.getUserId());
                     schemaLog.setLog(MessageFormat.format(DagOutputTemplate.SOURCE_SETTING_ERROR_SCHEMA, name));
-                    schemaLog.setGrade(Level.ERROR.getValue());
+                    schemaLog.setGrade(Level.ERROR);
                     schemaLog.setNodeId(node.getId());
                     result.add(schemaLog);
                 } else {
@@ -101,7 +99,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                         schemaLog.setCreateAt(now);
                         schemaLog.setCreateUser(userDetail.getUserId());
                         schemaLog.setLog(MessageFormat.format(DagOutputTemplate.SOURCE_SETTING_ERROR_SCHEMA_LOAD, name));
-                        schemaLog.setGrade(Level.ERROR.getValue());
+                        schemaLog.setGrade(Level.ERROR);
                         schemaLog.setNodeId(node.getId());
                         result.add(schemaLog);
                     }
@@ -110,17 +108,20 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
         });
 
         if (CollectionUtils.isEmpty(result)) {
-            TaskDagCheckLog log = new TaskDagCheckLog();
-            String content = MessageFormat.format(templateEnum.getInfoTemplate(), current);
-            log.setTaskId(taskId.toHexString());
-            log.setCheckType(templateEnum.name());
-            log.setCreateAt(now);
-            log.setCreateUser(userDetail.getUserId());
-            log.setLog(content);
-            log.setGrade(Level.INFO.getValue());
-            log.setNodeId(taskDto.getDag().getSourceNode().getFirst().getId());
 
-            result.add(log);
+            sourceNode.forEach(node -> {
+                TaskDagCheckLog log = new TaskDagCheckLog();
+                String content = MessageFormat.format(templateEnum.getInfoTemplate(), node.getName());
+                log.setTaskId(taskId.toHexString());
+                log.setCheckType(templateEnum.name());
+                log.setCreateAt(now);
+                log.setCreateUser(userDetail.getUserId());
+                log.setLog(content);
+                log.setGrade(Level.INFO);
+                log.setNodeId(taskDto.getDag().getSourceNode().getFirst().getId());
+
+                result.add(log);
+            });
         }
 
         return result;

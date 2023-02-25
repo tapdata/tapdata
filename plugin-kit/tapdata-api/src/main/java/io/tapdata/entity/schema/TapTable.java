@@ -35,6 +35,11 @@ public class TapTable extends TapItem<TapField> {
 	 */
 	private List<String> defaultPrimaryKeys;
 
+	public TapTable defaultPrimaryKeys(String defaultPrimaryKey) {
+		this.defaultPrimaryKeys = Collections.singletonList(defaultPrimaryKey);
+		return this;
+	}
+
 	public TapTable defaultPrimaryKeys(List<String> defaultPrimaryKeys) {
 		this.defaultPrimaryKeys = defaultPrimaryKeys;
 		return this;

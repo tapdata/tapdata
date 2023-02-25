@@ -97,7 +97,7 @@ public class RabbitmqConnector extends ConnectorBase {
     }
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
-        rabbitmqService.produce(tapRecordEvents, tapTable, writeListResultConsumer);
+        rabbitmqService.produce(tapRecordEvents, tapTable, writeListResultConsumer, this::isAlive);
     }
 
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {

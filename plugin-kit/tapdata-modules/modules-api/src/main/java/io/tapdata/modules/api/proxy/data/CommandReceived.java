@@ -4,14 +4,15 @@ import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.entity.utils.io.DataOutputStreamEx;
 import io.tapdata.modules.api.net.message.TapEntity;
-import io.tapdata.pdk.apis.entity.CommandInfo;
+import io.tapdata.modules.api.net.message.TapEntityEx;
+import io.tapdata.pdk.apis.entity.message.CommandInfo;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
 @Implementation(value = TapEntity.class, type = "CommandReceived")
-public class CommandReceived implements TapEntity {
+public class CommandReceived extends TapEntityEx {
 	private CommandInfo commandInfo;
 	public CommandReceived commandInfo(CommandInfo commandInfo) {
 		this.commandInfo = commandInfo;

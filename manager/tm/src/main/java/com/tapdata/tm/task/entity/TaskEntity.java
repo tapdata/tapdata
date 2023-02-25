@@ -5,6 +5,8 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.task.dto.*;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.collections4.CollectionUtils;
@@ -61,6 +63,10 @@ public class TaskEntity extends BaseEntity {
     private Integer increaseReadSize;
     /** 全量一批读取条数 */
     private Integer readBatchSize;
+    /** 写入批量条数 */
+    private Integer writeBatchSize;
+    /** 写入每批最大等待时间 */
+    private Long writeBatchWaitMs;
 
     /** 增量同步间隔*/
     private Integer increaseSyncInterval;
@@ -127,7 +133,7 @@ public class TaskEntity extends BaseEntity {
      */
     private List<SchemaTransformerResult> metadataMappings;
 
-    private List<Map<String, String>> listtags;
+    private List<Tag> listtags;
 
     /**
      * 访问节点
@@ -157,7 +163,10 @@ public class TaskEntity extends BaseEntity {
      * 界面展示的任务开始时间
      */
     private Date startTime;
+    private Long lastStartDate;
     private Date stopTime;
+    private Long scheduleDate;
+    private Date monitorStartDate;
 
     private HashSet<String> heartbeatTasks;
 
@@ -180,7 +189,7 @@ public class TaskEntity extends BaseEntity {
     private Date errorTime;
     private Date pausedTime;
     private Date finishTime;
-    private Date pingTime;
+    private Long pingTime;
 
     //需要重启标识
     private Boolean restartFlag;
@@ -205,10 +214,18 @@ public class TaskEntity extends BaseEntity {
     private String transformUuid;
     private Boolean transformed;
 
-    private int transformDagHash;
+    private List<AlarmSettingDto> alarmSettings;
+    private List<AlarmRuleDto> alarmRules;
 
     private Map<String, Object> logSetting;
+    private Integer resetTimes;
 
+    private Long currentEventTimestamp;
+    private Long snapshotDoneAt;
+
+    private boolean needCreateRecord;
+
+    private boolean crontabExpressionFlag;
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }

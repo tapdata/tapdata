@@ -2,6 +2,9 @@ package io.tapdata.pdk.core.api.impl;
 
 import com.alibaba.fastjson.JSONObject;
 import io.tapdata.entity.codecs.TDDUser;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapString;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.BeanUtils;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
@@ -12,6 +15,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.*;
 
+import static io.tapdata.entity.simplify.TapSimplify.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -154,6 +158,19 @@ public class ObjectSerializableImplTest {
         assertEquals(user.name, verifyUserSerializable.name);
         assertEquals(user.updateTime, verifyUserSerializable.updateTime);
         assertEquals(user.user.name, verifyUserSerializable.user.name);
+    }
+
+    @Test
+    public void testTapTable() {
+        TapTable table = table("aa").add(field("aa", "varchar").tapType(tapString().bytes(500L)));
+
+        ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
+        byte[] data = objectSerializable.fromObject(table);
+        TapTable newTapTable = (TapTable) objectSerializable.toObject(data);
+        assertNotNull(newTapTable);
+        assertEquals("aa", newTapTable.getName());
+        assertEquals("varchar", newTapTable.getNameFieldMap().get("aa").getDataType());
+        assertEquals(500L, ((TapString)newTapTable.getNameFieldMap().get("aa").getTapType()).getBytes());
     }
 
     public static void main(String[] args) {

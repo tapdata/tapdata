@@ -18,12 +18,13 @@ import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.graalvm.polyglot.proxy.ProxyObject;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -39,6 +40,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode{
 
   private static final Logger logger = LogManager.getLogger(HazelcastJavaScriptProcessorNode.class);
+  public static final String TAG = HazelcastJavaScriptProcessorNode.class.getSimpleName();
 
   private final Invocable engine;
 
@@ -70,7 +72,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
               null,
               null,
               ((DataProcessorContext) processorBaseContext).getCacheService(),
-              logger
+              new ObsScriptLogger(obsLogger)
       );
 
     this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
@@ -80,23 +82,19 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
   @Override
   protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
     TapEvent tapEvent = tapdataEvent.getTapEvent();
+    String tableName = TapEventUtil.getTableId(tapEvent);
+    ProcessResult processResult = getProcessResult(tableName);
+
     if (!(tapEvent instanceof TapRecordEvent)) {
-      consumer.accept(tapdataEvent, null);
+      consumer.accept(tapdataEvent, processResult);
       return;
     }
 
     Map<String, Object> record = TapEventUtil.getAfter(tapEvent);
-    if (MapUtils.isEmpty(record)) {
+    if (MapUtils.isEmpty(record) && MapUtils.isNotEmpty(TapEventUtil.getBefore(tapEvent))) {
       record = TapEventUtil.getBefore(tapEvent);
     }
-    if (MapUtils.isEmpty(record)) {
-      consumer.accept(tapdataEvent, null);
-      return;
-    }
 
-
-    String tableName = TapEventUtil.getTableId(tapEvent);
-    ProcessResult processResult = getProcessResult(tableName);
     String op = TapEventUtil.getOp(tapEvent);
     ProcessContext processContext = new ProcessContext(op, tableName, null, null, null, tapdataEvent.getOffset());
 
@@ -107,20 +105,22 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
     SyncStage syncStage = tapdataEvent.getSyncStage();
     processContext.setSyncType(syncStage == null ? SyncStage.INITIAL_SYNC.name() : syncStage.name());
 
-    if (processContext.getEvent() == null) {
-      processContext.setEvent(new ProcessContextEvent(op, tableName, processContext.getSyncType(), eventTime));
+    ProcessContextEvent processContextEvent = processContext.getEvent();
+    if (processContextEvent == null) {
+      processContextEvent = new ProcessContextEvent(op, tableName, processContext.getSyncType(), eventTime);
     }
-
+    Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
+    if (null != before) {
+      processContextEvent.setBefore(before);
+    }
+    Map<String, Object> eventMap = MapUtil.obj2Map(processContextEvent);
     Map<String, Object> contextMap = MapUtil.obj2Map(processContext);
+    contextMap.put("event", eventMap);
+    contextMap.put("before", before);
     Map<String, Object> context = this.processContextThreadLocal.get();
     context.putAll(contextMap);
     ((ScriptEngine) this.engine).put("context", context);
-    Object obj;
-    if (engine instanceof GraalJSScriptEngine) {
-      obj = engine.invokeFunction(ScriptUtil.FUNCTION_NAME, ProxyObject.fromMap(record));
-    } else {
-      obj = engine.invokeFunction(ScriptUtil.FUNCTION_NAME, record);
-    }
+    Object obj = engine.invokeFunction(ScriptUtil.FUNCTION_NAME, record);
     context.clear();
 
     if (obj == null) {
@@ -131,11 +131,9 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
       for (Object o : (List) obj) {
         Map<String, Object> recordMap = new HashMap<>();
         MapUtil.copyToNewMap((Map<String, Object>) o, recordMap);
-        TapEventUtil.setBefore(tapEvent, null);
-        TapEventUtil.setAfter(tapEvent, null);
-        TapdataEvent clone = (TapdataEvent) tapdataEvent.clone();
-        setRecordMap(tapEvent, op, recordMap);
-        consumer.accept(clone, processResult);
+        TapdataEvent cloneTapdataEvent = (TapdataEvent) tapdataEvent.clone();
+        setRecordMap(cloneTapdataEvent.getTapEvent(), op, recordMap);
+        consumer.accept(cloneTapdataEvent, processResult);
       }
     } else {
       Map<String, Object> recordMap = new HashMap<>();
@@ -155,9 +153,14 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
   @Override
   protected void doClose() throws Exception {
-    super.doClose();
-    if (this.engine instanceof GraalJSScriptEngine) {
-      ((GraalJSScriptEngine) this.engine).close();
+    try {
+      CommonUtils.ignoreAnyError(() -> {
+        if (this.engine instanceof GraalJSScriptEngine) {
+          ((GraalJSScriptEngine) this.engine).close();
+        }
+      }, TAG);
+    } finally {
+      super.doClose();
     }
   }
 }

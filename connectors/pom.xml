@@ -25,6 +25,17 @@
 		<module>mariadb-connector</module>
 		<module>hive1-connector</module>
 		<module>coding-connector</module>
+		<module>zoho-connector</module>
+		<module>tidb-connector</module>
+		<module>tablestore-connector</module>
+		<module>custom-connector</module>
+		<module>bigquery-connector</module>
+		<module>excel-connector</module>
+		<module>csv-connector</module>
+		<module>xml-connector</module>
+		<module>json-connector</module>
+		<module>tdengine-connector</module>
+		<module>vika-connector</module>
 	</modules>
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>

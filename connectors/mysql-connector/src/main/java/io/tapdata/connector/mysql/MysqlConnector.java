@@ -1,11 +1,13 @@
 package io.tapdata.connector.mysql;
 
 import io.tapdata.base.ConnectorBase;
-import io.tapdata.common.ddl.DDLFactory;
+import io.tapdata.common.CommonDbConfig;
 import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
+import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
+import io.tapdata.connector.mysql.writer.MysqlWriter;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -18,7 +20,6 @@ import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -43,7 +44,7 @@ import java.util.function.Consumer;
 public class MysqlConnector extends ConnectorBase {
     private static final String TAG = MysqlConnector.class.getSimpleName();
     private static final int MAX_FILTER_RESULT_SIZE = 100;
-    private static final DDLParserType DDL_PARSER_TYPE = DDLParserType.MYSQL_CCJ_SQL_PARSER;
+
     private MysqlJdbcContext mysqlJdbcContext;
     private MysqlReader mysqlReader;
     private MysqlWriter mysqlWriter;
@@ -56,7 +57,7 @@ public class MysqlConnector extends ConnectorBase {
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
         this.mysqlJdbcContext = new MysqlJdbcContext(tapConnectionContext);
         if (tapConnectionContext instanceof TapConnectorContext) {
-            this.mysqlWriter = new MysqlJdbcOneByOneWriter(mysqlJdbcContext);
+            this.mysqlWriter = new MysqlSqlBatchWriter(mysqlJdbcContext);
             this.mysqlReader = new MysqlReader(mysqlJdbcContext);
             this.version = mysqlJdbcContext.getMysqlVersion();
             this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
@@ -76,7 +77,7 @@ public class MysqlConnector extends ConnectorBase {
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
         codecRegistry.registerFromTapValue(TapMapValue.class, "json", tapValue -> toJson(tapValue.getValue()));
         codecRegistry.registerFromTapValue(TapArrayValue.class, "json", tapValue -> toJson(tapValue.getValue()));
-        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss.SSSSSS"));
+
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
             if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
                 tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
@@ -89,6 +90,14 @@ public class MysqlConnector extends ConnectorBase {
             }
             return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
         });
+
+        codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
+            if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
+                tapYearValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+            }
+            return formatTapDateTime(tapYearValue.getValue(), "yyyy");
+        });
+
         codecRegistry.registerFromTapValue(TapBooleanValue.class, "tinyint(1)", TapValue::getValue);
 
         connectorFunctions.supportCreateTable(this::createTable);
@@ -106,18 +115,6 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
-        connectorFunctions.supportReleaseExternalFunction(this::releaseExternal);
-    }
-
-    private void releaseExternal(TapConnectorContext tapConnectorContext) {
-        try {
-            KVMap<Object> stateMap = tapConnectorContext.getStateMap();
-            if (null != stateMap) {
-                stateMap.clear();
-            }
-        } catch (Throwable throwable) {
-            TapLogger.warn(TAG, "Release mysql state map failed, error: " + throwable.getMessage());
-        }
     }
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
@@ -175,6 +172,7 @@ public class MysqlConnector extends ConnectorBase {
     private void createIndex(TapConnectorContext tapConnectorContext, TapTable tapTable, TapCreateIndexEvent tapCreateIndexEvent) throws Throwable {
         List<TapIndex> indexList = tapCreateIndexEvent.getIndexList();
         SqlMaker sqlMaker = new MysqlMaker();
+        // todo 判断是否需要自动创建索引
         for (TapIndex tapIndex : indexList) {
             String createIndexSql;
             try {
@@ -185,7 +183,12 @@ public class MysqlConnector extends ConnectorBase {
             try {
                 this.mysqlJdbcContext.execute(createIndexSql);
             } catch (Throwable e) {
-                throw new RuntimeException("Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                // mysql index  less than  3072 bytes。
+                if (e.getMessage() != null && e.getMessage().contains("42000 1071")) {
+                    TapLogger.warn(TAG, "Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                } else {
+                    throw new RuntimeException("Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                }
             }
         }
     }
@@ -206,12 +209,18 @@ public class MysqlConnector extends ConnectorBase {
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
         try {
+            Optional.ofNullable(this.mysqlReader).ifPresent(MysqlReader::close);
+        } catch (Exception ignored) {
+        }
+        try {
+            Optional.ofNullable(this.mysqlWriter).ifPresent(MysqlWriter::onDestroy);
+        } catch (Exception ignored) {
+        }
+        try {
             this.mysqlJdbcContext.close();
         } catch (Exception e) {
             TapLogger.error(TAG, "Release connector failed, error: " + e.getMessage() + "\n" + getStackString(e));
         }
-        Optional.ofNullable(this.mysqlReader).ifPresent(MysqlReader::close);
-        Optional.ofNullable(this.mysqlWriter).ifPresent(MysqlWriter::onDestroy);
     }
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws Throwable {
@@ -306,7 +315,7 @@ public class MysqlConnector extends ConnectorBase {
     }
 
     private void streamRead(TapConnectorContext tapConnectorContext, List<String> tables, Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
-        mysqlReader.readBinlog(tapConnectorContext, tables, offset, batchSize, DDL_PARSER_TYPE, consumer);
+        mysqlReader.readBinlog(tapConnectorContext, tables, offset, batchSize, DDLParserType.MYSQL_CCJ_SQL_PARSER, consumer);
     }
 
     private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
@@ -347,43 +356,22 @@ public class MysqlConnector extends ConnectorBase {
 
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext databaseContext, Consumer<TestItem> consumer) throws Throwable {
-        onStart(databaseContext);
         ConnectionOptions connectionOptions = ConnectionOptions.create();
-        MysqlConnectionTest mysqlConnectionTest = new MysqlConnectionTest(mysqlJdbcContext);
-        TestItem testHostPort = mysqlConnectionTest.testHostPort(databaseContext);
-        consumer.accept(testHostPort);
-        if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
-            return null;
+        CommonDbConfig commonDbConfig = new CommonDbConfig();
+        commonDbConfig.set__connectionType(databaseContext.getConnectionConfig().getString("__connectionType"));
+        try (
+                MysqlConnectionTest mysqlConnectionTest = new MysqlConnectionTest(new MysqlJdbcContext(databaseContext),
+                        databaseContext, consumer, commonDbConfig, connectionOptions);
+        ) {
+            mysqlConnectionTest.testOneByOne();
+            return connectionOptions;
         }
-        TestItem testConnect = mysqlConnectionTest.testConnect();
-        consumer.accept(testConnect);
-        if (testConnect.getResult() == TestItem.RESULT_FAILED) {
-            return null;
-        }
-        TestItem testDatabaseVersion = mysqlConnectionTest.testDatabaseVersion();
-        consumer.accept(testDatabaseVersion);
-        if (testDatabaseVersion.getResult() == TestItem.RESULT_FAILED) {
-            return null;
-        }
-        TestItem binlogMode = mysqlConnectionTest.testBinlogMode();
-        TestItem binlogRowImage = mysqlConnectionTest.testBinlogRowImage();
-        TestItem cdcPrivileges = mysqlConnectionTest.testCDCPrivileges();
-        consumer.accept(binlogMode);
-        consumer.accept(binlogRowImage);
-        consumer.accept(cdcPrivileges);
-        consumer.accept(mysqlConnectionTest.testCreateTablePrivilege(databaseContext));
-        if (binlogMode.isSuccess() && binlogRowImage.isSuccess() && cdcPrivileges.isSuccess()) {
-            List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDL_PARSER_TYPE);
-            ddlCapabilities.forEach(connectionOptions::capability);
-        }
-        return connectionOptions;
     }
 
     private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long startTime) throws Throwable {
         if (null == startTime) {
             return this.mysqlJdbcContext.readBinlogPosition();
-        } else {
-            throw new NotSupportedException();
         }
+        return startTime;
     }
 }

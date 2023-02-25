@@ -3,6 +3,7 @@ package com.tapdata.tm.utils;
 import cn.hutool.core.codec.Base64;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -19,12 +20,12 @@ public class EncrptAndDencryUtil {
         String result = "";
         try {
             if (sKey == null) {
-                System.out.print("Key为空null");
+                log.error("Key为空null");
                 return null;
             }
             // 判断Key是否为16位
             if (sKey.length() != 16) {
-                System.out.print("Key长度不是16位");
+                log.error("Key长度不是16位");
                 return null;
             }
             byte[] raw = sKey.getBytes("utf-8");
@@ -51,12 +52,12 @@ public class EncrptAndDencryUtil {
         try {
             // 判断Key是否正确
             if (sKey == null) {
-                System.out.print("Key为空null");
+                log.error("Key为空null");
                 return null;
             }
             // 判断Key是否为16位
             if (sKey.length() != 16) {
-                System.out.print("Key长度不是16位");
+                log.error("Key长度不是16位");
                 return null;
             }
             byte[] raw = sKey.getBytes("utf-8");
@@ -69,7 +70,7 @@ public class EncrptAndDencryUtil {
                 originalString = new String(original, "utf-8");
 
             } catch (Exception e) {
-                System.out.println(e.toString());
+                log.error(e.toString());
                 return null;
             }
         } catch (Exception ex) {

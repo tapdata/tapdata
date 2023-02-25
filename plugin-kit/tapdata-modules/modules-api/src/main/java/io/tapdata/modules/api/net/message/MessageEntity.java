@@ -15,7 +15,7 @@ import java.util.Map;
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 @Implementation(value = TapEntity.class, type = "MessageEntity")
-public class MessageEntity implements TapEntity {
+public class MessageEntity extends TapEntityEx {
 	private Map<String, Object> content;
 	public MessageEntity content(Map<String, Object> content) {
 		this.content = content;

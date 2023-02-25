@@ -15,6 +15,8 @@ import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.modules.api.net.data.IncomingData;
 import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.modules.api.net.error.NetErrors;
@@ -27,11 +29,13 @@ import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunction;
+import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunctionV2;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -48,7 +52,7 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 	private boolean isStarted;
 	private StreamReadFuncAspect streamReadFuncAspect;
 	private final AtomicBoolean isFetchingNewData = new AtomicBoolean(false);
-	private boolean needFetchingNewData = false;
+	private volatile boolean needFetchingNewData = false;
 
 	private String currentOffset;
 
@@ -74,11 +78,10 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 							currentOffset = null;
 						}
 
-						BiConsumer<Result, Throwable> biConsumer = (result, throwable) -> {
-							handleFetchNewDataResult(streamReadFuncAspect, subscribeId, result, throwable);
-						};
-						if(startFetchingNewData())
-							fetchNewData(subscribeId, currentOffset, biConsumer);
+						if(startFetchingNewData()) {
+							TapLogger.debug(TAG, "start fetching new data, started {} isFetchingNewData {}", isStarted, isFetchingNewData.get());
+							fetchNewData(subscribeId, currentOffset, (result, throwable) -> handleFetchNewDataResult(streamReadFuncAspect, subscribeId, result, throwable));
+						}
 					}
 				} else {
 					TapLogger.debug(TAG, "StreamReadFuncAspect.STATE_CALLBACK_RAW_DATA shouldn't enter more than once");
@@ -99,14 +102,24 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 	}
 
 	private void handleFetchNewDataResult(StreamReadFuncAspect streamReadFuncAspect, String subscribeId, Result result, Throwable throwable) {
-		if(!isStarted)
+		if(!isStarted) {
+			stopFetchingNewData();
+			TapLogger.debug(TAG, "handleFetchNewDataResult will end because isStarted is false. isFetchingNewData {}", isFetchingNewData.get());
 			return;
+		}
 		if(throwable != null) {
+			stopFetchingNewData();
 			streamReadFuncAspect.noMoreWaitRawData(throwable);
 			return;
 		}
 		if(result == null) {
+			stopFetchingNewData();
 			streamReadFuncAspect.noMoreWaitRawData(new CoreException(NetErrors.RESULT_IS_NULL, "Result/Throwable are both null in handleFetchNewDataResult, subscribeId {} offset {}", subscribeId, currentOffset));
+			return;
+		}
+		if(result.getCode() != 1) {
+			stopFetchingNewData();
+			streamReadFuncAspect.noMoreWaitRawData(new CoreException(NetErrors.RESULT_CODE_FAILED, "Result code is not OK, message {}, subscribeId {} offset {}", result.getMessage(), subscribeId, currentOffset));
 			return;
 		}
 
@@ -121,14 +134,20 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 					if(associateId != null) {
 						ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
 						RawDataCallbackFilterFunction function = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunction();
-						if(function != null) {
+						RawDataCallbackFilterFunctionV2 functionV2 = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunctionV2();
+						if(function != null || functionV2 != null) {
 							List<TapEvent> events = new ArrayList<>();
 
 							for(MessageEntity message : messages) {
 								PDKInvocationMonitor.invoke(connectorNode, PDKMethod.RAW_DATA_CALLBACK_FILTER, () -> {
-									TapEvent tapEvent = function.filter(connectorNode.getConnectorContext(), message.getContent());
-									if(tapEvent != null)
-										events.add(tapEvent);
+									List<TapEvent> tapEvents;
+									if(functionV2 != null) {
+										tapEvents = functionV2.filter(connectorNode.getConnectorContext(), streamReadFuncAspect.getTables(), message.getContent());
+									} else {
+										tapEvents = function.filter(connectorNode.getConnectorContext(), message.getContent());
+									}
+									if(tapEvents != null)
+										events.addAll(tapEvents);
 								}, TAG);
 							}
 							if(!messages.isEmpty()) {
@@ -138,6 +157,7 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 							synchronized (this) {
 								if(!messages.isEmpty() || needFetchingNewData) {
 									needFetchingNewData = false;
+									TapLogger.debug(TAG, "Still need fetching new data, messages size {}, needFetchingNewData {}", messages.size(), needFetchingNewData);
 									fetchNewData(subscribeId, currentOffset, (result1, throwable1) -> handleFetchNewDataResult(streamReadFuncAspect, subscribeId, result1, throwable1));
 									return;
 								}
@@ -150,14 +170,16 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 				if(needFetchingNewData) {
 					needFetchingNewData = false;
 					Object finalNextOffset = nextOffset;
+					TapLogger.debug(TAG, "Still need fetching new data, needFetchingNewData {}", needFetchingNewData);
 					fetchNewData(subscribeId, currentOffset, (result1, throwable1) -> handleFetchNewDataResult(streamReadFuncAspect, subscribeId, result1, throwable1));
 				} else {
 					if(stopFetchingNewData()) {
-						TapLogger.debug(TAG, "isFetchingNewData is false");
+						TapLogger.debug(TAG, "Stop fetching new data as isFetchingNewData is false");
 					}
 				}
 			}
 		} catch (Throwable throwable1) {
+			stopFetchingNewData();
 			streamReadFuncAspect.noMoreWaitRawData(throwable1);
 		}
 	}
@@ -270,5 +292,12 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 		proxySubscriptionManager.removeTaskSubscribeInfo(taskSubscribeInfo);
 		if(streamReadFuncAspect != null)
 			streamReadFuncAspect.noMoreWaitRawData();
+	}
+
+	@Override
+	public DataMap memory(String keyRegex, String memoryLevel) {
+		return super.memory(keyRegex, memoryLevel)
+				.kv("taskStartTime", taskStartTime != null ? new Date(taskStartTime) : null)
+				.kv("taskSubscribeInfo", taskSubscribeInfo);
 	}
 }

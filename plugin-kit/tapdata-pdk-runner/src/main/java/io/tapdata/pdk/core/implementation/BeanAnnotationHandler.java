@@ -87,7 +87,7 @@ public class BeanAnnotationHandler extends ClassAnnotationHandler {
                             method.setAccessible(true);
                             method.invoke(beanObj);
                         } else {
-                            TapLogger.debug(TAG, "Class {} method {} not found, no main method will be invoked", beanObj.getClass(), mainMethodWrapper.method);
+                            TapLogger.warn(TAG, "Class {} method {} not found, no main method will be invoked", beanObj.getClass(), mainMethodWrapper.method);
                         }
                     } catch (Throwable e) {
                         TapLogger.warn(TAG, "Invoke main method {} in class {} failed, {}", mainMethodWrapper.method, mainMethodWrapper.theClass, e.getMessage());

@@ -5,7 +5,7 @@ import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import com.mongodb.ConnectionString;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.service.ApiCallService;
@@ -16,6 +16,7 @@ import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -35,12 +36,10 @@ import com.tapdata.tm.modules.repository.ModulesRepository;
 import com.tapdata.tm.modules.vo.*;
 import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.UUIDUtil;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
-import org.hibernate.validator.internal.engine.constraintvalidation.PredefinedScopeConstraintValidatorManagerImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -48,10 +47,8 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
-import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.net.URLEncoder;
-import java.nio.charset.Charset;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -179,7 +176,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         ModulesDto dto = findOne(query, userDetail);
         if (dto == null)
             throw new BizException("current module not exist");
-        if (ModuleStatusEnum.ACTIVE.getValue().equals(modulesDto.getStatus()) && ModuleStatusEnum.GENERATING.getValue().equals(modulesDto.getStatus()))
+        if (ModuleStatusEnum.ACTIVE.getValue().equals(modulesDto.getStatus()) && ModuleStatusEnum.GENERATING.getValue().equals(dto.getStatus()))
             throw new BizException("generating status can't release");
         //点击生成按钮 才校验(撤销发布等不校验)
         if (ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus()) && !ModuleStatusEnum.ACTIVE.getValue().equals(dto.getStatus())) {
@@ -255,7 +252,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
      * @param userDetail
      * @param listTag
      */
-    public void importData(String json, String upsert, List<String> listTag, UserDetail userDetail) {
+    public void importData(String json, String upsert, List<Tag> listTag, UserDetail userDetail) {
         Map map = JsonUtil.parseJson(json, Map.class);
         List<Map<String, Object>> data = (List) map.get("data");
 
@@ -292,7 +289,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
                 }
 
                 if (CollectionUtils.isNotEmpty(listTag)) {
-                    newDto.setListTags(listTag);
+                    newDto.setListtags(listTag);
                 }
                 newDto.setIsDeleted(false);
                 super.upsert(query, newDto, userDetail);
@@ -476,7 +473,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         map.put("format", "JSON");
         map.put("user", allDto.getUser());//getUser
         map.put("createUser", userDetail.getEmail());
-        map.put("listtags", allDto.getListTags());//getListTags
+        map.put("listtags", allDto.getListtags());//getListTags
         map.put("last_updated", allDto.getLast_updated());//getLast_updated
         map.put("apiVersion", allDto.getApiVersion());//getApiVersion
         map.put("basePath", allDto.getBasePath());

@@ -1,0 +1,14 @@
+[
+  {
+	"createIndexes": "TaskResetEvent",
+	"indexes": [
+	  {
+		"name": "taskId_1",
+		"key": {
+		  "taskId": 1
+		},
+		"background": true
+	  }
+	]
+  }
+]

@@ -18,6 +18,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -67,6 +68,10 @@ public final class ObsLoggerFactory {
 				TaskDto task = clientMongoOperator.findOne(
 						new Query(Criteria.where("_id").is(new ObjectId(taskId))), ConnectorConstant.TASK_COLLECTION, TaskDto.class
 				);
+				if (Objects.isNull(task)) {
+					taskLoggersMap.remove(taskId);
+					continue;
+				}
 				taskLoggersMap.computeIfPresent(taskId, (id, taskLogger) -> {
 					taskLogger.withTaskLogSetting(getLogSettingLogLevel(task),
 							getLogSettingRecordCeiling(task), getLogSettingIntervalCeiling(task));
@@ -74,7 +79,7 @@ public final class ObsLoggerFactory {
 					return taskLogger;
 				});
 			} catch (Throwable throwable) {
-				logger.warn("failed to renew task logger setting for task {}", taskId);
+				logger.warn("failed to renew task logger setting for task {}: {}", taskId, throwable.getMessage(), throwable);
 			}
 		}
 	}
@@ -158,26 +163,32 @@ public final class ObsLoggerFactory {
 	private static final String LOG_SETTING_INTERVAL_CEILING = "intervalCeiling";
 
 	private String getLogSettingLogLevel(TaskDto task) {
-		Map<String, Object> logSetting = task.getLogSetting();
-		if (null == logSetting) {
-			return settingService.getSetting("logLevel").getValue();
+		if (null != task) {
+			Map<String, Object> logSetting = task.getLogSetting();
+			if (null != logSetting) {
+				return (String) logSetting.get(LOG_SETTING_LEVEL);
+			}
 		}
-		return (String) logSetting.get(LOG_SETTING_LEVEL);
+		return settingService.getSetting("logLevel").getValue();
 	}
 
 	private Long getLogSettingRecordCeiling(TaskDto task) {
-		Map<String, Object> logSetting = task.getLogSetting();
-		if (null != logSetting && null != logSetting.get(LOG_SETTING_RECORD_CEILING)) {
-			return ((Integer) logSetting.get(LOG_SETTING_RECORD_CEILING)).longValue();
+		if (null != task) {
+			Map<String, Object> logSetting = task.getLogSetting();
+			if (null != logSetting && null != logSetting.get(LOG_SETTING_RECORD_CEILING)) {
+				return ((Integer) logSetting.get(LOG_SETTING_RECORD_CEILING)).longValue();
+			}
 		}
 
 		return null;
 	}
 
 	private Long getLogSettingIntervalCeiling(TaskDto task) {
-		Map<String, Object> logSetting = task.getLogSetting();
-		if (null != logSetting && null != logSetting.get(LOG_SETTING_INTERVAL_CEILING)) {
-			return ((Integer) logSetting.get(LOG_SETTING_INTERVAL_CEILING)).longValue();
+		if (null != task) {
+			Map<String, Object> logSetting = task.getLogSetting();
+			if (null != logSetting && null != logSetting.get(LOG_SETTING_INTERVAL_CEILING)) {
+				return ((Integer) logSetting.get(LOG_SETTING_INTERVAL_CEILING)).longValue();
+			}
 		}
 		return null;
 	}

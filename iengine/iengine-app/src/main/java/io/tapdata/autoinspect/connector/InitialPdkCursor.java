@@ -85,8 +85,6 @@ public class InitialPdkCursor implements IDataCursor<CompareRecord> {
             try {
                 CompareRecord record = queue.poll(100L, TimeUnit.MILLISECONDS);
                 if (null != record) {
-                    codecsFilterManager.transformToTapValueMap(record.getData(), tapTable.getNameFieldMap());
-                    defaultCodecsFilterManager.transformFromTapValueMap(record.getData());
                     return record;
                 }
 
@@ -131,8 +129,10 @@ public class InitialPdkCursor implements IDataCursor<CompareRecord> {
                                         if (results.isEmpty()) return false;
 
                                         for (Map<String, Object> result : results) {
+                                            codecsFilterManager.transformToTapValueMap(result, tapTable.getNameFieldMap());
+                                            defaultCodecsFilterManager.transformFromTapValueMap(result);
                                             CompareRecord record = new CompareRecord(tableName, connectionId);
-                                            record.setData(result);
+                                            record.setData(result, tapTable.getNameFieldMap());
                                             for (SortOn s : sortOnList) {
                                                 record.getKeyNames().add(s.getKey());
                                                 record.getOriginalKey().put(s.getKey(), result.get(s.getKey()));

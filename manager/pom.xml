@@ -31,6 +31,7 @@
 		<module>tm-common</module>
         <module>tm</module>
         <module>code-gen</module>
+		<module>tm-sdk</module>
     </modules>
 
 	<dependencyManagement>

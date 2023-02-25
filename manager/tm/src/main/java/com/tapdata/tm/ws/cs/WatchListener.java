@@ -7,17 +7,17 @@
 package com.tapdata.tm.ws.cs;
 
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
-import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.ws.dto.CollectionWatchCache;
 import com.tapdata.tm.ws.handler.WatchHandler;
 import static com.tapdata.tm.ws.handler.WatchHandler.sendWatchMessage;
 import static com.tapdata.tm.ws.handler.WatchHandler.watchCacheMap;
-import java.util.Collection;
+
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
+
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.springframework.data.mongodb.core.messaging.Message;
@@ -59,7 +59,7 @@ public class WatchListener implements MessageListener<ChangeStreamDocument<Docum
 						});
 					});
 				}catch (Exception e){
-					log.error("ChangeStream handle message error, body: {},message: {}", JsonUtil.toJson(message.getBody()), e.getMessage(), e);
+					log.error("ChangeStream handle message error, body: {},message: {}", JsonUtil.toJson(message.getBody()), e.getMessage());
 				}
 			}
 		}

@@ -60,6 +60,8 @@ public class DorisStreamLoader {
     private int size;
     private AtomicInteger lastEventFlag;
 
+    private boolean before_is_null = false;
+
     public DorisStreamLoader(DorisContext dorisContext, CloseableHttpClient httpClient) {
         this.dorisContext = dorisContext;
         this.httpClient = httpClient;
@@ -75,14 +77,25 @@ public class DorisStreamLoader {
     }
 
     public synchronized void writeRecord(final List<TapRecordEvent> tapRecordEvents, final TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws IOException {
+        TapLogger.info(TAG, "batch events length is: {}", tapRecordEvents.size());
         WriteListResult<TapRecordEvent> listResult = writeListResult();
+        int index =0;
+        boolean before_is_null =false;
         for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
             if (needFlush(tapRecordEvent)) {
                 int lastFlag = this.lastEventFlag.get();
                 RespContent flushResult = flush();
-                incrementFlushResult(flushResult, listResult, lastFlag);
+                incrementFlushResult(flushResult, listResult, lastFlag,before_is_null);
             }
 
+            if(tapRecordEvent instanceof  TapUpdateRecordEvent && index <1){
+                final TapUpdateRecordEvent updateRecordEvent = (TapUpdateRecordEvent) tapRecordEvent;
+                final Map<String, Object> before = updateRecordEvent.getBefore();
+                if(before == null){
+                    before_is_null = true;
+                }
+                index++;
+            }
             if (lastEventFlag.get() == 0) {
                 startLoad(table, this.dorisContext.getDorisConfig(), tapRecordEvent);
             }
@@ -90,18 +103,22 @@ public class DorisStreamLoader {
         }
         int lastFlag = this.lastEventFlag.get();
         RespContent lastFlushResult = flush();
-        incrementFlushResult(lastFlushResult, listResult, lastFlag);
+        incrementFlushResult(lastFlushResult, listResult, lastFlag,before_is_null);
         writeListResultConsumer.accept(listResult);
     }
 
-    private void incrementFlushResult(RespContent respContent, WriteListResult<TapRecordEvent> listResult, int lastFlag) {
+    private void incrementFlushResult(RespContent respContent, WriteListResult<TapRecordEvent> listResult, int lastFlag,boolean before_is_null) {
         long handledRows = respContent.getNumberLoadedRows();
         // todo 这个计数可能需要考虑upsert的情况，前置处理upsert
         if (OperationType.INSERT.code == lastFlag) {
             listResult.incrementInserted(handledRows);
         } else if (OperationType.UPDATE.code == lastFlag) {
             if (respContent.isSuccess()) {
-                listResult.incrementModified(handledRows / 2);
+                if(!before_is_null) {
+                    listResult.incrementModified(handledRows / 2);
+                }else {
+                    listResult.incrementModified(handledRows);
+                }
             } else {
                 listResult.incrementModified(0);
             }

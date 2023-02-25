@@ -10,13 +10,12 @@ import com.tapdata.tm.task.service.TaskStartService;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
+import java.util.List;
+import java.util.Optional;
 
 /**
  * @Author: Zed
@@ -81,21 +80,21 @@ public class TaskStartServiceImpl implements TaskStartService {
         boolean saveNoPass = false;
         List<TaskDagCheckLog> saveLogs = taskDagCheckLogService.dagCheck(taskDto, userDetail, true);
         if (CollectionUtils.isNotEmpty(saveLogs)) {
-            Optional<TaskDagCheckLog> any = saveLogs.stream().filter(log -> StringUtils.equals(Level.ERROR.getValue(), log.getGrade())).findAny();
+            Optional<TaskDagCheckLog> any = saveLogs.stream().filter(log -> Level.ERROR.equals(log.getGrade())).findAny();
             if (any.isPresent()) {
                 saveNoPass = true;
-                taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
+                //taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
             }
         }
 
         boolean startNoPass = false;
         List<TaskDagCheckLog> startLogs = taskDagCheckLogService.dagCheck(taskDto, userDetail, false);
         if (CollectionUtils.isNotEmpty(startLogs)) {
-            Optional<TaskDagCheckLog> any = startLogs.stream().filter(log -> StringUtils.equals(Level.ERROR.getValue(), log.getGrade())).findAny();
+            Optional<TaskDagCheckLog> any = startLogs.stream().filter(log -> Level.ERROR.equals(log.getGrade())).findAny();
             if (any.isPresent()) {
                 startNoPass = true;
                 if (!saveNoPass) {
-                    taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
+                    //taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
                 }
             }
         }

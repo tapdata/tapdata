@@ -1,5 +1,6 @@
 package io.tapdata.aspect;
 
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.TapdataEvent;
 import io.tapdata.entity.logger.TapLogger;
 import org.apache.commons.lang3.exception.ExceptionUtils;
@@ -20,7 +21,7 @@ public class ProcessorNodeProcessAspect extends ProcessorFunctionAspect<Processo
 				listConsumer.accept(tapdataEvent);
 				counter.increment();
 			} catch(Throwable throwable) {
-				TapLogger.warn(TAG, "Consume outputEvent {} for inputEvent {} failed on consumer {}, {}", tapdataEvent, inputEvent, listConsumer, ExceptionUtils.getStackTrace(throwable));
+				TapLogger.warn(TAG, "Consume outputEvent {} for inputEvent {} failed on consumer {}, {}", tapdataEvent, inputEvent, listConsumer, Log4jUtil.getStackString(throwable));
 			}
 		});
 		return this;

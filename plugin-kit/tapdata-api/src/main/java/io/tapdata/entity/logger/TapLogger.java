@@ -129,21 +129,21 @@ public class TapLogger {
     private static String getLogMsg(String tag, String msg) {
         StringBuilder builder = new StringBuilder();
 //        builder.append("$$time:: " + dateString()).
-//                append(" $$tag:: " + tag).
+//                append(" " + tag).
 //                append(" ").
 //                append("[" + msg + "]").
 //                append(" $$thread:: " + Thread.currentThread().getName());
-        builder.append(" $$tag:: " + tag).append(" [" + msg + "]");
+        builder.append(tag).append(" [" + msg + "]");
         return builder.toString();
     }
 
     private static String getLogMsgFatal(String tag, String msg) {
         StringBuilder builder = new StringBuilder();
         builder.append("FATAL").
-                append(" $$tag:: " + tag).
+                append(" " + tag).
                 append(" [" + msg + "]");
 //                append(" $$time:: " + dateString()).
-//                append(" $$tag:: " + tag).
+//                append(" " + tag).
 //                append(" ").
 //                append("[" + msg + "]").
 //                append(" $$thread:: " + Thread.currentThread().getName());
@@ -153,10 +153,10 @@ public class TapLogger {
     private static String getMemoryMsg(String tag, String msg) {
         StringBuilder builder = new StringBuilder();
         builder.append("MEMORY").
-                append(" $$tag:: " + tag).
+                append(" " + tag).
                 append(" [" + msg + "]");
 //                append(" $$time:: " + dateString()).
-//                append(" $$tag:: " + tag).
+//                append(" " + tag).
 //                append(" ").
 //                append("[" + msg + "]");
         return builder.toString();
@@ -164,12 +164,12 @@ public class TapLogger {
 
     private static String getLogMsg(String tag, String msg, Long spendTime) {
         StringBuilder builder = new StringBuilder();
-        builder.append(" $$tag:: " + tag).
-                append(" $$spendTime:: " + spendTime).
+        builder.append(tag).
+                append(" spendTime " + spendTime).
                 append(" [" + msg + "]");
 
 //                append("$$time:: " + dateString()).
-//                append(" $$tag:: " + tag).
+//                append(" " + tag).
 //                append(" [" + msg + "]").
 //                append(" $$spendTime:: " + spendTime).
 //                append(" $$thread:: " + Thread.currentThread().getName());
@@ -181,9 +181,9 @@ public class TapLogger {
         StringBuilder builder = new StringBuilder();
         builder.
 //                append("$$time:: " + dateString()).
-                append(" $$tag:: " + tag).
-                append(" $$dataType:: " + dataType).
-                append(" $$data:: " + data).
+                append(tag).
+                append(" " + dataType).
+                append(" " + data).
                 append(" [" + msg + "]");
 //                append(" $$thread:: " + Thread.currentThread().getName());
 

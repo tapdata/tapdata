@@ -18,6 +18,7 @@ public class MqConfig implements Serializable {
     private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class); //json util
     private static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
 
+    private String __connectionType;
     private String mqType;
     private String mqHost;
     private int mqPort;
@@ -30,6 +31,7 @@ public class MqConfig implements Serializable {
     private Set<String> mqQueueSet;
 
     public MqConfig load(Map<String, Object> map) {
+        assert beanUtils != null;
         beanUtils.mapToBean(map, this);
         if (EmptyKit.isNotBlank(mqTopicString)) {
             mqTopicSet = Arrays.stream(mqTopicString.split(",")).collect(Collectors.toSet());
@@ -50,6 +52,8 @@ public class MqConfig implements Serializable {
 
     public MqConfig load(String json) {
         try {
+            assert beanUtils != null;
+            assert jsonParser != null;
             beanUtils.copyProperties(jsonParser.fromJson(json, this.getClass()), this);
             if (EmptyKit.isNotBlank(mqTopicString)) {
                 mqTopicSet = Arrays.stream(mqTopicString.split(",")).collect(Collectors.toSet());
@@ -63,6 +67,14 @@ public class MqConfig implements Serializable {
             e.printStackTrace();
         }
         return null;
+    }
+
+    public String get__connectionType() {
+        return __connectionType;
+    }
+
+    public void set__connectionType(String __connectionType) {
+        this.__connectionType = __connectionType;
     }
 
     public String getMqType() {

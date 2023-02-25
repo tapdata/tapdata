@@ -5,7 +5,8 @@
     "database": "COOLGJ",
     "schema": "public",
     "user": "postgres",
-    "password": "gj0628"
+    "password": "gj0628",
+    "logPluginName": "decoderbufs"
   },
   "node": {
   }

@@ -26,7 +26,7 @@ public class UnsubscribeHandler implements WebSocketHandler {
 			try {
 				WebSocketManager.sendMessage(context.getSender(), "MessageType is blank");
 			} catch (Exception e) {
-				log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+				log.error("WebSocket send message failed, message: {}", e.getMessage());
 			}
 			return;
 		}
@@ -41,7 +41,7 @@ public class UnsubscribeHandler implements WebSocketHandler {
 				NotificationHandler.removeSession(context.getSessionId());
 				log.info("NotificationHandler unsubscribed successfully");
 			} else if (MessageType.DATA_FLOW_INSIGHT.getType().equals(type)) {
-				DataFlowInsightHandler.removeSession(context.getSessionId());
+				//DataFlowInsightHandler.removeSession(context.getSessionId());
 				log.info("DataFlowInsightHandler unsubscribed successfully");
 			} else if (MessageType.EDIT_FLUSH.getType().equals(type)) {
 				EditFlushHandler.removeSession(context.getSessionId());
@@ -56,7 +56,7 @@ public class UnsubscribeHandler implements WebSocketHandler {
 			WebSocketManager.sendMessage(context.getSender(), String.format("MessageType [%s] unsubscribed successfully", messageType));
 			log.info("MessageType {} unsubscribed successfully,sessionId: {}", messageType, context.getSessionId());
 		} catch (Exception e) {
-			log.error("WebSocket send message failed, message: {}", e.getMessage(), e);
+			log.error("WebSocket send message failed, message: {}", e.getMessage());
 		}
 	}
 }

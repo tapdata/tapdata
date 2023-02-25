@@ -193,6 +193,7 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 			try {
 				this.wait();
 			} catch (InterruptedException ignored) {
+				TapLogger.debug(TAG, "waitRawData interrupted {}", ignored.getMessage());
 			}
 		}
 		return waitRawData;
@@ -202,6 +203,7 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 		noMoreWaitRawData(null);
 	}
 	public void noMoreWaitRawData(Throwable errorDuringWait) {
+		TapLogger.debug(TAG, "noMoreWaitRawData errorDuringWait {}", errorDuringWait);
 		synchronized (this) {
 			this.errorDuringWait = errorDuringWait;
 			waitRawData = false;

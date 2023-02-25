@@ -54,6 +54,7 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
                 switch (NodeEnum.valueOf(node.getType())) {
                     case table:
                     case database:
+                    case migrate_js_processor:
                     case js_processor:
 //                    case table_rename_processor:
 //                    case migrate_field_rename_processor:
@@ -129,7 +130,7 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
         checkLog.setCheckType(templateEnum.name());
         checkLog.setCreateAt(new Date());
         checkLog.setCreateUser(userDetail.getUserId());
-        checkLog.setGrade(Level.INFO.name());
+        checkLog.setGrade(Level.INFO);
         checkLog.setLog(MessageFormat.format(templateEnum.getInfoTemplate(), checkLog.getCreateAt(), taskDto.getName(), supportTables, notSupportTables));
         return checkLog;
     }
@@ -140,7 +141,7 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
         checkLog.setCheckType(templateEnum.name());
         checkLog.setCreateAt(new Date());
         checkLog.setCreateUser(userDetail.getUserId());
-        checkLog.setGrade(Level.WARN.name());
+        checkLog.setGrade(Level.WARN);
         checkLog.setLog(MessageFormat.format(templateEnum.getErrorTemplate(), checkLog.getCreateAt(), taskDto.getName(), msg));
         return checkLog;
     }
@@ -151,7 +152,7 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
         checkLog.setCheckType(templateEnum.name());
         checkLog.setCreateAt(new Date());
         checkLog.setCreateUser(userDetail.getUserId());
-        checkLog.setGrade(Level.ERROR.name());
+        checkLog.setGrade(Level.ERROR);
         checkLog.setLog(MessageFormat.format(templateEnum.getErrorTemplate(), checkLog.getCreateAt(), taskDto.getName(), msg));
         return checkLog;
     }

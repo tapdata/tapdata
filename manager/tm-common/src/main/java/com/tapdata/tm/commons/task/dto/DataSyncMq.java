@@ -38,6 +38,10 @@ public class DataSyncMq implements Serializable {
     /** 已经重置 */
     public static final String OP_TYPE_RESET = "reset";
 
+    /**
+     * 重置删除状态上报
+     */
+    public static final String OP_TYPE_RESET_DELETE_REPORT = "reset_delete_report";
 
     /** 类型 */
     private String type;
@@ -52,4 +56,6 @@ public class DataSyncMq implements Serializable {
     private String errMsg;
     /** 错误堆栈 */
     private String errStack;
+
+    private TaskResetEventDto resetEventDto;
 }

@@ -57,6 +57,7 @@ public class DataSourceTypeDto extends BaseDto {
     private String jarFile;
     private Long jarTime;
     private String jarRid;
+    private Boolean beta;
 
     private List<Capability> capabilities;
 }

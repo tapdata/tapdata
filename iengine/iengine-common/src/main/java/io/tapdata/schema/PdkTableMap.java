@@ -1,6 +1,8 @@
 package io.tapdata.schema;
 
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.cache.Entry;
+import io.tapdata.entity.utils.cache.Iterator;
 import io.tapdata.entity.utils.cache.KVMap;
 
 /**
@@ -46,5 +48,10 @@ public class PdkTableMap implements KVMap<TapTable> {
 	@Override
 	public TapTable get(String key) {
 		return tapTableMap.get(key);
+	}
+
+	@Override
+	public Iterator<Entry<TapTable>> iterator() {
+		return tapTableMap.iterator();
 	}
 }

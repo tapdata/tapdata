@@ -10,6 +10,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import lombok.*;
 import lombok.extern.jackson.Jacksonized;
+import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -98,7 +99,7 @@ public class LogEventData {
                 case TapInsertRecordEvent.TYPE:
                     TapInsertRecordEvent insert = (TapInsertRecordEvent) event;
                     this.property("table", insert.getTableId());
-                    this.property("pks", insert.getFilter(fields));
+                    this.property("pks", CollectionUtils.isNotEmpty(fields) ? insert.getFilter(fields) : "");
 
                     message = "insert record event";
                     if (null != insert.getReferenceTime()) {
@@ -108,7 +109,7 @@ public class LogEventData {
                 case TapDeleteRecordEvent.TYPE:
                     TapDeleteRecordEvent delete = (TapDeleteRecordEvent) event;
                     this.property("table", delete.getTableId());
-                    this.property("pks", delete.getFilter(fields));
+                    this.property("pks", CollectionUtils.isNotEmpty(fields) ? delete.getFilter(fields) : "");
 
                     message = "delete record event";
                     if (null != delete.getReferenceTime()) {
@@ -118,7 +119,7 @@ public class LogEventData {
                 case TapUpdateRecordEvent.TYPE:
                     TapUpdateRecordEvent update = (TapUpdateRecordEvent) event;
                     this.property("table", update.getTableId());
-                    this.property("pks", update.getFilter(fields));
+                    this.property("pks", CollectionUtils.isNotEmpty(fields) ? update.getFilter(fields) : "");
 
                     message = "update record event";
                     if (null != update.getReferenceTime()) {

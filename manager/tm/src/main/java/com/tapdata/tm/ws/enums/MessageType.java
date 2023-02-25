@@ -35,7 +35,12 @@ public enum MessageType {
 
 	CREATETABLEDDL("createTableDDL"),
 
-	AUTO_INSPECT_AGAIN("autoInspectAgain");
+	AUTO_INSPECT_AGAIN("autoInspectAgain"),
+
+	PING("ping"),
+
+	PONG("pong")
+	;
 
 	private String type;
 

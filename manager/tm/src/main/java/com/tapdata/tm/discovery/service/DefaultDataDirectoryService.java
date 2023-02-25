@@ -19,4 +19,8 @@ public interface DefaultDataDirectoryService {
     void addConnections(List<DataSourceConnectionDto> connectionDto, UserDetail user);
 
     void addPdkIds(UserDetail user);
+
+    void addJobs(UserDetail user);
+
+    void addApi(UserDetail user);
 }

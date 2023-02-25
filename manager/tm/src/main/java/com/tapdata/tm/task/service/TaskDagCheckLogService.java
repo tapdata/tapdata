@@ -2,6 +2,7 @@ package com.tapdata.tm.task.service;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.monitor.dto.TaskLogDto;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
@@ -20,6 +21,6 @@ public interface TaskDagCheckLogService {
 
     void removeAllByTaskId(String taskId);
 
-    void createLog(String taskId, String userId, String grade, DagOutputTemplateEnum templateEnum,
+    void createLog(String taskId, String userId, Level grade, DagOutputTemplateEnum templateEnum,
                    boolean delOther, boolean needSave, Object ... param);
 }
