@@ -276,6 +276,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			SyncProgress.Type type = syncProgress.getType();
 			switch (type) {
 				case NORMAL:
+				case LOG_COLLECTOR:
 					if (StringUtils.isNotBlank(streamOffset)) {
 						syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
 					} else {
