@@ -230,8 +230,9 @@ public class MilestoneAspectTask extends AbstractAspectTask {
             case WriteRecordFuncAspect.STATE_END: {
                 Throwable error = aspect.getThrowable();
                 if (null == error) {
-                    taskMilestone(KPI_WRITE_RECORD, this::setFinish);
-                    nodeMilestones(nodeId, KPI_WRITE_RECORD, this::setFinish);
+                    // WRITE_RECORD can not be set to finnish.
+//                    taskMilestone(KPI_WRITE_RECORD, this::setFinish);
+//                    nodeMilestones(nodeId, KPI_WRITE_RECORD, this::setFinish);
                 } else {
                     taskMilestone(KPI_WRITE_RECORD, getErrorConsumer(error.getMessage()));
                     nodeMilestones(nodeId, KPI_WRITE_RECORD, getErrorConsumer(error.getMessage()));
@@ -349,6 +350,8 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         if (null == milestone.getBegin()) {
             milestone.setBegin(System.currentTimeMillis());
         }
+        milestone.setEnd(null);
+        milestone.setErrorMessage(null);
         milestone.setStatus(MilestoneStatus.RUNNING);
     }
 

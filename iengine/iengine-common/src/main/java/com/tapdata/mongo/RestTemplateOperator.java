@@ -226,6 +226,9 @@ public class RestTemplateOperator {
 			if (404 == ((HttpClientErrorException) e).getRawStatusCode()) {
 				throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "not found url: " + uri), e);
 			}
+			if (405 == ((HttpClientErrorException) e).getRawStatusCode()) {
+				throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "Please upgrade engine"), e);
+			}
 		}
 		if (retryCount <= 1) {
 			logger.warn(

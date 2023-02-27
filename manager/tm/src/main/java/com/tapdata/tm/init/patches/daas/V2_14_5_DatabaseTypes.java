@@ -1,5 +1,6 @@
 package com.tapdata.tm.init.patches.daas;
 
+import com.mongodb.BasicDBObject;
 import com.mongodb.client.gridfs.model.GridFSFile;
 import com.tapdata.tm.ds.entity.DataSourceDefinitionEntity;
 import com.tapdata.tm.init.PatchType;
@@ -12,6 +13,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.OutOperation;
 import org.springframework.data.mongodb.core.index.CompoundIndexDefinition;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -39,6 +42,10 @@ public class V2_14_5_DatabaseTypes extends AbsPatch {
         String collectionName = "DatabaseTypes";
         MongoTemplate mongoTemplate = SpringContextHelper.getBean(MongoTemplate.class);
         GridFsTemplate gridFsTemplate = SpringContextHelper.getBean(GridFsTemplate.class);
+
+        //bak
+        OutOperation outOperation = new OutOperation("DatabaseTypes_bak_2_14");
+        mongoTemplate.aggregate(Aggregation.newAggregation(outOperation), collectionName, BasicDBObject.class);
 
         mongoTemplate.indexOps(collectionName).getIndexInfo().forEach(index -> {
             if ("index_pdkHash_1_pdkAPIBuildNumber_1".equals(index.getName())) {

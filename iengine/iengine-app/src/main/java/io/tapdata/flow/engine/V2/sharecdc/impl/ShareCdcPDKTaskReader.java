@@ -140,7 +140,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		// Do not start ttl here
 		logCollectorExternalStorage.setTtlDay(0);
 		this.hazelcastConstruct = new ConstructRingBuffer<>(hazelcastInstance, ShareCdcUtil.getConstructName(this.logCollectorTaskDto), logCollectorExternalStorage);
-		logger.info(logWrapper(++step, "Init hazelcast construct completed"));
+		logger.info(logWrapper(++step, "Init hazelcast construct completed, external storage config: " + logCollectorExternalStorage));
 
 		// Check cdc start timestamp is available in log storage
 		try {

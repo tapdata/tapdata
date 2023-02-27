@@ -17,7 +17,7 @@ public class PostgresColumn extends CommonColumn {
 
     public PostgresColumn(DataMap dataMap) {
         this.columnName = dataMap.getString("column_name");
-        this.dataType = dataMap.getString("dataType"); //'dataType' with precision and scale (postgres has its function)
+        this.dataType = dataMap.getString("dataType").replaceAll("\\[]", " array"); //'dataType' with precision and scale (postgres has its function)
 //        this.dataType = dataMap.getString("data_type"); //'data_type' without precision or scale
         this.nullable = dataMap.getString("is_nullable");
         this.remarks = dataMap.getString("remark");

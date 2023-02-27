@@ -90,14 +90,14 @@ public class DagOutputTemplate {
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【源连接检测】：连接{"connectorId":
      * "626bc1bcf3ed334254305087","connectorType":"mysql","connectorName":"MySQL001","dbName":"students","schema":"students","schemaLoadStatus":"100%","connectDelay":"10ms","status":"not ready","messages":"CDC权限校验不通过，无法进行增量同步"}，
      */
-    public static String SOURCE_CONNECT_INFO = "$date【$taskName】【源连接检测】：连接{1}";
-    public static String SOURCE_CONNECT_ERROR = "$date【$taskName】【源连接检测】：连接{1}";
+    public static String SOURCE_CONNECT_INFO = "$date【$taskName】【源连接检测】：连接{1}检测通过";
+    public static String SOURCE_CONNECT_ERROR = "$date【$taskName】【源连接检测】：连接{1}检测未通过";
 
     /**
      * 目标连接检测
      */
-    public static String TARGET_CONNECT_INFO = "$date【$taskName】【目标连接检测】：连接{1}";
-    public static String TARGET_CONNECT_ERROR = "$date【$taskName】【目标连接检测】：连接{1}";
+    public static String TARGET_CONNECT_INFO = "$date【$taskName】【目标连接检测】：连接{1}检测通过";
+    public static String TARGET_CONNECT_ERROR = "$date【$taskName】【目标连接检测】：连接{1}检测未通过";
 
     /**
      * 字符编码检测：

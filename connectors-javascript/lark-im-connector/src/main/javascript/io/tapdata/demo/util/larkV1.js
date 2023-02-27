@@ -6,8 +6,9 @@ class larkSendMsg {
         "contentType": "contentType",
         "content": "content"
     };
-    markSentResult(event){
-        if ('undefined' === this.writerResultCollector || null == this.writerResultCollector){
+
+    markSentResult(event) {
+        if ('undefined' === this.writerResultCollector || null == this.writerResultCollector) {
             return;
         }
         this.writerResultCollector.markSent(event);
@@ -63,8 +64,21 @@ class larkSendMsg {
                         "mobiles": receivedUser,
                         "emails": receivedUser
                     });
-                    receiveId = receiveIdData.result.data.user_list[0].user_id;
+                    if (!this.checkParam(receiveIdData.result.data)) {
+                        log.warn("Cannot get user open id whit use user' phone or email,and the http result data is empty,the phone or email is {}.", receiveId);
+                        return null;
+                    }
+                    let userList = receiveIdData.result.data.user_list;
+                    if (!this.checkParam(userList) || userList.length === 0) {
+                        log.warn("Cannot get user open id whit use user' phone,and the http result data.user_list is empty,the phone or email is {}.", receiveId);
+                        return null;
+                    }
+                    receiveId = userList[0].user_id;
                     if (!this.checkParam(receiveId)) {
+                        if (userList.length < 1) {
+                            log.warn("Cannot get user open id whit use user' email,and the http result data.user_list is empty,the phone or email is {}.", receiveId);
+                            return null;
+                        }
                         // 用户：{{phoneOrEmail}}, 这位用户不在应用的可见范围中，
                         // 请确保应用的此用户在当前版本下可见，您可在应用版本管理与发布中查看最新版本下的可见范围，如有必要请在创建新的版本并将此用户添加到可见范围。
                         receiveId = receiveIdData.result.data.user_list[1].user_id;
@@ -83,19 +97,19 @@ class larkSendMsg {
     }
 
     sendHttp(sendData, historyData) {
-        let writeResult;
-        try {
-            writeResult = invoker.invoke("flyBookSendMessage", sendData);
-            if ((writeResult.httpCode >= 200 || writeResult.httpCode < 300) && writeResult.result.code === 0) {
-                return true;
-            } else {
-                log.warn("A message failed to be sent. The following data was not sent successfully: {}, and error message is : {}, http code is: {}.", historyData, writeResult.result.msg, writeResult.httpCode);
-                return false;
-            }
-        } catch (e) {
-            log.warn("A message failed to be sent. The following data was not sent successfully: {}, error message: {}", historyData, e.message);
-            return false;
+        let writeResult = invoker.invoke("flyBookSendMessage", sendData);
+        if (writeResult.httpCode >= 200 || writeResult.httpCode < 300) {
+            throw("A message failed to be sent. The following data was not sent successfully: " + JSON.stringify(historyData));
         }
+        if (!this.checkParam(writeResult.result.code)) {
+            throw("A message failed to be sent. The following data was not sent successfully: " + JSON.stringify(historyData));
+        }
+        if (writeResult.result.code === 0) {
+            return true;
+        } else {
+            log.warn("A message failed to be sent. The following data was not sent successfully: {}, and error message is : {}, http code is: {}.", historyData, writeResult.result, writeResult.httpCode);
+        }
+        return false;
     }
 
     checkParam(param) {

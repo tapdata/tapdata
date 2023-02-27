@@ -22,7 +22,6 @@ Password: root
 ```
 Kafka address: 139.198.127.226:32761
 Kafka Subject: tidb-cdc
-Synchronization task Id: replication-task-1
 Ticdc address: 192.168.1.179:8300
 ```
 

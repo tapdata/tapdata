@@ -13,6 +13,7 @@
 		<module>mysql-core-build-parent</module>
 		<module>postgres-core</module>
         <module>mq-core</module>
+		<module>kafka-core</module>
         <module>logminer-core</module>
         <module>file-connector-core</module>
         <module>api-loader-core</module>
@@ -29,6 +30,7 @@
 		<junit.jupiter.version>5.8.1</junit.jupiter.version>
 		<junit.platform.version>1.8.1</junit.platform.version>
 		<commons.lang3.version>3.12.0</commons.lang3.version>
+		<fastjson.version>1.2.76</fastjson.version>
 		<commons.collections4.version>4.4</commons.collections4.version>
 		<log4j.version>2.17.1</log4j.version>
 	</properties>

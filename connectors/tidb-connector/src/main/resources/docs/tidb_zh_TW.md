@@ -23,7 +23,6 @@ PdServer 地址：192.168.1.179:2379
 ```
 kafka地址：139.198.127.226:32761
 kafka主題：tidb-cdc
-同步任務Id：replication-task-1
 ticdc地址：192.168.1.179:8300
 
 ```
