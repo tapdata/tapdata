@@ -198,48 +198,33 @@ public class PostManAnalysis {
         return builder.build();
     }
 
-    public APIResponse http(Request request) {
+    public APIResponse http(Request request) throws IOException{
         OkHttpClient client = this.configHttp(new OkHttpClient().newBuilder()).build();
-        Map<String, Object> error = new HashMap<>();
         Map<String, Object> result = new HashMap<>();
-        Response response = null;
-        try {
-            response = client.newCall(request).execute();
-        }catch (IOException e){
-            error.put("msg", e.getMessage());
-        }
+        Response response = client.newCall(request).execute();
         int code = Objects.nonNull(response) ? response.code() : -1;
         Headers headers = Objects.nonNull(response) ? response.headers() : Headers.of();
-        try {
-            Optional.ofNullable(response.body()).ifPresent(body -> {
-                try {String bodyStr = body.string();
-                    if (Objects.isNull(bodyStr)){
-                        result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, new HashMap<>());
-                    }else {
-                        try {
-                            result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, fromJson(bodyStr));
-                        } catch (Exception notMap) {
-                            try {
-                                result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, fromJsonArray(bodyStr));
-                            } catch (Exception notArray) {
-                                result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, bodyStr);
-                            }
-                        }
+        ResponseBody body = response.body();
+        if(body != null) {
+            String bodyStr = body.string();
+            if (Objects.isNull(bodyStr)){
+                result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, new HashMap<>());
+            } else {
+                try {
+                    result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, fromJson(bodyStr));
+                } catch (Exception notMap) {
+                    try {
+                        result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, fromJsonArray(bodyStr));
+                    } catch (Exception notArray) {
+                        result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, bodyStr);
                     }
-                } catch (IOException ignored) {
-                    result.putIfAbsent(Api.PAGE_RESULT_PATH_DEFAULT_PATH, new HashMap<>());
                 }
-            });
-        } catch (Exception e) {
-            error.put("msg", Optional.ofNullable(error.get("msg")).orElse("") + " | " + e.getMessage());
-            result.putIfAbsent(Api.PAGE_RESULT_PATH_DEFAULT_PATH, new HashMap<>());
+            }
         }
-        if (code < 200 || code >= 300) {
-            error.put("msg", Optional.ofNullable(error.get("msg")).orElse("") + " | " + toJson(result));
-        }
-        return APIResponse.create().httpCode(code)
+        result.computeIfAbsent(Api.PAGE_RESULT_PATH_DEFAULT_PATH, key -> new HashMap<String,Object>());
+        return APIResponse.create()
+                .httpCode(code)
                 .result(result)
-                .error(error)
                 .headers(getHeaderMap(headers));
     }
 
@@ -270,7 +255,7 @@ public class PostManAnalysis {
             APIResponse http = this.http(request);
             String property = System.getProperty("show_api_invoker_result", "1");
             if ("1".equals(property)) {
-                System.out.printf("Http Result: Post Man: %s url - %s, method - %s params - %s\n\t%s%n", uriOrName, request.url(), method, toJson(params), toJson(http.result().get("data"), JsonParser.ToJsonFeature.PrettyFormat));
+                System.out.printf("Http Result: Post Man: %s url - %s, method - %s, params - %s\n\t%s%n", uriOrName, request.url(), method, toJson(params), toJson(http.result().get("data"), JsonParser.ToJsonFeature.PrettyFormat));
             }
             return http;
         } catch (Exception e) {
