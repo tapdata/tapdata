@@ -198,7 +198,7 @@ public class PostManAnalysis {
         return builder.build();
     }
 
-    public APIResponse http(Request request) throws IOException {
+    public APIResponse http(Request request) {
         OkHttpClient client = this.configHttp(new OkHttpClient().newBuilder()).build();
         Map<String, Object> error = new HashMap<>();
         Map<String, Object> result = new HashMap<>();
@@ -273,7 +273,7 @@ public class PostManAnalysis {
                 System.out.printf("Http Result: Post Man: %s url - %s, method - %s params - %s\n\t%s%n", uriOrName, request.url(), method, toJson(params), toJson(http.result().get("data"), JsonParser.ToJsonFeature.PrettyFormat));
             }
             return http;
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new CoreException(String.format("Http request failed ,the api name or url is [%s],method is [%s], params are [%s], error message : %s", uriOrName, method, TapSimplify.toJson(params), e.getMessage()));
         }
     }
