@@ -90,11 +90,6 @@ public abstract class AbstractCacheService implements ICacheService {
   @Override
   public void registerCache(DataFlowCacheConfig cacheConfig) {
     String cacheName = cacheConfig.getCacheName();
-    String cacheStatus = this.cacheStatusMap.get(cacheName);
-    if (this.cacheConfigMap.containsKey(cacheName) && StringUtils.equalsAnyIgnoreCase(cacheStatus, DataFlow.STATUS_RUNNING)) {
-      throw new RuntimeException(String.format("Cache name %s already exists.", cacheName));
-    }
-
     this.cacheConfigMap.put(cacheName, cacheConfig);
     this.lastLogTSMap.put(cacheConfig.getCacheName(), 0L);
     this.cacheStatusMap.put(cacheName, DataFlow.STATUS_RUNNING);
