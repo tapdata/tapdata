@@ -1,5 +1,6 @@
 package io.tapdata.pdk.tdd.tests.support;
 
+import io.tapdata.pdk.tdd.core.base.TapAssertException;
 import org.opentest4j.AssertionFailedError;
 
 import java.lang.reflect.Method;
@@ -34,7 +35,7 @@ public interface TapAssert {
                     msg.fail();
                 }
                 testCases.addError(message);
-                throw new RuntimeException(message, e);
+                throw new TapAssertException(message, e);
             }
             case SUCCEED: {
                 if (null != message && !"".equals(message)) {

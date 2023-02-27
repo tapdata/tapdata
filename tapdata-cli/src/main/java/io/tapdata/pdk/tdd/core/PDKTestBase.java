@@ -119,11 +119,16 @@ public class PDKTestBase {
     }
 
     protected void connectorOnStart(TestNode prepare) {
-        PDKInvocationMonitor.invoke(prepare.connectorNode(),
-                PDKMethod.INIT,
-                prepare.connectorNode()::connectorInit,
-                "Init PDK", this.testNodeId + " connector"
-        );
+        try {
+            PDKInvocationMonitor.invoke(prepare.connectorNode(),
+                    PDKMethod.INIT,
+                    prepare.connectorNode()::connectorInit,
+                    "Init PDK", this.testNodeId + " connector"
+            );
+        }catch (Exception e){
+            System.out.println(e.getMessage());
+            throw new RuntimeException(e.getMessage());
+        }
     }
 
     protected void connectorOnStop(TestNode prepare) {

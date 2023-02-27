@@ -96,6 +96,7 @@ public class TDDCli extends CommonCli {
 
     public void runLevel(List<DiscoverySelector> selectors, TapSummary testResultSummary) {
         testResultSummary.setLanType(new Locale(lan)).showCapabilities(nodeInfo());
+        System.setProperty("tdd_running_is","1");
         for (DiscoverySelector selector : selectors) {
             LauncherDiscoveryRequestBuilder request = LauncherDiscoveryRequestBuilder.request();
             LauncherDiscoveryRequest build = request.selectors(selector).build();

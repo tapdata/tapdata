@@ -31,7 +31,7 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
  * 测试失败按警告上报
  */
 @DisplayName("createTableUsingField")
-@TapGo(tag = "V3", sort = 13,debug = true)
+@TapGo(tag = "V3", sort = 13,debug = false)
 public class CreateTableUsingFieldTypesInTurnTest extends PDKTestBaseV2 {
     public static List<SupportFunction> testFunctions() {
         return list(supportAny(

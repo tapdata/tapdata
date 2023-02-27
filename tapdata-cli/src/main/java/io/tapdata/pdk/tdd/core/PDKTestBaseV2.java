@@ -3,15 +3,14 @@ package io.tapdata.pdk.tdd.core;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.Projection;
+import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.TapFilter;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByFilterFunction;
-import io.tapdata.pdk.tdd.core.base.TestExec;
-import io.tapdata.pdk.tdd.core.base.TestNode;
-import io.tapdata.pdk.tdd.core.base.TestStart;
-import io.tapdata.pdk.tdd.core.base.TestStop;
+import io.tapdata.pdk.tdd.core.base.*;
 import io.tapdata.pdk.tdd.tests.support.LangUtil;
 import io.tapdata.pdk.tdd.tests.support.Record;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
@@ -25,6 +24,13 @@ import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 public class PDKTestBaseV2 extends PDKTestBase {
     protected static final LangUtil langUtil = LangUtil.lang(LangUtil.LANG_PATH_V2);
+    public static boolean testRunning = false;
+    {
+        if (!PDKTestBaseV2.testRunning) {
+            String isRunning = System.getProperty("tdd_running_is", "0");
+            PDKTestBaseV2.testRunning = "1".equals(isRunning);
+        }
+    }
 
     protected void contrastRecord(TapTable table, Method testMethod, Map<String, Object> basicData, Map<String, Object> targetData) {
         if (Objects.nonNull(basicData) && !basicData.isEmpty()) {
@@ -60,7 +66,9 @@ public class PDKTestBaseV2 extends PDKTestBase {
                 super.connectorOnStart(prepare);
                 Optional.ofNullable(exec).ifPresent(e->e.exec(prepare,testCase));
             } catch (Exception e) {
-                TapAssert.error(testCase, langUtil.formatLang("fieldModification.all.throw", e.getMessage()));
+                if ( !(e instanceof TapAssertException)) {
+                    TapAssert.error(testCase, langUtil.formatLang("fieldModification.all.throw", e.getMessage()));
+                }
             } finally {
                 Optional.ofNullable(stop).ifPresent(e->e.stop(prepare,testCase));
                 super.connectorOnStop(prepare);
@@ -76,7 +84,7 @@ public class PDKTestBaseV2 extends PDKTestBase {
 
     protected List<Map<String,Object>> queryRecords(TestNode node, TapTable tapTable, Record[] records){
         Method testCase = node.recordEventExecute().testCase();
-        Collection<String> primaryKeys = super.targetTable.primaryKeys(true);
+        Collection<String> primaryKeys = tapTable.primaryKeys(true);
         TapConnectorContext context = node.connectorNode().getConnectorContext();
         ConnectorFunctions connectorFunctions = node.connectorNode().getConnectorFunctions();
         QueryByFilterFunction queryByFilter = connectorFunctions.getQueryByFilterFunction();
@@ -94,7 +102,7 @@ public class PDKTestBaseV2 extends PDKTestBase {
             TapFilter filter = new TapFilter();
             filter.setMatch(dataMap);
             try {
-                queryByFilter.query(context, filters, super.targetTable, consumer -> {
+                queryByFilter.query(context, filters, tapTable, consumer -> {
                     if (Objects.nonNull(consumer) && !consumer.isEmpty()) {
                         consumer.forEach(res-> result.add(res.getResult()));
                     }
@@ -107,7 +115,7 @@ public class PDKTestBaseV2 extends PDKTestBase {
                 TapAdvanceFilter tapAdvanceFilter = new TapAdvanceFilter();
                 tapAdvanceFilter.match(dataMap);
                 try {
-                    filter.query(context, tapAdvanceFilter, super.targetTable, consumer -> {
+                    filter.query(context, tapAdvanceFilter, tapTable, consumer -> {
                         result.addAll(consumer.getResults());
                     });
                 } catch (Throwable throwable) {
