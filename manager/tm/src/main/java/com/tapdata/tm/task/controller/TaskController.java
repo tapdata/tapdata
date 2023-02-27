@@ -1072,4 +1072,10 @@ public class TaskController extends BaseController {
         return success(taskMap);
     }
 
+    @GetMapping("/stats/task")
+    public ResponseMessage<List<TaskDto>> getTaskStatsByTableNameOrConnectionId(@RequestParam("connectionId") String connectionId,
+                                                                                @RequestParam("tableName") String tableName) {
+        return success(taskService.getTaskStatsByTableNameOrConnectionId(connectionId, tableName, getLoginUser()));
+    }
+
 }
