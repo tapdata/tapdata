@@ -1,9 +1,9 @@
 {
   "properties": {
-    "name": "PostgreSQL",
-    "icon": "icons/postgres.png",
+    "name": "OpenGauss",
+    "icon": "icons/open-gauss.png",
     "doc" : "${doc}",
-    "id": "postgres"
+    "id": "open-gauss"
   },
   "configOptions": {
     "capabilities":[
@@ -86,7 +86,7 @@
           "required": true,
           "type": "string",
           "title": "${logPluginName}",
-          "default": "pgoutput",
+          "default": "PGOUTPUT",
           "x-decorator": "FormItem",
           "x-component": "Select",
           "apiServerKey": "logPlugin",
@@ -242,7 +242,7 @@
   "messages": {
     "default": "en_US",
     "en_US": {
-      "doc": "docs/postgres_en_US.md",
+      "doc": "docs/open_gauss_en_US.md",
       "host": "Host",
       "port": "Port",
       "database" : "database",
@@ -254,7 +254,7 @@
       "timezone": "timezone"
     },
     "zh_CN": {
-      "doc": "docs/postgres_zh_CN.md",
+      "doc": "docs/open_gauss_zh_CN.md",
       "host": "地址",
       "port": "端口",
       "database" : "数据库",
@@ -266,7 +266,7 @@
       "timezone": "时区"
     },
     "zh_TW": {
-      "doc": "docs/postgres_zh_TW.md",
+      "doc": "docs/open_gauss_zh_TW.md",
       "host": "地址",
       "port": "端口",
       "database" : "數據庫",
@@ -467,10 +467,6 @@
       "defaultFraction": 6,
       "priority": 2,
       "to": "TapTime"
-    },
-    "$nothing array": {
-      "queryOnly": true,
-      "to": "TapArray"
     },
     "point": {
       "to": "TapString",
