@@ -102,6 +102,18 @@ public class DbKit {
         return columnTypeNames;
     }
 
+    public static List<Object> getDataArrayByColumnName(ResultSet resultSet, String columnName) {
+        List<Object> list = TapSimplify.list();
+        try {
+            while (resultSet.next()) {
+                list.add(resultSet.getObject(columnName));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
     public static byte[] blobToBytes(Blob blob) {
         BufferedInputStream bis = null;
         try {
