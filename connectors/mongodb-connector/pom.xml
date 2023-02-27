@@ -13,7 +13,7 @@
 
     <properties>
         <java.version>8</java.version>
-        <tapdata.pdk.api.version>1.2.1</tapdata.pdk.api.version>
+        <tapdata.pdk.api.version>1.2.2-SNAPSHOT</tapdata.pdk.api.version>
     </properties>
     <dependencies>
         <dependency>
