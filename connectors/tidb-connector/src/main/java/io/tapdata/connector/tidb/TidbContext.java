@@ -49,6 +49,7 @@ public class TidbContext extends JdbcContext{
 
     private static final String TRUNCATE_TABLE_SQL = "TRUNCATE TABLE `%s`.`%s`";
 
+    private static final String GET_TABLE_INFO_SQL = "SELECT * FROM information_schema.tables WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s'";
 
     private final static String TIDB_ALL_INDEX = "select *\n" +
             "from (select i.TABLE_NAME,\n" +
@@ -308,6 +309,24 @@ public class TidbContext extends JdbcContext{
         }
         return sb.append(":").append(split[1]).toString();
     }
+    public DataMap getTableInfo(String tableName) throws Throwable {
+        DataMap  dataMap = DataMap.create();
+        List  list  = new ArrayList();
+        list.add("TABLE_ROWS");
+        list.add("DATA_LENGTH");
+        try {
+            query(String.format(GET_TABLE_INFO_SQL, getConfig().getDatabase(), tableName),resultSet -> {
+                while (resultSet.next()) {
+                    dataMap.putAll(DbKit.getRowFromResultSet(resultSet, list));
+                }
+            });
+
+        }catch (Throwable e) {
+            TapLogger.error(TAG, "Execute getTableInfo failed, error: " + e.getMessage(), e);
+        }
+        return dataMap;
+    }
+
 
     public static void main(String[] args) {
         System.out.println(formatTimezone("07:59:59"));
