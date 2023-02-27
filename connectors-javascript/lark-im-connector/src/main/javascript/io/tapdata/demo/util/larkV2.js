@@ -59,7 +59,7 @@ class larkSendMsgV2 extends larkSendMsg {
             let sendMsgDataMap = this.convertEventAndSend(eData, dataConvertMap);
             if (!super.sendHttp(sendMsgDataMap, eData.afterData)) {
                 //backArr.push(eData);
-                throw("Error send message")
+                throw("Error send message, data: " + JSON.stringify(eData.afterData));
             }
         }
 

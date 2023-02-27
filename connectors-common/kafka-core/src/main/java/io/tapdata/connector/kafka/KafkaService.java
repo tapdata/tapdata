@@ -46,15 +46,18 @@ public class KafkaService extends AbstractMqService {
     private static final String TAG = KafkaService.class.getSimpleName();
     private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
     private String connectorId;
-    private final KafkaProducer<byte[], byte[]> kafkaProducer;
+    private KafkaProducer<byte[], byte[]> kafkaProducer;
+
+    public KafkaService() {
+
+    }
 
     public KafkaService(KafkaConfig mqConfig) {
         this.mqConfig = mqConfig;
         ProducerConfiguration producerConfiguration = new ProducerConfiguration(mqConfig, connectorId);
         try {
             kafkaProducer = new KafkaProducer<>(producerConfiguration.build());
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
             TapLogger.error(TAG, "Kafka producer error: " + ErrorKit.getLastCause(e).getMessage(), e);
             throw new RuntimeException(e);
@@ -372,6 +375,8 @@ public class KafkaService extends AbstractMqService {
     @Override
     public void close() {
         super.close();
-        kafkaProducer.close();
+        if (EmptyKit.isNotNull(kafkaProducer)) {
+            kafkaProducer.close();
+        }
     }
 }

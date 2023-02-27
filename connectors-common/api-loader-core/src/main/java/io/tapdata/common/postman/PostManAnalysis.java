@@ -198,7 +198,7 @@ public class PostManAnalysis {
         return builder.build();
     }
 
-    public APIResponse http(Request request) throws IOException {
+    public APIResponse http(Request request) {
         OkHttpClient client = this.configHttp(new OkHttpClient().newBuilder()).build();
         Map<String, Object> result = new HashMap<>();
         Response response = client.newCall(request).execute();
@@ -221,7 +221,8 @@ public class PostManAnalysis {
                 }
             }
         }
-        return APIResponse.create().httpCode(code)
+        return APIResponse.create()
+                .httpCode(code)
                 .result(result)
                 .headers(getHeaderMap(headers));
     }
@@ -253,10 +254,10 @@ public class PostManAnalysis {
             APIResponse http = this.http(request);
             String property = System.getProperty("show_api_invoker_result", "1");
             if ("1".equals(property)) {
-                System.out.printf("Http Result: Post Man: %s url - %s, method - %s params - %s\n\t%s%n", uriOrName, request.url(), method, toJson(params), toJson(http.result().get("data"), JsonParser.ToJsonFeature.PrettyFormat));
+                System.out.printf("Http Result: Post Man: %s url - %s, method - %s, params - %s\n\t%s%n", uriOrName, request.url(), method, toJson(params), toJson(http.result().get("data"), JsonParser.ToJsonFeature.PrettyFormat));
             }
             return http;
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new CoreException(String.format("Http request failed ,the api name or url is [%s],method is [%s], params are [%s], error message : %s", uriOrName, method, TapSimplify.toJson(params), e.getMessage()));
         }
     }

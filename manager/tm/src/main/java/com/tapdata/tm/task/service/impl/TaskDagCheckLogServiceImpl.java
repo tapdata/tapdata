@@ -117,9 +117,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
             modelCriteria.regex("log").is(keyword);
         }
 
-        List<String> delayList = Lists.of(DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name(),
-                DagOutputTemplateEnum.SOURCE_CONNECT_CHECK.name(),
-                DagOutputTemplateEnum.TARGET_CONNECT_CHECK.name());
+        List<String> delayList = Lists.of(DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name());
         Query logQuery = new Query(criteria.and("checkType").nin(delayList));
         logQuery.with(Sort.by("_id"));
         List<TaskDagCheckLog> taskDagCheckLogs = find(logQuery);

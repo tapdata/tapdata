@@ -55,6 +55,12 @@ public class PageToken implements PageStage {
         if (Objects.isNull(sizeKeyName) ){
             throw new CoreException("TAP_PAGE_SIZE is selected as the paging mode for table ["+tapPage.tableName()+"], but the table level paging start value field of \"TAP_PAGE_SIZE\" is not used in the paging parameters ");
         }
+        if (Objects.isNull(hasNextName) ){
+            throw new CoreException("TAP_HAS_MORE_PAGE is selected as the paging mode for table ["+tapPage.tableName()+"], but the table level paging start value field of \"TAP_HAS_MORE_PAGE\" is not used in the paging parameters ");
+        }
+        if (Objects.isNull(tokenName) ){
+            throw new CoreException("TAP_PAGE_TOKEN is selected as the paging mode for table ["+tapPage.tableName()+"], but the table level paging start value field of \"TAP_PAGE_TOKEN\" is not used in the paging parameters ");
+        }
         String pageResultPath = requestApi.pageResultPath();
         if (Objects.isNull(pageResultPath)){
             throw new CoreException("The table data source field is not specified in the interface return result.");
@@ -77,14 +83,18 @@ public class PageToken implements PageStage {
     }
 
     private String getPageToken(Map<String, Object> result,String keyName){
-        if (Objects.isNull(result)) return  "";
+        if (Objects.isNull(result)) return "";
         return (String) ApiMapUtil.depthSearchParamFromMap(result,keyName);
     }
 
     private Boolean hasNext(Map<String, Object> result,String keyName){
-        if (Objects.isNull(result)) return  false;
+        if (Objects.isNull(result)) return false;
         try {
-            return (Boolean) ApiMapUtil.getKeyFromMap(result,keyName);
+            if (keyName.contains(".")) {
+                return (Boolean) ApiMapUtil.getKeyFromMap(result, keyName);
+            }else {
+                return (Boolean) ApiMapUtil.depthSearchParamFromMap(result,keyName);
+            }
         }catch (Exception e){
             return false;
         }
