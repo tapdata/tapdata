@@ -64,7 +64,7 @@ public class PipeHandler implements WebSocketHandler {
 				MessageQueueDto messageDto = new MessageQueueDto();
 				Optional.ofNullable(messageInfo.getData()).ifPresent(info -> {
 					Object error = info.get("error");
-					if (Objects.nonNull(error) && (error.toString().contains("config") || error.toString().contains("404"))) {
+					if (Objects.nonNull(error) && (error.toString().contains("404"))) {
 						info.put("error", "Please upgrade agent");
 					}
 				});
