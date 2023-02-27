@@ -4,7 +4,7 @@
     "icon": "icons/kafka.png",
     "doc": "${doc}",
     "id": "kafka",
-    "authentication": "beta",
+    "authentication": "Alpha",
     "tags": ["Database"]
   },
   "configOptions": {
