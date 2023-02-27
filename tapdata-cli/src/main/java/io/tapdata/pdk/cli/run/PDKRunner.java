@@ -15,7 +15,7 @@ public class PDKRunner {
 
     private enum TddPath {
 //        Lark("lark-connector-v1.0-SNAPSHOT.jar", "lark.json"),
-        LarkTask("lark-task-connector-v1.0-SNAPSHOT.jar", "lark-task.json"),
+        LarkTask("lark-im-connector-v1.0-SNAPSHOT.jar", "lark-im.json"),
 //        ZoHoCRM("zoho-crm-connector-v1.0-SNAPSHOT.jar", "zoho-crm-js.json"),
 //        CodingDemo("coding-demo-connector-v1.0-SNAPSHOT.jar", "coding-js.json"),
         ;
