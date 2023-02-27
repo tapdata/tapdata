@@ -212,8 +212,9 @@ public class PostManAnalysis {
         Headers headers = Objects.nonNull(response) ? response.headers() : Headers.of();
         try {
             Optional.ofNullable(response.body()).ifPresent(body -> {
-                try {String bodyStr = body.string();
-                    if (Objects.isNull(bodyStr)){
+                try {
+                    String bodyStr = body.string();
+                    if (Objects.isNull(bodyStr) || "".equals(bodyStr.trim())){
                         result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, new HashMap<>());
                     }else {
                         try {
@@ -227,17 +228,18 @@ public class PostManAnalysis {
                         }
                     }
                 } catch (IOException ignored) {
-                    result.putIfAbsent(Api.PAGE_RESULT_PATH_DEFAULT_PATH, new HashMap<>());
+                    result.computeIfAbsent(Api.PAGE_RESULT_PATH_DEFAULT_PATH, key -> new HashMap<String,Object>());
                 }
             });
         } catch (Exception e) {
             error.put("msg", Optional.ofNullable(error.get("msg")).orElse("") + " | " + e.getMessage());
-            result.putIfAbsent(Api.PAGE_RESULT_PATH_DEFAULT_PATH, new HashMap<>());
+            result.computeIfAbsent(Api.PAGE_RESULT_PATH_DEFAULT_PATH, key -> new HashMap<String,Object>());
         }
         if (code < 200 || code >= 300) {
             error.put("msg", Optional.ofNullable(error.get("msg")).orElse("") + " | " + toJson(result));
         }
-        return APIResponse.create().httpCode(code)
+        return APIResponse.create()
+                .httpCode(code)
                 .result(result)
                 .error(error)
                 .headers(getHeaderMap(headers));
@@ -270,7 +272,7 @@ public class PostManAnalysis {
             APIResponse http = this.http(request);
             String property = System.getProperty("show_api_invoker_result", "1");
             if ("1".equals(property)) {
-                System.out.printf("Http Result: Post Man: %s url - %s, method - %s params - %s\n\t%s%n", uriOrName, request.url(), method, toJson(params), toJson(http.result().get("data"), JsonParser.ToJsonFeature.PrettyFormat));
+                System.out.printf("Http Result: Post Man: %s url - %s, method - %s, params - %s\n\t%s%n", uriOrName, request.url(), method, toJson(params), toJson(http.result().get("data"), JsonParser.ToJsonFeature.PrettyFormat));
             }
             return http;
         } catch (Exception e) {
