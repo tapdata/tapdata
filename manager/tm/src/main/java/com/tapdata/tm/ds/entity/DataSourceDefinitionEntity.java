@@ -93,4 +93,6 @@ public class DataSourceDefinitionEntity extends BaseEntity {
 
     private List<Capability> capabilities;
     private Boolean beta;
+    private String authentication;
+    private List<String> tags;
 }
