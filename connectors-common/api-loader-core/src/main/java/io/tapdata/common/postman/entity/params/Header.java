@@ -26,7 +26,7 @@ public class Header {
     public static List<Header> create(List<Map<String,Object>> list){
         List<Header> headers = new ArrayList<>();
         try {
-            list.stream().filter(Objects::nonNull).forEach(head->headers.add(Header.create(head)));
+            list.stream().filter(Objects::nonNull).forEach(head -> headers.add(Header.create(head)));
         }catch (Exception e){}
         return headers;
     }
@@ -37,7 +37,7 @@ public class Header {
             Object typeObj = map.get(PostParam.TYPE);
             Object disabledObj = map.get(PostParam.DISABLED);
             String key = Objects.isNull(keyObj)?null : (String) keyObj;
-            boolean disabled = !Objects.isNull(disabledObj) && (disabledObj instanceof Boolean ? (boolean) disabledObj :"true".equals( String.valueOf(disabledObj)));
+            boolean disabled = Objects.nonNull(disabledObj) && (disabledObj instanceof Boolean ? (Boolean) disabledObj : "true".equals(String.valueOf(disabledObj)));
             String value = Objects.isNull(valueObj)?null : (String) valueObj;
             String type = Objects.isNull(typeObj)?null : (String) typeObj;
             return Header.create().key(key).value(value).type(type).disabled(disabled);
@@ -78,7 +78,7 @@ public class Header {
     }
 
     public Header variableAssignment(Map<String,Object> param){
-        Header header = Header.create().key(this.key).type(type);
+        Header header = Header.create().key(this.key).type(type).disabled(disabled);
         String headValueBack = this.value;
         if (Objects.nonNull(param) && !param.isEmpty()){
             for (Map.Entry<String, Object> paramEntity : param.entrySet()) {
