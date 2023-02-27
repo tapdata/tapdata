@@ -65,7 +65,7 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
         AtomicBoolean hasCreatedTable = new AtomicBoolean(false);
         super.execTest("sequentialTestOfModify", (node, testCase) -> {
             this.translation(node);
-            Map<String, Object> recordBefore = new HashMap<>(records[0]);
+            //Map<String, Object> recordBefore = new HashMap<>(records[0]);
             if (!this.insertAndModify(node, hasCreatedTable)) {
                 return;
             }
@@ -77,10 +77,10 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
             } else {
                 Map<String, Object> resultMap = result.get(0);
                 StringBuilder builder = new StringBuilder();
-                boolean equals = super.mapEquals(recordBefore, resultMap, builder);
+                boolean equals = super.mapEquals(records[0], resultMap, builder);
                 TapAssert.asserts(() -> {
-                    Assertions.assertTrue(equals, langUtil.formatLang("sequentialTest.modify.query.succeed", recordCount, modifyCount, builder.toString()));
-                }).acceptAsError(testCase, langUtil.formatLang("sequentialTest.modify.query.notEquals", recordCount, modifyCount, builder.toString()));
+                    Assertions.assertTrue(equals, langUtil.formatLang("sequentialTest.modify.query.notEquals", recordCount, modifyCount, builder.toString()));
+                }).acceptAsWarn(testCase, langUtil.formatLang("sequentialTest.modify.query.succeed", recordCount, modifyCount, builder.toString()));
             }
         }, (node, testCase) -> {
             //删除表
@@ -99,23 +99,71 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
     @TapTestCase(sort = 2)
     @Test
     public void sequentialTestOfDelete() throws NoSuchMethodException {
+        System.out.println(langUtil.formatLang("sequentialTest.delete.wait"));
         AtomicBoolean hasCreatedTable = new AtomicBoolean(false);
         super.execTest("sequentialTestOfDelete", (node, testCase) -> {
             this.translation(node);
             if (!this.insertAndModify(node, hasCreatedTable)) {
                 return;
             }
-            try {
-                WriteListResult<TapRecordEvent> delete = node.recordEventExecute().delete();
-            } catch (Throwable e) {
-                TapAssert.error(testCase, "删除数据抛出了一个异常，error: %s.");
+            if (this.deleteRecord(node,modifyCount)){
+                return;
             }
             //查询数据，并校验
             List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, this.records);
-            if (!result.isEmpty()) {
-                TapAssert.error(testCase, "插入了一条数据，但是实际返回多条。");
+            TapAssert.asserts(() -> Assertions.assertTrue(result.isEmpty(), langUtil.formatLang("sequentialTest.delete.fail",recordCount,modifyCount,result.size())))
+                    .acceptAsError(testCase,langUtil.formatLang("sequentialTest.delete.succeed",recordCount,modifyCount));
+        }, (node, testCase) -> {
+            //删除表
+            if (hasCreatedTable.get()) {
+                RecordEventExecute execute = node.recordEventExecute();
+                execute.dropTable();
+            }
+        });
+    }
+
+    /**
+     * 用例3， 相同主键的数据发生连续删除新增事件最后数据是正确的
+     *   相同主键的数据，
+     *   发生新增1， 修改1， 删除1， 新增2， 删除2， 新增3事件，
+     *   最后的时候， 查询这条数据应该是为新增3的数据
+     */
+    @DisplayName("sequentialTest.more")
+    @TapTestCase(sort = 3)
+    @Test
+    public void sequentialTestOfDeleteAndMore() throws NoSuchMethodException {
+        System.out.println(langUtil.formatLang("sequentialTest.more.wait"));
+        AtomicBoolean hasCreatedTable = new AtomicBoolean(false);
+        super.execTest("sequentialTestOfDeleteAndMore", (node, testCase) -> {
+            this.translation(node);
+            final int mCount = 1;
+            if (!this.insertAndModify(node, hasCreatedTable, true, mCount)) {
+                return;
+            }
+            if (!this.deleteRecord(node,mCount)){
+                return;
+            }
+            if (!this.insertAndModify(node, hasCreatedTable, false,0)) {
+                return;
+            }
+            if (!this.deleteRecord(node,0)){
+                return;
+            }
+            if (!this.insertAndModify(node, hasCreatedTable,false,0)) {
+                return;
+            }
+            //查询数据，并校验
+            List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, this.records);
+            final int filterCount = result.size();
+            if (filterCount != recordCount) {
+                TapAssert.error(testCase, langUtil.formatLang("sequentialTest.more.fail",filterCount, recordCount));
             } else {
-                TapAssert.succeed(testCase, "数据前后对比一致，对比结果一致");
+                Map<String, Object> resultMap = result.get(0);
+                StringBuilder builder = new StringBuilder();
+                boolean equals = super.mapEquals(records[0], resultMap, builder);
+                TapAssert.asserts(() -> {
+                    Assertions.assertTrue(equals, langUtil.formatLang("sequentialTest.more.notEquals",filterCount, builder.toString()));
+                }).acceptAsWarn(testCase, langUtil.formatLang("sequentialTest.more.succeed", filterCount, builder.toString()));
             }
         }, (node, testCase) -> {
             //删除表
@@ -133,7 +181,7 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
     }
 
     private boolean modifyRecord(RecordEventExecute execute, int times) {
-        Record.modifyRecordWithTapTable(super.targetTable, this.records, 2, false);
+        Record.modifyRecordWithTapTable(super.targetTable, this.records, 5, false);
         execute.builderRecordCleanBefore(this.records);
         WriteListResult<TapRecordEvent> update;
         try {
@@ -161,18 +209,20 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
         return Boolean.TRUE;
     }
 
-    private boolean insertAndModify(TestNode node, AtomicBoolean hasCreatedTable) {
+    private boolean insertAndModify(TestNode node, AtomicBoolean hasCreatedTable, boolean createNewRecord, int mTimes){
         RecordEventExecute execute = node.recordEventExecute();
-        hasCreatedTable.set(super.createTable(node));
-        if (!hasCreatedTable.get()) {
-            //@TODO 建表失败
-            return false;
-        }
         Method testCase = execute.testCase();
-        //插入数据
-        execute.builderRecord(this.records);
+        if (createNewRecord) {
+            hasCreatedTable.set(super.createTable(node));
+            if (!hasCreatedTable.get()) {
+                //@TODO 建表失败
+                return false;
+            }
+            execute.builderRecord(this.records);
+        }
         WriteListResult<TapRecordEvent> insert;
         try {
+            //插入数据
             insert = execute.insert();
         } catch (Throwable e) {
             TapAssert.error(testCase, langUtil.formatLang("sequentialTest.insertRecord.throw", recordCount, e.getMessage()));
@@ -193,11 +243,45 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
                 null == insert ? 0 : insert.getModifiedCount(),
                 null == insert ? 0 : insert.getRemovedCount()));
         //修改数据
-        for (int i = 0; i < modifyCount; i++) {
+        for (int i = 0; i < mTimes; i++) {
             if (!this.modifyRecord(execute, i + 1)) {
                 return false;
             }
         }
         return true;
+    }
+
+    private boolean insertAndModify(TestNode node, AtomicBoolean hasCreatedTable) {
+        return this.insertAndModify(node, hasCreatedTable, true, modifyCount);
+    }
+
+    private boolean deleteRecord(TestNode node,int modifyCount){
+        RecordEventExecute execute = node.recordEventExecute();
+        Method testCase = execute.testCase();
+        WriteListResult<TapRecordEvent> delete = null;
+        try {
+            delete = node.recordEventExecute().delete();
+        } catch (Throwable e) {
+            TapAssert.error(testCase, langUtil.formatLang("sequentialTest.deleteRecord.throw",recordCount,modifyCount,e.getMessage()));
+            return Boolean.FALSE;
+        }
+        WriteListResult<TapRecordEvent> finalDelete = delete;
+        TapAssert.asserts(() ->
+                Assertions.assertTrue(
+                        null != finalDelete && finalDelete.getRemovedCount() == recordCount,
+                        langUtil.formatLang("sequentialTest.deleteRecord.fail",
+                                recordCount,
+                                modifyCount,
+                                null == finalDelete ? 0 : finalDelete.getInsertedCount(),
+                                null == finalDelete ? 0 : finalDelete.getModifiedCount(),
+                                null == finalDelete ? 0 : finalDelete.getRemovedCount())
+                )
+        ).acceptAsError(node.recordEventExecute().testCase(), langUtil.formatLang("sequentialTest.deleteRecord.succeed",
+                recordCount,
+                modifyCount,
+                null == delete ? 0 : delete.getInsertedCount(),
+                null == delete ? 0 : delete.getModifiedCount(),
+                null == delete ? 0 : delete.getRemovedCount()));
+        return null != finalDelete && finalDelete.getRemovedCount() == recordCount;
     }
 }

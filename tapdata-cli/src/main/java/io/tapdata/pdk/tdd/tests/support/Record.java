@@ -63,10 +63,10 @@ public class Record extends HashMap<String,Object> {
      * */
     public static Record[] modifyRecordWithTapTable(TapTable table, Record[] records,int modifyNums, boolean needModifyPrimaryKey) {
         LinkedHashMap<String, TapField> nameFieldMap = table.getNameFieldMap();
-        AtomicInteger num = new AtomicInteger(modifyNums <= 0 ? nameFieldMap.size() : modifyNums);
+        AtomicInteger num = new AtomicInteger((modifyNums <= 0 ? nameFieldMap.size() : modifyNums) + 1 ) ;
         for (int i = 0; i < records.length; i++) {
             Record record = records[i];
-            builderKey(record, nameFieldMap, field -> needModifyPrimaryKey ? (!field.getPrimaryKey() && num.decrementAndGet() > 0) : num.decrementAndGet() > 0 );
+            builderKey(record, nameFieldMap, field -> needModifyPrimaryKey ? (!field.getPrimaryKey() && num.decrementAndGet() > 0) : (!field.getPrimaryKey() && num.decrementAndGet() > 0) );
             records[i] = record;
         }
         return records;
@@ -74,6 +74,7 @@ public class Record extends HashMap<String,Object> {
 
     private static Record builderKey(Record record, LinkedHashMap<String, TapField> nameFieldMap, Checker... checker) {
         //Record item = (Objects.nonNull(checker[0]) && checker[0].check())? ;
+        Random random = new Random();
         nameFieldMap.forEach((key, field) -> {
             if (Objects.nonNull(checker[0]) && checker[0].check(field)) {
                 String type = field.getDataType();
@@ -93,13 +94,12 @@ public class Record extends HashMap<String,Object> {
                     ;
                     break;
                     case JAVA_Integer: {
-                        Date date = new Date();
-                        record.builder(keyName, date.getSeconds());
+                        record.builder(keyName, random.nextInt(Integer.MAX_VALUE));
                     }
                     ;
                     break;
                     case JAVA_Date: {
-                        record.builder(keyName, DateUtil.dateToStr());
+                        record.builder(keyName, DateUtil.dateToStr(new Date(random.nextInt(Integer.MAX_VALUE))));
                     }
                     ;
                     break;
@@ -126,15 +126,17 @@ public class Record extends HashMap<String,Object> {
                     }
                     break;
                     case JAVA_Float: {
-                        record.builder(keyName, Float.parseFloat("" + (Math.random() * 10 + 50)));
+                        BigDecimal bd = BigDecimal.valueOf(Math.random() * 10 + 50);
+                        record.builder(keyName, bd.setScale(4, RoundingMode.HALF_UP).floatValue());//Float.parseFloat("" + (Math.random() * 10 + 50)));
                     }
                     break;
-                    case JAVA_Long: {
-                        record.builder(keyName, System.nanoTime());
+                    case JAVA_Long:
+                    case "INT64": {
+                        record.builder(keyName, random.nextLong());
                     }
                     break;
                     case JAVA_Double: {
-                        record.builder(keyName, Double.parseDouble("" + (Math.random() * 10 + 50)));
+                        record.builder(keyName, random.nextDouble());
                     }
                     break;
                     case "Date_Time": {
@@ -150,16 +152,12 @@ public class Record extends HashMap<String,Object> {
                         record.builder(keyName, UUID.randomUUID().toString());
                     }
                     break;
-                    case "INT64": {
-                        record.builder(keyName, System.currentTimeMillis());
-                    }
-                    break;
                     case "Time": {
-                        record.builder(keyName, DateUtil.timeToStr());
+                        record.builder(keyName, DateUtil.timeToStr(new Date(random.nextInt())));
                     }
                     break;
                     case "Year": {
-                        record.builder(keyName, DateUtil.yearToStr());
+                        record.builder(keyName, DateUtil.yearToStr(new Date(random.nextInt())));
                     }
                     break;
                     default:
