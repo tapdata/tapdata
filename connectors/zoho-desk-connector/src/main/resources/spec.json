@@ -5,7 +5,7 @@
     "doc" : "${doc}",
     "id": "zoho-desk"
     "id": "zoho",
-    "authentication": "beta",
+    "authentication": "Beta",
     "tags": ["SaaS"]
   },
   "configOptions": {
