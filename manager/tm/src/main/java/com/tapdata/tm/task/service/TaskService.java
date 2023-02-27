@@ -1664,6 +1664,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         shareCacheDetailVo.setMaxRows(targetNode.getMaxRows());
         shareCacheDetailVo.setMaxMemory(targetNode.getMaxMemory());
         shareCacheDetailVo.setTtl(TimeUtil.parseSecondsToDay(targetNode.getTtl()));
+        shareCacheDetailVo.setExternalStorageId(targetNode.getExternalStorageId());
 
         return shareCacheDetailVo;
     }
@@ -1703,6 +1704,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             tableNode.setType("table");
             tableNode.setDatabaseType((String) sourceNodeMap.get("databaseType"));
             tableNode.setConnectionId((String) sourceNodeMap.get("connectionId"));
+            tableNode.setName(tableNode.getConnectionId() + "-" + tableNode.getTableName());
 
             Map<String, Object> attrs = new HashMap();
             if (null != sourceNodeMap.get("attrs")) {
@@ -1729,6 +1731,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             cacheNode.setId(targetId);
             cacheNode.setFields((List<String>) attrs.get("fields"));
             cacheNode.setCacheName(saveShareCacheParam.getName());
+            cacheNode.setName(cacheNode.getCacheName());
 
             List<Node> nodes = new ArrayList<>();
             nodes.add(tableNode);

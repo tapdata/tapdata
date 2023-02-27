@@ -180,7 +180,7 @@ public class CsvConnector extends FileConnector {
             } else {
                 fileRecordWriter = new RecordCsvRecordWriter(storage, (CsvConfig) fileConfig, tapTable, connectorContext.getStateMap());
             }
-            fileRecordWriter.setConnectorId(connectorContext.getId());
+            fileRecordWriter.setConnectorId(firstConnectorId);
         }
         fileRecordWriter.write(tapRecordEvents, writeListResultConsumer);
     }
