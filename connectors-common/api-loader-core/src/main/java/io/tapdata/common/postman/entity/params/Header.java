@@ -11,11 +11,13 @@ public class Header {
     String key;
     String value;
     String type;
+    boolean disabled;
     public Header copyOne(){
         Header header = new Header();
         header.key(key);
         header.value(value);
         header.type(type);
+        header.disabled(disabled);
         return header;
     }
     public static Header create(){
@@ -33,10 +35,12 @@ public class Header {
             Object keyObj = map.get(PostParam.KEY);
             Object valueObj = map.get(PostParam.VALUE);
             Object typeObj = map.get(PostParam.TYPE);
+            Object disabledObj = map.get(PostParam.DISABLED);
             String key = Objects.isNull(keyObj)?null : (String) keyObj;
+            boolean disabled = !Objects.isNull(disabledObj) && (disabledObj instanceof Boolean ? (boolean) disabledObj :"true".equals( String.valueOf(disabledObj)));
             String value = Objects.isNull(valueObj)?null : (String) valueObj;
             String type = Objects.isNull(typeObj)?null : (String) typeObj;
-            return Header.create().key(key).value(value).type(type);
+            return Header.create().key(key).value(value).type(type).disabled(disabled);
         }catch (Exception e){}
         return new Header();
     }
@@ -61,6 +65,13 @@ public class Header {
         this.type = type;
         return this;
     }
+    public boolean disabled(){
+        return this.disabled;
+    }
+    public Header disabled(boolean disabled){
+        this.disabled = disabled;
+        return this;
+    }
 
     public String variableAssignment(String key,String value){
         return Objects.nonNull(this.value)? this.value.replaceAll(key,value) : null;
@@ -80,5 +91,37 @@ public class Header {
             }
         }
         return header.value(headValueBack);
+    }
+
+    public String getKey() {
+        return key;
+    }
+
+    public void setKey(String key) {
+        this.key = key;
+    }
+
+    public String getValue() {
+        return value;
+    }
+
+    public void setValue(String value) {
+        this.value = value;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
+    }
+
+    public boolean isDisabled() {
+        return disabled;
+    }
+
+    public void setDisabled(boolean disabled) {
+        this.disabled = disabled;
     }
 }
