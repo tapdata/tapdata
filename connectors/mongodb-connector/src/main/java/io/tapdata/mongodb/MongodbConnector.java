@@ -37,6 +37,7 @@ import io.tapdata.pdk.apis.error.NotSupportedException;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
+import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -424,6 +425,7 @@ public class MongodbConnector extends ConnectorBase {
 		connectorFunctions.supportErrorHandleFunction(this::errorHandle);
 //        connectorFunctions.supportStreamOffset((connectorContext, tableList, offsetStartTime, offsetOffsetTimeConsumer) -> streamOffset(connectorContext, tableList, offsetStartTime, offsetOffsetTimeConsumer));
 		connectorFunctions.supportExecuteCommandFunction(this::executeCommand);
+		connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
 	}
 
 	private void executeCommand(TapConnectorContext tapConnectorContext, TapExecuteCommand tapExecuteCommand, Consumer<ExecuteResult> executeResultConsumer) {
@@ -877,5 +879,13 @@ public class MongodbConnector extends ConnectorBase {
 		}
 	}
 
-
+	private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
+		String database = mongoConfig.getDatabase();
+		MongoDatabase mongoDatabase = 	mongoClient.getDatabase(database);
+		Document collStats = mongoDatabase.runCommand(new Document("collStats", tableName));
+		TableInfo tableInfo = TableInfo.create();
+		tableInfo.setNumOfRows(Long.valueOf((String) collStats.get("count")));
+		tableInfo.setStorageSize(Long.valueOf((String) collStats.get("size")));
+		return tableInfo;
+	}
 }
