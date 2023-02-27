@@ -1057,4 +1057,10 @@ public class TaskController extends BaseController {
         taskService.stopTaskIfNeedByAgentId(agentId, getLoginUser());
         return success();
     }
+
+    @GetMapping("/stats/task")
+    public ResponseMessage<List<TaskDto>> getTaskStatsByTableNameOrConnectionId(@RequestParam("connectionId") String connectionId,
+                                                                                @RequestParam("tableName") String tableName) {
+        return success(taskService.getTaskStatsByTableNameOrConnectionId(connectionId, tableName, getLoginUser()));
+    }
 }

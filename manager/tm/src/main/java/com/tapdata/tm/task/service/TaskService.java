@@ -3630,4 +3630,16 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             stopped(needStopTask.getId(), userDetail);
         }
     }
+
+
+    public List<TaskDto> getTaskStatsByTableNameOrConnectionId(String connectionId, String tableName, UserDetail userDetail) {
+        Criteria criteria = new Criteria();
+        // tableName 不为空根据表查询。否则根据连接查询
+        criteria.and("dag.nodes.connectionId").is(connectionId);
+        if (StringUtils.isNotBlank(tableName)) {
+            criteria.and("dag.nodes.tableName").is(tableName);
+        }
+        Query query = Query.query(criteria);
+        return findAllDto(query,userDetail);
+    }
 }
