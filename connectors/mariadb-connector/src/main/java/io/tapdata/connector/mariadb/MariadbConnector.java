@@ -30,6 +30,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.error.NotSupportedException;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -115,6 +116,8 @@ public class MariadbConnector extends ConnectorBase {
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> mysqlJdbcContext.getConnection(), c));
+        connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
+
     }
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
@@ -351,6 +354,14 @@ public class MariadbConnector extends ConnectorBase {
         } else {
             throw new NotSupportedException();
         }
+    }
+
+    private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
+        DataMap dataMap = mysqlJdbcContext.getTableInfo(tableName);
+        TableInfo tableInfo = TableInfo.create();
+        tableInfo.setNumOfRows(Long.valueOf(dataMap.getString("TABLE_ROWS")));
+        tableInfo.setStorageSize(Long.valueOf(dataMap.getString("DATA_LENGTH")));
+        return tableInfo;
     }
 }
 
