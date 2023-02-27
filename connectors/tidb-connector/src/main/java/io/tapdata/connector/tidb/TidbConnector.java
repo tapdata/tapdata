@@ -38,6 +38,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
+import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -146,6 +147,7 @@ public class TidbConnector extends ConnectorBase {
             if (tapValue != null && tapValue.getValue() != null) return toJson(tapValue.getValue());
             return "null";
         });
+        connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
 
     }
 
@@ -448,7 +450,7 @@ public class TidbConnector extends ConnectorBase {
             subList.forEach(table -> {
                 String tableName = table.getString("TABLE_NAME");
                 TapTable tapTable = TapSimplify.table(tableName);
-
+                tapTable.setComment(table.getString("TABLE_COMMENT"));
                 tidbContext.discoverFields(finalColumnMap.get(tableName), tapTable, instance, dataTypesMap);
                 tidbContext.discoverIndexes(finalIndexMap.get(tableName), tapTable);
                 tempList.add(tapTable);
@@ -509,6 +511,13 @@ public class TidbConnector extends ConnectorBase {
             filterResults.setError(e);
             consumer.accept(filterResults);
         }
+    }
+    private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
+        DataMap dataMap = tidbContext.getTableInfo(tableName);
+        TableInfo tableInfo = TableInfo.create();
+        tableInfo.setNumOfRows(Long.valueOf(dataMap.getString("TABLE_ROWS")));
+        tableInfo.setStorageSize(Long.valueOf(dataMap.getString("DATA_LENGTH")));
+        return tableInfo;
     }
 }
 

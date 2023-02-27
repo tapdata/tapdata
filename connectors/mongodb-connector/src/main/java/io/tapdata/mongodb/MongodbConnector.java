@@ -27,7 +27,6 @@ import io.tapdata.mongodb.reader.MongodbV4StreamReader;
 import io.tapdata.mongodb.reader.v3.MongodbV3StreamReader;
 import io.tapdata.mongodb.writer.MongodbWriter;
 import io.tapdata.partition.DatabaseReadPartitionSplitter;
-import io.tapdata.partition.SplitCompleteListener;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -38,11 +37,7 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
-import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionsFunction;
 import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
-import io.tapdata.pdk.apis.partition.ReadPartition;
-import io.tapdata.pdk.apis.partition.TapPartitionFilter;
-import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -65,7 +60,6 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static com.mongodb.client.model.Filters.*;
-import static java.util.Collections.max;
 import static java.util.Collections.singletonList;
 
 /**
@@ -1037,4 +1031,6 @@ public class MongodbConnector extends ConnectorBase {
 			mongodbWriter = null;
 		}
 	}
+
+
 }
