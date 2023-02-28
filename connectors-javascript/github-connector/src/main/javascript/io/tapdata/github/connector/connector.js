@@ -26,7 +26,7 @@
  * */
 function discoverSchema(connectionConfig) {
     return [{
-        "name":'issues',
+        "name":'Issues',
         "fields":{
             'id':{
                 'type':'Number',
@@ -214,7 +214,7 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
             since: dateUtils.timeStamp2Date((new Date('1990-01-01').getTime() - 60000)+"", "yyyy-MM-dd'T'HH:mm:ssXXX")
         };
     }
-    iterateAllData('issues', offset, (result, offsetNext, error) => {
+    iterateAllData(tableName.toLowerCase(), offset, (result, offsetNext, error) => {
         let haveNext = false;
         if(result && result !== ''){
             if(result && result.length > 0){
@@ -290,7 +290,10 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
     }
 }
 
-
+let clientInfo = {
+    "client_id": "Iv1.cb38266944261353",
+    "client_secret": "a04776e494712e0a73e80b80367bd37ebbc7626b"
+}
 /**
  * @return The returned result is not empty and must be in the following form:
  *          [
@@ -305,10 +308,7 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
  * */
 function connectionTest(connectionConfig) {
     try {
-        let getToken = invoker.invokeWithoutIntercept("getToken", {
-            "client_id": "4e38022897004168c117",
-            "client_secret": "24961f78b13d5611c05dac6b8f06a1fd454bd431"
-        });
+        let getToken = invoker.invokeWithoutIntercept("refreshToken", clientInfo);
         if (getToken && getToken.result && getToken.result.access_token) {
             return [{
                 "TEST": "Test Connection",
@@ -337,10 +337,33 @@ function connectionTest(connectionConfig) {
  *
  * @param connectionConfig
  * @param nodeConfig
- * @param commandInfo
+ * @param commandInfo  scope=repo user&
  * */
 function commandCallback(connectionConfig, nodeConfig, commandInfo) {
-
+    if (commandInfo.command === 'OAuth'){
+        let getToken = invoker.invokeWithoutIntercept("getToken",clientInfo);
+        log.warn('getToken:',JSON.stringify(getToken))
+        if(getToken.result){
+            connectionConfig.access_token = getToken.result.access_token;
+            connectionConfig.refresh_token = getToken.result.refresh_token;
+        }
+        return connectionConfig;
+    }
+    if (commandInfo.command === 'getUserRepos') {
+        let res = invoker.invoke("getUserRepos",{});
+        log.warn('res'+res);
+        log.warn('res.result'+JSON.stringify(res.result));
+        if (res && res.result) {
+            return {
+                "items": arrayUtils.convertList(res.result, {'full_name':'label', 'full_name':'value'}),
+                "page": 1,
+                "size": res.result.length,
+                "total": res.result.length
+            };
+        }else{
+            return {}
+        }
+    }
 }
 
 
@@ -359,13 +382,19 @@ function commandCallback(connectionConfig, nodeConfig, commandInfo) {
  *      - {"key":"value",...} : Type is Object and has key-value ,  At this point, these values will be used to call the interface again after the results are returned.
  * */
 function updateToken(connectionConfig, nodeConfig, apiResponse) {
-// log.warn("apiResponse:{}",apiResponse);
-    if (apiResponse.httpCode === 401 || (apiResponse.result && apiResponse.result.code === 'INVALID_TOKEN')) {
+log.warn("apiResponse:{}",apiResponse);
+    log.warn("apiResponse.result.message:{}",apiResponse.result.message);
+    if (apiResponse.httpCode === 401 || (apiResponse.result && apiResponse.result.message === 'Requires authentication')) {
         try{
-            let getToken = invoker.invokeWithoutIntercept("getToken",{"client_id": "4e38022897004168c117","client_secret": "24961f78b13d5611c05dac6b8f06a1fd454bd431"});
-            // log.warn("getToken:{}",getToken);
+            connectionConfig.client_id = '4e38022897004168c117';
+            connectionConfig.client_secret = '24961f78b13d5611c05dac6b8f06a1fd454bd431';
+            log.warn("connectionConfig:{}",connectionConfig);
+            let getToken = invoker.invokeWithoutIntercept("refreshToken",clientInfo);
+
+            log.warn("refreshToken:{}",JSON.stringify(getToken));
+            log.warn("refreshToken:error:{}",getToken.error);
             if(getToken && getToken.result && getToken.result.access_token){
-                return {"accessToken": getToken.result.access_token};
+                return {"access_token":  getToken.result.access_token};
             }
         }catch (e) {
             log.warn(e)

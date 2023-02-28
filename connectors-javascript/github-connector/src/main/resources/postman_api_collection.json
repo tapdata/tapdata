@@ -17,7 +17,7 @@
 					},
 					{
 						"key": "Authorization",
-						"value": "{{accessToken}}",
+						"value": "Bearer {{access_token}}",
 						"type": "text"
 					},
 					{
@@ -27,7 +27,7 @@
 					}
 				],
 				"url": {
-					"raw": "https://api.github.com/repos/{{owner}}/{{repo}}/issues?since={{since}}&page={{page}}",
+					"raw": "https://api.github.com/repos/{{owner_repo}}/issues?since={{since}}&page={{page}}",
 					"protocol": "https",
 					"host": [
 						"api",
@@ -36,8 +36,7 @@
 					],
 					"path": [
 						"repos",
-						"{{owner}}",
-						"{{repo}}",
+						"{{owner_repo}}",
 						"issues"
 					],
 					"query": [
@@ -76,7 +75,80 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{}",
+					"raw": "{\n    \"client_id\":\"{{client_id}}\", \"client_secret\":\"{{client_secret}}\",\"code\":\"{{code}}\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://github.com/login/oauth/access_token",
+					"protocol": "https",
+					"host": [
+						"github",
+						"com"
+					],
+					"path": [
+						"login",
+						"oauth",
+						"access_token"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "getUserRepos",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/vnd.github.text+json",
+						"type": "text"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{access_token}}",
+						"type": "text"
+					},
+					{
+						"key": "X-GitHub-Api-Version",
+						"value": " 2022-11-28",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://api.github.com/user/repos",
+					"protocol": "https",
+					"host": [
+						"api",
+						"github",
+						"com"
+					],
+					"path": [
+						"user",
+						"repos"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "refreshToken",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"client_id\":\"{{client_id}}\", \"client_secret\":\"{{client_secret}}\",\"grant_type\":\"refresh_token\",\"refresh_token\":{{refresh_token}}\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -122,7 +194,7 @@
 	],
 	"variable": [
 		{
-			"key": "accessToken",
+			"key": "access_token",
 			"value": "",
 			"type": "default"
 		},
@@ -148,6 +220,31 @@
 		},
 		{
 			"key": "repo",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "client_id",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "client_secret",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "code",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "owner_repo",
 			"value": "",
 			"type": "default"
 		}
