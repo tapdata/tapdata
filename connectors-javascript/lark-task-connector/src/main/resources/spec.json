@@ -10,26 +10,274 @@
     "node": {
       "type": "object",
       "properties": {
-      }
-    },
-    "connection": {
-      "type": "object",
-      "properties": {
-        "app_id": {
+        "sendType": {
           "type": "String",
-          "title": "${app_id}",
+          "default": "appoint",
+          "title": "${node_send_type}",
           "x-decorator": "FormItem",
-          "x-component": "Input",
+          "x-component": "Select",
+          "enum": [
+            {
+              "label": "${node_appoint}",
+              "value": "appoint"
+            },
+            {
+              "label": "${node_from_js_node}",
+              "value": "from_js_node"
+            }
+          ],
           "x-index": 10,
           "required": true
         },
-        "app_secret": {
-          "type": "String",
-          "title": "${app_secret}",
+        "ownerReceiver": {
+          "type": "string",
+          "x-display": "hidden",
+          "x-index": 15
+        },
+        "followerReceiver": {
+          "type": "string",
+          "x-display": "hidden",
+          "x-index": 16
+        },
+        "ownerArray": {
           "x-decorator": "FormItem",
-          "x-component": "Input",
-          "x-index": 20,
+          "x-component": "AsyncSelect",
+          "x-component-props": {
+            "method": "{{loadCommandList}}",
+            "params": "{{ {$values: $values, command: \"GetReceiverOfUsers\"} }}",
+            "multiple": true,
+            "currentLabel": "{{ $values.nodeConfig.ownerArrayLabel }}",
+            "@change-label": "{{ val => $values.nodeConfig.ownerArrayLabel = val }}",
+            "@change": "{{ val => $values.nodeConfig.ownerReceiver = val.join() || \"\" }}"
+          },
+          "title": "${task_owner}",
+          "type": "array",
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.sendType"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] === \"appoint\" ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0] === \"appoint\" ? true : false}}"
+              }
+            }
+          },
+          "x-index": 20
+        },
+        "followerArray": {
+          "x-decorator": "FormItem",
+          "x-component": "AsyncSelect",
+          "x-component-props": {
+            "method": "{{loadCommandList}}",
+            "params": "{{ {$values: $values, command: \"GetReceiverOfUsers1\"} }}",
+            "multiple": true,
+            "currentLabel": "{{ $values.nodeConfig.followerArrayLabel }}",
+            "@change-label": "{{ val => $values.nodeConfig.followerArrayLabel = val }}",
+            "@change": "{{ val => $values.nodeConfig.followerReceiver = val.join() || \"\" }}"
+          },
+          "title": "${task_follower}",
+          "type": "array",
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.sendType"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] === \"appoint\" ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0] === \"appoint\" ? true : false}}"
+              }
+            }
+          },
+          "x-index": 21
+        },
+        "richSummary": {
+          "title": "${task_rich_summary}",
+          "type": "string",
+          "default": null,
+          "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
+          "x-decorator": "FormItem",
+          "x-component": "FieldSelect",
+          "x-component-props": {
+            "allowCreate": true,
+            "multiple": false,
+            "filterable": true
+          },
+          "x-reactions": [
+            "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+            {
+              "dependencies": [
+                "nodeConfig.sendType"
+              ],
+              "fulfill": {
+                "run": "if (!$self.value && $self.dataSource && $self.dataSource.length) {let isPrimaryKeyList = $self.dataSource.filter(item => item.isPrimaryKey); let indicesUniqueList = $self.dataSource.filter(item => item.indicesUnique); $self.setValue((isPrimaryKeyList.length ? isPrimaryKeyList : indicesUniqueList).map(item => item.value)); $self.validate();}",
+                "state": {
+                  "display": "{{$deps[0] === \"appoint\" ? \"visible\" : \"hidden\"}}"
+                },
+                "schema": {
+                  "required": "{{$deps[0] === \"appoint\" ? true : false}}"
+                }
+              }
+            }
+          ],
+          "x-index": 65
+        },
+        "richDescription": {
+          "title": "${task_rich_description}",
+          "type": "string",
+          "default": null,
+          "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
+          "x-decorator": "FormItem",
+          "x-component": "FieldSelect",
+          "x-component-props": {
+            "allowCreate": true,
+            "multiple": false,
+            "filterable": true
+          },
+          "x-reactions": [
+            "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+            {
+              "dependencies": [
+                "nodeConfig.sendType"
+              ],
+              "fulfill": {
+                "run": "if (!$self.value && $self.dataSource && $self.dataSource.length) {let isPrimaryKeyList = $self.dataSource.filter(item => item.isPrimaryKey); let indicesUniqueList = $self.dataSource.filter(item => item.indicesUnique); $self.setValue((isPrimaryKeyList.length ? isPrimaryKeyList : indicesUniqueList).map(item => item.value)); $self.validate();}",
+                "state": {
+                  "display": "{{$deps[0] === \"appoint\" ? \"visible\" : \"hidden\"}}"
+                },
+                "schema": {
+                  "required": "{{$deps[0] === \"appoint\" ? true : false}}"
+                }
+              }
+            }
+          ],
+          "x-index": 70,
           "required": true
+        },
+        "time": {
+          "type": "String",
+          "default": "4",
+          "title": "${task_time}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "enum": [
+            {
+              "label": "${four_hours_later}",
+              "value": "4"
+            },
+            {
+              "label": "${eight_hours_later}",
+              "value": "8"
+            },
+            {
+              "label": "${sixteen_hours_later}",
+              "value": "16"
+            },
+            {
+              "label": "${twenty_four_hours_later}",
+              "value": "24"
+            },
+            {
+              "label": "${forty_eight_hours_later}",
+              "value": "48"
+            }
+          ],
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.sendType"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] === \"appoint\" ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0] === \"appoint\" ? true : false}}"
+              }
+            }
+          },
+          "x-index": 75,
+          "required": true
+        },
+        "title": {
+          "title": "${task_link_title}",
+          "type": "string",
+          "default": null,
+          "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
+          "x-decorator": "FormItem",
+          "x-component": "FieldSelect",
+          "x-component-props": {
+            "allowCreate": true,
+            "multiple": false,
+            "filterable": true
+          },
+          "x-reactions": [
+            "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+            {
+              "dependencies": [
+                "nodeConfig.sendType"
+              ],
+              "fulfill": {
+                "run": "if (!$self.value && $self.dataSource && $self.dataSource.length) {let isPrimaryKeyList = $self.dataSource.filter(item => item.isPrimaryKey); let indicesUniqueList = $self.dataSource.filter(item => item.indicesUnique); $self.setValue((isPrimaryKeyList.length ? isPrimaryKeyList : indicesUniqueList).map(item => item.value)); $self.validate();}",
+                "state": {
+                  "display": "{{$deps[0] === \"appoint\" ? \"visible\" : \"hidden\"}}"
+                }
+              }
+            }
+          ],
+          "x-index": 80
+        },
+        "url": {
+          "title": "${task_url}",
+          "type": "string",
+          "default": null,
+          "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
+          "x-decorator": "FormItem",
+          "x-component": "FieldSelect",
+          "x-component-props": {
+            "allowCreate": true,
+            "multiple": false,
+            "filterable": true
+          },
+          "x-reactions": [
+            "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+            {
+              "dependencies": [
+                "nodeConfig.sendType"
+              ],
+              "fulfill": {
+                "run": "if (!$self.value && $self.dataSource && $self.dataSource.length) {let isPrimaryKeyList = $self.dataSource.filter(item => item.isPrimaryKey); let indicesUniqueList = $self.dataSource.filter(item => item.indicesUnique); $self.setValue((isPrimaryKeyList.length ? isPrimaryKeyList : indicesUniqueList).map(item => item.value)); $self.validate();}",
+                "state": {
+                  "display": "{{$deps[0] === \"appoint\" ? \"visible\" : \"hidden\"}}"
+                }
+              }
+            }
+          ],
+          "x-index": 85
+        }
+      },
+      "connection": {
+        "type": "object",
+        "properties": {
+          "app_id": {
+            "type": "String",
+            "title": "${app_id}",
+            "x-decorator": "FormItem",
+            "x-component": "Input",
+            "x-index": 10,
+            "required": true
+          },
+          "app_secret": {
+            "type": "String",
+            "title": "${app_secret}",
+            "x-decorator": "FormItem",
+            "x-component": "Input",
+            "x-index": 20,
+            "required": true
+          }
         }
       }
     }
@@ -40,19 +288,85 @@
       "doc": "doc/demo_en_US.md",
       "app_id": "App Id",
       "app_secret": "App Secret",
-      "app_name": "App Name"
+      "app_name": "App Name",
+      "node_send_type": "Create task mode",
+      "node_appoint": "Specified by the target node",
+      "node_from_js_node": "Specified by JS node",
+      "node_dynamic_binding_arr": "Config create task field",
+      "task_owner": "Task owner",
+      "task_follower": "Task follower",
+      "task_rich_summary": "Task rich summary",
+      "task_rich_description": "Task rich description",
+      "task_time": "Task Cut-off time",
+      "task_link_title": "Task link title",
+      "task_url": "Task url",
+      "task_config": "Task configuration",
+      "node_msg_type": "Message type",
+      "node_filed_operator": "Field operator",
+      "node_receiver_field_name": "Source table field name",
+      "node_receiver_type": "Target table field name",
+      "df_table_field_btn_add": "Add field description",
+      "four_hours_later": "Four hours later",
+      "eight_hours_later": "eight hours later",
+      "sixteen_hours_later": "sixteen hours later",
+      "twenty_four_hours_later": "twenty-four hours later",
+      "forty_eight_hours_later": "Forty-eight hours later"
     },
     "zh_CN": {
       "doc": "doc/demo_zh_CN.md",
       "app_id": "应用Id",
       "app_name": "App名称",
-      "app_secret": "应用Secret"
+      "app_secret": "应用Secret",
+      "node_send_type": "创建任务方式",
+      "node_appoint": "由目标节点指定",
+      "node_from_js_node": "由JS节点指定",
+      "node_dynamic_binding_arr": "创建任务字段配置",
+      "task_owner": "任务负责人",
+      "task_follower": "任务关注人",
+      "task_rich_summary": "任务标题",
+      "task_rich_description": "任务描述",
+      "task_time": "任务截止时间",
+      "task_link_title": "内容链接标题",
+      "task_url": "内容链接",
+      "task_config": "创建任务配置",
+      "node_msg_type": "消息类型",
+      "node_filed_operator": "操作",
+      "node_receiver_field_name": "源表字段名称",
+      "node_receiver_type": "目标表字段名称",
+      "df_table_field_btn_add": "新增字段描述",
+      "four_hours_later": "四小时后",
+      "eight_hours_later": "八小时后",
+      "sixteen_hours_later": "十六小时后",
+      "twenty_four_hours_later": "二十四小时后",
+      "forty_eight_hours_later": "四十八小时后"
     },
     "zh_TW": {
       "doc": "doc/demo_zh_TW.md",
       "app_id": "应用Id",
       "app_name": "App名稱",
-      "app_secret": "应用Secret"
+      "app_secret": "应用Secret",
+      "node_send_type": "創建任務方式",
+      "node_appoint": "由目標節點指定",
+      "node_from_js_node": "由JS節點指定",
+      "node_dynamic_binding_arr": " 创建任务欄位配寘",
+      "task_owner": "任務負責人",
+      "task_follower": "任務關注者",
+      "task_rich_summary": "任務標題",
+      "task_rich_description": "任務描述",
+      "task_time": "任務截止時間",
+      "task_link_title": "內容鏈接標題",
+      "task_url": "內容鏈接",
+      "task_config": "創建任務配置",
+      "node_msg_type": "消息類型",
+      "node_filed_operator": "操縱",
+      "node_receiver_field_name": "源表字段名稱",
+      "node_receiver_type": "目標表字段名稱",
+      "df_table_field_btn_add": "新增字段描述",
+      "four_hours_later": "四小時後",
+      "eight_hours_later": "八小時後",
+      "sixteen_hours_later": "十六小時後",
+      "twenty_four_hours_later": "二十四小時後",
+      "forty_eight_hours_later": "四十八小時後"
     }
   }
 }

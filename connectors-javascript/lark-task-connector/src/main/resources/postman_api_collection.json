@@ -143,6 +143,114 @@
 				}
 			},
 			"response": []
+		},
+		{
+			"name": "GetSubDept",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "{{Authorization}}"
+					}
+				],
+				"url": {
+					"raw": "https://open.feishu.cn/open-apis/contact/v3/departments/:department_id/children?department_id_type=department_id&fetch_child=true&page_size=50&page_token={{page_token}}",
+					"protocol": "https",
+					"host": [
+						"open",
+						"feishu",
+						"cn"
+					],
+					"path": [
+						"open-apis",
+						"contact",
+						"v3",
+						"departments",
+						":department_id",
+						"children"
+					],
+					"query": [
+						{
+							"key": "department_id_type",
+							"value": "department_id"
+						},
+						{
+							"key": "page_token",
+							"value": ""
+						},
+						{
+							"key": "fetch_child",
+							"value": "true"
+						},
+						{
+							"key": "page_size",
+							"value": "50"
+						},
+						{
+							"key": "user_id_type",
+							"value": "open_id",
+							"disabled": true
+						},
+						{
+							"key": "page_token",
+							"value": "",
+							"disabled": true
+						}
+					],
+					"variable": [
+						{
+							"key": "department_id",
+							"value": "0"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetDeptUsers",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "{{Authorization}}"
+					}
+				],
+				"url": {
+					"raw": "https://open.feishu.cn/open-apis/contact/v3/users/find_by_department?department_id_type=department_id&department_id={{departmentId}}&page_token={{page_token}}",
+					"protocol": "https",
+					"host": [
+						"open",
+						"feishu",
+						"cn"
+					],
+					"path": [
+						"open-apis",
+						"contact",
+						"v3",
+						"users",
+						"find_by_department"
+					],
+					"query": [
+						{
+							"key": "department_id_type",
+							"value": "department_id"
+						},
+						{
+							"key": "department_id",
+							"value": "{{departmentId}}"
+						},
+						{
+							"key": "page_token",
+							"value": "",
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
 		}
 	],
 	"event": [
@@ -168,7 +276,7 @@
 	"variable": [
 		{
 			"key": "Authorization",
-			"value": "Bearer t-g1042keTZRI73CJD53GMDGAW6XTIZJD37OINUYLP",
+			"value": "Bearer t-g1042rf0UBJOLUIISYQYHFXUXYMLOGOKBHGCOOAL",
 			"type": "string"
 		},
 		{
@@ -228,6 +336,10 @@
 		{
 			"key": "userMobiles",
 			"value": ""
+		},
+		{
+			"key": "department_id",
+			"value": "0"
 		}
 	]
 }

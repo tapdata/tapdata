@@ -5,7 +5,7 @@ class CreateTask {
     create(connectionConfig, nodeConfig, event) {
         let data;
         try {
-            data = this.convertEventAndCreateTask(event);
+            data = this.convertEventAndCreateTask(event, nodeConfig);
             if (data === null) {
                 return false;
             }
@@ -16,7 +16,7 @@ class CreateTask {
         return this.sendHttp(data);
     }
 
-    convertEventAndCreateTask(eventData) {
+    convertEventAndCreateTask(eventData, nodeConfig) {
         if (!this.checkParam(eventData)) {
             log.warn("eventData is empty, can not be handled")
             return null;
@@ -47,6 +47,20 @@ class CreateTask {
             log.warn('The collaboratorIds are in charge of the task and cannot be empty. ');
             return null;
         }
+
+        // let sendType = nodeConfig.sendType;
+        // switch (sendType) {
+        //     case 'appoint':
+        //         return this.appointSend(connectionConfig, nodeConfig, eventDataMap);
+        //     case 'dynamic_binding':
+        //         return this.dynamicBindingSend(connectionConfig, nodeConfig, eventDataMap);
+        //     default :
+        //         return this.defaultSendType(connectionConfig, nodeConfig, eventDataMap);
+        // }
+
+        // if(nodeConfig.sendType === 'appoint'){
+        //     nodeConfig
+        // }
         let cUserIds = this.getUserId(collaboratorIds.split(","));
         if (!this.checkParam(cUserIds)) {
             log.warn('The cUserIds are in charge of the task and cannot be empty. ');
