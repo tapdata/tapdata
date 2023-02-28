@@ -49,6 +49,7 @@ import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
+import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
@@ -288,14 +289,24 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 							&& taskDto.getShareCdcEnable()) {
 						// continue cdc from share log storage
 						if (StringUtils.isNotBlank(streamOffset)) {
-							syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
+							Object decodeOffset = PdkUtil.decodeOffset(streamOffset, getConnectorNode());
+							if (decodeOffset instanceof ShareCDCOffset) {
+								syncProgress.setStreamOffsetObj(((ShareCDCOffset) decodeOffset).getSequenceMap());
+							} else {
+								syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
+							}
 						} else {
 							initStreamOffsetFromTime(null);
 						}
 					} else {
 						// switch share cdc to normal task
 						if (StringUtils.isNotBlank(streamOffset)) {
-							syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
+							Object decodeOffset = PdkUtil.decodeOffset(streamOffset, getConnectorNode());
+							if (decodeOffset instanceof ShareCDCOffset) {
+								syncProgress.setStreamOffsetObj(((ShareCDCOffset) decodeOffset).getStreamOffset());
+							} else {
+								syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
+							}
 						} else {
 							Long eventTime = syncProgress.getEventTime();
 							if (null == eventTime) {

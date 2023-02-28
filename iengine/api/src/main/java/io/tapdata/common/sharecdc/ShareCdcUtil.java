@@ -208,6 +208,10 @@ public class ShareCdcUtil {
 		return SHARE_CDC_KEY_PREFIX + taskDto.getName();
 	}
 
+	public static String getConstructName(TaskDto taskDto, String tableName) {
+		return SHARE_CDC_KEY_PREFIX + taskDto.getName() + "_" + tableName;
+	}
+
 	public static boolean shareCdcEnable(SettingService settingService) {
 		assert settingService != null;
 		settingService.loadSettings(ShareCdcConstant.SETTING_SHARE_CDC_ENABLE);

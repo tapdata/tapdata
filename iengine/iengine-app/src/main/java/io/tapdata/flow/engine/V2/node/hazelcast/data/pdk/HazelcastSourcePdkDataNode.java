@@ -28,6 +28,7 @@ import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.sharecdc.ReaderType;
+import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcReader;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
@@ -584,7 +585,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		List<String> tables = new ArrayList<>(tapTableMap.keySet());
 		// Init share cdc reader, if unavailable, will throw ShareCdcUnsupportedException
-		this.shareCdcReader = ShareCdcFactory.shareCdcReader(ReaderType.PDK_TASK_HAZELCAST, shareCdcTaskContext);
+		this.shareCdcReader = ShareCdcFactory.shareCdcReader(ReaderType.PDK_TASK_HAZELCAST, shareCdcTaskContext, syncProgress.getStreamOffsetObj());
 		logger.info("Starting incremental sync, read from share log storage...");
 		obsLogger.info("Starting incremental sync, read from share log storage...");
 		// Start listen message entity from share storage log
@@ -614,12 +615,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	}
 
 	private Long getCdcStartTs() {
-		Long cdcStartTs;
+		Long cdcStartTs = null;
 		try {
 			if (null != this.syncProgress && null != this.syncProgress.getEventTime() && this.syncProgress.getEventTime().compareTo(0L) > 0) {
 				cdcStartTs = this.syncProgress.getEventTime();
-			} else {
-				throw new RuntimeException("Cannot found share cdc start time from sync progress");
 			}
 		} catch (Exception e) {
 			throw new NodeException("Get cdc start ts failed; Error: " + e.getMessage(), e).context(getProcessorBaseContext());
