@@ -3819,7 +3819,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         // tableName 不为空根据表查询。否则根据连接查询
         criteria.and("dag.nodes.connectionId").is(connectionId);
         if (StringUtils.isNotBlank(tableName)) {
-            criteria.and("dag.nodes.tableName").is(tableName);
+            criteria.orOperator(new Criteria().is("dag.nodes.tableName").is(tableName),
+                    new Criteria().is("dag.nodes.tableNames").in(tableName))    ;
         }
         Query query = Query.query(criteria);
         return findAllDto(query,userDetail);
