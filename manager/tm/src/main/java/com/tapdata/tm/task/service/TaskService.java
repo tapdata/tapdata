@@ -820,9 +820,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //add message
         if (SyncType.MIGRATE.getValue().equals(taskDto.getSyncType())) {
-            messageService.addMigration(taskDto.getName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, Level.WARN, user);
+            messageService.addMigration(taskDto.getDeleteName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, Level.WARN, user);
         } else if (SyncType.SYNC.getValue().equals(taskDto.getSyncType())) {
-            messageService.addSync(taskDto.getName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, "", Level.WARN, user);
+            messageService.addSync(taskDto.getDeleteName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, "", Level.WARN, user);
         }
 
         try {
@@ -2759,6 +2759,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
             if (DataSyncMq.OP_TYPE_DELETE.equals(opType)) {
                 update.set("name", taskDto.getName() + "_" + nameSuffix);
+                update.set("deleteName", taskDto.getName());
             }
             this.update(new Query(Criteria.where("id").is(taskDto.getId())), update);
 
