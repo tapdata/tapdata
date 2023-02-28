@@ -67,7 +67,7 @@ public class Record extends HashMap<String,Object> {
         for (int i = 0; i < records.length; i++) {
             Record record = records[i];
             builderKey(record, nameFieldMap, field -> needModifyPrimaryKey ? (!field.getPrimaryKey() && num.decrementAndGet() > 0) : (!field.getPrimaryKey() && num.decrementAndGet() > 0) );
-            records[i] = record;
+            //records[i] = record;
         }
         return records;
     }

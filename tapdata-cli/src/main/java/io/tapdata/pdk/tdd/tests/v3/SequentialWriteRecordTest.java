@@ -33,7 +33,7 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
  * 在nodeConfig里的配置。 例如Oracle就有这个场景
  */
 @DisplayName("sequentialTest")
-@TapGo(tag = "V3", sort = 13, debug = true)
+@TapGo(tag = "V3", sort = 13)
 public class SequentialWriteRecordTest extends PDKTestBaseV2 {
     {
         if (PDKTestBaseV2.testRunning) {
@@ -64,7 +64,7 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
         System.out.println(langUtil.formatLang("sequentialTest.modify.wait"));
         AtomicBoolean hasCreatedTable = new AtomicBoolean(false);
         super.execTest("sequentialTestOfModify", (node, testCase) -> {
-            this.translation(node);
+            super.translation(node);
             //Map<String, Object> recordBefore = new HashMap<>(records[0]);
             if (!this.insertAndModify(node, hasCreatedTable)) {
                 return;
@@ -102,7 +102,7 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
         System.out.println(langUtil.formatLang("sequentialTest.delete.wait"));
         AtomicBoolean hasCreatedTable = new AtomicBoolean(false);
         super.execTest("sequentialTestOfDelete", (node, testCase) -> {
-            this.translation(node);
+            super.translation(node);
             if (!this.insertAndModify(node, hasCreatedTable)) {
                 return;
             }
@@ -135,7 +135,7 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
         System.out.println(langUtil.formatLang("sequentialTest.more.wait"));
         AtomicBoolean hasCreatedTable = new AtomicBoolean(false);
         super.execTest("sequentialTestOfDeleteAndMore", (node, testCase) -> {
-            this.translation(node);
+            super.translation(node);
             final int mCount = 1;
             if (!this.insertAndModify(node, hasCreatedTable, true, mCount)) {
                 return;
@@ -172,12 +172,6 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
                 execute.dropTable();
             }
         });
-    }
-
-    private void translation(TestNode node) {
-        //@TODO 打开大事物
-        DataMap nodeConfig = node.connectorNode().getConnectorContext().getNodeConfig();
-        nodeConfig.kv("", "");
     }
 
     private boolean modifyRecord(RecordEventExecute execute, int times) {

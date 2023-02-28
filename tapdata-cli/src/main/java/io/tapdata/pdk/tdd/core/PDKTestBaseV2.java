@@ -126,6 +126,12 @@ public class PDKTestBaseV2 extends PDKTestBase {
 
         return result;
     }
+
+    protected void translation(TestNode node) {
+        //@TODO 打开大事物
+        DataMap nodeConfig = node.connectorNode().getConnectorContext().getNodeConfig();
+        nodeConfig.kv("", "");
+    }
 }
 
 
