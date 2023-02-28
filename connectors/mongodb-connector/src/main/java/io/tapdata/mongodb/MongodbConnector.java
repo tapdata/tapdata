@@ -884,8 +884,8 @@ public class MongodbConnector extends ConnectorBase {
 		MongoDatabase mongoDatabase = 	mongoClient.getDatabase(database);
 		Document collStats = mongoDatabase.runCommand(new Document("collStats", tableName));
 		TableInfo tableInfo = TableInfo.create();
-		tableInfo.setNumOfRows(collStats.getLong("count"));
-		tableInfo.setStorageSize(collStats.getLong("size"));
+		tableInfo.setNumOfRows(Long.valueOf(collStats.getInteger("count")));
+		tableInfo.setStorageSize(Long.valueOf(collStats.getInteger("size")));
 		return tableInfo;
 	}
 }
