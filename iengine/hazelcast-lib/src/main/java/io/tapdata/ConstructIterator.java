@@ -1,6 +1,9 @@
 package io.tapdata;
 
 import java.util.Iterator;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 /**
  * @author samuel
@@ -13,5 +16,11 @@ public interface ConstructIterator<E> extends Iterator<E> {
 
 	E peek();
 
+	E peek(long timeout, TimeUnit timeUnit);
+
 	long getSequence();
+
+	default List<E> tryNextMany(int maxCount, Predicate<Void> stop) {
+		throw new UnsupportedOperationException();
+	}
 }

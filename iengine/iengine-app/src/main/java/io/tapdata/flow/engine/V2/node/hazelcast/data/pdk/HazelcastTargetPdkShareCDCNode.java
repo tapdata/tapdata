@@ -1,14 +1,11 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
-import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.TapdataShareLogEvent;
-import com.tapdata.entity.hazelcast.PersistenceStorageConfig;
 import com.tapdata.entity.sharecdc.LogContent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
-import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.HazelcastConstruct;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.constructImpl.ConstructRingBuffer;
@@ -20,13 +17,13 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections.map.LRUMap;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -36,9 +33,10 @@ import java.util.Map;
  * @create 2022-06-14 17:23
  **/
 public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
-
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkShareCDCNode.class);
-	private HazelcastConstruct<Document> hazelcastConstruct;
+	private LRUMap constructMap;
+	private Integer shareCdcTtlDay;
+	private List<String> tableNames;
 
 	public HazelcastTargetPdkShareCDCNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -47,24 +45,35 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
-		Integer shareCdcTtlDay;
 		List<Node<?>> predecessors = GraphUtil.predecessors(processorBaseContext.getNode(), n -> n instanceof LogCollectorNode);
 		if (CollectionUtils.isNotEmpty(predecessors)) {
 			Node<?> firstPreNode = predecessors.get(0);
 			shareCdcTtlDay = ((LogCollectorNode) firstPreNode).getStorageTime();
+			tableNames = ((LogCollectorNode) firstPreNode).getTableNames();
 		} else {
-			PersistenceStorageConfig persistenceStorageConfig = PersistenceStorageConfig.getInstance();
-			shareCdcTtlDay = persistenceStorageConfig.getShareCdcTtlDay();
+			throw new RuntimeException("Cannot found predecessor log collector node");
 		}
-		this.hazelcastConstruct = getHazelcastConstruct(context.hazelcastInstance(), shareCdcTtlDay, processorBaseContext.getTaskDto());
+		this.constructMap = new LRUMap();
+		LogContent startTimeSign = LogContent.createStartTimeSign();
+		Document document = MapUtil.obj2Document(startTimeSign);
+		for (String tableName : tableNames) {
+			HazelcastConstruct<Document> construct = getConstruct(tableName);
+			if (construct.isEmpty()) {
+				construct.insert(document);
+			}
+		}
 	}
 
-	private static HazelcastConstruct<Document> getHazelcastConstruct(HazelcastInstance hazelcastInstance, Integer shareCdcTtlDay, TaskDto taskDto) {
-		return new ConstructRingBuffer<>(
-				hazelcastInstance,
-				ShareCdcUtil.getConstructName(taskDto),
-				shareCdcTtlDay
-		);
+	private HazelcastConstruct<Document> getConstruct(String tableName) {
+		if (!constructMap.containsKey(tableName)) {
+			HazelcastConstruct<Document> construct = new ConstructRingBuffer<>(
+					jetContext.hazelcastInstance(),
+					ShareCdcUtil.getConstructName(processorBaseContext.getTaskDto(), tableName),
+					shareCdcTtlDay
+			);
+			constructMap.put(tableName, construct);
+		}
+		return (HazelcastConstruct<Document>) constructMap.get(tableName);
 	}
 
 	@Override
@@ -109,7 +118,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 				throw new RuntimeException("Convert map to document failed; Map data: " + logContent + ". Error: " + e.getMessage(), e);
 			}
 			try {
-				this.hazelcastConstruct.insert(document);
+				getConstruct(logContent.getFromTable()).insert(document);
 			} catch (Exception e) {
 				throw new RuntimeException("Insert document into ringbuffer failed; Document data: " + document + ". Error: " + e.getMessage(), e);
 			}
