@@ -26,7 +26,7 @@ public class ExternalStorageDto extends BaseDto {
 	private Integer connectTimeoutMs;
 	private Integer readTimeoutMs;
 
-	private String maskUriPassword() {
+	public String maskUriPassword() {
 		if (StringUtils.isNotBlank(uri)) {
 			ConnectionString connectionString = new ConnectionString(uri);
 			char[] passwordChars = connectionString.getPassword();
