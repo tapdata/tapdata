@@ -63,7 +63,7 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
         AtomicInteger times = new AtomicInteger(threadCount);
         final Object insertLock = new Object();
         AtomicBoolean hasCreatedTable = new AtomicBoolean(false);
-        super.execTest("multiModify", (node, testCase) -> {
+        super.execTest((node, testCase) -> {
             hasCreatedTable.set(super.createTable(node));
             if (!hasCreatedTable.get()) {
                 // 建表失败
@@ -128,7 +128,7 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
         AtomicInteger times = new AtomicInteger(threadCount);
         final Object insertLock = new Object();
         AtomicBoolean hasCreatedTable = new AtomicBoolean(false);
-        super.execTest("multiDelete", (node, testCase) -> {
+        super.execTest((node, testCase) -> {
             if (!hasCreatedTable.get() ) {
                 if (!hasCreatedTable.get() ) {
                     hasCreatedTable.set(super.createTable(node));

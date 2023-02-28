@@ -52,7 +52,7 @@ public class CreateTableUsingFieldTypesInTurnTest extends PDKTestBaseV2 {
     @TapTestCase(sort = 1)
     @Test
     public void createTableUsingFieldTypesInTurn() throws NoSuchMethodException {
-        super.execTest("createTableUsingFieldTypesInTurn", (node, testCase) -> {
+        super.execTest((node, testCase) -> {
             TapNodeSpecification tapNodeSpecification = node.nodeInfo().getTapNodeSpecification();
             DefaultExpressionMatchingMap dataTypesMap = tapNodeSpecification.getDataTypesMap();
             if (Objects.isNull(dataTypesMap) || dataTypesMap.isEmpty()) {

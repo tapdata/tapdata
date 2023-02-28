@@ -53,7 +53,7 @@ public class BatchWriteRecordTest extends PDKTestBaseV2 {
     public void batch() throws NoSuchMethodException {
         System.out.println(langUtil.formatLang("batchWrite.batch.wait"));
         AtomicBoolean hasCreatedTable = new AtomicBoolean(false);
-        super.execTest("batch", (node, testCase) -> {
+        super.execTest((node, testCase) -> {
             Record[] records = Record.testRecordWithTapTable(super.targetTable, recordCount);
             this.insertRecords(node,hasCreatedTable, records);
             //查询数据，并校验

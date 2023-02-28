@@ -23,4 +23,6 @@ public @interface TapGo {
     String tag() default "default";
 
     boolean debug() default false;
+
+    boolean ignore() default false;
 }

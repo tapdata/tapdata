@@ -101,7 +101,7 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
     public void sequentialTestOfDelete() throws NoSuchMethodException {
         System.out.println(langUtil.formatLang("sequentialTest.delete.wait"));
         AtomicBoolean hasCreatedTable = new AtomicBoolean(false);
-        super.execTest("sequentialTestOfDelete", (node, testCase) -> {
+        super.execTest((node, testCase) -> {
             super.translation(node);
             if (!this.insertAndModify(node, hasCreatedTable)) {
                 return;
@@ -134,7 +134,7 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
     public void sequentialTestOfDeleteAndMore() throws NoSuchMethodException {
         System.out.println(langUtil.formatLang("sequentialTest.more.wait"));
         AtomicBoolean hasCreatedTable = new AtomicBoolean(false);
-        super.execTest("sequentialTestOfDeleteAndMore", (node, testCase) -> {
+        super.execTest((node, testCase) -> {
             super.translation(node);
             final int mCount = 1;
             if (!this.insertAndModify(node, hasCreatedTable, true, mCount)) {

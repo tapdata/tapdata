@@ -32,28 +32,31 @@ public class PDKTestBaseV2 extends PDKTestBase {
         }
     }
 
-    protected void contrastRecord(TapTable table, Method testMethod, Map<String, Object> basicData, Map<String, Object> targetData) {
-        if (Objects.nonNull(basicData) && !basicData.isEmpty()) {
-            if (Objects.isNull(targetData) || targetData.isEmpty()) {
-                //TapAssert.error(testMethod,"");
-                return;
-            }
-            StringJoiner basicJoiner = new StringJoiner(",");
-            StringJoiner targetJoiner = new StringJoiner(",");
-            boolean isBalance = true;
-            basicData.forEach((fieldName, fieldValue) -> {
-                Object value = targetData.get(fieldName);
-                if (Objects.isNull(fieldValue)) {
-                    if (Objects.nonNull(value)) {
-                        basicJoiner.add(fieldName + ": null");
-                        targetJoiner.add(fieldName + ": " + toJson(value));
-                    }
-                } else {
-
-                }
-            });
-        }
+    protected void execTest(TestStart start, TestExec exec, TestStop stop) throws NoSuchMethodException{
+        this.execTest(
+                Thread.currentThread().getStackTrace()[2].getMethodName(),
+                start,
+                exec,
+                stop
+        );
     }
+    protected void execTest(TestExec exec, TestStop stop) throws NoSuchMethodException{
+        this.execTest(
+                Thread.currentThread().getStackTrace()[2].getMethodName(),
+                null,
+                exec,
+                stop
+        );
+    }
+    protected void execTest(TestExec exec) throws NoSuchMethodException{
+        this.execTest(
+                Thread.currentThread().getStackTrace()[2].getMethodName(),
+                null,
+                exec,
+                null
+        );
+    }
+
 
     protected void execTest(String testCaseName, TestStart start, TestExec exec, TestStop stop) throws NoSuchMethodException {
         Method testCase = super.getMethod(testCaseName);
@@ -75,9 +78,17 @@ public class PDKTestBaseV2 extends PDKTestBase {
             }
         });
     }
+
+    /**
+     * @deprecated
+     * */
     protected void execTest(String testCaseName,TestExec exec) throws NoSuchMethodException {
         this.execTest(testCaseName,null,exec,null);
     }
+
+    /**
+     * @deprecated
+     * */
     protected void execTest(String testCaseName,TestExec exec, TestStop stop) throws NoSuchMethodException {
         this.execTest(testCaseName,null,exec,stop);
     }

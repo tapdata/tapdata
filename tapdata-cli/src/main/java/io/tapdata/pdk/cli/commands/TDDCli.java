@@ -411,7 +411,8 @@ public class TDDCli extends CommonCli {
                 boolean goTest = tapGo.goTest();
                 boolean isSub = tapGo.isSub();
                 boolean debug = !isDebugMode || tapGo.debug();
-                return (PDKTestBase.class.isAssignableFrom(cls)) && goTest && !isSub && debug;
+                boolean ignored = tapGo.ignore();
+                return (PDKTestBase.class.isAssignableFrom(cls)) && !ignored && goTest && !isSub && debug ;
             } catch (Exception e) {
                 return false;
             }
