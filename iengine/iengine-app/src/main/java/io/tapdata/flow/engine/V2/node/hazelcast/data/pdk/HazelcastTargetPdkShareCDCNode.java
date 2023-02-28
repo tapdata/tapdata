@@ -1,15 +1,11 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
-import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.TapdataShareLogEvent;
-import com.tapdata.entity.hazelcast.PersistenceStorageConfig;
 import com.tapdata.entity.sharecdc.LogContent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
-import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
-import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.construct.HazelcastConstruct;
 import io.tapdata.construct.constructImpl.ConstructRingBuffer;
@@ -21,14 +17,18 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections.map.LRUMap;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author samuel
@@ -38,8 +38,12 @@ import java.util.Map;
 public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 
 	public static final int DEFAULT_SHARE_CDC_TTL_DAY = 3;
+	private static final int INSERT_BATCH_SIZE = 1000;
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkShareCDCNode.class);
-	private HazelcastConstruct<Document> hazelcastConstruct;
+	private LRUMap constructMap;
+	private List<String> tableNames;
+	private Map<String, List<Document>> batchCacheData;
+	private AtomicBoolean running = new AtomicBoolean(true);
 
 	public HazelcastTargetPdkShareCDCNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -48,9 +52,20 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
+		this.targetBatch = 10000;
+		this.targetBatchIntervalMs = 10000L;
 		Integer shareCdcTtlDay = getShareCdcTtlDay();
 		externalStorageDto.setTtlDay(shareCdcTtlDay);
-		this.hazelcastConstruct = getHazelcastConstruct(context.hazelcastInstance(), externalStorageDto, processorBaseContext.getTaskDto());
+		this.constructMap = new LRUMap();
+		LogContent startTimeSign = LogContent.createStartTimeSign();
+		Document document = MapUtil.obj2Document(startTimeSign);
+		for (String tableName : tableNames) {
+			HazelcastConstruct<Document> construct = getConstruct(tableName);
+			if (construct.isEmpty()) {
+				construct.insert(document);
+			}
+		}
+		this.batchCacheData = new HashMap<>();
 		logger.info("Init log data storage finished, config: " + externalStorageDto);
 		obsLogger.info("Init log data storage finished, config: " + externalStorageDto);
 	}
@@ -62,6 +77,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		if (CollectionUtils.isNotEmpty(predecessors)) {
 			Node<?> firstPreNode = predecessors.get(0);
 			shareCdcTtlDay = ((LogCollectorNode) firstPreNode).getStorageTime();
+			tableNames = ((LogCollectorNode) firstPreNode).getTableNames();
 		}
 		if (null == shareCdcTtlDay || shareCdcTtlDay.compareTo(0) <= 0) {
 			shareCdcTtlDay = DEFAULT_SHARE_CDC_TTL_DAY;
@@ -69,12 +85,16 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		return shareCdcTtlDay;
 	}
 
-	private static HazelcastConstruct<Document> getHazelcastConstruct(HazelcastInstance hazelcastInstance, ExternalStorageDto externalStorageDto, TaskDto taskDto) {
-		return new ConstructRingBuffer<>(
-				hazelcastInstance,
-				ShareCdcUtil.getConstructName(taskDto),
-				externalStorageDto
-		);
+	private HazelcastConstruct<Document> getConstruct(String tableName) {
+		if (!constructMap.containsKey(tableName)) {
+			HazelcastConstruct<Document> construct = new ConstructRingBuffer<>(
+					jetContext.hazelcastInstance(),
+					ShareCdcUtil.getConstructName(processorBaseContext.getTaskDto(), tableName),
+					externalStorageDto
+			);
+			constructMap.put(tableName, construct);
+		}
+		return (HazelcastConstruct<Document>) constructMap.get(tableName);
 	}
 
 	@Override
@@ -118,11 +138,31 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 			} catch (Exception e) {
 				throw new RuntimeException("Convert map to document failed; Map data: " + logContent + ". Error: " + e.getMessage(), e);
 			}
-			try {
-				this.hazelcastConstruct.insert(document);
-			} catch (Exception e) {
-				throw new RuntimeException("Insert document into ringbuffer failed; Document data: " + document + ". Error: " + e.getMessage(), e);
+			if (!batchCacheData.containsKey(tableId)) {
+				batchCacheData.put(tableId, new ArrayList<>());
 			}
+			batchCacheData.get(tableId).add(document);
+			if (batchCacheData.get(tableId).size() >= INSERT_BATCH_SIZE) {
+				insertMany(tableId);
+				batchCacheData.get(tableId).clear();
+			}
+		}
+		for (Map.Entry<String, List<Document>> entry : batchCacheData.entrySet()) {
+			String tableName = entry.getKey();
+			List<Document> list = entry.getValue();
+			if (CollectionUtils.isNotEmpty(list)) {
+				insertMany(tableName);
+			}
+		}
+		batchCacheData.clear();
+	}
+
+	private void insertMany(String tableId) {
+		try {
+			HazelcastConstruct<Document> construct = getConstruct(tableId);
+			construct.insertMany(batchCacheData.get(tableId), unused -> !running.get());
+		} catch (Exception e) {
+			throw new RuntimeException("Insert many documents into ringbuffer failed. Table: " + tableId + " Size: " + batchCacheData.get(tableId).size(), e);
 		}
 	}
 
@@ -161,5 +201,11 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		if (StringUtils.isBlank(offsetStr)) {
 			obsLogger.warn("Invalid offset string: " + offsetStr);
 		}
+	}
+
+	@Override
+	public void doClose() throws Exception {
+		this.running.compareAndSet(true, false);
+		super.doClose();
 	}
 }

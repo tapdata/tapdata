@@ -92,6 +92,9 @@ public class AppenderFactory implements Serializable {
 						}
 
 						for (Appender<MonitoringLogsDto> appender : appenders) {
+							if (null == appender) {
+								continue;
+							}
 							appender.append(logsDtos);
 						}
 						logsDtos.clear();

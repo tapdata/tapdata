@@ -2,7 +2,9 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import cn.hutool.core.util.ReUtil;
 import com.alibaba.fastjson.JSON;
+import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MapUtil;
@@ -48,6 +50,7 @@ import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
+import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
@@ -74,6 +77,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
@@ -312,14 +316,24 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 							&& taskDto.getShareCdcEnable()) {
 						// continue cdc from share log storage
 						if (StringUtils.isNotBlank(streamOffset)) {
-							syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
+							Object decodeOffset = PdkUtil.decodeOffset(streamOffset, getConnectorNode());
+							if (decodeOffset instanceof ShareCDCOffset) {
+								syncProgress.setStreamOffsetObj(((ShareCDCOffset) decodeOffset).getSequenceMap());
+							} else {
+								syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
+							}
 						} else {
 							initStreamOffsetFromTime(null);
 						}
 					} else {
 						// switch share cdc to normal task
 						if (StringUtils.isNotBlank(streamOffset)) {
-							syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
+							Object decodeOffset = PdkUtil.decodeOffset(streamOffset, getConnectorNode());
+							if (decodeOffset instanceof ShareCDCOffset) {
+								syncProgress.setStreamOffsetObj(((ShareCDCOffset) decodeOffset).getStreamOffset());
+							} else {
+								syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
+							}
 						} else {
 							Long eventTime = syncProgress.getEventTime();
 							if (null == eventTime) {

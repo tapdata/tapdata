@@ -1,6 +1,8 @@
 package io.tapdata.construct;
 
+import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * @author samuel
@@ -14,6 +16,14 @@ public interface HazelcastConstruct<T> {
 	}
 
 	default int insert(String key, T data) throws Exception {
+		throw new UnsupportedOperationException();
+	}
+
+	default long insertMany(Map<String, T> data) throws Exception {
+		throw new UnsupportedOperationException();
+	}
+
+	default long insertMany(List<T> data, Predicate<Void> stop) throws Exception {
 		throw new UnsupportedOperationException();
 	}
 
