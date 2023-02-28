@@ -48,7 +48,7 @@ public class TidbConnectionTest extends CommonDbTest {
     protected static final String CHECK_DATABASE_BINLOG_ROW_IMAGE_SQL = "SHOW VARIABLES LIKE '%binlog_row_image%'";
     protected static final String CHECK_CREATE_TABLE_PRIVILEGES_SQL = "SELECT count(1)\n" +
             "FROM INFORMATION_SCHEMA.USER_PRIVILEGES\n" +
-            "WHERE GRANTEE LIKE '%%%s%%' and PRIVILEGE_TYPE = 'Create'";
+            "WHERE GRANTEE LIKE '%%%s%%' and PRIVILEGE_TYPE = 'CREATE'";
     private boolean cdcCapability;
     private final ConnectionOptions connectionOptions;
 
@@ -66,6 +66,9 @@ public class TidbConnectionTest extends CommonDbTest {
     @Override
     public Boolean testOneByOne() {
         testFunctionMap.put("testPbserver", this::testPbserver);
+        if (!ConnectionTypeEnum.SOURCE.getType().equals(commonDbConfig.get__connectionType())) {
+            testFunctionMap.put("testCreateTablePrivilege", this::testCreateTablePrivilege);
+        }
         if (!ConnectionTypeEnum.TARGET.getType().equals(commonDbConfig.get__connectionType())) {
             testFunctionMap.put("testBinlogRowImage", this::testBinlogRowImage);
             TidbConfig tidbConfig = (TidbConfig) commonDbConfig;
