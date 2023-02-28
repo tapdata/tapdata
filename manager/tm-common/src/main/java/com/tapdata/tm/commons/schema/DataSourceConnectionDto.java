@@ -310,4 +310,15 @@ public class DataSourceConnectionDto extends BaseDto {
         public boolean isAccessNodeTypeEmpty() {
                 return StringUtils.isBlank(accessNodeType);
         }
+
+        public String getAlarmInfo() {
+                return "DataSourceConnectionDto{" +
+                        "name='" + name + '\'' +
+                        ", connection_type='" + connection_type + '\'' +
+                        ", retry=" + retry +
+                        ", status='" + status + '\'' +
+                        ", tableCount=" + tableCount +
+                        ", loadAllTables=" + loadAllTables +
+                        '}';
+        }
 }

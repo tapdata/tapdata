@@ -23,9 +23,8 @@ import java.util.stream.Collectors;
  * @description
  */
 public class TableRowContentInspectJob extends InspectTableRowJob {
-	private static final String TAG = TableRowContentInspectJob.class.getSimpleName();
-	private Logger logger = LogManager.getLogger(TableRowContentInspectJob.class);
-	private Gson gson = new GsonBuilder().serializeNulls().create();
+	private final Logger logger = LogManager.getLogger(TableRowContentInspectJob.class);
+	private final Gson gson = new GsonBuilder().serializeNulls().create();
 
 	// 统计变量
 	protected long current = 0;
@@ -143,8 +142,8 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 			long targetTotal = 0;
 			while (diffDetailCursor.next() && !Thread.interrupted()) {
 				try (
-						BaseResult<Map<String, Object>> sourceCursor = queryForCursor(source, inspectTask.getSource(), sourceNode, fullMatch);
-						BaseResult<Map<String, Object>> targetCursor = queryForCursor(target, inspectTask.getTarget(), targetNode, fullMatch)
+						BaseResult<Map<String, Object>> sourceCursor = queryForCursor(source, inspectTask.getSource(), sourceNode, fullMatch, sourceKeys, diffDetailCursor.getData());
+						BaseResult<Map<String, Object>> targetCursor = queryForCursor(target, inspectTask.getTarget(), targetNode, fullMatch, targetKeys, diffDetailCursor.getData())
 				) {
 					sourceTotal += sourceCursor.getTotal();
 					targetTotal += targetCursor.getTotal();
@@ -246,7 +245,7 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 						}
 
 						String msg = null;
-						if (compare == 0) {
+						if (compare == 0 || null != diffDetailCursor.getData()) {
 							moveSource = true;
 							moveTarget = true;
 							both++;
@@ -357,7 +356,7 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 		}
 	}
 
-	private BaseResult<Map<String, Object>> queryForCursor(Connections connections, InspectDataSource inspectDataSource, ConnectorNode connectorNode, boolean fullMatch) {
+	private BaseResult<Map<String, Object>> queryForCursor(Connections connections, InspectDataSource inspectDataSource, ConnectorNode connectorNode, boolean fullMatch, List<String> dataKeys, List<List<Object>> diffKeyValues) {
 		inspectDataSource.setDirection("DESC"); // force desc
 		Set<String> columns = null;
 		if (null != inspectDataSource.getColumns()) {
@@ -369,7 +368,9 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 				inspectDataSource.getTable(),
 				columns,
 				connectorNode,
-				fullMatch
+				fullMatch,
+				dataKeys,
+				diffKeyValues
 		);
 	}
 

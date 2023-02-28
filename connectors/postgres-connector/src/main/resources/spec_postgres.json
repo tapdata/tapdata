@@ -86,7 +86,7 @@
           "required": true,
           "type": "string",
           "title": "${logPluginName}",
-          "default": "PGOUTPUT",
+          "default": "pgoutput",
           "x-decorator": "FormItem",
           "x-component": "Select",
           "apiServerKey": "logPlugin",
@@ -467,6 +467,10 @@
       "defaultFraction": 6,
       "priority": 2,
       "to": "TapTime"
+    },
+    "$nothing array": {
+      "queryOnly": true,
+      "to": "TapArray"
     },
     "point": {
       "to": "TapString",

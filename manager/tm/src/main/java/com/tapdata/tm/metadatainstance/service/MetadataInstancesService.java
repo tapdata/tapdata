@@ -1140,7 +1140,10 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 .and("taskId").exists(false)
                 .and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
 
-        if (null != regex) criteria.and("original_name").regex(regex);
+        if (null != regex) {
+            regex = "^" + regex + "$";
+            criteria.and("original_name").regex(regex);
+        }
 
         Query query = new Query(criteria);
         query.fields().include("original_name");

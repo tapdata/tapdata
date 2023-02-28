@@ -226,12 +226,21 @@ public class MilestoneAspectTask extends AbstractAspectTask {
             case WriteRecordFuncAspect.STATE_START:
                 taskMilestone(KPI_WRITE_RECORD, this::setRunning);
                 nodeMilestones(nodeId, KPI_WRITE_RECORD, this::setRunning);
+                taskMilestone(KPI_TABLE_INIT, milestone -> {
+                    milestone.setProgress(milestone.getTotals());
+                    setFinish(milestone);
+                });
+                nodeMilestones(nodeId, KPI_TABLE_INIT, milestone -> {
+                    milestone.setProgress(milestone.getTotals());
+                    setFinish(milestone);
+                });
                 break;
             case WriteRecordFuncAspect.STATE_END: {
                 Throwable error = aspect.getThrowable();
                 if (null == error) {
-                    taskMilestone(KPI_WRITE_RECORD, this::setFinish);
-                    nodeMilestones(nodeId, KPI_WRITE_RECORD, this::setFinish);
+                    // WRITE_RECORD can not be set to finnish.
+//                    taskMilestone(KPI_WRITE_RECORD, this::setFinish);
+//                    nodeMilestones(nodeId, KPI_WRITE_RECORD, this::setFinish);
                 } else {
                     taskMilestone(KPI_WRITE_RECORD, getErrorConsumer(error.getMessage()));
                     nodeMilestones(nodeId, KPI_WRITE_RECORD, getErrorConsumer(error.getMessage()));
@@ -346,15 +355,19 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     }
 
     private void setRunning(MilestoneEntity milestone) {
-        if (null == milestone.getBegin()) {
+        if (MilestoneStatus.RUNNING != milestone.getStatus()) {
             milestone.setBegin(System.currentTimeMillis());
+            milestone.setStatus(MilestoneStatus.RUNNING);
         }
-        milestone.setStatus(MilestoneStatus.RUNNING);
+        milestone.setEnd(null);
+        milestone.setErrorMessage(null);
     }
 
     private void setFinish(MilestoneEntity milestone) {
-        milestone.setEnd(System.currentTimeMillis());
-        milestone.setStatus(MilestoneStatus.FINISH);
+        if (MilestoneStatus.FINISH != milestone.getStatus()) {
+            milestone.setEnd(System.currentTimeMillis());
+            milestone.setStatus(MilestoneStatus.FINISH);
+        }
     }
 
     private Consumer<MilestoneEntity> getErrorConsumer(String errorMessage) {

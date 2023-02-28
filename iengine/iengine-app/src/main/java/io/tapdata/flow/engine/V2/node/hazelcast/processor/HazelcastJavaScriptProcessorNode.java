@@ -35,13 +35,16 @@ import org.springframework.data.mongodb.core.query.Query;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
+import javax.script.ScriptException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -190,25 +193,38 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
     Map<String, Object> context = this.processContextThreadLocal.get();
     context.putAll(contextMap);
     ((ScriptEngine) this.engine).put("context", context);
-    Object obj;
+    AtomicReference<Object> scriptInvokeResult = new AtomicReference<>();
     if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-						TaskDto.SYNC_TYPE_TEST_RUN,
+            TaskDto.SYNC_TYPE_TEST_RUN,
             TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
       Map<String, Object> finalRecord = record;
-      Future<Object> future = Executors.newSingleThreadExecutor().submit(() -> engine.invokeFunction(ScriptUtil.FUNCTION_NAME, finalRecord));
-      obj = future.get(10, TimeUnit.SECONDS);
+      CountDownLatch countDownLatch = new CountDownLatch(1);
+      Thread thread = new Thread(() -> {
+        Thread.currentThread().setName("Javascript-Test-Runner");
+        try {
+          scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, finalRecord));
+        } catch (ScriptException | NoSuchMethodException ignored) {
+        } finally {
+          countDownLatch.countDown();
+        }
+      });
+      thread.start();
+      boolean threadFinished = countDownLatch.await(10L, TimeUnit.SECONDS);
+      if (!threadFinished) {
+        thread.stop();
+      }
     } else {
-      obj = engine.invokeFunction(ScriptUtil.FUNCTION_NAME, record);
+      scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, record));
     }
 
     context.clear();
 
-    if (obj == null) {
+    if (null == scriptInvokeResult.get()) {
       if (logger.isDebugEnabled()) {
         logger.debug("The event does not need to continue to be processed {}", tapdataEvent);
       }
-    } else if (obj instanceof List) {
-      for (Object o : (List) obj) {
+    } else if (scriptInvokeResult.get() instanceof List) {
+      for (Object o : (List) scriptInvokeResult.get()) {
         Map<String, Object> recordMap = new HashMap<>();
         MapUtil.copyToNewMap((Map<String, Object>) o, recordMap);
         TapdataEvent cloneTapdataEvent = (TapdataEvent) tapdataEvent.clone();
@@ -217,7 +233,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
       }
     } else {
       Map<String, Object> recordMap = new HashMap<>();
-      MapUtil.copyToNewMap((Map<String, Object>) obj, recordMap);
+      MapUtil.copyToNewMap((Map<String, Object>) scriptInvokeResult.get(), recordMap);
       setRecordMap(tapEvent, op, recordMap);
       consumer.accept(tapdataEvent, processResult);
     }
