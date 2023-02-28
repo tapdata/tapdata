@@ -401,6 +401,7 @@ public class LogCollectorService {
             externalStorageDto = externalStorageService.findById(new ObjectId(externalStorageId), user);
         }
         if (null != externalStorageDto) {
+            externalStorageDto.setUri(externalStorageDto.maskUriPassword());
             ExternalStorageVo externalStorageVo = new ExternalStorageVo();
             BeanUtils.copyProperties(externalStorageDto, externalStorageVo);
             logCollectorDetailVo.setExternalStorage(externalStorageVo);
