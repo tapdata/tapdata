@@ -149,7 +149,7 @@ public class PostManAnalysis {
         List<Header> apiHeader = apiRequest.header();
         Map<String, String> headMap = new HashMap<>();
         if (Objects.nonNull(apiHeader) && !apiHeader.isEmpty()) {
-            apiHeader.stream().filter(Objects::nonNull).forEach(head -> headMap.put(head.key(), head.value()));
+            apiHeader.stream().filter(ent->{ if (Objects.isNull(ent)) return false; return !ent.disabled(); }).forEach(head -> headMap.put(head.key(), head.value()));
         }
         String url = apiUrl.raw();
         Body<?> apiBody = apiRequest.body();
@@ -198,7 +198,7 @@ public class PostManAnalysis {
         return builder.build();
     }
 
-    public APIResponse http(Request request) {
+    public APIResponse http(Request request) throws IOException{
         OkHttpClient client = this.configHttp(new OkHttpClient().newBuilder()).build();
         Map<String, Object> result = new HashMap<>();
         Response response = client.newCall(request).execute();
@@ -221,6 +221,7 @@ public class PostManAnalysis {
                 }
             }
         }
+        result.computeIfAbsent(Api.PAGE_RESULT_PATH_DEFAULT_PATH, key -> new HashMap<String,Object>());
         return APIResponse.create()
                 .httpCode(code)
                 .result(result)
