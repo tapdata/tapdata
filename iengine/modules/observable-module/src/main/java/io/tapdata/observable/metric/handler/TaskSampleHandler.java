@@ -322,7 +322,11 @@ public class TaskSampleHandler extends AbstractHandler {
         outputSpeed.add(total);
 
         snapshotInsertRowTotal.inc(total);
-        currentSnapshotTableInsertRowTotal += total;
+        if (Objects.isNull(currentSnapshotTableInsertRowTotal)) {
+            currentSnapshotTableInsertRowTotal = total;
+        } else {
+            currentSnapshotTableInsertRowTotal += total;
+        }
 
         long timeCostTotal = 0L;
         for (TapRecordEvent event : events) {
