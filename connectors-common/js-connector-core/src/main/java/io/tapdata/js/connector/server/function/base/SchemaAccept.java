@@ -90,6 +90,7 @@ public class SchemaAccept implements SchemaSender {
             Object fieldDefaultObj = fieldInfo.get(JSTableKeys.TABLE_FIELD_DEFAULT_VALUE);
             Object fieldNullAbleObj = fieldInfo.get(JSTableKeys.TABLE_FIELD_NULLABLE);
             Object fieldPrimaryKeyObj = fieldInfo.get(JSTableKeys.TABLE_FIELD_PRIMARY_KEY);
+            Object fieldPrimaryKeyPosObj = fieldInfo.get(JSTableKeys.TABLE_FIELD_PRIMARY_POS_KEY);
             Object fieldAutoIncObj = fieldInfo.get(JSTableKeys.TABLE_FIELD_AUTO_INC);
             Object fieldFieldCommentObj = fieldInfo.get(JSTableKeys.TABLE_FIELD_COMMENT);
             field.setComment(Objects.isNull(fieldFieldCommentObj) ? null : String.valueOf(fieldFieldCommentObj));
@@ -106,6 +107,11 @@ public class SchemaAccept implements SchemaSender {
             try {
                 field.setPrimaryKey((Boolean) fieldPrimaryKeyObj);
             } catch (Exception ignored) {
+            }
+            try{
+                field.setPrimaryKeyPos(((Number) Optional.ofNullable(fieldPrimaryKeyPosObj).orElse(1)).intValue());
+            }catch (Exception e){
+                field.setPrimaryKeyPos(1);
             }
         }
         return field;
