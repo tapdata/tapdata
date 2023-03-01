@@ -11,4 +11,6 @@ import java.util.List;
 public class DiscoveryStorageOverviewDto extends DiscoveryStorageDto {
     private List<DiscoveryFieldDto> fields;
     private String comment;
+    private String description;
+
 }

@@ -2,11 +2,11 @@ package com.tapdata.tm.metadatainstance.controller;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.bean.Table;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.metadatainstance.dto.DataType2TapTypeDto;
@@ -47,7 +47,10 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.BindException;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 
@@ -745,5 +748,13 @@ public class MetadataInstancesController extends BaseController {
         returnMap.put("exist", exist);
         return success(returnMap);
     }
+
+
+    @PostMapping("updateTableDesc")
+    public ResponseMessage<Void> updateTableDesc(@RequestBody MetadataInstancesDto metadataInstances) {
+        metadataInstancesService.updateTableDesc(metadataInstances, getLoginUser());
+        return success();
+    }
+
 
 }
