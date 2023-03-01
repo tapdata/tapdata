@@ -1,22 +1,26 @@
-class CommandStage{
+class CommandStage {
     exec(commandName) {
-        switch (commandName){
-            case 'GetAppInfo' : return new GetAppInfo();
-            case 'GetReceiverOfUsers': return new GetReceiverOfUsers();
-            case 'GetReceiverOfUsers1': return new GetReceiverOfUsers();
-            default : return null;
+        switch (commandName) {
+            case 'GetAppInfo':
+                return new GetAppInfo();
+            case 'GetReceiverOfUsers':
+                return new GetReceiverOfUsers();
+            case 'GetReceiverOfUsers1':
+                return new GetReceiverOfUsers();
+            default :
+                return null;
         }
     }
 }
 
 class Command {
-    command(){}
+    command() {
+    }
 }
-
 
 class GetAppInfo extends Command {
     command(connectionConfig, nodeConfig, commandInfo) {
-        let app = invoker.invoke("Obtain application information",connectionConfig).result;
+        let app = invoker.invoke("Obtain application information", connectionConfig).result;
         let isApp = 'undefined' !== app && null != app && 'undefined' !== app.data && null != app.data && 'undefined' !== app.data.app;
         return {
             "setValue": {
@@ -28,8 +32,9 @@ class GetAppInfo extends Command {
     }
 }
 
-class GetReceiverOfUsers extends Command{
+class GetReceiverOfUsers extends Command {
     userNamePrefix = "用户：";
+
     command() {
         let result = [];
         let users = this.getUsers();
@@ -41,38 +46,41 @@ class GetReceiverOfUsers extends Command{
             "items": result
         };
     }
-    getUsers(){
+
+    getUsers() {
         //获取用户列表
         // 1. 获取所有子部门
-        let dept = [{"department_id":'0',"name":"根部门"}];
+        let dept = [{"department_id": '0', "name": "根部门"}];
         let hasMore = false;
         let pageTokenDept = '';
         do {
             // https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/contact-v3/department/children
-            let departmentsData = invoker.invoke('GetSubDept',{"page_token": pageTokenDept}).result;
+            let departmentsData = invoker.invoke('GetSubDept', {"page_token": pageTokenDept}).result;
             hasMore = departmentsData.data.has_more;
             dept.push(...departmentsData.data.items);
             pageTokenDept = departmentsData.data.page_token;
-        }while(isAlive() && hasMore)
+        } while (isAlive() && hasMore)
         let users = [];
         // 2. 根据子部门获取部门员工
-        for (let index = 0; index < dept.length ; index ++ ){
+        for (let index = 0; index < dept.length; index++) {
             if (!isAlive()) break;
             let deptId = dept[index].department_id;
             let pageToken = "";
             do {
-                // https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/contact-v3/user/find_by_department
-                let usersData = invoker.invoke('GetDeptUsers',{"departmentId":deptId,"page_token": pageToken}).result;
+                // https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/contact-v3/users/find_by_department
+                let usersData = invoker.invoke('GetDeptUsers', {
+                    "departmentId": deptId,
+                    "page_token": pageToken
+                }).result;
                 hasMore = usersData.data.has_more;
                 let userDataArr = usersData.data.items;
-                for (let i = 0 ;i < userDataArr.length; i++) {
+                for (let i = 0; i < userDataArr.length; i++) {
                     if (!isAlive()) break;
                     let u = userDataArr[i];
-                    users.push({"value": u.open_id, "label": this.userNamePrefix + u.name});
-                    log.warn("Gavin-users : " + u.name);
+                    users.push({"value": u.user_id, "label": this.userNamePrefix + u.name});
                 }
                 pageToken = usersData.data.page_token;
-            }while(isAlive() && hasMore)
+            } while (isAlive() && hasMore)
         }
         return users;
     }

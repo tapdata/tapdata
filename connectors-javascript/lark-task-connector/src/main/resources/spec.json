@@ -98,7 +98,6 @@
         "richSummary": {
           "title": "${task_rich_summary}",
           "type": "string",
-          "default": null,
           "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
           "x-decorator": "FormItem",
           "x-component": "FieldSelect",
@@ -114,7 +113,6 @@
                 "nodeConfig.sendType"
               ],
               "fulfill": {
-                "run": "if (!$self.value && $self.dataSource && $self.dataSource.length) {let isPrimaryKeyList = $self.dataSource.filter(item => item.isPrimaryKey); let indicesUniqueList = $self.dataSource.filter(item => item.indicesUnique); $self.setValue((isPrimaryKeyList.length ? isPrimaryKeyList : indicesUniqueList).map(item => item.value)); $self.validate();}",
                 "state": {
                   "display": "{{$deps[0] === \"appoint\" ? \"visible\" : \"hidden\"}}"
                 },
@@ -129,7 +127,6 @@
         "richDescription": {
           "title": "${task_rich_description}",
           "type": "string",
-          "default": null,
           "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
           "x-decorator": "FormItem",
           "x-component": "FieldSelect",
@@ -145,7 +142,6 @@
                 "nodeConfig.sendType"
               ],
               "fulfill": {
-                "run": "if (!$self.value && $self.dataSource && $self.dataSource.length) {let isPrimaryKeyList = $self.dataSource.filter(item => item.isPrimaryKey); let indicesUniqueList = $self.dataSource.filter(item => item.indicesUnique); $self.setValue((isPrimaryKeyList.length ? isPrimaryKeyList : indicesUniqueList).map(item => item.value)); $self.validate();}",
                 "state": {
                   "display": "{{$deps[0] === \"appoint\" ? \"visible\" : \"hidden\"}}"
                 },
@@ -158,7 +154,7 @@
           "x-index": 70,
           "required": true
         },
-        "time": {
+        "cutOffTime": {
           "type": "String",
           "default": "4",
           "title": "${task_time}",
@@ -202,10 +198,9 @@
           "x-index": 75,
           "required": true
         },
-        "title": {
+        "taskLinkTitle": {
           "title": "${task_link_title}",
           "type": "string",
-          "default": null,
           "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
           "x-decorator": "FormItem",
           "x-component": "FieldSelect",
@@ -221,7 +216,6 @@
                 "nodeConfig.sendType"
               ],
               "fulfill": {
-                "run": "if (!$self.value && $self.dataSource && $self.dataSource.length) {let isPrimaryKeyList = $self.dataSource.filter(item => item.isPrimaryKey); let indicesUniqueList = $self.dataSource.filter(item => item.indicesUnique); $self.setValue((isPrimaryKeyList.length ? isPrimaryKeyList : indicesUniqueList).map(item => item.value)); $self.validate();}",
                 "state": {
                   "display": "{{$deps[0] === \"appoint\" ? \"visible\" : \"hidden\"}}"
                 }
@@ -230,10 +224,9 @@
           ],
           "x-index": 80
         },
-        "url": {
+        "taskUrl": {
           "title": "${task_url}",
           "type": "string",
-          "default": null,
           "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
           "x-decorator": "FormItem",
           "x-component": "FieldSelect",
@@ -249,7 +242,6 @@
                 "nodeConfig.sendType"
               ],
               "fulfill": {
-                "run": "if (!$self.value && $self.dataSource && $self.dataSource.length) {let isPrimaryKeyList = $self.dataSource.filter(item => item.isPrimaryKey); let indicesUniqueList = $self.dataSource.filter(item => item.indicesUnique); $self.setValue((isPrimaryKeyList.length ? isPrimaryKeyList : indicesUniqueList).map(item => item.value)); $self.validate();}",
                 "state": {
                   "display": "{{$deps[0] === \"appoint\" ? \"visible\" : \"hidden\"}}"
                 }
@@ -258,26 +250,26 @@
           ],
           "x-index": 85
         }
-      },
-      "connection": {
-        "type": "object",
-        "properties": {
-          "app_id": {
-            "type": "String",
-            "title": "${app_id}",
-            "x-decorator": "FormItem",
-            "x-component": "Input",
-            "x-index": 10,
-            "required": true
-          },
-          "app_secret": {
-            "type": "String",
-            "title": "${app_secret}",
-            "x-decorator": "FormItem",
-            "x-component": "Input",
-            "x-index": 20,
-            "required": true
-          }
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+        "app_id": {
+          "type": "String",
+          "title": "${app_id}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 10,
+          "required": true
+        },
+        "app_secret": {
+          "type": "String",
+          "title": "${app_secret}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 20,
+          "required": true
         }
       }
     }

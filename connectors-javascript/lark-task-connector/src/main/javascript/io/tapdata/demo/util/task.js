@@ -5,7 +5,11 @@ class CreateTask {
     create(connectionConfig, nodeConfig, event) {
         let data;
         try {
-            data = this.convertEventAndCreateTask(event, nodeConfig);
+            if (nodeConfig.sendType === 'appoint') {
+                data = this.convertEventAndCreateTaskV2(event, nodeConfig);
+            } else {
+                data = this.convertEventAndCreateTask(event);
+            }
             if (data === null) {
                 return false;
             }
@@ -16,7 +20,7 @@ class CreateTask {
         return this.sendHttp(data);
     }
 
-    convertEventAndCreateTask(eventData, nodeConfig) {
+    convertEventAndCreateTask(eventData) {
         if (!this.checkParam(eventData)) {
             log.warn("eventData is empty, can not be handled")
             return null;
@@ -47,21 +51,7 @@ class CreateTask {
             log.warn('The collaboratorIds are in charge of the task and cannot be empty. ');
             return null;
         }
-
-        // let sendType = nodeConfig.sendType;
-        // switch (sendType) {
-        //     case 'appoint':
-        //         return this.appointSend(connectionConfig, nodeConfig, eventDataMap);
-        //     case 'dynamic_binding':
-        //         return this.dynamicBindingSend(connectionConfig, nodeConfig, eventDataMap);
-        //     default :
-        //         return this.defaultSendType(connectionConfig, nodeConfig, eventDataMap);
-        // }
-
-        // if(nodeConfig.sendType === 'appoint'){
-        //     nodeConfig
-        // }
-        let cUserIds = this.getUserId(collaboratorIds.split(","));
+        let cUserIds = this.getUserId(collaboratorIds.split(','));
         if (!this.checkParam(cUserIds)) {
             log.warn('The cUserIds are in charge of the task and cannot be empty. ');
             return null;
@@ -74,7 +64,7 @@ class CreateTask {
             log.warn('FollowerIds is mandatory and cannot be empty. ');
             return null;
         }
-        let fUserIds = this.getUserId(followerIds.split(","));
+        let fUserIds = this.getUserId(followerIds.split(','));
         if (!this.checkParam(fUserIds)) {
             log.warn('fUserIds is mandatory and cannot be empty. ');
             return null;
@@ -90,8 +80,68 @@ class CreateTask {
         }
     }
 
+    convertEventAndCreateTaskV2(eventData, nodeConfig) {
+        if (!this.checkParam(eventData)) {
+            log.warn("eventData is empty, can not be handled")
+            return null;
+        }
+        let event = eventData.afterData;
+        if (!this.checkParam(event)) {
+            log.warn("afterData is empty, can not be handled");
+            return null;
+        }
+        if (!this.checkParam(nodeConfig)) {
+            log.warn("nodeConfig is empty, can not be handled");
+            return null;
+        }
+
+        let richSummary = event[nodeConfig.richSummary];
+        let richDescription = event[nodeConfig.richDescription];
+        let collaboratorIds = "\"" + Object.values(nodeConfig.ownerReceiver.split(',')).join("\",\"") + "\"";
+        let time = this.timeProcessor(nodeConfig.cutOffTime);
+        let followerIds = "\"" + Object.values(nodeConfig.followerReceiver.split(',')).join("\",\"") + "\"";
+        let title = event[nodeConfig.taskLinkTitle];
+        let url = event[nodeConfig.taskUrl];
+
+        if (!this.checkParam(richSummary)) {
+            log.warn('RichSummary is the title of the task and cannot be empty. ');
+            return null;
+        }
+        if (!this.checkParam(richDescription)) {
+            log.warn('RichDescription is the description in the task. It cannot be empty. ');
+            return null;
+        }
+        if (!this.checkParam(collaboratorIds)) {
+            log.warn('The collaboratorIds are in charge of the task and cannot be empty. ');
+            return null;
+        }
+        if (!this.checkParam(time)) {
+            log.warn('Time Indicates the end time of the task and cannot be empty. ');
+            return null;
+        }
+        if (!this.checkParam(followerIds)) {
+            log.warn('FollowerIds is mandatory and cannot be empty. ');
+            return null;
+        }
+
+        return {
+            "rich_summary": richSummary,
+            "rich_description": richDescription,
+            "collaboratorIds": collaboratorIds,
+            "time": time,
+            "followerIds": followerIds,
+            "title": title,
+            "url": url
+        }
+    }
+
+    timeProcessor(time) {
+        let cutOffTime = parseInt(new Date().getTime() / 1000) + 3600 * time;
+        return cutOffTime.toString();
+    }
+
     sendHttp(sendData) {
-       let writeResult = invoker.httpConfig({"timeout": 20000}).invoke("Create task", sendData)
+        let writeResult = invoker.httpConfig({"timeout": 20000}).invoke("Create task", sendData)
         if (writeResult.httpCode < 200 || writeResult.httpCode >= 300) {
             throw ("create task failed, http code illegal. " + JSON.stringify(writeResult));
         }

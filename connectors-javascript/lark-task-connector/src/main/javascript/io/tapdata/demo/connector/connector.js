@@ -55,6 +55,7 @@ function connectionTest(connectionConfig) {
 }
 
 var createTask = new CreateTask();
+
 function insertRecord(connectionConfig, nodeConfig, eventDataMap) {
     return createTask.create(connectionConfig, nodeConfig, eventDataMap);
 }
@@ -67,10 +68,7 @@ function updateToken(connectionConfig, nodeConfig, apiResponse) {
 }
 
 function commandCallback(connectionConfig, nodeConfig, commandInfo) {
-    //
     let commandName = commandInfo.command;
     let exec = new CommandStage().exec(commandInfo.command);
-    if (null != exec) {
-        return exec.command(connectionConfig, nodeConfig, commandInfo);
-    }
+    if (null != exec) return exec.command(connectionConfig, nodeConfig, commandInfo);
 }
