@@ -126,7 +126,7 @@ public class SchemaAccept implements SchemaSender {
         boolean objBool = defaultValue;
         if (obj instanceof String) {
             try {
-                objBool = Boolean.getBoolean((String) obj);
+                objBool = Boolean.parseBoolean((String) obj);
             } catch (Throwable throwable) {
                 TapLogger.warn(TAG, "Field " + keyName + "'type must be boolean, but it's string now and can't cast to boolean value, please ensure that.");
                 return defaultValue;
