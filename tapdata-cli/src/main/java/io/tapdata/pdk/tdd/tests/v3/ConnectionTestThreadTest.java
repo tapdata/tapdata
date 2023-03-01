@@ -13,12 +13,18 @@ import io.tapdata.pdk.tdd.tests.support.LangUtil;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.support.TapTestCase;
+import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Method;
 import java.util.*;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
@@ -60,28 +66,32 @@ public class ConnectionTestThreadTest extends PDKTestBaseV2 {
         super.execTest((node, testCase) -> {
             StringJoiner beforeBuilder = new StringJoiner("\n");
             List<StackEntity> before = this.printThreads(beforeBuilder);
-            this.connectionTest(node, connectionTestTimes);
+            this.connectionTest(node, connectionTestTimes, Boolean.FALSE);
             StringJoiner afterBuilder = new StringJoiner("\n");
             List<StackEntity> after = this.printThreads(afterBuilder);
             String different = this.differentStack(before, after);
             if (!"".equals(different.trim())) {
-                TapAssert.succeed(testCase, langUtil.formatLang("checkThreadTest.alone.fail",
+                TapAssert.warn(testCase, langUtil.formatLang(
+                        "checkThreadTest.alone.fail",
                         connectionTestTimes,
                         before.size(),
-                        beforeBuilder.toString() + "；\n"+ LangUtil.SPILT_GRADE_4 +"",
+                        beforeBuilder.toString() + "；\n" + LangUtil.SPILT_GRADE_4 + "",
                         after.size(),
-                        afterBuilder.toString()+ "，\n"+ LangUtil.SPILT_GRADE_4 +"",
+                        afterBuilder.toString() + "，\n" + LangUtil.SPILT_GRADE_4 + "",
                         different));
             } else {
-                TapAssert.warn(testCase, langUtil.formatLang("checkThreadTest.alone.succeed",
+                TapAssert.succeed(testCase, langUtil.formatLang(
+                        "checkThreadTest.alone.succeed",
                         connectionTestTimes,
                         before.size(),
-                        beforeBuilder.toString() + "；\n"+ LangUtil.SPILT_GRADE_4 +"",
+                        beforeBuilder.toString() + "；\n" + LangUtil.SPILT_GRADE_4 + "",
                         after.size(),
-                        afterBuilder.toString()+ "，\n"+ LangUtil.SPILT_GRADE_4 +""));
+                        afterBuilder.toString() + "，\n" + LangUtil.SPILT_GRADE_4 + ""));
             }
         });
     }
+
+    Set<String> currentThreads = new ConcurrentSkipListSet<>();
 
     /**
      * 用例2，多线程多次执行连接测试后检查线程数量
@@ -98,20 +108,76 @@ public class ConnectionTestThreadTest extends PDKTestBaseV2 {
         System.out.println(langUtil.formatLang("checkThreadTest.multi.wait"));
         final int connectionTestThread = 5;
         final int connectionTestTimes = 1;
+        ExecutorService service = Executors.newFixedThreadPool(connectionTestThread);
+        AtomicInteger awaitTimes = new AtomicInteger(connectionTestThread);
+        final Object lock = new Object();
         super.execTest((node, testCase) -> {
+            StringJoiner beforeBuilder = new StringJoiner("\n");
+            List<StackEntity> before = this.printThreads(beforeBuilder);
 
+            for (int index = 0; index < connectionTestThread; index++) {
+                service.execute(() -> {
+                    currentThreads.add(Thread.currentThread().getName());
+                    try {
+                        this.connectionTest(node, connectionTestTimes, Boolean.TRUE);
+                    } finally {
+                        synchronized (lock) {
+                            awaitTimes.decrementAndGet();
+                        }
+                    }
+                });
+            }
+            while (awaitTimes.get() > 0) {
+                try {
+                    synchronized (lock) {
+                        lock.wait(1000);
+                    }
+                } catch (InterruptedException ignored) {
+                }
+            }
+            StringJoiner afterBuilder = new StringJoiner("\n");
+            List<StackEntity> after = this.printThreads(afterBuilder);
+            String different = this.differentStack(before, after);
+            if (!"".equals(different.trim())) {
+                TapAssert.warn(testCase, langUtil.formatLang(
+                        "checkThreadTest.multi.fail",
+                        connectionTestThread,
+                        connectionTestTimes,
+                        before.size(),
+                        beforeBuilder.toString() + "；\n" + LangUtil.SPILT_GRADE_4 + "",
+                        after.size(),
+                        afterBuilder.toString() + "，\n" + LangUtil.SPILT_GRADE_4 + "",
+                        different));
+            } else {
+                TapAssert.succeed(testCase, langUtil.formatLang(
+                        "checkThreadTest.multi.succeed",
+                        connectionTestThread,
+                        connectionTestTimes,
+                        before.size(),
+                        beforeBuilder.toString() + "；\n" + LangUtil.SPILT_GRADE_4 + "",
+                        after.size(),
+                        afterBuilder.toString() + "，\n" + LangUtil.SPILT_GRADE_4 + ""));
+            }
+        }, (node, testCase) -> {
+            service.shutdown();
+            lock.notifyAll();
+            currentThreads = null;
         });
     }
 
     private String differentStack(List<StackEntity> before, List<StackEntity> after) {
         StringJoiner builder = new StringJoiner("\n");
-        boolean equals = true;
         for (int index = after.size() - 1; index >= 0; index--) {
+            boolean equals = true;
             StackEntity stackEntity = after.get(index);
-            if (equals) {
-                equals = Objects.nonNull(stackEntity) && stackEntity.name().equals(Objects.nonNull(before.get(index)) ? before.get(index).name() : "");
-            } else {
-                builder.add(LangUtil.SPILT_GRADE_4 + "thread [" + stackEntity.name() + " state " + stackEntity.state() + "]");
+            for (int i = 0; i < before.size(); i++) {
+                equals = before.get(i).name().equals(stackEntity.name());
+                if (equals) {
+                    break;
+                }
+            }
+            if (!equals && !currentThreads.contains(stackEntity.name())) {
+                builder.add(LangUtil.SPILT_GRADE_4 + LangUtil.SPILT_GRADE_2 + "[ thread: (" + stackEntity.name() + ") | state: (" + stackEntity.state() + ") ]");
             }
         }
         return builder.toString();
@@ -121,21 +187,30 @@ public class ConnectionTestThreadTest extends PDKTestBaseV2 {
         List<StackEntity> stackEntities = new ArrayList<>();
         Map<Thread, StackTraceElement[]> threadMap = Thread.getAllStackTraces();
         threadMap.forEach((thread, stackTraceElements) -> {
-            builder.add(LangUtil.SPILT_GRADE_4 + "thread [" + thread.getName() + " state " + thread.getState().name() + "]");
-            stackEntities.add(StackEntity.create(thread.getName(), thread.getState().name()));
+            String threadName = thread.getName();
+            if (!currentThreads.contains(threadName)) {
+                builder.add(LangUtil.SPILT_GRADE_4 + LangUtil.SPILT_GRADE_2 + "[ thread: (" + threadName + ") | state: (" + thread.getState().name() + ") ]");
+                stackEntities.add(StackEntity.create(threadName, thread.getState().name()));
+            }
         });
         return stackEntities;
     }
 
-    private void connectionTest(TestNode prepare, final int execTimes) {
+    private void connectionTest(TestNode prepare, final int execTimes, boolean isMulti) {
         TapConnector connector = prepare.connectorNode().getConnector();
         for (int index = 0; index < execTimes; index++) {
             try {
                 connector.connectionTest(prepare.connectorNode().getConnectorContext(), testItem -> {
-
                 });
             } catch (Throwable throwable) {
-
+                TapAssert.error(
+                        prepare.recordEventExecute().testCase(),
+                        langUtil.formatLang(isMulti ?
+                                        "checkThreadTest.connection.multi.throw" :
+                                        "checkThreadTest.connection.alone.throw",
+                                index + 1,
+                                isMulti ? Thread.currentThread().getName() : "",
+                                throwable.getMessage()));
             }
         }
     }

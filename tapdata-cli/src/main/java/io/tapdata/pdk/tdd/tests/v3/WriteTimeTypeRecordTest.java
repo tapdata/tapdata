@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 测试失败按错误上报
  */
 @DisplayName("writeTimeTest")
-@TapGo(tag = "V3", sort = 13, debug = true)
+@TapGo(tag = "V3", sort = 13, debug = false)
 public class WriteTimeTypeRecordTest extends PDKTestBaseV2{
     {
         if (PDKTestBaseV2.testRunning) {
