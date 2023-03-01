@@ -109,12 +109,23 @@ public class SchemaAccept implements SchemaSender {
             } catch (Exception ignored) {
                 field.setPrimaryKey(false);
             }
-            if (field.getPrimaryKey()) {
+
+            Integer primaryPos = null;
+            if(fieldPrimaryKeyPosObj instanceof String) {
                 try {
-                    field.setPrimaryKeyPos(((Number) Optional.ofNullable(fieldPrimaryKeyPosObj).orElse(1)).intValue());
-                } catch (Exception e) {
-                    field.setPrimaryKeyPos(1);
+                    primaryPos = Integer.parseInt((String) fieldPrimaryKeyPosObj);
+                } catch (Throwable throwable) {
+                    TapLogger.warn(TAG, "Field primaryPos'type must be int, but it's string now and can't cast to int value, please ensure that.");
                 }
+            } else if(fieldPrimaryKeyPosObj instanceof Number) {
+                primaryPos = ((Number) fieldPrimaryKeyPosObj).intValue();
+            }
+            if(primaryPos != null && primaryPos <= 0) {
+                TapLogger.warn(TAG, "Field primaryPos'type must be lager than zero, but it's less or equals zero now, please ensure that.");
+                primaryPos = null;
+            }
+            if (field.getPrimaryKey() && Objects.nonNull(primaryPos)) {
+                field.setPrimaryKeyPos(primaryPos);
             }
         }
         return field;
