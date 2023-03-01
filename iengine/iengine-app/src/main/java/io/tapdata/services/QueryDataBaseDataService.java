@@ -54,6 +54,9 @@ public class QueryDataBaseDataService {
                 TapCodecsFilterManager codecsFilterManager = connectorNode.getCodecsFilterManager();
                 AtomicReference<List<Map<String, Object>>> resultsAtomic = new AtomicReference<>();
                 QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorNode.getConnectorFunctions().getQueryByAdvanceFilterFunction();
+                if(queryByAdvanceFilterFunction ==null){
+                    resultsAtomic.get();
+                }
                 TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create();
                 tapAdvanceFilter.limit(rows);
                 queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable,
@@ -123,7 +126,6 @@ public class QueryDataBaseDataService {
                 PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);
                 //queryByAdvanceFilter
                 TableInfo tableInfo = TableInfo.create();
-                TapCodecsFilterManager codecsFilterManager = connectorNode.getCodecsFilterManager();
                 GetTableInfoFunction getTableInfoFunction = connectorNode.getConnectorFunctions().getGetTableInfoFunction();
                 if (getTableInfoFunction == null) {
                     tableInfo.setNumOfRows(0L);
