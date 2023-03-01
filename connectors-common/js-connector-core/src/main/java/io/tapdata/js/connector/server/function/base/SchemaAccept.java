@@ -105,7 +105,7 @@ public class SchemaAccept implements SchemaSender {
             } catch (Exception ignored) {
             }
             try {
-                field.setPrimaryKey((Boolean) fieldPrimaryKeyObj);
+                field.setPrimaryKey((Boolean) Optional.ofNullable(fieldPrimaryKeyObj).orElse(false));
             } catch (Exception ignored) {
                 field.setPrimaryKey(false);
             }
