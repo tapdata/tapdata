@@ -3,12 +3,14 @@ package com.tapdata.tm.commons.schema;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.commons.base.dto.BaseDto;
-import com.tapdata.tm.commons.schema.bean.*;
+import com.tapdata.tm.commons.schema.bean.DataRules;
+import com.tapdata.tm.commons.schema.bean.Relation;
+import com.tapdata.tm.commons.schema.bean.SourceDto;
+import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
-import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -98,6 +100,9 @@ public class MetadataInstancesDto extends BaseDto {
     private String taskId;
 
     private String nodeId;
+
+     private String description;
+
 
     /**
      * 是否是虚拟表 'virtual' 'source'
