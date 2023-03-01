@@ -94,33 +94,24 @@ public class SchemaAccept implements SchemaSender {
             Object fieldAutoIncObj = fieldInfo.get(JSTableKeys.TABLE_FIELD_AUTO_INC);
             Object fieldFieldCommentObj = fieldInfo.get(JSTableKeys.TABLE_FIELD_COMMENT);
             field.setComment(Objects.isNull(fieldFieldCommentObj) ? null : String.valueOf(fieldFieldCommentObj));
-            try {
-                field.setAutoInc((Boolean) fieldAutoIncObj);
-            } catch (Exception ignored) {
-            }
+
+            field.setAutoInc(this.boolValue(fieldAutoIncObj, false,"autoInc"));
             field.setDataType(Objects.isNull(fieldTypeObj) ? null : String.valueOf(fieldTypeObj));
             field.setDefaultValue(Objects.isNull(fieldDefaultObj) ? null : String.valueOf(fieldDefaultObj));
-            try {
-                field.setNullable((Boolean) fieldNullAbleObj);
-            } catch (Exception ignored) {
-            }
-            try {
-                field.setPrimaryKey((Boolean) Optional.ofNullable(fieldPrimaryKeyObj).orElse(false));
-            } catch (Exception ignored) {
-                field.setPrimaryKey(false);
-            }
+            field.setNullable(this.boolValue(fieldNullAbleObj, false,"nullable"));
+            field.setPrimaryKey(this.boolValue(fieldPrimaryKeyObj, false,"primaryKey"));
 
             Integer primaryPos = null;
-            if(fieldPrimaryKeyPosObj instanceof String) {
+            if (fieldPrimaryKeyPosObj instanceof String) {
                 try {
                     primaryPos = Integer.parseInt((String) fieldPrimaryKeyPosObj);
                 } catch (Throwable throwable) {
                     TapLogger.warn(TAG, "Field primaryPos'type must be int, but it's string now and can't cast to int value, please ensure that.");
                 }
-            } else if(fieldPrimaryKeyPosObj instanceof Number) {
+            } else if (fieldPrimaryKeyPosObj instanceof Number) {
                 primaryPos = ((Number) fieldPrimaryKeyPosObj).intValue();
             }
-            if(primaryPos != null && primaryPos <= 0) {
+            if (primaryPos != null && primaryPos <= 0) {
                 TapLogger.warn(TAG, "Field primaryPos'type must be lager than zero, but it's less or equals zero now, please ensure that.");
                 primaryPos = null;
             }
@@ -129,5 +120,22 @@ public class SchemaAccept implements SchemaSender {
             }
         }
         return field;
+    }
+
+    private Boolean boolValue(Object obj, boolean defaultValue, String keyName) {
+        boolean objBool = defaultValue;
+        if (obj instanceof String) {
+            try {
+                objBool = Boolean.getBoolean((String) obj);
+            } catch (Throwable throwable) {
+                TapLogger.warn(TAG, "Field " + keyName + "'type must be boolean, but it's string now and can't cast to boolean value, please ensure that.");
+                return defaultValue;
+            }
+        } else if (obj instanceof Boolean) {
+            objBool = (Boolean) obj;
+        } else {
+            return defaultValue;
+        }
+        return objBool;
     }
 }
