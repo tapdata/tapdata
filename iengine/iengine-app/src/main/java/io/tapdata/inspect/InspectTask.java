@@ -375,7 +375,7 @@ public abstract class InspectTask implements Runnable {
 				associateId,
 				connection.getConfig(),
 				tapTableMap,
-				new PdkStateMap(connection.getId(), HazelcastUtil.getInstance(), PdkStateMap.StateMapMode.HTTP_TM),
+				new PdkStateMap(connection.getId(), HazelcastUtil.getInstance()),
 				PdkStateMap.globalStateMap(HazelcastUtil.getInstance()),
 				InstanceFactory.instance(LogFactory.class).getLog()
 		);

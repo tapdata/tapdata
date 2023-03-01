@@ -26,8 +26,8 @@ public class ExternalStorageDto extends BaseDto {
 	private Integer connectTimeoutMs;
 	private Integer readTimeoutMs;
 
-	private String maskUriPassword() {
-		if (StringUtils.isNotBlank(uri)) {
+	public String maskUriPassword() {
+		if (ExternalStorageType.mongodb.name().equals(type) && StringUtils.isNotBlank(uri)) {
 			ConnectionString connectionString = new ConnectionString(uri);
 			char[] passwordChars = connectionString.getPassword();
 			if (null != passwordChars && passwordChars.length > 0) {
