@@ -23,10 +23,12 @@ import java.io.InputStream;
 import java.security.SecureRandom;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class CommonUtils {
@@ -379,6 +381,21 @@ public class CommonUtils {
         public FunctionAndContext tapConnectionContext(TapConnectionContext tapConnectionContext) {
             this.tapConnectionContext = tapConnectionContext;
             return this;
+        }
+    }
+
+    public static void countDownAwait(Predicate<Void> stop, CountDownLatch countDownLatch) {
+        while (true) {
+            if (null != stop && stop.test(null)) {
+                break;
+            }
+            try {
+                if (countDownLatch.await(1, TimeUnit.SECONDS)) {
+                    break;
+                }
+            } catch (InterruptedException e) {
+                break;
+            }
         }
     }
 }

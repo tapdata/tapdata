@@ -56,7 +56,7 @@ public class PdkDataSourceRowsGetter implements IDataSourceRowsGetter {
     DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, sourceConnection.getPdkHash());
     TapTableMap<String, TapTable> tapTableMap = TapTableUtil.getTapTableMapByNodeId(sourceNode.getId());
     PdkTableMap pdkTableMap = new PdkTableMap(tapTableMap);
-    PdkStateMap pdkStateMap = new PdkStateMap(sourceNode.getId(), hazelcastInstance, PdkStateMap.StateMapMode.HTTP_TM);
+    PdkStateMap pdkStateMap = new PdkStateMap(sourceNode.getId(), hazelcastInstance);
     PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
     this.tapTable = tapTableMap.get(dataFlowCacheConfig.getTableName());
     this.associateId = this.getClass().getSimpleName() + "-" + sourceNode.getId() + "-" + UUIDGenerator.uuid();
