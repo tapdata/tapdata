@@ -108,25 +108,9 @@ public class RegisterCli extends CommonCli {
                     o.put("qcType", qcType);
 
                     String pdkAPIVersion = specification.getManifest().get("PDK-API-Version");
-                    AtomicInteger pdkAPIBuildNumber = new AtomicInteger();
-                    if (StringUtils.isNotBlank(pdkAPIVersion)) {
-                        CommonUtils.ignoreAnyError(() -> {
-                            LinkedList<String> collect = Arrays.stream(pdkAPIVersion.split("[.]")).collect(Collectors.toCollection(LinkedList::new));
-                            String last = collect.getLast();
-                            if (collect.size() != 3) {
-                                pdkAPIBuildNumber.set(0);
-                            } else if (last.contains("-SNAPSHOT")) {
-                                String temp = StringUtils.replace(last, "-SNAPSHOT", "");
-                                if (temp.chars().allMatch(Character::isDigit)) {
-                                    pdkAPIBuildNumber.set(Integer.parseInt(temp));
-                                }
-                            } else if (last.chars().allMatch(Character::isDigit)) {
-                                pdkAPIBuildNumber.set(Integer.parseInt(last));
-                            }
-                        }, TAG);
-                    }
+                    int pdkAPIBuildNumber = CommonUtils.getPdkBuildNumer(pdkAPIVersion);
                     o.put("pdkAPIVersion", pdkAPIVersion);
-                    o.put("pdkAPIBuildNumber", pdkAPIBuildNumber.get());
+                    o.put("pdkAPIBuildNumber", pdkAPIBuildNumber);
 
                     o.put("beta", "beta".equals(specification.getManifest().get("Authentication")));
 
