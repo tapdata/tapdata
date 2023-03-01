@@ -119,8 +119,24 @@ public class PostManAnalysis {
         }
         return false;
     }
+    private String comp(Map<String,Object> item1,Map<String,Object> item2){
+        if (Objects.isNull(item1) || item1.isEmpty() || Objects.isNull(item2) || item2.isEmpty()) return null;
+        StringJoiner joiner = new StringJoiner(", ");
+        item1.forEach((key,value)->{
+            if (Objects.nonNull(item2.get(key))){
+                joiner.add(key);
+            }
+        });
+        return joiner.toString();
+    }
 
     public Request httpPrepare(String uriOrName, String method, Map<String, Object> params) {
+        String com = this.comp(this.connectorConfig,params);
+        Optional.ofNullable(com).ifPresent(str->{
+            TapLogger.warn(TAG," Some of the keys in connectionConfig or nodeConfig have the same name as the interface parameters." +
+                    " At this time, the values in connectionConfig or nodeConfig will be used as the HTTP request data by default, which will lead to errors in the HTTP call parameters. Please confirm. If it is correct, it can be ignored.  Conflicting Key: " + com);
+        });
+
         ApiMap.ApiEntity api = this.apiContext.apis().quickGet(uriOrName, method);
         if (Objects.isNull(api)) {
             throw new CoreException(String.format("No such api name or url is [%s],method is [%s]", uriOrName, method));

@@ -8,6 +8,7 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.run.base.PDKBaseRun;
 import io.tapdata.pdk.run.base.RunnerSummary;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
+import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
@@ -54,7 +55,7 @@ public class ConnectionTestRun extends PDKBaseRun {
             }
         });
     }
-//    public static List<SupportFunction> testFunctions() {
-//        return list(support(BatchReadFunction.class, RunnerSummary.format("jsFunctionInNeed","connection_test")));
-//    }
+    public static List<SupportFunction> testFunctions() {
+        return new ArrayList<>();
+    }
 }
