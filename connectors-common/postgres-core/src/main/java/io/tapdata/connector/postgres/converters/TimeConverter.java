@@ -30,8 +30,8 @@ public class TimeConverter implements CustomConverter<SchemaBuilder, RelationalC
                 if (x instanceof String) {
                     long second = 0;
                     String[] hourToSecond = ((String) x).split(":");
-                    for (int i = 0; i < hourToSecond.length; i++) {
-                        second += Integer.parseInt(hourToSecond[i]) + second * 60;
+                    for (String s : hourToSecond) {
+                        second = Integer.parseInt(s) + second * 60;
                     }
                     return second * 1000000;
                 }
