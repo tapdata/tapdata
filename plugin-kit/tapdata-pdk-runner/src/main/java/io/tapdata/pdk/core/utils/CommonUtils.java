@@ -13,6 +13,7 @@ import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.error.QuiteException;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import javax.crypto.Cipher;
@@ -310,9 +311,25 @@ public class CommonUtils {
             Properties properties = new Properties();
             properties.load(resourceAsStream);
             String pdkAPIVersion = properties.getProperty("tapdata.pdk.api.verison");
+            pdkAPIBuildNumber.set(getPdkBuildNumer(pdkAPIVersion));
+        }, "");
+        return pdkAPIBuildNumber.get();
+    }
+
+    public static int getPdkBuildNumer(String pdkAPIVersion) {
+        AtomicInteger pdkAPIBuildNumber = new AtomicInteger(0);
+        ignoreAnyError(() -> {
             Optional.ofNullable(pdkAPIVersion).ifPresent(version -> {
-                String last = Arrays.stream(pdkAPIVersion.split("[.]")).collect(Collectors.toCollection(LinkedList::new)).getLast();
-                if (last.chars().allMatch(Character::isDigit)) {
+                LinkedList<String> collect = Arrays.stream(pdkAPIVersion.split("[.]")).collect(Collectors.toCollection(LinkedList::new));
+                String last = collect.getLast();
+                if (collect.size() != 3) {
+                    pdkAPIBuildNumber.set(0);
+                } else if (last.contains("-SNAPSHOT")) {
+                    String temp = StringUtils.replace(last, "-SNAPSHOT", "");
+                    if (temp.chars().allMatch(Character::isDigit)) {
+                        pdkAPIBuildNumber.set(Integer.parseInt(temp));
+                    }
+                } else if (last.chars().allMatch(Character::isDigit)) {
                     pdkAPIBuildNumber.set(Integer.parseInt(last));
                 }
             });

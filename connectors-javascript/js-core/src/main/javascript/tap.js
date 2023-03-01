@@ -78,28 +78,16 @@ class TapApi {
      *     }
      *  */
     invoke(uriOrNameStr, paramsMap, methodStr) {
-        let result = null;
         if (!isParam(uriOrNameStr)) {
             log.error("No API name or URL was specified, unable to execute http request. ");
             return null;
         }
-        this.config = _tapConfig_;
-        this.invoker.setConfig(null != this.httpConfigParam ? this.httpConfigParam : this.httpConfigGlobal);
-        this.invoker.setConnectorConfig(this.config);
-        if (isParam(paramsMap) && isParam(methodStr)) {
-            result = this.invoker.invoke(uriOrNameStr, paramsMap, methodStr, true);
-        } else if (isParam(paramsMap)) {
-            result = this.invoker.invoke(uriOrNameStr, paramsMap, 'POST', true);
-        } else {
-            result = this.invoker.invoke(uriOrNameStr, {}, 'POST', true);
-        }
-        this.httpConfigParam = null;
-        return {
-            "result": tapUtil.toMap(result.result).data,
-            "httpCode": result.httpCode,
-            "headers": tapUtil.toMap(result.headers),
-            "error": tapUtil.toMap(result.error)
-        };
+        return this.invokeMemberPrivate(
+            uriOrNameStr,
+            isParam(paramsMap) ? paramsMap : {},
+            isParam(methodStr) ? methodStr : "POST",
+            true
+        );
     }
 
     /**
@@ -118,27 +106,31 @@ class TapApi {
      *     }
      *  */
     invokeWithoutIntercept(uriOrNameStr, paramsMap, methodStr) {
-        let result = null;
         if (!isParam(uriOrNameStr)) {
             log.error("No API name or URL was specified, unable to execute http request. ");
             return null;
         }
+        return this.invokeMemberPrivate(
+            uriOrNameStr,
+            isParam(paramsMap) ? paramsMap : {},
+            isParam(methodStr) ? methodStr : "POST",
+            false
+        );
+    }
+    /**
+     * 禁止外部使用
+     * */
+    invokeMemberPrivate(uriOrNameStr, paramsMap, methodStr, needIntercept){
         this.config = _tapConfig_;
         this.invoker.setConfig(null != this.httpConfigParam ? this.httpConfigParam : this.httpConfigGlobal);
         this.invoker.setConnectorConfig(this.config);
-        if (isParam(paramsMap) && isParam(methodStr)) {
-            result = this.invoker.invoke(uriOrNameStr, paramsMap, methodStr);
-        } else if (isParam(paramsMap)) {
-            result = this.invoker.invoke(uriOrNameStr, paramsMap);
-        } else {
-            result = this.invoker.invoke(uriOrNameStr, {});
-        }
+        let result = this.invoker.invoke(uriOrNameStr, paramsMap, methodStr, needIntercept);
         this.httpConfigParam = null;
+        let hasResult = isParam(result);
         return {
-            "result": tapUtil.toMap(result.result).data,
-            "httpCode": result.httpCode,
-            "headers": result.headers,
-            "error": result.error
+            "result": !hasResult ? {} : tapUtil.toMap(result.result).data,
+            "httpCode": !hasResult ? -1 : result.httpCode,
+            "headers": !hasResult ? {} : tapUtil.toMap(result.headers)
         };
     }
 
@@ -291,4 +283,5 @@ function cloneObj(obj){
     // return newObj;
     return JSON.parse(JSON.stringify(obj));
 }
+
 
