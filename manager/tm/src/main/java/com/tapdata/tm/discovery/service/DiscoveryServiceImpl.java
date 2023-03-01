@@ -672,7 +672,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
      */
     @Override
     public DiscoveryStorageOverviewDto storageOverview(String id, UserDetail user) {
-        MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(id), user);
+        MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(id));
         DiscoveryStorageOverviewDto dto = new DiscoveryStorageOverviewDto();
         dto.setCreateAt(metadataInstancesDto.getCreateAt());
         dto.setVersion(metadataInstancesDto.getSchemaVersion());
@@ -694,6 +694,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         dto.setType(metadataInstancesDto.getMetaType());
         dto.setSourceCategory(DataSourceCategoryEnum.connection);
         dto.setSourceInfo(getConnectInfo(metadataInstancesDto.getSource(), metadataInstancesDto.getOriginalName()));
+        dto.setDescription(metadataInstancesDto.getDescription());
         //dto.setSourceInfo();
         //dto.setBusinessName();
         //dto.setBusinessDesc();

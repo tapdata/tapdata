@@ -108,4 +108,6 @@ public class MetadataInstancesEntity extends BaseEntity {
     private String taskId;
 
     private String nodeId;
+
+    private String description;
 }
