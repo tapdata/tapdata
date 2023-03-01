@@ -5,6 +5,7 @@ import io.tapdata.common.APIFactoryImpl;
 import io.tapdata.common.support.APIFactory;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
@@ -130,6 +131,7 @@ public class JSConnector extends ConnectorBase {
                     this.javaScripter.scriptEngine().put("nodeIsAlive", isAlive);
                     this.javaScripter.scriptEngine().put("_tapConfig_", configMap);
                     this.javaScripter.scriptEngine().put("tapConfig", tapConfig);
+                    this.javaScripter.scriptEngine().put("tapLog", new TapConnectorLog(new TapLog()));
                     this.load();
                 }
             }
