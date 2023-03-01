@@ -200,6 +200,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 					updateLoadSchemaFieldStatus(connection, ConnectorConstant.LOAD_FIELD_STATUS_FINISHED, schema, schemaVersion);
 				}
 			} catch (Exception e) {
+				event.computeIfPresent("config", null);
 				String errMsg = String.format("Test connection %s failed, data: %s, err: %s", connName, event, e.getMessage());
 				logger.error(errMsg, e);
 				try {
