@@ -26,11 +26,11 @@ import io.tapdata.service.skeleton.annotation.RemoteService;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static io.tapdata.entity.simplify.TapSimplify.entry;
+import static io.tapdata.entity.simplify.TapSimplify.map;
 
 @RemoteService
 public class QueryDataBaseDataService {
@@ -38,7 +38,8 @@ public class QueryDataBaseDataService {
     public static final int rows = 100;
 
 
-   public List<Map<String, Object>> getData(String connectionId, String tableName) throws Throwable {
+
+   public Map<String, Object> getData(String connectionId, String tableName) throws Throwable {
         String associateId = "queryRecords_" + connectionId + "_" + tableName + "_" + UUID.randomUUID();
         try {
             ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
@@ -70,7 +71,14 @@ public class QueryDataBaseDataService {
                         codecsFilterManager.transformFromTapValueMap(map);
                     }
                 }
-                return maps;
+                TableInfo tableInfo = TableInfo.create();
+                GetTableInfoFunction getTableInfoFunction = connectorNode.getConnectorFunctions().getGetTableInfoFunction();
+                if (getTableInfoFunction == null) {
+                    tableInfo.setNumOfRows(0L);
+                    tableInfo.setStorageSize(0L); // 字节单位
+                }
+                tableInfo = getTableInfoFunction.getTableInfo(connectorNode.getConnectorContext(), tableName);
+                return map(entry("sampleData", maps), entry("tableInfo", tableInfo));
             } catch (Exception e) {
                 throw new RuntimeException("Failed to init pdk connector, database type: " + databaseType + ", message: " + e.getMessage(), e);
             } finally {
@@ -81,6 +89,8 @@ public class QueryDataBaseDataService {
         }
 
     }
+
+
 
     private ConnectorNode createConnectorNode(String associateId, HttpClientMongoOperator clientMongoOperator, DatabaseTypeEnum.DatabaseType databaseType, Map<String, Object> connectionConfig) {
         try {
@@ -106,35 +116,35 @@ public class QueryDataBaseDataService {
     }
 
 
-    public TableInfo getTableInfo(String connectionId, String tableName) throws Throwable {
-        String associateId = "queryTableInfo_" + connectionId + "_" + tableName + "_" + UUID.randomUUID();
-        try {
-            ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
-            Connections connections = HazelcastTaskService.taskService().getConnection(connectionId);
-            DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
-            ConnectorNode connectorNode = createConnectorNode(associateId, (HttpClientMongoOperator) clientMongoOperator, databaseType, connections.getConfig());
-            String TAG = this.getClass().getSimpleName();
-            try {
-                PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);
-                //queryByAdvanceFilter
-                TableInfo tableInfo = TableInfo.create();
-                GetTableInfoFunction getTableInfoFunction = connectorNode.getConnectorFunctions().getGetTableInfoFunction();
-                if (getTableInfoFunction == null) {
-                    tableInfo.setNumOfRows(0L);
-                    tableInfo.setStorageSize(0L); // 字节单位
-                    return tableInfo;
-                }
-                tableInfo = getTableInfoFunction.getTableInfo(connectorNode.getConnectorContext(), tableName);
-                return tableInfo;
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to init pdk connector, database type: " + databaseType + ", message: " + e.getMessage(), e);
-            } finally {
-                PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
-            }
-        } finally {
-            PDKIntegration.releaseAssociateId(associateId);
-        }
-
-    }
+//    public TableInfo getTableInfo(String connectionId, String tableName) throws Throwable {
+//        String associateId = "queryTableInfo_" + connectionId + "_" + tableName + "_" + UUID.randomUUID();
+//        try {
+//            ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
+//            Connections connections = HazelcastTaskService.taskService().getConnection(connectionId);
+//            DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
+//            ConnectorNode connectorNode = createConnectorNode(associateId, (HttpClientMongoOperator) clientMongoOperator, databaseType, connections.getConfig());
+//            String TAG = this.getClass().getSimpleName();
+//            try {
+//                PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);
+//                //queryByAdvanceFilter
+//                TableInfo tableInfo = TableInfo.create();
+//                GetTableInfoFunction getTableInfoFunction = connectorNode.getConnectorFunctions().getGetTableInfoFunction();
+//                if (getTableInfoFunction == null) {
+//                    tableInfo.setNumOfRows(0L);
+//                    tableInfo.setStorageSize(0L); // 字节单位
+//                    return tableInfo;
+//                }
+//                tableInfo = getTableInfoFunction.getTableInfo(connectorNode.getConnectorContext(), tableName);
+//                return tableInfo;
+//            } catch (Exception e) {
+//                throw new RuntimeException("Failed to init pdk connector, database type: " + databaseType + ", message: " + e.getMessage(), e);
+//            } finally {
+//                PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
+//            }
+//        } finally {
+//            PDKIntegration.releaseAssociateId(associateId);
+//        }
+//
+//    }
 
 }
