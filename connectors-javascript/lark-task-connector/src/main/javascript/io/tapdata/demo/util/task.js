@@ -94,14 +94,20 @@ class CreateTask {
             log.warn("nodeConfig is empty, can not be handled");
             return null;
         }
-
+        let collaboratorIds;
+        let followerIds;
         let richSummary = event[nodeConfig.richSummary];
         let richDescription = event[nodeConfig.richDescription];
-        let collaboratorIds = "\"" + Object.values(nodeConfig.ownerReceiver.split(',')).join("\",\"") + "\"";
         let time = this.timeProcessor(nodeConfig.cutOffTime);
-        let followerIds = "\"" + Object.values(nodeConfig.followerReceiver.split(',')).join("\",\"") + "\"";
         let title = event[nodeConfig.taskLinkTitle];
         let url = event[nodeConfig.taskUrl];
+        if (nodeConfig.userType === 'automatic') {
+            collaboratorIds = this.getUserId(event[nodeConfig.ownerArray].split(','));
+            followerIds = this.getUserId(event[nodeConfig.followerArray].split(','));
+        } else {
+            collaboratorIds = this.getUserId(nodeConfig.ownerArrayManual.split(','));
+            followerIds = this.getUserId(nodeConfig.followerArrayManual.split(','));
+        }
 
         if (!this.checkParam(richSummary)) {
             log.warn('RichSummary is the title of the task and cannot be empty. ');
@@ -130,8 +136,8 @@ class CreateTask {
             "collaboratorIds": collaboratorIds,
             "time": time,
             "followerIds": followerIds,
-            "title": title,
-            "url": url
+            "title": this.checkParam(title) ? title : "无",
+            "url": this.checkParam(url) ? url : "无",
         }
     }
 
