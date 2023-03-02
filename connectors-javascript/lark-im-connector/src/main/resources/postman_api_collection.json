@@ -283,7 +283,7 @@
               }
             ],
             "url": {
-              "raw": "https://open.feishu.cn/open-apis/im/v1/chats?page_token=&page_size=100&page_token={{page_token}}",
+              "raw": "https://open.feishu.cn/open-apis/im/v1/chats?page_size=100&page_token={{page_token}}",
               "protocol": "https",
               "host": [
                 "open",
