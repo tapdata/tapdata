@@ -43,7 +43,7 @@
           "x-component": "AsyncSelect",
           "x-component-props": {
             "method": "{{loadCommandList}}",
-            "params": "{{ {$values: $values, command: \"GetReceiverOfChatsAndUsers\"} }}",
+            "params": "{{ {$values: {attrs: $values.attrs, nodeConfig: {}}, command: \"GetReceiverOfChatsAndUsers\"} }}",
             "multiple": true,
             "currentLabel": "{{ $values.nodeConfig.receiverArrayLabel }}",
             "@change-label": "{{ val => $values.nodeConfig.receiverArrayLabel = val }}",
