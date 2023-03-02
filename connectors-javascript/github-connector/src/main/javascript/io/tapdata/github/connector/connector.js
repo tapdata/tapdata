@@ -291,6 +291,7 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
             return isAlive() && haveNext;
         });
     }
+    streamReadSender.send(offset);
 }
 
 let clientInfo = {
