@@ -164,10 +164,11 @@ public class LoadSchemaEventHandler extends BaseEventHandler implements WebSocke
 							}
 						}
 					} else {
+						ConnectionNode connectionNode = null;
 						try {
 							List<TapTable> tapTables = new ArrayList<>();
 							DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
-							ConnectionNode connectionNode = PDKIntegration.createConnectionConnectorBuilder()
+							connectionNode = PDKIntegration.createConnectionConnectorBuilder()
 									.withConnectionConfig(DataMap.create(connection.getConfig()))
 									.withGroup(databaseType.getGroup())
 									.withPdkId(databaseType.getPdkId())
@@ -190,6 +191,8 @@ public class LoadSchemaEventHandler extends BaseEventHandler implements WebSocke
 							);
 							connIdTablesMap.put(connId, tapTables);
 						} finally {
+							if (null != connectionNode) PDKInvocationMonitor.invoke(connectionNode, PDKMethod.STOP
+									, connectionNode::connectorStop, LoadSchemaEventHandler.class.getSimpleName());
 							PDKIntegration.releaseAssociateId(connection.getName() + "_" + connection.getUser_id());
 						}
 					}
