@@ -10,6 +10,7 @@ rules interpretation:
 """
 
 
+# api for create datasource
 DATASOURCE_CONFIG = {
     "accessNodeType": {
         "type": str, "default": "AUTOMATIC_PLATFORM_ALLOCATION", "require": True,
@@ -39,13 +40,15 @@ DATASOURCE_CONFIG = {
 }
 
 
+# config for datasource
+# api for create mongo datasource by uri
 PDK_MONGO_URI = {
     "isUri": {"type": bool, "require": True, "default": True, "option": [True]},
     "ssl": {"type": bool, "require": True, "default": False},
     "uri": {"type": str, "require": True},
 }
 
-
+# api for create mongo datasource by form
 PDK_MONGO_FORM = {
     "additionalString": {"type": str, "require": False},
     "isUri": {"type": bool, "require": True, "default": False, "option": [False]},
@@ -56,7 +59,7 @@ PDK_MONGO_FORM = {
     "user": {"type": str, "require": True},
 }
 
-
+# api for create mysql datasource
 PDK_MYSQL_FORM = {
     "database": {"type": str, "require": True},
     "host": {"type": str, "require": True},
@@ -67,6 +70,7 @@ PDK_MYSQL_FORM = {
     "timezone": {"type": str, "require": True, "default": "", "desc": "example: -09:00, +04:00, +00:00"},
 }
 
+# api for create postgresql datasource
 PDK_POSTGRESQL_FORM = {
     "database": {"type": str, "require": True},
     "host": {"type": str, "require": True},
@@ -79,6 +83,7 @@ PDK_POSTGRESQL_FORM = {
     "user": {"type": str, "require": True},
 }
 
+# api for create oracle datasource
 PDK_ORACLE_FORM = {
     "extParams": {"type": str, "require": True, "default": "", "desc": "Connection String Params"},
     "host": {"type": str, "require": True},
@@ -103,7 +108,7 @@ PDK_ORACLE_FORM = {
     "pdb": {"type": str, "require": False},
 }
 
-
+# api for create kafka datasource
 PDK_KAFKA_FORM = {
     "kafkaAcks": {"type": str, "require": True, "default": "-1"},
     "kafkaCompressionType": {"type": str, "require": True, "default": "gzip", "option": [
