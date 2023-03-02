@@ -36,13 +36,14 @@ public class Row extends Body<String> {
                 if (attributeParamValue instanceof Map) {
                     attributeParamValue = ((Map<String, Object>) attributeParamValue).get(PostParam.VALUE);
                 }
-                if (Objects.nonNull(attributeParamValue) && !"".equals(String.valueOf(attributeParamValue))) {
-                    String regex = "\\{\\{" + key + "}}";
-                    if (rowBack.contains("{{"+key+"}}")){
-                        String value = attributeParamValue instanceof String ? (String) attributeParamValue: toJson(attributeParamValue);
-                        rowBack = rowBack.replaceAll(regex, value);
-                        keys.add(key);
-                    }
+                if (Objects.isNull(attributeParamValue)) {
+                    attributeParamValue = "null";
+                }
+                String regex = "\\{\\{" + key + "}}";
+                if (rowBack.contains("{{" + key + "}}")) {
+                    String value = attributeParamValue instanceof String ? (String) attributeParamValue : toJson(attributeParamValue);
+                    rowBack = rowBack.replaceAll(regex, value);
+                    keys.add(key);
                 }
             }
             this.raw(rowBack);
@@ -55,14 +56,14 @@ public class Row extends Body<String> {
         try {
             String raw = super.raw();
             if (Objects.isNull(raw) || "".equals(raw.trim())) return "{}";
-            Map<String,Object> bodyMap = (Map<String, Object>) fromJson(raw);
-            Map<String,Object> jsonMap = new HashMap<>();
-            bodyMap.forEach((key,value)->{
+            Map<String, Object> bodyMap = (Map<String, Object>) fromJson(raw);
+            Map<String, Object> jsonMap = new HashMap<>();
+            bodyMap.forEach((key, value) -> {
                 jsonMap.put(key, !keys.contains(key) ? Optional.ofNullable(appendMap.get(key)).orElse(value) : value);
             });
             keys = new HashSet<>();
             return toJson(jsonMap);
-        } catch (Exception e){
+        } catch (Exception e) {
             return "";
         }
     }
@@ -74,7 +75,7 @@ public class Row extends Body<String> {
     }
 
     @Override
-    public void cleanCache(){
+    public void cleanCache() {
         keys = new HashSet<>();
     }
 }

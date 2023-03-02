@@ -61,7 +61,7 @@ import java.util.function.Consumer;
 public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
 	public static final long DEFAULT_TARGET_BATCH_INTERVAL_MS = 3000;
-	public static final int DEFAULT_TARGET_BATCH = 10;
+	public static final int DEFAULT_TARGET_BATCH = 2000;
 	private static final Logger logger = LogManager.getLogger(HazelcastTargetPdkBaseNode.class);
 	protected Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
 	private AtomicBoolean firstBatchEvent = new AtomicBoolean();
@@ -86,8 +86,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		return thread;
 	});
 	private boolean inCdc = false;
-	private int targetBatch;
-	private long targetBatchIntervalMs;
+	protected int targetBatch;
+	protected long targetBatchIntervalMs;
 	private TargetTapEventFilter targetTapEventFilter;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {

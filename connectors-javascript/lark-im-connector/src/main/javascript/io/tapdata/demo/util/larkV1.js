@@ -98,7 +98,7 @@ class larkSendMsg {
 
     sendHttp(sendData, historyData) {
         let writeResult = invoker.invoke("flyBookSendMessage", sendData);
-        if (writeResult.httpCode >= 200 || writeResult.httpCode < 300) {
+        if (writeResult.httpCode < 200 || writeResult.httpCode >= 300) {
             throw("A message failed to be sent. The following data was not sent successfully: " + JSON.stringify(historyData));
         }
         if (!this.checkParam(writeResult.result.code)) {

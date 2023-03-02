@@ -20,6 +20,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.net.URI;
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 import static io.tapdata.base.ConnectorBase.getStackString;
 import static io.tapdata.base.ConnectorBase.testItem;
@@ -40,18 +42,20 @@ public class TidbConnectionTest extends CommonDbTest {
     public static final String TAG = TidbConnectionTest.class.getSimpleName();
     private final TidbConfig tidbConfig;
     private KafkaConfig kafkaConfig;
-
     private final static String PB_SERVER_SUCCESS = "Check PDServer host port is valid";
-
     protected static final String CHECK_DATABASE_PRIVILEGES_SQL = "SHOW GRANTS FOR CURRENT_USER";
     protected static final String CHECK_DATABASE_BINLOG_STATUS_SQL = "SHOW GLOBAL VARIABLES where variable_name = 'log_bin' OR variable_name = 'binlog_format'";
     protected static final String CHECK_DATABASE_BINLOG_ROW_IMAGE_SQL = "SHOW VARIABLES LIKE '%binlog_row_image%'";
     protected static final String CHECK_CREATE_TABLE_PRIVILEGES_SQL = "SELECT count(1)\n" +
             "FROM INFORMATION_SCHEMA.USER_PRIVILEGES\n" +
             "WHERE GRANTEE LIKE '%%%s%%' and PRIVILEGE_TYPE = 'CREATE'";
+    protected static final  String CHECK_LOW_CREATE_TABLE_PRIVILEGES_SQL="SELECT count(1)\n" +
+            "FROM INFORMATION_SCHEMA.USER_PRIVILEGES\n" +
+            "WHERE GRANTEE LIKE '%%%s%%' and PRIVILEGE_TYPE = 'Create'";
+    protected static String CHECK_TIDB_VERSION ="SELECT VERSION()";
     private boolean cdcCapability;
     private final ConnectionOptions connectionOptions;
-
+    private String array[];
     public TidbConnectionTest(TidbConfig tidbConfig, Consumer<TestItem> consumer, ConnectionOptions connectionOptions) {
         super(tidbConfig, consumer);
         this.tidbConfig = tidbConfig;
@@ -66,6 +70,7 @@ public class TidbConnectionTest extends CommonDbTest {
     @Override
     public Boolean testOneByOne() {
         testFunctionMap.put("testPbserver", this::testPbserver);
+        testFunctionMap.put("testVersion", this::testVersion);
         if (!ConnectionTypeEnum.SOURCE.getType().equals(commonDbConfig.get__connectionType())) {
             testFunctionMap.put("testCreateTablePrivilege", this::testCreateTablePrivilege);
         }
@@ -200,11 +205,28 @@ public class TidbConnectionTest extends CommonDbTest {
         return WriteOrReadPrivilege("read");
     }
 
-    @Override
-    public Boolean testVersion() {
-        consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_SUCCESSFULLY));
-        return true;
-    }
+//    @Override
+//    public Boolean testVersion() {
+//        consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_SUCCESSFULLY));
+//        return true;
+//    }
+   @Override
+   public Boolean testVersion() {
+       AtomicReference<String> version = new AtomicReference<>();
+           try {
+               jdbcContext.query(CHECK_TIDB_VERSION, resultSet -> {
+                   while (resultSet.next()) {
+                     String versionMsg=  resultSet.getString(1);
+                     version.set(versionMsg);
+                   }
+               });
+                array=String.valueOf(version).split("-");
+               consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_SUCCESSFULLY,array[1]+"-"+array[2]));
+           } catch (Throwable e) {
+               consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_FAILED, e.getMessage()));
+           }
+       return  true;
+}
 
     public Boolean testCDCPrivileges() {
         AtomicReference<TestItem> testItem = new AtomicReference<>();
@@ -375,14 +397,24 @@ public class TidbConnectionTest extends CommonDbTest {
     }
 
     protected boolean checkMySqlCreateTablePrivilege(String username) throws Throwable {
-        AtomicBoolean result = new AtomicBoolean(true);
-        jdbcContext.query(String.format(CHECK_CREATE_TABLE_PRIVILEGES_SQL, username), resultSet -> {
-            while (resultSet.next()) {
-                if (resultSet.getInt(1) > 0) {
-                    result.set(false);
+           String sql = null;
+          AtomicBoolean result = new AtomicBoolean(true);
+          String versionMsg[]=array[2].split("v");
+          String version[]=versionMsg[1].split("\\.");
+          if (Integer.parseInt(version[0])==5){
+              if (Integer.parseInt(version[2])<4){
+                  sql=CHECK_LOW_CREATE_TABLE_PRIVILEGES_SQL; 
+              }
+          }else {
+              sql=CHECK_CREATE_TABLE_PRIVILEGES_SQL;
+          }
+            jdbcContext.query(String.format(sql, username), resultSet -> {
+                while (resultSet.next()) {
+                    if (resultSet.getInt(1) > 0) {
+                        result.set(false);
+                    }
                 }
-            }
-        });
+            });
         return result.get();
     }
 
