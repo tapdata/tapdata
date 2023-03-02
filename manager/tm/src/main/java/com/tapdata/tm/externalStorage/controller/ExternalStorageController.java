@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 
@@ -82,6 +83,22 @@ public class ExternalStorageController extends BaseController {
 			filter = new Filter();
 		}
 		return success(externalStorageService.find(filter, getLoginUser()));
+	}
+
+	@Operation(summary = "Find all instances of the model matched by filter from the data source")
+	@GetMapping("/list")
+	public ResponseMessage<Page<ExternalStorageDto>> list(
+			@Parameter(in = ParameterIn.QUERY,
+					description = "Filter defining fields, where, sort, skip, and limit - must be a JSON-encoded string (`{\"where\":{\"something\":\"value\"},\"fields\":{\"something\":true|false},\"sort\": [\"name desc\"],\"page\":1,\"size\":20}`)."
+			)
+			@RequestParam(value = "filter", required = false) String filterJson) {
+		Filter filter = parseFilter(filterJson);
+		if (filter == null) {
+			filter = new Filter();
+		}
+		Page<ExternalStorageDto> data = externalStorageService.find(filter, getLoginUser());
+		Optional.ofNullable(data.getItems()).ifPresent(list -> list.forEach(info -> info.setUri(info.maskUriPassword())));
+		return success(data);
 	}
 
 	/**

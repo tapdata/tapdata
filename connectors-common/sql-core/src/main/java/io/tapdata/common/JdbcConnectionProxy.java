@@ -61,7 +61,7 @@ public class JdbcConnectionProxy implements InvocationHandler {
 
         final int aliveCount = aliveConnectionCount.get(this.threadCallStackHashCode).get();
         if (aliveCount > 1 && aliveCount % 2 == 0) {
-          TapLogger.warn(TAG, "Alive jdbc connection threshold warning, alive count {}, call stack {}.", aliveCount, sb.toString());
+          TapLogger.debug(TAG, "Alive jdbc connection threshold warning, alive count {}, call stack {}.", aliveCount, sb.toString());
         }
       }
     }

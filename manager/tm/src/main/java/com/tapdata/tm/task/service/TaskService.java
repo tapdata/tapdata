@@ -109,11 +109,11 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
+import java.text.MessageFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
@@ -820,9 +820,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //add message
         if (SyncType.MIGRATE.getValue().equals(taskDto.getSyncType())) {
-            messageService.addMigration(taskDto.getName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, Level.WARN, user);
+            messageService.addMigration(taskDto.getDeleteName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, Level.WARN, user);
         } else if (SyncType.SYNC.getValue().equals(taskDto.getSyncType())) {
-            messageService.addSync(taskDto.getName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, "", Level.WARN, user);
+            messageService.addSync(taskDto.getDeleteName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, "", Level.WARN, user);
         }
 
         try {
@@ -1611,19 +1611,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         shareCacheVo.setFields((List<String>) sourceNode.getAttrs().get("fields"));
                     }
 
-//                    MeasurementEntity measurementEntity = measurementService.findByTaskIdAndNodeId(taskDto.getId().toString(), sourceNode.getId());
-//                    if (null != measurementEntity && null != measurementEntity.getStatistics() && null != measurementEntity.getStatistics().get("cdcTime")) {
-//                        Map<String, Number> statistics = measurementEntity.getStatistics();
-//                        //cdc 值为integer or long 需要处理，cdcTime   也可能为0 需要处理
-//                        Number cdcTime = statistics.get("cdcTime");
-//                        Date cdcTimeDate = null;
-//                        if (cdcTime instanceof Integer) {
-//                            cdcTimeDate = new Date(cdcTime.longValue());
-//                        } else if (cdcTime instanceof Long) {
-//                            cdcTimeDate = new Date((Long) cdcTime);
-//                        }
-//                        shareCacheVo.setCacheTimeAt(cdcTimeDate);
-//                    }
+                    if (taskDto.getCurrentEventTimestamp() != null) {
+                        shareCacheVo.setCacheTimeAt(new Date(taskDto.getCurrentEventTimestamp()));
+                    }
                 }
 
                 CacheNode cacheNode = (CacheNode) getTargetNode(taskDto);
@@ -1664,6 +1654,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         shareCacheDetailVo.setMaxRows(targetNode.getMaxRows());
         shareCacheDetailVo.setMaxMemory(targetNode.getMaxMemory());
         shareCacheDetailVo.setTtl(TimeUtil.parseSecondsToDay(targetNode.getTtl()));
+        shareCacheDetailVo.setExternalStorageId(targetNode.getExternalStorageId());
 
         return shareCacheDetailVo;
     }
@@ -1703,6 +1694,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             tableNode.setType("table");
             tableNode.setDatabaseType((String) sourceNodeMap.get("databaseType"));
             tableNode.setConnectionId((String) sourceNodeMap.get("connectionId"));
+            tableNode.setName(tableNode.getConnectionId() + "-" + tableNode.getTableName());
 
             Map<String, Object> attrs = new HashMap();
             if (null != sourceNodeMap.get("attrs")) {
@@ -1729,6 +1721,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             cacheNode.setId(targetId);
             cacheNode.setFields((List<String>) attrs.get("fields"));
             cacheNode.setCacheName(saveShareCacheParam.getName());
+            cacheNode.setName(cacheNode.getCacheName());
 
             List<Node> nodes = new ArrayList<>();
             nodes.add(tableNode);
@@ -2756,6 +2749,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
             if (DataSyncMq.OP_TYPE_DELETE.equals(opType)) {
                 update.set("name", taskDto.getName() + "_" + nameSuffix);
+                update.set("deleteName", taskDto.getName());
             }
             this.update(new Query(Criteria.where("id").is(taskDto.getId())), update);
 

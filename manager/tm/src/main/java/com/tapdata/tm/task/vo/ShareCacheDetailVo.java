@@ -27,4 +27,6 @@ public class ShareCacheDetailVo extends BaseVo {
   private Long maxRows;
   private Integer maxMemory;
 
+  private String externalStorageId;
+
 }

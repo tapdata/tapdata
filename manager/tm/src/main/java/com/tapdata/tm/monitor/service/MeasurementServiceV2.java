@@ -143,25 +143,7 @@ public class MeasurementServiceV2 {
     }
 
     private Sample supplyKeyData(Sample requestSample, Map<String, Number> data, Map<String, Number> requestMap) {
-        List<String> list = Lists.newArrayList("currentSnapshotTableInsertRowTotal", "timeCostAvg", "targetWriteTimeCostAvg", "replicateLag",
-                "inputDdlTotal",
-                "inputDeleteTotal",
-                "inputInsertTotal",
-                "inputOthersTotal",
-                "inputUpdateTotal",
-                "outputDdlTotal",
-                "outputDeleteTotal",
-                "outputInsertTotal",
-                "outputOthersTotal",
-                "outputUpdateTotal",
-                "snapshotDoneAt",
-                "snapshotInsertRowTotal",
-                "snapshotRowTotal",
-                "snapshotSourceReadTimeCostAvg",
-                "snapshotStartAt",
-                "snapshotTableTotal",
-                "tableTotal"
-        );
+        List<String> list = Lists.newArrayList( "timeCostAvg", "targetWriteTimeCostAvg", "replicateLag");
 
         for (String key : list) {
             Number value = data.get(key);

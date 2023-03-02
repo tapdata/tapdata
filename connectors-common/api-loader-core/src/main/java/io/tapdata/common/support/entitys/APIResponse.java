@@ -8,7 +8,6 @@ public class APIResponse implements Serializable {
     public Map<String, Object> result;
     public int httpCode;
     public Map<String, Object> headers;
-    public Map<String,Object> error;
 
     public static APIResponse create(){
         return new APIResponse();
@@ -45,14 +44,6 @@ public class APIResponse implements Serializable {
         this.headers = headers;
         return this;
     }
-    public Map<String,Object> error(){
-        return this.error;
-    }
-    public APIResponse error(Map<String, Object> error){
-        this.error = error;
-        return this;
-    }
-
     public Map<String, Object> getResult() {
         return result;
     }
@@ -77,11 +68,4 @@ public class APIResponse implements Serializable {
         this.headers = headers;
     }
 
-    public Map<String, Object> getError() {
-        return error;
-    }
-
-    public void setError(Map<String, Object> error) {
-        this.error = error;
-    }
 }

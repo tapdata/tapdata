@@ -122,3 +122,4 @@ null/
 
 .agentSingletonLock
 fileObserveLogAppenderV2/
+**/pluginKit.properties

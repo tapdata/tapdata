@@ -44,6 +44,9 @@ public class NodeException extends FlowEngineException {
 		if (null == this.events) {
 			this.events = new ArrayList<>();
 		}
+		if (null == events) {
+			return this;
+		}
 		for (TapEvent event : events) {
 			if (null == event) {
 				continue;

@@ -2,13 +2,24 @@ package io.tapdata.construct.constructImpl;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.persistence.PersistenceStorage;
+import com.hazelcast.ringbuffer.OverflowPolicy;
 import com.hazelcast.ringbuffer.Ringbuffer;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.construct.ConstructIterator;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
+import io.tapdata.pdk.core.utils.CommonUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 
 /**
  * @author samuel
@@ -16,14 +27,18 @@ import java.util.Map;
  * @create 2022-02-07 11:11
  **/
 public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> {
-
+	private final static Logger logger = LogManager.getLogger(ConstructRingBuffer.class);
 	public final static String SEQUENCE_KEY = "sequence";
-
-	private Ringbuffer<Document> ringbuffer;
+	private final Ringbuffer<Document> ringbuffer;
 
 	public ConstructRingBuffer(HazelcastInstance hazelcastInstance, String name) {
 		super(name);
 		this.ringbuffer = hazelcastInstance.getRingbuffer(name);
+		long headSequence = this.ringbuffer.headSequence();
+		long tailSequence = this.ringbuffer.tailSequence();
+		if (logger.isDebugEnabled()) {
+			logger.debug("Create construct ringbuffer succeed. Name: {}, head: {}, tail: {}", this.ringbuffer.getName(), headSequence, tailSequence);
+		}
 	}
 
 	public ConstructRingBuffer(HazelcastInstance hazelcastInstance, String name, ExternalStorageDto externalStorageDto) {
@@ -84,6 +99,32 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> {
 	}
 
 	@Override
+	public long insertMany(List<T> data, Predicate<Void> stop) throws Exception {
+		if (null == this.ringbuffer) {
+			return 0;
+		}
+		AtomicLong count = new AtomicLong();
+		AtomicReference<RuntimeException> error = new AtomicReference<>();
+		CountDownLatch countDownLatch = new CountDownLatch(1);
+		this.ringbuffer.addAllAsync(data, OverflowPolicy.OVERWRITE)
+				.whenComplete((c, err) -> {
+					try {
+						if (null != err) {
+							error.set(new RuntimeException(err));
+						}
+						count.set(c);
+					} finally {
+						countDownLatch.countDown();
+					}
+				});
+		CommonUtils.countDownAwait(stop, countDownLatch);
+		if (null != error.get()) {
+			throw error.get();
+		}
+		return count.get();
+	}
+
+	@Override
 	public String getName() {
 		return this.ringbuffer.getName();
 	}
@@ -115,6 +156,32 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> {
 		}
 
 		@Override
+		public List<E> tryNextMany(int maxCount, Predicate<Void> stop) {
+			if (!hasNext()) {
+				return null;
+			}
+			CountDownLatch countDownLatch = new CountDownLatch(1);
+			AtomicReference<RuntimeException> err = new AtomicReference<>();
+			List<E> list = new ArrayList<>();
+			ringbuffer.readManyAsync(sequence, 1, maxCount, null)
+					.whenComplete((rs, throwable) -> {
+						try {
+							if (null != throwable) {
+								err.set(new RuntimeException(String.format("Read ring buffer many async failed, start sequence: %s, min count: %s, max count: %s", sequence, 1, maxCount), throwable));
+							}
+							rs.forEach(list::add);
+						} finally {
+							countDownLatch.countDown();
+						}
+					});
+			CommonUtils.countDownAwait(stop, countDownLatch);
+			if (null != err.get()) {
+				throw err.get();
+			}
+			return list;
+		}
+
+		@Override
 		public boolean hasNext() {
 			long tailSequence = ringbuffer.tailSequence();
 			return sequence <= tailSequence;
@@ -126,6 +193,27 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> {
 			try {
 				e = ringbuffer.readOne(sequence < 0 ? 0 : sequence);
 			} catch (InterruptedException ignore) {
+			}
+			return e;
+		}
+
+		@Override
+		public E peek(long timeout, TimeUnit timeUnit) {
+			long endTs = System.currentTimeMillis() + timeUnit.toMillis(timeout);
+			E e;
+			while (true) {
+				e = peek();
+				if (null != e) {
+					break;
+				}
+				if (System.currentTimeMillis() > endTs) {
+					break;
+				}
+				try {
+					TimeUnit.MILLISECONDS.sleep(10L);
+				} catch (InterruptedException ignored) {
+					break;
+				}
 			}
 			return e;
 		}

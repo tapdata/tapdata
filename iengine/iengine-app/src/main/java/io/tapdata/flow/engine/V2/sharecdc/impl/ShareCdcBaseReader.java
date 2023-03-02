@@ -118,6 +118,7 @@ public class ShareCdcBaseReader implements ShareCdcReader {
 			if (firstEvent.compareAndSet(false, true)) {
 				TapEvent tapEvent = shareCDCReaderEvent.getTapEvent();
 				logger.info("Received first log\n - op: " + TapEventUtil.getOp(tapEvent)
+						+ "\n - table: " + TapEventUtil.getTableId(tapEvent)
 						+ "\n - timestamp: " + TapEventUtil.getTimestamp(tapEvent)
 						+ "\n - time string: " + Instant.ofEpochMilli(TapEventUtil.getTimestamp(tapEvent))
 						+ "\n - offset: " + shareCDCReaderEvent.getOffsetObj()
@@ -128,7 +129,7 @@ public class ShareCdcBaseReader implements ShareCdcReader {
 		}
 	}
 
-	protected void logDocumentVerify(Document document) {
+	protected static void logDocumentVerify(Document document) {
 		if (null == document) {
 			throw new IllegalArgumentException("Document is null");
 		}
@@ -140,7 +141,7 @@ public class ShareCdcBaseReader implements ShareCdcReader {
 			missingField.add("offsetString");
 		}
 		if (CollectionUtils.isNotEmpty(missingField)) {
-			throw new IllegalArgumentException("Log data unusable, missing field: " + String.join(",", missingField));
+			throw new IllegalArgumentException("Log data unusable, missing field: " + String.join(",", missingField) + ", document: " + document);
 		}
 	}
 
