@@ -17,6 +17,7 @@
           "x-decorator": "FormItem",
           "x-component": "AsyncSelect",
           "x-component-props": {
+            "filterable": true,
             "method": "{{loadCommandList}}",
             "params": "{{ {$values: $values, command: \"getUserRepos\"} }}"
           },
@@ -53,7 +54,7 @@
               "title": "",
               "x-index": 20,
               "x-component-props": {
-                "onClick": "{{useAsyncDataSourceByConfig({service: goToAuthorized, withoutField: true}, { target: 'https://redirect.tapdata.io/oauth/complete', pdkId: 'github', oauthUrl: 'https://github.com/login/oauth/authorize?client_id=Iv1.cb38266944261353&redirect_uri=https%3A%2F%2Fredirect.tapdata.io%2Foauth%2Fcomplete%2Fgithub&state=1' })}}"
+                "onClick": "{{useAsyncDataSourceByConfig({service: goToAuthorized, withoutField: true}, { target: 'https://redirect.tapdata.io/oauth/complete', pdkId: 'github', oauthUrl: 'https://github.com/login/oauth/authorize?scope=user repo public_repo read:project read:user read:org&client_id=3befd8286de3bc48e082&redirect_uri=https%3A%2F%2Fredirect.tapdata.io%2Foauth%2Fcomplete%2Fgithub&state=1' })}}"
               },
               "x-decorator-props":{"style":{"width":"120px"}}
             },
@@ -66,7 +67,7 @@
               "x-index": 400,
               "required": true,
               "x-component-props": {
-                "content": "{{$values.code ? '${OAuthButtonTitle} OK' : '${OAuthButtonTitle} please OAuth'}}",
+                "content": "{{$values.code ? '${OAuthButtonOK}' : '${OAuthButton}'}}",
                 "style": {"color": "{{ $values.code ? 'green' : 'red' }}"}
               }
             }
@@ -82,21 +83,27 @@
       "owner": "GitHub owner",
       "repo": "GitHub repo",
       "code": "Grant Token",
-      "OAuthButtonTitle": "Grant Token"
+      "OAuthButtonTitle": "Grant Token",
+      "OAuthButton": "Must be successfully authorized to save",
+      "OAuthButtonOK": "Authorization successful"
     },
     "zh_CN": {
       "doc": "doc/demo_zh_CN.md",
       "owner": "GitHub owner",
       "repo": "GitHub repo",
       "code": "授予令牌",
-      "OAuthButtonTitle": "授予令牌"
+      "OAuthButtonTitle": "授予令牌",
+      "OAuthButton": "必须要成功授权才能保存",
+      "OAuthButtonOK": "成功授予"
     },
     "zh_TW": {
       "doc": "doc/demo_zh_TW.md",
       "owner": "GitHub owner",
       "repo": "GitHub repo",
       "code": "授予權杖",
-      "OAuthButtonTitle": "授予權杖"
+      "OAuthButtonTitle": "授予權杖",
+      "OAuthButton": "必須要成功授權才能保存",
+      "OAuthButtonOK": "成功授予"
     }
   }
 }

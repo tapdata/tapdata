@@ -31,7 +31,9 @@ function discoverSchema(connectionConfig) {
             'id':{
                 'type':'Number',
                 'comment':'',
-                'nullable':false
+                'nullable':false,
+                'isPrimaryKey':true,
+                'primaryKeyPos':1
             },
             'node_id':{
                 'type':'String',
@@ -253,22 +255,22 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
     for(let x in tableNameList) {
       let tableName = tableNameList[x];
       let isFirst = false;
+        log.warn('-----offset:'+offset[tableName]);
       if(!offset[tableName]){
         offset[tableName] = {tableName:tableName, page: 1, Conditions:[{Key: 'UPDATED_AT',Value: batchStart + '_' + dateUtils.nowDate()}]} ;
         isFirst = true;
       }
+      log.warn('-----offset:'+JSON.stringify(offset[tableName]));
+      log.warn('-----isFirst:'+isFirst);
+        offset[tableName].page = 1;
         let condition = arrayUtils.firstElement(offset[tableName].Conditions);
         offset[tableName].Conditions = [{Key:"UPDATED_AT",Value: isParam(condition) && null != condition ? arrayUtils.firstElement(condition.Value.split('_')) + '_' + dateUtils.nowDate(): batchStart + '_' + dateUtils.nowDate()}];
         if(isFirst){
-        offset[tableName]['since'] = dateUtils.timeStamp2Date((startTime.getTime() - 60000)+"", "yyyy-MM-dd'T'HH:mm:ssXXX");
+        offset[tableName]['since'] = new Date(startTime.getTime() - 61000).toISOString();
         } else {
-        offset[tableName]['since'] = dateUtils.timeStamp2Date((new Date().getTime() - 60000)+"", "yyyy-MM-dd'T'HH:mm:ssXXX");
+        offset[tableName]['since'] = new Date(new Date().getTime() - 61000).toISOString();
         }
         iterateAllData('issues', offset[tableName], (result, offsetNext, error) => {
-            // if(error){
-            //     log.error(error);
-            //     throw(error);
-            // }
             let haveNext = false;
             if(result && result !== ''){
                 if(result && result.length > 0){
@@ -283,6 +285,7 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
                     return false
                 }
             } else{
+                offsetNext.page = 1;
                 return false
             }
             return isAlive() && haveNext;
@@ -291,8 +294,8 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
 }
 
 let clientInfo = {
-    "client_id": "Iv1.cb38266944261353",
-    "client_secret": "a04776e494712e0a73e80b80367bd37ebbc7626b"
+    "client_id": "3befd8286de3bc48e082",// "Iv1.cb38266944261353",
+    "client_secret": "d522f8f32f41147f64ef5b3d7ceffe1a3750cf44"//"a04776e494712e0a73e80b80367bd37ebbc7626b"
 }
 /**
  * @return The returned result is not empty and must be in the following form:
@@ -308,25 +311,32 @@ let clientInfo = {
  * */
 function connectionTest(connectionConfig) {
     try {
-        let getToken = invoker.invokeWithoutIntercept("refreshToken", clientInfo);
-        if (getToken && getToken.result && getToken.result.access_token) {
-            return [{
-                "TEST": "Test Connection",
-                "CODE": 1,
-                "RESULT": "Pass"
-            }];
+        let res = [];
+        let userRepos = invoker.invoke("getUserRepos", {});
+        if (userRepos && userRepos.result) {
+            res.push({
+                "test": "Test Authorization",
+                "code": 1,
+                "result": "Pass"
+            });
+            res.push({
+                "test": "Get User Repos",
+                "code": 1,
+                "result": "Pass"
+            })
         } else {
-            return [{
-                "TEST": "Test Connection",
-                "CODE": -1,
-                "RESULT": getToken.result
-            }]
+            res.push({
+                "test": "Get User Repos",
+                "code": 1,
+                "result": "Error"
+            })
         }
+        return res;
     } catch (e) {
         return [{
-            "TEST": "Test Connection",
-            "CODE": -1,
-            "RESULT": e
+            "test": "Test Connection",
+            "code": -1,
+            "result": e
         }]
         log.warn(e)
     }
@@ -341,28 +351,40 @@ function connectionTest(connectionConfig) {
  * */
 function commandCallback(connectionConfig, nodeConfig, commandInfo) {
     if (commandInfo.command === 'OAuth'){
-        let getToken = invoker.invokeWithoutIntercept("getToken",clientInfo);
-        log.warn('getToken:',JSON.stringify(getToken))
+        let obj = {code:connectionConfig.code};
+        Object.assign(obj,clientInfo)
+        let getToken = invoker.invokeWithoutIntercept("getToken",obj);
         if(getToken.result){
             connectionConfig.access_token = getToken.result.access_token;
-            connectionConfig.refresh_token = getToken.result.refresh_token;
         }
         return connectionConfig;
     }
     if (commandInfo.command === 'getUserRepos') {
-        let res = invoker.invoke("getUserRepos",{});
-        log.warn('res'+res);
-        log.warn('res.result'+JSON.stringify(res.result));
-        if (res && res.result) {
-            return {
-                "items": arrayUtils.convertList(res.result, {'full_name':'label', 'full_name':'value'}),
-                "page": 1,
-                "size": res.result.length,
-                "total": res.result.length
-            };
-        }else{
-            return {}
+        let rs = [];
+        let page = 1;
+        while(true){
+            let res = invoker.invoke("getUserRepos",{page:page,access_token:connectionConfig.access_token});
+            if(res && res.result && res.result.length > 0){
+                for(let x in res.result){
+                    if(commandInfo.args && commandInfo.args.key && commandInfo.args.key !== ''){
+                        if(res.result[x].full_name.includes(commandInfo.args.key)){
+                            rs.push(res.result[x])
+                        }
+                    }else{
+                        rs.push(res.result[x])
+                    }
+                }
+                page++;
+            }else{
+                break;
+            }
         }
+        return {
+            "items": arrayUtils.convertList(rs, {'full_name':'label', 'full_name':'value'}),
+            "page": 1,
+            "size": rs.length,
+            "total": rs.length
+        };
     }
 }
 
@@ -382,12 +404,9 @@ function commandCallback(connectionConfig, nodeConfig, commandInfo) {
  *      - {"key":"value",...} : Type is Object and has key-value ,  At this point, these values will be used to call the interface again after the results are returned.
  * */
 function updateToken(connectionConfig, nodeConfig, apiResponse) {
-log.warn("apiResponse:{}",apiResponse);
-    log.warn("apiResponse.result.message:{}",apiResponse.result.message);
+    return;
     if (apiResponse.httpCode === 401 || (apiResponse.result && apiResponse.result.message === 'Requires authentication')) {
         try{
-            connectionConfig.client_id = '4e38022897004168c117';
-            connectionConfig.client_secret = '24961f78b13d5611c05dac6b8f06a1fd454bd431';
             log.warn("connectionConfig:{}",connectionConfig);
             let getToken = invoker.invokeWithoutIntercept("refreshToken",clientInfo);
 
