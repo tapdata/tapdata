@@ -38,7 +38,7 @@ public class ApplicationDto extends BaseDto {
     private Object responseTypes;
     private String clientSecret;
     private List scopes;
-    private String redirectUris;
+    private List<String> redirectUris;
     private Boolean showMenu;
 
 }

@@ -41,7 +41,6 @@ public class BaseUpdateTokenFunction extends FunctionBase implements FunctionSup
         responseData.put("result",response.result().get("data"));
         responseData.put("headers",response.headers());
         responseData.put("httpCode",response.httpCode());
-        responseData.put("error",response.error());
         Object invoker;
         synchronized (JSConnector.execLock) {
             invoker = super.javaScripter.invoker(

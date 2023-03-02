@@ -52,6 +52,7 @@ import com.tapdata.tm.libSupported.repository.LibSupportedsRepository;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.task.service.LogCollectorService;
 import com.tapdata.tm.typemappings.constant.TypeMappingDirection;
 import com.tapdata.tm.typemappings.entity.TypeMappingsEntity;
 import com.tapdata.tm.typemappings.service.TypeMappingsService;
@@ -148,6 +149,9 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	@Autowired
 	private TypeMappingsService typeMappingsService;
 
+	@Autowired
+	private LogCollectorService logCollectorService;
+
 	public DataSourceService(@NonNull DataSourceRepository repository) {
 		super(repository, DataSourceConnectionDto.class, DataSourceEntity.class);
 	}
@@ -219,13 +223,24 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			}
 		}
 		Map<String, Object> config = updateDto.getConfig();
-		if (oldConnection != null && Objects.nonNull(config)) {
-
-			Map<String, Object> dataConfig = oldConnection.getConfig();
-			if (dataConfig.containsKey("password") && !config.containsKey("password")) {
-				config.put("password", dataConfig.get("password"));
-			} else if (dataConfig.containsKey("mqPassword") && !config.containsKey("mqPassword")) {
-				config.put("mqPassword", dataConfig.get("mqPassword"));
+		if (oldConnection != null) {
+			if ((StringUtils.isNotBlank(updateDto.getShareCDCExternalStorageId())
+					&& !updateDto.getShareCDCExternalStorageId().equals(oldConnection.getShareCDCExternalStorageId()))
+			|| (StringUtils.isNotBlank(oldConnection.getShareCDCExternalStorageId())
+					&& !oldConnection.getShareCDCExternalStorageId().equals(updateDto.getShareCDCExternalStorageId()))) {
+				//查询当前数据源存在的运行中的任务，存在则不允许修改，给出报错。
+				Boolean canUpdate = logCollectorService.checkUpdateConfig(updateDto.getId().toHexString(), user);
+				if (!canUpdate) {
+					throw new BizException("LogCollect.ExternalStorageUpdateError");
+				}
+			}
+			if (Objects.nonNull(config)) {
+				Map<String, Object> dataConfig = oldConnection.getConfig();
+				if (dataConfig.containsKey("password") && !config.containsKey("password")) {
+					config.put("password", dataConfig.get("password"));
+				} else if (dataConfig.containsKey("mqPassword") && !config.containsKey("mqPassword")) {
+					config.put("mqPassword", dataConfig.get("mqPassword"));
+				}
 			}
 		}
 

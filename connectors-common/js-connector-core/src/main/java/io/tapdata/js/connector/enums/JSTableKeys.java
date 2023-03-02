@@ -10,6 +10,7 @@ public class JSTableKeys {
     public static final String TABLE_FIELD_DEFAULT_VALUE = "default";
     public static final String TABLE_FIELD_NULLABLE = "nullable";
     public static final String TABLE_FIELD_PRIMARY_KEY = "isPrimaryKey";
+    public static final String TABLE_FIELD_PRIMARY_POS_KEY = "primaryKeyPos";
     public static final String TABLE_FIELD_AUTO_INC = "autoInc";
     public static final String TABLE_FIELD_COMMENT = "comment";
 }
