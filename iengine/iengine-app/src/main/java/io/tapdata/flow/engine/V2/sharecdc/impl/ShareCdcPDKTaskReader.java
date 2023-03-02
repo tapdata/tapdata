@@ -154,7 +154,8 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 						LogContent logContent = JSONUtil.map2POJO(firstLogDocument, new TypeReference<LogContent>() {
 						});
 						// First data's timestamp in storage must be lte task start cdc timestamp
-						if (logContent.getTimestamp() > this.shareCdcContext.getCdcStartTs()) {
+						if (logContent.getType().equals(LogContent.LogContentType.DATA.name())
+								&& logContent.getTimestamp() > this.shareCdcContext.getCdcStartTs()) {
 							throw new ShareCdcUnsupportedException("Log storage[" + tableName + "] detected unusable, first log timestamp("
 									+ Instant.ofEpochMilli(logContent.getTimestamp()) + ") is greater than task cdc start timestamp("
 									+ Instant.ofEpochMilli(this.shareCdcContext.getCdcStartTs()) + ")", false);
@@ -258,74 +259,82 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			Thread.currentThread().setName(THREAD_NAME_PREFIX + "-" + taskDto.getName() + "-" + index);
 			this.running = new AtomicBoolean(true);
 			logger.info(logWrapper("Starting read log from hazelcast construct, tables: " + tableNames));
-			while (this.running.get()) {
-				for (String tableName : tableNames) {
-					HazelcastConstruct<Document> construct = readerResourceMap.get(tableName).construct;
-					if (null == readerResourceMap.get(tableName).sequence) {
-						try {
-							// Find first sequence by timestamp
-							if (null == this.shareCdcContext.getCdcStartTs()) {
-								throw new RuntimeException("Cannot found table[" + tableName + "] share cdc start time from sync progress");
+			try {
+				while (this.running.get()) {
+					for (String tableName : tableNames) {
+						HazelcastConstruct<Document> construct = readerResourceMap.get(tableName).construct;
+						if (null == readerResourceMap.get(tableName).sequence) {
+							try {
+								// Find first sequence by timestamp
+								if (null == this.shareCdcContext.getCdcStartTs()) {
+									throw new RuntimeException("Cannot found table[" + tableName + "] share cdc start time from sync progress");
+								}
+								long sequenceFindByTs = construct.findSequence(this.shareCdcContext.getCdcStartTs());
+								readerResourceMap.get(tableName).sequence(sequenceFindByTs);
+								sequenceMap.put(tableName, sequenceFindByTs);
+								logger.info(logWrapper("Find sequence in construct(" + tableName + ") by timestamp(" + Instant.ofEpochMilli(this.shareCdcContext.getCdcStartTs()) + "): " + sequenceFindByTs));
+							} catch (Exception e) {
+								String err = "Find sequence by timestamp failed, timestamp: " + this.shareCdcContext.getCdcStartTs() + "; Error: " + e.getMessage();
+								handleFailed(err, e);
+								return;
 							}
-							long sequenceFindByTs = construct.findSequence(this.shareCdcContext.getCdcStartTs());
-							readerResourceMap.get(tableName).sequence(sequenceFindByTs);
-							sequenceMap.put(tableName, sequenceFindByTs);
-							logger.info(logWrapper("Find sequence in construct(" + tableName + ") by timestamp(" + Instant.ofEpochMilli(this.shareCdcContext.getCdcStartTs()) + "): " + sequenceFindByTs));
-						} catch (Exception e) {
-							String err = "Find sequence by timestamp failed, timestamp: " + this.shareCdcContext.getCdcStartTs() + "; Error: " + e.getMessage();
-							handleFailed(err, e);
-							return;
 						}
-					}
-					if (readerResourceMap.get(tableName).firstTime) {
-						readerResourceMap.get(tableName).firstTime = false;
-						logger.info(logWrapper("Starting read '{}' log, sequence: {}"), tableName, readerResourceMap.get(tableName).sequence);
-					}
-					// Find hazelcast construct iterator
-					Map<String, Object> filter = new HashMap<>();
-					filter.put(ConstructRingBuffer.SEQUENCE_KEY, readerResourceMap.get(tableName).sequence);
-					ConstructIterator<Document> iterator;
-					if (null == readerResourceMap.get(tableName).iterator) {
-						try {
-							iterator = construct.find(filter);
-							readerResourceMap.get(tableName).iterator = iterator;
-							logger.info(logWrapper("Find by " + tableName + " filter: " + filter));
-						} catch (Exception e) {
-							String err = "Find from hazelcast construct " + construct.getClass().getName() + " failed, filter: " + filter + "; Error: " + e.getMessage();
+						if (readerResourceMap.get(tableName).firstTime) {
+							readerResourceMap.get(tableName).firstTime = false;
+							logger.info(logWrapper("Starting read '{}' log, sequence: {}"), tableName, readerResourceMap.get(tableName).sequence);
+						}
+						// Find hazelcast construct iterator
+						Map<String, Object> filter = new HashMap<>();
+						filter.put(ConstructRingBuffer.SEQUENCE_KEY, readerResourceMap.get(tableName).sequence);
+						ConstructIterator<Document> iterator;
+						if (null == readerResourceMap.get(tableName).iterator) {
+							try {
+								iterator = construct.find(filter);
+								readerResourceMap.get(tableName).iterator = iterator;
+								logger.info(logWrapper("Find by " + tableName + " filter: " + filter));
+							} catch (Exception e) {
+								String err = "Find from hazelcast construct " + construct.getClass().getName() + " failed, filter: " + filter + "; Error: " + e.getMessage();
+								handleFailed(err);
+								return;
+							}
+						}
+						iterator = readerResourceMap.get(tableName).iterator;
+						if (iterator == null) {
+							String err = "Find hazelcast construct " + construct.getClass().getName() + " failed, iterator result is null, filter: " + filter;
 							handleFailed(err);
 							return;
 						}
-					}
-					iterator = readerResourceMap.get(tableName).iterator;
-					if (iterator == null) {
-						String err = "Find hazelcast construct " + construct.getClass().getName() + " failed, iterator result is null, filter: " + filter;
-						handleFailed(err);
-						return;
-					}
-					Document document = null;
+						Document document = null;
 
-					try {
-						document = iterator.tryNext();
-					} catch (DistributedObjectDestroyedException e) {
-						break;
-					} catch (Exception e) {
-						String err = "Find next failed. Last document: " + document;
-						handleFailed(err, e);
-						break;
-					}
-					if (logger.isDebugEnabled()) {
-						logger.debug("Received log document: " + document);
-					}
-					if (document == null) {
-						continue;
-					}
-					sequenceMap.put(tableName, iterator.getSequence());
-					enqueue(tapEventWrapper(document));
-					if (readerResourceMap.get(tableName).firstData) {
-						logger.info(logWrapper("Successfully read " + tableName + "'s first log data, will continue to read the log"));
-						readerResourceMap.get(tableName).firstData = false;
+						try {
+							document = iterator.tryNext();
+						} catch (DistributedObjectDestroyedException e) {
+							break;
+						} catch (Exception e) {
+							String err = "Find next failed. Last document: " + document;
+							handleFailed(err, e);
+							break;
+						}
+						if (logger.isDebugEnabled()) {
+							logger.debug("Received log document: " + document);
+						}
+						if (document == null) {
+							continue;
+						}
+						if (document.containsKey("type") && LogContent.LogContentType.SIGN.name().equals(document.getOrDefault("type", "").toString())) {
+							continue;
+						}
+						sequenceMap.put(tableName, iterator.getSequence());
+						enqueue(tapEventWrapper(document));
+						if (readerResourceMap.get(tableName).firstData) {
+							logger.info(logWrapper("Successfully read " + tableName + "'s first log data, will continue to read the log"));
+							readerResourceMap.get(tableName).firstData = false;
+						}
 					}
 				}
+			} catch (Exception e) {
+				String err = "Share cdc reader occur an unknown error";
+				handleFailed(err, e);
 			}
 		}
 
