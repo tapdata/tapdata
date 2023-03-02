@@ -43,6 +43,7 @@ public class TidbConnectionTest extends CommonDbTest {
     private final TidbConfig tidbConfig;
     private KafkaConfig kafkaConfig;
     private final static String PB_SERVER_SUCCESS = "Check PDServer host port is valid";
+    private final static String IC_CONFIGURATION_ENABLED = " Check  Incremental is enable";
     protected static final String CHECK_DATABASE_PRIVILEGES_SQL = "SHOW GRANTS FOR CURRENT_USER";
     protected static final String CHECK_DATABASE_BINLOG_STATUS_SQL = "SHOW GLOBAL VARIABLES where variable_name = 'log_bin' OR variable_name = 'binlog_format'";
     protected static final String CHECK_DATABASE_BINLOG_ROW_IMAGE_SQL = "SHOW VARIABLES LIKE '%binlog_row_image%'";
@@ -79,8 +80,10 @@ public class TidbConnectionTest extends CommonDbTest {
             TidbConfig tidbConfig = (TidbConfig) commonDbConfig;
             if (tidbConfig.getEnableIncrement()) {
                 testFunctionMap.put("testKafkaHostPort", this::testKafkaHostPort);
+                consumer.accept(testItem(IC_CONFIGURATION_ENABLED, TestItem.RESULT_SUCCESSFULLY,"Incremental configuration is enabled"));
+
             } else {
-                TapLogger.warn(TAG, "Incremental configuration is not enabled");
+                consumer.accept(testItem(IC_CONFIGURATION_ENABLED, TestItem.RESULT_SUCCESSFULLY_WITH_WARN,"Incremental configuration is not enabled"));
             }
         }
         return super.testOneByOne();
