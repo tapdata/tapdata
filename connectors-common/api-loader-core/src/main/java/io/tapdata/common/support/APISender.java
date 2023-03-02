@@ -10,6 +10,7 @@ public interface APISender {
     public default void send(Object data, String tableName, Object offset, boolean cacheAgoRecord) {
         this.send(data, tableName,offset);
     }
+    public void send(Object offset);
 
     public List<Object> covertList(Object obj, String tableName);
 }

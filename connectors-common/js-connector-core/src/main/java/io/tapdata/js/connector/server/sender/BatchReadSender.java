@@ -19,6 +19,11 @@ public class BatchReadSender implements APISender {
     }
 
     @Override
+    public void send(Object offset){
+        core.updateOffset(offset);
+    }
+
+    @Override
     public void send(Object data, String tableName, Object offset) {
         this.send(data, tableName, EventType.insert, offset);
     }
@@ -29,7 +34,11 @@ public class BatchReadSender implements APISender {
             TapLogger.warn(TAG, "ScriptCore can not be null or not be empty.");
             return;
         }
-        core.push(this.covertList(data, tableName), eventType, Optional.ofNullable(offset).orElse(new HashMap<>()));
+        if (Objects.isNull(data)){
+            core.updateOffset(offset);
+        }else {
+            core.push(this.covertList(data, tableName), eventType, Optional.ofNullable(offset).orElse(new HashMap<>()));
+        }
     }
 
     @Override
@@ -48,7 +57,14 @@ public class BatchReadSender implements APISender {
         } else if (obj instanceof Map) {
             list.add(EventType.defaultEventData(obj, tableName));
         } else {
-            throw new CoreException("");
+            throw new CoreException("Article record:  The event format is incorrect. Please use the following rules to organize the returned results :\n" +
+                    "{\n" +
+                    "\"eventType\": String('i/u/d'),\n" +
+                    " \"tableName\": String('example_table_name'), " +
+                    "\n\"beforeData\": {}," +
+                    "\n\"afterData\": {}," +
+                    "\n\"referenceTime\": Number(time_stamp)" +
+                    "}\n");
         }
         return list;
     }
