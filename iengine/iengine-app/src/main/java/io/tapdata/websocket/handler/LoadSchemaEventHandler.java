@@ -193,8 +193,13 @@ public class LoadSchemaEventHandler extends BaseEventHandler implements WebSocke
 							);
 							connIdTablesMap.put(connId, tapTables);
 						} finally {
-							if (null != connectionNode) PDKInvocationMonitor.invoke(connectionNode, PDKMethod.STOP
-									, connectionNode::connectorStop, LoadSchemaEventHandler.class.getSimpleName());
+							if (null != connectionNode) {
+								try {
+									PDKInvocationMonitor.invoke(connectionNode, PDKMethod.STOP, connectionNode::connectorStop, LoadSchemaEventHandler.class.getSimpleName());
+								} catch (Exception e) {
+									logger.warn("PDK ConnectionNode stop failed: {}", e.getMessage(), e);
+								}
+							}
 							PDKIntegration.releaseAssociateId(connection.getName() + "_" + connection.getUser_id());
 						}
 					}
