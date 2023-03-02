@@ -226,7 +226,7 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
                 offsetNext.page = offsetNext.page + 1;
                 haveNext = true;
             }
-            batchReadSender.send(result,tableName);
+            batchReadSender.send(result,tableName,offset);
             if(!haveNext){
                 return false
             }
@@ -280,7 +280,7 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
                     offsetNext.page = offsetNext.page + 1;
                     haveNext = true;
                 }
-                streamReadSender.send(result,tableName);
+                streamReadSender.send(result,tableName,offset);
                 if(!haveNext){
                     return false
                 }
