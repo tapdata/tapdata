@@ -85,8 +85,13 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
                 } catch (InterruptedException ignored) {
                 }
                 if (EmptyKit.isNotNull(message)) {
-                    eventList.add(message.getTapEvent());
                     lastContextMap = message.getContextMap();
+                    TapEvent tapEvent = message.getTapEvent();
+                    if (Objects.isNull(tapEvent)){
+                        contextMap.set(lastContextMap);
+                        continue;
+                    }
+                    eventList.add(tapEvent);
                     if (eventList.size() == batchCount) {
                         eventsOffsetConsumer.accept(eventList, lastContextMap);
                         eventList = new ArrayList<>();
