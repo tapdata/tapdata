@@ -19,22 +19,22 @@ public class BatchReadSender implements APISender {
     }
 
     @Override
-    public void send(Object data, String tableName) {
-        this.send(data, tableName, EventType.insert);
+    public void send(Object data, String tableName, Object offset) {
+        this.send(data, tableName, EventType.insert, offset);
     }
 
     @Override
-    public void send(Object data, String tableName, String eventType) {
+    public void send(Object data, String tableName, String eventType, Object offset) {
         if (Objects.isNull(core)) {
             TapLogger.warn(TAG, "ScriptCore can not be null or not be empty.");
             return;
         }
-        core.push(this.covertList(data, tableName), eventType, new HashMap<>());
+        core.push(this.covertList(data, tableName), eventType, Optional.ofNullable(offset).orElse(new HashMap<>()));
     }
 
     @Override
-    public void send(Object data, String tableName, boolean cacheAgoRecord) {
-        this.send(data, tableName);
+    public void send(Object data, String tableName, Object offset, boolean cacheAgoRecord) {
+        this.send(data, tableName, offset);
     }
 
     @Override

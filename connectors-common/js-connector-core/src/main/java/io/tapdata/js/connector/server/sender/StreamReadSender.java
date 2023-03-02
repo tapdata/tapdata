@@ -24,25 +24,25 @@ public class StreamReadSender implements APISender {
     }
 
     @Override
-    public void send(Object data, String tableName) {
-        this.send(data, tableName, EventType.insert);
+    public void send(Object data, String tableName, Object offset) {
+        this.send(data, tableName, EventType.insert, offset);
     }
 
     @Override
-    public void send(Object data, String tableName, String eventType) {
+    public void send(Object data, String tableName, String eventType, Object offset) {
         if (Objects.isNull(core)) {
             TapLogger.warn(TAG, "ScriptCore can not be null or not be empty.");
             return;
         }
         data = LoadJavaScripter.covertData(data);
-        core.push(this.covertList(data, tableName), eventType, new HashMap<>());
+        core.push(this.covertList(data, tableName), eventType, Optional.ofNullable(offset).orElse(new HashMap<>()));
     }
 
     Map<Integer, Object> cacheAgoData = new ConcurrentHashMap<>();
 
     @Override
-    public void send(Object data, String tableName, boolean cacheAgoRecord) {
-        if (!cacheAgoRecord) this.send(data, tableName);
+    public void send(Object data, String tableName, Object offset, boolean cacheAgoRecord) {
+        if (!cacheAgoRecord) this.send(data, tableName,offset);
         Collection<Object> listData;
         if (data instanceof Collection) {
             listData = (Collection<Object>) data;
@@ -57,7 +57,7 @@ public class StreamReadSender implements APISender {
         ).collect(Collectors.toList());
         cacheAgoData = new ConcurrentHashMap<>();
         newData.stream().filter(Objects::nonNull).forEach(item -> cacheAgoData.put(this.hashCode(item), item));
-        this.send(data, tableName);
+        this.send(data, tableName,offset);
     }
 
     private Integer hashCode(Object obj) {
