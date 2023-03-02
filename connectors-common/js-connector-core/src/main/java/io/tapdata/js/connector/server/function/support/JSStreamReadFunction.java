@@ -19,10 +19,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 
 import javax.script.ScriptEngine;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -65,7 +62,6 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
         scriptEngine.put("core", scriptCore);
         AtomicReference<Throwable> scriptException = new AtomicReference<>();
         StreamReadSender sender = new StreamReadSender().core(scriptCore);
-        final Object finalOffset = offsetState;
         Runnable runnable = () -> {
             try {
                 while (this.isAlive.get()) {
@@ -74,7 +70,7 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
                                 JSFunctionNames.StreamReadFunction.jsName(),
                                 Optional.ofNullable(nodeContext.getConnectionConfig()).orElse(new DataMap()),
                                 Optional.ofNullable(nodeContext.getNodeConfig()).orElse(new DataMap()),
-                                finalOffset,
+                                Optional.ofNullable(contextMap.get()).orElse(new HashMap<>()),
                                 tableList,
                                 recordSize,
                                 sender
