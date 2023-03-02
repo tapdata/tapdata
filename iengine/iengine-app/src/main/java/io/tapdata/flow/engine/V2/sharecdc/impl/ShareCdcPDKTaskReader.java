@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.sharecdc.impl;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.persistence.PersistenceStorage;
 import com.hazelcast.spi.exception.DistributedObjectDestroyedException;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.HazelcastUtil;
@@ -28,6 +29,7 @@ import io.tapdata.flow.engine.V2.sharecdc.ShareCdcContext;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
+import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.MapUtils;
@@ -144,11 +146,24 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 
 		// Get log collector external storage config
 		String shareCDCExternalStorageId = connections.getShareCDCExternalStorageId();
-		logCollectorExternalStorage = clientMongoOperator.findOne(Query.query(where("_id").is(shareCDCExternalStorageId)), ConnectorConstant.EXTERNAL_STORAGE_COLLECTION, ExternalStorageDto.class);
+		if (StringUtils.isBlank(shareCDCExternalStorageId)) {
+			logCollectorExternalStorage = ExternalStorageUtil.getDefaultExternalStorage();
+		} else {
+			logCollectorExternalStorage = clientMongoOperator.findOne(Query.query(where("_id").is(shareCDCExternalStorageId)), ConnectorConstant.EXTERNAL_STORAGE_COLLECTION, ExternalStorageDto.class);
+		}
+		if (null == logCollectorExternalStorage) {
+			logCollectorExternalStorage = ExternalStorageUtil.getDefaultExternalStorage();
+		}
 
 		// Do not start ttl here
 		logCollectorExternalStorage.setTtlDay(0);
 
+		// Check start point valid of each table
+		step = checkTableStartPointValid(step);
+		return step;
+	}
+
+	private int checkTableStartPointValid(int step) throws ShareCdcUnsupportedException {
 		logger.info(logWrapper(++step, "Check tables start point valid"));
 		for (String tableName : tableNames) {
 			ConstructRingBuffer<Document> constructRingBuffer = getConstruct(tableName);
@@ -159,12 +174,12 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				}
 				if (null != this.shareCdcContext.getCdcStartTs() && this.shareCdcContext.getCdcStartTs().compareTo(0L) > 0) {
 					ConstructIterator<Document> iterator = constructRingBuffer.find();
-					Document firstLogDocument = iterator.peek(3L, TimeUnit.SECONDS);
+					Document firstLogDocument = iterator.peek(15L, TimeUnit.SECONDS);
 					if (null != firstLogDocument) {
 						LogContent logContent = JSONUtil.map2POJO(firstLogDocument, new TypeReference<LogContent>() {
 						});
 						// First data's timestamp in storage must be lte task start cdc timestamp
-						if (logContent.getType().equals(LogContent.LogContentType.SIGN.name())
+						if (logContent.getType().equals(LogContent.LogContentType.DATA.name())
 								&& logContent.getTimestamp() > this.shareCdcContext.getCdcStartTs()) {
 							throw new ShareCdcUnsupportedException("Log storage[" + tableName + "] detected unusable, first log timestamp("
 									+ Instant.ofEpochMilli(logContent.getTimestamp()) + ") is greater than task cdc start timestamp("
@@ -238,6 +253,46 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			String err = "An internal error occurred, will close; Error: " + e.getMessage();
 			this.close();
 			throw new Exception(err, e);
+		}
+	}
+
+	private void readPreVersionData() {
+		ConstructRingBuffer<Document> ringBuffer = new ConstructRingBuffer<>(hazelcastInstance, ShareCdcUtil.getConstructName(this.logCollectorTaskDto));
+		if (ringBuffer.isEmpty()) {
+			return;
+		}
+		Long cdcStartTs = this.shareCdcContext.getCdcStartTs();
+		long sequence;
+		if (null != cdcStartTs && cdcStartTs.compareTo(0L) <= 0) {
+			sequence = PersistenceStorage.getInstance().findSequence(ringBuffer.getRingbuffer(), cdcStartTs);
+		} else {
+			return;
+		}
+		if (sequence < 0) {
+			return;
+		}
+		Map<String, Object> filter = new HashMap<>();
+		filter.put(ConstructRingBuffer.SEQUENCE_KEY, sequence);
+		ConstructIterator<Document> iterator;
+		try {
+			iterator = ringBuffer.find(filter);
+		} catch (Exception e) {
+			throw new RuntimeException(String.format("Find ringbuffer by sequence '%s' failed", sequence), e);
+		}
+		logger.info("Start read old version log data, name: {}, sequence: {}", ringBuffer.getName(), sequence);
+		while (this.running.get()) {
+			Document document = iterator.tryNext();
+			if (null == document) {
+				break;
+			}
+			if (!document.containsKey("fromTable")) {
+				continue;
+			}
+			String fromTable = document.getString("fromTable");
+			if (!tableNames.contains(fromTable)) {
+				continue;
+			}
+			enqueue(tapEventWrapper(document));
 		}
 	}
 
@@ -353,6 +408,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		}
 
 		public void close() {
+			this.running.compareAndSet(true, false);
 			CommonUtils.ignoreAnyError(() -> {
 				if (MapUtils.isNotEmpty(readerResourceMap)) {
 					readerResourceMap.values().forEach(r -> {
@@ -363,7 +419,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 					});
 				}
 			}, ReadRunner.class.getSimpleName());
-			this.running.compareAndSet(true, false);
 		}
 	}
 
