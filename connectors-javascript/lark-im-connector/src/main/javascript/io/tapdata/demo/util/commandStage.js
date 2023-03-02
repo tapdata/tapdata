@@ -71,8 +71,11 @@ class GetReceiverOfChatsAndUsers extends Command{
             // https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/contact-v3/department/children
             let departmentsData = invoker.invoke('GetSubDept',{"page_token": pageTokenDept}).result;
             hasMore = departmentsData.data.has_more;
-            dept.push(...departmentsData.data.items);
-            pageTokenDept = departmentsData.data.page_token;
+            let deptArr = departmentsData.data.items;
+            if ('undefined' !== deptArr && null != deptArr && deptArr.length >0) {
+                dept.push(...deptArr);
+                pageTokenDept = departmentsData.data.page_token;
+            }
         }while(isAlive() && hasMore)
         let users = [];
         // 2. 更具子部门获取部门员工
@@ -85,13 +88,14 @@ class GetReceiverOfChatsAndUsers extends Command{
                 let usersData = invoker.invoke('GetDeptUsers',{"departmentId":deptId,"page_token": pageToken}).result;
                 hasMore = usersData.data.has_more;
                 let userDataArr = usersData.data.items;
-                for (let i = 0 ;i < userDataArr.length; i++) {
-                    if (!isAlive()) break;
-                    let u = userDataArr[i];
-                    users.push({"value": u.open_id, "label": this.userNamePrefix + u.name});
-                    log.warn("Gavin-users : " + u.name);
+                if ('undefined' !== userDataArr && null != userDataArr && userDataArr.length >0) {
+                    for (let i = 0; i < userDataArr.length; i++) {
+                        if (!isAlive()) break;
+                        let u = userDataArr[i];
+                        users.push({"value": u.open_id, "label": this.userNamePrefix + u.name});
+                    }
+                    pageToken = usersData.data.page_token;
                 }
-                pageToken = usersData.data.page_token;
             }while(isAlive() && hasMore)
         }
         return users;

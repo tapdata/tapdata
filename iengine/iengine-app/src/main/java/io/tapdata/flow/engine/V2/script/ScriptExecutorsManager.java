@@ -113,7 +113,7 @@ public class ScriptExecutorsManager {
 
       Map<String, Object> connectionConfig = connections.getConfig();
       DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
-      PdkStateMap pdkStateMap = new PdkStateMap(TAG, hazelcastInstance, PdkStateMap.StateMapMode.HTTP_TM);
+      PdkStateMap pdkStateMap = new PdkStateMap(TAG, hazelcastInstance);
       PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
       TapTableMap<String, TapTable> tapTableMap = TapTableMap.create("ScriptExecutor", TAG);
       PdkTableMap pdkTableMap = new PdkTableMap(tapTableMap);
