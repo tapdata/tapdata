@@ -49,24 +49,7 @@ public class TableRowScriptInspectJob extends InspectTableRowJob {
 	}
 
 	@Override
-	public void run() {
-
-		Thread.currentThread().setName(name);
-		logger.info(String.format("Start compare the content of rows in table %s.%s and table %s.%s, the taskId is %s",
-				source.getName(), inspectTask.getSource().getTable(),
-				target.getName(), inspectTask.getTarget().getTable(), inspectTask.getTaskId()));
-
-		final InspectResultStats stats = new InspectResultStats();
-
-		stats.setStart(new Date());
-		stats.setStatus(InspectStatus.RUNNING.getCode());
-		stats.setProgress(0);
-		stats.setTaskId(inspectTask.getTaskId());
-		stats.setSource(inspectTask.getSource());
-		stats.setTarget(inspectTask.getTarget());
-		stats.getSource().setConnectionName(source.getName());
-		stats.getTarget().setConnectionName(target.getName());
-
+	protected void doRun() {
 		int retry = 0;
 		while (retry < 4) {
 			try {
@@ -100,10 +83,6 @@ public class TableRowScriptInspectJob extends InspectTableRowJob {
 				}
 			}
 		}
-
-		logger.info(String.format("Inspect completed for task %s", inspectTask.getTaskId()));
-
-		progressUpdateCallback.progress(inspectTask, stats, null);
 	}
 
 	private void compare(InspectTask inspectTask, Connections source, Connections target, InspectResultStats stats, TableRowContentInspectJob.CompareProgress compareProgress) throws InstantiationException, IllegalAccessException, ClassNotFoundException, Exception {

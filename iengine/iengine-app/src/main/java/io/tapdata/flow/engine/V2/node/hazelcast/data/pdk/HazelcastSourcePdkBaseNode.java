@@ -7,7 +7,6 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
-import com.tapdata.constant.MapUtil;
 import com.tapdata.constant.MilestoneUtil;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.SyncStage;
@@ -30,7 +29,11 @@ import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.Runnable.LoadSchemaRunner;
-import io.tapdata.aspect.*;
+import io.tapdata.aspect.SourceCDCDelayAspect;
+import io.tapdata.aspect.SourceDynamicTableAspect;
+import io.tapdata.aspect.StreamReadFuncAspect;
+import io.tapdata.aspect.TableCountFuncAspect;
+import io.tapdata.aspect.TaskMilestoneFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
@@ -301,6 +304,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				syncProgress.setBatchOffsetObj(new HashMap<>());
 			}
 			String streamOffset = syncProgress.getStreamOffset();
+			if (null == syncProgress.getEventTime()) {
+				syncProgress.setEventTime(syncProgress.getSourceTime());
+			}
 			SyncProgress.Type type = syncProgress.getType();
 			switch (type) {
 				case NORMAL:
@@ -336,11 +342,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 							}
 						} else {
 							Long eventTime = syncProgress.getEventTime();
-							if (null == eventTime) {
+							Long sourceTime = syncProgress.getSourceTime();
+							if (null == eventTime && null == sourceTime) {
 								throw new NodeException("It was found that the task was switched from shared incremental to normal mode and cannot continue execution, reason: lost breakpoint timestamp."
 										+ " Please try to reset and start the task.").context(getProcessorBaseContext());
 							}
-							initStreamOffsetFromTime(eventTime);
+							initStreamOffsetFromTime(null == eventTime ? sourceTime : eventTime);
 						}
 					}
 					break;
@@ -650,6 +657,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 //						throw new RuntimeException("Deep clone batch offset map failed: " + e.getMessage(), e);
 //					}
 					tapdataEvent.setBatchOffset(batchOffsetObj);
+					tapdataEvent.setSourceTime(syncProgress.getSourceTime());
 				}
 			} else if (SyncStage.CDC == syncStage) {
 				tapdataEvent.setStreamOffset(offsetObj);

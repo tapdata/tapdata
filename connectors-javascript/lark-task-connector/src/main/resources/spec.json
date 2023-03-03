@@ -10,6 +10,338 @@
     "node": {
       "type": "object",
       "properties": {
+        "sendType": {
+          "type": "String",
+          "default": "appoint",
+          "title": "${node_send_type}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "enum": [
+            {
+              "label": "${node_appoint}",
+              "value": "appoint"
+            },
+            {
+              "label": "${node_from_js_node}",
+              "value": "from_js_node"
+            }
+          ],
+          "x-index": 10,
+          "required": true
+        },
+        "userType": {
+          "type": "String",
+          "default": "automatic",
+          "title": "${node_user_type}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "enum": [
+            {
+              "label": "${node_automatic}",
+              "value": "automatic"
+            },
+            {
+              "label": "${node_manual}",
+              "value": "manual"
+            }
+          ],
+          "x-reactions": [
+            {
+              "dependencies": [
+                "nodeConfig.sendType"
+              ],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0] === \"appoint\" ? \"visible\" : \"hidden\"}}"
+                },
+                "schema": {
+                  "required": "{{$deps[0] === \"appoint\" ? true : false}}"
+                }
+              }
+            }
+          ],
+          "x-index": 11,
+          "required": true
+        },
+        "ownerArray": {
+          "title": "${task_owner}",
+          "type": "string",
+          "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
+          "x-decorator": "FormItem",
+          "x-component": "FieldSelect",
+          "x-component-props": {
+            "allowCreate": true,
+            "multiple": false,
+            "filterable": true
+          },
+          "x-decorator-props": {
+            "tooltip": "${phone_and_email_prompts2}"
+          },
+          "x-reactions": [
+            "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+            {
+              "dependencies": [
+                "nodeConfig.userType",
+                "nodeConfig.sendType"
+              ],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0] === \"automatic\" && $deps[1] === \"appoint\" ? \"visible\" : \"hidden\"}}"
+                },
+                "schema": {
+                  "required": "{{$deps[0] === \"automatic\" ? true : false}}"
+                }
+              }
+            }
+          ],
+          "x-index": 20
+        },
+        "followerArray": {
+          "title": "${task_follower}",
+          "type": "string",
+          "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
+          "x-decorator": "FormItem",
+          "x-component": "FieldSelect",
+          "x-component-props": {
+            "allowCreate": true,
+            "multiple": false,
+            "filterable": true
+          },
+          "x-decorator-props": {
+            "tooltip": "${phone_and_email_prompts2}"
+          },
+          "x-reactions": [
+            "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+            {
+              "dependencies": [
+                "nodeConfig.userType",
+                "nodeConfig.sendType"
+              ],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0] === \"automatic\" && $deps[1] === \"appoint\" ? \"visible\" : \"hidden\"}}"
+                },
+                "schema": {
+                  "required": "{{$deps[0] === \"automatic\" ? true : false}}"
+                }
+              }
+            }
+          ],
+          "x-index": 22
+        },
+        "ownerArrayManual": {
+            "type": "String",
+            "title": "${owner_array_manual}",
+            "x-decorator": "FormItem",
+            "x-component": "Input",
+            "x-index": 20,
+            "required": true,
+          "x-decorator-props": {
+            "tooltip": "${phone_and_email_prompts}"
+          },
+          "x-reactions": [
+            {
+              "dependencies": [
+                "nodeConfig.userType",
+                "nodeConfig.sendType"
+              ],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0] === \"manual\" && $deps[1] === \"appoint\" ? \"visible\" : \"hidden\"}}"
+
+                },
+                "schema": {
+                  "required": "{{$deps[0] === \"manual\" ? true : false}}"
+                }
+              }
+            }
+          ],
+          "x-index": 24
+        },
+        "followerArrayManual": {
+          "type": "String",
+          "title": "${follower_array_manual}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 20,
+          "required": true,
+          "x-decorator-props": {
+            "tooltip": "${phone_and_email_prompts}"
+          },
+          "x-reactions": [
+            {
+              "dependencies": [
+                "nodeConfig.userType",
+                "nodeConfig.sendType"
+              ],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0] === \"manual\" && $deps[1] === \"appoint\" ? \"visible\" : \"hidden\"}}"
+
+                },
+                "schema": {
+                  "required": "{{$deps[0] === \"manual\" ? true : false}}"
+                }
+              }
+            }
+          ],
+          "x-index": 26
+        },
+        "richSummary": {
+          "title": "${task_rich_summary}",
+          "type": "string",
+          "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
+          "x-decorator": "FormItem",
+          "x-component": "FieldSelect",
+          "x-component-props": {
+            "allowCreate": true,
+            "multiple": false,
+            "filterable": true
+          },
+          "x-reactions": [
+            "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+            {
+              "dependencies": [
+                "nodeConfig.sendType"
+              ],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0] === \"appoint\" ? \"visible\" : \"hidden\"}}"
+                },
+                "schema": {
+                  "required": "{{$deps[0] === \"appoint\" ? true : false}}"
+                }
+              }
+            }
+          ],
+          "x-index": 28
+        },
+        "richDescription": {
+          "title": "${task_rich_description}",
+          "type": "string",
+          "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
+          "x-decorator": "FormItem",
+          "x-component": "FieldSelect",
+          "x-component-props": {
+            "allowCreate": true,
+            "multiple": false,
+            "filterable": true
+          },
+          "x-reactions": [
+            "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+            {
+              "dependencies": [
+                "nodeConfig.sendType"
+              ],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0] === \"appoint\" ? \"visible\" : \"hidden\"}}"
+                },
+                "schema": {
+                  "required": "{{$deps[0] === \"appoint\" ? true : false}}"
+                }
+              }
+            }
+          ],
+          "x-index": 70,
+          "required": true
+        },
+        "cutOffTime": {
+          "type": "String",
+          "default": "4",
+          "title": "${task_time}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "enum": [
+            {
+              "label": "${four_hours_later}",
+              "value": "4"
+            },
+            {
+              "label": "${eight_hours_later}",
+              "value": "8"
+            },
+            {
+              "label": "${sixteen_hours_later}",
+              "value": "16"
+            },
+            {
+              "label": "${twenty_four_hours_later}",
+              "value": "24"
+            },
+            {
+              "label": "${forty_eight_hours_later}",
+              "value": "48"
+            }
+          ],
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.sendType"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] === \"appoint\" ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0] === \"appoint\" ? true : false}}"
+              }
+            }
+          },
+          "x-index": 75,
+          "required": true
+        },
+        "taskLinkTitle": {
+          "title": "${task_link_title}",
+          "type": "string",
+          "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
+          "x-decorator": "FormItem",
+          "x-component": "FieldSelect",
+          "x-component-props": {
+            "allowCreate": true,
+            "multiple": false,
+            "filterable": true
+          },
+          "x-reactions": [
+            "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+            {
+              "dependencies": [
+                "nodeConfig.sendType"
+              ],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0] === \"appoint\" ? \"visible\" : \"hidden\"}}"
+                }
+              }
+            }
+          ],
+          "x-index": 80
+        },
+        "taskUrl": {
+          "title": "${task_url}",
+          "type": "string",
+          "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
+          "x-decorator": "FormItem",
+          "x-component": "FieldSelect",
+          "x-component-props": {
+            "allowCreate": true,
+            "multiple": false,
+            "filterable": true
+          },
+          "x-reactions": [
+            "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+            {
+              "dependencies": [
+                "nodeConfig.sendType"
+              ],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0] === \"appoint\" ? \"visible\" : \"hidden\"}}"
+                }
+              }
+            }
+          ],
+          "x-index": 85
+        }
       }
     },
     "connection": {
@@ -40,19 +372,106 @@
       "doc": "doc/demo_en_US.md",
       "app_id": "App Id",
       "app_secret": "App Secret",
-      "app_name": "App Name"
+      "app_name": "App Name",
+      "node_send_type": "Create task mode",
+      "node_appoint": "Specified by the target node",
+      "node_from_js_node": "Specified by JS node",
+      "node_dynamic_binding_arr": "Config create task field",
+      "task_owner": "Task owner",
+      "task_follower": "Task follower",
+      "task_rich_summary": "Task rich summary",
+      "task_rich_description": "Task rich description",
+      "task_time": "Task Cut-off time",
+      "task_link_title": "Task link title",
+      "task_url": "Task url",
+      "task_config": "Task configuration",
+      "node_msg_type": "Message type",
+      "node_filed_operator": "Field operator",
+      "node_receiver_field_name": "Source table field name",
+      "node_receiver_type": "Target table field name",
+      "df_table_field_btn_add": "Add field description",
+      "four_hours_later": "Four hours later",
+      "eight_hours_later": "eight hours later",
+      "sixteen_hours_later": "sixteen hours later",
+      "twenty_four_hours_later": "twenty-four hours later",
+      "forty_eight_hours_later": "Forty-eight hours later",
+      "node_user_type": "Input user mode",
+      "owner_array_manual": "Task owner",
+      "follower_array_manual": "Task follower",
+      "node_automatic": "Specifies the original table field",
+      "node_manual": "Manual input",
+      "phone_and_email_prompts": "You need to manually enter the user's phone number or email address in the input box and separate it with commas (,). Example (1828888888,18299999999)",
+      "phone_and_email_prompts2": "You are required to select a field in the source table for the user's phone number or email address. Field format Example (1828888888, 18299999999)"
     },
     "zh_CN": {
       "doc": "doc/demo_zh_CN.md",
       "app_id": "应用Id",
       "app_name": "App名称",
-      "app_secret": "应用Secret"
+      "app_secret": "应用Secret",
+      "node_send_type": "创建任务方式",
+      "node_appoint": "由目标节点指定",
+      "node_from_js_node": "由JS节点指定",
+      "node_dynamic_binding_arr": "创建任务字段配置",
+      "task_owner": "任务负责人",
+      "task_follower": "任务关注人",
+      "task_rich_summary": "任务标题",
+      "task_rich_description": "任务描述",
+      "task_time": "任务截止时间",
+      "task_link_title": "内容链接标题",
+      "task_url": "内容链接",
+      "task_config": "创建任务配置",
+      "node_msg_type": "消息类型",
+      "node_filed_operator": "操作",
+      "node_receiver_field_name": "源表字段名称",
+      "node_receiver_type": "目标表字段名称",
+      "df_table_field_btn_add": "新增字段描述",
+      "four_hours_later": "四小时后",
+      "eight_hours_later": "八小时后",
+      "sixteen_hours_later": "十六小时后",
+      "twenty_four_hours_later": "二十四小时后",
+      "forty_eight_hours_later": "四十八小时后",
+      "node_user_type": "输入用户方式",
+      "owner_array_manual": "任务负责人",
+      "follower_array_manual": "任务关注人",
+      "node_automatic": "指定源表字段",
+      "node_manual": "手动输入",
+      "phone_and_email_prompts": "需要您在输入框中手动输入用户的电话号码或邮箱，并以英文逗号分割。示例(18288888888,18299999999)",
+      "phone_and_email_prompts2": "需要您选择源表中为用户电话号码或者邮箱的字段。字段内容格式示例（18288888888,18299999999）"
     },
     "zh_TW": {
       "doc": "doc/demo_zh_TW.md",
       "app_id": "应用Id",
       "app_name": "App名稱",
-      "app_secret": "应用Secret"
+      "app_secret": "应用Secret",
+      "node_send_type": "創建任務方式",
+      "node_appoint": "由目標節點指定",
+      "node_from_js_node": "由JS節點指定",
+      "node_dynamic_binding_arr": " 创建任务欄位配寘",
+      "task_owner": "任務負責人",
+      "task_follower": "任務關注者",
+      "task_rich_summary": "任務標題",
+      "task_rich_description": "任務描述",
+      "task_time": "任務截止時間",
+      "task_link_title": "內容鏈接標題",
+      "task_url": "內容鏈接",
+      "task_config": "創建任務配置",
+      "node_msg_type": "消息類型",
+      "node_filed_operator": "操縱",
+      "node_receiver_field_name": "源表字段名稱",
+      "node_receiver_type": "目標表字段名稱",
+      "df_table_field_btn_add": "新增字段描述",
+      "four_hours_later": "四小時後",
+      "eight_hours_later": "八小時後",
+      "sixteen_hours_later": "十六小時後",
+      "twenty_four_hours_later": "二十四小時後",
+      "forty_eight_hours_later": "四十八小時後",
+      "node_user_type": "輸入用戶方式",
+      "owner_array_manual": "任務負責人",
+      "follower_array_manual": "任務關注者",
+      "node_automatic": "指定源表字段",
+      "node_manual": "手動輸入",
+      "phone_and_email_prompts": "需要您在輸入框中手動輸入用戶的電話號碼或郵箱，並以英文逗號分割。示例(18288888888,18299999999)",
+      "phone_and_email_prompts2": "需要您選擇源表中爲用戶電話號碼或者郵箱的字段。字段內容格式示例（18288888888,18299999999）"
     }
   }
 }

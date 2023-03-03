@@ -1,13 +1,15 @@
 package com.tapdata.tm.externalStorage.service;
 
 import com.mongodb.ConnectionString;
+import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.externalStorage.entity.ExternalStorageEntity;
-import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
 import com.tapdata.tm.externalStorage.repository.ExternalStorageRepository;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.repository.TaskRepository;
@@ -111,5 +113,44 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 		query.fields().include("_id").include("name");
 		List<TaskEntity> tasks = taskRepository.findAll(query);
 		return CollectionUtils.isNotEmpty(tasks) ? taskService.convertToDto(tasks, TaskDto.class) : null;
+	}
+
+	@Override
+	public Page<ExternalStorageDto> find(Filter filter, UserDetail userDetail) {
+		Page<ExternalStorageDto> externalStorageDtoPage = super.find(filter, userDetail);
+		List<ExternalStorageEntity> initExternalStorages = repository.findAll(Query.query(Criteria.where("init").is(true)));
+		List<ExternalStorageDto> items = externalStorageDtoPage.getItems();
+		for (ExternalStorageEntity initExternalStorage : initExternalStorages) {
+			if (null == items.stream().filter(i -> i.getName().equals(initExternalStorage.getName())).findFirst().orElse(null)) {
+				items.add(convertToDto(initExternalStorage, ExternalStorageDto.class));
+				externalStorageDtoPage.setTotal(externalStorageDtoPage.getTotal() + 1);
+			}
+		}
+		return externalStorageDtoPage;
+	}
+
+	@Override
+	public boolean deleteById(ObjectId objectId, UserDetail userDetail) {
+		ExternalStorageEntity externalStorageEntity = repository.findById(objectId, userDetail).orElse(null);
+		if (null == externalStorageEntity) {
+			return true;
+		}
+		if (!externalStorageEntity.isCanDelete()) {
+			return true;
+		}
+		boolean delete = super.deleteById(objectId, userDetail);
+		if (externalStorageEntity.isDefaultStorage()) {
+			Query query = Query.query(Criteria.where("type").ne(ExternalStorageType.memory.name()));
+			ExternalStorageEntity findExternalStorage = repository.findOne(query, userDetail).orElse(null);
+			if (null == findExternalStorage) {
+				findExternalStorage = repository.findOne(new Query(), userDetail).orElse(null);
+			}
+			if (null != findExternalStorage) {
+				query = Query.query(Criteria.where("_id").is(findExternalStorage.getId()));
+				Update update = new Update().set("defaultStorage", true);
+				repository.updateFirst(query, update, userDetail);
+			}
+		}
+		return delete;
 	}
 }
