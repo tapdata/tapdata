@@ -39,6 +39,12 @@ public class PostManAnalysis {
     public void setConnectorConfig(Map<String, Object> connectorConfig) {
         this.connectorConfig = connectorConfig;
     }
+    public void addConnectorConfig(Map<String, Object> connectorConfig) {
+       if (Objects.isNull(this.connectorConfig)){
+           this.connectorConfig = new HashMap<>();
+       }
+        this.connectorConfig.putAll(connectorConfig);
+    }
 
     public boolean filterUselessApi() {
         //是否过滤没有被标记的api
