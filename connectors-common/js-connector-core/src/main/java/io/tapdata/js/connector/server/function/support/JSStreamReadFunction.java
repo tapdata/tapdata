@@ -50,7 +50,7 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
         if (Objects.isNull(nodeContext)) {
             throw new CoreException("TapConnectorContext cannot not be empty.");
         }
-        if(Objects.isNull(this.config)) {
+        if (Objects.isNull(this.config)) {
             this.config = ExecuteConfig.contextConfig(nodeContext);
         }
         if (Objects.isNull(tableList)) {
@@ -100,14 +100,17 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
             if (EmptyKit.isNotNull(message)) {
                 lastContextMap = message.getContextMap();
                 TapEvent tapEvent = message.getTapEvent();
-                if (Objects.isNull(tapEvent)){
+                if (Objects.nonNull(lastContextMap)) {
                     contextMap.set(lastContextMap);
+                } else {
+                    throw new CoreException("The breakpoint offset cannot be empty. Please carry the offset when submitting the event data.");
+                }
+                if (Objects.isNull(tapEvent)) {
                     continue;
                 }
                 eventList.add(tapEvent);
                 if (eventList.size() == recordSize || (System.currentTimeMillis() - ts) >= 3000) {
                     consumer.accept(eventList, lastContextMap);
-                    contextMap.set(lastContextMap);
                     eventList = new ArrayList<>();
                     ts = System.currentTimeMillis();
                 }
@@ -117,6 +120,9 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
             throw scriptException.get();
         }
         if (this.isAlive.get() && EmptyKit.isNotEmpty(eventList)) {
+            if (Objects.isNull(lastContextMap)) {
+                throw new CoreException("The breakpoint offset cannot be empty. Please carry the offset when submitting the event data.");
+            }
             consumer.accept(eventList, lastContextMap);
             contextMap.set(lastContextMap);
         }
@@ -132,29 +138,35 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
     public static StreamReadFunction create(LoadJavaScripter loadJavaScripter, AtomicBoolean isAlive) {
         return new JSStreamReadFunction().isAlive(isAlive).function(loadJavaScripter);
     }
-    public static class Config extends ExecuteConfig{
+
+    public static class Config extends ExecuteConfig {
         private LoadJavaScripter javaScripter;
         private AtomicBoolean isAlive;
-        public Config javaScripter(LoadJavaScripter javaScripter){
+
+        public Config javaScripter(LoadJavaScripter javaScripter) {
             this.javaScripter = javaScripter;
             return this;
         }
-        public LoadJavaScripter javaScripter(){
+
+        public LoadJavaScripter javaScripter() {
             return this.javaScripter;
         }
-        public Config isAlive(AtomicBoolean isAlive){
+
+        public Config isAlive(AtomicBoolean isAlive) {
             this.isAlive = isAlive;
             return this;
         }
-        public AtomicBoolean isAlive(){
+
+        public AtomicBoolean isAlive() {
             return this.isAlive;
         }
 
-        public static Config config(TapConnectionContext context, LoadJavaScripter javaScripter, AtomicBoolean isAlive){
+        public static Config config(TapConnectionContext context, LoadJavaScripter javaScripter, AtomicBoolean isAlive) {
             return new Config(context)
                     .javaScripter(javaScripter)
                     .isAlive(isAlive);
         }
+
         protected Config(TapConnectionContext context) {
             super(context);
 
