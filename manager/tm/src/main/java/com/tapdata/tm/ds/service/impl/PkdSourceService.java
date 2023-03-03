@@ -104,7 +104,7 @@ public class PkdSourceService {
                 if (oldDefinitionDto.getIcon() != null) {
                     fileService.deleteFileById(MongoUtils.toObjectId(oldDefinitionDto.getIcon()));
                 }
-                fileService.deleteFileByPdkHash(pdkHash);
+                fileService.deleteFileByPdkHash(pdkHash, pdkAPIBuildNumber);
             }
 
             // upload the associated files(jar/icons)
@@ -114,6 +114,7 @@ public class PkdSourceService {
             try {
                 Map<String, Object> fileInfo = Maps.newHashMap();
                 fileInfo.put("pdkHash", pdkHash);
+                fileInfo.put("pdkAPIBuildNumber", pdkAPIBuildNumber);
 
                 // 1. upload jar file, only update once
                 jarObjectId = fileService.storeFile(jarFile.getInputStream(), jarFile.getOriginalFilename(), null, fileInfo);
