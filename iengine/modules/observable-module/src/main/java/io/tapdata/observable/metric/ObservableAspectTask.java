@@ -137,10 +137,6 @@ public class ObservableAspectTask extends AspectTask {
 					handler.init();
 					handler.setTaskSampleHandler(taskSampleHandler);
 
-					if (cnt == 0) {
-						taskSampleHandler.snapshotTableTotalInc();
-					}
-
 					Optional.ofNullable(dataNodeSampleHandlers.get(node.getId())).ifPresent(
 							dataNodeSampleHandler -> dataNodeSampleHandler.handleTableCountAccept(table, cnt)
 					);
@@ -193,7 +189,7 @@ public class ObservableAspectTask extends AspectTask {
 			case BatchReadFuncAspect.STATE_END:
 				if (!aspect.getDataProcessorContext().getTaskDto().isSnapShotInterrupt()) {
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler -> handler.handleBatchReadFuncEnd(System.currentTimeMillis()));
-//					taskSampleHandler.handleBatchReadFuncEnd();
+					taskSampleHandler.handleBatchReadFuncEnd();
 					break;
 				}
 				break;
