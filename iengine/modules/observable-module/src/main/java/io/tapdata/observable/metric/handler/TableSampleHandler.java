@@ -76,6 +76,8 @@ public class TableSampleHandler extends AbstractHandler {
                 } else {
                     snapshotSyncRate = decimal;
                 }
+            } else if (Objects.nonNull(taskSampleHandler.getSnapshotDone())) {
+                snapshotSyncRate = BigDecimal.ONE;
             }
 
             return snapshotSyncRate;

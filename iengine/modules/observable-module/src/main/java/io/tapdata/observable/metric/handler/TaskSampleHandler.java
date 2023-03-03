@@ -1,5 +1,8 @@
 package io.tapdata.observable.metric.handler;
 
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.sampler.AverageSampler;
@@ -9,11 +12,11 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.ObjectUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * @author Dexter
@@ -185,10 +188,11 @@ public class TaskSampleHandler extends AbstractHandler {
             snapshotDoneAt = retrieveSnapshotDoneAt.longValue();
         }
         collector.addSampler(SNAPSHOT_DONE_AT, () -> {
-            if (ObjectUtils.allNotNull(snapshotRowTotal, snapshotInsertRowTotal, snapshotRowTotal.value(), snapshotInsertRowTotal.value())) {
-                if (snapshotInsertRowTotal.value().longValue() >= snapshotRowTotal.value().longValue()) {
-                    snapshotDoneAt = System.currentTimeMillis();
-                }
+            if (Objects.isNull(snapshotDoneAt)) {
+                List<Node> sources = this.task.getDag().getSources();
+                sourceNodeHandlers.values().stream()
+                        .filter(h -> sources.contains(h.node) && Objects.nonNull(h.getSnapshotDoneAt()))
+                        .findAny().ifPresent(dh -> this.snapshotDoneAt = dh.getSnapshotDoneAt());
             }
             return snapshotDoneAt;
         });
@@ -362,5 +366,9 @@ public class TaskSampleHandler extends AbstractHandler {
             return;
         }
         inputDdlCounter.inc(tables.size());
+    }
+
+    public Long getSnapshotDone() {
+        return snapshotDoneAt;
     }
 }
