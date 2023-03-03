@@ -68,7 +68,7 @@ public class APIInvokerDecoratorStruct implements APIInvoker {
 
     @Override
     public void addConnectorConfig(Object setConnectorConfig) {
-        apiInvoker.setConnectorConfig(setConnectorConfig);
+        apiInvoker.addConnectorConfig(setConnectorConfig);
     }
 
     @Override
