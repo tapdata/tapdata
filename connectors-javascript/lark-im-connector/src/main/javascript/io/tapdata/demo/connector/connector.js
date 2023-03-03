@@ -52,6 +52,9 @@ function insertRecord(connectionConfig, nodeConfig, eventDataMap) {
 function updateToken(connectionConfig, nodeConfig, apiResponse) {
     if (!sendMsg.checkParam(apiResponse.result.code) ||
         (apiResponse.result.code !== 99991663 && apiResponse.result.code !== 99991661)) {
+        if (!sendMsg.checkParam(apiResponse.result.code) && apiResponse.httpCode !== 0){
+            apiError.check(apiResponse.result.code);
+        }
         return null;
     }
     let result = invoker.invokeWithoutIntercept("GetAppToken");

@@ -12,15 +12,11 @@
       "properties": {
         "sendType": {
           "type": "String",
-          "default": "appoint",
+          "default": "dynamic_binding",
           "title": "${node_send_type}",
           "x-decorator": "FormItem",
           "x-component": "Select",
           "enum": [
-            {
-              "label": "${node_appoint}",
-              "value": "appoint"
-            },
             {
               "label": "${node_dynamic_binding}",
               "value": "dynamic_binding"
@@ -43,7 +39,7 @@
           "x-component": "AsyncSelect",
           "x-component-props": {
             "method": "{{loadCommandList}}",
-            "params": "{{ {$values: {attrs: $values.attrs, nodeConfig: {}}, command: \"GetReceiverOfChatsAndUsers\"} }}",
+            "params": "{{ {$values: {attrs: $values.attrs, nodeConfig: {}, connectionId: $values.connectionId}, command: \"GetReceiverOfChatsAndUsers\"} }}",
             "multiple": true,
             "currentLabel": "{{ $values.nodeConfig.receiverArrayLabel }}",
             "@change-label": "{{ val => $values.nodeConfig.receiverArrayLabel = val }}",
@@ -328,6 +324,51 @@
               }
             }
           }
+        },
+        "rule": {
+          "type": "string",
+          "title": "${node_record_rule}",
+          "x-decorator": "FormItem",
+          "x-component": "Input.TextArea",
+          "x-validator": [],
+          "x-component-props": {
+            "size": "large",
+            "cutString": true,
+            "trim": false,
+            "autoHeight": true
+          },
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.sendType"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] === \"from_js_node\" ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+
+              }
+            }
+          },
+          "x-decorator-props": {
+            "tooltip": "待发送信息的每条数据需要包含的键值如下所示，请保持键值匹配",
+            "labelCol": 4,
+            "feedbackLayout": "loose",
+            "size": "small",
+            "tooltipLayout": "icon",
+            "labelAlign": "left",
+            "fullness": true,
+            "inset": true,
+            "bordered": false,
+            "labelWrap": true,
+            "wrapperWrap": true
+          },
+          "description": "",
+          "name": "rule",
+          "x-pattern": "readOnly",
+          "default": "\n\n各类消息体的配置请参阅飞书官方文档： https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json \n{\n          \"receiveType\": \"{{user | email | phone | chat}}\",\n          \"receiveId\": \"{{user_open_id | user_email | user_phone | chat_id}}\",\n          \"contentType\": \"text\",\n          \"content\": \"{\\\"text\\\":\\\"Hello! This is lark message! \\\"}\"\n        }",
+          "x-designable-id": "2kgzbvimwra",
+          "x-index": 99
         }
       }
     },
@@ -410,7 +451,8 @@
       "node_chat_id": "Chat ID",
       "node_open_id": "User Open ID",
       "node_phone": "User Phone",
-      "node_email": "User Email"
+      "node_email": "User Email",
+      "node_record_rule": "Record Rule"
     },
     "zh_CN": {
       "doc": "doc/Lark_zh_CN.md",
@@ -445,7 +487,8 @@
       "node_chat_id": "群聊（chat_id）",
       "node_open_id": "用户（open_id）",
       "node_phone": "用户-手机号（phone）",
-      "node_email": "用户-邮箱（email）"
+      "node_email": "用户-邮箱（email）",
+      "node_record_rule": "Record 规则"
     },
     "zh_TW": {
       "doc": "doc/Lark_zh_TW.md",
@@ -480,7 +523,8 @@
       "node_chat_id": "群聊（chat_id）",
       "node_open_id": "用戶（open_id）",
       "node_phone": "用戶-手機號（phone）",
-      "node_email": "用戶-郵箱（email）"
+      "node_email": "用戶-郵箱（email）",
+      "node_record_rule": "Record 規則"
     }
   }
 }

@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.sharecdc;
 
 import com.tapdata.constant.ConfigurationCenter;
+import io.tapdata.observable.logging.ObsLogger;
 
 import java.io.Serializable;
 
@@ -18,6 +19,7 @@ public class ShareCdcContext implements Serializable {
 
 	// Tapdata Settings
 	private ConfigurationCenter configurationCenter;
+	private ObsLogger obsLogger;
 
 	public ShareCdcContext(Long cdcStartTs, ConfigurationCenter configurationCenter) {
 		if (null == cdcStartTs || cdcStartTs.compareTo(0L) < 0) {
@@ -34,5 +36,13 @@ public class ShareCdcContext implements Serializable {
 
 	public ConfigurationCenter getConfigurationCenter() {
 		return configurationCenter;
+	}
+
+	public ObsLogger getObsLogger() {
+		return obsLogger;
+	}
+
+	public void setObsLogger(ObsLogger obsLogger) {
+		this.obsLogger = obsLogger;
 	}
 }

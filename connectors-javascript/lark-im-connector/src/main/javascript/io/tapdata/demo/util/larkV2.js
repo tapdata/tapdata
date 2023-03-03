@@ -92,7 +92,7 @@ class larkSendMsgV2 extends larkSendMsg {
             "content": typeof (content) == 'string' ? content.replaceAll('"', "\"") : ("" + JSON.stringify(content).replaceAll('"', '\"')),
             "receive_id": receiveId,
             "msg_type": contentType,
-            "receive_id_type": "chat" === receiveType ? 'chat_id' : 'open_id'
+            "receive_id_type": "phone" === receiveType ? 'open_id' : receiveType
         };
     }
 }

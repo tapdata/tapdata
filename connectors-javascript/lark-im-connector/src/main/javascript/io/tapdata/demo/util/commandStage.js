@@ -50,14 +50,25 @@ class GetReceiverOfChatsAndUsers extends Command{
         let pageToken = '';
         let hasMore = false;
         do {
-            let chatsData = invoker.invoke('GetChatOfRobot').result;
-            let chatMsgArr = chatsData.data.items;
-            for (let index = 0 ; index < chatMsgArr.length ; index++){
-                if (!isAlive()) break;
-                chatArr.push({'value': chatMsgArr[index].chat_id, 'label': this.chatNamePrefix + chatMsgArr[index].name});
+            let chatsData = invoker.invoke('GetChatOfRobot',{"page_token":pageToken}).result;
+            let datas = chatsData.data;
+            if ('undefined' !== datas && null !== datas) {
+                let chatMsgArr = datas.items;
+                if (!('undefined' === chatMsgArr || null === chatMsgArr || chatMsgArr.length <= 0)) {
+                    for (let index = 0; index < chatMsgArr.length; index++) {
+                        if (!isAlive()) break;
+                        chatArr.push({
+                            'value': chatMsgArr[index].chat_id,
+                            'label': this.chatNamePrefix + chatMsgArr[index].name
+                        });
+                    }
+                }
+                hasMore = datas.has_more;
+                hasMore = ('undefined' !== chatMsgArr && null !== chatMsgArr) ? hasMore : false;
+                pageToken = datas.page_token;
+            }else {
+                hasMore = false;
             }
-            hasMore = chatsData.data.has_more;
-            pageToken = chatsData.data.page_token;
         }while (isAlive() && hasMore)
         return chatArr;
     }
