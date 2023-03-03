@@ -11,5 +11,5 @@ public class TableStatusInfoDto {
 
     private Long  cdcDelayTime;
 
-    private Date  LastDataChangeTime;
+    private Date  lastDataChangeTime;
 }
