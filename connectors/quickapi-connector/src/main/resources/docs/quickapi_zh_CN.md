@@ -32,7 +32,7 @@
     PAGE_SIZE_PAGE_INDEX：适用于使用页码和页内偏移数进行分页。需要搭配 TAP_PAGE_SIZE 和TAP_PAGE_INDEX 标签指定分页参数。
     FROM_TO：适用于使用记录开始索引和结束索引进行分页的。需要单配 TAP_PAGE_FROM 和 TAP_PAGE_TO 标签指定分页参数。
     PAGE_LIMIT：适用于使用记录索引和页内偏移数进行分页的。需要搭配 TAP_PAGE_OFFSET 和 TAP_PAGE_LIMIT 标签指定分页参数。
-    PAGE_TOKEN：适用于使用缓存分页Token进行分页的，首页传空，下一页使用上次查询返回的token进行查询 。需要搭配使用 TAP_PAGE_TOKEN 标签指定分页参数。
+    PAGE_TOKEN：适用于使用缓存分页Token进行分页的，首页传空，下一页使用上次查询返回的token进行查询 。需要搭配使用 TAP_PAGE_TOKEN 标签指定分页参数，同时使用 TAP_PAGE_SIZE 指定每次分页查询的记录数，使用 TAP_HAS_MORE_PAGE 来描述是否有下一页的字段名称（需要在参数列表中指定这个参数并在参数的描述中添加这个标签）。
     PAGE_NONE：适用于列表返回不分页的普通数据获取。
   ```
 
@@ -54,7 +54,7 @@
 
 ##### 2.2.2 登录授权接口声明
 
-您需要使用 TAP_LOGIN 标签声明登录接口。与表数据接口的声明方式一致，需要在接口名称中添加声明标签，登录接口声明标签的关键字是 TAP_LOGIN ，使用此标签表示此数据源在调用API获取数据时会进行access_token的过去判断，那么需要您在连接配置页面进行过期状态描述以及指定access_token获取后的键值匹配。，例如下图表示在Postman对ZoHo Desk进行登录接口的声明：
+您需要使用 TAP_GET_TOKEN 标签声明登录接口。与表数据接口的声明方式一致，需要在接口名称中添加声明标签，登录接口声明标签的关键字是 TAP_GET_TOKEN ，使用此标签表示此数据源在调用API获取数据时会进行access_token的过去判断，那么需要您在连接配置页面进行过期状态描述以及指定access_token获取后的键值匹配。，例如下图表示在Postman对ZoHo Desk进行登录接口的声明：
 
 ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/quickAPI/doc/TAP_LOGIN.PNG)
 
@@ -77,7 +77,7 @@
 
 - 3.2 这个状态描述需要您手动通过PostMan访问API总结出来（因为我们无法预知这些Saas平台在access_token过期后以何种响应结果返回）；
 
-- 3.3 在PostMan对登录（获取API访问权限）的API接口进行声明，当执行API过程中发现了access_token过期后悔调用这个指定的API进行access_token刷新，这个登录接口需要在接口的名称上加上 TAP_LOGIN 这样一个标志性文字。例如：对ZoHo令牌刷新接口的名称为 “TAP_LOGIN刷新AccessToken-登录” ,其加上了 TAP_LOGIN（见左上角） 表示此接口用于实现自动令牌刷新操作。
+- 3.3 在PostMan对登录（获取API访问权限）的API接口进行声明，当执行API过程中发现了access_token过期后悔调用这个指定的API进行access_token刷新，这个登录接口需要在接口的名称上加上 TAP_GET_TOKEN 这样一个标志性文字。例如：对ZoHo令牌刷新接口的名称为 “TAP_GET_TOKEN刷新AccessToken-登录” ,其加上了 TAP_GET_TOKEN（见左上角） 表示此接口用于实现自动令牌刷新操作。
 
 ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/quickAPI/doc/TAP_LOGIN-ZoHo.PNG)
 

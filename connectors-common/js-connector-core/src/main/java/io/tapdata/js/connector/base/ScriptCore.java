@@ -52,4 +52,23 @@ public class ScriptCore extends Core {
         }
     }
 
+    @Override
+    public void updateOffset(Object offset) {
+        try {
+            while (!eventQueue.offer(new CustomEventMessage().tapEvent(null)
+                    .contextMap(offset), 1, TimeUnit.SECONDS)) {
+                fullQueueWarn++;
+                if (fullQueueWarn < 4) {
+                    TapLogger.info(TAG, "log queue is full, waiting...");
+                }
+            }
+            if (fullQueueWarn > 0) {
+                TapLogger.info(TAG, "log queue has been released!");
+                fullQueueWarn = 0;
+            }
+        } catch (Exception ignored) {
+
+        }
+    }
+
 }

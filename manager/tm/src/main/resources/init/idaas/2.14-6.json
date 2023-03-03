@@ -1,0 +1,21 @@
+[
+  {
+    "update": "DatabaseTypes",
+    "updates": [
+      {
+        "q": {
+          "pdkAPIBuildNumber": {
+            "$exists": false
+          }
+        },
+        "u": {
+          "$set": {
+            "pdkAPIBuildNumber": 0
+          }
+        },
+        "upsert": false,
+        "multi": true
+      }
+    ]
+  }
+]

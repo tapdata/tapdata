@@ -12,10 +12,11 @@
         },
         "u": {
           "$set": {
-            "dag.nodes.$[].migrateTableSelectType": "expression",
-            "dag.nodes.$[].tableExpression": ".*"
+            "dag.nodes.$[element].migrateTableSelectType": "expression",
+            "dag.nodes.$[element].tableExpression": ".*"
           }
         },
+        "arrayFilters": [ { "element.migrateTableSelectType": "all" , "element.tableNames": {$exists:true} } ],
         "upsert": false,
         "multi": true
       }

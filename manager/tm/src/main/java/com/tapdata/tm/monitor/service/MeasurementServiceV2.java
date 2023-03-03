@@ -143,25 +143,7 @@ public class MeasurementServiceV2 {
     }
 
     private Sample supplyKeyData(Sample requestSample, Map<String, Number> data, Map<String, Number> requestMap) {
-        List<String> list = Lists.newArrayList("currentSnapshotTableInsertRowTotal", "timeCostAvg", "targetWriteTimeCostAvg", "replicateLag",
-                "inputDdlTotal",
-                "inputDeleteTotal",
-                "inputInsertTotal",
-                "inputOthersTotal",
-                "inputUpdateTotal",
-                "outputDdlTotal",
-                "outputDeleteTotal",
-                "outputInsertTotal",
-                "outputOthersTotal",
-                "outputUpdateTotal",
-                "snapshotDoneAt",
-                "snapshotInsertRowTotal",
-                "snapshotRowTotal",
-                "snapshotSourceReadTimeCostAvg",
-                "snapshotStartAt",
-                "snapshotTableTotal",
-                "tableTotal"
-        );
+        List<String> list = Lists.newArrayList( "timeCostAvg", "targetWriteTimeCostAvg", "replicateLag");
 
         for (String key : list) {
             Number value = data.get(key);
@@ -308,8 +290,6 @@ public class MeasurementServiceV2 {
      * @return Map
      */
     private Map<String, Sample> getInstantSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long time, String padding) {
-//        StopWatch stopWatch = new StopWatch(JSON.toJSONString(querySample.getTags()));
-//        stopWatch.start("start method");
         List<String> fields = querySample.getFields();
         Map<String, Sample> data = new HashMap<>();
         if (!StringUtils.equalsAny(querySample.getType(),
@@ -349,14 +329,12 @@ public class MeasurementServiceV2 {
             }
         }
 
-//        stopWatch.stop();
         MatchOperation match = Aggregation.match(criteria);
         GroupOperation group = Aggregation.group(MeasurementEntity.FIELD_TAGS)
                 .first(MeasurementEntity.FIELD_DATE).as(MeasurementEntity.FIELD_DATE)
                 .first(MeasurementEntity.FIELD_TAGS).as(MeasurementEntity.FIELD_TAGS)
                 .first(MeasurementEntity.FIELD_SAMPLES).as(MeasurementEntity.FIELD_SAMPLES);
-        // match should be at the first param, sort should be the second while group be the last
-//        stopWatch.start("start query");
+
         Aggregation aggregation;
         if (typeIsEngine) {
             LimitOperation limit = new LimitOperation(1L);
@@ -367,8 +345,6 @@ public class MeasurementServiceV2 {
         aggregation.withOptions(Aggregation.newAggregationOptions().allowDiskUse(true).build());
         AggregationResults<MeasurementEntity> results = mongoOperations.aggregate(aggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class);
         List<MeasurementEntity> entities = results.getMappedResults();
-//        stopWatch.stop();
-//        stopWatch.start("start package");
 
         for (MeasurementEntity entity : entities) {
             String hash = hashTag(entity.getTags());
@@ -386,10 +362,10 @@ public class MeasurementServiceV2 {
             }
         }
 
-        Number snapshotStartAtTemp = null;
-        if (typeIsTask && MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT.equals(querySample.getType())) {
-            snapshotStartAtTemp = getSnapshotStartAt(querySample);
-        }
+//        Number snapshotStartAtTemp = null;
+//        if (typeIsTask && MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT.equals(querySample.getType())) {
+//            snapshotStartAtTemp = getSnapshotStartAt(querySample);
+//        }
         for (String hash : data.keySet()) {
             Sample sample = data.get(hash);
 
@@ -400,50 +376,29 @@ public class MeasurementServiceV2 {
                 }
             }
 
-            Number snapshotRowTotal = values.get("snapshotRowTotal");
-            Number snapshotInsertRowTotal = values.get("snapshotInsertRowTotal");
-            if (Objects.nonNull(snapshotRowTotal) && Objects.nonNull(snapshotInsertRowTotal)
-                    && snapshotInsertRowTotal.longValue() > snapshotRowTotal.longValue()) {
-                values.put("snapshotRowTotal", snapshotInsertRowTotal);
-            }
+//            Number snapshotRowTotal = values.get("snapshotRowTotal");
+//            Number snapshotInsertRowTotal = values.get("snapshotInsertRowTotal");
+//            if (Objects.nonNull(snapshotRowTotal) && Objects.nonNull(snapshotInsertRowTotal)
+//                    && snapshotInsertRowTotal.longValue() > snapshotRowTotal.longValue()) {
+//                values.put("snapshotRowTotal", snapshotInsertRowTotal);
+//            }
 
             if (typeIsTask && MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT.equals(querySample.getType())) {
                 Number currentEventTimestamp = values.get("currentEventTimestamp");
+                Number snapshotStartAt = values.get("snapshotStartAt");
                 // 按照延迟逻辑,源端无事件时,应该为全量同步开始到现在的时间差
-                if (Objects.isNull(currentEventTimestamp) && Objects.nonNull(snapshotStartAtTemp)) {
-                    Number maxRep = Math.abs(System.currentTimeMillis() - snapshotStartAtTemp.longValue());
+                if (Objects.isNull(currentEventTimestamp) && Objects.nonNull(snapshotStartAt)) {
+                    Number maxRep = Math.abs(System.currentTimeMillis() - snapshotStartAt.longValue());
                     values.put("replicateLag", maxRep);
                 }
 
-                Number snapshotDoneAt = values.get("snapshotDoneAt");
-                Number snapshotStartAt = values.get("snapshotStartAt");
-                if (Objects.nonNull(snapshotDoneAt) && Objects.isNull(snapshotStartAt)) {
-                    values.put("snapshotStartAt", snapshotStartAtTemp);
-                }
-
-                // 全量完成时间应该是在任务中所有涉及全量的表完成后再更新全量完成时间
-                Number snapshotTableTotal = values.get("snapshotTableTotal");
-                Number tableTotal = values.get("tableTotal");
-                if ((ObjectUtils.allNotNull(snapshotTableTotal, tableTotal))
-                        && (snapshotTableTotal.longValue() == 0 || snapshotTableTotal.longValue() < tableTotal.longValue())) {
-                    values.put("snapshotDoneAt", null);
-                }
-
-//                Optional.ofNullable(snapshotDoneAt).ifPresent(snapshot -> {
-//                            if (snapshot.longValue() > 0L) {
-//                                values.put("currentSnapshotTableInsertRowTotal", values.get("currentSnapshotTableRowTotal"));
-//                            }
-//                        }
-//                );
-
+//                Number snapshotDoneAt = values.get("snapshotDoneAt");
+//                if (Objects.nonNull(snapshotDoneAt) && Objects.isNull(snapshotStartAt)) {
+//                    values.put("snapshotStartAt", snapshotStartAtTemp);
+//                }
             }
             sample.setVs(values);
         }
-
-//        stopWatch.stop();
-//        System.out.println("stopWatch query " + JSON.toJSONString(criteria));
-//        System.out.println("stopWatch time " + stopWatch.getTotalTimeMillis());
-//        System.out.println("stopWatch data " + stopWatch.prettyPrint());
         return data;
     }
 
@@ -861,14 +816,24 @@ public class MeasurementServiceV2 {
         // inputInsertTotal + inputUpdateTotal + inputDeleteTotal + inputDdlTotal + inputOthersTotal
         AtomicReference<Long> inputTotal = new AtomicReference<>(0L);
         AtomicReference<Long> outputTotal = new AtomicReference<>(0L);
-        vs.remove("inputQps");
-        vs.remove("outputQps");
+        List<String> calList = Lists.of("inputDdlTotal",
+                "inputDeleteTotal",
+                "inputInsertTotal",
+                "inputOthersTotal",
+                "inputUpdateTotal",
+                "outputDdlTotal",
+                "outputDeleteTotal",
+                "outputInsertTotal",
+                "outputOthersTotal",
+                "outputUpdateTotal");
         vs.forEach((k, v) -> {
-            Long value = Objects.nonNull(v) ? v.longValue() : 0;
-            if (StringUtils.startsWith(k, "input")) {
-                inputTotal.updateAndGet(v1 -> v1 + value);
-            } else if (StringUtils.startsWith(k, "output")) {
-                outputTotal.updateAndGet(v1 -> v1 + value);
+            if (calList.contains(k)) {
+                Long value = Objects.nonNull(v) ? v.longValue() : 0;
+                if (StringUtils.startsWith(k, "input")) {
+                    inputTotal.updateAndGet(v1 -> v1 + value);
+                } else if (StringUtils.startsWith(k, "output")) {
+                    outputTotal.updateAndGet(v1 -> v1 + value);
+                }
             }
         });
 

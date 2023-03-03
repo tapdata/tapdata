@@ -32,8 +32,16 @@ public class LogContent implements Serializable {
 	private Map<String, Object> after;
 	private String op;
 	private String offsetString;
+	private String type = LogContentType.DATA.name();
 
 	public LogContent() {
+	}
+
+	public static LogContent createStartTimeSign() {
+		LogContent logContent = new LogContent();
+		logContent.setTimestamp(System.currentTimeMillis());
+		logContent.setType(LogContentType.SIGN.name());
+		return logContent;
 	}
 
 	public LogContent(String fromTable, Map<String, Object> data, Map<String, LogCollectOffset> offset, String connStr, Long timestamp) {
@@ -144,6 +152,14 @@ public class LogContent implements Serializable {
 		return offsetString;
 	}
 
+	public String getType() {
+		return type;
+	}
+
+	public void setType(String type) {
+		this.type = type;
+	}
+
 	public boolean isEmpty() {
 		return StringUtils.isAnyBlank(fromTable, connStr)
 				|| MapUtils.isEmpty(data)
@@ -152,7 +168,7 @@ public class LogContent implements Serializable {
 
 	public static LogContent valueOf(Document document) {
 		LogContent logContent = new LogContent();
-		logContent.setFromTable(document.getString("fromTable"));
+		logContent.setFromTable(document.getOrDefault("fromTable", "").toString());
 		Object beforeObject = document.getOrDefault("before", null);
 		if (beforeObject instanceof Map) {
 			logContent.setBefore((Map<String, Object>) beforeObject);
@@ -162,8 +178,19 @@ public class LogContent implements Serializable {
 			logContent.setAfter((Map<String, Object>) afterObject);
 		}
 		logContent.setTimestamp(document.getLong("timestamp"));
-		logContent.setOp(document.getString("op"));
-		logContent.setOffsetString(document.getString("offsetString"));
+		logContent.setOp(document.getOrDefault("op", "").toString());
+		logContent.setOffsetString(document.getOrDefault("offsetString", "").toString());
+		LogContentType logContentType = LogContentType.DATA;
+		if (document.containsKey("type")) {
+			String typeStr = document.getOrDefault("type", "").toString();
+			if (StringUtils.isNotBlank(typeStr)) {
+				try {
+					logContentType = LogContentType.valueOf(typeStr);
+				} catch (IllegalArgumentException ignored) {
+				}
+			}
+		}
+		logContent.setType(logContentType.name());
 		return logContent;
 	}
 
@@ -176,6 +203,12 @@ public class LogContent implements Serializable {
 				"\n  before=" + before +
 				"\n  after=" + after +
 				"\n  offsetString=" + offsetString +
+				"\n  type=" + type +
 				"\n}";
+	}
+
+	public enum LogContentType {
+		DATA,
+		SIGN,
 	}
 }

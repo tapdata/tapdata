@@ -21,16 +21,18 @@ public class TableSampleHandler extends AbstractHandler {
 
     private final String table;
     private final Long snapshotRowTotal;
+    private BigDecimal snapshotSyncRate;
     private final Map<String, Number> retrievedTableValues;
     private CounterSampler snapshotInsertRowCounter;
-
+    private TaskSampleHandler taskSampleHandler = null;
 
     public TableSampleHandler(TaskDto task, String table, @NonNull Long snapshotRowTotal,
-                              @NonNull Map<String, Number> retrievedTableValues) {
+                              @NonNull Map<String, Number> retrievedTableValues, BigDecimal snapshotSyncRate) {
         super(task);
         this.table = table;
         this.snapshotRowTotal = snapshotRowTotal;
         this.retrievedTableValues = retrievedTableValues;
+        this.snapshotSyncRate = snapshotRowTotal == 0 ? BigDecimal.ONE : snapshotSyncRate;
     }
 
     @Override
@@ -64,13 +66,21 @@ public class TableSampleHandler extends AbstractHandler {
         snapshotInsertRowCounter = getCounterSampler(values, SNAPSHOT_INSERT_ROW_TOTAL);
 
         collector.addSampler(SNAPSHOT_SYNCRATE, () -> {
-            if (Objects.nonNull(snapshotRowTotal) && snapshotRowTotal != 0 && Objects.nonNull(snapshotInsertRowCounter.value())) {
+            if (snapshotSyncRate.compareTo(BigDecimal.ONE) != 0 &&
+                    Objects.nonNull(snapshotRowTotal) && Objects.nonNull(snapshotInsertRowCounter.value())) {
                 BigDecimal decimal = BigDecimal.valueOf(snapshotInsertRowCounter.value().longValue())
                         .divide(new BigDecimal(snapshotRowTotal), 2, RoundingMode.HALF_UP);
-                return decimal.compareTo(BigDecimal.ONE) > 0 ? 1 : decimal;
-            } else {
-                return 0;
+                if (decimal.compareTo(BigDecimal.ONE) >= 0) {
+                    snapshotSyncRate = BigDecimal.ONE;
+                    taskSampleHandler.snapshotTableTotalInc();
+                } else {
+                    snapshotSyncRate = decimal;
+                }
+            } else if (Objects.nonNull(taskSampleHandler.getSnapshotDone())) {
+                snapshotSyncRate = BigDecimal.ONE;
             }
+
+            return snapshotSyncRate;
         });
     }
 
@@ -108,5 +118,9 @@ public class TableSampleHandler extends AbstractHandler {
         }
 
         return samples;
+    }
+
+    public void setTaskSampleHandler(TaskSampleHandler taskSampleHandler) {
+        this.taskSampleHandler = taskSampleHandler;
     }
 }

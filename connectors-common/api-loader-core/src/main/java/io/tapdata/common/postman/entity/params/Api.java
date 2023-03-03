@@ -13,74 +13,102 @@ public class Api {
     String pageResultPath;
     Request request;
     String response;
-    public static Api create(){
+
+    public static Api create() {
         return new Api();
     }
 
-    public String id(){
+    public Api copyOne() {
+        Api api = new Api();
+        api.id(this.id);
+        api.name(this.name);
+        api.tableName(this.tableName);
+        api.pageStage(this.pageStage);
+        api.pageResultPath(this.pageResultPath);
+        api.request(this.request.copyOne());
+        api.response(this.response);
+        return api;
+    }
+
+    public String id() {
         return this.id;
     }
-    public String name(){
+
+    public String name() {
         return this.name;
     }
-    public String tableName(){
+
+    public String tableName() {
         return this.tableName;
     }
-    public String pageStage(){
+
+    public String pageStage() {
         return this.pageStage;
     }
-    public String pageResultPath(){
+
+    public String pageResultPath() {
         return this.pageResultPath;
     }
-    public Request request(){
+
+    public Request request() {
         return this.request;
     }
-    public String response(){
+
+    public String response() {
         return this.response;
     }
-    public Api id(String id){
+
+    public Api id(String id) {
         this.id = id;
         return this;
     }
-    public Api name(String name){
+
+    public Api name(String name) {
         this.name = name;
         return this;
     }
-    public Api nameFullDetail(String name){
+
+    public Api nameFullDetail(String name) {
         this.name = name;
         this.tableName = TapApiTag.analysisTableName(name);
         this.pageStage = TapApiTag.getPageStage(name);
-        if (Objects.nonNull(this.pageStage)){
+        if (Objects.nonNull(this.pageStage)) {
             String[] arr = this.pageStage.split(":");
-            if (arr.length == 2){
+            if (arr.length == 2) {
                 this.pageResultPath = arr[1];
             }
-            if (arr.length>0){
+            if (arr.length > 0) {
                 this.pageStage = arr[0];
             }
         }
         return this;
     }
-    public Api tableName(String tableName){
+
+    public Api tableName(String tableName) {
         this.tableName = tableName;
         return this;
     }
-    public Api pageStage(String pageStage){
+
+    public Api pageStage(String pageStage) {
         this.pageStage = pageStage;
         return this;
     }
-    public Api pageResultPath(String pageResultPath){
+
+    public Api pageResultPath(String pageResultPath) {
         this.pageResultPath = pageResultPath;
         return this;
     }
-    public Api request(Request request){
+
+    public Api request(Request request) {
         this.request = request;
         return this;
     }
-    public Api response(String response){
+
+    public Api response(String response) {
         this.response = response;
         return this;
     }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

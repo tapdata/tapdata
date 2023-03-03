@@ -26,6 +26,16 @@ public class TimeConverter implements CustomConverter<SchemaBuilder, RelationalC
                 if (EmptyKit.isNull(x)) {
                     return null;
                 }
+                //for pg<=9.4
+                if (x instanceof String) {
+                    long second = 0;
+                    String[] hourToSecond = ((String) x).split(":");
+                    for (String s : hourToSecond) {
+                        second = Integer.parseInt(s) + second * 60;
+                    }
+                    return second * 1000000;
+                }
+                //for pg>=9.5
                 Duration duration = (Duration) x;
                 return duration.getSeconds() * 1000000 + duration.getNano() / 1000;
             });

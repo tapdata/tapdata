@@ -69,7 +69,7 @@ public class PdkConnector implements IPdkConnector {
                 associateId,
                 connections.getConfig(),
                 new PdkTableMap(TapTableUtil.getTapTableMapByNodeId(AutoInspectConstants.MODULE_NAME, nodeId, System.currentTimeMillis())),
-                new PdkStateMap(String.format("%s_%s", AutoInspectConstants.MODULE_NAME, nodeId), HazelcastUtil.getInstance(), PdkStateMap.StateMapMode.HTTP_TM),
+                new PdkStateMap(String.format("%s_%s", AutoInspectConstants.MODULE_NAME, nodeId), HazelcastUtil.getInstance()),
                 PdkStateMap.globalStateMap(HazelcastUtil.getInstance()),
                 InstanceFactory.instance(LogFactory.class).getLog()
         );

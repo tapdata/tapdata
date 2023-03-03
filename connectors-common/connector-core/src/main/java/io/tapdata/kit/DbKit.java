@@ -4,14 +4,16 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
-import sun.security.provider.MD5;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Reader;
 import java.sql.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -102,6 +104,18 @@ public class DbKit {
         return columnTypeNames;
     }
 
+    public static List<Object> getDataArrayByColumnName(ResultSet resultSet, String columnName) {
+        List<Object> list = TapSimplify.list();
+        try {
+            while (resultSet.next()) {
+                list.add(resultSet.getObject(columnName));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
     public static byte[] blobToBytes(Blob blob) {
         BufferedInputStream bis = null;
         try {
@@ -156,4 +170,17 @@ public class DbKit {
         return "TAPIDX_" + table.substring(Math.max(table.length() - 10, 0)) + UUID.randomUUID().toString().replaceAll("-", "").substring(20);
     }
 
+    public static <T> List<List<T>> splitToPieces(List<T> data, int eachPieceSize) {
+        if (EmptyKit.isEmpty(data)) {
+            return new ArrayList<>();
+        }
+        if (eachPieceSize <= 0) {
+            throw new IllegalArgumentException("Param Error");
+        }
+        List<List<T>> result = new ArrayList<>();
+        for (int index = 0; index < data.size(); index += eachPieceSize) {
+            result.add(data.stream().skip(index).limit(eachPieceSize).collect(Collectors.toList()));
+        }
+        return result;
+    }
 }

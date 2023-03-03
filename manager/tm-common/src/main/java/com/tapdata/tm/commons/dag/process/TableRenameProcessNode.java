@@ -7,7 +7,6 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.NodeType;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
@@ -158,13 +157,18 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
                 lastTableName = tableInfo.getCurrentTableName();
             }
 
-            String currentTableName = convertTableName(lastTableName);
-            tableInfo = new TableRenameTableInfo(tableName, lastTableName, currentTableName);
-            boolean exist = tableNames.stream().anyMatch(t -> t.getCurrentTableName().equals(currentTableName));
-            if (exist) {
-                throw new IllegalArgumentException("The new table [" + currentTableName + "] already exists when it is converted as  [" + currentTableName + "]");
+            boolean already = tableNames.stream().anyMatch(t -> t.getOriginTableName().equals(tableName));
+            if (!already) {
+                String currentTableName = convertTableName(lastTableName);
+                boolean exist = tableNames.stream().anyMatch(t -> t.getCurrentTableName().equals(currentTableName));
+                if (exist) {
+                    throw new IllegalArgumentException("The new table [" + currentTableName + "] already exists when it is converted as  [" + currentTableName + "]");
+                }
+                tableInfo = new TableRenameTableInfo(tableName, lastTableName, currentTableName);
+                tableNames.add(tableInfo);
+            } else {
+                log.info("The table [{}] has been added to the configuration", tableName);
             }
-            tableNames.add(tableInfo);
         } else if (event instanceof TapDropTableEvent) {
             String tableName = event.getTableId();
             for (TableRenameTableInfo tableInfo : tableNames) {

@@ -1,0 +1,530 @@
+{
+  "properties": {
+    "name": "Lark-IM",
+    "icon": "icon/lark.png",
+    "doc": "${doc}",
+    "id": "lark-im"
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+        "sendType": {
+          "type": "String",
+          "default": "dynamic_binding",
+          "title": "${node_send_type}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "enum": [
+            {
+              "label": "${node_dynamic_binding}",
+              "value": "dynamic_binding"
+            },
+            {
+              "label": "${node_from_js_node}",
+              "value": "from_js_node"
+            }
+          ],
+          "x-index": 10,
+          "required": true
+        },
+        "receiver": {
+          "type": "string",
+          "x-display": "hidden",
+          "x-index": 15
+        },
+        "receiverArray": {
+          "x-decorator": "FormItem",
+          "x-component": "AsyncSelect",
+          "x-component-props": {
+            "method": "{{loadCommandList}}",
+            "params": "{{ {$values: {attrs: $values.attrs, nodeConfig: {}, connectionId: $values.connectionId}, command: \"GetReceiverOfChatsAndUsers\"} }}",
+            "multiple": true,
+            "currentLabel": "{{ $values.nodeConfig.receiverArrayLabel }}",
+            "@change-label": "{{ val => $values.nodeConfig.receiverArrayLabel = val }}",
+            "@change": "{{ val => $values.nodeConfig.receiver = val.join() || \"\" }}"
+          },
+          "title": "${node_receiver}",
+          "type": "array",
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.sendType"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] === \"appoint\" ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0] === \"appoint\" ? true : false}}"
+              }
+            }
+          },
+          "x-index": 20
+        },
+        "dynamicBinding": {
+          "type": "array",
+          "title": "${node_dynamic_binding_arr}",
+          "x-decorator": "FormItem",
+          "x-component": "ArrayTable",
+          "x-index": 30,
+          "required": true,
+          "default": [
+          ],
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.sendType"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] === \"dynamic_binding\" ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0] === \"dynamic_binding\" ? true : false}}"
+              }
+            }
+          },
+          "items": {
+            "type": "object",
+            "properties": {
+              "c1": {
+                "type": "void",
+                "x-component": "ArrayTable.Column",
+                "x-index": 32,
+                "x-component-props": {
+                  "title": "${node_receiver_type}"
+                },
+                "properties": {
+                  "receiveType": {
+                    "type": "string",
+                    "required": true,
+                    "x-decorator": "FormItem",
+                    "x-component": "Select",
+                    "default": "phone",
+                    "x-component-props": {
+                      "allowCreate": true,
+                      "filterable": true
+                    },
+                    "enum": [
+                      {
+                        "label": "${node_chat_id}",
+                        "value": "chat_id"
+                      },
+                      {
+                        "label": "${node_open_id}",
+                        "value": "open_id"
+                      },
+                      {
+                        "label": "${node_phone}",
+                        "value": "phone"
+                      },
+                      {
+                        "label": "${node_email}",
+                        "value": "email"
+                      }
+                    ]
+                  }
+                }
+              },
+              "c2": {
+                "type": "void",
+                "x-component": "ArrayTable.Column",
+                "x-index": 36,
+                "x-component-props": {
+                  "title": "${node_receiver_field_name}"
+                },
+                "properties": {
+                  "receiveId": {
+                    "type": "string",
+                    "required": true,
+                    "default": null,
+                    "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
+                    "x-decorator": "FormItem",
+                    "x-decorator-props": {
+                      "wrapperWidth": 300
+                    },
+                    "x-component": "FieldSelect",
+                    "x-component-props": {
+                      "allowCreate": true,
+                      "multiple": false,
+                      "filterable": true
+                    },
+                    "x-reactions": [
+                      "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+                      {
+                        "fulfill": {
+                          "run": "if (!$self.value && $self.dataSource && $self.dataSource.length) {let isPrimaryKeyList = $self.dataSource.filter(item => item.isPrimaryKey); let indicesUniqueList = $self.dataSource.filter(item => item.indicesUnique); $self.setValue((isPrimaryKeyList.length ? isPrimaryKeyList : indicesUniqueList).map(item => item.value)); $self.validate();}"
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              "c3": {
+                "type": "void",
+                "x-component": "ArrayTable.Column",
+                "x-index": 33,
+                "x-component-props": {
+                  "width": 100,
+                  "title": "${node_filed_operator}",
+                  "prop": "operations",
+                  "fixed": "right"
+                },
+                "properties": {
+                  "operator": {
+                    "type": "void",
+                    "x-component": "FormItem",
+                    "properties": {
+                      "remove": {
+                        "type": "void",
+                        "x-component": "ArrayTable.Remove"
+                      },
+                      "moveDown": {
+                        "type": "void",
+                        "x-component": "ArrayTable.MoveDown"
+                      },
+                      "moveUp": {
+                        "type": "void",
+                        "x-component": "ArrayTable.MoveUp"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "properties": {
+            "add": {
+              "type": "void",
+              "x-component": "ArrayTable.Addition",
+              "title": "${df_table_field_btn_add}"
+            }
+          }
+        },
+        "messageConfig": {
+          "type": "array",
+          "title": "${node_message_config}",
+          "x-decorator": "FormItem",
+          "x-component": "ArrayTable",
+          "x-index": 40,
+          "required": true,
+          "default": [
+            {
+              "messageType": "text",
+              "messageField": ""
+            }
+          ],
+          "items": {
+            "type": "object",
+            "properties": {
+              "c1": {
+                "type": "void",
+                "x-component": "ArrayTable.Column",
+                "x-index": 42,
+                "x-component-props": {
+                  "title": "${node_msg_type}"
+                },
+                "properties": {
+                  "messageType": {
+                    "type": "string",
+                    "required": true,
+                    "x-decorator": "FormItem",
+                    "x-component": "Select",
+                    "enum": [
+                      {
+                        "label": "${node_msg_type_text}",
+                        "value": "text"
+                      },
+                      {
+                        "label": "${node_msg_type_card}",
+                        "value": "interactive"
+                      },
+                      {
+                        "label": "${node_msg_type_post}",
+                        "value": "post"
+                      },
+                      {
+                        "label": "${node_msg_type_image}",
+                        "value": "image"
+                      },
+                      {
+                        "label": "${node_msg_type_share_chat}",
+                        "value": "share_chat"
+                      },
+                      {
+                        "label": "${node_msg_type_share_user}",
+                        "value": "share_user"
+                      },
+                      {
+                        "label": "${node_msg_type_share_audio}",
+                        "value": "audio"
+                      },
+                      {
+                        "label": "${node_msg_type_share_media}",
+                        "value": "media"
+                      },
+                      {
+                        "label": "${node_msg_type_share_file}",
+                        "value": "file"
+                      },
+                      {
+                        "label": "${node_msg_type_share_sticker}",
+                        "value": "sticker"
+                      }
+                    ]
+                  }
+                }
+              },
+              "c2": {
+                "type": "void",
+                "x-component": "ArrayTable.Column",
+                "x-index": 46,
+                "x-component-props": {
+                  "title": "${node_msg_column}"
+                },
+                "properties": {
+                  "messageField": {
+                    "type": "array",
+                    "required": true,
+                    "default": null,
+                    "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
+                    "x-decorator": "FormItem",
+                    "x-decorator-props": {
+                      "wrapperWidth": 300
+                    },
+                    "x-component": "FieldSelect",
+                    "x-component-props": {
+                      "allowCreate": true,
+                      "multiple": false,
+                      "filterable": true
+                    },
+                    "x-reactions": [
+                      "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+                      {
+                        "fulfill": {
+                          "run": "if (!$self.value && $self.dataSource && $self.dataSource.length) {let isPrimaryKeyList = $self.dataSource.filter(item => item.isPrimaryKey); let indicesUniqueList = $self.dataSource.filter(item => item.indicesUnique); $self.setValue((isPrimaryKeyList.length ? isPrimaryKeyList : indicesUniqueList).map(item => item.value)); $self.validate();}"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.sendType"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] === \"from_js_node\" ? \"hidden\" : \"visible\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0] === \"from_js_node\" ? false : true}}"
+              }
+            }
+          }
+        },
+        "rule": {
+          "type": "string",
+          "title": "${node_record_rule}",
+          "x-decorator": "FormItem",
+          "x-component": "Input.TextArea",
+          "x-validator": [],
+          "x-component-props": {
+            "size": "large",
+            "cutString": true,
+            "trim": false,
+            "autoHeight": true
+          },
+          "x-reactions": {
+            "dependencies": [
+              "nodeConfig.sendType"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] === \"from_js_node\" ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+
+              }
+            }
+          },
+          "x-decorator-props": {
+            "tooltip": "待发送信息的每条数据需要包含的键值如下所示，请保持键值匹配",
+            "labelCol": 4,
+            "feedbackLayout": "loose",
+            "size": "small",
+            "tooltipLayout": "icon",
+            "labelAlign": "left",
+            "fullness": true,
+            "inset": true,
+            "bordered": false,
+            "labelWrap": true,
+            "wrapperWrap": true
+          },
+          "description": "",
+          "name": "rule",
+          "x-pattern": "readOnly",
+          "default": "\n\n各类消息体的配置请参阅飞书官方文档： https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json \n{\n          \"receiveType\": \"{{user | email | phone | chat}}\",\n          \"receiveId\": \"{{user_open_id | user_email | user_phone | chat_id}}\",\n          \"contentType\": \"text\",\n          \"content\": \"{\\\"text\\\":\\\"Hello! This is lark message! \\\"}\"\n        }",
+          "x-designable-id": "2kgzbvimwra",
+          "x-index": 99
+        }
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+        "app_id": {
+          "type": "String",
+          "title": "${app_id}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 10,
+          "required": true
+        },
+        "app_secret": {
+          "type": "String",
+          "title": "${app_secret}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 20,
+          "required": true
+        },
+        "app_name": {
+          "type": "String",
+          "title": "${app_name}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 30,
+          "required": false,
+          "x-reactions": [
+            "{{$values.app_id && $values.app_secret && useAsyncDataSourceByConfig({service: getCommandAndSetValue, withoutField: true}, $form, { command: 'GetAppInfo' })}}",
+            {
+              "dependencies": [
+                "app_id",
+                "app_secret"
+              ],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0] && $deps[1] ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "doc/Lark_en_US.md",
+      "app_id": "App Id",
+      "app_secret": "App Secret",
+      "app_name": "App Name",
+      "send_config": "Message sending configuration",
+      "user_email_or_phone": "Receiver's mobile phone number or email",
+      "node_send_type": "Receive type",
+      "node_from_js_node": "Specified by JS node",
+      "node_filed_operator": "Field operator",
+      "node_receiver": "Message receiver",
+      "node_receiver_field_name": "Message recipient field name",
+      "node_receiver_type": "Message receiver field type",
+      "node_appoint": "Specify fixed receiver",
+      "node_dynamic_binding": "Dynamic assignment by data",
+      "node_dynamic_binding_arr": "Config message receiver's field",
+      "node_message_config": "Message field configuration",
+      "node_msg_column": "Message field name",
+      "df_table_field_btn_add": "Add field description",
+      "node_msg_type": "Message type",
+      "node_msg_type_text": "Text",
+      "node_msg_type_card": "Interactive",
+      "node_msg_type_post": "Rich text",
+      "node_msg_type_image": "Image",
+      "node_msg_type_share_chat": "Share chat",
+      "node_msg_type_share_user": "Share user",
+      "node_msg_type_share_audio": "Audio",
+      "node_msg_type_share_media": "Media",
+      "node_msg_type_share_file": "File",
+      "node_msg_type_share_sticker": "Sticker",
+      "node_chat_id": "Chat ID",
+      "node_open_id": "User Open ID",
+      "node_phone": "User Phone",
+      "node_email": "User Email",
+      "node_record_rule": "Record Rule"
+    },
+    "zh_CN": {
+      "doc": "doc/Lark_zh_CN.md",
+      "app_id": "应用Id",
+      "app_name": "App名称",
+      "app_secret": "应用Secret",
+      "send_config": "消息发送配置",
+      "user_email_or_phone": "接受者手机号或邮箱",
+      "node_send_type": "接收方式",
+      "node_from_js_node": "由JS节点指定",
+      "node_receiver_field_name": "消息接收者字段名称",
+      "node_filed_operator": "操作",
+      "node_receiver_type": "消息接收者字段类型",
+      "node_receiver": "消息接收人",
+      "node_appoint": "指定固定接收者",
+      "node_dynamic_binding": "按数据动态指定",
+      "node_dynamic_binding_arr": "消息接收人字段配置",
+      "node_message_config": "消息字段配置",
+      "df_table_field_btn_add": "新增字段描述",
+      "node_msg_column": "消息字段",
+      "node_msg_type": "消息类型",
+      "node_msg_type_text": "文本类型消息",
+      "node_msg_type_card": "消息卡片",
+      "node_msg_type_post": "富文本类型消息",
+      "node_msg_type_image": "图片链接",
+      "node_msg_type_share_chat": "群分享（chat_id）",
+      "node_msg_type_share_user": "分享个人名片（user_id）",
+      "node_msg_type_share_audio": "语音",
+      "node_msg_type_share_media": "视频",
+      "node_msg_type_share_file": "文件",
+      "node_msg_type_share_sticker": "表情包",
+      "node_chat_id": "群聊（chat_id）",
+      "node_open_id": "用户（open_id）",
+      "node_phone": "用户-手机号（phone）",
+      "node_email": "用户-邮箱（email）",
+      "node_record_rule": "Record 规则"
+    },
+    "zh_TW": {
+      "doc": "doc/Lark_zh_TW.md",
+      "app_id": "应用Id",
+      "app_name": "App名稱",
+      "app_secret": "应用Secret",
+      "send_config": "消息發送配寘",
+      "user_email_or_phone": "接受者手機號或郵箱",
+      "node_send_type": "接收方式",
+      "node_receiver_field_name": "消息接收者欄位名稱",
+      "node_filed_operator": "操縱",
+      "node_receiver_type": "消息接收者欄位類型",
+      "node_receiver": "消息接收人",
+      "node_from_js_node": "由JS節點指定",
+      "node_appoint": "指定固定接收者",
+      "node_dynamic_binding": "按數據動態指定",
+      "df_table_field_btn_add": "新增字段描述",
+      "node_dynamic_binding_arr": " 消息接收人欄位配寘",
+      "node_message_config": "消息欄位配寘",
+      "node_msg_column": "消息欄位",
+      "node_msg_type": "消息類型",
+      "node_msg_type_text": " 文字類型消息",
+      "node_msg_type_card": "消息卡片",
+      "node_msg_type_post": "富文本类型消息",
+      "node_msg_type_image": "图片链接",
+      "node_msg_type_share_chat": "群分享（chat_id）",
+      "node_msg_type_share_user": "分享个人名片（user_id）",
+      "node_msg_type_share_audio": "语音",
+      "node_msg_type_share_media": "视频",
+      "node_msg_type_share_file": "文件",
+      "node_msg_type_share_sticker": "表情包",
+      "node_chat_id": "群聊（chat_id）",
+      "node_open_id": "用戶（open_id）",
+      "node_phone": "用戶-手機號（phone）",
+      "node_email": "用戶-郵箱（email）",
+      "node_record_rule": "Record 規則"
+    }
+  }
+}

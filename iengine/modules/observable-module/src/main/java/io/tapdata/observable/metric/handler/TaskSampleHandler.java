@@ -1,5 +1,8 @@
 package io.tapdata.observable.metric.handler;
 
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.sampler.AverageSampler;
@@ -9,7 +12,6 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.ObjectUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -62,8 +64,9 @@ public class TaskSampleHandler extends AbstractHandler {
     private Long snapshotDoneAt = null;
     private Long snapshotDoneCost = null;
     private String currentSnapshotTable = null;
-    private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
+//    private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
     private Long currentSnapshotTableInsertRowTotal = null;
+    private Long currentSnapshotTableRowTotal = null;
     private Double outputQpsMax;
     private Double outputQpsAvg;
 
@@ -185,12 +188,11 @@ public class TaskSampleHandler extends AbstractHandler {
             snapshotDoneAt = retrieveSnapshotDoneAt.longValue();
         }
         collector.addSampler(SNAPSHOT_DONE_AT, () -> {
-            List<Long> collect = sourceNodeHandlers.values().stream()
-                    .map(DataNodeSampleHandler::getSnapshotDoneAt)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-            if (CollectionUtils.isNotEmpty(collect) && collect.size() == sourceNodeHandlers.size()) {
-                snapshotDoneAt = Collections.max(collect);
+            if (Objects.isNull(snapshotDoneAt)) {
+                List<Node> sources = this.task.getDag().getSources();
+                sourceNodeHandlers.values().stream()
+                        .filter(h -> sources.contains(h.node) && Objects.nonNull(h.getSnapshotDoneAt()))
+                        .findAny().ifPresent(dh -> this.snapshotDoneAt = dh.getSnapshotDoneAt());
             }
             return snapshotDoneAt;
         });
@@ -204,11 +206,12 @@ public class TaskSampleHandler extends AbstractHandler {
         collector.addSampler(CURR_SNAPSHOT_TABLE, () -> null);
         collector.addSampler(CURR_SNAPSHOT_TABLE_ROW_TOTAL, () -> {
             if (null == currentSnapshotTable) return null;
-            return currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
+            return currentSnapshotTableRowTotal;
         });
         collector.addSampler(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL, () -> {
-            if (ObjectUtils.allNotNull(currentSnapshotTable, snapshotDoneAt)) {
-                return currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
+            if (Objects.nonNull(snapshotTableTotal.value()) && CollectionUtils.isNotEmpty(taskTables) &&
+            snapshotTableTotal.value().intValue() == taskTables.size()) {
+                return currentSnapshotTableRowTotal;
             }
             return currentSnapshotTableInsertRowTotal;
         });
@@ -239,9 +242,10 @@ public class TaskSampleHandler extends AbstractHandler {
         taskTables.addAll(Arrays.asList(tables));
     }
 
-    public void handleTableCountAccept(String table, long count) {
+    public void handleTableCountAccept(long count) {
         snapshotRowTotal.inc(count);
-        currentSnapshotTableRowTotalMap.put(table, count > 0 ? count : null);
+        currentSnapshotTableInsertRowTotal = 0L;
+        currentSnapshotTableRowTotal = count;
     }
 
     public void handleCreateTableEnd() {
@@ -264,25 +268,24 @@ public class TaskSampleHandler extends AbstractHandler {
     public void handleBatchReadStart(String table) {
         currentSnapshotTable = table;
         currentSnapshotTableInsertRowTotal = 0L;
-        if (firstBatchRead.get()) {
-            if (Objects.nonNull(snapshotTableTotal)) {
-                snapshotTableTotal.reset();
-            }
-            firstBatchRead.set(false);
-        }
+//        if (firstBatchRead.get()) {
+//            if (Objects.nonNull(snapshotTableTotal)) {
+//                snapshotTableTotal.reset();
+//            }
+//            firstBatchRead.set(false);
+//        }
     }
+
     public void handleBatchReadAccept(long size) {
         inputInsertCounter.inc(size);
         inputSpeed.add(size);
-        currentSnapshotTableInsertRowTotal += size;
+//        currentSnapshotTableInsertRowTotal += size;
 
-        snapshotInsertRowTotal.inc(size);
+//        snapshotInsertRowTotal.inc(size);
     }
 
-    public void handleBatchReadFuncEnd() {
+    public void snapshotTableTotalInc() {
         snapshotTableTotal.inc();
-//        currentSnapshotTable = null;
-        currentSnapshotTableInsertRowTotal = 0L;
     }
 
     public void handleStreamReadStart(List<String> tables) {
@@ -322,6 +325,13 @@ public class TaskSampleHandler extends AbstractHandler {
         outputDeleteCounter.inc(deleted);
         outputSpeed.add(total);
 
+        snapshotInsertRowTotal.inc(total);
+        if (Objects.isNull(currentSnapshotTableInsertRowTotal)) {
+            currentSnapshotTableInsertRowTotal = total;
+        } else {
+            currentSnapshotTableInsertRowTotal += total;
+        }
+
         long timeCostTotal = 0L;
         for (TapRecordEvent event : events) {
             Long time = event.getTime();
@@ -356,5 +366,9 @@ public class TaskSampleHandler extends AbstractHandler {
             return;
         }
         inputDdlCounter.inc(tables.size());
+    }
+
+    public Long getSnapshotDone() {
+        return snapshotDoneAt;
     }
 }

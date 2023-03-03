@@ -27,6 +27,12 @@
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-api</artifactId>
+            <version>${tapdata.pdk.api.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
             <artifactId>connector-core</artifactId>
         </dependency>
 

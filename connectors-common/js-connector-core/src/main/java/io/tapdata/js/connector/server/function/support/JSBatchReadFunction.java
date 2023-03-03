@@ -17,10 +17,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 
 import javax.script.ScriptEngine;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -56,8 +53,8 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
         ScriptCore scriptCore = new ScriptCore();
         scriptEngine.put("core", scriptCore);
         AtomicReference<Throwable> scriptException = new AtomicReference<>();
+        AtomicReference<Object> contextMap = new AtomicReference<>(offset);
         BatchReadSender sender = new BatchReadSender().core(scriptCore);
-        final Object finalOffset = offset;
         Runnable runnable = () -> {
             try {
 //                synchronized (JSConnector.execLock) {
@@ -65,7 +62,7 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
                             JSFunctionNames.BatchReadFunction.jsName(),
                             Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()),
                             Optional.ofNullable(context.getNodeConfig()).orElse(new DataMap()),
-                            finalOffset,
+                            Optional.ofNullable(contextMap.get()).orElse(new HashMap<>()),
                             table.getId(),
                             batchCount,
                             sender
@@ -79,6 +76,7 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
         Thread t = new Thread(runnable);
         t.start();
         List<TapEvent> eventList = new ArrayList<>();
+        Object lastContextMap = null;
         while (isAlive.get() && t.isAlive()) {
             try {
                 CustomEventMessage message = null;
@@ -87,10 +85,17 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
                 } catch (InterruptedException ignored) {
                 }
                 if (EmptyKit.isNotNull(message)) {
-                    eventList.add(message.getTapEvent());
+                    lastContextMap = message.getContextMap();
+                    TapEvent tapEvent = message.getTapEvent();
+                    if (Objects.isNull(tapEvent)){
+                        contextMap.set(lastContextMap);
+                        continue;
+                    }
+                    eventList.add(tapEvent);
                     if (eventList.size() == batchCount) {
-                        eventsOffsetConsumer.accept(eventList, offset);
+                        eventsOffsetConsumer.accept(eventList, lastContextMap);
                         eventList = new ArrayList<>();
+                        contextMap.set(lastContextMap);
                     }
                 }
             } catch (Exception e) {
@@ -101,7 +106,8 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
             throw new RuntimeException(scriptException.get());
         }
         if (isAlive.get() && EmptyKit.isNotEmpty(eventList)) {
-            eventsOffsetConsumer.accept(eventList, offset);
+            eventsOffsetConsumer.accept(eventList, lastContextMap);
+            contextMap.set(lastContextMap);
         }
         if (t.isAlive()) {
             t.stop();
