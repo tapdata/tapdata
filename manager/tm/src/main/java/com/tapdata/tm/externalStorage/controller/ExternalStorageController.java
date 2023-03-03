@@ -266,4 +266,9 @@ public class ExternalStorageController extends BaseController {
 		return success();
 	}
 
+	@Operation(summary = "Get using tasks")
+	@GetMapping("{id}/usingTask")
+	public ResponseMessage<List<TaskDto>> getUsingTask(@PathVariable("id") String id) {
+		return success(externalStorageService.findUsingTasks(id));
+	}
 }

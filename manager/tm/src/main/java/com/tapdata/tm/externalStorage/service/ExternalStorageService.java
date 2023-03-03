@@ -128,4 +128,29 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 		}
 		return externalStorageDtoPage;
 	}
+
+	@Override
+	public boolean deleteById(ObjectId objectId, UserDetail userDetail) {
+		ExternalStorageEntity externalStorageEntity = repository.findById(objectId, userDetail).orElse(null);
+		if (null == externalStorageEntity) {
+			return true;
+		}
+		if (!externalStorageEntity.isCanDelete()) {
+			return true;
+		}
+		boolean delete = super.deleteById(objectId, userDetail);
+		if (externalStorageEntity.isDefaultStorage()) {
+			Query query = Query.query(Criteria.where("type").ne(ExternalStorageType.memory.name()));
+			ExternalStorageEntity findExternalStorage = repository.findOne(query, userDetail).orElse(null);
+			if (null == findExternalStorage) {
+				findExternalStorage = repository.findOne(new Query(), userDetail).orElse(null);
+			}
+			if (null != findExternalStorage) {
+				query = Query.query(Criteria.where("_id").is(findExternalStorage.getId()));
+				Update update = new Update().set("defaultStorage", true);
+				repository.updateFirst(query, update, userDetail);
+			}
+		}
+		return delete;
+	}
 }
