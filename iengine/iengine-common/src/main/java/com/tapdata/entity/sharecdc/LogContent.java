@@ -180,7 +180,17 @@ public class LogContent implements Serializable {
 		logContent.setTimestamp(document.getLong("timestamp"));
 		logContent.setOp(document.getOrDefault("op", "").toString());
 		logContent.setOffsetString(document.getOrDefault("offsetString", "").toString());
-		logContent.setType(LogContentType.valueOf(document.getString("type")).name());
+		LogContentType logContentType = LogContentType.DATA;
+		if (document.containsKey("type")) {
+			String typeStr = document.getOrDefault("type", "").toString();
+			if (StringUtils.isNotBlank(typeStr)) {
+				try {
+					logContentType = LogContentType.valueOf(typeStr);
+				} catch (IllegalArgumentException ignored) {
+				}
+			}
+		}
+		logContent.setType(logContentType.name());
 		return logContent;
 	}
 

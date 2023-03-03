@@ -72,10 +72,11 @@ public class TableSampleHandler extends AbstractHandler {
                         .divide(new BigDecimal(snapshotRowTotal), 2, RoundingMode.HALF_UP);
                 if (decimal.compareTo(BigDecimal.ONE) >= 0) {
                     snapshotSyncRate = BigDecimal.ONE;
-                    taskSampleHandler.snapshotTableTotalInc();
                 } else {
                     snapshotSyncRate = decimal;
                 }
+            } else if (Objects.nonNull(taskSampleHandler) && Objects.nonNull(taskSampleHandler.getSnapshotDone())) {
+                snapshotSyncRate = BigDecimal.ONE;
             }
 
             return snapshotSyncRate;

@@ -35,7 +35,7 @@
 					}
 				],
 				"url": {
-					"raw": "https://open.feishu.cn/open-apis/application/v6/applications/cli_a302e1fcf4b9900d?lang=zh_cn",
+					"raw": "https://open.feishu.cn/open-apis/application/v6/applications/me?lang=zh_cn",
 					"protocol": "https",
 					"host": [
 						"open",
@@ -118,7 +118,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n\t\"can_edit\": true,\n\t\"collaborator_ids\": [{{collaboratorIds}}],\n\t\"due\": {\n\t\t\"is_all_day\": false,\n\t\t\"time\": \"{{time}}\",\n\t\t\"timezone\": \"Asia/Shanghai\"\n\t},\n\t\"extra\": \"dGVzdA==\",\n\t\"follower_ids\": [{{followerIds}}],\n\t\"origin\": {\n\t\t\"href\": {\n\t\t\t\"title\": \"{{title}}\",\n\t\t\t\"url\": \"{{url}}\"\n\t\t},\n\t\t\"platform_i18n_name\": \"{\\\"zh_cn\\\": \\\"工单：\\\", \\\"en_us\\\": \\\"IT Workspace\\\"}\"\n\t},\n\t\"repeat_rule\": \"FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR\",\n\t\"rich_description\": \"{{rich_description}}\",\n\t\"rich_summary\": \"{{rich_summary}}\",\n\t\"summary\": \"完成本季度OKR编写\"\n}"
+					"raw": "{\n\t\"can_edit\": true,\n\t\"collaborator_ids\": [{{collaboratorIds}}],\n\t\"due\": {\n\t\t\"is_all_day\": false,\n\t\t\"time\": \"{{time}}\",\n\t\t\"timezone\": \"Asia/Shanghai\"\n\t},\n\t\"extra\": \"dGVzdA==\",\n\t\"follower_ids\": [{{followerIds}}],\n\t\"origin\": {\n\t\t\"href\": {\n\t\t\t\"title\": \"{{title}}\",\n\t\t\t\"url\": \"{{url}}\"\n\t\t},\n\t\t\"platform_i18n_name\": \"{\\\"zh_cn\\\": \\\"飞书开放平台\\\", \\\"en_us\\\": \\\"Lark Open API\\\"}\"\n\t},\n\t\"repeat_rule\": \"FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR\",\n\t\"rich_description\": \"{{rich_description}}\",\n\t\"rich_summary\": \"{{rich_summary}}\"}"
 				},
 				"url": {
 					"raw": "https://open.feishu.cn/open-apis/task/v1/tasks?user_id_type=user_id",
@@ -138,6 +138,114 @@
 						{
 							"key": "user_id_type",
 							"value": "user_id"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetSubDept",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "{{Authorization}}"
+					}
+				],
+				"url": {
+					"raw": "https://open.feishu.cn/open-apis/contact/v3/departments/:department_id/children?department_id_type=department_id&fetch_child=true&page_size=50&page_token={{page_token}}",
+					"protocol": "https",
+					"host": [
+						"open",
+						"feishu",
+						"cn"
+					],
+					"path": [
+						"open-apis",
+						"contact",
+						"v3",
+						"departments",
+						":department_id",
+						"children"
+					],
+					"query": [
+						{
+							"key": "department_id_type",
+							"value": "department_id"
+						},
+						{
+							"key": "page_token",
+							"value": ""
+						},
+						{
+							"key": "fetch_child",
+							"value": "true"
+						},
+						{
+							"key": "page_size",
+							"value": "50"
+						},
+						{
+							"key": "user_id_type",
+							"value": "open_id",
+							"disabled": true
+						},
+						{
+							"key": "page_token",
+							"value": "",
+							"disabled": true
+						}
+					],
+					"variable": [
+						{
+							"key": "department_id",
+							"value": "0"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetDeptUsers",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "{{Authorization}}"
+					}
+				],
+				"url": {
+					"raw": "https://open.feishu.cn/open-apis/contact/v3/users/find_by_department?department_id_type=department_id&department_id={{departmentId}}&page_token={{page_token}}",
+					"protocol": "https",
+					"host": [
+						"open",
+						"feishu",
+						"cn"
+					],
+					"path": [
+						"open-apis",
+						"contact",
+						"v3",
+						"users",
+						"find_by_department"
+					],
+					"query": [
+						{
+							"key": "department_id_type",
+							"value": "department_id"
+						},
+						{
+							"key": "department_id",
+							"value": "{{departmentId}}"
+						},
+						{
+							"key": "page_token",
+							"value": "",
+							"disabled": true
 						}
 					]
 				}
@@ -168,7 +276,7 @@
 	"variable": [
 		{
 			"key": "Authorization",
-			"value": "Bearer t-g1042keTZRI73CJD53GMDGAW6XTIZJD37OINUYLP",
+			"value": "Bearer t-g1042rf0UBJOLUIISYQYHFXUXYMLOGOKBHGCOOAL",
 			"type": "string"
 		},
 		{
@@ -222,12 +330,21 @@
 			"type": "string"
 		},
 		{
+			"key": "emails",
+			"value": "13320063291",
+			"type": "string"
+		},
+		{
 			"key": "userEmails",
 			"value": ""
 		},
 		{
 			"key": "userMobiles",
 			"value": ""
+		},
+		{
+			"key": "department_id",
+			"value": "0"
 		}
 	]
 }

@@ -1,9 +1,9 @@
 {
   "properties": {
-    "name": "Zoho",
+    "name": "Zoho-Desk",
     "icon": "icons/zoho.png",
     "doc" : "${doc}",
-    "id": "zoho"
+    "id": "zoho-desk"
   },
   "configOptions": {
     "pdkExpansion": [],

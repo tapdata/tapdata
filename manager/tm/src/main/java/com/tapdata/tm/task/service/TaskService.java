@@ -27,6 +27,7 @@ import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.Operation;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.task.dto.migrate.MigrateTableDto;
@@ -42,6 +43,7 @@ import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.inspect.constant.InspectResultEnum;
 import com.tapdata.tm.inspect.dto.InspectDto;
@@ -109,11 +111,11 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
+import java.text.MessageFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
@@ -178,6 +180,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public final static String LOG_COLLECTOR_SAVE_ID = "log_collector_save_id";
 
     private CustomNodeService customNodeService;
+
+    private ExternalStorageService externalStorageService;
 
     public TaskService(@NonNull TaskRepository repository) {
         super(repository, TaskDto.class, TaskEntity.class);
@@ -1611,24 +1615,21 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         shareCacheVo.setFields((List<String>) sourceNode.getAttrs().get("fields"));
                     }
 
-//                    MeasurementEntity measurementEntity = measurementService.findByTaskIdAndNodeId(taskDto.getId().toString(), sourceNode.getId());
-//                    if (null != measurementEntity && null != measurementEntity.getStatistics() && null != measurementEntity.getStatistics().get("cdcTime")) {
-//                        Map<String, Number> statistics = measurementEntity.getStatistics();
-//                        //cdc 值为integer or long 需要处理，cdcTime   也可能为0 需要处理
-//                        Number cdcTime = statistics.get("cdcTime");
-//                        Date cdcTimeDate = null;
-//                        if (cdcTime instanceof Integer) {
-//                            cdcTimeDate = new Date(cdcTime.longValue());
-//                        } else if (cdcTime instanceof Long) {
-//                            cdcTimeDate = new Date((Long) cdcTime);
-//                        }
-//                        shareCacheVo.setCacheTimeAt(cdcTimeDate);
-//                    }
+                    if (taskDto.getCurrentEventTimestamp() != null) {
+                        shareCacheVo.setCacheTimeAt(new Date(taskDto.getCurrentEventTimestamp()));
+                    }
                 }
 
                 CacheNode cacheNode = (CacheNode) getTargetNode(taskDto);
                 if (null != cacheNode) {
                     BeanUtil.copyProperties(cacheNode, shareCacheVo);
+                    String externalStorageId = cacheNode.getExternalStorageId();
+                    if (StringUtils.isNotEmpty(externalStorageId)) {
+                        ExternalStorageDto externalStorageDto = externalStorageService.findById(MongoUtils.toObjectId(externalStorageId));
+                        if (externalStorageDto != null) {
+                            shareCacheVo.setExternalStorageName(externalStorageDto.getName());
+                        }
+                    }
                 }
 
                 shareCacheVo.setName(taskDto.getName());

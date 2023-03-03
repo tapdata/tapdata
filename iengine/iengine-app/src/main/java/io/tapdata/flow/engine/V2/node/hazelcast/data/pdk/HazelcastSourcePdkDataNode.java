@@ -32,7 +32,6 @@ import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.sharecdc.ReaderType;
-import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcReader;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
@@ -517,6 +516,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		cdcDelayCalculation.addHeartbeatTable(new ArrayList<>(dataProcessorContext.getTapTableMap().keySet()));
 		ShareCdcTaskContext shareCdcTaskContext = new ShareCdcTaskPdkContext(getCdcStartTs(), processorBaseContext.getConfigurationCenter(),
 				dataProcessorContext.getTaskDto(), dataProcessorContext.getNode(), dataProcessorContext.getSourceConn(), getConnectorNode());
+		shareCdcTaskContext.setObsLogger(obsLogger);
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		List<String> tables = new ArrayList<>(tapTableMap.keySet());
 		// Init share cdc reader, if unavailable, will throw ShareCdcUnsupportedException
@@ -570,7 +570,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 		Node node = getNode();
 		AtomicLong loopTime = new AtomicLong(1L);
-		String tableName = ((TableNode) node).getTableName();
+		TableNode tableNode = (TableNode) node;
+		String tableName = tableNode.getTableName();
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableName);
 		Object streamOffsetObj = syncProgress.getStreamOffsetObj();
 		if (!(streamOffsetObj instanceof Map)) {
@@ -606,6 +607,20 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					tapAdvanceFilter.op(QueryOperator.gt(field, value));
 				}
 				tapAdvanceFilter.sort(SortOn.ascending(field));
+			}
+			if (isTableFilter(tableNode)) {
+				List<QueryOperator> conditions = tableNode.getConditions();
+				if (CollectionUtils.isNotEmpty(conditions)) {
+					DataMap match = new DataMap();
+					for (QueryOperator queryOperator : conditions) {
+						if (EQUAL_VALUE == queryOperator.getOperator()) {
+							match.put(queryOperator.getKey(), queryOperator.getValue());
+						} else {
+							tapAdvanceFilter.op(queryOperator);
+						}
+					}
+					tapAdvanceFilter.match(match);
+				}
 			}
 			tapAdvanceFilter.limit(cdcPollingBatchSize);
 			try {

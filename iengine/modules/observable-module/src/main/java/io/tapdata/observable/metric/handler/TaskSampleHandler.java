@@ -1,5 +1,8 @@
 package io.tapdata.observable.metric.handler;
 
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.sampler.AverageSampler;
@@ -9,11 +12,12 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.ObjectUtils;
+import org.springframework.util.ObjectUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * @author Dexter
@@ -185,16 +189,18 @@ public class TaskSampleHandler extends AbstractHandler {
             snapshotDoneAt = retrieveSnapshotDoneAt.longValue();
         }
         collector.addSampler(SNAPSHOT_DONE_AT, () -> {
-            if (ObjectUtils.allNotNull(snapshotRowTotal, snapshotInsertRowTotal, snapshotRowTotal.value(), snapshotInsertRowTotal.value())) {
-                if (snapshotInsertRowTotal.value().longValue() >= snapshotRowTotal.value().longValue()) {
-                    snapshotDoneAt = System.currentTimeMillis();
-                }
+            if (Objects.isNull(snapshotDoneAt)) {
+                sourceNodeHandlers.values().stream()
+                        .filter(h -> Objects.nonNull(h.getSnapshotDoneAt()))
+                        .findAny().ifPresent(dh -> this.snapshotDoneAt = dh.getSnapshotDoneAt());
             }
             return snapshotDoneAt;
         });
 
         collector.addSampler(SNAPSHOT_DONE_COST, () -> {
-            Optional.ofNullable(snapshotDoneAt).ifPresent(done -> snapshotDoneCost = snapshotDoneAt - snapshotStartAt);
+            if (Objects.nonNull(snapshotDoneAt) && Objects.nonNull(snapshotStartAt)) {
+                snapshotDoneCost = snapshotDoneAt - snapshotStartAt;
+            }
             return snapshotDoneCost;
         });
 
@@ -280,7 +286,7 @@ public class TaskSampleHandler extends AbstractHandler {
 //        snapshotInsertRowTotal.inc(size);
     }
 
-    public void snapshotTableTotalInc() {
+    public void handleBatchReadFuncEnd() {
         snapshotTableTotal.inc();
     }
 
@@ -362,5 +368,9 @@ public class TaskSampleHandler extends AbstractHandler {
             return;
         }
         inputDdlCounter.inc(tables.size());
+    }
+
+    public Long getSnapshotDone() {
+        return snapshotDoneAt;
     }
 }
