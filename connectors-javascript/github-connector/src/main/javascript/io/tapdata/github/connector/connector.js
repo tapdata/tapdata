@@ -209,11 +209,11 @@ function discoverSchema(connectionConfig) {
  * @param batchReadSender  Sender of submitted data
  * */
 function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
-    if(!offset){
+    if(!offset || !offset.tableName){
         offset = {
             page:1,
             tableName:tableName,
-            since: dateUtils.timeStamp2Date((new Date('1990-01-01').getTime() - 60000)+"", "yyyy-MM-dd'T'HH:mm:ssXXX")
+            since: new Date('1990-01-01').toISOString()
         };
     }
     iterateAllData(tableName.toLowerCase(), offset, (result, offsetNext, error) => {
@@ -266,9 +266,7 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
         let condition = arrayUtils.firstElement(offset[tableName].Conditions);
         offset[tableName].Conditions = [{Key:"UPDATED_AT",Value: isParam(condition) && null != condition ? arrayUtils.firstElement(condition.Value.split('_')) + '_' + dateUtils.nowDate(): batchStart + '_' + dateUtils.nowDate()}];
         if(isFirst){
-        offset[tableName]['since'] = new Date(startTime.getTime() - 61000).toISOString();
-        } else {
-        offset[tableName]['since'] = new Date(new Date().getTime() - 61000).toISOString();
+        offset[tableName]['since'] = new Date(startTime.getTime() - 65000).toISOString();
         }
         iterateAllData('issues', offset[tableName], (result, offsetNext, error) => {
             let haveNext = false;
@@ -279,6 +277,13 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
                     }
                     offsetNext.page = offsetNext.page + 1;
                     haveNext = true;
+                }else{
+                    offsetNext.page = 1;
+                }
+                for(let x in result){
+                    if( result[x].updated_at && offset[tableName]['since'] < result[x].updated_at){
+                        offset[tableName]['since'] = new Date(new Date(result[x].updated_at).getTime() + 1000).toISOString();
+                    }
                 }
                 streamReadSender.send(result,tableName,offset);
                 if(!haveNext){
