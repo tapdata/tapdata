@@ -3923,7 +3923,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         criteriaInspect.and("stats.target.table").is(tableName);
         Query queryInspect = Query.query(criteriaInspect);
         queryInspect.with(Sort.by("createTime").descending());
-        InspectResultDto inspectResultDto = inspectResultService.findOne(queryInspect);
+        InspectResultDto inspectResultDto = inspectResultService.findOne(queryInspect,userDetail);
         if (inspectResultDto == null) {
             return true;
         }
