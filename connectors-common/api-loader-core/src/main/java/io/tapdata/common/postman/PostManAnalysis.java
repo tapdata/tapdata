@@ -11,11 +11,13 @@ import io.tapdata.common.postman.util.ReplaceTagUtil;
 import io.tapdata.common.support.APIFactory;
 import io.tapdata.common.support.core.emun.TapApiTag;
 import io.tapdata.common.support.entitys.APIResponse;
+import io.tapdata.common.util.ScriptUtil;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.JsonParser;
 import okhttp3.*;
+import okio.Buffer;
 
 import java.io.IOException;
 import java.util.*;
@@ -215,6 +217,21 @@ public class PostManAnalysis {
     }
 
     public APIResponse http(Request request) throws IOException{
+        String property = System.getProperty("show_api_invoker_result", "1");
+        if ("1".equals(property)) {
+            Buffer sink = new Buffer();
+            RequestBody body = request.body();
+            String bodyStr = "{}";
+            if (Objects.nonNull(body)){
+                body.writeTo(sink);
+                bodyStr = ScriptUtil.fileToString(sink.inputStream());
+            }
+            System.out.printf(
+                    "Http Result: \n\tURL: %s \n\tMETHOD: %s \n\tBODY\\PARAMS: %s\n",
+                    request.url(),
+                    request.method(),
+                    bodyStr);
+        }
         OkHttpClient client = this.configHttp(new OkHttpClient().newBuilder()).build();
         Map<String, Object> result = new HashMap<>();
         Response response = client.newCall(request).execute();
