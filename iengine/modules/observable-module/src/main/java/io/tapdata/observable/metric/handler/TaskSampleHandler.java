@@ -12,6 +12,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.commons.collections4.CollectionUtils;
+import org.springframework.util.ObjectUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -189,16 +190,17 @@ public class TaskSampleHandler extends AbstractHandler {
         }
         collector.addSampler(SNAPSHOT_DONE_AT, () -> {
             if (Objects.isNull(snapshotDoneAt)) {
-                List<Node> sources = this.task.getDag().getSources();
                 sourceNodeHandlers.values().stream()
-                        .filter(h -> sources.contains(h.node) && Objects.nonNull(h.getSnapshotDoneAt()))
+                        .filter(h -> Objects.nonNull(h.getSnapshotDoneAt()))
                         .findAny().ifPresent(dh -> this.snapshotDoneAt = dh.getSnapshotDoneAt());
             }
             return snapshotDoneAt;
         });
 
         collector.addSampler(SNAPSHOT_DONE_COST, () -> {
-            Optional.ofNullable(snapshotDoneAt).ifPresent(done -> snapshotDoneCost = snapshotDoneAt - snapshotStartAt);
+            if (Objects.nonNull(snapshotDoneAt) && Objects.nonNull(snapshotStartAt)) {
+                snapshotDoneCost = snapshotDoneAt - snapshotStartAt;
+            }
             return snapshotDoneCost;
         });
 
@@ -284,7 +286,7 @@ public class TaskSampleHandler extends AbstractHandler {
 //        snapshotInsertRowTotal.inc(size);
     }
 
-    public void snapshotTableTotalInc() {
+    public void handleBatchReadFuncEnd() {
         snapshotTableTotal.inc();
     }
 
