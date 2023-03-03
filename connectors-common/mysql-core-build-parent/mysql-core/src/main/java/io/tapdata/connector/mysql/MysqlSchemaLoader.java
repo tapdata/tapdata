@@ -39,7 +39,7 @@ public class MysqlSchemaLoader {
     private final static String SELECT_ALL_INDEX_SQL = "select TABLE_NAME,INDEX_NAME,INDEX_TYPE,COLLATION,NON_UNIQUE,COLUMN_NAME,SEQ_IN_INDEX\n" +
             "from INFORMATION_SCHEMA.STATISTICS\n" +
             "where TABLE_SCHEMA = '%s'\n" +
-            "and TABLE_NAME %s order by INDEX_NAME,SEQ_IN_INDEX";
+            "and TABLE_NAME = '%s' order by INDEX_NAME,SEQ_IN_INDEX";
 
 
     private TapConnectionContext tapConnectionContext;
