@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
+import com.hazelcast.ringbuffer.Ringbuffer;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.TapdataShareLogEvent;
 import com.tapdata.entity.sharecdc.LogContent;
@@ -161,6 +162,10 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		try {
 			HazelcastConstruct<Document> construct = getConstruct(tableId);
 			construct.insertMany(batchCacheData.get(tableId), unused -> !running.get());
+			if (logger.isDebugEnabled()) {
+				Ringbuffer ringbuffer = ((ConstructRingBuffer) construct).getRingbuffer();
+				logger.debug("Write ring buffer, head sequence: {}, tail sequence: {}, last data: {}", ringbuffer.headSequence(), ringbuffer.tailSequence(), ringbuffer.readOne(ringbuffer.tailSequence()));
+			}
 		} catch (Exception e) {
 			throw new RuntimeException("Insert many documents into ringbuffer failed. Table: " + tableId + " Size: " + batchCacheData.get(tableId).size(), e);
 		}
