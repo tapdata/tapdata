@@ -47,7 +47,7 @@ public class QueryDataBaseDataService {
             DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
             TapTable tapTable = TapTableUtil.getTapTableByConnectionId(connectionId, tableName);
             ConnectorNode connectorNode = createConnectorNode(associateId, (HttpClientMongoOperator) clientMongoOperator, databaseType, connections.getConfig());
-
+            List<Map<String, Object>> maps;
             String TAG = this.getClass().getSimpleName();
             try {
                 PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);
@@ -55,29 +55,34 @@ public class QueryDataBaseDataService {
                 TapCodecsFilterManager codecsFilterManager = connectorNode.getCodecsFilterManager();
                 AtomicReference<List<Map<String, Object>>> resultsAtomic = new AtomicReference<>();
                 QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorNode.getConnectorFunctions().getQueryByAdvanceFilterFunction();
-                TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create();
-                tapAdvanceFilter.limit(rows);
-                queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable,
-                        filterResults -> {
-                            List<Map<String, Object>> results = filterResults.getResults();
-                            if (CollectionUtils.isNotEmpty(results)) {
-                                resultsAtomic.set(new ArrayList<>(results));
-                            }
-                        });
-                List<Map<String, Object>> maps = resultsAtomic.get();
-                if (CollectionUtils.isNotEmpty(maps)) {
-                    for (Map<String, Object> map : maps) {
-                        codecsFilterManager.transformToTapValueMap(map, tapTable.getNameFieldMap());
-                        codecsFilterManager.transformFromTapValueMap(map);
+                if(queryByAdvanceFilterFunction !=null) {
+                    TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create();
+                    tapAdvanceFilter.limit(rows);
+                    queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable,
+                            filterResults -> {
+                                List<Map<String, Object>> results = filterResults.getResults();
+                                if (CollectionUtils.isNotEmpty(results)) {
+                                    resultsAtomic.set(new ArrayList<>(results));
+                                }
+                            });
+                    maps = resultsAtomic.get();
+                    if (CollectionUtils.isNotEmpty(maps)) {
+                        for (Map<String, Object> map : maps) {
+                            codecsFilterManager.transformToTapValueMap(map, tapTable.getNameFieldMap());
+                            codecsFilterManager.transformFromTapValueMap(map);
+                        }
                     }
+                }else {
+                    maps = new ArrayList<>();
                 }
                 TableInfo tableInfo = TableInfo.create();
                 GetTableInfoFunction getTableInfoFunction = connectorNode.getConnectorFunctions().getGetTableInfoFunction();
                 if (getTableInfoFunction == null) {
                     tableInfo.setNumOfRows(0L);
                     tableInfo.setStorageSize(0L); // 字节单位
+                }else {
+                    tableInfo = getTableInfoFunction.getTableInfo(connectorNode.getConnectorContext(), tableName);
                 }
-                tableInfo = getTableInfoFunction.getTableInfo(connectorNode.getConnectorContext(), tableName);
                 return map(entry("sampleData", maps), entry("tableInfo", tableInfo));
             } catch (Exception e) {
                 throw new RuntimeException("Failed to init pdk connector, database type: " + databaseType + ", message: " + e.getMessage(), e);

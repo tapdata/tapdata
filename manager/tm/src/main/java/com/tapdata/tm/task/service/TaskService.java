@@ -3979,4 +3979,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return false;
     }
 
+    public static void main(String[] args) {
+        Map  map  = new HashMap();
+        System.out.println(map.putIfAbsent("11",333));;
+
+    }
+
 }
