@@ -3928,7 +3928,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
 
-    public void queryTableMeasurement(String taskId,TableStatusInfoDto tableStatusInfoDto) {
+    public void queryTableMeasurement(String taskId, TableStatusInfoDto tableStatusInfoDto) {
         Criteria criteria = Criteria.where("tags.taskId").is(taskId)
                 .and("grnty").is("minute")
                 .and("tags.type").is("task");
@@ -3936,12 +3936,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         query.fields().include("ss", "tags");
         query.with(Sort.by("last").descending());
         MeasurementEntity measurementEntity = repository.getMongoOperations().findOne(query, MeasurementEntity.class, "AgentMeasurementV2");
-        List<Sample> samples =  measurementEntity.getSamples();
-        if(CollectionUtils.isNotEmpty(samples)){
+        List<Sample> samples = measurementEntity.getSamples();
+        if (CollectionUtils.isNotEmpty(samples)) {
             Sample sample = samples.get(0);
-            Long  cdcDelayTime = Long.valueOf(sample.getVs().get("replicateLag").toString());
+            Long cdcDelayTime = null;
+            if (sample.getVs().get("replicateLag") != null) {
+                cdcDelayTime = Long.valueOf(sample.getVs().get("replicateLag").toString());
+            }
             tableStatusInfoDto.setCdcDelayTime(cdcDelayTime);
-            long  LastDataChangeTime = (long) sample.getVs().get("currentEventTimestamp");
+            long LastDataChangeTime = (long) sample.getVs().get("currentEventTimestamp");
             tableStatusInfoDto.setLastDataChangeTime(new Date(LastDataChangeTime));
         }
 
