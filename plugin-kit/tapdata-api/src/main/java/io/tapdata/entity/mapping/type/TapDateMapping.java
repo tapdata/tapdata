@@ -31,8 +31,8 @@ public class TapDateMapping extends TapDateBase {
             LocalDate localDate = LocalDate.parse(dateString, dateTimeFormatter);
             return localDate.atStartOfDay(ZoneId.of("GMT-0")).toInstant();
         } catch(Throwable throwable) {
-            throwable.printStackTrace();
-            TapLogger.error(TAG, "Parse date {} pattern {}, failed {}", dateString, thePattern, throwable.getMessage());
+//            throwable.printStackTrace();
+            TapLogger.warn(TAG, "Parse date {} pattern {}, failed {}", dateString, thePattern, throwable.getMessage());
         }
         return null;
     }
