@@ -141,7 +141,7 @@ public class ShareCdcBaseReader implements ShareCdcReader {
 			missingField.add("offsetString");
 		}
 		if (CollectionUtils.isNotEmpty(missingField)) {
-			throw new IllegalArgumentException("Log data unusable, missing field: " + String.join(",", missingField));
+			throw new IllegalArgumentException("Log data unusable, missing field: " + String.join(",", missingField) + ", document: " + document);
 		}
 	}
 

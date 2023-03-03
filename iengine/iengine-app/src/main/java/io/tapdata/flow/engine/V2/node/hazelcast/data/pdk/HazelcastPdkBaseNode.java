@@ -40,7 +40,11 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -110,7 +114,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	}
 
 	public void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {
-		if(null == pdkMethodInvoker) return;
+		if (null == pdkMethodInvoker) return;
 		pdkMethodInvokerList.remove(pdkMethodInvoker);
 	}
 
@@ -127,7 +131,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		Map<String, Object> connectionConfig = dataProcessorContext.getConnectionConfig();
 		DatabaseTypeEnum.DatabaseType databaseType = dataProcessorContext.getDatabaseType();
 		PdkTableMap pdkTableMap = new PdkTableMap(dataProcessorContext.getTapTableMap());
-		PdkStateMap pdkStateMap = new PdkStateMap(dataProcessorContext.getNode().getId(), hazelcastInstance);
+		PdkStateMap pdkStateMap = new PdkStateMap(dataProcessorContext.getNode().getId(), hazelcastInstance, taskDto, getNode(), clientMongoOperator, "processor");
 		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
 		Node<?> node = dataProcessorContext.getNode();
 		ConnectorCapabilities connectorCapabilities = ConnectorCapabilities.create();
@@ -135,7 +139,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		Map<String, Object> nodeConfig = null;
 		if (node instanceof TableNode) {
 			nodeConfig = ((TableNode) node).getNodeConfig();
-		} else if(node instanceof DatabaseNode) {
+		} else if (node instanceof DatabaseNode) {
 			nodeConfig = ((DatabaseNode) node).getNodeConfig();
 		}
 		this.associateId = ConnectorNodeService.getInstance().putConnectorNode(

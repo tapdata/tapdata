@@ -109,11 +109,11 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
+import java.text.MessageFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
@@ -1611,19 +1611,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         shareCacheVo.setFields((List<String>) sourceNode.getAttrs().get("fields"));
                     }
 
-//                    MeasurementEntity measurementEntity = measurementService.findByTaskIdAndNodeId(taskDto.getId().toString(), sourceNode.getId());
-//                    if (null != measurementEntity && null != measurementEntity.getStatistics() && null != measurementEntity.getStatistics().get("cdcTime")) {
-//                        Map<String, Number> statistics = measurementEntity.getStatistics();
-//                        //cdc 值为integer or long 需要处理，cdcTime   也可能为0 需要处理
-//                        Number cdcTime = statistics.get("cdcTime");
-//                        Date cdcTimeDate = null;
-//                        if (cdcTime instanceof Integer) {
-//                            cdcTimeDate = new Date(cdcTime.longValue());
-//                        } else if (cdcTime instanceof Long) {
-//                            cdcTimeDate = new Date((Long) cdcTime);
-//                        }
-//                        shareCacheVo.setCacheTimeAt(cdcTimeDate);
-//                    }
+                    if (taskDto.getCurrentEventTimestamp() != null) {
+                        shareCacheVo.setCacheTimeAt(new Date(taskDto.getCurrentEventTimestamp()));
+                    }
                 }
 
                 CacheNode cacheNode = (CacheNode) getTargetNode(taskDto);

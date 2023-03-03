@@ -52,6 +52,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -81,11 +83,12 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 	private List<ReadRunner> readRunners;
 	private Map<String, Long> sequenceMap;
 	private ExternalStorageDto logCollectorExternalStorage;
+	private Future<?> future;
 
 	ShareCdcPDKTaskReader(Object offset) {
 		super();
-		if (offset instanceof Map) {
-			this.sequenceMap = new ConcurrentHashMap<>((Map) offset);
+		if (offset instanceof ShareCDCOffset) {
+			this.sequenceMap = new ConcurrentHashMap<>(((ShareCDCOffset) offset).getSequenceMap());
 		} else {
 			this.sequenceMap = new ConcurrentHashMap<>();
 		}
@@ -100,6 +103,8 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			}
 			int step = 0;
 			logger.info(logWrapper("Initializing share cdc reader..."));
+			shareCdcContext.getObsLogger().info(logWrapper("Initializing share cdc reader..."));
+			this.running = new AtomicBoolean(true);
 			this.hazelcastInstance = HazelcastUtil.getInstance(this.shareCdcContext.getConfigurationCenter());
 			this.tableNames = NodeUtil.getTableNames(((ShareCdcTaskContext) shareCdcContext).getNode());
 			step = canShareCdc(step);
@@ -157,6 +162,8 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 
 		// Do not start ttl here
 		logCollectorExternalStorage.setTtlDay(0);
+		logger.info(logWrapper("Will use external storage: " + logCollectorExternalStorage));
+		shareCdcContext.getObsLogger().info(logWrapper("Will use external storage: " + logCollectorExternalStorage));
 
 		// Check start point valid of each table
 		step = checkTableStartPointValid(step);
@@ -238,14 +245,18 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		threadNum = partitionTableNames.size();
 		this.readThreadPool = new ThreadPoolExecutor(threadNum + 1, threadNum + 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
 		int index = 1;
+		future = this.readThreadPool.submit(this::readPreVersionData);
 		for (List<String> partitionTableName : partitionTableNames) {
 			ReadRunner readRunner = new ReadRunner(
 					index++,
 					partitionTableName,
 					shareCdcContext
 			);
-			this.readThreadPool.submit(readRunner::read);
-			this.readRunners.add(readRunner);
+			try {
+				this.readThreadPool.submit(readRunner::read);
+				this.readRunners.add(readRunner);
+			} catch (RejectedExecutionException ignored) {
+			}
 		}
 		try {
 			poll(logContentConsumer);
@@ -257,42 +268,54 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 	}
 
 	private void readPreVersionData() {
-		ConstructRingBuffer<Document> ringBuffer = new ConstructRingBuffer<>(hazelcastInstance, ShareCdcUtil.getConstructName(this.logCollectorTaskDto));
-		if (ringBuffer.isEmpty()) {
-			return;
-		}
-		Long cdcStartTs = this.shareCdcContext.getCdcStartTs();
-		long sequence;
-		if (null != cdcStartTs && cdcStartTs.compareTo(0L) <= 0) {
-			sequence = PersistenceStorage.getInstance().findSequence(ringBuffer.getRingbuffer(), cdcStartTs);
+		if (shareCdcContext instanceof ShareCdcTaskContext) {
+			TaskDto taskDto = ((ShareCdcTaskContext) shareCdcContext).getTaskDto();
+			Thread.currentThread().setName(THREAD_NAME_PREFIX + "-Old-Version-" + taskDto.getName());
 		} else {
 			return;
 		}
-		if (sequence < 0) {
-			return;
-		}
-		Map<String, Object> filter = new HashMap<>();
-		filter.put(ConstructRingBuffer.SEQUENCE_KEY, sequence);
-		ConstructIterator<Document> iterator;
 		try {
-			iterator = ringBuffer.find(filter);
+			ConstructRingBuffer<Document> ringBuffer = new ConstructRingBuffer<>(hazelcastInstance, ShareCdcUtil.getConstructName(this.logCollectorTaskDto), logCollectorExternalStorage);
+			if (ringBuffer.isEmpty()) {
+				return;
+			}
+			Long cdcStartTs = this.shareCdcContext.getCdcStartTs();
+			long sequence;
+			if (null != cdcStartTs && cdcStartTs.compareTo(0L) > 0) {
+				sequence = PersistenceStorage.getInstance().findSequence(ringBuffer.getRingbuffer(), cdcStartTs);
+			} else {
+				return;
+			}
+			if (sequence < 0) {
+				return;
+			}
+			Map<String, Object> filter = new HashMap<>();
+			filter.put(ConstructRingBuffer.SEQUENCE_KEY, sequence);
+			ConstructIterator<Document> iterator;
+			try {
+				iterator = ringBuffer.find(filter);
+			} catch (Exception e) {
+				throw new RuntimeException(String.format("Find ringbuffer by sequence '%s' failed", sequence), e);
+			}
+			logger.info("Start read old version log data, name: {}, sequence: {}", ringBuffer.getName(), sequence);
+			shareCdcContext.getObsLogger().info("Start read old version log data, name: {}, sequence: {}", ringBuffer.getName(), sequence);
+			while (this.running.get()) {
+				Document document = iterator.tryNext();
+				if (null == document) {
+					break;
+				}
+				if (!document.containsKey("fromTable")) {
+					continue;
+				}
+				String fromTable = document.getString("fromTable");
+				if (!tableNames.contains(fromTable)) {
+					continue;
+				}
+				enqueue(tapEventWrapper(document));
+			}
 		} catch (Exception e) {
-			throw new RuntimeException(String.format("Find ringbuffer by sequence '%s' failed", sequence), e);
-		}
-		logger.info("Start read old version log data, name: {}, sequence: {}", ringBuffer.getName(), sequence);
-		while (this.running.get()) {
-			Document document = iterator.tryNext();
-			if (null == document) {
-				break;
-			}
-			if (!document.containsKey("fromTable")) {
-				continue;
-			}
-			String fromTable = document.getString("fromTable");
-			if (!tableNames.contains(fromTable)) {
-				continue;
-			}
-			enqueue(tapEventWrapper(document));
+			String err = "Read old version log data failed";
+			handleFailed(err, e);
 		}
 	}
 
@@ -301,7 +324,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		private ShareCdcContext shareCdcContext;
 		private List<String> tableNames;
 		private TaskDto taskDto;
-		private AtomicBoolean running;
 		private final Map<String, ShareCdcReaderResource> readerResourceMap;
 
 		public ReadRunner(int index,
@@ -321,6 +343,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 					shareCdcReaderResource.sequence(sequenceMap.get(tableName));
 					if (logger.isDebugEnabled()) {
 						logger.debug("Found share cdc table[{}] offset, sequence: {}", tableNames, sequenceMap.get(tableName));
+						shareCdcContext.getObsLogger().debug("Found share cdc table[{}] offset, sequence: {}", tableNames, sequenceMap.get(tableName));
 					}
 				}
 				readerResourceMap.put(tableName, shareCdcReaderResource);
@@ -329,10 +352,20 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 
 		public void read() {
 			Thread.currentThread().setName(THREAD_NAME_PREFIX + "-" + taskDto.getName() + "-" + index);
-			this.running = new AtomicBoolean(true);
 			logger.info(logWrapper("Starting read log from hazelcast construct, tables: " + tableNames));
+			shareCdcContext.getObsLogger().info(logWrapper("Starting read log from hazelcast construct, tables: " + tableNames));
+			while (running.get()) {
+				if (null == future || future.isDone()) {
+					break;
+				}
+				try {
+					TimeUnit.MILLISECONDS.sleep(10L);
+				} catch (InterruptedException e) {
+					break;
+				}
+			}
 			try {
-				while (this.running.get()) {
+				while (running.get()) {
 					for (String tableName : tableNames) {
 						HazelcastConstruct<Document> construct = readerResourceMap.get(tableName).construct;
 						if (null == readerResourceMap.get(tableName).sequence) {
@@ -345,6 +378,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 								readerResourceMap.get(tableName).sequence(sequenceFindByTs);
 								sequenceMap.put(tableName, sequenceFindByTs);
 								logger.info(logWrapper("Find sequence in construct(" + tableName + ") by timestamp(" + Instant.ofEpochMilli(this.shareCdcContext.getCdcStartTs()) + "): " + sequenceFindByTs));
+								shareCdcContext.getObsLogger().info(logWrapper("Find sequence in construct(" + tableName + ") by timestamp(" + Instant.ofEpochMilli(this.shareCdcContext.getCdcStartTs()) + "): " + sequenceFindByTs));
 							} catch (Exception e) {
 								String err = "Find sequence by timestamp failed, timestamp: " + this.shareCdcContext.getCdcStartTs() + "; Error: " + e.getMessage();
 								handleFailed(err, e);
@@ -354,6 +388,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 						if (readerResourceMap.get(tableName).firstTime) {
 							readerResourceMap.get(tableName).firstTime = false;
 							logger.info(logWrapper("Starting read '{}' log, sequence: {}"), tableName, readerResourceMap.get(tableName).sequence);
+							shareCdcContext.getObsLogger().info(logWrapper("Starting read '{}' log, sequence: {}"), tableName, readerResourceMap.get(tableName).sequence);
 						}
 						// Find hazelcast construct iterator
 						Map<String, Object> filter = new HashMap<>();
@@ -378,7 +413,14 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 						}
 						List<Document> documents = new ArrayList<>();
 						try {
-							documents.add(iterator.tryNext());
+							Document document = iterator.tryNext();
+							if (null == document) {
+								continue;
+							}
+							if (document.containsKey("type") && LogContent.LogContentType.SIGN.name().equals(document.getString("type"))) {
+								continue;
+							}
+							documents.add(document);
 						} catch (DistributedObjectDestroyedException e) {
 							break;
 						} catch (Exception e) {
@@ -391,12 +433,14 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 						}
 						if (logger.isDebugEnabled()) {
 							logger.debug("Received log documents");
+							shareCdcContext.getObsLogger().debug("Received log documents");
 							documents.forEach(doc -> logger.debug("  " + doc.toJson()));
 						}
 						sequenceMap.put(tableName, iterator.getSequence());
 						documents.forEach(doc -> enqueue(tapEventWrapper(doc)));
 						if (readerResourceMap.get(tableName).firstData) {
 							logger.info(logWrapper("Successfully read " + tableName + "'s first log data, will continue to read the log"));
+							shareCdcContext.getObsLogger().info(logWrapper("Successfully read " + tableName + "'s first log data, will continue to read the log"));
 							readerResourceMap.get(tableName).firstData = false;
 						}
 					}
@@ -408,7 +452,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		}
 
 		public void close() {
-			this.running.compareAndSet(true, false);
 			CommonUtils.ignoreAnyError(() -> {
 				if (MapUtils.isNotEmpty(readerResourceMap)) {
 					readerResourceMap.values().forEach(r -> {

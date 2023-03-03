@@ -284,9 +284,11 @@ public abstract class LogMiner implements ILogMiner {
                         ddlStop.set(true);
                         TapSimplify.sleep(5000);
                         ddlFlush();
-                        ddlStop.set(false);
                     } catch (Throwable e) {
+                        TapLogger.warn(TAG, "ddl flush error {}", e);
                         throw new RuntimeException(e);
+                    } finally {
+                        ddlStop.set(false);
                     }
                     try {
                         long referenceTime = redoLogContent.getTimestamp().getTime();

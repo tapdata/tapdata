@@ -41,27 +41,10 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 	}
 
 	@Override
-	public void run() {
-		Thread.currentThread().setName(name);
-		logger.info(String.format("Start compare the content of rows in table %s.%s and table %s.%s, the taskId is %s",
-				source.getName(), inspectTask.getSource().getTable(),
-				target.getName(), inspectTask.getTarget().getTable(), inspectTask.getTaskId()));
-
-		final InspectResultStats stats = new InspectResultStats();
-
-		stats.setStart(new Date());
-		stats.setStatus(InspectStatus.RUNNING.getCode());
-		stats.setProgress(0);
-		stats.setTaskId(inspectTask.getTaskId());
-		stats.setSource(inspectTask.getSource());
-		stats.setTarget(inspectTask.getTarget());
-		stats.getSource().setConnectionName(source.getName());
-		stats.getTarget().setConnectionName(target.getName());
-
+	protected void doRun() {
 		int retry = 0;
 		while (retry < 4) {
 			try {
-
 				compare(inspectTask, source, target, stats, (inspectResultStats, inspectDetails) -> progressUpdateCallback.progress(inspectTask, stats, inspectDetails));
 				break;
 			} catch (Exception e) {
@@ -90,10 +73,6 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 				}
 			}
 		}
-
-		logger.info(String.format("Inspect completed for task %s", inspectTask.getTaskId()));
-
-		progressUpdateCallback.progress(inspectTask, stats, null);
 	}
 
 	private void compare(InspectTask inspectTask, Connections source, Connections target, InspectResultStats stats, CompareProgress compareProgress) {
@@ -329,6 +308,7 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 			stats.setStatus(InspectStatus.ERROR.getCode());
 			stats.setErrorMsg(e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 			compareProgress.update(stats, null);
+			e.printStackTrace();
 		}
 	}
 

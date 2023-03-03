@@ -3,18 +3,29 @@ package io.tapdata.flow.engine.V2.entity;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.persistence.PersistenceStorage;
 import com.tapdata.constant.ConfigurationCenter;
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.AppType;
+import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.construct.constructImpl.DocumentIMap;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author samuel
@@ -29,10 +40,16 @@ public class PdkStateMap implements KVMap<Object> {
 	//	private IMap<String, Document> imap;
 	private static final String KEY = PdkStateMap.class.getSimpleName();
 	public static final long GLOBAL_MAP_TTL_SECONDS = 604800L;
+	private Logger logger = LogManager.getLogger(PdkStateMap.class);
 	private static volatile PdkStateMap globalStateMap;
 	private DocumentIMap<Document> constructIMap;
+	private ExternalStorageDto externalStorage;
 
 	private PdkStateMap() {
+	}
+
+	public ExternalStorageDto getExternalStorage() {
+		return externalStorage;
 	}
 
 	public PdkStateMap(String nodeId, HazelcastInstance hazelcastInstance) {
@@ -42,6 +59,47 @@ public class PdkStateMap implements KVMap<Object> {
 
 	private PdkStateMap(HazelcastInstance hazelcastInstance, String mapName) {
 		initConstructMap(hazelcastInstance, mapName);
+	}
+
+	public PdkStateMap(String nodeId, HazelcastInstance hazelcastInstance, TaskDto taskDto, Node<?> node, ClientMongoOperator clientMongoOperator, String func) {
+		boolean needUpdateExternalStorageId = false;
+		if (null != taskDto && null != node) {
+			Map<String, Object> attrs = taskDto.getAttrs();
+			if (null != attrs) {
+				String externalStorageId = attrs.getOrDefault(getExternalStorageKey(node, func), "").toString();
+				if (StringUtils.isNotBlank(externalStorageId)) {
+					ExternalStorageDto findExternalStorageDto = clientMongoOperator.findOne(Query.query(Criteria.where("_id").is(externalStorageId)), ConnectorConstant.EXTERNAL_STORAGE_COLLECTION, ExternalStorageDto.class);
+					if (null != findExternalStorageDto) {
+						this.externalStorage = findExternalStorageDto;
+					} else {
+						logger.warn("Task {} node {} found last state map external storage id {}, but cannot found external storage config by this id, will use default config, " +
+										"may be cause some problem, recommend reset and restart task",
+								taskDto.getName(), node.getName(), externalStorageId);
+					}
+				} else {
+					needUpdateExternalStorageId = true;
+				}
+			} else {
+				needUpdateExternalStorageId = true;
+			}
+		}
+		String name = getStateMapName(nodeId);
+		initConstructMap(hazelcastInstance, name);
+		if (needUpdateExternalStorageId && null != externalStorage) {
+			clientMongoOperator.update(
+					Query.query(Criteria.where("_id").is(taskDto.getId().toString())),
+					new Update().set("attrs." + getExternalStorageKey(node, func), externalStorage.getId().toHexString()),
+					ConnectorConstant.TASK_COLLECTION
+			);
+		}
+		if (null != taskDto && null != node) {
+			logger.info("Task {} node {} state map external storage: {}", taskDto.getName(), node.getName(), externalStorage);
+		}
+	}
+
+	@NotNull
+	private static String getExternalStorageKey(Node<?> node, String func) {
+		return "state-external-storage-id-" + func + node.getId();
 	}
 
 	private void initConstructMap(HazelcastInstance hazelcastInstance, String mapName) {
@@ -57,8 +115,10 @@ public class PdkStateMap implements KVMap<Object> {
 		}
 		switch (stateMapMode) {
 			case DEFAULT:
-				ExternalStorageDto defaultExternalStorage = ExternalStorageUtil.getDefaultExternalStorage();
-				constructIMap = new DocumentIMap<>(hazelcastInstance, mapName, defaultExternalStorage);
+				if (null == externalStorage) {
+					externalStorage = ExternalStorageUtil.getDefaultExternalStorage();
+				}
+				constructIMap = new DocumentIMap<>(hazelcastInstance, mapName, externalStorage);
 				break;
 			case HTTP_TM:
 				initHttpTMStateMap(hazelcastInstance, GlobalConstant.getInstance().getConfigurationCenter(), mapName);
