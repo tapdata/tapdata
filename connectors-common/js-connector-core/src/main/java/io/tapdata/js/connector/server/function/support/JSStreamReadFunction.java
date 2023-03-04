@@ -62,6 +62,7 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
         scriptEngine.put("core", scriptCore);
         AtomicReference<Throwable> scriptException = new AtomicReference<>();
         StreamReadSender sender = new StreamReadSender().core(scriptCore);
+        AtomicBoolean streamReadFinished = new AtomicBoolean(false);
         Runnable runnable = () -> {
             try {
                 while (this.isAlive.get()) {
@@ -83,6 +84,8 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
             } catch (InterruptedException ignored) {
             } catch (Exception e) {
                 scriptException.set(e);
+            } finally {
+                streamReadFinished.set(true);
             }
         };
         Thread t = new Thread(runnable);
@@ -91,7 +94,7 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
         List<TapEvent> eventList = new ArrayList<>();
         Object lastContextMap = null;
         long ts = System.currentTimeMillis();
-        while (this.isAlive.get() && t.isAlive()) {
+        while (this.isAlive.get()) {
             CustomEventMessage message = null;
             try {
                 message = scriptCore.getEventQueue().poll(1, TimeUnit.SECONDS);
@@ -116,6 +119,8 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
                     ts = System.currentTimeMillis();
                 }
             }
+            if(streamReadFinished.get() && scriptCore.getEventQueue().isEmpty())
+                break;
         }
         if (EmptyKit.isNotNull(scriptException.get())) {
             throw scriptException.get();
@@ -131,7 +136,6 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
             synchronized (this.lock) {
                 this.lock.notifyAll();
             }
-            t.stop();
         }
         consumer.streamReadEnded();
     }

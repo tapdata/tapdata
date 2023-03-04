@@ -52,7 +52,8 @@ public class JSAPIResponseInterceptor implements APIResponseInterceptor {
         Map<String, Object> exec = this.updateTokenFunction.exec(response);
         if (Objects.nonNull(exec) && !exec.isEmpty()) {
             this.configMap.putAll(exec);
-            params.putAll(exec);
+            //params.putAll(exec);
+            invoker.addConnectorConfig(exec);
             interceptorResponse = invoker.invoke(urlOrName, params, method, true);
         }
         return interceptorResponse;

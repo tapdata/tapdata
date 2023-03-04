@@ -24,6 +24,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.value.TapStringValue;
+import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcContext;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
@@ -87,8 +88,15 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 
 	ShareCdcPDKTaskReader(Object offset) {
 		super();
-		if (offset instanceof ShareCDCOffset) {
-			this.sequenceMap = new ConcurrentHashMap<>(((ShareCDCOffset) offset).getSequenceMap());
+		if (offset instanceof Map) {
+			Map<String, Long> map = new HashMap<>();
+			for (Map.Entry<?, ?> entry : ((Map<?, ?>) offset).entrySet()) {
+				if (!(entry.getValue() instanceof Long)) {
+					continue;
+				}
+				map.put(entry.getKey().toString(), Long.parseLong(((Long) entry.getValue()).toString()));
+			}
+			this.sequenceMap = new ConcurrentHashMap<>(map);
 		} else {
 			this.sequenceMap = new ConcurrentHashMap<>();
 		}
@@ -179,15 +187,25 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				if (sequenceMap.containsKey(tableName)) {
 					continue;
 				}
+				String syncType = "";
+				if (shareCdcContext instanceof ShareCdcTaskContext) {
+					TaskDto taskDto = ((ShareCdcTaskContext) shareCdcContext).getTaskDto();
+					syncType = taskDto.getSyncType();
+				}
 				if (null != this.shareCdcContext.getCdcStartTs() && this.shareCdcContext.getCdcStartTs().compareTo(0L) > 0) {
 					ConstructIterator<Document> iterator = constructRingBuffer.find();
 					Document firstLogDocument = iterator.peek(15L, TimeUnit.SECONDS);
 					if (null != firstLogDocument) {
 						LogContent logContent = JSONUtil.map2POJO(firstLogDocument, new TypeReference<LogContent>() {
 						});
-						// First data's timestamp in storage must be lte task start cdc timestamp
-						if (logContent.getType().equals(LogContent.LogContentType.DATA.name())
-								&& logContent.getTimestamp() > this.shareCdcContext.getCdcStartTs()) {
+
+						if (!syncType.equals(SyncTypeEnum.CDC.getSyncType())
+								&& logContent.getType().equals(LogContent.LogContentType.SIGN.name())) {
+							if (logger.isDebugEnabled()) {
+								logger.debug("Found first log is a sign log: " + logContent);
+							}
+						} else if (logContent.getTimestamp() > this.shareCdcContext.getCdcStartTs()) {
+							// First data's timestamp in storage must be lte task start cdc timestamp
 							throw new ShareCdcUnsupportedException("Log storage[" + tableName + "] detected unusable, first log timestamp("
 									+ Instant.ofEpochMilli(logContent.getTimestamp()) + ") is greater than task cdc start timestamp("
 									+ Instant.ofEpochMilli(this.shareCdcContext.getCdcStartTs()) + ")", false);
@@ -456,7 +474,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				if (MapUtils.isNotEmpty(readerResourceMap)) {
 					readerResourceMap.values().forEach(r -> {
 						try {
-							r.construct.destroy();
+							PersistenceStorage.getInstance().destroy(r.construct.getName());
 						} catch (Exception ignored) {
 						}
 					});

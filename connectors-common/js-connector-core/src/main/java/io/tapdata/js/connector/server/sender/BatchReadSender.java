@@ -35,7 +35,8 @@ public class BatchReadSender implements APISender {
             return;
         }
         if (Objects.isNull(data)){
-            core.updateOffset(offset);
+            if(offset != null)
+                core.updateOffset(offset);
         }else {
             core.push(this.covertList(data, tableName), eventType, Optional.ofNullable(offset).orElse(new HashMap<>()));
         }

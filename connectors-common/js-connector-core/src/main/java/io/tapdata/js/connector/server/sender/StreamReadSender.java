@@ -40,7 +40,8 @@ public class StreamReadSender implements APISender {
             return;
         }
         if (Objects.isNull(data)){
-            core.updateOffset(offset);
+            if(offset != null)
+                core.updateOffset(offset);
             return;
         }
         data = LoadJavaScripter.covertData(data);

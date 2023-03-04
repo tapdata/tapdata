@@ -50,7 +50,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 public class ExternalStorageUtil {
 	private final static String LOG_PREFIX = "[Hazelcast IMDG Persistence] - ";
 	private static final Logger logger = LogManager.getLogger(ExternalStorageUtil.class);
-	public static final int DEFAULT_IN_MEM_SIZE = 1;
+	public static final int DEFAULT_IN_MEM_SIZE = 100;
 
 	public synchronized static void initHZMapStorage(ExternalStorageDto externalStorageDto, String name, Config config) {
 		addConfig(externalStorageDto, ConstructType.IMAP, name);

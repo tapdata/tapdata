@@ -570,7 +570,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 		Node node = getNode();
 		AtomicLong loopTime = new AtomicLong(1L);
-		String tableName = ((TableNode) node).getTableName();
+		TableNode tableNode = (TableNode) node;
+		String tableName = tableNode.getTableName();
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableName);
 		Object streamOffsetObj = syncProgress.getStreamOffsetObj();
 		if (!(streamOffsetObj instanceof Map)) {
@@ -606,6 +607,20 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					tapAdvanceFilter.op(QueryOperator.gt(field, value));
 				}
 				tapAdvanceFilter.sort(SortOn.ascending(field));
+			}
+			if (isTableFilter(tableNode)) {
+				List<QueryOperator> conditions = tableNode.getConditions();
+				if (CollectionUtils.isNotEmpty(conditions)) {
+					DataMap match = new DataMap();
+					for (QueryOperator queryOperator : conditions) {
+						if (EQUAL_VALUE == queryOperator.getOperator()) {
+							match.put(queryOperator.getKey(), queryOperator.getValue());
+						} else {
+							tapAdvanceFilter.op(queryOperator);
+						}
+					}
+					tapAdvanceFilter.match(match);
+				}
 			}
 			tapAdvanceFilter.limit(cdcPollingBatchSize);
 			try {

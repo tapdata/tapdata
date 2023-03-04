@@ -110,7 +110,7 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 				esIdOrCriteria
 		);
 		Query query = new Query(criteria);
-		query.fields().include("_id").include("name");
+		query.fields().include("_id", "name", "status", "syncType");
 		List<TaskEntity> tasks = taskRepository.findAll(query);
 		return CollectionUtils.isNotEmpty(tasks) ? taskService.convertToDto(tasks, TaskDto.class) : null;
 	}

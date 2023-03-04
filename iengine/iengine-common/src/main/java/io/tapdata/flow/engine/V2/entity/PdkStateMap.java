@@ -103,29 +103,7 @@ public class PdkStateMap implements KVMap<Object> {
 	}
 
 	private void initConstructMap(HazelcastInstance hazelcastInstance, String mapName) {
-		StateMapMode stateMapMode = StateMapMode.DEFAULT;
-		ConfigurationCenter configurationCenter = GlobalConstant.getInstance().getConfigurationCenter();
-		Object appTypeObj = configurationCenter.getConfig(ConfigurationCenter.APPTYPE);
-		AppType appType = null;
-		if (appTypeObj instanceof AppType) {
-			appType = (AppType) appTypeObj;
-		}
-		if (null != appType && appType.isCloud()) {
-			stateMapMode = StateMapMode.HTTP_TM;
-		}
-		switch (stateMapMode) {
-			case DEFAULT:
-				if (null == externalStorage) {
-					externalStorage = ExternalStorageUtil.getDefaultExternalStorage();
-				}
-				constructIMap = new DocumentIMap<>(hazelcastInstance, mapName, externalStorage);
-				break;
-			case HTTP_TM:
-				initHttpTMStateMap(hazelcastInstance, GlobalConstant.getInstance().getConfigurationCenter(), mapName);
-				break;
-			default:
-				throw new IllegalArgumentException("Nonsupport state map storage mode: " + stateMapMode.name());
-		}
+		initHttpTMStateMap(hazelcastInstance, GlobalConstant.getInstance().getConfigurationCenter(), mapName);
 	}
 
 	private void initHttpTMStateMap(HazelcastInstance hazelcastInstance, ConfigurationCenter configurationCenter, String name) {

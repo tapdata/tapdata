@@ -58,6 +58,7 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
         AtomicReference<Throwable> scriptException = new AtomicReference<>();
         AtomicReference<Object> contextMap = new AtomicReference<>(offset);
         BatchReadSender sender = new BatchReadSender().core(scriptCore);
+        AtomicBoolean batchReadFinished = new AtomicBoolean(false);
         Runnable runnable = () -> {
             try {
 //                synchronized (JSConnector.execLock) {
@@ -71,16 +72,18 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
                         sender
                 );
 //                }
-                Thread.currentThread().stop();
+//                Thread.currentThread().stop();
             } catch (Exception e) {
                 scriptException.set(e);
+            } finally {
+                batchReadFinished.set(true);
             }
         };
         Thread t = new Thread(runnable);
         t.start();
         List<TapEvent> eventList = new ArrayList<>();
         Object lastContextMap = null;
-        while (isAlive.get() && t.isAlive()) {
+        while (isAlive.get()) {
             try {
                 CustomEventMessage message = null;
                 try {
@@ -108,6 +111,8 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
             } catch (Exception e) {
                 break;
             }
+            if(batchReadFinished.get() && scriptCore.getEventQueue().isEmpty())
+                break;
         }
         if (EmptyKit.isNotNull(scriptException.get())) {
             throw new RuntimeException(scriptException.get());
@@ -118,9 +123,6 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
             }
             eventsOffsetConsumer.accept(eventList, lastContextMap);
             contextMap.set(lastContextMap);
-        }
-        if (t.isAlive()) {
-            t.stop();
         }
     }
 

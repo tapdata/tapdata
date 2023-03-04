@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.sharecdc;
 
+import java.io.Serializable;
 import java.util.Map;
 
 /**
@@ -7,7 +8,9 @@ import java.util.Map;
  * @Description
  * @create 2023-02-27 21:32
  **/
-public class ShareCDCOffset {
+public class ShareCDCOffset implements Serializable {
+
+	private static final long serialVersionUID = 4290623022849235468L;
 	private Map<String, Long> sequenceMap;
 	private Object streamOffset;
 

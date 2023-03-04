@@ -20,7 +20,6 @@ function iterateAllData(apiName, offset, call) {
     do {
         let response = invoker.invoke(apiName, offset);
         res = response.result;
-        error = response.error;
     } while (call(res, offset, error));
 }
 

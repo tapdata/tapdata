@@ -88,7 +88,6 @@ public class RetryUtils extends CommonUtils {
 					if (!needDefaultRetry) {
 						throwIfNeed(retryOptions, message, errThrowable);
 					}
-					TapLogger.warn(logTag, "AutoRetry info: retry times ({}) | periodSeconds ({} s) | error [{}] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, getLastCause(errThrowable).getMessage());
 					Optional.ofNullable(invoker.getLogListener())
 							.ifPresent(log -> log.warn(String.format("AutoRetry info: retry times (%s) | periodSeconds (%s s) | error [%s] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage())));
 					invoker.setRetryTimes(retryTimes - 1);
