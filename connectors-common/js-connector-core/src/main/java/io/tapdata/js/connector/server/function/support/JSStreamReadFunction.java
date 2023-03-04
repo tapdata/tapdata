@@ -71,7 +71,7 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
                                 JSFunctionNames.StreamReadFunction.jsName(),
                                 Optional.ofNullable(nodeContext.getConnectionConfig()).orElse(new DataMap()),
                                 Optional.ofNullable(nodeContext.getNodeConfig()).orElse(new DataMap()),
-                                Optional.ofNullable(contextMap.get()).orElse(new HashMap<>()),
+                                contextMap.get(),
                                 tableList,
                                 recordSize,
                                 sender

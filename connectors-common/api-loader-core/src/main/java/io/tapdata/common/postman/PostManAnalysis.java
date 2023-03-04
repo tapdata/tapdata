@@ -224,7 +224,7 @@ public class PostManAnalysis {
 
     public APIResponse http(Request request) throws IOException{
         String property = System.getProperty("show_api_invoker_result", "1");
-        if ("1".equals(property)) {
+        if (!"1".equals(property)) {
             Buffer sink = new Buffer();
             RequestBody body = request.body();
             String bodyStr = "{}";
@@ -293,7 +293,7 @@ public class PostManAnalysis {
             Request request = this.httpPrepare(uriOrName, method, params);
             APIResponse http = this.http(request);
             String property = System.getProperty("show_api_invoker_result", "1");
-            if ("1".equals(property)) {
+            if (!"1".equals(property)) {
                 System.out.printf("Http Result: Post Man: %s url - %s, method - %s, params - %s\n\t%s%n", uriOrName, request.url(), method, toJson(params), toJson(http.result().get("data"), JsonParser.ToJsonFeature.PrettyFormat));
             }
             return http;

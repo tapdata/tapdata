@@ -66,7 +66,7 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
                         JSFunctionNames.BatchReadFunction.jsName(),
                         Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()),
                         Optional.ofNullable(context.getNodeConfig()).orElse(new DataMap()),
-                        Optional.ofNullable(contextMap.get()).orElse(new HashMap<>()),
+                        contextMap.get(),
                         table.getId(),
                         batchCount,
                         sender
