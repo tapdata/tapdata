@@ -116,7 +116,7 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
         if (EmptyKit.isNotNull(scriptException.get())) {
             throw new RuntimeException(scriptException.get());
         }
-        if (isAlive.get() && EmptyKit.isNotEmpty(eventList) && Objects.nonNull(eventsOffsetConsumer)) {
+        if (EmptyKit.isNotEmpty(eventList) && Objects.nonNull(eventsOffsetConsumer)) {
             if (Objects.isNull(lastContextMap)) {
                 throw new CoreException("The breakpoint offset cannot be empty. Please carry the offset when submitting the event data.");
             }
