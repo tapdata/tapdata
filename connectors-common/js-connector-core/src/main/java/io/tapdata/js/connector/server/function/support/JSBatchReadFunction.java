@@ -2,6 +2,7 @@ package io.tapdata.js.connector.server.function.support;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.js.connector.JSConnector;
@@ -24,6 +25,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 public class JSBatchReadFunction extends FunctionBase implements FunctionSupport<BatchReadFunction> {
+    private static final String TAG = JSBatchReadFunction.class.getSimpleName();
+
     AtomicBoolean isAlive = new AtomicBoolean(true);
 
     public JSBatchReadFunction isAlive(AtomicBoolean isAlive) {
@@ -55,29 +58,32 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
         AtomicReference<Throwable> scriptException = new AtomicReference<>();
         AtomicReference<Object> contextMap = new AtomicReference<>(offset);
         BatchReadSender sender = new BatchReadSender().core(scriptCore);
+        AtomicBoolean batchReadFinished = new AtomicBoolean(false);
         Runnable runnable = () -> {
             try {
 //                synchronized (JSConnector.execLock) {
-                    super.javaScripter.invoker(
-                            JSFunctionNames.BatchReadFunction.jsName(),
-                            Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()),
-                            Optional.ofNullable(context.getNodeConfig()).orElse(new DataMap()),
-                            Optional.ofNullable(contextMap.get()).orElse(new HashMap<>()),
-                            table.getId(),
-                            batchCount,
-                            sender
-                    );
+                super.javaScripter.invoker(
+                        JSFunctionNames.BatchReadFunction.jsName(),
+                        Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()),
+                        Optional.ofNullable(context.getNodeConfig()).orElse(new DataMap()),
+                        contextMap.get(),
+                        table.getId(),
+                        batchCount,
+                        sender
+                );
 //                }
-                Thread.currentThread().stop();
+//                Thread.currentThread().stop();
             } catch (Exception e) {
                 scriptException.set(e);
+            } finally {
+                batchReadFinished.set(true);
             }
         };
         Thread t = new Thread(runnable);
         t.start();
         List<TapEvent> eventList = new ArrayList<>();
         Object lastContextMap = null;
-        while (isAlive.get() && t.isAlive()) {
+        while (isAlive.get()) {
             try {
                 CustomEventMessage message = null;
                 try {
@@ -87,30 +93,35 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
                 if (EmptyKit.isNotNull(message)) {
                     lastContextMap = message.getContextMap();
                     TapEvent tapEvent = message.getTapEvent();
-                    if (Objects.isNull(tapEvent)){
+                    if (Objects.nonNull(lastContextMap)) {
                         contextMap.set(lastContextMap);
+                    } else {
+                        throw new CoreException("The breakpoint offset cannot be empty. Please carry the offset when submitting the event data.");
+                    }
+                    if (Objects.isNull(tapEvent)) {
                         continue;
                     }
                     eventList.add(tapEvent);
                     if (eventList.size() == batchCount) {
                         eventsOffsetConsumer.accept(eventList, lastContextMap);
                         eventList = new ArrayList<>();
-                        contextMap.set(lastContextMap);
                     }
                 }
             } catch (Exception e) {
                 break;
             }
+            if(batchReadFinished.get() && scriptCore.getEventQueue().isEmpty())
+                break;
         }
         if (EmptyKit.isNotNull(scriptException.get())) {
             throw new RuntimeException(scriptException.get());
         }
-        if (isAlive.get() && EmptyKit.isNotEmpty(eventList)) {
+        if (EmptyKit.isNotEmpty(eventList) && Objects.nonNull(eventsOffsetConsumer)) {
+            if (Objects.isNull(lastContextMap)) {
+                throw new CoreException("The breakpoint offset cannot be empty. Please carry the offset when submitting the event data.");
+            }
             eventsOffsetConsumer.accept(eventList, lastContextMap);
             contextMap.set(lastContextMap);
-        }
-        if (t.isAlive()) {
-            t.stop();
         }
     }
 

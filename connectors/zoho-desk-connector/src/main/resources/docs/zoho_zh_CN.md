@@ -1,11 +1,11 @@
 ### 写在前面
-如果您感兴趣的话，不妨前往ZoHo提供的OpenAPI文档以及WebHook文档，详细了解全部内容：
+如果您感兴趣的话，不妨前往ZoHo Desk提供的OpenAPI文档以及WebHook文档，详细了解全部内容：
 
 - OpenAPI文档：[https://desk.zoho.com.cn/support/APIDocument.do#Introduction](https://desk.zoho.com.cn/support/APIDocument.do#Introduction)
 - WebHook文档：[https://desk.zoho.com.cn/support/WebhookDocument.do#Introduction](https://desk.zoho.com.cn/support/WebhookDocument.do#Introduction)
 - 工作流配置文档：[https://www.zoho.com.cn/developer/help/extensions/automation/workflow-rules.html](https://www.zoho.com.cn/developer/help/extensions/automation/workflow-rules.html)
 
-当然您也可以浏览以下内容，快速上手ZoHo数据源的配置流程。
+当然您也可以浏览以下内容，快速上手ZoHo Desk数据源的配置流程。
 
 ---
 
@@ -13,7 +13,7 @@
 
 1. 机构 ID(org ID)：您的数据来源机构，需要您手动进入ZoHo Desk获取并配置到此处；
 
-2. 客户端ID码(Client ID)：客户端ID码需要用户前往ZoHoDesk手动获取并复制粘贴到此；
+2. 客户端ID码(Client ID)：客户端ID码需要用户前往ZoHo Desk手动获取并复制粘贴到此；
 
 3. 客户端机密码(Client Secret)：客户端机密码与客户端ID码获取方式一致，您获取客户端ID码的同时也可以看到客户端机密码，输入客户端ID码和客户端机密码后即可输入应用生成码；
 
@@ -21,9 +21,9 @@
 
 5. 连接模式：连接模式供用户选择，默认普通文档模式，可选有普通文档模式、CSV模式（暂未提供）。
 
-6. 增量方式：局限于ZoHo的OpenAPI，ZoHo数据源仅支持WebHook增量方式，详细的说明见下方说明。
+6. 增量方式：局限于ZoHo的OpenAPI，ZoHo Desk数据源仅支持WebHook增量方式，详细的说明见下方说明。
 
-7. 服务 URL：服务URL是用于配置WebHook，需要您把此处生成的服务URL复制粘贴到ZoHoDesk的WebHook配置项，具体的配置流程见下方说明。
+7. 服务 URL：服务URL是用于配置WebHook，需要您把此处生成的服务URL复制粘贴到ZoHo Desk的WebHook配置项，具体的配置流程见下方说明。
 
 ---
 
@@ -69,11 +69,11 @@ Desk.tickets.ALL,Desk.contacts.READ,Desk.contacts.WRITE,Desk.contacts.UPDATE,Des
 
 一：全局配置WebHook
 
-1. 第一步，您需要点击生成服务URl按钮生成数据源对应的服务URL，ZoHoDesk会根据这个URL来向您传达更新事件；
+1. 第一步，您需要点击生成服务URl按钮生成数据源对应的服务URL，ZoHo Desk会根据这个URL来向您传达更新事件；
 
 ![](https://gitee.com/code-on-top/picture-temp/raw/master/picture/zoho_webhook_1.png)
 
-2. 第二步，您需要打开您的ZoHoDesk，进入右上角Setting面板,选择开发者空间，进入WebHook。在选择新建webHook。需要您手动输入webHook名称，并把上一步生成的服务URL粘贴到要通知的URL输入框。选择并新增您需要关注的事件。
+2. 第二步，您需要打开您的ZoHo Desk，进入右上角Setting面板,选择开发者空间，进入WebHook。在选择新建webHook。需要您手动输入webHook名称，并把上一步生成的服务URL粘贴到要通知的URL输入框。选择并新增您需要关注的事件。
 
 ![](hhttps://gitee.com/code-on-top/picture-temp/raw/master/picture/zoho_webhook_2.png)
 

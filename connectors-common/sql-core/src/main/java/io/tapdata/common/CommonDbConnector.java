@@ -145,8 +145,11 @@ public abstract class CommonDbConnector extends ConnectorBase {
     protected DataMap findPrimaryKeyValue(TapTable tapTable, Long offsetSize) throws Throwable {
         String primaryKeyString = String.join("\",\"", tapTable.primaryKeys());
         DataMap dataMap = new DataMap();
-        jdbcContext.queryWithNext(String.format(FIND_KEY_FROM_OFFSET, primaryKeyString, primaryKeyString, commonDbConfig.getSchema(), tapTable.getId(), offsetSize),
-                resultSet -> dataMap.putAll(DataMap.create(DbKit.getRowFromResultSet(resultSet, DbKit.getColumnsFromResultSet(resultSet)))));
+        jdbcContext.query(String.format(FIND_KEY_FROM_OFFSET, primaryKeyString, primaryKeyString, commonDbConfig.getSchema(), tapTable.getId(), offsetSize), resultSet -> {
+            if (resultSet.next()) {
+                dataMap.putAll(DataMap.create(DbKit.getRowFromResultSet(resultSet, DbKit.getColumnsFromResultSet(resultSet))));
+            }
+        });
         return dataMap;
     }
 }

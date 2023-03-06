@@ -116,7 +116,7 @@ public class JSCommandFunction extends FunctionBase implements FunctionSupport<C
         DataMap nodes = new DataMap();
         connections.putAll(Optional.ofNullable(commandInfo.getConnectionConfig()).orElse(new HashMap<>()));
         connections.putAll(Optional.ofNullable(commandInfo.getNodeConfig()).orElse(new HashMap<>()));
-        TapConnectionContext contextTemp = new TapConnectionContext(new TapNodeSpecification(),connections,nodes, new TapLog());
+        TapConnectionContext contextTemp = new TapConnectionContext(new TapNodeSpecification(), connections, nodes, new TapLog());
         interceptor.updateToken(BaseUpdateTokenFunction.create(this.javaScripter, contextTemp));
         Object tapAPI = this.javaScripter.scriptEngine().get("tapAPI");
         this.javaScripter.scriptEngine().put("tapAPI", ((APIFactoryDecorator) tapAPI).interceptor(interceptor));
@@ -139,7 +139,7 @@ public class JSCommandFunction extends FunctionBase implements FunctionSupport<C
                 commandResult.result(data);
             }
         } catch (Exception e) {
-            TapLogger.warn(TAG, " Method " + this.functionName.jsName() + " failed to execute. Unable to get the return result. The final result will be null ");
+            TapLogger.warn(TAG, " Method " + this.functionName.jsName() + " failed to execute. Unable to get the return result. The final result will be null ，error msg: {}", e.getMessage());
             commandResult.result(new HashMap<>());
         }
         return commandResult;

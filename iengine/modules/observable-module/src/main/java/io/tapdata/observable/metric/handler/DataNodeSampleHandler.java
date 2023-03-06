@@ -205,11 +205,9 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	}
 
 	public void handleBatchReadFuncEnd(long endAt) {
-		if (this.task.getDag().getNodes().stream().anyMatch(n -> n instanceof MergeTableNode)) {
-			Optional.ofNullable(snapshotTableCounter).ifPresent(CounterSampler::inc);
-			tableSnapshotDoneAtMap.put(currentSnapshotTable, endAt);
-			currentSnapshotTableInsertRowTotal = null;
-		}
+		Optional.ofNullable(snapshotTableCounter).ifPresent(CounterSampler::inc);
+		tableSnapshotDoneAtMap.put(currentSnapshotTable, endAt);
+		currentSnapshotTableInsertRowTotal = null;
 	}
 
 

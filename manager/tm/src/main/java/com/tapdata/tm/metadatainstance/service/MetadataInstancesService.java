@@ -1564,7 +1564,8 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                                 .and("taskId").is(taskId)
                                 .and("is_deleted").ne(true);
                         metadatas = findAllDto(queryMetadata, user);
-                        totals = tableNames.size();
+                        totals = count(new Query(criteriaTable), user);
+                        //totals = tableNames.size();
                     }
 
                 } else if (node instanceof LogCollectorNode) {
