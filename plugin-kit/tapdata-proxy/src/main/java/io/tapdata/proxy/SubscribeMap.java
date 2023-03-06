@@ -109,19 +109,33 @@ public class SubscribeMap implements MemoryFetcher {
 	}
 
 	public Map<EngineSessionHandler, List<String>> getSessionSubscribeIdsMap(Set<String> cachingChangedSubscribeIds) {
-		Map<EngineSessionHandler, List<String>> sessionSubscribeIdsMap = new HashMap<>();
+		Map<EngineSessionHandler, List<String>> sessionSubscribeIdsMap = null;
 		for(String subscribeId : cachingChangedSubscribeIds) {
 			List<EngineSessionHandler> engineSessionHandlers = subscribeIdSessionMap.get(subscribeId);
-			if(engineSessionHandlers != null) {
-				for(EngineSessionHandler engineSessionHandler : engineSessionHandlers) {
-					List<String> list = sessionSubscribeIdsMap.get(engineSessionHandler);
-					if(list == null)
-						list = sessionSubscribeIdsMap.computeIfAbsent(engineSessionHandler, engineSessionHandler1 -> new ArrayList<>());
-					if(!list.contains(subscribeId)) {
-						list.add(subscribeId);
+			if(engineSessionHandlers != null && !engineSessionHandlers.isEmpty()) {
+				if(sessionSubscribeIdsMap == null) {
+					sessionSubscribeIdsMap = new HashMap<>();
+					for(EngineSessionHandler engineSessionHandler : engineSessionHandlers) {
+						List<String> list = new ArrayList<>(Collections.singleton(subscribeId));
+						sessionSubscribeIdsMap.put(engineSessionHandler, list);
 					}
+				} else {
+					for(EngineSessionHandler engineSessionHandler : engineSessionHandlers) {
+						if(sessionSubscribeIdsMap.containsKey(engineSessionHandler)) {
+							List<String> list = sessionSubscribeIdsMap.get(engineSessionHandler);
+							if(!list.contains(subscribeId))
+								list.add(subscribeId);
+						} else {
+							sessionSubscribeIdsMap.remove(engineSessionHandler);
+						}
+					}
+					if(sessionSubscribeIdsMap.isEmpty())
+						return null;
 				}
+			} else {
+				return null;
 			}
+
 		}
 		return sessionSubscribeIdsMap;
 	}
