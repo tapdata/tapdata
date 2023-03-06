@@ -5,13 +5,11 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.base.Splitter;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
-import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
@@ -42,6 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.text.MessageFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @Service
@@ -118,9 +117,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
             modelCriteria.regex("log").is(keyword);
         }
 
-        List<String> delayList = Lists.of(DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name(),
-                DagOutputTemplateEnum.SOURCE_CONNECT_CHECK.name(),
-                DagOutputTemplateEnum.TARGET_CONNECT_CHECK.name());
+        List<String> delayList = Lists.of(DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name());
         Query logQuery = new Query(criteria.and("checkType").nin(delayList));
         logQuery.with(Sort.by("_id"));
         List<TaskDagCheckLog> taskDagCheckLogs = find(logQuery);
@@ -143,15 +140,33 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         }
 
         LinkedList<TaskLogInfoVo> data = packCheckLogs(taskDto, taskDagCheckLogs);
-        TaskDagCheckLogVo result = new TaskDagCheckLogVo(nodeMap, data, null, false);
+        TaskDagCheckLogVo result = new TaskDagCheckLogVo(nodeMap, data, null, 0, 0, false);
 
+        LinkedList<TaskLogInfoVo> all = new LinkedList<>(data);
         if (CollectionUtils.isNotEmpty(modelLogs)) {
             LinkedList<TaskLogInfoVo> collect = packCheckLogs(taskDto, modelLogs);
             result.setModelList(collect);
             boolean present = taskDto.getTransformed();
             result.setOver(present);
+
+            all.addAll(collect);
         }
 
+        AtomicInteger errorNum = new AtomicInteger();
+        AtomicInteger warnNum = new AtomicInteger();
+        all.forEach(a -> {
+            switch (a.getGrade()) {
+                case ERROR:
+                    errorNum.getAndIncrement();
+                    break;
+                case WARN:
+                    warnNum.getAndIncrement();
+                    break;
+            }
+        });
+
+        result.setErrorNum(errorNum.get());
+        result.setWarnNum(warnNum.get());
         return result;
     }
 

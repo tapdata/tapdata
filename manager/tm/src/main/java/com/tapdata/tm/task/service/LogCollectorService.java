@@ -2,6 +2,7 @@ package com.tapdata.tm.task.service;
 
 import com.alibaba.fastjson.JSON;
 import com.mongodb.ConnectionString;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
@@ -29,6 +30,8 @@ import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.externalStorage.service.ExternalStorageService;
+import com.tapdata.tm.externalStorage.vo.ExternalStorageVo;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
@@ -67,18 +70,18 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class LogCollectorService {
-
     private final TaskService taskService;
-
     private final DataSourceService dataSourceService;
     private final WorkerService workerService;
-
     private final SettingsService settingsService;
-
+	@Autowired
     private DataSourceDefinitionService dataSourceDefinitionService;
+	@Autowired
     private MetadataInstancesService metadataInstancesService;
     @Autowired
     private MonitoringLogsService monitoringLogsService;
+	@Autowired
+	private ExternalStorageService externalStorageService;
 
     public LogCollectorService(TaskService taskService, DataSourceService dataSourceService,
                                WorkerService workerService, SettingsService settingsService) {
@@ -111,8 +114,6 @@ public class LogCollectorService {
         logCollectorVoPage.setItems(logCollectorVos);
         logCollectorVoPage.setTotal(count);
         return logCollectorVoPage;
-
-
     }
 
     /**
@@ -371,9 +372,39 @@ public class LogCollectorService {
                 }
             }
 
+            findAndFillExternalStorageIntoDetail(user, node, logCollectorDetailVo);
+
             return logCollectorDetailVo;
         } else {
             return null;
+        }
+    }
+
+    private void findAndFillExternalStorageIntoDetail(UserDetail user, Node node, LogCollectorDetailVo logCollectorDetailVo) {
+        String externalStorageId = node.getExternalStorageId();
+        if (StringUtils.isBlank(externalStorageId)) {
+            List<String> connectionIds = ((LogCollectorNode) node).getConnectionIds();
+            String connectionId = connectionIds.get(0);
+            if (StringUtils.isNotBlank(connectionId)) {
+                Field field = new Field();
+                field.put("shareCDCExternalStorageId", true);
+                DataSourceConnectionDto connectionDto = dataSourceService.findById(new ObjectId(connectionId), field);
+                if (null != connectionDto) {
+                    externalStorageId = connectionDto.getShareCDCExternalStorageId();
+                }
+            }
+        }
+        ExternalStorageDto externalStorageDto;
+        if (StringUtils.isBlank(externalStorageId)) {
+            externalStorageDto = externalStorageService.findOne(Query.query(Criteria.where("defaultStorage").is(true)));
+        } else {
+            externalStorageDto = externalStorageService.findById(new ObjectId(externalStorageId), user);
+        }
+        if (null != externalStorageDto) {
+            externalStorageDto.setUri(externalStorageDto.maskUriPassword());
+            ExternalStorageVo externalStorageVo = new ExternalStorageVo();
+            BeanUtils.copyProperties(externalStorageDto, externalStorageVo);
+            logCollectorDetailVo.setExternalStorage(externalStorageVo);
         }
     }
 
@@ -621,7 +652,7 @@ public class LogCollectorService {
      */
     public Boolean checkUpdateConfig(UserDetail user) {
         //查询所有的开启挖掘的任务跟，挖掘任务，是否都停止并且重置
-        Criteria criteria = Criteria.where("shareCdcEnable").is(true).and("is_deleted").is(false).and("status").nin(TaskDto.STATUS_EDIT, TaskDto.STATUS_WAIT_START);
+        Criteria criteria = Criteria.where("shareCdcEnable").is(true).and("is_deleted").ne(true).and("status").nin(TaskDto.STATUS_EDIT, TaskDto.STATUS_WAIT_START);
         Query query = new Query(criteria);
         query.fields().include("shareCdcEnable", "is_deleted", "status");
         TaskDto taskDto = taskService.findOne(query);
@@ -629,11 +660,36 @@ public class LogCollectorService {
             return false;
         }
 
-        Criteria criteria1 = Criteria.where("is_deleted").is(false).and("dag.nodes").elemMatch(Criteria.where("type").is("logCollector"))
+        Criteria criteria1 = Criteria.where("is_deleted").ne(true).and("dag.nodes").elemMatch(Criteria.where("type").is("logCollector"))
                 .and("status").nin(TaskDto.STATUS_EDIT, TaskDto.STATUS_WAIT_START);
         Query query1 = new Query(criteria1);
         query1.fields().include("shareCdcEnable", "is_deleted", "status");
         TaskDto taskDto1 = taskService.findOne(query1);
+        return taskDto1 == null;
+    }
+
+
+    /**
+     *  这里有一个大坑， 存在一个任务被删除了，但是子任务没有被删除，只是停止状态。
+     * @return
+     */
+    public Boolean checkUpdateConfig(String connectionId, UserDetail user) {
+        //查询所有的开启挖掘的任务跟，挖掘任务，是否都停止并且重置
+        Criteria criteria = Criteria.where("shareCdcEnable").is(true).and("is_deleted").ne(true)
+                .and("status").nin(TaskDto.STATUS_EDIT, TaskDto.STATUS_WAIT_START)
+                .and("dag.nodes.connectionId").is(connectionId);
+        Query query = new Query(criteria);
+        query.fields().include("shareCdcEnable", "is_deleted", "status");
+        TaskDto taskDto = taskService.findOne(query, user);
+        if (taskDto != null) {
+            return false;
+        }
+
+        Criteria criteria1 = Criteria.where("is_deleted").ne(true).and("dag.nodes").elemMatch(Criteria.where("type").is("logCollector"))
+                .and("status").nin(TaskDto.STATUS_EDIT, TaskDto.STATUS_WAIT_START).and("dag.nodes.connectionIds").is(connectionId);
+        Query query1 = new Query(criteria1);
+        query1.fields().include("shareCdcEnable", "is_deleted", "status");
+        TaskDto taskDto1 = taskService.findOne(query1, user);
         return taskDto1 == null;
     }
 

@@ -16,6 +16,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.Map;
+import java.util.Optional;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -72,8 +73,10 @@ public class DataSyncEventHandler extends BaseEventHandler {
 			throw new IllegalArgumentException("Stop task failed, task id cannot be blank");
 		}
 		TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
-		logger.info("Stop task from websocket event: {}", event);
-		tapdataTaskScheduler.sendStopTask(taskId);
+		Optional.ofNullable(tapdataTaskScheduler).ifPresent(t -> {
+			logger.info("Stop task from websocket event: {}", event);
+			t.sendStopTask(taskId);
+		});
 	}
 
 	private void startTask(Map event) {
@@ -85,7 +88,10 @@ public class DataSyncEventHandler extends BaseEventHandler {
 		Query query = Query.query(where("id").is(taskId));
 		Update update = Update.update(TaskDto.PING_TIME_FIELD, System.currentTimeMillis());
 		TaskDto taskDto = clientMongoOperator.findAndModify(query, update, TaskDto.class, ConnectorConstant.TASK_COLLECTION, true);
-		logger.info("Start task from websocket event: {}", event);
-		tapdataTaskScheduler.sendStartTask(taskDto);
+
+		Optional.ofNullable(tapdataTaskScheduler).ifPresent(t -> {
+			logger.info("Start task from websocket event: {}", event);
+			t.sendStartTask(taskDto);
+		});
 	}
 }

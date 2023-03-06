@@ -1,24 +1,22 @@
 package io.tapdata.js.connector.iengine;
 
 import io.tapdata.base.ConnectorBase;
-import io.tapdata.common.postman.util.FileUtil;
 import io.tapdata.common.util.ScriptUtil;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.js.connector.enums.Constants;
-import io.tapdata.js.connector.server.function.ExecuteConfig;
+import io.tapdata.js.utils.Collector;
 
 import javax.script.*;
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
@@ -48,10 +46,6 @@ public class LoadJavaScripter {
 
     private String ENGINE_TYPE = GRAAL_ENGINE;
 
-    public static final String eval = "" +
-            "var tapAPI = Java.type(\"io.tapdata.js.connector.server.decorator.APIFactoryDecorator\");";
-    public static final String LOAD_BASE = "load('connectors-common/js-connector-core/src/main/java/io/tapdata/js/utils/js/_tap_api_factory_collect.js');";
-
     public LoadJavaScripter params(String jarFilePath, String flooder) {
         this.jarFilePath = jarFilePath;
         this.flooder = flooder;
@@ -61,6 +55,7 @@ public class LoadJavaScripter {
     public boolean hasLoad() {
         return this.hasLoadJs;
     }
+
     public void reload() {
         this.hasLoadJs = false;
     }
@@ -70,7 +65,7 @@ public class LoadJavaScripter {
         return loadJavaScripter.params(jarFilePath, flooder).init();
     }
 
-    private static final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class);
+    private static final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
 
     public LoadJavaScripter init() {
         this.scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(ENGINE_TYPE));
@@ -85,7 +80,7 @@ public class LoadJavaScripter {
         if (!this.hasLoadBaseJs) {
             try {
                 for (URL url : list) {
-                    List<Map.Entry<InputStream, File>> files = this.javaFiles(url, null, "io/tapdata/js/utils/js");
+                    List<Map.Entry<InputStream, File>> files = this.javaFiles(url, null, "io/tapdata/js-core");
                     for (Map.Entry<InputStream, File> file : files) {
                         this.scriptEngine.eval(ScriptUtil.fileToString(file.getKey()));
                     }
@@ -100,8 +95,6 @@ public class LoadJavaScripter {
                 for (URL url : list) {
                     List<Map.Entry<InputStream, File>> files = this.javaScriptFiles(url);
                     for (Map.Entry<InputStream, File> file : files) {
-                        //String path = file.getValue().getPath().replaceAll("\\\\", "/");
-                        //this.scriptEngine.eval("load('" + path + "');");
                         this.scriptEngine.eval(ScriptUtil.fileToString(file.getKey()));
                     }
                 }
@@ -200,15 +193,13 @@ public class LoadJavaScripter {
     public boolean functioned(String functionName) {
         if (Objects.isNull(functionName) || Objects.isNull(this.scriptEngine)) return false;
         try {
-            Invocable invocable = (Invocable) this.scriptEngine;
-            invocable.invokeFunction(functionName);
-        } catch (NoSuchMethodException e) {
+            //Invocable invocable = (Invocable) this.scriptEngine;
+            //invocable.invokeFunction(functionName);
+            Object o = this.scriptEngine.eval(functionName);
+            return Objects.nonNull(o) && o instanceof Function;
+        } catch (Exception ignored) {
             return false;
-        } catch (ScriptException ignored) {
         }
-        return true;
-        //Object functionObj = this.scriptEngine.get(functionName);
-        //return functionObj instanceof Function;
     }
 
     private void binding(String key, Object name, int scope) {
@@ -286,9 +277,9 @@ public class LoadJavaScripter {
         try {
             Invocable invocable = (Invocable) this.scriptEngine;
             Object apply = invocable.invokeFunction(functionName, params);
-            return LoadJavaScripter.covertData(apply);
+            return LoadJavaScripter.covertData(apply);//Collector.convertObj(apply);
         } catch (Exception e) {
-            throw new CoreException(String.format("JavaScript Method execution failed, method name -[%s], params are -[%s], message: %s", functionName, toJson(params), e.getMessage()));
+            throw new CoreException(String.format("JavaScript Method execution failed, method name -[%s], params are -[%s], message: %s, %s", functionName, toJson(params), e.getMessage(), InstanceFactory.instance(TapUtils.class).getStackTrace(e)));
         }
     }
 
@@ -297,10 +288,10 @@ public class LoadJavaScripter {
         if (Objects.isNull(apply)) {
             return null;
         } else if (apply instanceof Map) {
-            return fromJson(toJson(apply));
+            return InstanceFactory.instance(TapUtils.class).cloneMap((Map<String, Object>) apply);//fromJson(toJson(apply));
         } else if (apply instanceof Collection) {
             try {
-                return ConnectorBase.fromJsonArray(toJson(apply));
+                return new ArrayList<>((List<Object>) apply);//ConnectorBase.fromJsonArray(toJson(apply));
             } catch (Exception e) {
                 String toString = apply.toString();
                 if (toString.matches("\\(([0-9]+)\\)\\[.*]")) {
@@ -308,7 +299,7 @@ public class LoadJavaScripter {
                 }
                 return ConnectorBase.fromJsonArray(toString);
             }
-        } else {
+        } else{
             return apply;
         }
     }

@@ -1,8 +1,6 @@
 package io.tapdata.common;
 
 import com.zaxxer.hikari.HikariDataSource;
-import com.zaxxer.hikari.pool.HikariProxyConnection;
-import com.zaxxer.hikari.pool.ProxyConnection;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.EmptyKit;
@@ -13,6 +11,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 /**
  * abstract jdbc context
@@ -49,11 +49,10 @@ public abstract class JdbcContext {
      * @throws SQLException SQLException
      */
     public Connection getConnection() throws SQLException {
-		final Connection connectionProxy = (Connection) Proxy.newProxyInstance(Connection.class.getClassLoader(),
-				new Class[]{Connection.class},
-				new JdbcConnectionProxy(hikariDataSource.getConnection()));
+        final Connection connectionProxy = (Connection) Proxy.newProxyInstance(Connection.class.getClassLoader(),
+                new Class[]{Connection.class},
+                new JdbcConnectionProxy(hikariDataSource.getConnection()));
 
-		;
         return connectionProxy;
     }
 
@@ -88,12 +87,14 @@ public abstract class JdbcContext {
                 Statement statement = connection.createStatement()
         ) {
             statement.setFetchSize(1000); //protected from OM
-            ResultSet resultSet = statement.executeQuery(sql);
-            if (EmptyKit.isNotNull(resultSet)) {
-                resultSet.next(); //move to first row
-                resultSetConsumer.accept(resultSet);
+            try (
+                    ResultSet resultSet = statement.executeQuery(sql)
+            ) {
+                if (EmptyKit.isNotNull(resultSet)) {
+                    resultSet.next(); //move to first row
+                    resultSetConsumer.accept(resultSet);
+                }
             }
-            resultSet.close();
         } catch (SQLException e) {
             throw new SQLException("Execute query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
         }
@@ -125,6 +126,28 @@ public abstract class JdbcContext {
             }
         } catch (SQLException e) {
             throw new SQLException("Execute query failed, sql: " + preparedStatement + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
+        }
+    }
+
+    public void prepareQuery(String prepareSql, List<Object> params, ResultSetConsumer resultSetConsumer) throws Throwable {
+        System.out.println("[SQL]" + prepareSql + ":[params]" + toJson(params));
+        try (
+                Connection connection = getConnection();
+                PreparedStatement preparedStatement = connection.prepareStatement(prepareSql)
+        ) {
+            int pos = 1;
+            for (Object obj : params) {
+                preparedStatement.setObject(pos++, obj);
+            }
+            try (
+                    ResultSet resultSet = preparedStatement.executeQuery()
+            ) {
+                if (EmptyKit.isNotNull(resultSet)) {
+                    resultSetConsumer.accept(resultSet);
+                }
+            }
+        } catch (SQLException e) {
+            throw new SQLException("Execute query failed, sql: " + prepareSql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
         }
     }
 
@@ -181,7 +204,7 @@ public abstract class JdbcContext {
      */
     public abstract List<DataMap> queryAllTables(List<String> tableNames);
 
-    public void queryAllTables(List<String> tableNames, int batchSize, Consumer<List<String>> consumer){
+    public void queryAllTables(List<String> tableNames, int batchSize, Consumer<List<String>> consumer) {
         throw new UnsupportedOperationException();
     }
 
@@ -200,4 +223,8 @@ public abstract class JdbcContext {
      * @return List<index info>
      */
     public abstract List<DataMap> queryAllIndexes(List<String> tableNames);
+
+    public HikariDataSource getHikariDataSource() {
+        return hikariDataSource;
+    }
 }

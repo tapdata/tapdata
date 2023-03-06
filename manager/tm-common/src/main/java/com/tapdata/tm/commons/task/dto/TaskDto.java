@@ -7,13 +7,11 @@ import com.tapdata.tm.commons.base.convert.DagSerialize;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import lombok.Data;
-import org.bson.types.ObjectId;
 
 import java.io.Serializable;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -118,8 +116,8 @@ public class TaskDto extends ParentTaskDto {
 
     private String taskRecordId;
 
-    private List<AlarmSettingDto> alarmSettings;
-    private List<AlarmRuleDto> alarmRules;
+    private List<AlarmSettingVO> alarmSettings;
+    private List<AlarmRuleVO> alarmRules;
 
     private Integer resetTimes;
 
@@ -140,7 +138,7 @@ public class TaskDto extends ParentTaskDto {
 
     private int stopRetryTimes;
 
-    private boolean isManualStop;
+    private boolean isSnapShotInterrupt;
 
     public DAG getDag() {
         if (dag != null) {

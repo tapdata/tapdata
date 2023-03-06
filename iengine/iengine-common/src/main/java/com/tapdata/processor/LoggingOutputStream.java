@@ -1,5 +1,6 @@
 package com.tapdata.processor;
 
+import io.tapdata.entity.logger.Log;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,7 +29,7 @@ public class LoggingOutputStream extends OutputStream {
   private int byteCount = 0;
   private boolean haveLeader = false;
 
-  public LoggingOutputStream(ScriptLogger logger, Level level) {
+  public LoggingOutputStream(Log logger, Level level) {
     try {
       this.handle = ((MethodHandle)LOG_METHODS.computeIfAbsent(level, LoggingOutputStream::getHandle)).bindTo(logger);
     } catch (AssertionError var4) {
@@ -123,7 +124,7 @@ public class LoggingOutputStream extends OutputStream {
     String methodName = level.name().toLowerCase(Locale.ROOT);
 
     try {
-      return MethodHandles.publicLookup().findVirtual(ScriptLogger.class, methodName, MethodType.methodType(Void.TYPE, String.class));
+      return MethodHandles.publicLookup().findVirtual(Log.class, methodName, MethodType.methodType(Void.TYPE, String.class));
     } catch (IllegalAccessException | NoSuchMethodException var3) {
       throw new AssertionError(var3);
     }

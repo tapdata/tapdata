@@ -7,9 +7,11 @@ import com.tapdata.constant.UUIDGenerator;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.processor.ScriptLogger;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.apis.entity.ExecuteResult;
 import io.tapdata.pdk.apis.entity.TapExecuteCommand;
@@ -36,7 +38,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 public class ScriptExecutorsManager {
 
-  private final ScriptLogger scriptLogger;
+  private final Log scriptLogger;
 
   private final ClientMongoOperator clientMongoOperator;
 
@@ -48,7 +50,7 @@ public class ScriptExecutorsManager {
   private final String nodeId;
 
 
-  public ScriptExecutorsManager(ScriptLogger scriptLogger, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, String taskId, String nodeId) {
+  public ScriptExecutorsManager(Log scriptLogger, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, String taskId, String nodeId) {
 
     this.taskId = taskId;
     this.nodeId = nodeId;
@@ -103,15 +105,15 @@ public class ScriptExecutorsManager {
     private final String associateId;
     private final Supplier<ExecuteCommandFunction> executeCommandFunctionSupplier;
 
-    private final ScriptLogger scriptLogger;
+    private final Log scriptLogger;
 
-    public ScriptExecutor(Connections connections, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, ScriptLogger scriptLogger, String TAG) {
+    public ScriptExecutor(Connections connections, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, Log scriptLogger, String TAG) {
       this.TAG = TAG;
       this.scriptLogger = scriptLogger;
 
       Map<String, Object> connectionConfig = connections.getConfig();
       DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
-      PdkStateMap pdkStateMap = new PdkStateMap(TAG, hazelcastInstance, PdkStateMap.StateMapMode.HTTP_TM);
+      PdkStateMap pdkStateMap = new PdkStateMap(TAG, hazelcastInstance);
       PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
       TapTableMap<String, TapTable> tapTableMap = TapTableMap.create("ScriptExecutor", TAG);
       PdkTableMap pdkTableMap = new PdkTableMap(tapTableMap);
@@ -123,7 +125,8 @@ public class ScriptExecutorsManager {
               connectionConfig,
               pdkTableMap,
               pdkStateMap,
-              globalStateMap
+              globalStateMap,
+              InstanceFactory.instance(LogFactory.class).getLog()
       );
 
       try {

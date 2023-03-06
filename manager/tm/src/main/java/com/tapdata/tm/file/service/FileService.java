@@ -149,6 +149,9 @@ public class FileService {
     public void deleteFileById(ObjectId id) {
         gridFsTemplate.delete(Query.query(Criteria.where("_id").is(id)));
     }
+    public void deleteFileByPdkHash(String pdkHash, Integer pdkAPIBuildNumber) {
+        gridFsTemplate.delete(Query.query(Criteria.where("metadata.pdkHash").is(pdkHash).and("metadata.pdkAPIBuildNumber").is(pdkAPIBuildNumber)));
+    }
     public void viewImg(ObjectId fileId, HttpServletResponse response) {
 
         GridFSFile file = gridFsTemplate.findOne(Query.query(Criteria.where("_id").is(fileId)));

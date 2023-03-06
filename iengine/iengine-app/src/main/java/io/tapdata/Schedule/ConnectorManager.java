@@ -14,6 +14,8 @@ import com.tapdata.mongo.RestTemplateOperator;
 import com.tapdata.tm.commons.ping.PingDto;
 import com.tapdata.tm.commons.ping.PingType;
 import com.tapdata.tm.sdk.util.CloudSignUtil;
+import com.tapdata.tm.worker.WorkerSingletonException;
+import com.tapdata.tm.worker.WorkerSingletonLock;
 import com.tapdata.validator.ConnectionValidateResult;
 import com.tapdata.validator.ConnectionValidator;
 import com.tapdata.validator.ValidatorConstant;
@@ -26,8 +28,6 @@ import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.*;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.metric.MetricManager;
-import io.tapdata.observable.metric.TaskSampleReporter;
-import io.tapdata.observable.metric.TaskSampleRetriever;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.task.TapdataTaskScheduler;
 import io.tapdata.websocket.ManagementWebsocketHandler;
@@ -208,6 +208,21 @@ public class ConnectorManager {
       throw new RuntimeException(checkCloudOneAgentResult);
     }*/
 
+		WorkerSingletonLock.check(tapdataWorkDir, (singletonLock) -> {
+			String newSingletonLock = UUID.randomUUID().toString();
+			String status = clientMongoOperator.upsert(new HashMap<String, Object>() {{
+				put("process_id", instanceNo);
+				put("worker_type", ConnectorConstant.WORKER_TYPE_CONNECTOR);
+				put("singletonLock", singletonLock);
+			}}, new HashMap<String, Object>() {{
+				put("singletonLock", newSingletonLock);
+			}}, ConnectorConstant.WORKER_COLLECTION + "/singleton-lock", String.class);
+			if (!"ok".equals(status)) {
+				throw new RuntimeException(String.format("Singleton check in remote failed: '%s'", status));
+			}
+			return newSingletonLock;
+		});
+
 		List<Worker> workers = clientMongoOperator.find(params, ConnectorConstant.WORKER_COLLECTION, Worker.class);
 
 		if (CollectionUtils.isNotEmpty(workers)) {
@@ -252,10 +267,10 @@ public class ConnectorManager {
 
 		if (!appType.isCloud()) {
 			// init database type(s)
-			initDatabaseTypes();
+//			initDatabaseTypes();
 
 			// init supported list
-			initSupportedList();
+//			initSupportedList();
 
 			// init script task schedule
 			initScriptTaskSchedule(clientMongoOperator);
@@ -1283,6 +1298,7 @@ public class ConnectorManager {
 				value.put("total_thread", finalThreshold);
 				value.put("process_id", instanceNo);
 				value.put("user_id", userId);
+				value.put("singletonLock", WorkerSingletonLock.getCurrentTag());
 				value.put("version", version);
 				value.put("hostname", hostname);
 				value.put("cpuLoad", processCpuLoad);
@@ -1338,7 +1354,14 @@ public class ConnectorManager {
 					cache -> {
 						String pingResult = cache.get(PingDto.PING_RESULT).toString();
 						if (PingDto.PingResult.FAIL.name().equals(pingResult)) {
-							throw new RuntimeException("Failed to send worker heartbeat use websocket, will retry http, message: " + cache.getOrDefault(PingDto.ERR_MESSAGE, "unknown error"));
+							Object errorMessage = cache.getOrDefault(PingDto.ERR_MESSAGE, "unknown error");
+							if (WorkerSingletonLock.STOP_AGENT.equals(errorMessage)) {
+								RuntimeException stopError = new WorkerSingletonException("Stop by singleton lock");
+								logger.info(stopError.getMessage());
+								System.exit(0);
+								throw stopError;
+							}
+							throw new RuntimeException("Failed to send worker heartbeat use websocket, will retry http, message: " + errorMessage);
 						}
 					});
 			if (!handleResponse) {
@@ -1792,10 +1815,8 @@ public class ConnectorManager {
 	}
 
 	private void addHTTPAppender() {
-
 		org.apache.logging.log4j.core.Logger rootLogger = (org.apache.logging.log4j.core.Logger) LogManager.getRootLogger();
 		JsonLayout jsonLayout = JsonLayout.newBuilder().setProperties(true).build();
-
 
 		LogUtil logUtil = new LogUtil(settingService);
 		TapdataLog4jFilter filter = logUtil.buildFilter();
@@ -1806,8 +1827,10 @@ public class ConnectorManager {
 		logger.info("Burst filter: {}", burstFilter.toString());
 		httpAppender.addFilter(filter);
 		logger.info("Tapdata filter: {}", filter.toString());
-		httpAppender.start();
+		JetExceptionFilter jetExceptionFilter = new JetExceptionFilter.TapLogBuilder().build();
+		httpAppender.addFilter(jetExceptionFilter);
 		rootLogger.addAppender(httpAppender);
+		httpAppender.start();
 	}
 
 	private void removeMapIfNeed(String jobId) {

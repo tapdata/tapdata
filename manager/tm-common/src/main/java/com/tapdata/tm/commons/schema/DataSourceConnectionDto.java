@@ -276,6 +276,8 @@ public class DataSourceConnectionDto extends BaseDto {
         private String connectionString;
 
         private Map<String, Object> extParam;
+        // Share cdc external storage id
+        private String shareCDCExternalStorageId;
 
         private Date loadSchemaTime;
 
@@ -307,5 +309,16 @@ public class DataSourceConnectionDto extends BaseDto {
 
         public boolean isAccessNodeTypeEmpty() {
                 return StringUtils.isBlank(accessNodeType);
+        }
+
+        public String getAlarmInfo() {
+                return "DataSourceConnectionDto{" +
+                        "name='" + name + '\'' +
+                        ", connection_type='" + connection_type + '\'' +
+                        ", retry=" + retry +
+                        ", status='" + status + '\'' +
+                        ", tableCount=" + tableCount +
+                        ", loadAllTables=" + loadAllTables +
+                        '}';
         }
 }

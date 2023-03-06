@@ -27,6 +27,7 @@ import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.Operation;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.task.dto.migrate.MigrateTableDto;
@@ -36,10 +37,13 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.customNode.dto.CustomNodeDto;
+import com.tapdata.tm.customNode.service.CustomNodeService;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.inspect.constant.InspectResultEnum;
 import com.tapdata.tm.inspect.dto.InspectDto;
@@ -107,11 +111,11 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
+import java.text.MessageFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
@@ -174,6 +178,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private MetadataDefinitionService metadataDefinitionService;
 
     public final static String LOG_COLLECTOR_SAVE_ID = "log_collector_save_id";
+
+    private CustomNodeService customNodeService;
+
+    private ExternalStorageService externalStorageService;
 
     public TaskService(@NonNull TaskRepository repository) {
         super(repository, TaskDto.class, TaskEntity.class);
@@ -816,9 +824,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //add message
         if (SyncType.MIGRATE.getValue().equals(taskDto.getSyncType())) {
-            messageService.addMigration(taskDto.getName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, Level.WARN, user);
+            messageService.addMigration(taskDto.getDeleteName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, Level.WARN, user);
         } else if (SyncType.SYNC.getValue().equals(taskDto.getSyncType())) {
-            messageService.addSync(taskDto.getName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, "", Level.WARN, user);
+            messageService.addSync(taskDto.getDeleteName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, "", Level.WARN, user);
         }
 
         try {
@@ -1607,24 +1615,21 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         shareCacheVo.setFields((List<String>) sourceNode.getAttrs().get("fields"));
                     }
 
-//                    MeasurementEntity measurementEntity = measurementService.findByTaskIdAndNodeId(taskDto.getId().toString(), sourceNode.getId());
-//                    if (null != measurementEntity && null != measurementEntity.getStatistics() && null != measurementEntity.getStatistics().get("cdcTime")) {
-//                        Map<String, Number> statistics = measurementEntity.getStatistics();
-//                        //cdc 值为integer or long 需要处理，cdcTime   也可能为0 需要处理
-//                        Number cdcTime = statistics.get("cdcTime");
-//                        Date cdcTimeDate = null;
-//                        if (cdcTime instanceof Integer) {
-//                            cdcTimeDate = new Date(cdcTime.longValue());
-//                        } else if (cdcTime instanceof Long) {
-//                            cdcTimeDate = new Date((Long) cdcTime);
-//                        }
-//                        shareCacheVo.setCacheTimeAt(cdcTimeDate);
-//                    }
+                    if (taskDto.getCurrentEventTimestamp() != null) {
+                        shareCacheVo.setCacheTimeAt(new Date(taskDto.getCurrentEventTimestamp()));
+                    }
                 }
 
                 CacheNode cacheNode = (CacheNode) getTargetNode(taskDto);
                 if (null != cacheNode) {
                     BeanUtil.copyProperties(cacheNode, shareCacheVo);
+                    String externalStorageId = cacheNode.getExternalStorageId();
+                    if (StringUtils.isNotEmpty(externalStorageId)) {
+                        ExternalStorageDto externalStorageDto = externalStorageService.findById(MongoUtils.toObjectId(externalStorageId));
+                        if (externalStorageDto != null) {
+                            shareCacheVo.setExternalStorageName(externalStorageDto.getName());
+                        }
+                    }
                 }
 
                 shareCacheVo.setName(taskDto.getName());
@@ -1660,6 +1665,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         shareCacheDetailVo.setMaxRows(targetNode.getMaxRows());
         shareCacheDetailVo.setMaxMemory(targetNode.getMaxMemory());
         shareCacheDetailVo.setTtl(TimeUtil.parseSecondsToDay(targetNode.getTtl()));
+        shareCacheDetailVo.setExternalStorageId(targetNode.getExternalStorageId());
 
         return shareCacheDetailVo;
     }
@@ -1699,6 +1705,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             tableNode.setType("table");
             tableNode.setDatabaseType((String) sourceNodeMap.get("databaseType"));
             tableNode.setConnectionId((String) sourceNodeMap.get("connectionId"));
+            tableNode.setName(tableNode.getConnectionId() + "-" + tableNode.getTableName());
 
             Map<String, Object> attrs = new HashMap();
             if (null != sourceNodeMap.get("attrs")) {
@@ -1715,6 +1722,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             cacheNode.setMaxMemory(maxMemory == null ? 500 : maxMemory.intValue());
             Integer ttl = MapUtil.getInt(targetNodeMap, "ttl");
             cacheNode.setTtl(ttl == null ? Integer.MAX_VALUE : TimeUtil.parseDayToSeconds(ttl));
+            String externalStorageId = MapUtil.getStr(targetNodeMap, "externalStorageId");
+            cacheNode.setExternalStorageId(externalStorageId);
 
             edge.setSource(sourceId);
             edge.setTarget(targetId);
@@ -1723,6 +1732,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             cacheNode.setId(targetId);
             cacheNode.setFields((List<String>) attrs.get("fields"));
             cacheNode.setCacheName(saveShareCacheParam.getName());
+            cacheNode.setName(cacheNode.getCacheName());
 
             List<Node> nodes = new ArrayList<>();
             nodes.add(tableNode);
@@ -2302,6 +2312,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                                 jsonList.add(new TaskUpAndLoadDto("MetadataInstances", JsonUtil.toJsonUseJackson(dataSourceMetadataInstance)));
                                 jsonList.add(new TaskUpAndLoadDto("Connections", JsonUtil.toJsonUseJackson(dataSourceConnectionDto)));
                             }
+
+                            if (node instanceof CustomProcessorNode) {
+                                String customNodeId = ((CustomProcessorNode) node).getCustomNodeId();
+                                CustomNodeDto customNodeDto = customNodeService.findById(MongoUtils.toObjectId(customNodeId), user);
+                                jsonList.add(new TaskUpAndLoadDto("CustomNodeTemps", JsonUtil.toJsonUseJackson(customNodeDto)));
+                            }
                         }
                     } catch (Exception e) {
                         log.error("node data error", e);
@@ -2351,6 +2367,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         List<MetadataInstancesDto> metadataInstancess = new ArrayList<>();
         List<TaskDto> tasks = new ArrayList<>();
         List<DataSourceConnectionDto> connections = new ArrayList<>();
+        List<CustomNodeDto> customNodeDtos = new ArrayList<>();
         for (TaskUpAndLoadDto taskUpAndLoadDto : taskUpAndLoadDtos) {
             try {
                 String dtoJson = taskUpAndLoadDto.getJson();
@@ -2363,20 +2380,20 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     tasks.add(JsonUtil.parseJsonUseJackson(dtoJson, TaskDto.class));
                 } else if ("Connections".equals(taskUpAndLoadDto.getCollectionName())) {
                     connections.add(JsonUtil.parseJsonUseJackson(dtoJson, DataSourceConnectionDto.class));
+                } else if ("CustomNodeTemps".equals(taskUpAndLoadDto.getCollectionName())) {
+                    customNodeDtos.add(JsonUtil.parseJsonUseJackson(dtoJson, CustomNodeDto.class));
                 }
             } catch (Exception e) {
                 log.error("error", e);
             }
         }
-        Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
-        try {
-            conMap = dataSourceService.batchImport(connections, user, cover);
-        } catch (Exception e) {
-            log.error("dataSourceService.batchImport error", e);
-        }
 
+        Map<String, CustomNodeDto> customNodeMap = new HashMap<>();
+        Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
         Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
         try {
+            customNodeMap = customNodeService.batchImport(customNodeDtos, user, cover);
+            conMap = dataSourceService.batchImport(connections, user, cover);
             metaMap = metadataInstancesService.batchImport(metadataInstancess, user, cover, conMap);
         } catch (Exception e) {
             log.error("metadataInstancesService.batchImport error", e);
@@ -2629,6 +2646,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (taskDto.getAttrs() != null) {
             taskDto.getAttrs().remove("syncProgress");
             taskDto.getAttrs().remove("edgeMilestones");
+            taskDto.getAttrs().remove("milestone");
+            taskDto.getAttrs().remove("nodeMilestones");
             AutoInspectUtil.removeProgress(taskDto.getAttrs());
 
             set.set("attrs", taskDto.getAttrs());
@@ -2741,6 +2760,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
             if (DataSyncMq.OP_TYPE_DELETE.equals(opType)) {
                 update.set("name", taskDto.getName() + "_" + nameSuffix);
+                update.set("deleteName", taskDto.getName());
             }
             this.update(new Query(Criteria.where("id").is(taskDto.getId())), update);
 

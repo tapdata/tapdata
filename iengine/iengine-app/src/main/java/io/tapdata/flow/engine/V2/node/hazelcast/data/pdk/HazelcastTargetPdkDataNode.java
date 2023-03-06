@@ -1,7 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MilestoneUtil;
 import com.tapdata.entity.TapdataShareLogEvent;
@@ -105,23 +104,32 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	private void initTargetDB() {
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
-		Node<?> node = dataProcessorContext.getNode();
-		ExistsDataProcessEnum existsDataProcessEnum = getExistsDataProcess(node);
-		SyncProgress syncProgress = initSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
-		if (null != syncProgress) return;
-		for (String tableId : tapTableMap.keySet()) {
-			if (!isRunning()) {
-				break;
+		executeDataFuncAspect(TableInitFuncAspect.class, () -> new TableInitFuncAspect()
+				.tapTableMap(tapTableMap)
+				.dataProcessorContext(dataProcessorContext)
+				.start(), (funcAspect -> {
+			Node<?> node = dataProcessorContext.getNode();
+			ExistsDataProcessEnum existsDataProcessEnum = getExistsDataProcess(node);
+			SyncProgress syncProgress = initSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
+			if (null == syncProgress) {
+				for (String tableId : tapTableMap.keySet()) {
+					if (!isRunning()) {
+						return;
+					}
+					TapTable tapTable = tapTableMap.get(tableId);
+					if (null == tapTable) {
+						NodeException e = new NodeException("Init target node failed, table \"" + tableId + "\"'s schema is null").context(getDataProcessorContext());
+						if (null != funcAspect) funcAspect.setThrowable(e);
+						throw e;
+					}
+					dropTable(existsDataProcessEnum, tableId);
+					boolean createdTable = createTable(tapTable);
+					clearData(existsDataProcessEnum, tableId);
+					createTargetIndex(node, tableId, tapTable, createdTable);
+					if (null != funcAspect) funcAspect.state(TableInitFuncAspect.STATE_PROCESS).completed(tableId, createdTable);
+				}
 			}
-			TapTable tapTable = tapTableMap.get(tableId);
-			if (null == tapTable) {
-				throw new NodeException("Init target node failed, table \"" + tableId + "\"'s schema is null").context(getDataProcessorContext());
-			}
-			dropTable(existsDataProcessEnum, tableId);
-			boolean createdTable = createTable(tapTable);
-			clearData(existsDataProcessEnum, tableId);
-			createTargetIndex(node, tableId, tapTable, createdTable);
-		}
+		}));
 	}
 
 	private void createTargetIndex(Node node, String tableId, TapTable tapTable, boolean createdTable) {

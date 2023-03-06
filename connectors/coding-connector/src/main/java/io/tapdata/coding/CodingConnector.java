@@ -12,6 +12,10 @@ import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.memory.LastData;
 import io.tapdata.entity.schema.TapTable;
@@ -24,6 +28,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
@@ -100,8 +105,10 @@ public class CodingConnector extends ConnectorBase {
         if (lastCause instanceof ErrorHttpException || lastCause instanceof IOException){
             return RetryOptions.create().needRetry(true).beforeRetryMethod(()->{
                 try {
-                    this.onStop(context);
-                    this.onStart(context);
+                    synchronized (this.streamReadLock) {
+                        this.onStop(context);
+                        this.onStart(context);
+                    }
                 }catch (Throwable e){
                     TapLogger.warn("Cannot stop and start Coding connector when occur an http error or IOException. {}",e.getMessage());
                 }

@@ -13,18 +13,23 @@ import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.error.QuiteException;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
+import java.io.InputStream;
 import java.security.SecureRandom;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 public class CommonUtils {
     static SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
@@ -299,6 +304,39 @@ public class CommonUtils {
         return cipher.doFinal(cipherText);
     }
 
+    public static int getPdkBuildNumer() {
+        AtomicInteger pdkAPIBuildNumber = new AtomicInteger(0);
+        ignoreAnyError(() -> {
+            InputStream resourceAsStream = CommonUtils.class.getClassLoader().getResourceAsStream("pluginKit.properties");
+            Properties properties = new Properties();
+            properties.load(resourceAsStream);
+            String pdkAPIVersion = properties.getProperty("tapdata.pdk.api.verison");
+            pdkAPIBuildNumber.set(getPdkBuildNumer(pdkAPIVersion));
+        }, "");
+        return pdkAPIBuildNumber.get();
+    }
+
+    public static int getPdkBuildNumer(String pdkAPIVersion) {
+        AtomicInteger pdkAPIBuildNumber = new AtomicInteger(0);
+        ignoreAnyError(() -> {
+            Optional.ofNullable(pdkAPIVersion).ifPresent(version -> {
+                LinkedList<String> collect = Arrays.stream(pdkAPIVersion.split("[.]")).collect(Collectors.toCollection(LinkedList::new));
+                String last = collect.getLast();
+                if (collect.size() != 3) {
+                    pdkAPIBuildNumber.set(0);
+                } else if (last.contains("-SNAPSHOT")) {
+                    String temp = StringUtils.replace(last, "-SNAPSHOT", "");
+                    if (temp.chars().allMatch(Character::isDigit)) {
+                        pdkAPIBuildNumber.set(Integer.parseInt(temp));
+                    }
+                } else if (last.chars().allMatch(Character::isDigit)) {
+                    pdkAPIBuildNumber.set(Integer.parseInt(last));
+                }
+            });
+        }, "");
+        return pdkAPIBuildNumber.get();
+    }
+
     public static void main(String[] args) {
 //        AtomicLong counter = new AtomicLong();
 //
@@ -343,6 +381,21 @@ public class CommonUtils {
         public FunctionAndContext tapConnectionContext(TapConnectionContext tapConnectionContext) {
             this.tapConnectionContext = tapConnectionContext;
             return this;
+        }
+    }
+
+    public static void countDownAwait(Predicate<Void> stop, CountDownLatch countDownLatch) {
+        while (true) {
+            if (null != stop && stop.test(null)) {
+                break;
+            }
+            try {
+                if (countDownLatch.await(1, TimeUnit.SECONDS)) {
+                    break;
+                }
+            } catch (InterruptedException e) {
+                break;
+            }
         }
     }
 }

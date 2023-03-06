@@ -1,6 +1,9 @@
 package io.tapdata.observable.metric;
 
+import com.google.common.collect.HashBiMap;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.task.AspectTask;
@@ -11,8 +14,11 @@ import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.module.api.PipelineDelay;
 import io.tapdata.observable.metric.handler.*;
+import io.tapdata.pdk.core.utils.CommonUtils;
 
+import java.math.BigDecimal;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 @AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC})
 public class ObservableAspectTask extends AspectTask {
@@ -96,8 +102,8 @@ public class ObservableAspectTask extends AspectTask {
 	}
 
 	public Void handlePDKNodeInit(PDKNodeInitAspect aspect) {
-		Node<?> node = aspect.getDataProcessorContext().getNode();
-		DataNodeSampleHandler handler = dataNodeSampleHandlers.get(node.getId());
+//		Node<?> node = aspect.getDataProcessorContext().getNode();
+//		DataNodeSampleHandler handler = dataNodeSampleHandlers.get(node.getId());
 //		if (null != handler) {
 //			DataNodeSampleHandler.HealthCheckRunner.getInstance().runHealthCheck(
 //					handler.getCollector(), node,  aspect.getDataProcessorContext().getPdkAssociateId());
@@ -126,14 +132,15 @@ public class ObservableAspectTask extends AspectTask {
 					if (null == tableSampleHandlers) {
 						tableSampleHandlers = new HashMap<>();
 					}
-					TableSampleHandler handler = new TableSampleHandler(task, table, cnt, taskRetrievedTableValues.getOrDefault(table, new HashMap<>()));
+					TableSampleHandler handler = new TableSampleHandler(task, table, cnt, taskRetrievedTableValues.getOrDefault(table, new HashMap<>()), BigDecimal.ZERO);
 					tableSampleHandlers.put(table, handler);
 					handler.init();
+					handler.setTaskSampleHandler(taskSampleHandler);
 
 					Optional.ofNullable(dataNodeSampleHandlers.get(node.getId())).ifPresent(
 							dataNodeSampleHandler -> dataNodeSampleHandler.handleTableCountAccept(table, cnt)
 					);
-					taskSampleHandler.handleTableCountAccept(table, cnt);
+					taskSampleHandler.handleTableCountAccept(cnt);
 				});
 				break;
 			case TableCountFuncAspect.STATE_END:
@@ -173,9 +180,6 @@ public class ObservableAspectTask extends AspectTask {
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler ->
 							handler.handleBatchReadProcessComplete(System.currentTimeMillis(), recorder)
 					);
-					// batch read should calculate table snapshot insert counter
-
-					Optional.ofNullable(tableSampleHandlers).flatMap(handlers -> Optional.ofNullable(handlers.get(table))).ifPresent(handler -> handler.incrTableSnapshotInsertTotal(recorder.getInsertTotal()));
 				});
 				aspect.enqueuedConsumer(events ->
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
@@ -183,7 +187,7 @@ public class ObservableAspectTask extends AspectTask {
 				));
 				break;
 			case BatchReadFuncAspect.STATE_END:
-				if (!aspect.getDataProcessorContext().getTaskDto().isManualStop()) {
+				if (!aspect.getDataProcessorContext().getTaskDto().isSnapShotInterrupt()) {
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler -> handler.handleBatchReadFuncEnd(System.currentTimeMillis()));
 					taskSampleHandler.handleBatchReadFuncEnd();
 					break;
@@ -386,7 +390,9 @@ public class ObservableAspectTask extends AspectTask {
 
 	private PipelineDelayImpl pipelineDelay = (PipelineDelayImpl) InstanceFactory.instance(PipelineDelay.class);
 	public Void handleWriteRecordFunc(WriteRecordFuncAspect aspect) {
-		String nodeId = aspect.getDataProcessorContext().getNode().getId();
+		Node<?> node = aspect.getDataProcessorContext().getNode();
+		String nodeId = node.getId();
+		String table = aspect.getTable().getName();
 
 		switch (aspect.getState()) {
 			case WriteRecordFuncAspect.STATE_START:
@@ -408,7 +414,24 @@ public class ObservableAspectTask extends AspectTask {
 								handler.handleWriteRecordAccept(System.currentTimeMillis(), result, inner);
 							}
 					);
+
 					taskSampleHandler.handleWriteRecordAccept(result, events);
+
+					Optional.ofNullable(tableSampleHandlers)
+							.flatMap(handlers -> {
+								// source >> target table name maybe change
+
+								String syncType = aspect.getDataProcessorContext().getTaskDto().getSyncType();
+								if (TaskDto.SYNC_TYPE_SYNC.equals(syncType)) {
+									return handlers.values().stream().findFirst();
+								} else {
+									LinkedHashMap<String, String> tableNameRelation = ((DatabaseNode) node).getSyncObjects().get(0).getTableNameRelation();
+									String targetTableName = HashBiMap.create(tableNameRelation).inverse().get(table);
+									return Optional.ofNullable(handlers.get(targetTableName));
+								}
+							})
+							.ifPresent(handler -> handler.incrTableSnapshotInsertTotal(recorder.getInsertTotal()));
+
 					pipelineDelay.refreshDelay(task.getId().toHexString(), nodeId, inner.getProcessTimeTotal() / inner.getTotal(), inner.getNewestEventTimestamp());
 				});
 				break;

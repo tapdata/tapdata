@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.bean;
 
+import com.tapdata.tm.externalStorage.vo.ExternalStorageVo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -12,9 +13,10 @@ import java.util.List;
  * @Description:
  */
 @Data
-@EqualsAndHashCode(callSuper=false)
+@EqualsAndHashCode(callSuper=true)
 public class LogCollectorDetailVo extends LogCollectorVo {
 
     private List<SyncTaskVo> taskList;
     private String taskId;
+    private ExternalStorageVo ExternalStorage;
 }

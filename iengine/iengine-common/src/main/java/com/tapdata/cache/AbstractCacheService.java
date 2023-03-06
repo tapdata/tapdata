@@ -22,8 +22,6 @@ public abstract class AbstractCacheService implements ICacheService {
 
   protected CacheMap<String, DataFlowCacheConfig> cacheConfigMap;
 
-  private Map<String, ICacheStats> cacheStatsMap;
-
   private final CacheMap<String, ICacheGetter> cacheGetterMap;
 
   private final Map<String, ICacheStore> cacheStoreMap;
@@ -39,6 +37,11 @@ public abstract class AbstractCacheService implements ICacheService {
 
   protected final ClientMongoOperator clientMongoOperator;
 
+  public AbstractCacheService(ClientMongoOperator clientMongoOperator, Map<String, String> cacheStatusMap) {
+    this(clientMongoOperator);
+    this.cacheStatusMap = cacheStatusMap;
+  }
+
   public AbstractCacheService(ClientMongoOperator clientMongoOperator) {
     this.clientMongoOperator = clientMongoOperator;
     this.cacheGetterMap = new CacheMap<>();
@@ -48,7 +51,6 @@ public abstract class AbstractCacheService implements ICacheService {
     }).autoRemove(true).maxSize(100).interval(60).expire(300).supplier(this::getCacheGetterInstance).create();
     this.cacheStoreMap = new ConcurrentHashMap<>();
     this.lastLogTSMap = new ConcurrentHashMap<>();
-    this.cacheStatsMap = new ConcurrentHashMap<>();
     this.cacheStatusLockMap = new ConcurrentHashMap<>();
     this.cacheConfigMap = new CacheMap<>();
     this.cacheConfigMap.autoRemove(true).maxSize(100).interval(60).expire(600).supplier(cacheName -> {
@@ -88,11 +90,6 @@ public abstract class AbstractCacheService implements ICacheService {
   @Override
   public void registerCache(DataFlowCacheConfig cacheConfig) {
     String cacheName = cacheConfig.getCacheName();
-    String cacheStatus = this.cacheStatusMap.get(cacheName);
-    if (this.cacheConfigMap.containsKey(cacheName) && StringUtils.equalsAnyIgnoreCase(cacheStatus, DataFlow.STATUS_RUNNING)) {
-      throw new RuntimeException(String.format("Cache name %s already exists.", cacheName));
-    }
-
     this.cacheConfigMap.put(cacheName, cacheConfig);
     this.lastLogTSMap.put(cacheConfig.getCacheName(), 0L);
     this.cacheStatusMap.put(cacheName, DataFlow.STATUS_RUNNING);
@@ -117,22 +114,22 @@ public abstract class AbstractCacheService implements ICacheService {
   }
 
   @Override
-  public Map<String, Object> getAndSetCache(String cacheName, Boolean lookup, Object... cacheKeys) throws InterruptedException {
+  public Map<String, Object> getAndSetCache(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable {
     return getCacheGetter(cacheName).getAndSetCache(cacheName, lookup, cacheKeys);
   }
 
   @Override
-  public List<Map<String, Object>> getAndSetCacheArray(String cacheName, Boolean lookup, Object... cacheKeys) throws InterruptedException {
+  public List<Map<String, Object>> getAndSetCacheArray(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable {
     return getCacheGetter(cacheName).getAndSetCacheArray(cacheName, lookup, cacheKeys);
   }
 
   @Override
-  public Map<String, Object> getCache(String cacheName, Boolean lookup, Object... cacheKeys) throws InterruptedException {
+  public Map<String, Object> getCache(String cacheName, Boolean lookup, Object... cacheKeys) throws Throwable {
     return getCacheGetter(cacheName).getCache(cacheName, lookup, cacheKeys);
   }
 
   @Override
-  public Object getCacheItem(String cacheName, String field, Object defaultValue, Object... cacheKeys) throws InterruptedException {
+  public Object getCacheItem(String cacheName, String field, Object defaultValue, Object... cacheKeys) throws Throwable {
     return getCacheGetter(cacheName).getCacheItem(cacheName, field, defaultValue, cacheKeys);
   }
 
@@ -141,13 +138,6 @@ public abstract class AbstractCacheService implements ICacheService {
     return cacheConfigMap.get(cacheName);
   }
 
-  protected Map<String, ICacheStats> getCacheStatsMap() {
-    return cacheStatsMap;
-  }
-
-  public void setCacheStatsMap(Map<String, ICacheStats> cacheStatsMap) {
-    this.cacheStatsMap = cacheStatsMap;
-  }
 
 
   protected Map<String, ICacheStore> getCacheStoreMap() {
@@ -155,12 +145,12 @@ public abstract class AbstractCacheService implements ICacheService {
   }
 
   @Override
-  public void cacheRow(String cacheName, String key, List<Map<String, Object>> rows) {
+  public void cacheRow(String cacheName, String key, List<Map<String, Object>> rows) throws Throwable {
     getCacheStore(cacheName).cacheRow(cacheName, key, rows);
   }
 
   @Override
-  public void removeByKey(String cacheName, String cacheKey, String pkKey) {
+  public void removeByKey(String cacheName, String cacheKey, String pkKey) throws Throwable {
     getCacheStore(cacheName).removeByKey(cacheName, cacheKey, pkKey);
   }
 

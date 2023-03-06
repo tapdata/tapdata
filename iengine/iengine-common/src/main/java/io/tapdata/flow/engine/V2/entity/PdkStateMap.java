@@ -1,17 +1,31 @@
 package io.tapdata.flow.engine.V2.entity;
 
 import com.hazelcast.core.HazelcastInstance;
-import com.hazelcast.map.IMap;
 import com.hazelcast.persistence.PersistenceStorage;
-import com.hazelcast.persistence.StorageMode;
-import com.sun.jna.platform.win32.GL;
 import com.tapdata.constant.ConfigurationCenter;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.entity.AppType;
+import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.construct.constructImpl.DocumentIMap;
 import io.tapdata.entity.utils.cache.KVMap;
+import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
+import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author samuel
@@ -23,34 +37,73 @@ public class PdkStateMap implements KVMap<Object> {
 	private static final String GLOBAL_MAP_NAME = "GlobalStateMap";
 	public static final int CONNECT_TIMEOUT_MS = 60 * 1000;
 	public static final int READ_TIMEOUT_MS = 60 * 1000;
-	private IMap<String, Document> imap;
+	//	private IMap<String, Document> imap;
 	private static final String KEY = PdkStateMap.class.getSimpleName();
+	public static final long GLOBAL_MAP_TTL_SECONDS = 604800L;
+	private Logger logger = LogManager.getLogger(PdkStateMap.class);
 	private static volatile PdkStateMap globalStateMap;
+	private DocumentIMap<Document> constructIMap;
+	private ExternalStorageDto externalStorage;
 
 	private PdkStateMap() {
 	}
 
-	public PdkStateMap(String nodeId, HazelcastInstance hazelcastInstance, StateMapMode stateMapMode) {
+	public ExternalStorageDto getExternalStorage() {
+		return externalStorage;
+	}
+
+	public PdkStateMap(String nodeId, HazelcastInstance hazelcastInstance) {
 		String name = getStateMapName(nodeId);
-		switch (stateMapMode) {
-			case DEFAULT:
-				imap = hazelcastInstance.getMap(name);
-				break;
-			case HTTP_TM:
-				initHttpTMStateMap(hazelcastInstance, GlobalConstant.getInstance().getConfigurationCenter(), name);
-				break;
+		initConstructMap(hazelcastInstance, name);
+	}
+
+	private PdkStateMap(HazelcastInstance hazelcastInstance, String mapName) {
+		initConstructMap(hazelcastInstance, mapName);
+	}
+
+	public PdkStateMap(String nodeId, HazelcastInstance hazelcastInstance, TaskDto taskDto, Node<?> node, ClientMongoOperator clientMongoOperator, String func) {
+		boolean needUpdateExternalStorageId = false;
+		if (null != taskDto && null != node) {
+			Map<String, Object> attrs = taskDto.getAttrs();
+			if (null != attrs) {
+				String externalStorageId = attrs.getOrDefault(getExternalStorageKey(node, func), "").toString();
+				if (StringUtils.isNotBlank(externalStorageId)) {
+					ExternalStorageDto findExternalStorageDto = clientMongoOperator.findOne(Query.query(Criteria.where("_id").is(externalStorageId)), ConnectorConstant.EXTERNAL_STORAGE_COLLECTION, ExternalStorageDto.class);
+					if (null != findExternalStorageDto) {
+						this.externalStorage = findExternalStorageDto;
+					} else {
+						logger.warn("Task {} node {} found last state map external storage id {}, but cannot found external storage config by this id, will use default config, " +
+										"may be cause some problem, recommend reset and restart task",
+								taskDto.getName(), node.getName(), externalStorageId);
+					}
+				} else {
+					needUpdateExternalStorageId = true;
+				}
+			} else {
+				needUpdateExternalStorageId = true;
+			}
+		}
+		String name = getStateMapName(nodeId);
+		initConstructMap(hazelcastInstance, name);
+		if (needUpdateExternalStorageId && null != externalStorage) {
+			clientMongoOperator.update(
+					Query.query(Criteria.where("_id").is(taskDto.getId().toString())),
+					new Update().set("attrs." + getExternalStorageKey(node, func), externalStorage.getId().toHexString()),
+					ConnectorConstant.TASK_COLLECTION
+			);
+		}
+		if (null != taskDto && null != node) {
+			logger.info("Task {} node {} state map external storage: {}", taskDto.getName(), node.getName(), externalStorage);
 		}
 	}
 
-	public PdkStateMap(HazelcastInstance hazelcastInstance, String mapName, StateMapMode stateMapMode) {
-		switch (stateMapMode) {
-			case DEFAULT:
-				imap = hazelcastInstance.getMap(mapName);
-				break;
-			case HTTP_TM:
-				initHttpTMStateMap(hazelcastInstance, GlobalConstant.getInstance().getConfigurationCenter(), mapName);
-				break;
-		}
+	@NotNull
+	private static String getExternalStorageKey(Node<?> node, String func) {
+		return "state-external-storage-id-" + func + node.getId();
+	}
+
+	private void initConstructMap(HazelcastInstance hazelcastInstance, String mapName) {
+		initHttpTMStateMap(hazelcastInstance, GlobalConstant.getInstance().getConfigurationCenter(), mapName);
 	}
 
 	private void initHttpTMStateMap(HazelcastInstance hazelcastInstance, ConfigurationCenter configurationCenter, String name) {
@@ -82,14 +135,13 @@ public class PdkStateMap implements KVMap<Object> {
 		} else {
 			throw new IllegalArgumentException(String.format("Create pdk state map failed, config %s type must be String, actual: %s", ConfigurationCenter.ACCESS_CODE, accessCodeObj.getClass().getSimpleName()));
 		}
-		new PersistenceStorage()
-				.setStorageMode(StorageMode.HTTP_TM)
-				.baseUrl(baseURLs.get(0))
-				.accessCode(accessCode)
-				.connectTimeoutMs(CONNECT_TIMEOUT_MS)
-				.readTimeoutMs(READ_TIMEOUT_MS)
-				.initMapStoreConfig(hazelcastInstance.getConfig(), name);
-		imap = hazelcastInstance.getMap(name);
+		ExternalStorageDto externalStorageDto = new ExternalStorageDto();
+		externalStorageDto.setType(ExternalStorageType.httptm.name());
+		externalStorageDto.setBaseUrl(baseURLs.get(0));
+		externalStorageDto.setAccessToken(accessCode);
+		externalStorageDto.setConnectTimeoutMs(CONNECT_TIMEOUT_MS);
+		externalStorageDto.setReadTimeoutMs(READ_TIMEOUT_MS);
+		constructIMap = new DocumentIMap<>(hazelcastInstance, name, externalStorageDto);
 	}
 
 	@NotNull
@@ -101,8 +153,8 @@ public class PdkStateMap implements KVMap<Object> {
 		if (globalStateMap == null) {
 			synchronized (GLOBAL_MAP_NAME) {
 				if (globalStateMap == null) {
-					globalStateMap = new PdkStateMap(hazelcastInstance, GLOBAL_MAP_NAME, StateMapMode.HTTP_TM);
-					PersistenceStorage.getInstance().setImapTTL(GLOBAL_MAP_NAME, 604800L);
+					globalStateMap = new PdkStateMap(hazelcastInstance, GLOBAL_MAP_NAME);
+					PersistenceStorage.getInstance().setImapTTL(globalStateMap.getConstructIMap().getiMap(), GLOBAL_MAP_TTL_SECONDS);
 				}
 			}
 		}
@@ -114,60 +166,49 @@ public class PdkStateMap implements KVMap<Object> {
 
 	}
 
+	@SneakyThrows
 	@Override
 	public void put(String key, Object o) {
-		imap.put(key, new Document(KEY, o));
+		constructIMap.insert(key, new Document(KEY, o));
 	}
 
 	@Override
 	public Object putIfAbsent(String key, Object o) {
-		return imap.putIfAbsent(key, new Document(KEY, o));
+		return constructIMap.getiMap().putIfAbsent(key, new Document(KEY, o));
 	}
 
+	@SneakyThrows
 	@Override
 	public Object remove(String key) {
-		return imap.remove(key);
+		return constructIMap.delete(key);
 	}
 
+	@SneakyThrows
 	@Override
 	public void clear() {
-		imap.clear();
+		constructIMap.clear();
 	}
 
+	@SneakyThrows
 	@Override
 	public void reset() {
-		imap.clear();
+		constructIMap.destroy();
 	}
 
-//  @Override
-//  public Object get(String key) {
-//    Document document = imap.getOrDefault(key, null);
-//    if (null == document) return null;
-//    return document.get(KEY);
-//  }
-
+	@SneakyThrows
 	@Override
 	public Object get(String key) {
-		Object value = imap.getOrDefault(key, null);
-		if (null == value) return null;
-		try {
-			return ((Document) value).get(KEY);
-		} catch (Throwable throwable) {
-			//This is a workaround for resolving Document is different issue. Has performance rick.
-			try {
-				return value.getClass().getMethod("get", Object.class).invoke(value, KEY);
-			} catch (Throwable throwable1) {
-				throw new RuntimeException(throwable);
-			}
-		}
-	}
-
-	public IMap<String, Document> getImap() {
-		return imap;
+		Document document = constructIMap.find(key);
+		if (null == document) return null;
+		return document.get(KEY);
 	}
 
 	public enum StateMapMode {
 		DEFAULT,
 		HTTP_TM,
+	}
+
+	public DocumentIMap<Document> getConstructIMap() {
+		return constructIMap;
 	}
 }

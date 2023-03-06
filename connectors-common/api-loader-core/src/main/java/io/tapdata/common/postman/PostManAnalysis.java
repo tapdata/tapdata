@@ -11,10 +11,13 @@ import io.tapdata.common.postman.util.ReplaceTagUtil;
 import io.tapdata.common.support.APIFactory;
 import io.tapdata.common.support.core.emun.TapApiTag;
 import io.tapdata.common.support.entitys.APIResponse;
+import io.tapdata.common.util.ScriptUtil;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.JsonParser;
 import okhttp3.*;
+import okio.Buffer;
 
 import java.io.IOException;
 import java.util.*;
@@ -25,10 +28,24 @@ import static io.tapdata.base.ConnectorBase.*;
 
 public class PostManAnalysis {
     private static final String TAG = PostManAnalysis.class.getSimpleName();
-    private Map<String,Object> httpConfig;
-    public void setHttpConfig(Map<String, Object> httpConfig){
+    private Map<String, Object> httpConfig;
+
+    public void setHttpConfig(Map<String, Object> httpConfig) {
         this.httpConfig = httpConfig;
     }
+
+    private Map<String, Object> connectorConfig;
+
+    public void setConnectorConfig(Map<String, Object> connectorConfig) {
+        this.connectorConfig = connectorConfig;
+    }
+    public void addConnectorConfig(Map<String, Object> connectorConfig) {
+       if (Objects.isNull(this.connectorConfig)){
+           this.connectorConfig = new HashMap<>();
+       }
+        this.connectorConfig.putAll(connectorConfig);
+    }
+
     public boolean filterUselessApi() {
         //是否过滤没有被标记的api
         return false;
@@ -110,8 +127,24 @@ public class PostManAnalysis {
         }
         return false;
     }
+    private String comp(Map<String,Object> item1,Map<String,Object> item2){
+        if (Objects.isNull(item1) || item1.isEmpty() || Objects.isNull(item2) || item2.isEmpty()) return null;
+        StringJoiner joiner = new StringJoiner(", ");
+        item1.forEach((key,value)->{
+            if (Objects.nonNull(item2.get(key))){
+                joiner.add(key);
+            }
+        });
+        return joiner.toString();
+    }
 
     public Request httpPrepare(String uriOrName, String method, Map<String, Object> params) {
+        String com = this.comp(this.connectorConfig,params);
+        Optional.ofNullable(com).ifPresent(str->{
+            TapLogger.warn(TAG," Some of the keys in connectionConfig or nodeConfig have the same name as the interface parameters." +
+                    " At this time, the values in connectionConfig or nodeConfig will be used as the HTTP request data by default, which will lead to errors in the HTTP call parameters. Please confirm. If it is correct, it can be ignored.  Conflicting Key: " + com);
+        });
+
         ApiMap.ApiEntity api = this.apiContext.apis().quickGet(uriOrName, method);
         if (Objects.isNull(api)) {
             throw new CoreException(String.format("No such api name or url is [%s],method is [%s]", uriOrName, method));
@@ -121,6 +154,9 @@ public class PostManAnalysis {
         variable.putAll(this.apiContext.variable());
         if (Objects.nonNull(params) && !params.isEmpty()) {
             variable.putAll(params);
+        }
+        if (Objects.nonNull(this.connectorConfig) && !this.connectorConfig.isEmpty()) {
+            variable.putAll(this.connectorConfig);
         }
         Map<String, Object> tempParam = new HashMap<>();
         tempParam.putAll(variable);
@@ -137,21 +173,21 @@ public class PostManAnalysis {
         List<Header> apiHeader = apiRequest.header();
         Map<String, String> headMap = new HashMap<>();
         if (Objects.nonNull(apiHeader) && !apiHeader.isEmpty()) {
-            apiHeader.stream().filter(Objects::nonNull).forEach(head -> headMap.put(head.key(), head.value()));
+            apiHeader.stream().filter(ent->{ if (Objects.isNull(ent)) return false; return !ent.disabled(); }).forEach(head -> headMap.put(head.key(), head.value()));
         }
         String url = apiUrl.raw();
         Body<?> apiBody = apiRequest.body();
         String contentType = apiBody.contentType();
         MediaType mediaType = MediaType.parse(contentType);
-        Map<String, Object> bodyMap = new HashMap<>();;
-//        try {
-//            Object raw = apiBody.raw();
-//            bodyMap = (Map<String, Object>) fromJson();
-//        } finally {
-//            if (Objects.isNull(bodyMap)) {
-//                bodyMap = new HashMap<>();
-//            }
-//        }
+        Map<String, Object> bodyMap = new HashMap<>();
+        String apiBodyContentType = apiBody.contentType();
+        if ("application/json".equals(apiBodyContentType) && Objects.nonNull(apiBody.raw())) {
+            try {
+                bodyMap.putAll((Map<String, Object>) fromJson(String.valueOf(apiBody.raw())));
+            } catch (Exception e) {
+                TapLogger.error(TAG, "API name is {} which body row cannot cast to a map, error row text: {}, Please ensure that the interface call uses the correct parameters. msg: {}", api.api().name(), apiBody.raw(), e.getMessage());
+            }
+        }
         List<Map<String, Object>> query = apiUrl.query();
         for (Map<String, Object> queryMap : query) {
             String key = String.valueOf(queryMap.get(PostParam.KEY));
@@ -160,7 +196,7 @@ public class PostManAnalysis {
                 Object value = tempParam.get(key);
                 if (Objects.nonNull(value)) {
                     queryMap.put(PostParam.VALUE, value);
-                    bodyMap.put(key, value);
+                    //bodyMap.put(key, value);
                     String keyParam = key + "=";
                     if (url.contains(keyParam)) {
                         int indexOf = url.indexOf(keyParam);
@@ -171,6 +207,7 @@ public class PostManAnalysis {
                 }
             }
         }
+
         bodyMap.putAll(params);
         Request.Builder builder = new Request.Builder()
                 .url(url)
@@ -181,57 +218,63 @@ public class PostManAnalysis {
         } else {
             builder.get();
         }
+        //apiBody.cleanCache();
         return builder.build();
     }
 
-    public APIResponse http(Request request) throws IOException {
+    public APIResponse http(Request request) throws IOException{
+        String property = System.getProperty("show_api_invoker_result", "1");
+        if (!"1".equals(property)) {
+            Buffer sink = new Buffer();
+            RequestBody body = request.body();
+            String bodyStr = "{}";
+            if (Objects.nonNull(body)){
+                body.writeTo(sink);
+                bodyStr = ScriptUtil.fileToString(sink.inputStream());
+            }
+            System.out.printf(
+                    "Http Result: \n\tURL: %s \n\tMETHOD: %s \n\tBODY\\PARAMS: %s\n",
+                    request.url(),
+                    request.method(),
+                    bodyStr);
+        }
         OkHttpClient client = this.configHttp(new OkHttpClient().newBuilder()).build();
-        Map<String,Object> error = new HashMap<>();
         Map<String, Object> result = new HashMap<>();
-        Response response;
-        Headers headers;
-        int code = 0;
-        try {
-            response = client.newCall(request).execute();
-            code = response.code();
-            headers = response.headers();
-            Optional.ofNullable(response.body()).ifPresent(body -> {
+        Response response = client.newCall(request).execute();
+        int code = Objects.nonNull(response) ? response.code() : -1;
+        Headers headers = Objects.nonNull(response) ? response.headers() : Headers.of();
+        ResponseBody body = response.body();
+        if(body != null) {
+            String bodyStr = body.string();
+            if (Objects.isNull(bodyStr)){
+                result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, new HashMap<>());
+            } else {
                 try {
-                    Optional.ofNullable(body.string()).ifPresent(str -> {
-                        try {
-                            result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, fromJson(str));
-                        } catch (Exception notMap) {
-                            try {
-                                result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, fromJsonArray(str));
-                            } catch (Exception notArray) {
-                                result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, str);
-                            }
-                        }
-                    });
-                } catch (IOException ignored) {
+                    result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, fromJson(bodyStr));
+                } catch (Exception notMap) {
+                    try {
+                        result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, fromJsonArray(bodyStr));
+                    } catch (Exception notArray) {
+                        result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, bodyStr);
+                    }
                 }
-            });
-        }catch (Exception e){
-            error.put("msg",e.getMessage());
-            headers = Headers.of();
+            }
         }
-        if (code<200 || code>=300){
-            error.put("msg",toJson(result));
-        }
-        return APIResponse.create().httpCode(code)
+        result.computeIfAbsent(Api.PAGE_RESULT_PATH_DEFAULT_PATH, key -> new HashMap<String,Object>());
+        return APIResponse.create()
+                .httpCode(code)
                 .result(result)
-                .error(error)
                 .headers(getHeaderMap(headers));
     }
 
-    private OkHttpClient.Builder configHttp(OkHttpClient.Builder builder){
-        if (Objects.nonNull(this.httpConfig)){
+    private OkHttpClient.Builder configHttp(OkHttpClient.Builder builder) {
+        if (Objects.nonNull(this.httpConfig)) {
             try {
                 int timeout = Integer.parseInt(String.valueOf(this.httpConfig.get("timeout")));
                 builder.connectTimeout(timeout, TimeUnit.MILLISECONDS);
-                builder.writeTimeout(timeout,TimeUnit.MILLISECONDS);
-                builder.readTimeout(timeout,TimeUnit.MILLISECONDS);
-            }catch (Exception ignored){ }
+                builder.readTimeout(timeout, TimeUnit.MILLISECONDS);
+            } catch (Exception ignored) {
+            }
         }
         return builder;
     }
@@ -247,18 +290,19 @@ public class PostManAnalysis {
 
     public APIResponse http(String uriOrName, String method, Map<String, Object> params) {
         try {
-            APIResponse http = this.http(this.httpPrepare(uriOrName, method, params));
+            Request request = this.httpPrepare(uriOrName, method, params);
+            APIResponse http = this.http(request);
             String property = System.getProperty("show_api_invoker_result", "1");
-            if ("1".equals(property)) {
-                System.out.printf("Http Result: url - %s, method - %s params - %s\n\t%s%n", uriOrName, method, toJson(params), toJson(http.result(), JsonParser.ToJsonFeature.PrettyFormat));
+            if (!"1".equals(property)) {
+                System.out.printf("Http Result: Post Man: %s url - %s, method - %s, params - %s\n\t%s%n", uriOrName, request.url(), method, toJson(params), toJson(http.result().get("data"), JsonParser.ToJsonFeature.PrettyFormat));
             }
             return http;
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new CoreException(String.format("Http request failed ,the api name or url is [%s],method is [%s], params are [%s], error message : %s", uriOrName, method, TapSimplify.toJson(params), e.getMessage()));
         }
     }
 
-    public static boolean isPostMan(Map<String,Object> json){
-        return Objects.nonNull(json) && Objects.nonNull(json.get(PostParam.INFO)) && json.get(PostParam.INFO) instanceof Map && Objects.nonNull(((Map<String,Object>)json.get(PostParam.INFO)).get(PostParam._POSTMAN_ID));
+    public static boolean isPostMan(Map<String, Object> json) {
+        return Objects.nonNull(json) && Objects.nonNull(json.get(PostParam.INFO)) && json.get(PostParam.INFO) instanceof Map && Objects.nonNull(((Map<String, Object>) json.get(PostParam.INFO)).get(PostParam._POSTMAN_ID));
     }
 }

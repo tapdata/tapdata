@@ -56,6 +56,9 @@ public class JSONUtil {
 		mapper.enable(serializationFeature);
 	}
 
+	public static List<Map> json2List(String json) throws IOException {
+		return json2List(json, Map.class);
+	}
 	public static <T> List<T> json2List(String json, Class<T> classz) throws IOException {
 		List<T> list;
 		try {

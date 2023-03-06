@@ -446,6 +446,7 @@ public class Connections implements Serializable {
 
 	private Map<String, Object> extParam;
 
+	private String shareCDCExternalStorageId;
 
 	public Connections() {
 	}
@@ -2229,6 +2230,7 @@ public class Connections implements Serializable {
 		System.out.println(AES256Util.Aes256Decode("2187c6efbef7341042a17dd7ff8d5a94", AES256Util.getKey()));
 	}
 
+
 	public boolean isCaseInSensitive() {
 		boolean flag = false;
 		if (database_type.equalsIgnoreCase("hive")) {
@@ -2287,6 +2289,14 @@ public class Connections implements Serializable {
 
 	public void setExtParam(Map<String, Object> extParam) {
 		this.extParam = extParam;
+	}
+
+	public String getShareCDCExternalStorageId() {
+		return shareCDCExternalStorageId;
+	}
+
+	public void setShareCDCExternalStorageId(String shareCDCExternalStorageId) {
+		this.shareCDCExternalStorageId = shareCDCExternalStorageId;
 	}
 }
 

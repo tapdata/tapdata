@@ -553,7 +553,7 @@ def show_apiserver(quite=False):
 # show all apis
 def show_apis(quiet=False):
     global client_cache
-    res = req.get("/Modules", params={"order":"createAt DESC","limit":20,"skip":0,"where":{}})
+    res = req.get("/Modules", params={"order": "createAt DESC", "limit": 20, "skip": 0, "where": {}})
     data = res.json()["data"]["items"]
     client_cache["apis"]["name_index"] = {}
     if not quiet:
@@ -1967,7 +1967,8 @@ class Pipeline:
             stats = self.job.stats()
             if stats.snapshot_done_at > 0:
                 if not quiet:
-                    logger.info("job {} initial sync finish, wait time is: {} seconds", self.job.name, int(time.time() - s))
+                    logger.info("job {} initial sync finish, wait time is: {} seconds", self.job.name,
+                                int(time.time() - s))
                 return True
             time.sleep(1)
             if time.time() - s > t:
@@ -2667,12 +2668,12 @@ class Job:
             stats = res["data"]["samples"]["totalData"][0]
             job_stats.qps = stats["outputQps"]
             job_stats.total = stats["tableTotal"]
-            job_stats.input_insert = stats["inputInsertTotal"]
-            job_stats.input_update = stats["inputUpdateTotal"]
-            job_stats.input_delete = stats["inputDeleteTotal"]
-            job_stats.output_insert = stats["outputInsertTotal"]
-            job_stats.output_update = stats["outputUpdateTotal"]
-            job_stats.output_Delete = stats["outputDeleteTotal"]
+            job_stats.input_insert = stats.get("inputInsertTotal", 0)
+            job_stats.input_update = stats.get("inputUpdateTotal", 0)
+            job_stats.input_delete = stats.get("inputDeleteTotal", 0)
+            job_stats.output_insert = stats.get("outputInsertTotal", 0)
+            job_stats.output_update = stats.get("outputUpdateTotal", 0)
+            job_stats.output_Delete = stats.get("outputDeleteTotal", 0)
             job_stats.snapshot_done_at = stats.get("snapshotDoneAt", 0)
         return job_stats
 
@@ -2736,24 +2737,19 @@ class Job:
             time.sleep(1)
             stats = self.stats()
             status = self.status()
+            print_info = [
+                "job {} status: {}, qps: {}, total: {} "
+                "input_stats: insert: {}, update: {}, delete: {} "
+                "output_stats: insert: {}, update: {}, delete: {}",
+                self.name, status, stats.qps, stats.total, stats.input_insert, stats.input_update,
+                stats.input_delete, stats.output_insert, stats.output_update, stats.output_Delete,
+                "info", "info", "notice", "info", "debug", "info", "info", "info", "debug", "info", "info", "info",
+            ]
             if print_log:
-                logger.info(
-                    "job {} status: {}, qps: {}, total: {} input_stats: insert: {}, update: {}, delete: {} output_stats: insert: {}, update: {}, delete: {}",
-                    self.name, status, stats.qps, stats.total, stats.input_insert, stats.input_update, stats.input_delete,
-                    stats.output_insert, stats.output_update, stats.output_Delete,
-                    "info", "info", "notice", "info", "info", "info", "info", "info", "info", "info", wrap=False, logger_header=True
-                )
+                logger.info(*print_info, wrap=False, logger_header=True)
             if status in [JobStatus.running, JobStatus.edit, JobStatus.scheduled]:
                 continue
-            logger.info(
-                "job {} status: {}, qps: {}, total: {}\n" + \
-                "input_stats: insert: {}, update: {}, delete: {}" + \
-                "output_stats: insert: {}, update: {}, delete: {}",
-                self.name, status, stats["outputQps"], stats["tableTotal"],
-                stats["inputInsertTotal"], stats["inputUpdateTotal"], stats["inputDeleteTotal"],
-                stats["outputInsertTotal"], stats["outputUpdateTotal"], stats["outputDeleteTotal"],
-                "info", "info", "notice", "info", "info", "info", "info", "info", "info", "info", wrap=False, logger_header=True
-            )
+            logger.info(*print_info, wrap=False, logger_header=True)
             break
 
     def monitor(self, t=30, quiet=False):
@@ -2921,7 +2917,7 @@ class DataSource:
         return c
 
     @help_decorate("get a datasource status", "")
-    def status(self, quiet=True):
+    def status(self, quiet=False):
         if self.id is None:
             logger.warn("datasource is not save, please save first")
             return
@@ -3069,29 +3065,27 @@ class DataSource:
             asyncio.run(l())
         except Exception as e:
             logger.warn("load schema exception, err is: {}", e)
+            return False
         logger.info("datasource valid finished, will check table schema now, please wait for a while ...")
         start_time = time.time()
-
-        for _ in range(96):
-            try:
-                time.sleep(5)
-                res = DataSourceApi().get(self.id)
-                print(res)
-                if res["data"] is None:
-                    break
-                if res["data"]["loadFieldsStatus"] == "invalid":
-                    break
-                if res["data"]["loadFieldsStatus"] == "finished":
-                    break
-                if "loadFieldsStatus" not in res["data"]:
-                    continue
-                loadCount = res["data"].get("loadCount", 0)
-                tableCount = res["data"].get("tableCount", 1)
-                logger.info("table schema check percent is: {}%", int(loadCount / tableCount * 100), wrap=False)
-            except Exception as e:
-                print(e)
-        logger.info("datasource table schema check finished, cost time: {} seconds", int(time.time() - start_time))
-        return res
+        if self.id is not None:
+            for _ in range(96):
+                try:
+                    time.sleep(5)
+                    res = DataSourceApi().get(self.id)
+                    if res["data"] is None:
+                        break
+                    if res["data"]["loadFieldsStatus"] in ["invalid", "finished", "error"]:
+                        break
+                    if "loadFieldsStatus" not in res["data"]:
+                        continue
+                    loadCount = res["data"].get("loadCount", 0)
+                    tableCount = res["data"].get("tableCount", 1)
+                    logger.info("table schema check percent is: {}%", int(loadCount / tableCount * 100), wrap=False)
+                except Exception as e:
+                    print(traceback.format_exc())
+            logger.info("datasource table schema check finished, cost time: {} seconds", int(time.time() - start_time))
+            return res
 
 
 class Connection:
@@ -3229,7 +3223,7 @@ class Connection:
                     return res
 
         try:
-            asyncio.get_event_loop().run_until_complete(l())
+            asyncio.run(l())
         except Exception as e:
             logger.warn("load schema exception, err is: {}", e)
 

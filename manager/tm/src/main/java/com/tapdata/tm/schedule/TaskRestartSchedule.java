@@ -196,6 +196,7 @@ public class TaskRestartSchedule {
                     String msg = MessageFormat.format(template, taskDto.getStopRetryTimes());
                     monitoringLogsService.startTaskErrorLog(taskDto, userDetail, msg, Level.WARN);
                 });
+                stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
             } else {
                 taskService.sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), userDetail, false);
                 Update update = Update.update("stopRetryTimes", taskDto.getStopRetryTimes() + 1).set("last_updated", taskDto.getLastUpdAt());

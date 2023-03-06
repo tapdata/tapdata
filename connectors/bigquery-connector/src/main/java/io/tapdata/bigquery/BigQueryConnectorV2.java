@@ -90,11 +90,14 @@ public class BigQueryConnectorV2 extends ConnectorBase {
         synchronized (this) {
             this.notify();
         }
-        Optional.ofNullable(this.writeRecord).ifPresent(WriteRecord::onDestroy);
-        Optional.ofNullable(this.valve).ifPresent(WriteValve::close);
         this.running.set(false);
-        Optional.ofNullable(this.merge).ifPresent(MergeHandel::stop);
-        Optional.ofNullable(this.stream).ifPresent(BigQueryStream::closeStream);
+        Optional.ofNullable(this.writeRecord).ifPresent(WriteRecord::onDestroy);
+        try {
+            Optional.ofNullable(this.merge).ifPresent(MergeHandel::stop);
+            Optional.ofNullable(this.stream).ifPresent(BigQueryStream::closeStream);
+        }finally {
+            Optional.ofNullable(this.valve).ifPresent(WriteValve::close);
+        }
     }
 
     @Override
@@ -118,7 +121,7 @@ public class BigQueryConnectorV2 extends ConnectorBase {
         ;
     }
 
-    private void release(TapConnectorContext context) {
+    private synchronized void release(TapConnectorContext context) {
         KVMap<Object> stateMap = context.getStateMap();
         Object temporaryConfig = stateMap.get(StateMapOperator.TABLE_CONFIG_NAME);//(ContextConfig.TEMP_CURSOR_SCHEMA_NAME);
         if (Objects.nonNull(temporaryConfig)) {

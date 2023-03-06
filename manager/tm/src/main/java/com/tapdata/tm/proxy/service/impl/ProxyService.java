@@ -73,14 +73,10 @@ public class ProxyService {
         }
 
         if(staticToken != null) {
-            int pos = requestUri.indexOf("/api/");
-            if(pos < 0)
-                throw new BizException("requestUri doesn't contains \"/api/\", requestUri: " + requestUri);
-            String prefix = requestUri.substring(0, pos);
-            token = prefix + "/api/proxy/callback/" + token + "?__token=" + staticToken;
-        } else {
+            token = token + "?__token=" + staticToken;
+        } /*else {
             token = "/api/proxy/callback/" + token;
-        }
+        }*/
         SubscribeResponseDto subscribeResponseDto = new SubscribeResponseDto();
         subscribeResponseDto.setToken(token);
         return subscribeResponseDto;

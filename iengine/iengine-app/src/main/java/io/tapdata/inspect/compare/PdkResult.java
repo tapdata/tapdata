@@ -1,7 +1,6 @@
 package io.tapdata.inspect.compare;
 
 import com.tapdata.entity.Connections;
-import com.tapdata.entity.DatabaseTypeEnum;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapTable;
@@ -11,11 +10,11 @@ import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.SortOn;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.apis.functions.PDKMethod;
 import org.apache.commons.collections.CollectionUtils;
 
 import java.io.IOException;
@@ -35,20 +34,23 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class PdkResult extends BaseResult<Map<String, Object>> {
 	private static final int BATCH_SIZE = 1000;
 	private static final String TAG = PdkResult.class.getSimpleName();
-	private ConnectorNode connectorNode;
-	private LinkedBlockingQueue<Map<String, Object>> queue = new LinkedBlockingQueue<>();
+	private final ConnectorNode connectorNode;
+	private final LinkedBlockingQueue<Map<String, Object>> queue = new LinkedBlockingQueue<>();
 	private DataMap offset;
-	private List<SortOn> sortOnList = new LinkedList<>();
-	private QueryByAdvanceFilterFunction queryByAdvanceFilterFunction;
-	private TapTable tapTable;
+	private final List<SortOn> sortOnList = new LinkedList<>();
+	private final QueryByAdvanceFilterFunction queryByAdvanceFilterFunction;
+	private final TapTable tapTable;
 	private Throwable throwable;
-	private AtomicBoolean hasNext;
-	private AtomicBoolean running;
-	private TapCodecsFilterManager codecsFilterManager;
-	private TapCodecsFilterManager defaultCodecsFilterManager;
-	private Projection projection;
+	private final AtomicBoolean hasNext;
+	private final AtomicBoolean running;
+	private final TapCodecsFilterManager codecsFilterManager;
+	private final TapCodecsFilterManager defaultCodecsFilterManager;
+	private final Projection projection;
+	private int diffKeyIndex;
+	private final List<String> dataKeys;
+	private final List<List<Object>> diffKeyValues;
 
-	public PdkResult(List<String> sortColumns, Connections connections, String tableName, Set<String> columns, ConnectorNode connectorNode, boolean fullMatch) {
+	public PdkResult(List<String> sortColumns, Connections connections, String tableName, Set<String> columns, ConnectorNode connectorNode, boolean fullMatch, List<String> dataKeys, List<List<Object>> diffKeyValues) {
 		super(sortColumns, connections, tableName);
 		this.connectorNode = connectorNode;
 		for (String sortColumn : sortColumns) {
@@ -68,28 +70,34 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 		this.defaultCodecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
 		if (!fullMatch) {
 			projection = new Projection();
-			sortColumns.forEach(s -> projection.include(s));
+			sortColumns.forEach(projection::include);
 		} else if (null != columns && !columns.isEmpty()) {
 			projection = new Projection();
-			sortColumns.forEach(s -> projection.include(s));
+			sortColumns.forEach(projection::include);
 			columns.forEach(s -> {
 				if (!sortColumns.contains(s)) projection.include(s);
 			});
 		} else {
 			projection = null;
 		}
+		this.dataKeys = dataKeys;
+		this.diffKeyValues = diffKeyValues;
 		initTotal();
 	}
 
 	private void initTotal() {
-		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
-		BatchCountFunction batchCountFunction = connectorFunctions.getBatchCountFunction();
-		if (null == batchCountFunction) {
-			total = 0L;
-			return;
+		if (null == diffKeyValues) {
+			ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+			BatchCountFunction batchCountFunction = connectorFunctions.getBatchCountFunction();
+			if (null == batchCountFunction) {
+				total = 0L;
+				return;
+			}
+			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_BATCH_COUNT,
+					() -> total = batchCountFunction.count(connectorNode.getConnectorContext(), tapTable), TAG);
+		} else {
+			total = diffKeyValues.size();
 		}
-		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_BATCH_COUNT,
-				() -> total = batchCountFunction.count(connectorNode.getConnectorContext(), tapTable), TAG);
 	}
 
 	@Override
@@ -116,10 +124,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 
 	@Override
 	public Map<String, Object> next() {
-		if (!hasNext()) {
-			return null;
-		}
-		while (isRunning()) {
+		while (isRunning() && hasNext()) {
 			try {
 				Map<String, Object> poll = queue.poll(100L, TimeUnit.MILLISECONDS);
 				if (null != poll) {
@@ -154,6 +159,19 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 			offset.forEach((k, v) -> operators.add(QueryOperator.gt(k, v)));
 			tapAdvanceFilter.setOperators(operators);
 		}
+
+		// query one difference data, because pdk api not support 'or' conditions.
+		if (null != diffKeyValues && diffKeyIndex < diffKeyValues.size()) {
+			List<Object> objects = diffKeyValues.get(diffKeyIndex);
+			if (objects.size() != dataKeys.size()) {
+				throw new RuntimeException("The data key size not equals data value size: " + tapTable.getId());
+			}
+			for (int i = 0; i < dataKeys.size(); i++) {
+				tapAdvanceFilter.match(DataMap.create().kv(dataKeys.get(i), objects.get(i)));
+			}
+			diffKeyIndex++;
+		}
+
 		tapAdvanceFilter.setLimit(BATCH_SIZE);
 		tapAdvanceFilter.setSortOnList(sortOnList);
 		tapAdvanceFilter.setProjection(projection);
@@ -163,7 +181,9 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 					if (null != error) throwable = error;
 					List<Map<String, Object>> results = filterResults.getResults();
 					if (CollectionUtils.isEmpty(results)) {
-						hasNext.set(false);
+						if (null == diffKeyValues || diffKeyIndex + 1 >= diffKeyValues.size()) {
+							hasNext.set(false);
+						}
 						return;
 					}
 					for (Map<String, Object> result : results) {
@@ -180,7 +200,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 						}
 					}
 				}), TAG);
-		if (queue.size() == 0) {
+		if (queue.size() == 0 && (null == diffKeyValues || diffKeyIndex + 1 >= diffKeyValues.size())) {
 			hasNext.set(false);
 		}
 	}

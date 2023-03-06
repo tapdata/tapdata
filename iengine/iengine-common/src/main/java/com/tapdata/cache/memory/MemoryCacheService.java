@@ -70,6 +70,9 @@ public class MemoryCacheService extends AbstractCacheService {
 
   private final ICacheRuntimeStats cacheStageRuntimeStats;
 
+  private Map<String, ICacheStats> cacheStatsMap;
+
+
 //  private Map<String, AtomicBoolean> isInitialing;
 //
 //  private Map<String, AtomicBoolean> running;
@@ -99,7 +102,7 @@ public class MemoryCacheService extends AbstractCacheService {
 
   @Override
   protected ICacheStats getCacheStats(String cacheName) {
-    return super.getCacheStatsMap().computeIfAbsent(cacheName, f -> new MemoryCacheStats(new AtomicLong(), new AtomicLong(), new AtomicLong(), new AtomicLong()));
+    return getCacheStatsMap().computeIfAbsent(cacheName, f -> new MemoryCacheStats(new AtomicLong(), new AtomicLong(), new AtomicLong(), new AtomicLong()));
   }
 
   @Override
@@ -195,6 +198,14 @@ public class MemoryCacheService extends AbstractCacheService {
   @Override
   public synchronized void removeCacheStageRuntimeStats(String dataFlowId, String cacheName) {
     this.cacheStageRuntimeStats.removeCacheStageRuntimeStats(dataFlowId, cacheName);
+  }
+
+  public void setCacheStatsMap(Map<String, ICacheStats> cacheStatsMap) {
+    this.cacheStatsMap = cacheStatsMap;
+  }
+
+  protected Map<String, ICacheStats> getCacheStatsMap() {
+    return cacheStatsMap;
   }
 
   public static void main(String[] args) {

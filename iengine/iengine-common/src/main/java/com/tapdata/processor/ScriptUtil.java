@@ -15,6 +15,7 @@ import com.tapdata.processor.context.ProcessContext;
 import com.tapdata.processor.context.ProcessContextEvent;
 import io.tapdata.annotation.DatabaseTypeAnnotation;
 import io.tapdata.annotation.DatabaseTypeAnnotations;
+import io.tapdata.entity.logger.Log;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -28,6 +29,7 @@ import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.impl.AbstractPolyglotImpl;
 import org.graalvm.polyglot.proxy.ProxyObject;
 import org.springframework.beans.factory.config.BeanDefinition;
 
@@ -60,6 +62,15 @@ public class ScriptUtil {
 		return getScriptEngine(jsEngineName,
 						new LoggingOutputStream(new Log4jScriptLogger(logger), Level.INFO),
 						new LoggingOutputStream(new Log4jScriptLogger(logger), Level.ERROR));
+	}
+
+	static {
+		logger.info("load Polyglot classLoader: {}", Thread.currentThread().getContextClassLoader());
+		ServiceLoader<AbstractPolyglotImpl> polyglotServiceLoader = ServiceLoader.load(AbstractPolyglotImpl.class);
+
+		for (AbstractPolyglotImpl polyglot : polyglotServiceLoader) {
+			logger.info("load Polyglot class info: {}, {}", polyglot.getClass(), polyglot.getClass().getClassLoader());
+		}
 	}
 	/**
 	 * 获取js引擎
@@ -99,7 +110,7 @@ public class ScriptUtil {
 																					List<JavaScriptFunctions> javaScriptFunctions,
 																					ClientMongoOperator clientMongoOperator,
 																					ICacheGetter memoryCacheGetter,
-																					ScriptLogger logger) throws ScriptException {
+																					Log logger) throws ScriptException {
 		return getScriptEngine(JSEngineEnum.GRAALVM_JS.getEngineName(), script, javaScriptFunctions, clientMongoOperator,
 						null, null, memoryCacheGetter, logger);
 	}
@@ -122,7 +133,7 @@ public class ScriptUtil {
 																					ScriptConnection source,
 																					ScriptConnection target,
 																					ICacheGetter memoryCacheGetter,
-																					ScriptLogger logger) throws ScriptException {
+																					Log logger) throws ScriptException {
 		return getScriptEngine(jsEngineName, script, javaScriptFunctions, clientMongoOperator, source, target, memoryCacheGetter, logger, false);
 	}
 
@@ -133,7 +144,7 @@ public class ScriptUtil {
 																					ScriptConnection source,
 																					ScriptConnection target,
 																					ICacheGetter memoryCacheGetter,
-																					ScriptLogger logger,
+																					Log logger,
 																					boolean standard) throws ScriptException {
 
 		if (StringUtils.isBlank(script)) {

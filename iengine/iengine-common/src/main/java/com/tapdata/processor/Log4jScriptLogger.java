@@ -1,8 +1,9 @@
 package com.tapdata.processor;
 
+import io.tapdata.entity.logger.Log;
 import org.apache.logging.log4j.Logger;
 
-public class Log4jScriptLogger implements ScriptLogger {
+public class Log4jScriptLogger implements Log {
 
   private final Logger logger;
 

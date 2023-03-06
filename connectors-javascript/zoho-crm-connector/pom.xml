@@ -45,14 +45,14 @@
                                 <Implementation-Title>${project.artifactId}</Implementation-Title>
                                 <Implementation-Version>${project.version}</Implementation-Version>
                                 <Implementation-Vendor>${project.groupId}</Implementation-Vendor>
-                                <Authentication>beta</Authentication>
+                                <Authentication>Alpha</Authentication>
                                 <Build-OS>${os.name} ${os.version}</Build-OS>
                                 <Build-Java>Java ${java.version}</Build-Java>
                                 <PDK-Runner-Version>${tapdata.pdk.runner.version}</PDK-Runner-Version>
                                 <PDK-API-Version>${tapdata.pdk.api.version}</PDK-API-Version>
                                 <Tapdata-API-Version>${tapdata.api.version}</Tapdata-API-Version>
                                 <Version>${project.version}</Version>
-                                <Authentication>formal</Authentication>
+                                <Authentication>beta</Authentication>
                                 <Git-Build-Time>${git.build.time}</Git-Build-Time>
                                 <Git-Branch>${git.branch}</Git-Branch>
                                 <Git-Commit-Id>${git.commit.id}</Git-Commit-Id>

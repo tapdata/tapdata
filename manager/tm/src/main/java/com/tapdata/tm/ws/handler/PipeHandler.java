@@ -6,20 +6,13 @@
  */
 package com.tapdata.tm.ws.handler;
 
-import cn.hutool.core.date.DateUtil;
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONArray;
-import com.alibaba.fastjson.JSONObject;
-import com.alibaba.fastjson.JSONValidator;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
-import com.tapdata.tm.alarm.service.AlarmService;
-import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
-import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.service.TaskDagCheckLogService;
 import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.ws.annotation.WebSocketMessageHandler;
@@ -33,8 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.Map;
 import java.util.Objects;
-
-import java.util.Map;
+import java.util.Optional;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
@@ -56,38 +48,6 @@ public class PipeHandler implements WebSocketHandler {
 	public void handleMessage(WebSocketContext context) {
 		MessageInfo messageInfo = context.getMessageInfo();
 
-		Map<String, Object> data = messageInfo.getData();
-		try {
-			Object result = data.get("result");
-			String jsonStr = JSON.toJSONString(result);
-			JSONValidator jsonValidator = JSONValidator.from(jsonStr);
-			jsonValidator.validate();
-			if (jsonValidator.getType() == JSONValidator.Type.Object) {
-				JSONObject jsonObject = JSON.parseObject(jsonStr);
-				if (Objects.nonNull(jsonObject)) {
-					log.info("PipeHandler info:{}", jsonStr);
-					JSONObject extParam = jsonObject.getJSONObject("extParam");
-					if (Objects.nonNull(extParam) && "testConnectionResult".equals(data.get("type").toString())) {
-						String taskId = extParam.getString("taskId");
-						String templateEnum = extParam.getString("templateEnum");
-						String userId = extParam.getString("userId");
-
-						if (StringUtils.isNotBlank(templateEnum)) {
-							JSONObject responseBody = jsonObject.getJSONObject("response_body");
-							JSONArray validateDetails = responseBody.getJSONArray("validate_details");
-
-							Level grade = ("passed").equals(validateDetails.getJSONObject(0).getString("status")) ? Level.INFO : Level.ERROR;
-
-							String response_body = jsonObject.getJSONObject("response_body").toJSONString();
-							taskDagCheckLogService.createLog(taskId, userId, grade, DagOutputTemplateEnum.valueOf(templateEnum),
-									true, true, DateUtil.now(), response_body);
-						}
-					}
-				}
-			}
-		} catch (Exception e) {
-			log.warn("PipeHandler handleMessage response body error", e);
-		}
 		if (StringUtils.isEmpty(messageInfo.getSender())) {
 			messageInfo.setSender(context.getSender());
 		}
@@ -102,6 +62,12 @@ public class PipeHandler implements WebSocketHandler {
 				}
 
 				MessageQueueDto messageDto = new MessageQueueDto();
+				Optional.ofNullable(messageInfo.getData()).ifPresent(info -> {
+					Object error = info.get("error");
+					if (Objects.nonNull(error) && (error.toString().contains("404"))) {
+						info.put("error", "Please upgrade agent");
+					}
+				});
 				BeanUtils.copyProperties(messageInfo, messageDto);
 				queueService.sendMessage(messageDto);
 			}
