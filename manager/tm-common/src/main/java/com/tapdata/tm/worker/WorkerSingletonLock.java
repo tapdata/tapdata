@@ -62,7 +62,7 @@ public class WorkerSingletonLock implements AutoCloseable {
             while (-1 != (c = fr.read())) {
                 buf.append((char) c);
             }
-            return buf.toString();
+            return buf.toString().trim();
         }
     }
 
