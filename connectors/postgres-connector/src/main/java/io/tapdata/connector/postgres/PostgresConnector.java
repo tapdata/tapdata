@@ -32,6 +32,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
+import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.postgresql.geometric.*;
 import org.postgresql.jdbc.PgArray;
@@ -39,6 +40,7 @@ import org.postgresql.jdbc.PgSQLXML;
 import org.postgresql.util.PGInterval;
 import org.postgresql.util.PGobject;
 
+import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -227,6 +229,8 @@ public class PostgresConnector extends ConnectorBase {
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
+        connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
+
     }
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
@@ -566,6 +570,14 @@ public class PostgresConnector extends ConnectorBase {
         }
         ConnectionCheckItem testConnection = postgresTest.testConnection();
         consumer.accept(testConnection);
+    }
+
+    private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
+        DataMap dataMap =postgresJdbcContext.getTableInfo(tableName);
+        TableInfo tableInfo = TableInfo.create();
+        tableInfo.setNumOfRows(Long.valueOf(dataMap.getString("size")));
+        tableInfo.setStorageSize(new BigDecimal(dataMap.getString("rowcount")).longValue());
+        return tableInfo;
     }
 
 }

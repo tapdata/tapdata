@@ -2,6 +2,8 @@ package io.tapdata.connector.doris;
 
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.SqlExecuteCommandFunction;
+import io.tapdata.connector.doris.streamload.DorisStreamLoader;
+import io.tapdata.connector.doris.streamload.HttpUtil;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -9,29 +11,17 @@ import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.TapArrayValue;
-import io.tapdata.entity.schema.value.TapBinaryValue;
-import io.tapdata.entity.schema.value.TapBooleanValue;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
-import io.tapdata.entity.schema.value.TapDateValue;
-import io.tapdata.entity.schema.value.TapMapValue;
-import io.tapdata.entity.schema.value.TapRawValue;
-import io.tapdata.entity.schema.value.TapTimeValue;
+import io.tapdata.entity.schema.value.*;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.ConnectionOptions;
-import io.tapdata.pdk.apis.entity.FilterResult;
-import io.tapdata.pdk.apis.entity.TapFilter;
-import io.tapdata.pdk.apis.entity.TestItem;
-import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import org.apache.commons.lang3.StringUtils;
-import io.tapdata.connector.doris.streamload.DorisStreamLoader;
-import io.tapdata.connector.doris.streamload.HttpUtil;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -165,6 +155,8 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
+        connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
+
     }
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
@@ -255,5 +247,13 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
 
     private boolean useStreamLoad() {
         return StringUtils.isNotBlank(dorisContext.getDorisConfig().getDorisHttp());
+    }
+
+    private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
+        DataMap dataMap =this.dorisSchemaLoader.getTableInfo(tableName);
+        TableInfo tableInfo = TableInfo.create();
+        tableInfo.setNumOfRows(Long.valueOf(dataMap.getString("TABLE_ROWS")));
+        tableInfo.setStorageSize(Long.valueOf(dataMap.getString("DATA_LENGTH")));
+        return tableInfo;
     }
 }
