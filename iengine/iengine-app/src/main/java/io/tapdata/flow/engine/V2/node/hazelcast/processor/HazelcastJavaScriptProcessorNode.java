@@ -3,10 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MapUtil;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.JavaScriptFunctions;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.*;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.processor.ScriptUtil;
@@ -19,7 +16,10 @@ import com.tapdata.tm.commons.dag.process.CacheLookupProcessorNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.script.ScriptExecutorsManager;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
@@ -27,6 +27,7 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -172,6 +173,10 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
     context.putAll(contextMap);
     ((ScriptEngine) this.engine).put("context", context);
     Object obj = engine.invokeFunction(ScriptUtil.FUNCTION_NAME, record);
+
+    if (StringUtils.isNotEmpty((CharSequence) context.get("op"))) {
+      op = (String) context.get("op");
+    }
     context.clear();
 
     if (obj == null) {
@@ -183,15 +188,44 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
         Map<String, Object> recordMap = new HashMap<>();
         MapUtil.copyToNewMap((Map<String, Object>) o, recordMap);
         TapdataEvent cloneTapdataEvent = (TapdataEvent) tapdataEvent.clone();
-        setRecordMap(cloneTapdataEvent.getTapEvent(), op, recordMap);
+        TapEvent returnTapEvent = getTapEvent(cloneTapdataEvent.getTapEvent(), op);
+        setRecordMap(returnTapEvent, op, recordMap);
+        cloneTapdataEvent.setTapEvent(returnTapEvent);
         consumer.accept(cloneTapdataEvent, processResult);
       }
     } else {
       Map<String, Object> recordMap = new HashMap<>();
       MapUtil.copyToNewMap((Map<String, Object>) obj, recordMap);
-      setRecordMap(tapEvent, op, recordMap);
+      TapEvent returnTapEvent = getTapEvent(tapEvent, op);
+      setRecordMap(returnTapEvent, op, recordMap);
+      tapdataEvent.setTapEvent(returnTapEvent);
       consumer.accept(tapdataEvent, processResult);
     }
+  }
+
+  private TapEvent getTapEvent(TapEvent tapEvent, String op) {
+    if (StringUtils.equals(TapEventUtil.getOp(tapEvent), op)) {
+      return tapEvent;
+    }
+    OperationType operationType = OperationType.fromOp(op);
+    TapEvent result;
+
+    switch (operationType) {
+      case INSERT:
+        result = TapInsertRecordEvent.create();
+        break;
+      case UPDATE:
+        result = TapUpdateRecordEvent.create();
+        break;
+      case DELETE:
+        result = TapDeleteRecordEvent.create();
+        break;
+      default:
+        throw new IllegalArgumentException("Unsupported operation type: " + op);
+    }
+    tapEvent.clone(result);
+
+    return result;
   }
 
   private static void setRecordMap(TapEvent tapEvent, String op, Map<String, Object> recordMap) {
