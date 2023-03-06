@@ -858,7 +858,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	private void setDefaultRowSizeMap() {
+	protected void setDefaultRowSizeMap() {
 		for (String tableName : dataProcessorContext.getTapTableMap().keySet()) {
 			if (null == snapshotRowSizeMap) {
 				snapshotRowSizeMap = new HashMap<>();
