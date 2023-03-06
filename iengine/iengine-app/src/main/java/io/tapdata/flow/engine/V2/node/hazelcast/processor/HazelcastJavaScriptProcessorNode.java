@@ -215,6 +215,10 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
       scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, record));
     }
 
+    if (StringUtils.isNotEmpty((CharSequence) context.get("op"))) {
+      op = (String) context.get("op");
+    }
+
     context.clear();
 
     if (null == scriptInvokeResult.get()) {
