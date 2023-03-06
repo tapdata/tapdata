@@ -49,6 +49,7 @@ import org.springframework.stereotype.Component;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -81,6 +82,7 @@ import java.util.stream.Collectors;
 public class Application {
 
 	private static final String TAG = Application.class.getSimpleName();
+	public static final String LOG_PATH = "logs" + File.separator + "agent";
 	private static Logger logger = LogManager.getLogger(Application.class);
 	private static Logger pdkLogger = LogManager.getLogger("PDK");
 
@@ -244,9 +246,9 @@ public class Application {
 			logsPath.append(outPutLogPath);
 		} else {
 			if (StringUtils.isNotBlank(tapdataWorkDir)) {
-				logsPath.append(tapdataWorkDir).append("/logs");
+				logsPath.append(tapdataWorkDir).append(LOG_PATH);
 			} else {
-				logsPath.append("logs");
+				logsPath.append(LOG_PATH);
 			}
 		}
 
