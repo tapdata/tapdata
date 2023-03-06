@@ -1,94 +1,45 @@
-## **连接配置帮助**
-
-### **1. Doris 安装说明**
-
-请遵循以下说明以确保在 Tapdata 中成功添加和使用Doris数据库。
-
+## **連接配寘幫助**
+### **1. Doris安裝說明**
+請遵循以下說明以確保在Tapdata中成功添加和使用Doris資料庫。
 ### **2. 支持版本**
-Doris 5.0、5.1、5.5、5.6、5.7、8.x
-
-### **3. 先决条件（作为源）**
-#### **3.1 开启 Binlog**
-- 必须开启 Doris 的 binlog ，Tapdata 才能正常完成同步工作。
-- 级连删除（CASCADE DELETE），这类由数据库产生的删除不会记录在binlog内，所以不被支持。
-  修改 `$Doris_HOME/Doris.cnf `, 例如:
+Doris 1.x
+### **3. 先決條件**
+#### **3.1創建Doris帳號**
 ```
-server_id         = 223344
-log_bin           = Doris-bin
-expire_logs_days  = 1
-binlog_format     = row
-binlog_row_image  = full
+//創建用戶
+create user 'username'@'localhost' identified with Doris_ native_ password by 'password'；
+//修改密碼
+alter user 'username'@'localhost' identified with Doris_ native_ password by 'password'；
 ```
-配置解释：<br>
-server-id: 对于 Doris 中的每个服务器和复制客户端必须是唯一的<br>
-binlog_format：必须设置为 row 或者 ROW<br>
-binlog_row_image：必须设置为 full<br>
-expire_logs_days：二进制日志文件保留的天数，到期会自动删除<br>
-log_bin：binlog 序列文件的基本名称<br>
-
-#### **3.2 重启 Doris**
-
+#### **3.2給tapdata帳號授權**
+對於某個資料庫賦於select許可權
 ```
-/etc/inint.d/Dorisd restart
+GRANT SELECT，SHOW VIEW，CREATE ROUTINE，LOCK TABLES ON <DATABASE_ NAME>.< TABLE_ NAME> TO 'tapdata' IDENTIFIED BY 'password'；
 ```
-验证 binlog 已启用，请在 Doris shell 执行以下命令
+對於全域的許可權
 ```
-show variables like 'binlog_format';
+GRANT RELOAD，SHOW DATABASES，REPLICATION SLAVE，REPLICATION CLIENT ON *.* TO 'tapdata' IDENTIFIED BY 'password'；
 ```
-输出的结果中，format value 应该是"ROW"
-
-验证 binlog_row_image 参数的值是否为full:
+#### **3.3約束說明**
 ```
-show variables like 'binlog_row_image';
+當從Doris同步到其他異構資料庫時，如果源Doris存在錶級聯設定，因該級聯觸發產生的數據更新和删除不會傳遞到目標。 如需要在目標端構建級聯處理能力，可以視目標情况，通過觸發器等手段來實現該類型的資料同步。
 ```
-输出结果中，binlog_row_image value应该是"FULL"
-
-#### **3.3 创建Doris账号**
-Doris8以后，对密码加密的方式不同，请注意使用对应版本的方式，设置密码，否则会导致无法进行增量同步
-使用以下命令，确认 supplemental logging 是否开启
-##### **3.3.1 5.x版本**
+### **4. 先決條件（作為目標）**
+對於某個資料庫賦於全部許可權
 ```
-create user 'username'@'localhost' identified by 'password';
+GRANT ALL PRIVILEGES ON <DATABASE_ NAME>.< TABLE_ NAME> TO 'tapdata' IDENTIFIED BY 'password'；
 ```
-##### **3.3.2 8.x版本**
+對於全域的許可權
 ```
-// 创建用户
-create user 'username'@'localhost' identified with Doris_native_password by 'password';
-// 修改密码
-alter user 'username'@'localhost' identified with Doris_native_password by 'password';
-
+GRANT PROCESS ON *.* TO 'tapdata' IDENTIFIED BY 'password'；
 ```
-
-#### **3.4 给 tapdata 账号授权**
-对于某个数据库赋于select权限
-```
-GRANT SELECT, SHOW VIEW, CREATE ROUTINE, LOCK TABLES ON <DATABASE_NAME>.<TABLE_NAME> TO 'tapdata' IDENTIFIED BY 'password';
-```
-对于全局的权限
-```
-GRANT RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'tapdata' IDENTIFIED BY 'password';
-```
-#### **3.5 约束说明**
-```
-当从Doris同步到其他异构数据库时，如果源Doris存在表级联设置，因该级联触发产生的数据更新和删除不会传递到目标。如需要在目标端构建级联处理能力，可以视目标情况，通过触发器等手段来实现该类型的数据同步。
-```
-###  **4. 先决条件（作为目标）**
-对于某个数据库赋于全部权限
-```
-GRANT ALL PRIVILEGES ON <DATABASE_NAME>.<TABLE_NAME> TO 'tapdata' IDENTIFIED BY 'password';
-```
-对于全局的权限
-```
-GRANT PROCESS ON *.* TO 'tapdata' IDENTIFIED BY 'password';
-```
-###  **5. 常见错误**
-
+### **5. 常見錯誤**
 Unknown error 1044
-如果权限已经grant了，但是通过tapdata还是无法通过测试连接，可以通过下面的步骤检查并修复
+如果許可權已經grant了，但是通過tapdata還是無法通過測試連接，可以通過下麵的步驟檢查並修復
 ```
-SELECT host,user,Grant_priv,Super_priv FROM Doris.user where user='username';
-//查看Grant_priv字段的值是否为Y
-//如果不是，则执行以下命令
-UPDATE Doris.user SET Grant_priv='Y' WHERE user='username';
-FLUSH PRIVILEGES;
+SELECT host，user，Grant_ priv，Super_ priv FROM Doris.user where user='username'；
+//查看Grant_ priv欄位的值是否為Y
+//如果不是，則執行以下命令
+UPDATE Doris.user SET Grant_ priv='Y' WHERE user='username'；
+FLUSH PRIVILEGES；
 ```

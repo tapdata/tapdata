@@ -72,7 +72,7 @@ public class ApplicationEntity extends BaseEntity {
     private List responseTypes;
     private String clientSecret;
     private List scopes;
-    private String redirectUris;
+    private List<String> redirectUris;
     private Boolean showMenu;
 
 

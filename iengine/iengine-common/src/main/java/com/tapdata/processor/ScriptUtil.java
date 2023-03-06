@@ -29,6 +29,7 @@ import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.impl.AbstractPolyglotImpl;
 import org.graalvm.polyglot.proxy.ProxyObject;
 import org.springframework.beans.factory.config.BeanDefinition;
 
@@ -61,6 +62,15 @@ public class ScriptUtil {
 		return getScriptEngine(jsEngineName,
 						new LoggingOutputStream(new Log4jScriptLogger(logger), Level.INFO),
 						new LoggingOutputStream(new Log4jScriptLogger(logger), Level.ERROR));
+	}
+
+	static {
+		logger.info("load Polyglot classLoader: {}", Thread.currentThread().getContextClassLoader());
+		ServiceLoader<AbstractPolyglotImpl> polyglotServiceLoader = ServiceLoader.load(AbstractPolyglotImpl.class);
+
+		for (AbstractPolyglotImpl polyglot : polyglotServiceLoader) {
+			logger.info("load Polyglot class info: {}, {}", polyglot.getClass(), polyglot.getClass().getClassLoader());
+		}
 	}
 	/**
 	 * 获取js引擎

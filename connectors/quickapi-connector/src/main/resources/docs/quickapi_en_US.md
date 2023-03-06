@@ -47,7 +47,7 @@ which contains the following keywords:
 
     PAGE_LIMIT: Applicable to paging by using record index and intra page offset. Need to match TAP_PAGE_OFFSET and TAP_PAGE_LIMIT The tag specifies paging parameters.
 
-    PAGE_TOKEN: It is applicable to paging using cached paging tokens. The first page is empty, and the next page is queried using the token returned from the last query. Use together TAP_PAGE_TOKEN The tag specifies paging parameters, while using TAP_PAGE_SIZE specifies the number of records per paging query.
+    PAGE_TOKEN: It is applicable to paging using cached paging tokens. The first page is empty, and the next page is queried using the token returned from the last query. Use together TAP_PAGE_TOKEN The tag specifies paging parameters, while using TAP_PAGE_SIZE specifies the number of records per paging query, use TAP_HAS_MORE_PAGE to describe whether there is a field name on the next page (you need to specify this parameter in the parameter list and add this label in the parameter description).
 
     PAGE_NONE: It is applicable to the general data acquisition of non pagination returned from the list.
 
@@ -71,7 +71,7 @@ Its semantics are as follows: the event table name is set as Issues, and PAGE is
 
 #####2.2.2 Statement of login authorization interface
 
-You need to use TAP_LOGIN, the tag declares the login interface. It is consistent with the declaration method of the table data interface. A declaration label needs to be added to the interface name. The keyword of the declaration label of the login interface is TAP_LOGIN, this label indicates that the data source will have access when calling the API to obtain data_ To judge the past of token, you need to describe the expiration status and specify access on the connection configuration page_ The key value obtained by token matches., For example, the following figure shows the statement of the login interface for ZoHo Desk in Postman:
+You need to use TAP_GET_TOKEN, the tag declares the login interface. It is consistent with the declaration method of the table data interface. A declaration label needs to be added to the interface name. The keyword of the declaration label of the login interface is TAP_GET_TOKEN, this label indicates that the data source will have access_token when calling the API to obtain data to judge , you need to describe the expiration status and specify access on the connection configuration page_ The key value obtained by token matches., For example, the following figure shows the statement of the login interface for ZoHo Desk in Postman:
 
 ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/quickAPI/doc/TAP_LOGIN.PNG)
 
@@ -81,7 +81,7 @@ You need to use TAP_LOGIN, the tag declares the login interface. It is consisten
 ####2.4 variable refers to some variables defined in the interface. It is necessary to ensure that the variables defined in the API can be found in this variable and have actual and correct values. Otherwise, the API interface that uses variables with missing or incorrect values will fail in the near future.
 
 
-###3. Fill in access_ Token expiration status description (optional)
+###3. Fill in access_token expiration status description (optional)
 
 
 Note: 
@@ -91,7 +91,7 @@ The reason why this entry is optional is that the OpenAPI provided by some Saas 
 Fill in access_token expiration status description. (The access_token here generally refers to the API interface access token. The names of each Saas may be different.)
 
 
-- 3.1 access_ Token expiration status refers to the access failure status returned by the Saas platform after calling the specified interface after your API access expires.
+- 3.1 access_token expiration status refers to the access failure status returned by the Saas platform after calling the specified interface after your API access expires.
 
 ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/quickAPI/doc/TAP_TABLE-ZoHo.PNG)
 

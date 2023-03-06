@@ -91,6 +91,7 @@ public class TaskEntity extends BaseEntity {
 
     /** 名称*/
     private String name;
+    private String deleteName;
 
     /** 通知设置 多选  当任务停止（默认选中），当任务出错（默认选中），当任务被编辑，当任务开启*/
     private List<String> notifyTypes;

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <configuration scan="true" scanPeriod="3 seconds">
 	<property name="logName" value="tm" />
-	<property name="logPath" value="logs"/>
+	<property name="logPath" value="logs/manager"/>
 	<contextName>${logName}</contextName>
 
 	<define name="HOSTNAME" class="com.tapdata.tm.config.CanonicalHostNamePropertyDefiner"/>

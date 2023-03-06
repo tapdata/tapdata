@@ -751,7 +751,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 				if (hazelcastJob != null) {
 					JobStatus status = hazelcastJob.getStatus();
-					if (JobStatus.COMPLETING != status) {
+					if (JobStatus.RUNNING == status) {
 						logger.info("Job suspend in error handle");
 						Optional.ofNullable(obsLogger).ifPresent(log -> log.info("Job suspend in error handle"));
 						TaskClient<TaskDto> taskDtoTaskClient = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(taskDto.getId().toHexString());

@@ -22,7 +22,7 @@
 .cache
 *.iml
 connector/agent.yml
-
+.agentSingletonLock
 #######################by file name
 
 
@@ -122,3 +122,4 @@ null/
 
 .agentSingletonLock
 fileObserveLogAppenderV2/
+**/pluginKit.properties
