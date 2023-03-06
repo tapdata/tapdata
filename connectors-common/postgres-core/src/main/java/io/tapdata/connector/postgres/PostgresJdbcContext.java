@@ -11,6 +11,7 @@ import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
 import org.apache.commons.lang3.StringUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -109,6 +110,24 @@ public class PostgresJdbcContext extends JdbcContext {
         return indexList;
     }
 
+
+    public DataMap getTableInfo(String tableName) throws Throwable {
+        DataMap dataMap = DataMap.create();
+        List list = new ArrayList();
+        list.add("size");
+        list.add("rowcount");
+        try {
+            query(String.format(TABLE_INFO_SQL, tableName, getConfig().getDatabase(), getConfig().getSchema()), resultSet -> {
+                while (resultSet.next()) {
+                    dataMap.putAll(DbKit.getRowFromResultSet(resultSet, list));
+                } ;
+            });
+        } catch (Throwable e) {
+            TapLogger.error(TAG, "Execute getTableInfo failed, error: " + e.getMessage(), e);
+        }
+        return dataMap;
+    }
+
     private final static String PG_ALL_TABLE =
             "SELECT t.table_name,\n" +
                     "       (select max(cast(obj_description(relfilenode, 'pg_class') as varchar)) as comment\n" +
@@ -157,4 +176,12 @@ public class PostgresJdbcContext extends JdbcContext {
                     "  AND tt.table_schema='%s'\n" +
                     "    %s\n" +
                     "ORDER BY t.relname, i.relname, a.attnum";
+
+
+    private final static String TABLE_INFO_SQL  =	"SELECT\n"+
+     " pg_total_relation_size('\"' || table_schema || '\".\"' || table_name || '\"') AS size,\n"+
+	" (select reltuples from pg_class  pc where pc.relname = t1.table_name ) as rowcount \n" +
+    " FROM information_schema.tables t1 where t1.table_name ='%s' and t1.table_catalog='%s' and t1.table_schema='%s' ";
+
+
 }
