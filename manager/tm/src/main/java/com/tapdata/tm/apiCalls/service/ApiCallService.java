@@ -272,15 +272,14 @@ public class ApiCallService {
         return null;
     }
 
-    public Map getVisitTotalCount(List<ApiCallEntity> apiCallEntityList) {
-        Map<String, List<ApiCallEntity>> prodMap = apiCallEntityList.stream().collect(Collectors.groupingBy(item -> {
+    public Map<String, List<ApiCallEntity>> getVisitTotalCount(List<ApiCallEntity> apiCallEntityList) {
+        return apiCallEntityList.stream().collect(Collectors.groupingBy(item -> {
             if ("200".equals(item.getCode())) {
                 return "normal";
             } else {
                 return "warning";
             }
         }));
-        return prodMap;
     }
 
 
