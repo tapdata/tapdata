@@ -172,7 +172,7 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
         connectorFunctions.supportErrorHandleFunction(this::errorHandle);
     }
 
-    private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+    protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
         RetryOptions retryOptions = RetryOptions.create();
         if ( null != matchThrowable(throwable, DorisRetryableException.class)
                 || null != matchThrowable(throwable, IOException.class)) {

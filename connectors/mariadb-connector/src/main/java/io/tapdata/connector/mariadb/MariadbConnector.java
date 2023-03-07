@@ -99,6 +99,7 @@ public class MariadbConnector extends ConnectorBase {
 
         codecRegistry.registerFromTapValue(TapBooleanValue.class, "tinyint(1)", TapValue::getValue);
 
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportCreateTable(this::createTable);
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportClearTable(this::clearTable);
