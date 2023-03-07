@@ -109,6 +109,7 @@ public class BigQueryConnector extends ConnectorBase {
                 .supportClearTable(this::clearTable)
                 .supportDropTable(this::dropTable)
                 .supportReleaseExternalFunction(this::release)
+                .supportErrorHandleFunction(this::errorHandle)
         ;
     }
 

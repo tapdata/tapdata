@@ -341,7 +341,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
 		return fieldMinMaxValue;
 	}
 
-	private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+	protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
 		RetryOptions retryOptions = RetryOptions.create();
 		retryOptions.setNeedRetry(true);
 		retryOptions.beforeRetryMethod(()->{
