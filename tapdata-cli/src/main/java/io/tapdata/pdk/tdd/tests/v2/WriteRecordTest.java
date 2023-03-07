@@ -79,7 +79,7 @@ public class WriteRecordTest extends PDKTestBase {
     long insertRecordNeed = 2;
 
     private void writeRecorde(RecordEventExecute recordEventExecute) throws Throwable {
-        Record[] records = Record.testStart((int) insertRecordNeed);
+        Record[] records = Record.testRecordWithTapTable(targetTable,(int) insertRecordNeed);
         int recLen = records.length;
         recordEventExecute.builderRecord(records);
         Method testCase = recordEventExecute.testCase();
@@ -149,7 +149,7 @@ public class WriteRecordTest extends PDKTestBase {
     }
 
     private void sourceTest2Fun(RecordEventExecute recordEventExecute, ConnectorNode connectorNode) throws Throwable {
-        Record[] records = Record.testStart((int) insertRecordNeed);
+        Record[] records = Record.testRecordWithTapTable(targetTable,(int)insertRecordNeed);
         final int recLen = records.length;
         recordEventExecute.builderRecord(records);
         Method testCase = recordEventExecute.testCase();
@@ -304,7 +304,7 @@ public class WriteRecordTest extends PDKTestBase {
     }
 
     void sourceTest3Fun(RecordEventExecute recordEventExecute, ConnectorNode connectorNode) {
-        Record[] records = Record.testStart(1);
+        Record[] records = Record.testRecordWithTapTable(targetTable,1);
         final int recLen = records.length;
         recordEventExecute.builderRecord(records);
         try {
@@ -373,7 +373,7 @@ public class WriteRecordTest extends PDKTestBase {
     }
 
     private void insertOnNotExists(RecordEventExecute recordEventExecute, ConnectorNode connectorNode, Method testCase) {
-        Record[] records = Record.testStart(1);
+        Record[] records = Record.testRecordWithTapTable(targetTable,1);
         final int recLen = records.length;
         recordEventExecute.builderRecord(records);
         //修改1条不存在的数据， 如果修改策略是insert_on_nonexists， 此时验证新插入应该是1个
@@ -400,7 +400,7 @@ public class WriteRecordTest extends PDKTestBase {
     }
 
     private void ignoreOnNotExists(RecordEventExecute recordEventExecute, ConnectorNode connectorNode, Method testCase) {
-        Record[] records = Record.testStart(1);
+        Record[] records = Record.testRecordWithTapTable(targetTable,1);
         final int recLen2 = records.length;
         recordEventExecute.resetRecords();
         recordEventExecute.builderRecord(records);
