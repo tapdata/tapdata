@@ -2,7 +2,6 @@ package io.tapdata.pdk.run.base;
 
 import io.tapdata.pdk.tdd.tests.support.CapabilitiesExecutionMsg;
 import io.tapdata.pdk.tdd.tests.support.Case;
-import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import org.opentest4j.AssertionFailedError;
 
 import java.lang.reflect.Method;
@@ -65,15 +64,20 @@ public interface RunAssert {
     }
 
     public static void succeed(Method testCase, String message) {
-        RunAssert.asserts(() -> { }).accept(testCase, SUCCEED, message);
+        RunAssert.asserts(() -> {
+        }).accept(testCase, SUCCEED, message);
     }
 
     public static void error(Method testCase, String message) {
-        RunAssert.asserts(() -> { throw new RuntimeException(message); }).accept(testCase, ERROR, message);
+        RunAssert.asserts(() -> {
+            throw new RuntimeException(message);
+        }).accept(testCase, ERROR, message);
     }
 
     public static void warn(Method testCase, String message) {
-        RunAssert.asserts(() -> { throw new RuntimeException(message); }).accept(testCase, WARN, message);
+        RunAssert.asserts(() -> {
+            throw new RuntimeException(message);
+        }).accept(testCase, WARN, message);
     }
 
     public default void accept(Method testCase, int assertGarde, String succeedMag) {
