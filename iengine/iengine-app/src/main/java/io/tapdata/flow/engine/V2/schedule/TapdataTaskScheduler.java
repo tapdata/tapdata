@@ -14,6 +14,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.sdk.available.TmStatusService;
 import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.flow.engine.V2.common.FixScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.common.ScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
@@ -445,6 +446,10 @@ public class TapdataTaskScheduler {
 					try {
 						SyncProgress progress = JSONUtil.json2POJO((String) value, SyncProgress.class);
 						String streamOffset = progress.getStreamOffset();
+						if (progress.getSyncStage() == null) {
+							continue;
+						}
+						
 						if (StringUtils.isBlank(streamOffset) && !progress.getSyncStage().equals(SyncStage.CDC.name())) {
 							return false;
 						}
