@@ -2,6 +2,7 @@ package io.tapdata.pdk.tdd.tests.support;
 
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.DateTime;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -117,7 +118,7 @@ public class Record extends HashMap<String,Object> {
                     ;
                     break;
                     case JAVA_Date: {
-                        record.builder(keyName, DateUtil.dateToStr(new Date(random.nextInt(Integer.MAX_VALUE))));
+                        record.builder(keyName,new Date(random.nextInt(Integer.MAX_VALUE)));
                     }
                     ;
                     break;
@@ -163,7 +164,7 @@ public class Record extends HashMap<String,Object> {
 //                            Thread.sleep(50);
 //                            record.builder(keyName,DateUtil.dateTimeToStr());
 //                        } catch (InterruptedException e) {
-                        record.builder(keyName, DateUtil.dateTimeToStr(new Date((long) (1293861599 + new Random().nextDouble() * 60 * 60 * 24 * 365))));
+                        record.builder(keyName, new Date((long) (1293861599 + new Random().nextDouble() * 60 * 60 * 24 * 365)));
 //                        }
                     }
                     break;
@@ -172,11 +173,11 @@ public class Record extends HashMap<String,Object> {
                     }
                     break;
                     case "Time": {
-                        record.builder(keyName, DateUtil.timeToStr(new Date(random.nextInt())));
+                        record.builder(keyName, new Date(random.nextInt()));
                     }
                     break;
                     case "Year": {
-                        record.builder(keyName, DateUtil.yearToStr(new Date(random.nextInt())));
+                        record.builder(keyName, new Date(random.nextInt()));
                     }
                     break;
                     default:
