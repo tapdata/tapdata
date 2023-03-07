@@ -10,21 +10,22 @@ import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MessageUtil;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
-import javax.swing.*;
 import java.text.MessageFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 @Component("joinNodeStrategy")
 public class JoinNodeStrategyImpl implements DagLogStrategy {
     private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.JOIN_NODE_CHECK;
     @Override
-    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
+    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail, Locale locale) {
         String taskId = taskDto.getId().toHexString();
         DAG dag = taskDto.getDag();
 
@@ -46,7 +47,7 @@ public class JoinNodeStrategyImpl implements DagLogStrategy {
                     if (StringUtils.isEmpty(name)) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log("$date【$taskName】【连接节点设置检测】：连接节点节点名称为空。")
+                                .log(MessageUtil.getDagCheckMsg(locale, "JOIN_NODE_NAME_EMPTY"))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -56,7 +57,7 @@ public class JoinNodeStrategyImpl implements DagLogStrategy {
                     if (CollectionUtils.isEmpty(node.getJoinExpressions())) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log(MessageFormat.format("$date【$taskName】【连接节点设置检测】：连接节点{0}的连接字段未设置。", name))
+                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "JOIN_NODE_NOT_SET"), name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -66,7 +67,7 @@ public class JoinNodeStrategyImpl implements DagLogStrategy {
                     if (StringUtils.isEmpty(node.getLeftNodeId()) && StringUtils.isEmpty(node.getRightNodeId())) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log(MessageFormat.format("$date【$taskName】【连接节点设置检测】：连接节点{0}需要有两个输入。", name))
+                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "JOIN_NODE_SET_ERROR"), name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -76,7 +77,7 @@ public class JoinNodeStrategyImpl implements DagLogStrategy {
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.INFO).nodeId(nodeId)
-                                .log(MessageFormat.format("$date【$taskName】【连接节点设置检测】：连接节点{0}检测通过。", name))
+                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "JOIN_NODE_PASS"), name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);

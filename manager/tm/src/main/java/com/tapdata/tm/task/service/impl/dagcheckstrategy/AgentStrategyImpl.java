@@ -9,6 +9,7 @@ import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import lombok.Setter;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Component;
 import java.text.MessageFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Component("agentStrategy")
@@ -31,7 +33,7 @@ public class AgentStrategyImpl implements DagLogStrategy {
     private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.AGENT_CAN_USE_CHECK;
 
     @Override
-    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
+    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail, Locale locale) {
 
         List<Worker> availableAgent;
         String agent;
@@ -47,13 +49,13 @@ public class AgentStrategyImpl implements DagLogStrategy {
         String content;
         Level grade;
         if (CollectionUtils.isNotEmpty(availableAgent)) {
-            template = templateEnum.getInfoTemplate();
+            template = MessageUtil.getDagCheckMsg(locale, "AGENT_CAN_USE_INFO");
             List<String> collect = availableAgent.stream().map(Worker::getHostname).collect(Collectors.toList());
             content = MessageFormat.format(template, DateUtil.now(), availableAgent.size(), StringUtils.join(collect, ","),
                     availableAgent.get(0).getHostname());
             grade = Level.INFO;
         } else {
-            template = templateEnum.getErrorTemplate();
+            template = MessageUtil.getDagCheckMsg(locale, "AGENT_CAN_USE_ERROR");
             content = MessageFormat.format(template, DateUtil.now(), agent);
             grade = Level.ERROR;
         }

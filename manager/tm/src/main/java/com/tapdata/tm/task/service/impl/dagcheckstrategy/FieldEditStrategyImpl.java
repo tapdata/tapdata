@@ -13,6 +13,7 @@ import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MessageUtil;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
@@ -28,7 +29,7 @@ public class FieldEditStrategyImpl implements DagLogStrategy {
     private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.FIELD_EDIT_NODE_CHECK;
 
     @Override
-    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
+    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail, Locale locale) {
         String taskId = taskDto.getId().toHexString();
 
         Date now = new Date();
@@ -49,7 +50,7 @@ public class FieldEditStrategyImpl implements DagLogStrategy {
                     if (StringUtils.isEmpty(name)) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log("$date【$taskName】【字段改名节点设置检测】：字段改名节点节点名称为空。")
+                                .log(MessageUtil.getDagCheckMsg(locale, "FIELD_EDIT_NAME_EMPTY"))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -93,7 +94,7 @@ public class FieldEditStrategyImpl implements DagLogStrategy {
                     if (renameEmpty.get()) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log(MessageFormat.format("$date【$taskName】【字段改名节点设置检测】：字段改名节点{0}{1}的目标字段名为空。", name, fieldName.get()))
+                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "FIELD_EDIT_FIELD_EMPTY"), name, fieldName.get()))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -104,7 +105,7 @@ public class FieldEditStrategyImpl implements DagLogStrategy {
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.INFO).nodeId(nodeId)
-                                .log(MessageFormat.format("$date【$taskName】【字段改名节点设置检测】：字段改名节点{0}检测通过。", name))
+                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "FIELD_EDIT_PASS"), name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);

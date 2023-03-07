@@ -211,12 +211,7 @@ public class TaskController extends BaseController {
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
         taskSaveService.supplementAlarm(task, user);
         TaskDto taskDto = taskService.confirmById(task, user, confirm);
-        boolean noPass = taskSaveService.taskSaveCheckLog(taskDto, user);
-        if (noPass) {
-            return failed("Task.Save.Error");
-        } else {
-            return success(taskDto);
-        }
+        return success(taskDto);
     }
 
     /**
@@ -247,11 +242,7 @@ public class TaskController extends BaseController {
         task.setId(MongoUtils.toObjectId(id));
         UserDetail user = getLoginUser();
 
-        boolean noPass = taskStartService.taskStartCheckLog(task, user);
-        TaskDto taskDto = task;
-        if (!noPass) {
-            taskDto = taskService.confirmStart(task, user, confirm);
-        }
+        TaskDto taskDto = taskService.confirmStart(task, user, confirm);
 
         return success(taskDto);
     }
