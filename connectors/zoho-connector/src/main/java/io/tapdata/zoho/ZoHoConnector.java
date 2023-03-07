@@ -100,6 +100,7 @@ public class ZoHoConnector extends ConnectorBase {
 				//.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
 				.supportRawDataCallbackFilterFunctionV2(this::rawDataCallbackFilterFunction)
 				.supportCommandCallbackFunction(this::handleCommand)
+				.supportErrorHandleFunction(this::errorHandle)
 		;
 		//this.connectorFunctions = connectorFunctions;
 	}

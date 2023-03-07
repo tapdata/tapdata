@@ -76,6 +76,7 @@ public class TidbConnector extends ConnectorBase {
 
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         // target functions
         connectorFunctions.supportCreateTableV2(this::createTableV2);
         connectorFunctions.supportWriteRecord(this::writeRecord);
