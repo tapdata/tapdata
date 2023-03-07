@@ -27,7 +27,11 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 @DisplayName("timestamp.test")//TimestampToStreamOffsetFunction基于时间戳返回增量断点
 @TapGo(tag = "V2", sort = 80)
 public class TimestampToStreamOffsetFunctionTest extends PDKTestBase {
-
+    {
+        if (PDKTestBase.testRunning) {
+            System.out.println(LangUtil.format("timestamp.test.wait"));
+        }
+    }
     @DisplayName("timestamp.backStreamOffset")//用例1， 通过时间戳能返回增量断点
     @TapTestCase(sort = 1)
     @Test
@@ -36,6 +40,7 @@ public class TimestampToStreamOffsetFunctionTest extends PDKTestBase {
      * 方法参数Long time传距离当前时间3个小时前的时候能返回那个时间的增量断点， 非空即可。
      * */
     void backStreamOffset() {
+        System.out.println(LangUtil.format("timestamp.backStreamOffset.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             try {

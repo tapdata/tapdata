@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
 /**
- *各种TapValue写入到目标，数据能被转换成为原始值（依赖WriteRecordFunction）
+ * 各种TapValue写入到目标，数据能被转换成为原始值（依赖WriteRecordFunction）
  * 数据源需要通过dataTypes或者registerCapabilities的方式注册TapValue的转换方式，
  * 这个测试是确保数据源覆盖了所有类型的TapValue转换
  */
@@ -40,10 +40,10 @@ public class EveryTapValueToTargetTest extends PDKTestBaseV2 {
 
     /**
      * 用例1，FromTapValue的值转换正常
-     *   组织11中TapType对应的TapValue，
-     *   通过获取该数据源的CodecRegistry，
-     *   执行TapCodecsFilterManager#transformFromTapValueMap方法进行值转换，
-     *   检查转换后的值， 不应该再包含TapValue
+     * 组织11中TapType对应的TapValue，
+     * 通过获取该数据源的CodecRegistry，
+     * 执行TapCodecsFilterManager#transformFromTapValueMap方法进行值转换，
+     * 检查转换后的值， 不应该再包含TapValue
      */
     @DisplayName("tapValueTest.value")
     @TapTestCase(sort = 1)

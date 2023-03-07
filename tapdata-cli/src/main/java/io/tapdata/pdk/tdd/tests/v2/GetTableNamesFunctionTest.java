@@ -25,7 +25,11 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 @TapGo(tag = "V2", sort = 70)
 @DisplayName("getTableNames.test")//GetTableNamesFunction获得表名列表
 public class GetTableNamesFunctionTest extends PDKTestBase {
-
+    {
+        if (PDKTestBase.testRunning) {
+            System.out.println(LangUtil.format("getTableNames.test.wait"));
+        }
+    }
     @DisplayName("getTableNames.discover")//用例1， 发现表
     @Test
     @TapTestCase(sort = 1)
@@ -33,6 +37,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
      * 指定GetTableNamesFunction方法之后， 至少返回一张表， 即为成功
      * */
     void discover() {
+        System.out.println(LangUtil.format("getTableNames.discover.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             try {
@@ -79,6 +84,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
      * 验证结束之后需要删掉随机建的表（依赖DropTableFunction）
      * */
     void discoverAfterCreateTable() {
+        System.out.println(LangUtil.format("getTableNames.discoverAfterCreateTable.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             try {
@@ -168,6 +174,7 @@ public class GetTableNamesFunctionTest extends PDKTestBase {
      * 如果只有一张表， 直接通过此测试。
      * */
     void discoverByTableCount() {
+        System.out.println(LangUtil.format("getTableNames.discoverByTableCount.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             try {

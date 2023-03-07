@@ -15,6 +15,7 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.core.base.TestNode;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 import io.tapdata.pdk.tdd.tests.support.*;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -29,6 +30,12 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 //ClearTableFunction清除表数据（依赖WriteRecordFunction， BatchCountFunction或者QueryByFilterFunction|QueryByAdvanceFilter）
 @TapGo(tag = "V2", sort = 100)
 public class ClearTableTest extends PDKTestBase {
+    {
+        if (PDKTestBase.testRunning) {
+            System.out.println(LangUtil.format("clearTable.wait"));
+        }
+    }
+
     /**
      * 使用WriteRecordFunction写入2条数据，
      * 然后调用ClearTableFunction方法清除该表数据之后，
@@ -40,26 +47,36 @@ public class ClearTableTest extends PDKTestBase {
     @DisplayName("clearTable.test")//用例1， 写入数据之后再清除表
     @TapTestCase(sort = 1)
     @Test
-    void clear() {
+    void clear() throws NoSuchMethodException {
+        System.out.println(LangUtil.format("clearTable.test.wait"));
+        Method testCase = super.getMethod("clear");
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             boolean hasCreatedTable = false;
+            super.connectorOnStart(prepare);
+            execute.testCase(testCase);
+            if (!(hasCreatedTable = super.createTable(prepare))) {
+                return;
+            }
+            //使用WriteRecordFunction写入2条数据，
+            final int recordCount = 2;
+            Record[] records = Record.testRecordWithTapTable(targetTable, recordCount);
+            WriteListResult<TapRecordEvent> insert = null;
             try {
-                Method testCase = super.getMethod("clear");
-                super.connectorOnStart(prepare);
-                execute.testCase(testCase);
-                if (!(hasCreatedTable = super.createTable(prepare))) {
-                    return;
-                }
-                //使用WriteRecordFunction写入2条数据，
-                final int recordCount = 2;
-                Record[] records = Record.testRecordWithTapTable(targetTable, recordCount);
-                WriteListResult<TapRecordEvent> insert = execute.builderRecord(records).insert();
+                insert = execute.builderRecord(records).insert();
+            } catch (Throwable e) {
+                if (hasCreatedTable) execute.dropTable();
+                super.connectorOnStop(prepare);
+                TapAssert.error(testCase, LangUtil.format("fieldModification.all.throw", e.getMessage()));
+                return;
+            }
+            try {
+                WriteListResult<TapRecordEvent> finalInsert = insert;
                 TapAssert.asserts(() ->
                         Assertions.assertTrue(
-                                null != insert && insert.getInsertedCount() == recordCount,
-                                LangUtil.format("clearTable.insert.error", recordCount, null == insert ? 0 : insert.getInsertedCount())
+                                null != finalInsert && finalInsert.getInsertedCount() == recordCount,
+                                LangUtil.format("clearTable.insert.error", recordCount, null == finalInsert ? 0 : finalInsert.getInsertedCount())
                         )
                 ).acceptAsError(testCase, LangUtil.format("clearTable.insert.succeed", recordCount));
                 ConnectorNode connectorNode = prepare.connectorNode();
@@ -74,43 +91,63 @@ public class ClearTableTest extends PDKTestBase {
                 TapClearTableEvent event = new TapClearTableEvent();
                 event.setTableId(tableId);
                 event.setReferenceTime(System.currentTimeMillis());
-                clear.clearTable(context, event);
+                try {
+                    clear.clearTable(context, event);
+                } catch (Throwable e) {
+                    TapAssert.error(testCase, LangUtil.format("fieldModification.all.throw", e.getMessage()));
+                    return;
+                }
                 TapAssert.asserts(() -> Assertions.assertTrue(true)).acceptAsError(testCase, LangUtil.format("clearTable.clean", recordCount));
                 //如果数据源实现了BatchCountFunction方法，调用BatchCountFunction方法查看该表是否为0；
                 BatchCountFunction batchCountFunction = functions.getBatchCountFunction();
+
                 if (null != batchCountFunction) {
-                    long count = batchCountFunction.count(context, targetTable);
+                    long count = 0;
+                    try {
+                        count = batchCountFunction.count(context, targetTable);
+                    } catch (Throwable e) {
+                        TapAssert.error(testCase, LangUtil.format("fieldModification.all.throw", e.getMessage()));
+                        return;
+                    }
+                    long finalCount = count;
+                    long finalCount1 = count;
                     TapAssert.asserts(() ->
-                            Assertions.assertEquals(count, 0, LangUtil.format("clearTable.verifyBatchCountFunction.error", 0, count))
+                            Assertions.assertEquals(finalCount, 0, LangUtil.format("clearTable.verifyBatchCountFunction.error", 0, finalCount1))
                     ).acceptAsError(testCase, LangUtil.format("clearTable.verifyBatchCountFunction.succeed", count));
                     return;
                 }
                 //如果实现了QueryByAdvanceFilter|QueryByFilter,查询插入的两条数据，应该查询不到的
                 QueryByAdvanceFilterFunction queryByAdvance = functions.getQueryByAdvanceFilterFunction();
                 if (null != queryByAdvance) {
-                    queryByAdvance.query(
-                            context, TapAdvanceFilter.create(), targetTable, consumer ->
-                                    TapAssert.asserts(() ->
-                                            Assertions.assertTrue(
-                                                    null == consumer || null == consumer.getResults() || consumer.getResults().isEmpty(),
-                                                    LangUtil.format("clearTable.verifyQueryByAdvanceFilterFunction.error", recordCount))
-                                    ).acceptAsWarn(testCase, LangUtil.format("clearTable.verifyQueryByAdvanceFilterFunction.succeed", recordCount))
-                    );
+                    try {
+                        queryByAdvance.query(
+                                context, TapAdvanceFilter.create(), targetTable, consumer ->
+                                        TapAssert.asserts(() ->
+                                                Assertions.assertTrue(
+                                                        null == consumer || null == consumer.getResults() || consumer.getResults().isEmpty(),
+                                                        LangUtil.format("clearTable.verifyQueryByAdvanceFilterFunction.error", recordCount))
+                                        ).acceptAsWarn(testCase, LangUtil.format("clearTable.verifyQueryByAdvanceFilterFunction.succeed", recordCount))
+                        );
+                    } catch (Throwable e) {
+                        TapAssert.error(testCase, LangUtil.format("fieldModification.all.throw", e.getMessage()));
+                    }
                     return;
                 }
                 QueryByFilterFunction queryByFilter = functions.getQueryByFilterFunction();
                 if (null != queryByFilter) {
-                    queryByFilter.query(
-                            context, list(), targetTable, consumer ->
-                                    TapAssert.asserts(() ->
-                                            Assertions.assertTrue(
-                                                    null == consumer || consumer.isEmpty(),
-                                                    LangUtil.format("clearTable.verifyQueryByFilterFunction.error", recordCount))
-                                    ).acceptAsWarn(testCase, LangUtil.format("clearTable.verifyQueryByFilterFunction.succeed", recordCount))
-                    );
+                    try {
+                        queryByFilter.query(
+                                context, list(), targetTable, consumer ->
+                                        TapAssert.asserts(() ->
+                                                Assertions.assertTrue(
+                                                        null == consumer || consumer.isEmpty(),
+                                                        LangUtil.format("clearTable.verifyQueryByFilterFunction.error", recordCount))
+                                        ).acceptAsWarn(testCase, LangUtil.format("clearTable.verifyQueryByFilterFunction.succeed", recordCount))
+                        );
+                    } catch (Throwable e) {
+                        TapAssert.error(testCase, LangUtil.format("fieldModification.all.throw", e.getMessage()));
+                    }
                 }
-            } catch (Throwable e) {
-                throw new RuntimeException(e);
             } finally {
                 if (hasCreatedTable) execute.dropTable();
                 super.connectorOnStop(prepare);

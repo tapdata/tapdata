@@ -6,8 +6,12 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
+import io.tapdata.pdk.tdd.core.PDKTestBaseV2;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.core.base.StreamStopException;
+import io.tapdata.pdk.tdd.core.base.TapAssertException;
 import io.tapdata.pdk.tdd.core.base.TestNode;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 import io.tapdata.pdk.tdd.tests.support.*;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -24,12 +28,17 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
  * */
 @TapGo(tag = "V2", sort = 130)
 public class BatchCountTest extends PDKTestBase {
-
+    {
+        if (PDKTestBase.testRunning) {
+            System.out.println(LangUtil.format("batchCountTest.wait"));
+        }
+    }
     @DisplayName("batchCountTest.afterInsert")//用例1， 插入数据查询记录数
     @TapTestCase(sort = 1)
     //使用WriteRecordFunction写入2条数据， 使用BatchCountFunction查询记录数， 返回2为正确
     @Test
     void batchCountAfterInsert() throws NoSuchMethodException {
+        System.out.println(LangUtil.format("batchCountTest.afterInsert.wait"));
         Method testCase = super.getMethod("batchCountAfterInsert");
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
@@ -63,8 +72,11 @@ public class BatchCountTest extends PDKTestBase {
                     }).acceptAsError(testCase, LangUtil.format("batchCount.afterInsert.succeed", records.length, count));
                 }
             } catch (Throwable e) {
-                throw new RuntimeException(e);
-                //TapAssert.error(testCase,);
+                if ( !(e instanceof TapAssertException) && !(e instanceof StreamStopException)) {
+                    TapAssert.error(testCase, LangUtil.format("fieldModification.all.throw", e.getMessage()));
+                } else {
+                    e.getCause();
+                }
             } finally {
                 if (createTable) execute.dropTable();
                 super.connectorOnStop(prepare);

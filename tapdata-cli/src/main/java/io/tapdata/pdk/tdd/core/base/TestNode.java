@@ -2,7 +2,7 @@ package io.tapdata.pdk.tdd.core.base;
 
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
-import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 
 public class TestNode {
     private ConnectorNode connectorNode;

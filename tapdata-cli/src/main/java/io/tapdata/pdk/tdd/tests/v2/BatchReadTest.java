@@ -14,6 +14,7 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.core.base.TestNode;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 import io.tapdata.pdk.tdd.tests.support.*;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -29,8 +30,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 都需使用随机ID建表， 如果有DropTableFunction实现， 测试用例应该自动删除创建的临时表（无论成功或是失败）
  */
 @DisplayName("batchRead")//BatchReadFunction全量读数据（依赖WriteRecordFunction）
-@TapGo(tag = "V2", sort = 120)
+@TapGo(tag = "V2", sort = 120, debug = true)
 public class BatchReadTest extends PDKTestBase {
+    {
+        if (PDKTestBase.testRunning) {
+            System.out.println(LangUtil.format("batchRead.wait"));
+        }
+    }
     /**
      * 使用WriteRecordFunction插入1条全类型（覆盖TapType的11中类型数据）数据，
      * 使用BatchReadFunction， batchSize为10读出所有数据，
@@ -44,6 +50,7 @@ public class BatchReadTest extends PDKTestBase {
     @TapTestCase(sort = 1)
     @Test
     void readAfterInsert() {
+        System.out.println(LangUtil.format("batchRead.afterInsert.wait"));
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
@@ -154,8 +161,7 @@ public class BatchReadTest extends PDKTestBase {
                         } else {
                             result = new HashMap<>();
                         }
-                        connectorNode.getCodecsFilterManager().transformToTapValueMap(result, targetTable.getNameFieldMap());
-                        connectorNode.getCodecsFilterManager().transformFromTapValueMap(result);
+                        result = transform(prepare, targetTable, result);
                         StringBuilder builder = new StringBuilder();
                         Map<String, Object> finalResult = result;
                         TapAssert.asserts(() -> assertTrue(
@@ -183,6 +189,7 @@ public class BatchReadTest extends PDKTestBase {
     @TapTestCase(sort = 2)
     @Test
     void readAfterInsertByBatch() {
+        System.out.println(LangUtil.format("batchRead.byBatch.wait"));
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();

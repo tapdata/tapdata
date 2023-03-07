@@ -4,6 +4,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.core.base.TestNode;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 import io.tapdata.pdk.tdd.tests.support.LangUtil;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
@@ -20,7 +21,11 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 @DisplayName("tableCount.test")//tableCount表数量， 必测方法
 @TapGo(tag = "V2", sort = 50)
 public class TableCountTest extends PDKTestBase {
-
+    {
+        if (PDKTestBase.testRunning) {
+            System.out.println(LangUtil.format("tableCount.test.wait"));
+        }
+    }
     @DisplayName("tableCount.findTableCount")//用例1， 查询表数量
     @Test
     @TapTestCase(sort = 1)
@@ -28,6 +33,7 @@ public class TableCountTest extends PDKTestBase {
      * 调用tableCount方法之后返回表数量大于1为正确
      * */
     void findTableCount() {
+        System.out.println(LangUtil.format("tableCount.findTableCount.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             //setTable();
@@ -75,6 +81,7 @@ public class TableCountTest extends PDKTestBase {
      * 比之前的数量加1就是正确的
      * */
     void findTableCountAfterNewTable() {
+        System.out.println(LangUtil.format("tableCount.findTableCountAfterNewTable.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();

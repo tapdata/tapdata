@@ -72,6 +72,24 @@ public class Record extends HashMap<String,Object> {
         return records;
     }
 
+    public static Record[] modifyAsNewRecordWithTapTable(TapTable table, Record[] records,int modifyNums, boolean needModifyPrimaryKey){
+        LinkedHashMap<String, TapField> nameFieldMap = table.getNameFieldMap();
+        AtomicInteger num = new AtomicInteger((modifyNums <= 0 ? nameFieldMap.size() : modifyNums) + 1 ) ;
+        Record[] newRecords = new Record[records.length];
+        for (int i = 0; i < records.length; i++) {
+            Record record = new Record();
+            Collection<String> strings = table.primaryKeys(true);
+            if (Objects.nonNull(strings)){
+                for (String key : strings) {
+                    record.builder(key,records[i].get(key));
+                }
+            }
+            builderKey(record, nameFieldMap, field -> needModifyPrimaryKey ? (!field.getPrimaryKey() && num.decrementAndGet() > 0) : (!field.getPrimaryKey() && num.decrementAndGet() > 0) );
+            newRecords[i] = record;
+        }
+        return newRecords;
+    }
+
     private static Record builderKey(Record record, LinkedHashMap<String, TapField> nameFieldMap, Checker... checker) {
         //Record item = (Objects.nonNull(checker[0]) && checker[0].check())? ;
         Random random = new Random();
@@ -136,7 +154,8 @@ public class Record extends HashMap<String,Object> {
                     }
                     break;
                     case JAVA_Double: {
-                        record.builder(keyName, random.nextDouble());
+                        BigDecimal bd = BigDecimal.valueOf(Math.random() * 10 + 50);
+                        record.builder(keyName, bd.setScale(4, RoundingMode.HALF_UP).doubleValue());
                     }
                     break;
                     case "Date_Time": {

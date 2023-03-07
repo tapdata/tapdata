@@ -14,6 +14,7 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.core.base.TestNode;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 import io.tapdata.pdk.tdd.tests.support.LangUtil;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
@@ -33,7 +34,11 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 @DisplayName("createTableTest.test")//CreateTableFunction/CreateTableV2Function建表
 @TapGo(tag = "V2", sort = 90)
 public class CreateTableTest extends PDKTestBase {
-
+    {
+        if (PDKTestBase.testRunning) {
+            System.out.println(LangUtil.format("createTableTest.wait"));
+        }
+    }
     @DisplayName("createTableV2")//用例1，CreateTableFunction已过期， 应使用CreateTableV2Function
     @TapTestCase(sort = 1)
     @Test
@@ -44,24 +49,25 @@ public class CreateTableTest extends PDKTestBase {
      * 如果同时实现了两个方法只需要测试CreateTableV2Function。
      * 检查如果只实现了CreateTableFunction，没有实现CreateTableV2Function时，报出警告， 推荐使用CreateTableV2Function方法来实现建表
      * */
-    void createTableV2() {
+    void createTableV2() throws NoSuchMethodException {
+        System.out.println(LangUtil.format("createTableTestV2.test.wait"));
+        Method testCase = super.getMethod("createTableV2");
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             boolean hasCreateTable = false;
+            super.connectorOnStart(prepare);
+            execute.testCase(testCase);
+            ConnectorNode connectorNode = prepare.connectorNode();
+            TapConnectorContext connectorContext = connectorNode.getConnectorContext();
+            ConnectorFunctions functions = connectorNode.getConnectorFunctions();
+
+            if (super.verifyFunctions(functions, testCase)) {
+                return;
+            }
+            String tableId = targetTable.getId().replaceAll("-", "_");
+
             try {
-                super.connectorOnStart(prepare);
-                Method testCase = super.getMethod("createTableV2");
-                execute.testCase(testCase);
-
-                ConnectorNode connectorNode = prepare.connectorNode();
-                TapConnectorContext connectorContext = connectorNode.getConnectorContext();
-                ConnectorFunctions functions = connectorNode.getConnectorFunctions();
-
-                if (super.verifyFunctions(functions, testCase)) {
-                    return;
-                }
-                String tableId = targetTable.getId().replaceAll("-", "_");
 
                 CreateTableV2Function createTableV2 = functions.getCreateTableV2Function();
                 TapAssert.asserts(() ->
@@ -159,6 +165,7 @@ public class CreateTableTest extends PDKTestBase {
      * 对比两个TapTable里的字段名以及类型， 不同的地方需要警告。
      * */
     void allTapType() {
+        System.out.println(LangUtil.format("allTapType.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             ConnectorNode connectorNode = prepare.connectorNode();
@@ -245,6 +252,7 @@ public class CreateTableTest extends PDKTestBase {
      * 对比两个TapTable里的索引信息， 不同的地方需要警告。
      * */
     void addIndex() {
+        System.out.println(LangUtil.format("addIndex.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             this.targetTable = getTable();
             TestNode prepare = this.prepare(nodeInfo);
@@ -373,6 +381,7 @@ public class CreateTableTest extends PDKTestBase {
      * 不通过的时候显示警告， 不做错误处理。
      * */
     void tableIfExist() {
+        System.out.println(LangUtil.format("tableIfExist.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();

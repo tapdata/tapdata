@@ -9,6 +9,7 @@ import io.tapdata.pdk.core.workflow.engine.DataFlowWorker;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.core.base.TestNode;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 import io.tapdata.pdk.tdd.tests.support.*;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -37,7 +38,11 @@ public class WriteRecordTest extends PDKTestBase {
     protected String originToSourceId;
     protected TapNodeInfo tapNodeInfo;
     protected String testTableId;
-
+    {
+        if (PDKTestBase.testRunning) {
+            System.out.println(LangUtil.format("writeRecordTest.test.wait"));
+        }
+    }
     //    private void targetTable(){
 //        this.targetTable = table(tableNameCreator.tableName())
 //                .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
@@ -51,6 +56,7 @@ public class WriteRecordTest extends PDKTestBase {
      * 插入2条数据， 修改插入的2条数据， 删除插入的2条数据 ，验证插入的数量， 修改的数量， 删除的数量是否正确。
      * */
     void sourceTest1() throws Throwable {
+        System.out.println(LangUtil.format("writeRecordTest.sourceTest1.wait"));
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
@@ -120,6 +126,7 @@ public class WriteRecordTest extends PDKTestBase {
      *      由于这个不是默认策略， 因此此处的错误都按警告处理并且提示用当策略是ignore_on_exists时， 需要怎么做。
      * */
     void sourceTest2() throws Throwable {
+        System.out.println(LangUtil.format("writeRecordTest.sourceTest2.wait"));
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
@@ -275,6 +282,7 @@ public class WriteRecordTest extends PDKTestBase {
      * 删除1条不存在的数据， 此时不应该报错， 且返回给引擎的插入， 修改和删除都应该为0.
      * */
     void sourceTest3() throws Throwable {
+        System.out.println(LangUtil.format("writeRecordTest.sourceTest3.wait"));
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
@@ -335,6 +343,7 @@ public class WriteRecordTest extends PDKTestBase {
      * 修改1条不存在的数据， 如果修改策略是 ignore_on_nonexists， 此时验证插入和修改都应该为0个
      * */
     void sourceTest4() throws Throwable {
+        System.out.println(LangUtil.format("writeRecordTest.sourceTest4.wait"));
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
             boolean tableIsCreated = false;

@@ -1,4 +1,4 @@
-package io.tapdata.pdk.tdd.tests.v2;
+package io.tapdata.pdk.tdd.tests.basic;
 
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
@@ -18,16 +18,14 @@ import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import org.junit.jupiter.api.Assertions;
 
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class RecordEventExecute {
     ConnectorNode connectorNode;
     PDKTestBase base;
     Method testCase;
+    Map<String, Object> tddConfig;
 
     public Method testCase() {
         return this.testCase;
@@ -36,6 +34,31 @@ public class RecordEventExecute {
     public RecordEventExecute testCase(Method testCase) {
         this.testCase = testCase;
         return this;
+    }
+
+    public Map<String, Object> tddConfig() {
+        return this.tddConfig;
+    }
+
+    public RecordEventExecute tddConfig(Map<String, Object> tddConfig) {
+        this.tddConfig = tddConfig;
+        return this;
+    }
+
+    public Object findTddConfig(String key) {
+        if (Objects.isNull(this.tddConfig) || tddConfig.isEmpty()) return null;
+        return this.tddConfig.get(key);
+    }
+
+    public <T> T findTddConfig(String key, Class<T> type) {
+        if (Objects.isNull(this.tddConfig) || tddConfig.isEmpty()) return null;
+        Object obj = this.tddConfig.get(key);
+        if (Objects.isNull(obj)) return null;
+        try {
+            return (T) this.tddConfig.get(key);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private ConnectorFunctions connectorFunctions;
@@ -55,7 +78,7 @@ public class RecordEventExecute {
 
     List<Record> records = new ArrayList<>();
 
-    public RecordEventExecute builderRecordCleanBefore(Record... records){
+    public RecordEventExecute builderRecordCleanBefore(Record... records) {
         this.records = new ArrayList<>();
         this.records.addAll(Arrays.asList(records));
         return this;
@@ -63,7 +86,7 @@ public class RecordEventExecute {
 
     public RecordEventExecute builderRecord(Record... records) {
         if (null == records || records.length <= 0) return this;
-        if (records == null) this.records = new ArrayList<>();
+        if (this.records == null) this.records = new ArrayList<>();
         this.records.addAll(Arrays.asList(records));
         return this;
     }
@@ -74,6 +97,41 @@ public class RecordEventExecute {
     }
 
     public WriteListResult<TapRecordEvent> insert() throws Throwable {
+        return this.insert(this.records);
+    }
+
+    public WriteListResult<TapRecordEvent> update() throws Throwable {
+        return this.update(this.records);
+    }
+
+    public WriteListResult<TapRecordEvent> delete() {
+        try {
+            return this.deletes(this.records);
+        }catch (Throwable t){
+            throw new RuntimeException(t.getMessage());
+        }
+    }
+
+    public WriteListResult<TapRecordEvent> insert(Record[] records) throws Throwable {
+        return this.insert(this.recordsAsList(records));
+    }
+
+    public WriteListResult<TapRecordEvent> update(Record[] records) throws Throwable {
+        return this.update(this.recordsAsList(records));
+    }
+
+    public WriteListResult<TapRecordEvent> deletes(Record[] records) throws Throwable {
+        return this.deletes(this.recordsAsList(records));
+    }
+
+    public List<Record> recordsAsList(Record[] records) {
+        List<Record> recordList = new ArrayList<>();
+        if (null == records || records.length <= 0) return recordList;
+        recordList.addAll(Arrays.asList(records));
+        return recordList;
+    }
+
+    public WriteListResult<TapRecordEvent> insert(List<Record> records) throws Throwable {
         List<TapRecordEvent> tapInsertRecordEvents = new ArrayList<>();
         records.forEach(record -> {
             TapInsertRecordEvent insertRecordEvent = new TapInsertRecordEvent().table(base.getTargetTable().getId());
@@ -93,7 +151,7 @@ public class RecordEventExecute {
         return consumerBack.get();
     }
 
-    public WriteListResult<TapRecordEvent> update() throws Throwable {
+    public WriteListResult<TapRecordEvent> update(List<Record> records) throws Throwable {
         List<TapRecordEvent> tapUpdateRecordEvents = new ArrayList<>();
         records.forEach(record -> {
             TapUpdateRecordEvent updateRecordEvent = new TapUpdateRecordEvent().table(base.getTargetTable().getId());
@@ -113,7 +171,7 @@ public class RecordEventExecute {
         return consumerBack.get();
     }
 
-    public WriteListResult<TapRecordEvent> delete() throws Throwable {
+    public WriteListResult<TapRecordEvent> deletes(List<Record> records) throws Throwable {
         List<TapRecordEvent> tapDeleteRecordEvents = new ArrayList<>();
         records.forEach(record -> {
             TapDeleteRecordEvent deleteRecordEvent = new TapDeleteRecordEvent().table(base.getTargetTable().getId());

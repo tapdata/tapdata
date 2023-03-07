@@ -12,13 +12,10 @@ import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.base.TestNode;
-import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 
 import java.lang.reflect.Method;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -39,6 +36,7 @@ public class PDKBaseRun extends PDKTestBase {
         assertNotNull(testConfigMap, "testConfigFile " + super.testConfigFile + " read to json failed");
         super.connectionOptions = Optional.ofNullable(testConfigMap.get("connectionConfig")).orElse(new DataMap());
         super.nodeOptions = Optional.ofNullable(testConfigMap.get("nodeConfig")).orElse(new DataMap());
+        super.tddConfig = Optional.ofNullable(testConfigMap.get("tddConfig")).orElse(new DataMap());
 
         tapNodeInfo = nodeInfo;
         originToSourceId = "QueryByAdvanceFilterTest_tddSourceTo" + nodeInfo.getTapNodeSpecification().getId();

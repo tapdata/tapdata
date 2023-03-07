@@ -9,8 +9,8 @@ import io.tapdata.pdk.tdd.core.PDKTestBaseV2;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.core.base.TapAssertException;
 import io.tapdata.pdk.tdd.core.base.TestNode;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 import io.tapdata.pdk.tdd.tests.support.*;
-import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,7 +18,8 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -30,13 +31,14 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
  * 测试失败按警告上报
  */
 @DisplayName("multiWriteTest")
-@TapGo(tag = "V3", sort = 14, debug = false)
+@TapGo(tag = "V3", sort = 10040, debug = false)
 public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
     {
         if (PDKTestBaseV2.testRunning) {
             System.out.println(langUtil.formatLang("multiWrite.wait"));
         }
     }
+
     public static List<SupportFunction> testFunctions() {
         return list(supportAny(
                 langUtil.formatLang(anyOneFunFormat, "QueryByAdvanceFilterFunction,QueryByFilterFunction"),
@@ -44,15 +46,15 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
                 support(WriteRecordFunction.class, LangUtil.format(inNeedFunFormat, "WriteRecordFunction"))
         );
     }
+
     private static final int recordCount = 1;
     private static final int modifyTimes = 4;
     private static final int threadCount = 4;
 
     /**
-     *
      * 用例1， 采用4个线程写入修改测试
-     *   采用4个线程写入， 每个线程对各自不同主键的内容进行新增，
-     *   修改1， 修改2， 修改3， 修改4事件， 最后的时候， 查询这条数据应该是修改4的内容
+     * 采用4个线程写入， 每个线程对各自不同主键的内容进行新增，
+     * 修改1， 修改2， 修改3， 修改4事件， 最后的时候， 查询这条数据应该是修改4的内容
      */
     @DisplayName("multiWrite.modify")
     @TapTestCase(sort = 1)
@@ -67,34 +69,34 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
             hasCreatedTable.set(super.createTable(node));
             if (!hasCreatedTable.get()) {
                 // 建表失败
-                return ;
+                return;
             }
 
             RecordEventExecute[] execute = new RecordEventExecute[threadCount];
-            for (int index = 0;index < threadCount ;index++){
+            for (int index = 0; index < threadCount; index++) {
                 final int finalIndex = index;
                 execute[finalIndex] = RecordEventExecute.create(node.connectorNode(), this);
                 execute[finalIndex].testCase(testCase);
-                Record[] records = Record.testRecordWithTapTable(super.targetTable,1);
-                service.execute(()->{
+                Record[] records = Record.testRecordWithTapTable(super.targetTable, 1);
+                service.execute(() -> {
 //                new Thread(()->{
                     try {
-                        this.insertAndModify(execute[finalIndex],node,records);
-                    }catch (Throwable e){
-                        if (!(e instanceof TapAssertException) || times.get()<=0){
+                        this.insertAndModify(execute[finalIndex], node, records);
+                    } catch (Throwable e) {
+                        if (!(e instanceof TapAssertException) || times.get() <= 0) {
                             throw e;
                         }
                     } finally {
-                        synchronized (insertLock){
+                        synchronized (insertLock) {
                             times.decrementAndGet();
                         }
                     }
                 });//.start();
             }
 
-            while (times.get() > 0){
+            while (times.get() > 0) {
                 try {
-                    synchronized(insertLock) {
+                    synchronized (insertLock) {
                         insertLock.wait(1000);
                     }
                 } catch (InterruptedException e) {
@@ -113,11 +115,10 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
     }
 
     /**
-     *
      * 用例2， 采用4个线程删除测试
-     *   采用4个线程写入， 每个线程对各自不同主键的内容进行新增，
-     *   修改1， 修改2， 修改3， 修改4， 删除事件，
-     *   最后的时候， 查询这条数据应该是为空
+     * 采用4个线程写入， 每个线程对各自不同主键的内容进行新增，
+     * 修改1， 修改2， 修改3， 修改4， 删除事件，
+     * 最后的时候， 查询这条数据应该是为空
      */
     @DisplayName("multiWrite.delete")
     @TapTestCase(sort = 2)
@@ -129,41 +130,41 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
         final Object insertLock = new Object();
         AtomicBoolean hasCreatedTable = new AtomicBoolean(false);
         super.execTest((node, testCase) -> {
-            if (!hasCreatedTable.get() ) {
-                if (!hasCreatedTable.get() ) {
+            if (!hasCreatedTable.get()) {
+                if (!hasCreatedTable.get()) {
                     hasCreatedTable.set(super.createTable(node));
                 }
             }
             if (!hasCreatedTable.get()) {
                 // 建表失败
-                return ;
+                return;
             }
 
             RecordEventExecute[] execute = new RecordEventExecute[threadCount];
-            for (int index = 0;index < threadCount ;index++){
+            for (int index = 0; index < threadCount; index++) {
                 int finalIndex = index;
                 execute[finalIndex] = RecordEventExecute.create(node.connectorNode(), this);
                 execute[finalIndex].testCase(testCase);
-                Record[] records = Record.testRecordWithTapTable(super.targetTable,1);
-                service.execute(()->{
-                //new Thread(()->{
+                Record[] records = Record.testRecordWithTapTable(super.targetTable, 1);
+                service.execute(() -> {
+                    //new Thread(()->{
                     try {
-                        this.insertAndDelete(execute[finalIndex],node,records);
-                    }catch (Throwable e) {
-                        if (!(e instanceof TapAssertException) || times.get()<=0){
+                        this.insertAndDelete(execute[finalIndex], node, records);
+                    } catch (Throwable e) {
+                        if (!(e instanceof TapAssertException) || times.get() <= 0) {
                             throw e;
                         }
-                    }finally {
-                        synchronized (insertLock){
+                    } finally {
+                        synchronized (insertLock) {
                             times.decrementAndGet();
                         }
                     }
                 });//.start();
             }
 
-            while (times.get() > 0){
+            while (times.get() > 0) {
                 try {
-                    synchronized(insertLock) {
+                    synchronized (insertLock) {
                         insertLock.wait(1000);
                     }
                 } catch (InterruptedException e) {
@@ -181,8 +182,8 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
         });
     }
 
-    private void insertAndModify(RecordEventExecute execute, TestNode node, Record[] records){
-        if (!this.insertAndModify(execute,records, modifyTimes)) {
+    private void insertAndModify(RecordEventExecute execute, TestNode node, Record[] records) {
+        if (!this.insertAndModify(execute, records, modifyTimes)) {
             return;
         }
         //查询数据，并校验
@@ -199,7 +200,7 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
         } else {
             Map<String, Object> resultMap = result.get(0);
             StringBuilder builder = new StringBuilder();
-            boolean equals = super.mapEquals(records[0], resultMap, builder);
+            boolean equals = super.mapEquals(records[0], transform(node, targetTable, resultMap), builder);
             TapAssert.asserts(() -> {
                 Assertions.assertTrue(equals, langUtil.formatLang("multiWrite.modify.query.notEquals",
                         tName,
@@ -215,11 +216,11 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
         }
     }
 
-    private void insertAndDelete(RecordEventExecute execute, TestNode node, Record[] records){
-        if (!this.insertAndModify(execute,records, modifyTimes)) {
+    private void insertAndDelete(RecordEventExecute execute, TestNode node, Record[] records) {
+        if (!this.insertAndModify(execute, records, modifyTimes)) {
             return;
         }
-        if (!this.deleteRecord(execute)){
+        if (!this.deleteRecord(execute)) {
             return;
         }
         final String tName = Thread.currentThread().getName();
@@ -239,10 +240,10 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
                                 tName,
                                 recordCount,
                                 modifyTimes
-                                ));
+                        ));
     }
 
-    private boolean insertAndModify(RecordEventExecute execute, Record[] records, int mTimes){
+    private boolean insertAndModify(RecordEventExecute execute, Record[] records, int mTimes) {
         Method testCase = execute.testCase();
         WriteListResult<TapRecordEvent> insert;
         final String tName = Thread.currentThread().getName();
@@ -250,7 +251,7 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
         try {
             //插入数据
             //synchronized (this) {
-                insert = execute.insert();
+            insert = execute.insert();
             //}
         } catch (Throwable e) {
             TapAssert.error(testCase, langUtil.formatLang("multiWrite.insertRecord.throw", tName, e.getMessage()));
@@ -281,15 +282,15 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
         return true;
     }
 
-    private boolean modifyRecord(RecordEventExecute execute,Record[] records, int times) {
+    private boolean modifyRecord(RecordEventExecute execute, Record[] records, int times) {
         Record.modifyRecordWithTapTable(super.targetTable, records, modifyTimes, false);
         execute.builderRecordCleanBefore(records);
         WriteListResult<TapRecordEvent> update;
         final String tName = Thread.currentThread().getName();
         try {
-           //synchronized (this){
-               update = execute.update();
-           //}
+            //synchronized (this){
+            update = execute.update();
+            //}
         } catch (Throwable throwable) {
             TapAssert.error(execute.testCase(), langUtil.formatLang("multiWrite.modifyRecord.throw",
                     tName,
@@ -316,16 +317,16 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
                 null == update ? 0 : update.getInsertedCount(),
                 null == update ? 0 : update.getModifiedCount(),
                 null == update ? 0 : update.getRemovedCount()));
-        return null != update && update.getModifiedCount() == recordCount ;
+        return null != update && update.getModifiedCount() == recordCount;
     }
 
-    private boolean deleteRecord(RecordEventExecute execute){
+    private boolean deleteRecord(RecordEventExecute execute) {
         Method testCase = execute.testCase();
         WriteListResult<TapRecordEvent> delete = null;
         final String tName = Thread.currentThread().getName();
         try {
             //synchronized (this) {
-                delete = execute.delete();
+            delete = execute.delete();
             //}
         } catch (Throwable e) {
             TapAssert.error(testCase, langUtil.formatLang("multiWrite.deleteRecord.throw",

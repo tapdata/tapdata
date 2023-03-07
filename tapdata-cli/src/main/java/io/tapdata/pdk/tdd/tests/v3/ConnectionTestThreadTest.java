@@ -1,11 +1,9 @@
 package io.tapdata.pdk.tdd.tests.v3;
 
 import io.tapdata.pdk.apis.TapConnector;
-import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
-import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBaseV2;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.core.base.TestNode;
@@ -13,19 +11,14 @@ import io.tapdata.pdk.tdd.tests.support.LangUtil;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.support.TapTestCase;
-import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
@@ -34,7 +27,7 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
  * 测试失败按警告上报
  */
 @DisplayName("checkThreadTest")
-@TapGo(tag = "V3", sort = 0, debug = true)
+@TapGo(tag = "V3", sort = 10060, debug = false)
 public class ConnectionTestThreadTest extends PDKTestBaseV2 {
     {
         if (PDKTestBaseV2.testRunning) {

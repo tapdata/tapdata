@@ -14,6 +14,7 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.core.base.TestNode;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 import io.tapdata.pdk.tdd.tests.support.*;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -31,7 +32,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @TapGo(tag = "V2", sort = 30)
 public class QueryByFilterTest extends PDKTestBase {
     private static final String TAG = QueryByFilterTest.class.getSimpleName();
-
+    {
+        if (PDKTestBase.testRunning) {
+            System.out.println(LangUtil.format("queryByFilterTest.test.wait"));
+        }
+    }
     @Test
     @DisplayName("test.queryByFilterTest.insertWithQuery")//用例1，插入数据能正常查询并进行值比对
     @TapTestCase(sort = 1)
@@ -42,6 +47,7 @@ public class QueryByFilterTest extends PDKTestBase {
      * 如果连模糊匹配也匹配不上，也报警告（值对与不对很多时候不好判定）。
      * */
     void insertWithQuery() throws Throwable {
+        System.out.println(LangUtil.format("queryByFilterTest.insertWithQuery.wait"));
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             boolean hasCreateTable = false;
@@ -162,6 +168,7 @@ public class QueryByFilterTest extends PDKTestBase {
      * 不应该报错。
      * */
     void queryWithLotTapFilter() throws Throwable {
+        System.out.println(LangUtil.format("queryByFilterTest.queryWithLotTapFilter.wait"));
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             boolean hasCreateTable = false;

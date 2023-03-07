@@ -8,8 +8,8 @@ import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.tdd.core.PDKTestBaseV2;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.core.base.TestNode;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 import io.tapdata.pdk.tdd.tests.support.*;
-import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,13 +26,14 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
  * WriteRecord的事件多批次执行（依赖WriteRecordFunction和QueryByAdvanceFilter/QueryByFilter）
  */
 @DisplayName("batchWriteTest")
-@TapGo(tag = "V3", sort = 13, debug = false)
+@TapGo(tag = "V3", sort = 10030, debug = false)
 public class BatchWriteRecordTest extends PDKTestBaseV2 {
     {
         if (PDKTestBaseV2.testRunning) {
             System.out.println(langUtil.formatLang("batchWriteTest.wait"));
         }
     }
+
     public static List<SupportFunction> testFunctions() {
         return list(supportAny(
                 langUtil.formatLang(anyOneFunFormat, "QueryByAdvanceFilterFunction,QueryByFilterFunction"),
@@ -45,7 +46,7 @@ public class BatchWriteRecordTest extends PDKTestBaseV2 {
 
     /**
      * 用例1， 10条数据， 按10批插入
-     *  不同主键的数据， 按10批次插入， 每个批次1条数据， 最后验证能否读出这10条数据， 且10条数据都准确
+     * 不同主键的数据， 按10批次插入， 每个批次1条数据， 最后验证能否读出这10条数据， 且10条数据都准确
      */
     @DisplayName("batchWrite.batch")
     @TapTestCase(sort = 2)
@@ -55,7 +56,7 @@ public class BatchWriteRecordTest extends PDKTestBaseV2 {
         AtomicBoolean hasCreatedTable = new AtomicBoolean(false);
         super.execTest((node, testCase) -> {
             Record[] records = Record.testRecordWithTapTable(super.targetTable, recordCount);
-            this.insertRecords(node,hasCreatedTable, records);
+            this.insertRecords(node, hasCreatedTable, records);
             //查询数据，并校验
             List<Map<String, Object>> result = new ArrayList<>();
             for (int index = 0; index < records.length; index++) {
@@ -70,7 +71,7 @@ public class BatchWriteRecordTest extends PDKTestBaseV2 {
                 //分批次插入后查询结果不一致-数目不一致
                 TapAssert.error(testCase, langUtil.formatLang("batchWrite.batch.query.fail", recordCount, 1, filterCount));
             } else {
-                for (int index = 0;index < records.length ; index++) {
+                for (int index = 0; index < records.length; index++) {
                     Map<String, Object> resultMap = result.get(index);
                     StringBuilder builder = new StringBuilder();
                     boolean equals = super.mapEquals(records[index], resultMap, builder);
@@ -81,10 +82,16 @@ public class BatchWriteRecordTest extends PDKTestBaseV2 {
                     }).acceptAsWarn(testCase, langUtil.formatLang("batchWrite.batch.query.succeed", recordCount, 1, filterCount, finalIndex));
                 }
             }
+        }, (node, testCase) -> {
+            //删除表
+            if (hasCreatedTable.get()) {
+                RecordEventExecute execute = node.recordEventExecute();
+                execute.dropTable();
+            }
         });
     }
 
-    private boolean insertRecords(TestNode node, AtomicBoolean hasCreatedTable, Record[] records){
+    private boolean insertRecords(TestNode node, AtomicBoolean hasCreatedTable, Record[] records) {
         RecordEventExecute execute = node.recordEventExecute();
         Method testCase = execute.testCase();
         hasCreatedTable.set(super.createTable(node));
@@ -92,7 +99,7 @@ public class BatchWriteRecordTest extends PDKTestBaseV2 {
             return false;
         }
         WriteListResult<TapRecordEvent> insert;
-        for (int index = 0; index < records.length ; index++) {
+        for (int index = 0; index < records.length; index++) {
             execute.builderRecordCleanBefore(records[index]);
             final int finalIndex = index + 1;
             try {

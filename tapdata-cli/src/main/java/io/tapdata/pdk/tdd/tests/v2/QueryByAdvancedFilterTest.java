@@ -9,8 +9,11 @@ import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.core.base.TapAssertException;
 import io.tapdata.pdk.tdd.core.base.TestNode;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 import io.tapdata.pdk.tdd.tests.support.*;
+import jdk.jfr.events.ExceptionThrownEvent;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,6 +32,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class QueryByAdvancedFilterTest extends PDKTestBase {
     private static final String TAG = QueryByAdvancedFilterTest.class.getSimpleName();
 
+    {
+        if (PDKTestBase.testRunning) {
+            System.out.println(LangUtil.format("queryByAdvanced.test.wait"));
+        }
+    }
+
     @Test
     @DisplayName("test.byAdvance.sourceTest")
     @TapTestCase(sort = 1)
@@ -38,27 +47,37 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
      * 如果值只能通过模糊匹配成功， 报警告指出是靠模糊匹配成功的，
      * 如果连模糊匹配也匹配不上， 也报警告（值对与不对很多时候不好判定）。
      * */
-    void sourceTest() throws Throwable {
+    void sourceTest() throws NoSuchMethodException {
+        System.out.println(LangUtil.format("queryByAdvanced.sourceTest.wait"));
+        Method testCase = super.getMethod("sourceTest");
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             boolean hasCreateTable = false;
+            super.connectorOnStart(prepare);
+            execute.testCase(testCase);
+            if (!(hasCreateTable = super.createTable(prepare))) {
+                super.connectorOnStop(prepare);
+                return;
+            }
+            //使用WriteRecordFunction插入1条全类型（覆盖TapType的11中类型数据）数据，
+            final int recordCount = 1;
+            Record[] records = Record.testRecordWithTapTable(targetTable, recordCount);
+            WriteListResult<TapRecordEvent> insert = null;
             try {
-                Method testCase = super.getMethod("sourceTest");
-                super.connectorOnStart(prepare);
-                execute.testCase(testCase);
-
-                if (!(hasCreateTable = super.createTable(prepare))) {
-                    return;
-                }
-                //使用WriteRecordFunction插入1条全类型（覆盖TapType的11中类型数据）数据，
-                final int recordCount = 1;
-                Record[] records = Record.testRecordWithTapTable(targetTable, recordCount);
-                WriteListResult<TapRecordEvent> insert = execute.builderRecord(records).insert();
+                insert = execute.builderRecord(records).insert();
+            } catch (Throwable e) {
+                if (hasCreateTable) execute.dropTable();
+                super.connectorOnStop(prepare);
+                TapAssert.error(testCase, LangUtil.format("fieldModification.all.throw", e.getMessage()));
+                return;
+            }
+            try {
+                WriteListResult<TapRecordEvent> finalInsert = insert;
                 TapAssert.asserts(() ->
                         Assertions.assertTrue(
-                                null != insert && insert.getInsertedCount() == recordCount,
-                                LangUtil.format("batchRead.insert.error", recordCount, null == insert ? 0 : insert.getInsertedCount())
+                                null != finalInsert && finalInsert.getInsertedCount() == recordCount,
+                                LangUtil.format("batchRead.insert.error", recordCount, null == finalInsert ? 0 : finalInsert.getInsertedCount())
                         )
                 ).acceptAsError(testCase, LangUtil.format("batchRead.insert.succeed", recordCount, null == insert ? 0 : insert.getInsertedCount()));
 
@@ -69,19 +88,27 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                 }
                 QueryByAdvanceFilterFunction query = functions.getQueryByAdvanceFilterFunction();
                 TapAdvanceFilter queryFilter = new TapAdvanceFilter();
-                List<Map<String, Object>> consumer = filter(connectorNode, query, queryFilter);
+
+
+                List<Map<String, Object>> consumer = null;
+                try {
+                    consumer = filter(connectorNode, query, queryFilter);
+                } catch (Throwable e) {
+                    TapAssert.error(testCase, LangUtil.format("fieldModification.all.throw", e.getMessage()));
+                    return;
+                }
+
                 //数据条目数需要等于1， 查询出这1条数据，只要能查出来数据就算是正确。
+                List<Map<String, Object>> finalConsumer = consumer;
                 TapAssert.asserts(() ->
                         Assertions.assertEquals(
-                                consumer.size(), recordCount,
-                                LangUtil.format("byAdvance.query.error", recordCount, null == consumer ? 0 : consumer.size())
+                                finalConsumer.size(), recordCount,
+                                LangUtil.format("byAdvance.query.error", recordCount, null == finalConsumer ? 0 : finalConsumer.size())
                         )
                 ).acceptAsError(testCase, LangUtil.format("byAdvance.query.succeed", recordCount, null == consumer ? 0 : consumer.size()));
                 if (consumer.size() == 1) {
                     Record record = records[0];
                     Map<String, Object> tapEvent = consumer.get(0);
-
-
                     Map<String, Object> result = tapEvent;//filterResult.getResult();
                     connectorNode.getCodecsFilterManager().transformToTapValueMap(result, targetTable.getNameFieldMap());
                     connectorNode.getCodecsFilterManager().transformFromTapValueMap(result);
@@ -90,41 +117,10 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                             mapEquals(record, result, builder),
                             LangUtil.format("exact.equals.failed", recordCount, builder.toString())
                     )).acceptAsWarn(testCase, LangUtil.format("exact.equals.succeed", recordCount, builder.toString()));
-
-
-//                    DataMap filterMap = new DataMap();
-//                    filterMap.putAll(tapEvent);
-//                    TapFilter filter = new TapFilter();
-//                    filter.setMatch(filterMap);
-//                    TapTable targetTable = connectorNode.getConnectorContext().getTableMap().get(connectorNode.getTable());
-//
-//                    FilterResult filterResult = filterResults(connectorNode, filter, targetTable);
-//                    TapAssert.asserts(() ->
-//                        assertNotNull(
-//                            filterResult,
-//                            LangUtil.format("exact.match.filter.null", InstanceFactory.instance(JsonParser.class).toJson(filterMap))
-//                        )
-//                    ).error(testCase);
-//                    if (null != filterResult){
-//                        TapAssert.asserts(() -> Assertions.assertNull(
-//                            filterResult.getError(),
-//                            LangUtil.format("exact.match.filter.error",InstanceFactory.instance(JsonParser.class).toJson(filterMap),filterResult.getError())
-//                        )).error(testCase);
-//                        if (null==filterResult.getError()){
-//                            TapAssert.asserts(() -> assertNotNull(
-//                                filterResult.getResult(),
-//                                LangUtil.format("exact.match.filter.result.null",recordCount)
-//                            )).error(testCase);
-//                            if (null!=filterResult.getResult()){
-//                                }
-//                        }
-//                    }
                 }
-            } catch (Throwable e) {
-                throw new RuntimeException(e);
             } finally {
                 if (hasCreateTable) {
-                    execute.dropTable();
+                    execute.dropTable(targetTable);
                 }
                 super.connectorOnStop(prepare);
             }
@@ -140,26 +136,38 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
      * 只要能按预期匹配到数据， 或者匹配不到数据即可。 此用例不用做值比对
      * */
     void sourceTest2() throws Throwable {
+        System.out.println(LangUtil.format("queryByAdvanced.sourceTest2.wait"));
+        Method testCase = this.getMethod("sourceTest2");
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             boolean hasCreateTable = false;
-            try {
-                Method testCase = this.getMethod("sourceTest2");
-                execute.testCase(testCase);
-                super.connectorOnStart(prepare);
+            execute.testCase(testCase);
+            super.connectorOnStart(prepare);
 
-                if (!(hasCreateTable = super.createTable(prepare))) {
-                    return;
-                }
-                final int insertCount = 2;
-                Record[] records = Record.testRecordWithTapTable(targetTable, insertCount);
-                execute.builderRecord(records);
-                WriteListResult<TapRecordEvent> insert = execute.insert();
+            if (!(hasCreateTable = super.createTable(prepare,false))) {
+                super.connectorOnStop(prepare);
+                return;
+            }
+            final int insertCount = 2;
+            Record[] records = Record.testRecordWithTapTable(targetTable, insertCount);
+            execute.builderRecord(records);
+            WriteListResult<TapRecordEvent> insert = null;
+            try {
+                insert = execute.insert();
+            } catch (Throwable e) {
+                execute.dropTable();
+                super.connectorOnStop(prepare);
+                TapAssert.error(testCase, LangUtil.format("fieldModification.all.throw", e.getMessage()));
+                return;
+            }
+            try {
+
+                WriteListResult<TapRecordEvent> finalInsert = insert;
                 TapAssert.asserts(() ->
                         Assertions.assertTrue(
-                                null != insert && insert.getInsertedCount() == insertCount,
-                                LangUtil.format("batchRead.insert.error", insertCount, null == insert ? 0 : insert.getInsertedCount())
+                                null != finalInsert && finalInsert.getInsertedCount() == insertCount,
+                                LangUtil.format("batchRead.insert.error", insertCount, null == finalInsert ? 0 : finalInsert.getInsertedCount())
                         )
                 ).acceptAsError(testCase, LangUtil.format("batchRead.insert.succeed", insertCount, null == insert ? 0 : insert.getInsertedCount()));
                 ConnectorNode connectorNode = prepare.connectorNode();
@@ -168,27 +176,43 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                     return;
                 }
                 String tableId = targetTable.getId();
-                QueryByAdvanceFilterFunction query = functions.getQueryByAdvanceFilterFunction();
+                QueryByAdvanceFilterFunction query = null;
+                try {
+                    query = functions.getQueryByAdvanceFilterFunction();
+                } catch (Throwable e) {
+                    TapAssert.error(testCase, LangUtil.format("fieldModification.all.throw", e.getMessage()));
+                    return;
+                }
 
                 String key = "id";
                 Long value = (Long) records[0].get(key);
-                this.operatorEq(key, value, testCase, connectorNode, query);
-                this.operator(key, value - 1, QueryOperator.GT, testCase, connectorNode, query);
-                this.operator(key, value, QueryOperator.GTE, testCase, connectorNode, query);
-                this.operator(key, value + 1, QueryOperator.LT, testCase, connectorNode, query);
-                this.operator(key, value, QueryOperator.LTE, testCase, connectorNode, query);
+                try {
+                    this.operatorEq(key, value, testCase, connectorNode, query);
+                    this.operator(key, value - 1, QueryOperator.GT, testCase, connectorNode, query);
+                    this.operator(key, value, QueryOperator.GTE, testCase, connectorNode, query);
+                    this.operator(key, value + 1, QueryOperator.LT, testCase, connectorNode, query);
+                    this.operator(key, value, QueryOperator.LTE, testCase, connectorNode, query);
 
-                this.sort(key, SortOn.ASCENDING, testCase, connectorNode, query);
-                this.sort(key, SortOn.DESCENDING, testCase, connectorNode, query);
+                    this.sort(key, SortOn.ASCENDING, testCase, connectorNode, query);
+                    this.sort(key, SortOn.DESCENDING, testCase, connectorNode, query);
+                } catch (Throwable e) {
+                    TapAssert.error(testCase, LangUtil.format("fieldModification.all.throw", e.getMessage()));
+                    return;
+                }
 
                 TapAdvanceFilter projectionFilter = new TapAdvanceFilter();
                 projectionFilter.projection(new Projection().include(key));
-                List<Map<String, Object>> projection = filter(connectorNode, query, projectionFilter);
+                List<Map<String, Object>> projection = null;
+                try {
+                    projection = filter(connectorNode, query, projectionFilter);
+                } catch (Throwable e) {
+                    TapAssert.error(testCase, LangUtil.format("fieldModification.all.throw", e.getMessage()));
+                    return;
+                }
+                List<Map<String, Object>> finalProjection = projection;
                 TapAssert.asserts(() -> {
-                    Assertions.assertFalse(projection.isEmpty(), LangUtil.format("queryByAdvanced.projection.error", key, tableId));
+                    Assertions.assertFalse(finalProjection.isEmpty(), LangUtil.format("queryByAdvanced.projection.error", key, tableId));
                 }).acceptAsError(testCase, LangUtil.format("queryByAdvanced.projection.succeed", key, tableId));
-            } catch (Throwable e) {
-                throw new RuntimeException(e);
             } finally {
                 if (hasCreateTable) execute.dropTable();
                 super.connectorOnStop(prepare);

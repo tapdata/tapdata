@@ -9,16 +9,20 @@ public interface TapAssert {
     static final int ERROR = 0;//default
     static final int WARN = 1;
     static final int SUCCEED = 2;
-
-    public static void change(Throwable e, String message, int assertGarde, Method testCase) {
+    public static void change(Throwable e, String message, int assertGarde, Method testCase){
+        change(e, message, assertGarde, testCase,true);
+    }
+    public static void change(Throwable e, String message, int assertGarde, Method testCase,boolean throwIs) {
         Class<?> declaringClass = testCase.getDeclaringClass();
-
-        CapabilitiesExecutionMsg msg = TapSummary.capabilitiesResult.computeIfAbsent(
-                declaringClass,
-                cls -> null == TapSummary.capabilitiesResult.get(declaringClass) ?
-                        new CapabilitiesExecutionMsg()
-                        : TapSummary.capabilitiesResult.get(cls)
-        );
+        CapabilitiesExecutionMsg msg = null;
+        synchronized (TapAssert.class){
+           msg = TapSummary.capabilitiesResult.computeIfAbsent(
+                   declaringClass,
+                   cls -> null == TapSummary.capabilitiesResult.get(declaringClass) ?
+                           new CapabilitiesExecutionMsg()
+                           : TapSummary.capabilitiesResult.get(cls)
+           );
+       }
         Case testCases = msg.testCase(testCase);
         switch (assertGarde) {
             case WARN: {
@@ -35,7 +39,9 @@ public interface TapAssert {
                     msg.fail();
                 }
                 testCases.addError(message);
-                throw new TapAssertException(message, e);
+                if (throwIs) {
+                    throw new TapAssertException(message, e);
+                }
             }
             case SUCCEED: {
                 if (null != message && !"".equals(message)) {
@@ -72,14 +78,21 @@ public interface TapAssert {
             throw new AssertionFailedError(message);
         }).accept(testCase, ERROR, message);
     }
+    public static void errorNotThrow(Method testCase, String message) {
+        TapAssert.asserts(() -> {
+            throw new AssertionFailedError(message);
+        }).accept(testCase, ERROR, message,false);
+    }
 
     public static void warn(Method testCase, String message) {
         TapAssert.asserts(() -> {
             throw new AssertionFailedError(message);
         }).accept(testCase, WARN, message);
     }
-
-    public default void accept(Method testCase, int assertGarde, String succeedMag) {
+    public default void accept(Method testCase, int assertGarde, String succeedMag){
+        accept(testCase,assertGarde,succeedMag,true);
+    }
+    public default void accept(Method testCase, int assertGarde, String succeedMag, boolean isThrow) {
         try {
             consumer();
         } catch (AssertionFailedError e) {
@@ -89,13 +102,13 @@ public interface TapAssert {
             } else if (message.contains("==> Unexpected exception thrown:")) {
                 message = message.substring(0, message.indexOf("==> Unexpected exception thrown:"));
             }
-            change(e, message, assertGarde, testCase);
+            change(e, message, assertGarde, testCase,isThrow);
             return;
         } catch (Exception e) {
-            change(e, e.getMessage(), assertGarde, testCase);
+            change(e, e.getMessage(), assertGarde, testCase,isThrow);
             throw e;
         }
-        change(null, succeedMag, SUCCEED, testCase);
+        change(null, succeedMag, SUCCEED, testCase,isThrow);
     }
 
     public void consumer();

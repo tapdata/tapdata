@@ -1,10 +1,8 @@
 package io.tapdata.pdk.tdd.tests.v3;
 
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -16,19 +14,22 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBaseV2;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.core.base.TestNode;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 import io.tapdata.pdk.tdd.tests.support.*;
-import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
-import static io.tapdata.entity.simplify.TapSimplify.tapYear;
-import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Date;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -37,19 +38,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 测试失败按错误上报
  */
 @DisplayName("writeTimeTest")
-@TapGo(tag = "V3", sort = 13, debug = false)
-public class WriteTimeTypeRecordTest extends PDKTestBaseV2{
+@TapGo(tag = "V3", sort = 10050, debug = false)
+public class WriteTimeTypeRecordTest extends PDKTestBaseV2 {
     {
         if (PDKTestBaseV2.testRunning) {
             System.out.println(langUtil.formatLang("writeTimeTest.wait"));
         }
     }
+
     public static List<SupportFunction> testFunctions() {
         return list(
                 supportAny(
-                    langUtil.formatLang(anyOneFunFormat, "QueryByAdvanceFilterFunction,QueryByFilterFunction"),
-                    QueryByAdvanceFilterFunction.class, QueryByFilterFunction.class),
-                support(BatchReadFunction.class,LangUtil.format(inNeedFunFormat,"BatchReadFunction")),
+                        langUtil.formatLang(anyOneFunFormat, "QueryByAdvanceFilterFunction,QueryByFilterFunction"),
+                        QueryByAdvanceFilterFunction.class, QueryByFilterFunction.class),
+                support(BatchReadFunction.class, LangUtil.format(inNeedFunFormat, "BatchReadFunction")),
                 support(WriteRecordFunction.class, LangUtil.format(inNeedFunFormat, "WriteRecordFunction"))
         );
     }
@@ -62,11 +64,13 @@ public class WriteTimeTypeRecordTest extends PDKTestBaseV2{
                 .add(field("TYPE_TIME", "Time").tapType(tapTime().withTimeZone(false)))
                 .add(field("TYPE_YEAR", "Year").tapType(tapYear()));
     }
+
     private static final int recordCount = 1;
+
     /**
      * 用例1，写入时间并使用（QueryByFilterFunction）查询时间验证是否正确
-     *  以DateTime（GMT-0的时间）数据结构写入一个时间， 成功之后， 使用QueryByFilter查出数据，
-     *  在经过值转换， 转成DateTime类型， 然后做比值验证。
+     * 以DateTime（GMT-0的时间）数据结构写入一个时间， 成功之后， 使用QueryByFilter查出数据，
+     * 在经过值转换， 转成DateTime类型， 然后做比值验证。
      */
     @DisplayName("writeTime.queryFilter")
     @TapTestCase(sort = 1)
@@ -80,7 +84,7 @@ public class WriteTimeTypeRecordTest extends PDKTestBaseV2{
             execute.builderRecordCleanBefore(records);
 
             //创建表并新增数据
-            if(!this.createTableAndInsertRecord(node,hasCreatedTable)){
+            if (!this.createTableAndInsertRecord(node, hasCreatedTable)) {
                 return;
             }
             //查询数据，并校验
@@ -112,10 +116,11 @@ public class WriteTimeTypeRecordTest extends PDKTestBaseV2{
             }
         });
     }
+
     /**
      * 用例2，写入时间并使用（BatchReadFunction）查出时间验证是否正确
-     *    以DateTime（GMT-0的时间）数据结构写入一个时间， 成功之后，
-     *    使用batchRead查出数据， 在经过值转换， 转成DateTime类型， 然后做比值验证。
+     * 以DateTime（GMT-0的时间）数据结构写入一个时间， 成功之后，
+     * 使用batchRead查出数据， 在经过值转换， 转成DateTime类型， 然后做比值验证。
      */
     @DisplayName("writeTime.batchRead")
     @TapTestCase(sort = 2)
@@ -129,7 +134,7 @@ public class WriteTimeTypeRecordTest extends PDKTestBaseV2{
             execute.builderRecordCleanBefore(records);
 
             //创建表并新增数据
-            if(!this.createTableAndInsertRecord(node,hasCreatedTable)){
+            if (!this.createTableAndInsertRecord(node, hasCreatedTable)) {
                 return;
             }
             ConnectorNode connectorNode = node.connectorNode();
@@ -146,42 +151,40 @@ public class WriteTimeTypeRecordTest extends PDKTestBaseV2{
                 batchReadFun.batchRead(context, targetTable, null, batchSize, (events, obj) -> {
                     if (null != events && !events.isEmpty()) list.addAll(events);
                 });
-            }catch (Throwable throwable){
-                TapAssert.error(testCase,langUtil.formatLang("writeTime.batchRead.throw",recordCount,throwable.getMessage()));
+            } catch (Throwable throwable) {
+                TapAssert.error(testCase, langUtil.formatLang("writeTime.batchRead.throw", recordCount, throwable.getMessage()));
                 return;
             }
 
             //数据条目数需要等于1， 查询出这1条数据，只要能查出来数据就算是正确。
             int size = list.size();
             if (size != recordCount) {
-                TapAssert.error(testCase,langUtil.formatLang("writeTime.batchRead.fail",recordCount, recordCount, size));
-            }else{
+                TapAssert.error(testCase, langUtil.formatLang("writeTime.batchRead.fail", recordCount, recordCount, size));
+            } else {
                 Record record = records[0];
                 TapEvent tapEvent = list.get(0);
                 //读出的TapInsertRecordEvent， table， time和after不能为空
                 if (Objects.isNull(tapEvent)) {
-                    TapAssert.error(testCase,langUtil.formatLang("writeTime.batchRead.notEvent",recordCount));
-                }else{
+                    TapAssert.error(testCase, langUtil.formatLang("writeTime.batchRead.notEvent", recordCount));
+                } else {
                     TapInsertRecordEvent insertEvent = ((TapInsertRecordEvent) tapEvent);
                     TapInsertRecordEvent table = insertEvent.table(targetTable.getId());
-                    if (Objects.isNull(table)){
-                        TapAssert.warn(testCase,langUtil.formatLang("writeTime.batchRead.table.null",recordCount));
+                    if (Objects.isNull(table)) {
+                        TapAssert.warn(testCase, langUtil.formatLang("writeTime.batchRead.table.null", recordCount));
                     }
                     Long time = insertEvent.getTime();
-                    if (Objects.isNull(time)){
-                        TapAssert.warn(testCase,langUtil.formatLang("writeTime.batchRead.time.null",recordCount));
+                    if (Objects.isNull(time)) {
+                        TapAssert.warn(testCase, langUtil.formatLang("writeTime.batchRead.time.null", recordCount));
                     }
                     Map<String, Object> after = insertEvent.getAfter();
-                    if(Objects.isNull(after)){
-                        TapAssert.error(testCase,langUtil.formatLang("writeTime.batchRead.after.null",recordCount));
+                    if (Objects.isNull(after)) {
+                        TapAssert.error(testCase, langUtil.formatLang("writeTime.batchRead.after.null", recordCount));
                         return;
                     }
                     Map<String, Object> result = insertEvent.getAfter();
-                    connectorNode.getCodecsFilterManager().transformToTapValueMap(result, targetTable.getNameFieldMap());
-                    connectorNode.getCodecsFilterManager().transformFromTapValueMap(result);
                     StringBuilder builder = new StringBuilder();
                     TapAssert.asserts(() -> assertTrue(
-                            super.mapEquals(record, result, builder),
+                            super.mapEquals(record, transform(node, targetTable, result), builder),
                             langUtil.formatLang("writeTime.batchRead.notEquals", recordCount, builder.toString())
                     )).acceptAsWarn(testCase, langUtil.formatLang("writeTime.batchRead.succeed", recordCount));
                 }
@@ -195,7 +198,7 @@ public class WriteTimeTypeRecordTest extends PDKTestBaseV2{
         });
     }
 
-    private boolean createTableAndInsertRecord(TestNode node, AtomicBoolean hasCreatedTable){
+    private boolean createTableAndInsertRecord(TestNode node, AtomicBoolean hasCreatedTable) {
         RecordEventExecute execute = node.recordEventExecute();
         hasCreatedTable.set(super.createTable(node));
         if (!hasCreatedTable.get()) {

@@ -9,29 +9,28 @@ import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.cli.support.DataTypesHandler;
-import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBaseV2;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.support.TapTestCase;
-import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
 //数据类型建表（依赖CreateTableFunction）
+
 /**
  * 验证开发者描述的每个字段类型都是可以成功建表的，
  * 这里在不同的数据库版本的时候很容易出现类型不兼容的错误
  * 测试失败按警告上报
  */
 @DisplayName("createTableUsingField")
-@TapGo(tag = "V3", sort = 13,debug = false)
+@TapGo(tag = "V3", sort = 10010, debug = false)
 public class CreateTableUsingFieldTypesInTurnTest extends PDKTestBaseV2 {
     public static List<SupportFunction> testFunctions() {
         return list(supportAny(
@@ -56,14 +55,14 @@ public class CreateTableUsingFieldTypesInTurnTest extends PDKTestBaseV2 {
             TapNodeSpecification tapNodeSpecification = node.nodeInfo().getTapNodeSpecification();
             DefaultExpressionMatchingMap dataTypesMap = tapNodeSpecification.getDataTypesMap();
             if (Objects.isNull(dataTypesMap) || dataTypesMap.isEmpty()) {
-                TapAssert.error(testCase,langUtil.formatLang("createTableUsingField.notDataTypes"));
+                TapAssert.error(testCase, langUtil.formatLang("createTableUsingField.notDataTypes"));
                 return;
             }
             RecordEventExecute execute = node.recordEventExecute();
             DataTypesHandler handler = DataTypesHandler.create();
             try {
                 dataTypesMap.iterate(entry -> {
-                    TapTable tapTable = new TapTable(super.testTableId,super.testTableId);
+                    TapTable tapTable = new TapTable(super.testTableId, super.testTableId);
                     String typeName = entry.getKey();
                     DataMap typeConfig = entry.getValue();
                     Object queryOnlyObj = Optional.ofNullable(typeConfig.get("queryOnly")).orElse(Boolean.FALSE);
@@ -72,15 +71,15 @@ public class CreateTableUsingFieldTypesInTurnTest extends PDKTestBaseV2 {
                         TapMapping tapMapping = (TapMapping) typeConfig.get(TapMapping.FIELD_TYPE_MAPPING);
                         handler.fillTestFields(tapTable, typeName, tapMapping);
                         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-                        if ( nameFieldMap.size() > 1 ){
-                            nameFieldMap.forEach((name,f)->{
-                                TapTable table = new TapTable(super.testTableId,super.testTableId);
+                        if (nameFieldMap.size() > 1) {
+                            nameFieldMap.forEach((name, f) -> {
+                                TapTable table = new TapTable(super.testTableId, super.testTableId);
                                 LinkedHashMap<String, TapField> subFieldMap = new LinkedHashMap<>();
-                                subFieldMap.put(name,f);
+                                subFieldMap.put(name, f);
                                 table.setNameFieldMap(subFieldMap);
                                 tapTables.add(table);
                             });
-                        }else {
+                        } else {
                             tapTables.add(tapTable);
                         }
                         for (TapTable table : tapTables) {
@@ -94,8 +93,8 @@ public class CreateTableUsingFieldTypesInTurnTest extends PDKTestBaseV2 {
                     }
                     return false;
                 });
-            }catch (Throwable e){
-                TapAssert.error(testCase,langUtil.formatLang("createTableUsingField.all.errorFiled","", "",e.getMessage()));
+            } catch (Throwable e) {
+                TapAssert.error(testCase, langUtil.formatLang("createTableUsingField.all.errorFiled", "", "", e.getMessage()));
             }
         });
     }

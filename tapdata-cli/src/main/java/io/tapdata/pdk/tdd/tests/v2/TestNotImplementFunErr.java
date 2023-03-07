@@ -34,7 +34,11 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
 @TapGo(tag = "V2", sort = 990, goTest = false)
 public class TestNotImplementFunErr extends PDKTestBase {
     private static final String TAG = TestNotImplementFunErr.class.getSimpleName();
-
+    {
+        if (PDKTestBase.testRunning) {
+            System.out.println(LangUtil.format("TestNotImplementFunErr.test.wait"));
+        }
+    }
     protected TapTable targetTable = table(testTableId)
             .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1))
             .add(field("name", "STRING"))
@@ -44,6 +48,7 @@ public class TestNotImplementFunErr extends PDKTestBase {
     @DisplayName("Test.TestNotImplementFunErr.case.sourceTest")
     @TapTestCase(sort = 1)
     void sourceTest() throws Throwable {
+        System.out.println(LangUtil.format("sourceTest.test.wait"));
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             tapNodeInfo = nodeInfo;
             originToSourceId = "QueryByAdvanceFilterTest_tddSourceTo" + nodeInfo.getTapNodeSpecification().getId();

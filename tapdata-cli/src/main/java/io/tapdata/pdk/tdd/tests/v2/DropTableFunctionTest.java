@@ -7,6 +7,7 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.core.base.TestNode;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 import io.tapdata.pdk.tdd.tests.support.LangUtil;
 import io.tapdata.pdk.tdd.tests.support.TapAssert;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
@@ -23,7 +24,11 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 @DisplayName("dropTable")//DropTableFunction删除表（依赖CreateTableFunction或者WriteRecordFunction）
 @TapGo(tag = "V2", sort = 110)
 public class DropTableFunctionTest extends PDKTestBase {
-
+    {
+        if (PDKTestBase.testRunning) {
+            System.out.println(LangUtil.format("dropTable.test.wait"));
+        }
+    }
     /**
      * 当数据源实现了CreateTableFunction，
      * 用此方法来创建表（随机表名）或者没有实现CreateTableFunction但是实现了WriteRecordFunction，
@@ -36,6 +41,7 @@ public class DropTableFunctionTest extends PDKTestBase {
     @TapTestCase(sort = 1)
     @Test
     void drop() {
+        System.out.println(LangUtil.format("dropTable.case.wait"));
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();

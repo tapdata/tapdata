@@ -8,7 +8,9 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
+import io.tapdata.pdk.tdd.core.base.TddConfigKey;
 import io.tapdata.pdk.tdd.core.base.TestNode;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
@@ -28,6 +30,11 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 @DisplayName("discoverSchema.test")//discoverSchema发现表， 必测方法
 @TapGo(tag = "V2", sort = 9999, goTest = true, subTest = {DiscoverSchemaTestV2.class})//6
 public class DiscoverSchemaTest extends PDKTestBase {
+    {
+        if (PDKTestBase.testRunning) {
+            System.out.println(LangUtil.format("discoverSchema.test.wait"));
+        }
+    }
     @DisplayName("discoverSchema.discover")//用例1， 发现表
     @Test
     @TapTestCase(sort = 1)
@@ -37,6 +44,7 @@ public class DiscoverSchemaTest extends PDKTestBase {
      * 表里有字段， 但是字段的name或者dataType为空时， 报警告， 具体哪些字段有问题
      * */
     void discover() {
+        System.out.println(LangUtil.format("discoverSchema.discover.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             try {
@@ -124,6 +132,7 @@ public class DiscoverSchemaTest extends PDKTestBase {
      * 验证结束之后需要删掉随机建的表（依赖DropTableFunction）
      * */
     void discoverAfterCreate() {
+        System.out.println(LangUtil.format("discoverSchema.discoverAfterCreate.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
@@ -253,6 +262,7 @@ public class DiscoverSchemaTest extends PDKTestBase {
      * 如果只有一张表， 直接通过此测试。
      * */
     void discoverByTableName1() {
+        System.out.println(LangUtil.format("discoverSchema.discoverByTableName1.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             try {
@@ -329,6 +339,7 @@ public class DiscoverSchemaTest extends PDKTestBase {
      * 验证结束之后需要删掉随机建的表（依赖DropTableFunction）
      * */
     void discoverByTableName2() {
+        System.out.println(LangUtil.format("discoverSchema.discoverByTableName2.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
@@ -339,7 +350,10 @@ public class DiscoverSchemaTest extends PDKTestBase {
                 execute.testCase(testCase);
 
                 //通过CreateTableFunction另外创建一张表，
-                if (!(hasCreatedTable = this.createTable(prepare))) return;
+                Boolean deleteRecordAfterCreateTable = prepare.recordEventExecute().findTddConfig(TddConfigKey.DELETE_RECORD_AFTER_CREATE_TABLE.KeyName(), Boolean.class);
+                if (!(hasCreatedTable = this.createTable(prepare, Optional.ofNullable(deleteRecordAfterCreateTable).orElse((Boolean) TddConfigKey.DELETE_RECORD_AFTER_CREATE_TABLE.defaultValue())))) {
+                    return;
+                }
                 String tableIdTarget = targetTable.getId();
 
                 //通过List<String> tables参数指定新创建的那张表，
@@ -358,17 +372,17 @@ public class DiscoverSchemaTest extends PDKTestBase {
                 });
                 long discoverEnd = System.currentTimeMillis();
                 TapAssert.asserts(() -> {
-                    Assertions.assertFalse(tabMap.isEmpty(), LangUtil.format("discoverByTableName2.notAnyTable", tableIdTarget, tabMap.size(), discoverEnd - discoverStart));
+                    Assertions.assertFalse(tabMap.isEmpty(), LangUtil.format("discoverByTableName2.notAnyTable", tableIdTarget, tableIdTarget, tabMap.size(), discoverEnd - discoverStart));
                 }).acceptAsError(
                         testCase,
-                        LangUtil.format("discoverByTableName2.succeed", tableIdTarget, tabMap.size(), discoverEnd - discoverStart)
+                        LangUtil.format("discoverByTableName2.succeed", tableIdTarget, tableIdTarget, tabMap.size(), discoverEnd - discoverStart)
                 );
                 TapTable tapTable = tabMap.get(tableIdTarget);
                 TapAssert.asserts(() -> {
-                    Assertions.assertNotNull(tapTable, LangUtil.format("discoverByTableName2.notEqualsTable", tableIdTarget, tapTable.getId(), discoverEnd - discoverStart));
+                    Assertions.assertNotNull(tapTable, LangUtil.format("discoverByTableName2.notEqualsTable", tableIdTarget, tableIdTarget, tapTable.getId(), discoverEnd - discoverStart));
                 }).acceptAsError(
                         testCase,
-                        LangUtil.format("discoverByTableName2.equalsTable", tableIdTarget, tapTable.getId(), discoverEnd - discoverStart)
+                        LangUtil.format("discoverByTableName2.equalsTable", tableIdTarget, tableIdTarget, tapTable.getId(), discoverEnd - discoverStart)
                 );
             } catch (Throwable e) {
                 throw new RuntimeException(e);
@@ -392,6 +406,7 @@ public class DiscoverSchemaTest extends PDKTestBase {
      * 如果只有一张表， 直接通过此测试。
      * */
     void discoverByTableCount1() {
+        System.out.println(LangUtil.format("discoverSchema.discoverByTableCount1.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             try {
@@ -488,6 +503,7 @@ public class DiscoverSchemaTest extends PDKTestBase {
      * 验证结束之后需要删掉随机建的表（依赖DropTableFunction）
      * */
     void discoverByTableCount2() {
+        System.out.println(LangUtil.format("discoverSchema.discoverByTableCount2.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();

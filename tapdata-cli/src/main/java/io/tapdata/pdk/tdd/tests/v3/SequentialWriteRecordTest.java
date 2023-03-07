@@ -1,25 +1,20 @@
 package io.tapdata.pdk.tdd.tests.v3;
 
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
-import io.tapdata.pdk.core.api.ConnectorNode;
-import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.tdd.core.PDKTestBaseV2;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.core.base.TestNode;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 import io.tapdata.pdk.tdd.tests.support.*;
-import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
-import org.ehcache.shadow.org.terracotta.offheapstore.HashingMap;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -33,7 +28,7 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
  * 在nodeConfig里的配置。 例如Oracle就有这个场景
  */
 @DisplayName("sequentialTest")
-@TapGo(tag = "V3", sort = 13)
+@TapGo(tag = "V3", sort = 10020)
 public class SequentialWriteRecordTest extends PDKTestBaseV2 {
     {
         if (PDKTestBaseV2.testRunning) {
@@ -63,7 +58,7 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
     public void sequentialTestOfModify() throws NoSuchMethodException {
         System.out.println(langUtil.formatLang("sequentialTest.modify.wait"));
         AtomicBoolean hasCreatedTable = new AtomicBoolean(false);
-        super.execTest("sequentialTestOfModify", (node, testCase) -> {
+        super.execTest((node, testCase) -> {
             super.translation(node);
             //Map<String, Object> recordBefore = new HashMap<>(records[0]);
             if (!this.insertAndModify(node, hasCreatedTable)) {
@@ -106,13 +101,13 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
             if (!this.insertAndModify(node, hasCreatedTable)) {
                 return;
             }
-            if (this.deleteRecord(node,modifyCount)){
+            if (this.deleteRecord(node, modifyCount)) {
                 return;
             }
             //查询数据，并校验
             List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, this.records);
-            TapAssert.asserts(() -> Assertions.assertTrue(result.isEmpty(), langUtil.formatLang("sequentialTest.delete.fail",recordCount,modifyCount,result.size())))
-                    .acceptAsError(testCase,langUtil.formatLang("sequentialTest.delete.succeed",recordCount,modifyCount));
+            TapAssert.asserts(() -> Assertions.assertTrue(result.isEmpty(), langUtil.formatLang("sequentialTest.delete.fail", recordCount, modifyCount, result.size())))
+                    .acceptAsError(testCase, langUtil.formatLang("sequentialTest.delete.succeed", recordCount, modifyCount));
         }, (node, testCase) -> {
             //删除表
             if (hasCreatedTable.get()) {
@@ -124,9 +119,9 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
 
     /**
      * 用例3， 相同主键的数据发生连续删除新增事件最后数据是正确的
-     *   相同主键的数据，
-     *   发生新增1， 修改1， 删除1， 新增2， 删除2， 新增3事件，
-     *   最后的时候， 查询这条数据应该是为新增3的数据
+     * 相同主键的数据，
+     * 发生新增1， 修改1， 删除1， 新增2， 删除2， 新增3事件，
+     * 最后的时候， 查询这条数据应该是为新增3的数据
      */
     @DisplayName("sequentialTest.more")
     @TapTestCase(sort = 3)
@@ -140,29 +135,29 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
             if (!this.insertAndModify(node, hasCreatedTable, true, mCount)) {
                 return;
             }
-            if (!this.deleteRecord(node,mCount)){
+            if (!this.deleteRecord(node, mCount)) {
                 return;
             }
-            if (!this.insertAndModify(node, hasCreatedTable, false,0)) {
+            if (!this.insertAndModify(node, hasCreatedTable, false, 0)) {
                 return;
             }
-            if (!this.deleteRecord(node,0)){
+            if (!this.deleteRecord(node, 0)) {
                 return;
             }
-            if (!this.insertAndModify(node, hasCreatedTable,false,0)) {
+            if (!this.insertAndModify(node, hasCreatedTable, false, 0)) {
                 return;
             }
             //查询数据，并校验
             List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, this.records);
             final int filterCount = result.size();
             if (filterCount != recordCount) {
-                TapAssert.error(testCase, langUtil.formatLang("sequentialTest.more.fail",filterCount, recordCount));
+                TapAssert.error(testCase, langUtil.formatLang("sequentialTest.more.fail", filterCount, recordCount));
             } else {
                 Map<String, Object> resultMap = result.get(0);
                 StringBuilder builder = new StringBuilder();
                 boolean equals = super.mapEquals(records[0], resultMap, builder);
                 TapAssert.asserts(() -> {
-                    Assertions.assertTrue(equals, langUtil.formatLang("sequentialTest.more.notEquals",filterCount, builder.toString()));
+                    Assertions.assertTrue(equals, langUtil.formatLang("sequentialTest.more.notEquals", filterCount, builder.toString()));
                 }).acceptAsWarn(testCase, langUtil.formatLang("sequentialTest.more.succeed", filterCount, builder.toString()));
             }
         }, (node, testCase) -> {
@@ -203,7 +198,7 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
         return Boolean.TRUE;
     }
 
-    private boolean insertAndModify(TestNode node, AtomicBoolean hasCreatedTable, boolean createNewRecord, int mTimes){
+    private boolean insertAndModify(TestNode node, AtomicBoolean hasCreatedTable, boolean createNewRecord, int mTimes) {
         RecordEventExecute execute = node.recordEventExecute();
         Method testCase = execute.testCase();
         if (createNewRecord) {
@@ -249,14 +244,14 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
         return this.insertAndModify(node, hasCreatedTable, true, modifyCount);
     }
 
-    private boolean deleteRecord(TestNode node,int modifyCount){
+    private boolean deleteRecord(TestNode node, int modifyCount) {
         RecordEventExecute execute = node.recordEventExecute();
         Method testCase = execute.testCase();
         WriteListResult<TapRecordEvent> delete = null;
         try {
             delete = node.recordEventExecute().delete();
         } catch (Throwable e) {
-            TapAssert.error(testCase, langUtil.formatLang("sequentialTest.deleteRecord.throw",recordCount,modifyCount,e.getMessage()));
+            TapAssert.error(testCase, langUtil.formatLang("sequentialTest.deleteRecord.throw", recordCount, modifyCount, e.getMessage()));
             return Boolean.FALSE;
         }
         WriteListResult<TapRecordEvent> finalDelete = delete;
