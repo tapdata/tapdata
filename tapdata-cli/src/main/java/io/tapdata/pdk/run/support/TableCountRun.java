@@ -12,6 +12,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  *
@@ -42,7 +44,7 @@ public class TableCountRun extends PDKBaseRun {
         });
     }
 
-//    public static List<SupportFunction> testFunctions() {
-//        return list(support(TimestampToStreamOffsetFunction.class, RunnerSummary.format("jsFunctionInNeed","table_count")));
-//    }
+    public static List<SupportFunction> testFunctions() {
+        return new ArrayList<>();
+    }
 }

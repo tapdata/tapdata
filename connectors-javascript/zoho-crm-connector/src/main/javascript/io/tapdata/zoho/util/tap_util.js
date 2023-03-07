@@ -23,12 +23,11 @@ function iterateAllData(apiName, offset, call) {
             let response = invoker.invoke(apiName, offset);
             //log.error("response:"+tapUtil.fromJson(response));
             res = response.result;
-            error = response.error;
         }catch (e){
             log.error(e);
             break;
         }
-    } while (call(res, offset, error));
+    } while (call(res, offset));
 }
 
 function commandAndConvertData(apiName, params, call){

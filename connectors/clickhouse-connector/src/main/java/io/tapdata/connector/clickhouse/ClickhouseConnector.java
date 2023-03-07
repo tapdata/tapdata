@@ -5,7 +5,6 @@ import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
-import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.connector.clickhouse.config.ClickhouseConfig;
 import io.tapdata.connector.clickhouse.ddl.sqlmaker.ClickhouseDDLSqlMaker;
 import io.tapdata.connector.clickhouse.dml.ClickhouseBatchWriter;
@@ -14,10 +13,7 @@ import io.tapdata.connector.clickhouse.util.JdbcUtil;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
-import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
-import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
-import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
-import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
+import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
@@ -61,7 +57,7 @@ public class ClickhouseConnector extends ConnectorBase {
 
     private String connectionTimezone;
 
-    private DDLSqlMaker ddlSqlMaker;
+    private  ClickhouseDDLSqlMaker ddlSqlMaker;
 
     private final ClickhouseBatchWriter clickhouseWriter = new ClickhouseBatchWriter(TAG);
 
@@ -70,6 +66,11 @@ public class ClickhouseConnector extends ConnectorBase {
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
         initConnection(connectionContext);
         ddlSqlMaker = new ClickhouseDDLSqlMaker();
+        fieldDDLHandlers = new BiClassHandlers<>();
+        fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
+        fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
+        fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
+        fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
         if (connectionContext instanceof TapConnectorContext) {
             TapConnectorContext tapConnectorContext = (TapConnectorContext) connectionContext;
             Optional.ofNullable(tapConnectorContext.getConnectorCapabilities()).ifPresent(connectorCapabilities -> {
@@ -79,7 +80,34 @@ public class ClickhouseConnector extends ConnectorBase {
         }
 
     }
-
+    private List<String> dropField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+        if (!(tapFieldBaseEvent instanceof TapDropFieldEvent)) {
+            return null;
+        }
+        TapDropFieldEvent tapDropFieldEvent = (TapDropFieldEvent) tapFieldBaseEvent;
+        return ddlSqlMaker.dropColumn(tapConnectorContext, tapDropFieldEvent);
+    }
+    private List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+        if (!(tapFieldBaseEvent instanceof TapNewFieldEvent)) {
+            return null;
+        }
+        TapNewFieldEvent tapNewFieldEvent = (TapNewFieldEvent) tapFieldBaseEvent;
+        return ddlSqlMaker.addColumn(tapConnectorContext, tapNewFieldEvent);
+    }
+    private List<String> alterFieldName(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+        if (!(tapFieldBaseEvent instanceof TapAlterFieldNameEvent)) {
+            return null;
+        }
+        TapAlterFieldNameEvent tapAlterFieldNameEvent = (TapAlterFieldNameEvent) tapFieldBaseEvent;
+        return ddlSqlMaker.alterColumnName(tapConnectorContext, tapAlterFieldNameEvent);
+    }
+    private List<String> alterFieldAttr(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+        if (!(tapFieldBaseEvent instanceof TapAlterFieldAttributesEvent)) {
+            return null;
+        }
+        TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent = (TapAlterFieldAttributesEvent) tapFieldBaseEvent;
+        return ddlSqlMaker.alterColumnAttr(tapConnectorContext, tapAlterFieldAttributesEvent);
+    }
     private void initConnection(TapConnectionContext connectionContext) throws Throwable {
         clickhouseConfig = (ClickhouseConfig) new ClickhouseConfig().load(connectionContext.getConnectionConfig());
         if (EmptyKit.isNull(clickhouseJdbcContext) || clickhouseJdbcContext.isFinish()) {
@@ -212,10 +240,10 @@ public class ClickhouseConnector extends ConnectorBase {
 //        connectorFunctions.supportQueryByFilter(this::queryByFilter);
 
         // ddl
-//        connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
-//        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
-//        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
-//        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+        connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
+        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
+        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
+        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
 
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> clickhouseJdbcContext.getConnection(), c));
     }

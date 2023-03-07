@@ -38,29 +38,34 @@ function discoverSchema(connectionConfig) {
  * @param batchReadSender  Sender of submitted data
  * */
 function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
-    if(!offset){
+    if(!offset || !offset.tableName){
         offset = {
             page:1,
             tableName:tableName
         };
     }
-    iterateAllData('getData', offset, (result, offsetNext, error) => {
+    iterateAllData('getData', offset, (result, offsetNext) => {
         let haveNext = false;
         if(result && result !== ''){
+            log.warn('-----page:'+result.info)
+            if(result.data){
+                log.warn('-----page:'+result.info)
+                batchReadSender.send(result.data,tableName,offset);
+            }
             if(result.info && result.info.more_records && result.info.page){
                 if(!offsetNext.page){
-                    offsetNext.page = 1;
+                    //offsetNext.page = 1;
                 }
                 offsetNext.page = offsetNext.page + 1;
                 haveNext = true;
             }
-            batchReadSender.send(result.data,tableName);
             if(!haveNext){
                 return false
             }
         }
         return isAlive() && haveNext;
     });
+    batchReadSender.send(offset);
 }
 
 
@@ -101,7 +106,7 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
                     offsetNext.page = offsetNext.page + 1;
                     haveNext = true;
                 }
-                streamReadSender.send(result.data,tableName);
+                streamReadSender.send(result.data,tableName,offset);
                 if(!haveNext){
                     return false
                 }
@@ -109,6 +114,7 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
             return isAlive() && haveNext;
         });
     }
+    streamReadSender.send(offset);
 }
 
 

@@ -100,8 +100,6 @@ public class CacheTaskController extends BaseController {
     @GetMapping("{id}")
     public ResponseMessage<ShareCacheDetailVo> findById(@PathVariable("id") String id,
                                                         @RequestParam(value = "fields", required = false) String fieldsJson) {
-        Field fields = parseField(fieldsJson);
-
         return success(taskService.findShareCacheById(id));
     }
 

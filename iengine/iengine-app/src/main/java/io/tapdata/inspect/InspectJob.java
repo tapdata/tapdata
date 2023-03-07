@@ -6,12 +6,17 @@ import com.tapdata.constant.JSONUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.MysqlJson;
+import com.tapdata.entity.inspect.InspectResultStats;
+import com.tapdata.entity.inspect.InspectStatus;
 import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.lang.reflect.Array;
@@ -25,6 +30,7 @@ import java.util.stream.Collectors;
  * @description
  */
 public abstract class InspectJob implements Runnable {
+	private final static Logger logger = LogManager.getLogger(InspectJob.class);
 	private static final String TAG = InspectJob.class.getSimpleName();
 	protected com.tapdata.entity.inspect.InspectTask inspectTask;
 	protected String name;
@@ -34,6 +40,7 @@ public abstract class InspectJob implements Runnable {
 	protected ConnectorNode sourceNode, targetNode;
 	protected String inspectResultParentId;
 	protected InspectTaskContext inspectTaskContext;
+	protected final InspectResultStats stats;
 
 	public InspectJob(InspectTaskContext inspectTaskContext) {
 		this.inspectTask = inspectTaskContext.getTask();
@@ -45,16 +52,16 @@ public abstract class InspectJob implements Runnable {
 		this.sourceNode = inspectTaskContext.getSourceConnectorNode();
 		this.targetNode = inspectTaskContext.getTargetConnectorNode();
 		this.inspectTaskContext = inspectTaskContext;
-		try {
-			PDKInvocationMonitor.invoke(sourceNode, PDKMethod.INIT, () -> sourceNode.connectorInit(), TAG);
-		} catch (Throwable e) {
-			throw new RuntimeException("Init source node failed: " + sourceNode + ", error message: " + e.getMessage(), e);
-		}
-		try {
-			PDKInvocationMonitor.invoke(targetNode, PDKMethod.INIT, () -> targetNode.connectorInit(), TAG);
-		} catch (Throwable e) {
-			throw new RuntimeException("Init target node failed: " + targetNode + ", error message: " + e.getMessage(), e);
-		}
+
+		this.stats = new InspectResultStats();
+		this.stats.setStart(new Date());
+		this.stats.setStatus(InspectStatus.RUNNING.getCode());
+		this.stats.setProgress(0);
+		this.stats.setTaskId(inspectTask.getTaskId());
+		this.stats.setSource(inspectTask.getSource());
+		this.stats.setTarget(inspectTask.getTarget());
+		this.stats.getSource().setConnectionName(source.getName());
+		this.stats.getTarget().setConnectionName(target.getName());
 	}
 
 	public static List<String> rdbmsTypes;
@@ -115,4 +122,41 @@ public abstract class InspectJob implements Runnable {
 		return result;
 	}
 
+	@Override
+	public final void run() {
+        boolean initSource = false, initTarget = false;
+        try {
+            Thread.currentThread().setName(name);
+            logger.info("Inspect '{}' start in table {}.{} and table {}.{}, the taskId is {}"
+                    , this.getClass().getSimpleName()
+                    , source.getName(), inspectTask.getSource().getTable()
+                    , target.getName(), inspectTask.getTarget().getTable()
+                    , inspectTask.getTaskId()
+            );
+
+			PDKInvocationMonitor.invoke(sourceNode, PDKMethod.INIT, sourceNode::connectorInit, TAG);
+			initSource = true;
+			PDKInvocationMonitor.invoke(targetNode, PDKMethod.INIT, targetNode::connectorInit, TAG);
+			initTarget = true;
+
+            doRun();
+        } catch (Exception e) {
+            logger.error("Inspect execute failed for task {}, error: {}", inspectTask.getTaskId(), e.getMessage(), e);
+            stats.setStatus(InspectStatus.ERROR.getCode());
+            stats.setErrorMsg(e.getMessage());
+            stats.setEnd(new Date());
+            stats.setResult("failed");
+        } finally {
+			logger.info(String.format("Inspect completed for task %s", inspectTask.getTaskId()));
+			CommonUtils.handleAnyError(() -> progressUpdateCallback.progress(inspectTask, stats, null));
+			if (initSource) {
+				CommonUtils.handleAnyError(() -> PDKInvocationMonitor.invoke(sourceNode, PDKMethod.STOP, sourceNode::connectorStop, TAG));
+			}
+			if (initTarget) {
+				CommonUtils.handleAnyError(() -> PDKInvocationMonitor.invoke(targetNode, PDKMethod.STOP, targetNode::connectorStop, TAG));
+			}
+        }
+    }
+
+	protected abstract void doRun();
 }

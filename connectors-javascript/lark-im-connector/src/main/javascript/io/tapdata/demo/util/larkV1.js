@@ -98,16 +98,33 @@ class larkSendMsg {
 
     sendHttp(sendData, historyData) {
         let writeResult = invoker.invoke("flyBookSendMessage", sendData);
-        if (writeResult.httpCode >= 200 || writeResult.httpCode < 300) {
-            throw("A message failed to be sent. The following data was not sent successfully: " + JSON.stringify(historyData));
+        if (writeResult.httpCode < 200 || writeResult.httpCode >= 300) {
+            let line = apiError.checkAsLine(writeResult.result.code);
+            throw("A message failed to be sent " +
+                sendData + ". The following data was not sent successfully: " +
+                JSON.stringify(historyData) + ", " +
+                JSON.stringify(writeResult) + ",\r\n" +
+                (line == null ? "" : line));
         }
         if (!this.checkParam(writeResult.result.code)) {
-            throw("A message failed to be sent. The following data was not sent successfully: " + JSON.stringify(historyData));
+            let line = apiError.checkAsLine(writeResult.result.code);
+            throw("A message failed to be sent" +
+                sendData + ". The following data was not sent successfully: " +
+                JSON.stringify(historyData) +  ",\r\n" +
+                (line == null ? "" : line)
+            );
         }
         if (writeResult.result.code === 0) {
             return true;
         } else {
-            log.warn("A message failed to be sent. The following data was not sent successfully: {}, and error message is : {}, http code is: {}.", historyData, writeResult.result, writeResult.httpCode);
+            let line = apiError.checkAsLine(writeResult.result.code);
+            log.warn("A message failed to be sent {}. The following data was not sent successfully: {}, and error message is : {}, http code is: {}\r\n {}",
+                sendData,
+                JSON.stringify(historyData),
+                JSON.stringify(writeResult.result),
+                writeResult.httpCode ,
+                (line == null ? "" : line));
+
         }
         return false;
     }

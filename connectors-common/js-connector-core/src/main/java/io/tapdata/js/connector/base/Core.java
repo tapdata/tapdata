@@ -32,4 +32,6 @@ public abstract class Core {
     }
 
     public abstract void push(List<Object> data, String op, Object contextMap);
+
+    public abstract void updateOffset(Object offset);
 }

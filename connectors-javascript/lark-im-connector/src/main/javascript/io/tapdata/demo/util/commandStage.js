@@ -50,14 +50,25 @@ class GetReceiverOfChatsAndUsers extends Command{
         let pageToken = '';
         let hasMore = false;
         do {
-            let chatsData = invoker.invoke('GetChatOfRobot').result;
-            let chatMsgArr = chatsData.data.items;
-            for (let index = 0 ; index < chatMsgArr.length ; index++){
-                if (!isAlive()) break;
-                chatArr.push({'value': chatMsgArr[index].chat_id, 'label': this.chatNamePrefix + chatMsgArr[index].name});
+            let chatsData = invoker.invoke('GetChatOfRobot',{"page_token":pageToken}).result;
+            let datas = chatsData.data;
+            if ('undefined' !== datas && null !== datas) {
+                let chatMsgArr = datas.items;
+                if (!('undefined' === chatMsgArr || null === chatMsgArr || chatMsgArr.length <= 0)) {
+                    for (let index = 0; index < chatMsgArr.length; index++) {
+                        if (!isAlive()) break;
+                        chatArr.push({
+                            'value': chatMsgArr[index].chat_id,
+                            'label': this.chatNamePrefix + chatMsgArr[index].name
+                        });
+                    }
+                }
+                hasMore = datas.has_more;
+                hasMore = ('undefined' !== chatMsgArr && null !== chatMsgArr) ? hasMore : false;
+                pageToken = datas.page_token;
+            }else {
+                hasMore = false;
             }
-            hasMore = chatsData.data.has_more;
-            pageToken = chatsData.data.page_token;
         }while (isAlive() && hasMore)
         return chatArr;
     }
@@ -71,8 +82,11 @@ class GetReceiverOfChatsAndUsers extends Command{
             // https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/contact-v3/department/children
             let departmentsData = invoker.invoke('GetSubDept',{"page_token": pageTokenDept}).result;
             hasMore = departmentsData.data.has_more;
-            dept.push(...departmentsData.data.items);
-            pageTokenDept = departmentsData.data.page_token;
+            let deptArr = departmentsData.data.items;
+            if ('undefined' !== deptArr && null != deptArr && deptArr.length >0) {
+                dept.push(...deptArr);
+                pageTokenDept = departmentsData.data.page_token;
+            }
         }while(isAlive() && hasMore)
         let users = [];
         // 2. 更具子部门获取部门员工
@@ -85,13 +99,14 @@ class GetReceiverOfChatsAndUsers extends Command{
                 let usersData = invoker.invoke('GetDeptUsers',{"departmentId":deptId,"page_token": pageToken}).result;
                 hasMore = usersData.data.has_more;
                 let userDataArr = usersData.data.items;
-                for (let i = 0 ;i < userDataArr.length; i++) {
-                    if (!isAlive()) break;
-                    let u = userDataArr[i];
-                    users.push({"value": u.open_id, "label": this.userNamePrefix + u.name});
-                    log.warn("Gavin-users : " + u.name);
+                if ('undefined' !== userDataArr && null != userDataArr && userDataArr.length >0) {
+                    for (let i = 0; i < userDataArr.length; i++) {
+                        if (!isAlive()) break;
+                        let u = userDataArr[i];
+                        users.push({"value": u.open_id, "label": this.userNamePrefix + u.name});
+                    }
+                    pageToken = usersData.data.page_token;
                 }
-                pageToken = usersData.data.page_token;
             }while(isAlive() && hasMore)
         }
         return users;

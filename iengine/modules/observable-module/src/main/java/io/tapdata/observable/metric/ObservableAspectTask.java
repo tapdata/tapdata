@@ -16,6 +16,7 @@ import io.tapdata.module.api.PipelineDelay;
 import io.tapdata.observable.metric.handler.*;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -101,8 +102,8 @@ public class ObservableAspectTask extends AspectTask {
 	}
 
 	public Void handlePDKNodeInit(PDKNodeInitAspect aspect) {
-		Node<?> node = aspect.getDataProcessorContext().getNode();
-		DataNodeSampleHandler handler = dataNodeSampleHandlers.get(node.getId());
+//		Node<?> node = aspect.getDataProcessorContext().getNode();
+//		DataNodeSampleHandler handler = dataNodeSampleHandlers.get(node.getId());
 //		if (null != handler) {
 //			DataNodeSampleHandler.HealthCheckRunner.getInstance().runHealthCheck(
 //					handler.getCollector(), node,  aspect.getDataProcessorContext().getPdkAssociateId());
@@ -131,14 +132,15 @@ public class ObservableAspectTask extends AspectTask {
 					if (null == tableSampleHandlers) {
 						tableSampleHandlers = new HashMap<>();
 					}
-					TableSampleHandler handler = new TableSampleHandler(task, table, cnt, taskRetrievedTableValues.getOrDefault(table, new HashMap<>()));
+					TableSampleHandler handler = new TableSampleHandler(task, table, cnt, taskRetrievedTableValues.getOrDefault(table, new HashMap<>()), BigDecimal.ZERO);
 					tableSampleHandlers.put(table, handler);
 					handler.init();
+					handler.setTaskSampleHandler(taskSampleHandler);
 
 					Optional.ofNullable(dataNodeSampleHandlers.get(node.getId())).ifPresent(
 							dataNodeSampleHandler -> dataNodeSampleHandler.handleTableCountAccept(table, cnt)
 					);
-					taskSampleHandler.handleTableCountAccept(table, cnt);
+					taskSampleHandler.handleTableCountAccept(cnt);
 				});
 				break;
 			case TableCountFuncAspect.STATE_END:

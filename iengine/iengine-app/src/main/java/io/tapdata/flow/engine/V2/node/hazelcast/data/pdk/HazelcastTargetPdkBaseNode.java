@@ -61,7 +61,7 @@ import java.util.function.Consumer;
 public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
 	public static final long DEFAULT_TARGET_BATCH_INTERVAL_MS = 3000;
-	public static final int DEFAULT_TARGET_BATCH = 10;
+	public static final int DEFAULT_TARGET_BATCH = 2000;
 	private static final Logger logger = LogManager.getLogger(HazelcastTargetPdkBaseNode.class);
 	protected Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
 	private AtomicBoolean firstBatchEvent = new AtomicBoolean();
@@ -80,14 +80,15 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private PartitionConcurrentProcessor initialPartitionConcurrentProcessor;
 	private PartitionConcurrentProcessor cdcPartitionConcurrentProcessor;
 	private LinkedBlockingQueue<TapdataEvent> tapEventQueue;
+	private final Object saveSnapshotLock = new Object();
 	private final ExecutorService queueConsumerThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>(), r -> {
 		Thread thread = new Thread(r);
 		thread.setName(String.format("Target-Queue-Consumer-%s[%s]", getNode().getName(), getNode().getId()));
 		return thread;
 	});
 	private boolean inCdc = false;
-	private int targetBatch;
-	private long targetBatchIntervalMs;
+	protected int targetBatch;
+	protected long targetBatchIntervalMs;
 	private TargetTapEventFilter targetTapEventFilter;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
@@ -556,26 +557,28 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				return false;
 			}
 			if (uploadDagService.get()) {
-				// Upload DAG
-				TaskDto updateTaskDto = new TaskDto();
-				updateTaskDto.setId(taskDto.getId());
-				updateTaskDto.setDag(taskDto.getDag());
-				clientMongoOperator.insertOne(updateTaskDto, ConnectorConstant.TASK_COLLECTION + "/dag");
-				if (MapUtils.isNotEmpty(updateMetadata) || CollectionUtils.isNotEmpty(insertMetadata) || CollectionUtils.isNotEmpty(removeMetadata)) {
-					// Upload Metadata
-					TransformerWsMessageResult wsMessageResult = new TransformerWsMessageResult();
-					wsMessageResult.setBatchInsertMetaDataList(insertMetadata);
-					wsMessageResult.setBatchMetadataUpdateMap(updateMetadata);
-					wsMessageResult.setBatchRemoveMetaDataList(removeMetadata);
-					wsMessageResult.setTaskId(taskDto.getId().toHexString());
-					wsMessageResult.setTransformSchema(new HashMap<>());
-					// 返回结果调用接口返回
-					clientMongoOperator.insertOne(wsMessageResult, ConnectorConstant.TASK_COLLECTION + "/transformer/resultWithHistory");
-					insertMetadata.clear();
-					updateMetadata.clear();
-					removeMetadata.clear();
+				synchronized (this.saveSnapshotLock) {
+					// Upload DAG
+					TaskDto updateTaskDto = new TaskDto();
+					updateTaskDto.setId(taskDto.getId());
+					updateTaskDto.setDag(taskDto.getDag());
+					clientMongoOperator.insertOne(updateTaskDto, ConnectorConstant.TASK_COLLECTION + "/dag");
+					if (MapUtils.isNotEmpty(updateMetadata) || CollectionUtils.isNotEmpty(insertMetadata) || CollectionUtils.isNotEmpty(removeMetadata)) {
+						// Upload Metadata
+						TransformerWsMessageResult wsMessageResult = new TransformerWsMessageResult();
+						wsMessageResult.setBatchInsertMetaDataList(insertMetadata);
+						wsMessageResult.setBatchMetadataUpdateMap(updateMetadata);
+						wsMessageResult.setBatchRemoveMetaDataList(removeMetadata);
+						wsMessageResult.setTaskId(taskDto.getId().toHexString());
+						wsMessageResult.setTransformSchema(new HashMap<>());
+						// 返回结果调用接口返回
+						clientMongoOperator.insertOne(wsMessageResult, ConnectorConstant.TASK_COLLECTION + "/transformer/resultWithHistory");
+						insertMetadata.clear();
+						updateMetadata.clear();
+						removeMetadata.clear();
+					}
+					uploadDagService.compareAndSet(true, false);
 				}
-				uploadDagService.compareAndSet(true, false);
 			}
 		} catch (Throwable throwable) {
 			errorHandle(throwable, throwable.getMessage());

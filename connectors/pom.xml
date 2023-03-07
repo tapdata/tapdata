@@ -25,7 +25,7 @@
 		<module>mariadb-connector</module>
 		<module>hive1-connector</module>
 		<module>coding-connector</module>
-		<module>zoho-connector</module>
+		<module>zoho-desk-connector</module>
 		<module>tidb-connector</module>
 		<module>tablestore-connector</module>
 		<module>custom-connector</module>

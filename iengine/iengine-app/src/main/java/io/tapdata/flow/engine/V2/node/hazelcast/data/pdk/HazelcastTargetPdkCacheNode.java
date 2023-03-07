@@ -10,7 +10,8 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
-import io.tapdata.construct.constructImpl.BytesIMap;
+import io.tapdata.construct.constructImpl.ConstructIMap;
+import io.tapdata.construct.constructImpl.DocumentIMap;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -33,7 +34,7 @@ public class HazelcastTargetPdkCacheNode extends HazelcastPdkBaseNode {
 
 	private DataFlowCacheConfig dataFlowCacheConfig;
 
-	private final BytesIMap<Map<String, Map<String, Object>>> dataMap;
+	private final ConstructIMap<Map<String, Map<String, Object>>> dataMap;
 
 	public HazelcastTargetPdkCacheNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -44,7 +45,7 @@ public class HazelcastTargetPdkCacheNode extends HazelcastPdkBaseNode {
 			throw new IllegalArgumentException("node must be CacheNode");
 		}
 		ExternalStorageDto externalStorage = ExternalStorageUtil.getExternalStorage(node);
-		this.dataMap = new BytesIMap<>(HazelcastUtil.getInstance(), CacheUtil.CACHE_NAME_PREFIX + this.cacheName, externalStorage);
+		this.dataMap = new DocumentIMap<>(HazelcastUtil.getInstance(), CacheUtil.CACHE_NAME_PREFIX + this.cacheName, externalStorage);
 	}
 
 	@Override

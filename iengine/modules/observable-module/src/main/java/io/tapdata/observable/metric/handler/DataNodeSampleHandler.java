@@ -3,6 +3,7 @@ package io.tapdata.observable.metric.handler;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.executor.ExecutorsManager;
@@ -206,9 +207,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	public void handleBatchReadFuncEnd(long endAt) {
 		Optional.ofNullable(snapshotTableCounter).ifPresent(CounterSampler::inc);
 		tableSnapshotDoneAtMap.put(currentSnapshotTable, endAt);
-//currentSnapshotTable = null;
 		currentSnapshotTableInsertRowTotal = null;
-
 	}
 
 

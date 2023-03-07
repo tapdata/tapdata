@@ -198,6 +198,7 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
 
                 Schema jsSchema = PdkSchemaConvert.fromPdkSchema(tapTable);
                 jsSchema.setDatabaseId(schema.getDatabaseId());
+                jsSchema.setAncestorsName(schema.getAncestorsName());
 
                 List<Field> fields = jsSchema.getFields();
                 Set<String> fieldNames = fields.stream().map(Field::getFieldName).collect(Collectors.toSet());

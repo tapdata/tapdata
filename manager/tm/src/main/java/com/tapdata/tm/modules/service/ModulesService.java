@@ -42,12 +42,14 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.URLEncoder;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -792,10 +794,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         previewVo.setWarningApiCount((long) warnModuleIds.size());
 
         previewVo.setTransmitTotal(apiCallService.getTransmitTotal(apiCallEntityList));
-        previewVo.setTotalCount(Long.valueOf(modulesDtoList.size()));
+        previewVo.setTotalCount((long) modulesDtoList.size());
         previewVo.setVisitTotalLine(apiCallService.getVisitTotalLine(apiCallEntityList));
 
-        executeRankList(userDetail);
+        executeRankList(userDetail, modulesDtoList, apiCallEntityList);
 
         return previewVo;
     }
@@ -1076,18 +1078,26 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
     }
 
 
-    private void executeRankList(UserDetail userDetail) {
+    private void executeRankList(UserDetail userDetail, List<ModulesDto> modulesDtoList, List<ApiCallEntity> apiCallEntityList) {
         log.info("计算失败率和响应时间");
-        List<ModulesDto> modulesDtoList = findAll(Query.query(Criteria.where("is_deleted").ne(true).and("user_id").is(userDetail.getUserId())));
+        if (CollectionUtils.isNotEmpty(modulesDtoList)) {
+            modulesDtoList = findAll(Query.query(Criteria.where("is_deleted").ne(true).and("user_id").is(userDetail.getUserId())));
+        }
+
         List<String> moduleIdList = modulesDtoList.stream().map(ModulesDto::getId).map(ObjectId::toString).collect(Collectors.toList());
 
-        List<ApiCallEntity> apiCallEntityList = apiCallService.findByModuleIds(moduleIdList);
+        if (CollectionUtils.isNotEmpty(apiCallEntityList)) {
+            apiCallEntityList = apiCallService.findByModuleIds(moduleIdList);
+        }
         Map<String, List<ApiCallEntity>> moduleIdToApiCallList = apiCallEntityList.stream().collect(Collectors.groupingBy(ApiCallEntity::getAllPathId));
 
         Date oneHourAgo = DateUtil.offsetHour(new Date(), -24);
         List<ApiCallEntity> oneHourApiCall = apiCallEntityList.stream().filter(item -> (item.getCreateAt().after(oneHourAgo))).collect(Collectors.toList());
         Map<String, List<ApiCallEntity>> oneHourModuleIdToApiCall = oneHourApiCall.stream().collect(Collectors.groupingBy(ApiCallEntity::getAllPathId));
 
+
+        BulkOperations bulkOperations = repository.bulkOperations(BulkOperations.BulkMode.UNORDERED);
+        int exeNum = 0;
         for (ModulesDto modulesDto : modulesDtoList) {
             String moduleId = modulesDto.getId().toString();
             List<ApiCallEntity> apiCallList = moduleIdToApiCallList.getOrDefault(moduleId, Collections.emptyList());
@@ -1099,15 +1109,15 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
                 }
             }));
             List<ApiCallEntity> warningApiCall = prodMap.getOrDefault("warning", Collections.emptyList());
-            Double failRate = 0d;
+            double failRate = 0d;
             if (CollectionUtils.isNotEmpty(warningApiCall) && CollectionUtils.isNotEmpty(apiCallList)) {
-                failRate = Double.valueOf(warningApiCall.size()) / Double.valueOf(apiCallList.size());
-                failRate = new BigDecimal(failRate).setScale(2, BigDecimal.ROUND_HALF_UP).doubleValue();
+                failRate = (double) warningApiCall.size() / (double) apiCallList.size();
+                failRate = new BigDecimal(failRate).setScale(2, RoundingMode.HALF_UP).doubleValue();
             }
 
             Update update = new Update().set("failRate", failRate);
 
-            if (null != oneHourModuleIdToApiCall && null != oneHourModuleIdToApiCall && CollectionUtils.isNotEmpty(oneHourModuleIdToApiCall.get(moduleId))) {
+            if (CollectionUtils.isNotEmpty(oneHourModuleIdToApiCall.get(moduleId))) {
                 Number sumResRows = oneHourModuleIdToApiCall.get(moduleId).stream().filter(item -> null != item.getResRows()).collect(Collectors.toList()).stream().mapToDouble(ApiCallEntity::getResRows).sum();
                 Number sumLatency = oneHourModuleIdToApiCall.get(moduleId).stream().filter(item -> null != item.getReqBytes()).collect(Collectors.toList()).stream().mapToDouble(ApiCallEntity::getReqBytes).sum();
                 if (sumResRows.longValue() > 0) {
@@ -1115,8 +1125,15 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
                 }
 
             }
-
-            updateById(moduleId, update, userDetail);
+            Query query = new Query(Criteria.where("_id").is(modulesDto.getId()));
+            bulkOperations.updateOne(query, update);
+            if (++exeNum > 1000) {
+                bulkOperations.execute();
+                exeNum = 0;
+            }
+        }
+        if (exeNum > 0) {
+            bulkOperations.execute();
         }
     }
 

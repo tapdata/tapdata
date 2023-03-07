@@ -54,7 +54,7 @@ public class ConnectionTestRun extends PDKBaseRun {
             }
         });
     }
-//    public static List<SupportFunction> testFunctions() {
-//        return list(support(BatchReadFunction.class, RunnerSummary.format("jsFunctionInNeed","connection_test")));
-//    }
+    public static List<SupportFunction> testFunctions() {
+        return new ArrayList<>();
+    }
 }

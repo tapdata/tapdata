@@ -1,11 +1,11 @@
 ###  Write on the front 
- If you are interested, you can go to the OpenAPI document and WebHook document provided by ZoHo to learn more about them: 
+ If you are interested, you can go to the OpenAPI document and WebHook document provided by ZoHo Desk to learn more about them: 
 
 - OpenAPI Doc：[https://desk.zoho.com.cn/support/APIDocument.do#Introduction](https://desk.zoho.com.cn/support/APIDocument.do#Introduction)
 - WebHook Doc：[https://desk.zoho.com.cn/support/WebhookDocument.do#Introduction](https://desk.zoho.com.cn/support/WebhookDocument.do#Introduction)
 -  Workflow Configuration Document ：[https://www.zoho.com.cn/developer/help/extensions/automation/workflow-rules.html](https://www.zoho.com.cn/developer/help/extensions/automation/workflow-rules.html)
 
- Of course, you can also browse the following content to quickly start the configuration process of the ZoHo data source. 
+ Of course, you can also browse the following content to quickly start the configuration process of the ZoHo Desk data source. 
 
 ---
 
@@ -13,7 +13,7 @@
 
 1. Organization ID (org ID): your data source organization, you need to manually enter ZoHo Desk to obtain and configure here; 
 
-2. Client ID: The client ID needs the user to go to ZoHoDesk to obtain it manually, copy and paste it here;
+2. Client ID: The client ID needs the user to go to ZoHo Desk to obtain it manually, copy and paste it here;
 
 3. Client Secret: The client password is obtained in the same way as the client ID code. You can also see the client password when you obtain the client ID code. After entering the client ID code and client password, you can enter the application generation code; 
 
@@ -21,9 +21,9 @@
 
 5. Connection Mode: The connection mode is available for users to select. The default is the normal document mode, and the options are the normal document mode and CSV mode (not provided yet). 
 
-6. Incremental mode: limited to ZoHo's OpenAPI. ZoHo data sources only support the WebHook incremental mode. See the following description for details. 
+6. Incremental mode: limited to ZoHo's OpenAPI. ZoHo Desk data sources only support the WebHook incremental mode. See the following description for details. 
 
-7. Service URL: Service URL is used to configure WebHook. You need to copy and paste the service URL generated here to the WebHook configuration item in ZoHoDesk. See the following description for the specific configuration process. 
+7. Service URL: Service URL is used to configure WebHook. You need to copy and paste the service URL generated here to the WebHook configuration item in ZoHo Desk. See the following description for the specific configuration process. 
 
 ---
 
