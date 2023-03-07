@@ -449,7 +449,7 @@ public class TapdataTaskScheduler {
 						if (progress.getSyncStage() == null) {
 							continue;
 						}
-						
+
 						if (StringUtils.isBlank(streamOffset) && !progress.getSyncStage().equals(SyncStage.CDC.name())) {
 							return false;
 						}

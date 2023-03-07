@@ -76,7 +76,7 @@ public class DataSourcePool {
                 hikariDataSource.setDataSourceProperties(config.getProperties());
             }
             hikariDataSource.setMinimumIdle(1);
-            hikariDataSource.setMaximumPoolSize(5); //-1 may be not limited
+            hikariDataSource.setMaximumPoolSize(100); //-1 may be not limited
             hikariDataSource.setAutoCommit(false);
             hikariDataSource.setIdleTimeout(60 * 1000L);
             hikariDataSource.setKeepaliveTime(60 * 1000L);

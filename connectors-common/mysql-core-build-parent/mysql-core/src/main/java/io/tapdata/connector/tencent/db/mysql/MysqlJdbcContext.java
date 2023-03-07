@@ -394,7 +394,7 @@ public class MysqlJdbcContext implements AutoCloseable {
 			hikariDataSource.setUsername(username);
 			hikariDataSource.setPassword(password);
 			hikariDataSource.setMinimumIdle(1);
-			hikariDataSource.setMaximumPoolSize(5);
+			hikariDataSource.setMaximumPoolSize(100);
 			hikariDataSource.setAutoCommit(false);
 			hikariDataSource.setIdleTimeout(60 * 1000L);
 			hikariDataSource.setKeepaliveTime(60 * 1000L);
