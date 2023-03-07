@@ -161,6 +161,7 @@ public class DatabendConnector extends ConnectorBase {
             return datetime.toSqlDate();
         });
 
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         //target
         connectorFunctions.supportCreateTable(this::createTable);
         connectorFunctions.supportDropTable(this::dropTable);
