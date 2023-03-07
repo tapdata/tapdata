@@ -6,7 +6,7 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.AppType;
-import com.tapdata.entity.SyncStageEnum;
+import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -421,7 +421,7 @@ public class TapdataTaskScheduler {
 					try {
 						SyncProgress progress = JSONUtil.json2POJO((String) value, SyncProgress.class);
 						String streamOffset = progress.getStreamOffset();
-						if (StringUtils.isBlank(streamOffset)) {
+						if (StringUtils.isBlank(streamOffset) && !progress.getSyncStage().equals(SyncStage.CDC.name())) {
 							return false;
 						}
 					} catch (IOException e) {
@@ -521,7 +521,7 @@ public class TapdataTaskScheduler {
 				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
 			} catch (Exception e) {
 				logger.warn(e.getMessage(), e);
-			}
+				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);			}
 			removeTask(taskId);
 			destroyCache(taskClient);
 		}
@@ -538,7 +538,7 @@ public class TapdataTaskScheduler {
 				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/complete", taskId, TaskDto.class);
 			} catch (Exception e) {
 				logger.warn(e.getMessage(), e);
-			}
+				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);			}
 			removeTask(taskId);
 			destroyCache(taskClient);
 		}
@@ -559,6 +559,7 @@ public class TapdataTaskScheduler {
 				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
 			} catch (Exception e) {
 				logger.warn(e.getMessage(), e);
+				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
 			}
 			return;
 		}
