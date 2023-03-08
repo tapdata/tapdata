@@ -92,6 +92,7 @@ public class FieldModificationTest extends PDKTestBaseV2 {
 
                 // 查询这些数据
                 DataMap dataMap = DataMap.create();
+                records = execute.records();
                 for (Record record : records) {
                     for (String primaryKey : primaryKeys) {
                         dataMap.kv(primaryKey, record.get(primaryKey));
@@ -214,6 +215,7 @@ public class FieldModificationTest extends PDKTestBaseV2 {
 
                 // 查询这些数据
                 DataMap dataMap = DataMap.create();
+                records = execute.records();
                 for (Record record : records) {
                     for (String primaryKey : primaryKeys) {
                         dataMap.kv(primaryKey, record.get(primaryKey));
@@ -351,6 +353,7 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                         modifyCount));
 
                 // 查询这些数据
+                records = execute.records();
                 DataMap dataMap = DataMap.create();
                 for (Record record : records) {
                     for (String primaryKey : primaryKeys) {

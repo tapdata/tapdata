@@ -131,8 +131,9 @@ public class BatchReadTest extends PDKTestBase {
                                 LangUtil.format("batchRead.batchRead.error", recordCount, batchSize, recordCount, null == list ? 0 : list.size())
                         )
                 ).acceptAsWarn(testCase, LangUtil.format("batchRead.batchRead.succeed", recordCount, batchSize, recordCount, null == list ? 0 : list.size()));
+                Record[] recordCopy = execute.records();
                 if (list.size() == 1) {
-                    Record record = records[0];
+                    Record record = recordCopy[0];
                     TapEvent tapEvent = list.get(0);
                     //读出的TapInsertRecordEvent， table， time和after不能为空
                     TapAssert.asserts(() -> {

@@ -98,6 +98,7 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                     return;
                 }
 
+                Record[] recordCopy = execute.records();
                 //数据条目数需要等于1， 查询出这1条数据，只要能查出来数据就算是正确。
                 List<Map<String, Object>> finalConsumer = consumer;
                 TapAssert.asserts(() ->
@@ -107,7 +108,7 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                         )
                 ).acceptAsError(testCase, LangUtil.format("byAdvance.query.succeed", recordCount, null == consumer ? 0 : consumer.size()));
                 if (consumer.size() == 1) {
-                    Record record = records[0];
+                    Record record = recordCopy[0];
                     Map<String, Object> tapEvent = consumer.get(0);
                     Map<String, Object> result = tapEvent;//filterResult.getResult();
                     connectorNode.getCodecsFilterManager().transformToTapValueMap(result, targetTable.getNameFieldMap());
@@ -185,7 +186,8 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                 }
 
                 String key = "id";
-                Long value = (Long) records[0].get(key);
+                Record[] recordCopy = execute.records();
+                Long value = (Long) recordCopy[0].get(key);
                 try {
                     this.operatorEq(key, value, testCase, connectorNode, query);
                     this.operator(key, value - 1, QueryOperator.GT, testCase, connectorNode, query);

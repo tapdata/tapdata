@@ -11,6 +11,8 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapValue;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.*;
@@ -93,16 +95,23 @@ public class RecordEventExecute {
     public RecordEventExecute builderRecordCleanBefore(Record... records) {
         this.records = new ArrayList<>();
         for (Record record : records) {
-            this.records.add((Record) this.code(record));
+            Record map = Record.create();
+            map.putAll(this.code(InstanceFactory.instance(TapUtils.class).cloneMap(record)));
+            this.records.add(map);
         }
         return this;
+    }
+    public Record[] records(){
+        return this.records.toArray(new Record[0]);
     }
 
     public RecordEventExecute builderRecord(Record... records) {
         if (null == records || records.length <= 0) return this;
         if (this.records == null) this.records = new ArrayList<>();
         for (Record record : records) {
-            this.records.add((Record) this.code(record));
+            Record map = Record.create();
+            map.putAll(this.code(InstanceFactory.instance(TapUtils.class).cloneMap(record)));
+            this.records.add(map);
         }
         return this;
     }
