@@ -1,5 +1,7 @@
 package io.tapdata.pdk.cli;
 
+import com.tapdata.constant.ConfigurationCenter;
+import io.tapdata.pdk.cli.support.LoggerManager;
 import org.apache.commons.io.FilenameUtils;
 
 import java.net.URL;
@@ -17,7 +19,7 @@ public class RegisterMain {
     private static final String BASE_PATH = basePath();
 
     private enum ConnectorEnums {
-        Empty(BASE_PATH + "connectors/dist/empty-connector-v1.1-SNAPSHOT.jar", "all", "empty"),
+        //        Empty(BASE_PATH + "connectors/dist/empty-connector-v1.1-SNAPSHOT.jar", "all", "empty"),
         Dummy(BASE_PATH + "connectors/dist/dummy-connector-v1.0-SNAPSHOT.jar", "all", "dummy", "basic"),
         Mysql(BASE_PATH + "connectors/dist/mysql-connector-v1.0-SNAPSHOT.jar", "all", "mysql", "basic", "jdbc"),
         Postgres(BASE_PATH + "connectors/dist/postgres-connector-v1.0-SNAPSHOT.jar", "all", "postgres", "basic", "jdbc"),
@@ -61,6 +63,8 @@ public class RegisterMain {
         TENCENT_DB_MONGODB(BASE_PATH + "connectors/dist/tencent-db-mongodb-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-mongodb"),
         TENCENT_DB_POSTGRES(BASE_PATH + "connectors/dist/tencent-db-postgres-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-postgres"),
         SelectDB(BASE_PATH + "connectors/dist/selectdb-connector-v1.0-SNAPSHOT.jar", "all", "selectdb"),
+        Metabase(BASE_PATH + "connectors/dist/metabase-connector-v1.0-SNAPSHOT.jar", "all", "metabase"),
+        Databend(BASE_PATH + "connectors/dist/databend-connector-v1.0-SNAPSHOT.jar", "all", "databend"),
 
         ;
 
@@ -104,10 +108,10 @@ public class RegisterMain {
         String server = System.getProperty("server", "http://localhost:3000");
         //String server = System.getProperty("server", "http://192.168.1.189:30205");
         Collections.addAll(postList, "register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-ak", "", "-sk", "", "-t", server);
-
+        ConfigurationCenter.processId = "sam_flow_engine";
         String[] tags = System.getProperty("tags", "all").split(",");
         ConnectorEnums.addByTags(postList, tags);
-
+        LoggerManager.changeLogLeave(LoggerManager.LogLeave.DENY);
         Main.registerCommands().execute(postList.toArray(new String[0]));
     }
 
@@ -118,12 +122,12 @@ public class RegisterMain {
         }
 
         try {
-            Path path = Paths.get(resource.getPath() + "../../../../");
+            Path path = Paths.get(resource.getPath() + "../../../");
             String basePath = path.toFile().getCanonicalPath() + "/";
             System.out.println("basePath:" + basePath);
             return basePath;
         } catch (Throwable throwable) {
-            return FilenameUtils.concat(resource.getPath(), "../../../../");
+            return FilenameUtils.concat(resource.getPath(), "../../../");
         }
 
     }
