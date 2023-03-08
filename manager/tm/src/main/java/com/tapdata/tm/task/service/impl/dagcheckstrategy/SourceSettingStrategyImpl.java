@@ -12,16 +12,15 @@ import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
-import com.tapdata.tm.task.constant.DagOutputTemplate;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.math.NumberUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -38,7 +37,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
     private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.SOURCE_SETTING_CHECK;
 
     @Override
-    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
+    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail, Locale locale) {
         String taskId = taskDto.getId().toHexString();
         Date now = new Date();
 
@@ -60,7 +59,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
             if (StringUtils.isEmpty(name)) {
                 TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                         .grade(Level.ERROR).nodeId(nodeId)
-                        .log(MessageFormat.format("$date【$taskName】【源节点设置检测】：源节点{0}节点名称为空。", dataParentNode.getDatabaseType()))
+                        .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NAME_EMPTY"), dataParentNode.getDatabaseType()))
                         .build();
                 log.setCreateAt(now);
                 log.setCreateUser(userId);
@@ -70,7 +69,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
             if (StringUtils.isEmpty(dataParentNode.getConnectionId())) {
                 TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                         .grade(Level.ERROR).nodeId(nodeId)
-                        .log(MessageFormat.format("$date【$taskName】【源节点设置检测】：源节点{0}未选择数据库。", name))
+                        .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NOT_SELECT_DB"), name))
                         .build();
                 log.setCreateAt(now);
                 log.setCreateUser(userId);
@@ -94,7 +93,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                     if (StringUtils.isEmpty(tableExpression)) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log(MessageFormat.format("$date【$taskName】【源节点设置检测】：源节点{0}过滤条件设置异常。", name))
+                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_EXP_EMPTY"), name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -103,7 +102,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                 } else {
                     TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                             .grade(Level.ERROR).nodeId(nodeId)
-                            .log(MessageFormat.format("$date【$taskName】【源节点设置检测】：源节点{0}未选择表。", name))
+                            .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NOT_SELECT_TB"), name))
                             .build();
                     log.setCreateAt(now);
                     log.setCreateUser(userId);
@@ -113,7 +112,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 
             if (nameSet.contains(name)) {
                 TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                        .log(MessageFormat.format("$date【$taskName】【源节点设置检测】：节点{0}检测未通过，异常项'{节点名称}'，异常原因：节点名称重复，请重新设置", name))
+                        .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NAME_REPEAT"), name))
                         .grade(Level.ERROR)
                         .nodeId(node.getId()).build();
 
@@ -133,7 +132,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                     TaskDagCheckLog log = TaskDagCheckLog.builder()
                             .taskId(taskId)
                             .checkType(templateEnum.name())
-                            .log(MessageFormat.format(DagOutputTemplate.SOURCE_SETTING_ERROR_SCHEMA, name))
+                            .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_ERROR_SCHEMA"), name))
                             .grade(Level.ERROR)
                             .nodeId(nodeId).build();
                     log.setCreateAt(now);
@@ -144,7 +143,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                         TaskDagCheckLog log = TaskDagCheckLog.builder()
                                 .taskId(taskId)
                                 .checkType(templateEnum.name())
-                                .log(MessageFormat.format(DagOutputTemplate.SOURCE_SETTING_ERROR_SCHEMA_LOAD, name))
+                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_ERROR_SCHEMA_LOAD"), name))
                                 .grade(Level.ERROR)
                                 .nodeId(nodeId).build();
                         log.setCreateAt(now);
@@ -158,7 +157,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                 TaskDagCheckLog log = TaskDagCheckLog.builder()
                         .taskId(taskId)
                         .checkType(templateEnum.name())
-                        .log(MessageFormat.format(templateEnum.getInfoTemplate(), node.getName()))
+                        .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_INFO"), node.getName()))
                         .grade(Level.INFO)
                         .nodeId(node.getId()).build();
                 log.setCreateAt(now);

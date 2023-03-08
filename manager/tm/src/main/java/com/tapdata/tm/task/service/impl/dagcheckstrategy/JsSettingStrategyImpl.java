@@ -11,6 +11,7 @@ import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MessageUtil;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Component;
 import java.text.MessageFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 @Component("jsSettingStrategy")
@@ -26,7 +28,7 @@ public class JsSettingStrategyImpl implements DagLogStrategy {
     private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.JS_NODE_CHECK;
 
     @Override
-    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
+    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail, Locale locale) {
         String taskId = taskDto.getId().toHexString();
 
         Date now = new Date();
@@ -48,7 +50,7 @@ public class JsSettingStrategyImpl implements DagLogStrategy {
                     if (StringUtils.isEmpty(name)) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log(MessageFormat.format("$date【$taskName】【{0}节点设置检测】：节点名称为空。", nodeName))
+                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "JS_EDIT_NAME_EMPTY"), nodeName))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -58,7 +60,7 @@ public class JsSettingStrategyImpl implements DagLogStrategy {
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.INFO).nodeId(nodeId)
-                                .log(MessageFormat.format("$date【$taskName】【{0}节点设置检测】：节点{1}检测通过", nodeName, name))
+                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "JS_EDIT_PASS"), nodeName, name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);

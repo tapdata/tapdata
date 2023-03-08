@@ -12,6 +12,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public interface AlarmService {
@@ -29,14 +30,14 @@ public interface AlarmService {
                                String keyword,
                                Integer page,
                                Integer size,
-                               UserDetail userDetail);
+                               UserDetail userDetail,
+                               Locale locale);
 
     TaskAlarmInfoVo listByTask(AlarmListReqDto dto);
 
     List<AlarmInfo> find(String taskId, String nodeId, AlarmKeyEnum key);
 
     void closeWhenTaskRunning(String taskId);
-    void connectAlarm(String nodeName, String connectId, String response_body, boolean pass);
 
     void delAlarm(String taskId);
 

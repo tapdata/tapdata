@@ -6,13 +6,13 @@ import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.*;
+import java.util.List;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
 @DisplayName("discoverSchema.test")//discoverSchema发现表， 必测方法
-@TapGo(sort = 98,goTest = true,isSub = true)//6
-public class DiscoverSchemaTestV2 extends DiscoverSchemaTest{
+@TapGo(tag = "V2", sort = 9800, goTest = true, isSub = true)//6
+public class DiscoverSchemaTestV2 extends DiscoverSchemaTest {
     @DisplayName("discoverSchema.discover")//用例1， 发现表
     @Test
     @TapTestCase(sort = 1)
@@ -21,8 +21,8 @@ public class DiscoverSchemaTestV2 extends DiscoverSchemaTest{
      * 表里没有字段描述时， 报警告
      * 表里有字段， 但是字段的name或者dataType为空时， 报警告， 具体哪些字段有问题
      * */
-    void discover(){
-       super.discover();
+    void discover() {
+        super.discover();
     }
 
 
@@ -37,7 +37,7 @@ public class DiscoverSchemaTestV2 extends DiscoverSchemaTest{
      * 通过Consumer<List<TapTable>> consumer返回了这一张且仅此一张表为成功。
      * 如果只有一张表， 直接通过此测试。
      * */
-    void discoverByTableName1(){
+    void discoverByTableName1() {
         super.discoverByTableName1();
     }
 
@@ -51,7 +51,7 @@ public class DiscoverSchemaTestV2 extends DiscoverSchemaTest{
      * 通过Consumer<List<TapTable>> consumer返回了一张表为成功。
      * 如果只有一张表， 直接通过此测试。
      * */
-    void discoverByTableCount1(){
+    void discoverByTableCount1() {
         super.discoverByTableCount1();
     }
 
