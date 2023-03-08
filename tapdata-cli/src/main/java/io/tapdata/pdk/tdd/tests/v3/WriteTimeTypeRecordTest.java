@@ -88,7 +88,8 @@ public class WriteTimeTypeRecordTest extends PDKTestBaseV2 {
                 return;
             }
             //查询数据，并校验
-            List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, records);
+            Record[] recordCopy = execute.records();
+            List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, recordCopy);
             final int filterCount = result.size();
             if (filterCount != recordCount) {
                 TapAssert.error(execute.testCase(), langUtil.formatLang("writeTime.queryFilter.fail",
@@ -98,7 +99,7 @@ public class WriteTimeTypeRecordTest extends PDKTestBaseV2 {
             } else {
                 Map<String, Object> resultMap = result.get(0);
                 StringBuilder builder = new StringBuilder();
-                boolean equals = super.mapEquals(records[0], resultMap, builder);
+                boolean equals = super.mapEquals(recordCopy[0], resultMap, builder);
                 TapAssert.asserts(() -> {
                     Assertions.assertTrue(equals, langUtil.formatLang("writeTime.queryFilter.notEquals",
                             recordCount,
@@ -157,11 +158,12 @@ public class WriteTimeTypeRecordTest extends PDKTestBaseV2 {
             }
 
             //数据条目数需要等于1， 查询出这1条数据，只要能查出来数据就算是正确。
+            Record[] recordCopy = execute.records();
             int size = list.size();
             if (size != recordCount) {
                 TapAssert.error(testCase, langUtil.formatLang("writeTime.batchRead.fail", recordCount, recordCount, size));
             } else {
-                Record record = records[0];
+                Record record = recordCopy[0];
                 TapEvent tapEvent = list.get(0);
                 //读出的TapInsertRecordEvent， table， time和after不能为空
                 if (Objects.isNull(tapEvent)) {

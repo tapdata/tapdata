@@ -16,6 +16,7 @@ import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 
 import java.lang.reflect.Method;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class PDKTestBaseV2 extends PDKTestBase {
     protected static final LangUtil langUtil = LangUtil.lang(LangUtil.LANG_PATH_V2);
@@ -104,7 +105,11 @@ public class PDKTestBaseV2 extends PDKTestBase {
             try {
                 queryByFilter.query(context, filters, tapTable, consumer -> {
                     if (Objects.nonNull(consumer) && !consumer.isEmpty()) {
-                        consumer.forEach(res-> result.add(transform(node,targetTable,res.getResult())));
+                        consumer.forEach(res->{
+                            if (Objects.nonNull(res)){
+                                result.add(transform(node,targetTable,res.getResult()));
+                            }
+                        });
                     }
                 });
             }catch (Throwable e){
@@ -117,7 +122,9 @@ public class PDKTestBaseV2 extends PDKTestBase {
                 try {
                     filter.query(context, tapAdvanceFilter, tapTable, consumer -> {
                         for (Map<String, Object> data : consumer.getResults()) {
-                            result.add(transform(node,targetTable,data));
+                            if (Objects.nonNull(data)){
+                                result.add(transform(node,targetTable,data));
+                            }
                         }
                     });
                 } catch (Throwable throwable) {
@@ -125,7 +132,7 @@ public class PDKTestBaseV2 extends PDKTestBase {
                 }
             });
         }
-        return result;
+        return result.stream().filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     protected void translation(TestNode node) {
