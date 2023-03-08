@@ -105,6 +105,7 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                     implementedFilter.set(true);
                     TapFilter filter = new TapFilter();
                     filter.setMatch(dataMap);
+                    filters.add(filter);
                     queryByFilter.query(context, filters, targetTable, consumer -> {
                         if (Objects.nonNull(consumer) && !consumer.isEmpty()) {
                             consumer.forEach(res -> result.add(transform(prepare, targetTable, res.getResult())));
@@ -226,6 +227,7 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                     implementedFilter.set(true);
                     TapFilter filter = new TapFilter();
                     filter.setMatch(dataMap);
+                    filters.add(filter);
                     queryByFilter.query(context, filters, targetTable, consumer -> {
                         if (Objects.nonNull(consumer) && !consumer.isEmpty()) {
                             consumer.forEach(res -> result.add(transform(prepare, targetTable, res.getResult())));
@@ -363,6 +365,7 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                     implementedFilter.set(true);
                     TapFilter filter = new TapFilter();
                     filter.setMatch(dataMap);
+                    filters.add(filter);
                     queryByFilter.query(context, filters, targetTable, consumer -> {
                         if (Objects.nonNull(consumer) && !consumer.isEmpty()) {
                             consumer.forEach(res -> {

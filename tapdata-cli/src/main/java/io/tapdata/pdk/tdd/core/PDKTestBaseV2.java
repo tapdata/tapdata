@@ -100,6 +100,7 @@ public class PDKTestBaseV2 extends PDKTestBase {
         if (Objects.nonNull(queryByFilter)) {
             TapFilter filter = new TapFilter();
             filter.setMatch(dataMap);
+            filters.add(filter);
             try {
                 queryByFilter.query(context, filters, tapTable, consumer -> {
                     if (Objects.nonNull(consumer) && !consumer.isEmpty()) {
@@ -124,7 +125,6 @@ public class PDKTestBaseV2 extends PDKTestBase {
                 }
             });
         }
-
         return result;
     }
 

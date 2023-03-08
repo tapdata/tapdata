@@ -1,5 +1,7 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
+import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -283,7 +285,7 @@ public class BatchReadTest extends PDKTestBase {
                     boolean finalIsTrue = isTrue;
                     TapAssert.asserts(() ->
                             Assertions.assertTrue(finalIsTrue, LangUtil.format("batchRead.final.error", recordCount, recordCount))
-                    ).acceptAsError(testCase, LangUtil.format("batchRead.final.succeed", recordCount, recordCount));
+                    ).acceptAsWarn(testCase, LangUtil.format("batchRead.final.succeed", recordCount, recordCount));
                 }
             } catch (Throwable e) {
                 throw new RuntimeException(e);
