@@ -1412,8 +1412,8 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
         for (Tag allTag : allTags) {
             if (add) {
-                if (CollectionUtils.isEmpty(oldTagIds)) {
-                    listtags.remove(allTag);
+                if (CollectionUtils.isNotEmpty(oldTagIds)) {
+                    listtags = listtags.stream().filter(t -> !oldTagIds.contains(t.getId())).collect(Collectors.toList());
                 }
                 if (!listtags.contains(allTag)) {
                     listtags.add(allTag);
