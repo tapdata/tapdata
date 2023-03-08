@@ -91,7 +91,8 @@ import java.util.stream.Collectors;
  **/
 public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	private static final String TAG = HazelcastSourcePdkDataNode.class.getSimpleName();
-	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkDataNode.class);
+//	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkDataNode.class);
+	private final Logger logger = LogManager.getRootLogger();
 	private static final int CDC_POLLING_MIN_INTERVAL_MS = 500;
 	private static final int CDC_POLLING_MIN_BATCH_SIZE = 1000;
 	private static final int EQUAL_VALUE = 5;
@@ -203,14 +204,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 								break;
 							}
 							if (this.removeTables != null && this.removeTables.contains(tableName)) {
-								logger.info("Table " + tableName + " is detected that it has been removed, the snapshot read will be skipped");
 								obsLogger.info("Table " + tableName + " is detected that it has been removed, the snapshot read will be skipped");
 								this.removeTables.remove(tableName);
 								continue;
 							}
 							TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableName);
 							Object tableOffset = ((Map<String, Object>) syncProgress.getBatchOffsetObj()).get(tapTable.getId());
-							logger.info("Starting batch read, table name: " + tapTable.getId() + ", offset: " + tableOffset);
 							obsLogger.info("Starting batch read, table name: " + tapTable.getId() + ", offset: " + tableOffset);
 							int eventBatchSize = 512;
 
@@ -367,7 +366,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				} catch (ShareCdcUnsupportedException e) {
 					if (e.isContinueWithNormalCdc()) {
 						// If share cdc is unavailable, and continue with normal cdc is true
-						logger.info("Share cdc unusable, will use normal cdc mode, reason: " + e.getMessage());
 						obsLogger.info("Share cdc unusable, will use normal cdc mode, reason: " + e.getMessage());
 						doNormalCDC();
 					} else {
@@ -398,7 +396,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 //		}
 		StreamReadFunction streamReadFunction = connectorNode.getConnectorFunctions().getStreamReadFunction();
 		if (streamReadFunction != null || rawDataCallbackFilterFunction != null || rawDataCallbackFilterFunctionV2 != null) {
-			logger.info("Starting stream read, table list: " + tapTableMap.keySet() + ", offset: " + syncProgress.getStreamOffsetObj());
 			obsLogger.info("Starting stream read, table list: " + tapTableMap.keySet() + ", offset: " + syncProgress.getStreamOffsetObj());
 			List<String> tables = new ArrayList<>(tapTableMap.keySet());
 			cdcDelayCalculation.addHeartbeatTable(tables);
@@ -480,7 +477,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 													executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAM_STARTED).streamStartedTime(System.currentTimeMillis()));
 												TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.FINISH);
 												MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.FINISH);
-												logger.info("Connector start stream read succeed: {}", connectorNode);
 												obsLogger.info("Connector start stream read succeed: {}", connectorNode);
 											}
 										});
@@ -521,7 +517,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		List<String> tables = new ArrayList<>(tapTableMap.keySet());
 		// Init share cdc reader, if unavailable, will throw ShareCdcUnsupportedException
 		this.shareCdcReader = ShareCdcFactory.shareCdcReader(ReaderType.PDK_TASK_HAZELCAST, shareCdcTaskContext, syncProgress.getStreamOffsetObj());
-		logger.info("Starting incremental sync, read from share log storage...");
 		obsLogger.info("Starting incremental sync, read from share log storage...");
 		// Start listen message entity from share storage log
 		executeDataFuncAspect(StreamReadFuncAspect.class,
@@ -596,7 +591,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 		String logMsg = "Start run table [" + tableName + "] polling cdc with parameters \n - Conditional field(s): " + streamOffsetObj;
 		logMsg += "\n - Loop polling interval: " + cdcPollingInterval + " ms\n - Batch size: " + cdcPollingBatchSize;
-		logger.info(logMsg);
 		obsLogger.info(logMsg);
 		while (isRunning()) {
 			TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create();
@@ -625,9 +619,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			tapAdvanceFilter.limit(cdcPollingBatchSize);
 			try {
 				if (loopTime.get() == 1L || loopTime.get() % logLoopTime == 0) {
-					logger.info("Query by advance filter\n - loop time: " + loopTime + "\n - table: " + tapTable.getId()
-							+ "\n - filter: " + tapAdvanceFilter.getOperators()
-							+ "\n - limit: " + tapAdvanceFilter.getLimit() + "\n - sort: " + tapAdvanceFilter.getSortOnList());
 					obsLogger.info("Query by advance filter\n - loop time: " + loopTime + "\n - table: " + tapTable.getId()
 							+ "\n - filter: " + tapAdvanceFilter.getOperators()
 							+ "\n - limit: " + tapAdvanceFilter.getLimit() + "\n - sort: " + tapAdvanceFilter.getSortOnList());

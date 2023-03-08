@@ -67,7 +67,6 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 			}
 		}
 		this.batchCacheData = new HashMap<>();
-		logger.info("Init log data storage finished, config: " + externalStorageDto);
 		obsLogger.info("Init log data storage finished, config: " + externalStorageDto);
 	}
 
@@ -200,7 +199,6 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 			throw new RuntimeException("Both before and after is empty");
 		}
 		if (null == timestamp || timestamp.compareTo(0L) <= 0) {
-			logger.warn("Invalid timestamp value: " + timestamp);
 			obsLogger.warn("Invalid timestamp value: " + timestamp);
 		}
 		if (StringUtils.isBlank(offsetStr)) {

@@ -136,22 +136,18 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 			CommonUtils.handleAnyError(
 					() -> {
 						monitorManager.close();
-						logger.info("Closed task monitor(s)\n{}", monitorManager);
 						obsLogger.info(String.format("Closed task monitor(s)\n%s", monitorManager));
 					},
 					err -> {
-						logger.warn("Close task monitor(s) failed, error: {}", err.getMessage(), err);
 						obsLogger.warn(String.format("Close task monitor(s) failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
 					}
 			);
 			CommonUtils.handleAnyError(
 					() -> {
 						AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(error));
-						logger.info("Stopped task aspect(s)");
 						obsLogger.info("Stopped task aspect(s)");
 					},
 					err -> {
-						logger.warn("Stop task aspect(s) failed, error: {}", err.getMessage(), err);
 						obsLogger.warn(String.format("Stop task aspect(s) failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
 					}
 			);

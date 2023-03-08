@@ -122,15 +122,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		if (getNode() instanceof DataParentNode) {
 			this.targetBatchIntervalMs = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getWriteBatchWaitMs()).orElse(DEFAULT_TARGET_BATCH_INTERVAL_MS);
 		}
-		logger.info("Target node {}[{}] batch size: {}", getNode().getName(), getNode().getId(), targetBatch);
 		obsLogger.info("Target node {}[{}] batch size: {}", getNode().getName(), getNode().getId(), targetBatch);
-		logger.info("Target node {}[{}] batch max wait interval ms: {}", getNode().getName(), getNode().getId(), targetBatchIntervalMs);
 		obsLogger.info("Target node {}[{}] batch max wait interval ms: {}", getNode().getName(), getNode().getId(), targetBatchIntervalMs);
 		this.tapEventQueue = new LinkedBlockingQueue<>(targetBatch * 2);
-		logger.info("Init target queue complete, size: {}", (targetBatch * 2));
 		obsLogger.info("Init target queue complete, size: {}", (targetBatch * 2));
 		this.queueConsumerThreadPool.submit(this::queueConsume);
-		logger.info("Init target queue consumer complete");
+		obsLogger.info("Init target queue consumer complete");
 
 		final Node<?> node = this.dataProcessorContext.getNode();
 		if (node instanceof DataParentNode) {
@@ -343,7 +340,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 							handleTapdataDDLEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
 						} else {
 							if (null != tapdataEvent.getTapEvent()) {
-								logger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
 								obsLogger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
 							}
 						}
@@ -552,7 +548,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			try {
 				clientMongoOperator.insertOne(syncProgressJsonMap, collection);
 			} catch (Exception e) {
-				logger.warn("Save to snapshot failed, collection: {}, object: {}, errors: {}, error stack: {}.", collection, this.syncProgressMap, e.getMessage(), Log4jUtil.getStackString(e));
 				obsLogger.warn("Save to snapshot failed, collection: {}, object: {}, errors: {}", collection, this.syncProgressMap, e.getMessage());
 				return false;
 			}
@@ -651,7 +646,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 		@Override
 		public <E extends TapdataEvent> void failHandler(E tapdataEvent) {
-			logger.warn("Found {}'s delete event will be ignore. Because there is no association field '{}' in before data: {}", this.tableName, this.missingField, this.record);
 			obsLogger.warn("Found {}'s delete event will be ignore. Because there is no association field '{}' in before data: {}", this.tableName, this.missingField, this.record);
 		}
 	}

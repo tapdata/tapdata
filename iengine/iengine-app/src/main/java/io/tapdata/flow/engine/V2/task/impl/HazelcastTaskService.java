@@ -215,9 +215,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 					edges.add(new Edge(inspectNode.getFromNode().getId(), inspectNode.getId()));
 				}
 			} catch (AutoInspectException e) {
-				ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDtoAtomicReference.get());
-				obsLogger.warn(e.getMessage());
-				logger.warn(e);
+				ObsLoggerFactory.getInstance().getObsLogger(taskDtoAtomicReference.get()).warn(e.getMessage());
 			}
 
 			for (Node node : nodes) {

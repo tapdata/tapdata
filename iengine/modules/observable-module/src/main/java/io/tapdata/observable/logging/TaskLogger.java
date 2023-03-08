@@ -7,7 +7,7 @@ import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.observable.logging.appender.AppenderFactory;
 import io.tapdata.observable.logging.appender.FileAppender;
-import io.tapdata.observable.logging.appender.TMAppender;
+import io.tapdata.observable.logging.appender.ObsHttpTMAppender;
 import lombok.Getter;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -28,6 +28,7 @@ class TaskLogger extends ObsLogger implements Serializable {
 
 	private static AppenderFactory logAppendFactory = null;
 	private static FileAppender fileAppender = null;
+	private ObsHttpTMAppender obsHttpTMAppender = null;
 	private static BiConsumer<String, LogLevel> closeDebugConsumer;
 
 	@Getter
@@ -54,8 +55,11 @@ class TaskLogger extends ObsLogger implements Serializable {
 
 		// add tm appender
 		ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
-		TMAppender tmAppender = new TMAppender(clientMongoOperator);
-		logAppendFactory.register(tmAppender);
+//		TMAppender tmAppender = new TMAppender(clientMongoOperator);
+//		logAppendFactory.register(tmAppender);
+
+		obsHttpTMAppender = ObsHttpTMAppender.create(clientMongoOperator);
+		logAppendFactory.register(obsHttpTMAppender);
 
 		// add close debug consumer
 		closeDebugConsumer = consumer;
@@ -99,8 +103,20 @@ class TaskLogger extends ObsLogger implements Serializable {
 		fileAppender.addRollingFileAppender(taskId);
 	}
 
+	void registerTaskTmAppender(String taskId) {
+		if (null != obsHttpTMAppender) {
+			obsHttpTMAppender.start(taskId);
+		}
+	}
+
 	void unregisterTaskFileAppender(String taskId) {
 		fileAppender.removeRollingFileAppender(taskId);
+	}
+
+	void unregisterTaskTmAppender() {
+		if (null != obsHttpTMAppender) {
+			obsHttpTMAppender.stop();
+		}
 	}
 
 	private String formatMessage(String message, Object... params) {
