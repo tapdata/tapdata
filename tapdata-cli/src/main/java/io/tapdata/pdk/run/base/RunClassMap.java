@@ -151,7 +151,7 @@ public enum RunClassMap {
         return builder.toString();
     }
 
-    public String jsName(int index){
+    public String jsName(int index) {
         if (index >= this.functionJsName.length || index < 0) return this.functionJsName[0];
         return this.functionJsName[index];
     }

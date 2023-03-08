@@ -54,7 +54,6 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     private ObjectId taskId;
     private final Map<String, MilestoneStatus> dataNodeInitMap = new HashMap<>();
     private final Set<String> targetNodes = new HashSet<>();
-    private boolean hasCdc;
 
     public MilestoneAspectTask() {
         observerHandlers.register(PDKNodeInitAspect.class, this::handlePDKNodeInit);
@@ -73,7 +72,6 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     public void onStart(TaskStartAspect startAspect) {
         taskId = task.getId();
         logger.info("Start task milestones: {}({})", taskId.toHexString(), task.getName());
-        hasCdc = task.getType().contains(ParentTaskDto.TYPE_CDC);
         taskMilestone(KPI_TASK, this::setFinish);
 
         for (Node<?> n : startAspect.getTask().getDag().getNodes()) {
@@ -204,10 +202,11 @@ public class MilestoneAspectTask extends AbstractAspectTask {
             case WriteRecordFuncAspect.STATE_END: {
                 Throwable error = aspect.getThrowable();
                 if (null == error) {
-                    if (!hasCdc) {
+                    if (ParentTaskDto.TYPE_CDC.equals(task.getType()) || ParentTaskDto.TYPE_INITIAL_SYNC_CDC.equals(task.getType())) {
+                        // write cdc never finish
                         taskMilestone(KPI_WRITE_RECORD, this::setFinish);
+                        nodeMilestones(nodeId, KPI_WRITE_RECORD, this::setFinish);
                     }
-                    nodeMilestones(nodeId, KPI_WRITE_RECORD, this::setFinish);
                 } else {
                     taskMilestone(KPI_WRITE_RECORD, getErrorConsumer(error.getMessage()));
                     nodeMilestones(nodeId, KPI_WRITE_RECORD, getErrorConsumer(error.getMessage()));

@@ -17,5 +17,6 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface TapTestCase {
     int sort() default 0;
+
     boolean dump() default false;
 }

@@ -5,7 +5,6 @@ import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
-import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.connector.clickhouse.config.ClickhouseConfig;
 import io.tapdata.connector.clickhouse.ddl.sqlmaker.ClickhouseDDLSqlMaker;
 import io.tapdata.connector.clickhouse.dml.ClickhouseBatchWriter;
@@ -58,7 +57,7 @@ public class ClickhouseConnector extends ConnectorBase {
 
     private String connectionTimezone;
 
-    private DDLSqlMaker ddlSqlMaker;
+    private  ClickhouseDDLSqlMaker ddlSqlMaker;
 
     private final ClickhouseBatchWriter clickhouseWriter = new ClickhouseBatchWriter(TAG);
 

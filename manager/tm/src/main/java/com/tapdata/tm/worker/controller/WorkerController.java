@@ -386,7 +386,7 @@ public class WorkerController extends BaseController {
             return success("ok");
         }
 
-        String restoreTip = ", If you want to restore, you need to set '.agentSingletonLock' file content is 'force'";
+        String restoreTip = ", If you want to restore, you need to set '.agentSingletonLock' file content is 'force', where: " + whereJson + ", update: " + updateWorker.getSingletonLock();
         if (!"force".equals(checkSingletonLock)) {
             checkSingletonLock = (null == checkSingletonLock) ? "" : checkSingletonLock;
             oldWorker.setSingletonLock((null == oldWorker.getSingletonLock()) ? "" : oldWorker.getSingletonLock());
