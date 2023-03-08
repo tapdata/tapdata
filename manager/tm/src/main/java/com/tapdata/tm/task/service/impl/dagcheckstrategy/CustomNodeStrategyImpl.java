@@ -13,13 +13,13 @@ import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MessageUtil;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.security.Key;
 import java.text.MessageFormat;
 import java.util.*;
 
@@ -32,7 +32,7 @@ public class CustomNodeStrategyImpl implements DagLogStrategy {
     private CustomNodeService customNodeService;
 
     @Override
-    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
+    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail, Locale locale) {
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
             return null;
         }
@@ -58,7 +58,7 @@ public class CustomNodeStrategyImpl implements DagLogStrategy {
                     if (Objects.isNull(customNodeDto)) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log("$date【$taskName】【自定义节点检测】：自定义节点节点不存在。")
+                                .log(MessageUtil.getDagCheckMsg(locale, "CUSTOM_NODE_NOT_EXISTS"))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -93,7 +93,7 @@ public class CustomNodeStrategyImpl implements DagLogStrategy {
                             if (requiredFlag) {
                                 TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                         .grade(Level.ERROR).nodeId(nodeId)
-                                        .log(MessageFormat.format("$date【$taskName】【自定义节点检测】：{0}的设置{1}为空。", name, formName))
+                                        .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "CUSTOM_NODE_SET_EMPTY"), name, formName))
                                         .build();
                                 log.setCreateAt(now);
                                 log.setCreateUser(userId);
@@ -105,7 +105,7 @@ public class CustomNodeStrategyImpl implements DagLogStrategy {
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.INFO).nodeId(nodeId)
-                                .log(MessageFormat.format("$date【$taskName】【自定义节点检测】：自定义节点{0}检测通过。", name))
+                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "CUSTOM_NODE_SET_EMPTY"), name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);

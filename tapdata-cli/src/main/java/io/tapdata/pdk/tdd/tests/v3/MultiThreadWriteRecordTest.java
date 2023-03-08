@@ -18,10 +18,12 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
@@ -187,7 +189,8 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
             return;
         }
         //查询数据，并校验
-        List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, records);
+        Record[] recordCopy = execute.records();
+        List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, recordCopy);
         final int filterCount = result.size();
         final String tName = Thread.currentThread().getName();
         if (filterCount != recordCount) {
@@ -200,7 +203,7 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
         } else {
             Map<String, Object> resultMap = result.get(0);
             StringBuilder builder = new StringBuilder();
-            boolean equals = super.mapEquals(records[0], transform(node, targetTable, resultMap), builder);
+            boolean equals = super.mapEquals(recordCopy[0], transform(node, targetTable, resultMap), builder);
             TapAssert.asserts(() -> {
                 Assertions.assertTrue(equals, langUtil.formatLang("multiWrite.modify.query.notEquals",
                         tName,
@@ -225,22 +228,22 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
         }
         final String tName = Thread.currentThread().getName();
         //查询数据，并校验
-        List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, records);
-        TapAssert.asserts(() -> Assertions.assertTrue(
-                result.isEmpty(),
-                langUtil.formatLang(
-                        "multiWrite.delete.fail",
-                        tName,
-                        recordCount,
-                        modifyTimes,
-                        result.size())))
-                .acceptAsError(
-                        execute.testCase(),
-                        langUtil.formatLang("multiWrite.delete.succeed",
-                                tName,
-                                recordCount,
-                                modifyTimes
-                        ));
+        Record[] recordCopy = execute.records();
+        List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, recordCopy);
+        if (result.isEmpty()){
+            TapAssert.succeed(execute.testCase(),langUtil.formatLang("multiWrite.delete.succeed",
+                    tName,
+                    recordCount,
+                    modifyTimes
+            ));
+        }else {
+            TapAssert.error(execute.testCase(),langUtil.formatLang(
+                    "multiWrite.delete.fail",
+                    tName,
+                    recordCount,
+                    modifyTimes,
+                    result.size()));
+        }
     }
 
     private boolean insertAndModify(RecordEventExecute execute, Record[] records, int mTimes) {

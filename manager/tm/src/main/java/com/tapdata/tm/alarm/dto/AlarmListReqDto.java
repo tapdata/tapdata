@@ -6,6 +6,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Locale;
+
 /**
  * @author jiuyetx
  * @date 2022/9/13
@@ -18,4 +20,5 @@ public class AlarmListReqDto {
     private Level level;
     private String taskId;
     private String nodeId;
+    private Locale locale;
 }

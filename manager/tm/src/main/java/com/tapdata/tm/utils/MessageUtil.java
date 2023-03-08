@@ -1,7 +1,5 @@
 package com.tapdata.tm.utils;
 
-import javax.servlet.http.HttpServletRequest;
-
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.StringSubstitutor;
 import org.springframework.data.util.Streamable;
@@ -26,6 +24,12 @@ public class MessageUtil {
 		if (locale == null)
 			locale = Locale.CHINA;
 		return ResourceBundle.getBundle("messages", locale);
+	}
+
+	private static ResourceBundle getResourceBundle(Locale locale, String bundleName){
+		if (locale == null)
+			locale = Locale.CHINA;
+		return ResourceBundle.getBundle(bundleName, locale);
 	}
 
 	/**
@@ -80,20 +84,33 @@ public class MessageUtil {
 	 * */
 	public static String getMessage(Locale locale, String resourceId, Object... params){
 		String msg = getStringOrNull(getResourceBundle(locale), resourceId);
+		return getString(locale, resourceId, msg, params);
+
+	}
+
+	private static String getString(Locale locale, String resourceId, String msg, Object[] params) {
 		if(msg == null) {
 			if (params != null && params.length > 0){
-				String paramsString =Streamable.of(params).stream().map(Object::toString).collect(Collectors.joining(","));
+				String paramsString = Streamable.of(params).stream().map(Object::toString).collect(Collectors.joining(","));
 				return paramsString;
 			}
 			return resourceId;
-		} if(params != null && params.length > 0){
+		}
+		if(params != null && params.length > 0){
 			MessageFormat messageFormat = createMessageFormat(msg, locale);
 			return messageFormat.format(params);
 		} else
 			return msg;
-
 	}
 
+	public static String getDagCheckMsg(Locale locale, String resourceId, Object... params){
+		String msg = getStringOrNull(getResourceBundle(locale, "dagCheck"), resourceId);
+		return getString(locale, resourceId, msg, params);
+	}
+	public static String getAlarmMsg(Locale locale, String resourceId, Object... params){
+		String msg = getStringOrNull(getResourceBundle(locale, "alarmTemplate"), resourceId);
+		return getString(locale, resourceId, msg, params);
+	}
 	protected static String getStringOrNull(ResourceBundle bundle, String key){
 		try{
 			return bundle.getString(key);

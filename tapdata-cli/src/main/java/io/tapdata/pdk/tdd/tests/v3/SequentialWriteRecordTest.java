@@ -65,14 +65,15 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
                 return;
             }
             //查询数据，并校验
-            List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, this.records);
+            Record[] recordCopy = node.recordEventExecute().records();
+            List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, recordCopy);
             final int filterCount = result.size();
             if (filterCount != recordCount) {
                 TapAssert.error(testCase, langUtil.formatLang("sequentialTest.modify.query.fail", recordCount, modifyCount, filterCount));
             } else {
                 Map<String, Object> resultMap = result.get(0);
                 StringBuilder builder = new StringBuilder();
-                boolean equals = super.mapEquals(records[0], resultMap, builder);
+                boolean equals = super.mapEquals(recordCopy[0], resultMap, builder);
                 TapAssert.asserts(() -> {
                     Assertions.assertTrue(equals, langUtil.formatLang("sequentialTest.modify.query.notEquals", recordCount, modifyCount, builder.toString()));
                 }).acceptAsWarn(testCase, langUtil.formatLang("sequentialTest.modify.query.succeed", recordCount, modifyCount, builder.toString()));
@@ -105,7 +106,8 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
                 return;
             }
             //查询数据，并校验
-            List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, this.records);
+            Record[] recordCopy = node.recordEventExecute().records();
+            List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, recordCopy);
             TapAssert.asserts(() -> Assertions.assertTrue(result.isEmpty(), langUtil.formatLang("sequentialTest.delete.fail", recordCount, modifyCount, result.size())))
                     .acceptAsError(testCase, langUtil.formatLang("sequentialTest.delete.succeed", recordCount, modifyCount));
         }, (node, testCase) -> {
@@ -148,14 +150,15 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
                 return;
             }
             //查询数据，并校验
-            List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, this.records);
+            Record[] recordCopy = node.recordEventExecute().records();
+            List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, recordCopy);
             final int filterCount = result.size();
             if (filterCount != recordCount) {
                 TapAssert.error(testCase, langUtil.formatLang("sequentialTest.more.fail", filterCount, recordCount));
             } else {
                 Map<String, Object> resultMap = result.get(0);
                 StringBuilder builder = new StringBuilder();
-                boolean equals = super.mapEquals(records[0], resultMap, builder);
+                boolean equals = super.mapEquals(recordCopy[0], resultMap, builder);
                 TapAssert.asserts(() -> {
                     Assertions.assertTrue(equals, langUtil.formatLang("sequentialTest.more.notEquals", filterCount, builder.toString()));
                 }).acceptAsWarn(testCase, langUtil.formatLang("sequentialTest.more.succeed", filterCount, builder.toString()));

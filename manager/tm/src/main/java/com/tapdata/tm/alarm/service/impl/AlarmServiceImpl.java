@@ -36,10 +36,7 @@ import com.tapdata.tm.message.entity.MessageEntity;
 import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.utils.FunctionUtils;
-import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MailUtils;
-import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.*;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
@@ -53,7 +50,11 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.expression.ExpressionParser;
+import org.springframework.expression.common.TemplateParserContext;
+import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.stereotype.Service;
+import sun.util.locale.LocaleMatcher;
 
 import java.text.MessageFormat;
 import java.util.*;
@@ -284,7 +285,7 @@ public class AlarmServiceImpl implements AlarmService {
                         break;
                     case TASK_FULL_COMPLETE:
                         title = MessageFormat.format(AlarmMailTemplate.TASK_FULL_COMPLETE_TITLE, info.getName());
-                        content = MessageFormat.format(AlarmMailTemplate.TASK_FULL_COMPLETE, info.getName(), info.getParam().get("fullTime"));
+                        content = MessageFormat.format(AlarmMailTemplate.TASK_FULL_COMPLETE, info.getName(), info.getParam().get("snapDoneDate"));
                         break;
                     case TASK_INCREMENT_START:
                         title = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_START_TITLE, info.getName());
@@ -292,7 +293,7 @@ public class AlarmServiceImpl implements AlarmService {
                         break;
                     case TASK_INCREMENT_DELAY:
                         title = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START_TITLE, info.getName());
-                        content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START, info.getName(), info.getParam().get("time"));
+                        content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START, info.getName(), info.getParam().get("replicateLag"));
                         break;
                     case DATANODE_CANNOT_CONNECT:
                         title = MessageFormat.format(AlarmMailTemplate.DATANODE_CANNOT_CONNECT_TITLE, info.getName());
@@ -305,7 +306,7 @@ public class AlarmServiceImpl implements AlarmService {
                     case PROCESSNODE_AVERAGE_HANDLE_CONSUME:
                         title = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME_TITLE, info.getName());
                         content = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME, info.getName(), info.getNode(),
-                                info.getParam().get("interval"), info.getParam().get("current"), dateTime);
+                                info.getParam().get("threshold"), info.getParam().get("currentValue"), dateTime);
                         break;
                     default:
 
@@ -358,7 +359,8 @@ public class AlarmServiceImpl implements AlarmService {
     }
 
     @Override
-    public Page<AlarmListInfoVo> list(String status, Long start, Long end, String keyword, Integer page, Integer size, UserDetail userDetail) {
+    public Page<AlarmListInfoVo> list(String status, Long start, Long end, String keyword, Integer page,
+                                      Integer size, UserDetail userDetail, Locale locale) {
         TmPageable pageable = new TmPageable();
         pageable.setPage(page);
         pageable.setSize(size);
@@ -394,20 +396,26 @@ public class AlarmServiceImpl implements AlarmService {
 
         Map<String, TaskDto> taskDtoMap = taskService.findAllTasksByIds(taskIds).stream().collect(Collectors.toMap(t -> t.getId().toHexString(), Function.identity(), (e1, e2) -> e1));
 
+        ExpressionParser parser = new SpelExpressionParser();
+        TemplateParserContext parserContext = new TemplateParserContext();
         List<AlarmListInfoVo> collect = alarmInfos.stream()
-                .map(t -> AlarmListInfoVo.builder()
-                        .id(t.getId().toHexString())
-                        .level(t.getLevel())
-                        .status(t.getStatus())
-                        .name(t.getName())
-                        .summary(StringUtils.replace(t.getSummary(), "$taskName", t.getName()))
-                        .firstOccurrenceTime(t.getFirstOccurrenceTime())
-                        .lastOccurrenceTime(t.getLastOccurrenceTime())
-                        .lastNotifyTime(t.getLastNotifyTime())
-                        .taskId(t.getTaskId())
-                        .metric(t.getMetric())
-                        .syncType(taskDtoMap.get(t.getTaskId()).getSyncType())
-                .build()).collect(Collectors.toList());
+                .map(t -> {
+                    String template = MessageUtil.getAlarmMsg(locale, t.getSummary());
+                    String content = parser.parseExpression(template, parserContext).getValue(t.getParam(), String.class);
+                    return AlarmListInfoVo.builder()
+                            .id(t.getId().toHexString())
+                            .level(t.getLevel())
+                            .status(t.getStatus())
+                            .name(t.getName())
+                            .summary(content)
+                            .firstOccurrenceTime(t.getFirstOccurrenceTime())
+                            .lastOccurrenceTime(t.getLastOccurrenceTime())
+                            .lastNotifyTime(t.getLastNotifyTime())
+                            .taskId(t.getTaskId())
+                            .metric(t.getMetric())
+                            .syncType(taskDtoMap.get(t.getTaskId()).getSyncType())
+                            .build();
+                }).collect(Collectors.toList());
 
         return new Page<>(count, collect);
     }
@@ -437,13 +445,17 @@ public class AlarmServiceImpl implements AlarmService {
 
         Map<String, Integer> nodeNumMap = Maps.newHashMap();
         List<AlarmListInfoVo> collect = Lists.newArrayList();
+        ExpressionParser parser = new SpelExpressionParser();
+        TemplateParserContext parserContext = new TemplateParserContext();
         alarmInfos.forEach( t -> {
+            String template = MessageUtil.getAlarmMsg(dto.getLocale(), t.getSummary());
+            String content = parser.parseExpression(template, parserContext).getValue(t.getParam(), String.class);
             AlarmListInfoVo build = AlarmListInfoVo.builder()
                     .id(t.getId().toHexString())
                     .level(t.getLevel())
                     .status(t.getStatus())
                     .name(t.getName())
-                    .summary(StringUtils.replace(t.getSummary(), "$taskName", t.getName()))
+                    .summary(content)
                     .firstOccurrenceTime(t.getFirstOccurrenceTime())
                     .lastOccurrenceTime(t.getLastOccurrenceTime())
                     .lastNotifyTime(t.getLastNotifyTime())
@@ -537,114 +549,6 @@ public class AlarmServiceImpl implements AlarmService {
 
         return MailAccountDto.builder().host(host).port(Integer.valueOf(port)).from(from).user(user).pass(password)
                 .receivers(receiverList.get()).protocol(protocol).build();
-    }
-
-    private void connectPassAlarm(String nodeName, String connectId, String response_body, List<TaskDto> taskEntityList) {
-        if (CollectionUtils.isEmpty(taskEntityList)) {
-            return;
-        }
-
-        if (Objects.isNull(nodeName)) {
-            return;
-        }
-
-        String summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT_RECOVER, nodeName, DateUtil.now());
-
-        for (TaskDto task : taskEntityList) {
-            String agentId = task.getAgentId();
-            String taskId = task.getId().toHexString();
-            String taskName = task.getName();
-
-            Node<?> nodeTemp = task.getDag().getNodes().stream()
-                    .filter(node -> node instanceof DataParentNode && connectId.equals(((DataParentNode<?>) node).getConnectionId()))
-                    .findFirst().orElse(null);
-            Optional.ofNullable(nodeTemp).ifPresent(node -> {
-                String nodeId = node.getId();
-
-                HashMap<String, Object> param = Maps.newHashMap();
-                param.put("response_body", response_body);
-
-                List<AlarmInfo> alarmInfos = this.find(taskId, nodeId, AlarmKeyEnum.DATANODE_CANNOT_CONNECT);
-                Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
-                if (first.isPresent()) {
-                    AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.RECOVER).level(Level.RECOVERY).component(AlarmComponentEnum.FE)
-                            .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(agentId).taskId(taskId)
-                            .name(taskName).summary(summary).metric(AlarmKeyEnum.DATANODE_CANNOT_CONNECT)
-                            .nodeId(nodeId).node(nodeName).recoveryTime(DateUtil.date())
-                            .firstOccurrenceTime(first.get().getFirstOccurrenceTime())
-                            .lastOccurrenceTime(DateUtil.date())
-                            .param(param)
-                            .build();
-                    alarmInfo.setId(first.get().getId());
-                    this.save(alarmInfo);
-                }
-            });
-        }
-    }
-
-    private void connectFailAlarm(String nodeName, String connectId, String response_body, List<TaskDto> taskEntityList) {
-        if (CollectionUtils.isEmpty(taskEntityList)) {
-            return;
-        }
-        if (Objects.isNull(nodeName)) {
-            return;
-        }
-
-        for (TaskDto task : taskEntityList) {
-            String agentId = task.getAgentId();
-            String taskId = task.getId().toHexString();
-            String taskName = task.getName();
-
-            List<Node> collect = task.getDag().getNodes().stream()
-                    .filter(node -> node instanceof DataParentNode && connectId.equals(((DataParentNode<?>) node).getConnectionId()))
-                    .collect(Collectors.toList());
-            if (CollectionUtils.isEmpty(collect)) {
-                continue;
-            }
-
-            collect.forEach(nodeTemp -> {
-                String nodeId = nodeTemp.getId();
-
-                HashMap<String, Object> param = Maps.newHashMap();
-                param.put("response_body", response_body);
-
-                AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.CRITICAL).component(AlarmComponentEnum.FE)
-                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(agentId).taskId(taskId)
-                        .name(taskName).metric(AlarmKeyEnum.DATANODE_CANNOT_CONNECT)
-                        .nodeId(nodeId).node(nodeName)
-                        .build();
-
-                List<AlarmInfo> alarmInfos = this.find(taskId, nodeId, AlarmKeyEnum.DATANODE_CANNOT_CONNECT);
-                Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
-                String summary;
-                if (first.isPresent()) {
-                    long between = DateUtil.between(first.get().getLastOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
-                    summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT_ALWAYS, nodeName, between, DateUtil.now());
-                    alarmInfo.setId(first.get().getId());
-                    alarmInfo.setFirstOccurrenceTime(first.get().getFirstOccurrenceTime());
-                    alarmInfo.setLastOccurrenceTime(DateUtil.date());
-                } else {
-                    summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT, nodeName, DateUtil.now());
-                }
-                alarmInfo.setSummary(summary);
-                alarmInfo.setParam(param);
-                SpringUtil.getBean(AlarmService.class).save(alarmInfo);
-            });
-        }
-    }
-
-    @Override
-    public void connectAlarm(String nodeName, String connectId, String response_body, boolean pass) {
-        Criteria taskCriteria = Criteria.where("status").is(TaskDto.STATUS_RUNNING)
-                .and("dag.nodes.connectionId").is(connectId);
-        List<TaskDto> taskList = taskService.findAll(Query.query(taskCriteria));
-
-        if (CollectionUtils.isEmpty(taskList)) return;
-
-        FunctionUtils.isTureOrFalse(pass).trueOrFalseHandle(
-                () -> connectPassAlarm(nodeName, connectId, response_body, taskList),
-                () -> connectFailAlarm(nodeName, connectId, response_body, taskList)
-        );
     }
 
     @Override

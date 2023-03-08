@@ -4,6 +4,7 @@ import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.codec.impl.utils.AnyTimeToDateTime;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.conversion.TargetTypesGenerator;
 import io.tapdata.entity.error.CoreException;
@@ -522,7 +523,10 @@ public class PDKTestBase {
         //        }
         //    }
         //}
-        if ((leftValue instanceof byte[]) && (rightValue instanceof byte[])) {
+        if(rightValue instanceof DateTime && !(leftValue instanceof DateTime)) {
+            DateTime leftDateTime = AnyTimeToDateTime.toDateTime(leftValue);
+            equalResult = rightValue.equals(leftDateTime);
+        } else if ((leftValue instanceof byte[]) && (rightValue instanceof byte[])) {
             equalResult = Arrays.equals((byte[]) leftValue, (byte[]) rightValue);
         } else if ((leftValue instanceof byte[]) && (rightValue instanceof String)) {
             //byte[] vs string, base64 decode string

@@ -81,7 +81,8 @@ public class QueryByFilterTest extends PDKTestBase {
                     //通过主键作为匹配参数，查询出该条数据，
                     List<TapFilter> filters = new ArrayList<>();
                     String key = "id";
-                    Object value = records[0].get(key);
+                    Record[] recordCopy = prepare.recordEventExecute().records();
+                    Object value = recordCopy[0].get(key);
                     TapFilter tapFilter = TapFilter.create();
                     tapFilter.setMatch(new DataMap().kv(key, value));
                     filters.add(tapFilter);
@@ -103,7 +104,7 @@ public class QueryByFilterTest extends PDKTestBase {
                     }
 
                     if (null != results && results.size() == 1) {
-                        Record record = records[0];
+                        Record record = recordCopy[0];
                         Map<String, Object> tapEvent = results.get(0).getResult();
                         ConnectorNode connectorNode = prepare.connectorNode();
                         TapTable targetTable = connectorNode.getConnectorContext().getTableMap().get(connectorNode.getTable());
@@ -199,9 +200,10 @@ public class QueryByFilterTest extends PDKTestBase {
                 QueryByFilterFunction queryByFilterFunction = connectorFunctions.getQueryByFilterFunction();
                 //通过主键作为匹配参数，查询出该条数据，
                 //@TODO filters
+                Record[] recordCopy = prepare.recordEventExecute().records();
                 List<TapFilter> filters = new ArrayList<>();
                 String key = "id";
-                Object value = records[0].get(key);
+                Object value = recordCopy[0].get(key);
                 TapFilter tapFilter = TapFilter.create();
                 tapFilter.setMatch(new DataMap().kv(key, value));
 

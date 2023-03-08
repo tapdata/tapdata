@@ -1,12 +1,18 @@
 package io.tapdata.pdk.tdd.tests.basic;
 
+import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.TapValue;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.*;
@@ -27,6 +33,14 @@ public class RecordEventExecute {
     Method testCase;
     Map<String, Object> tddConfig;
 
+    public Map<String, Object> code(Map<String,Object> map){
+        LinkedHashMap<String, TapField> nameFieldMap = base.getTargetTable().getNameFieldMap();
+        TapCodecsFilterManager codecsFilterManager = new TapCodecsFilterManager(TapCodecsRegistry.create());
+        codecsFilterManager.transformToTapValueMap(map,nameFieldMap);
+        TapCodecsFilterManager targetCodecsFilterManager = connectorNode.getCodecsFilterManager();
+        targetCodecsFilterManager.transformFromTapValueMap(map, nameFieldMap);
+        return map;
+    }
     public Method testCase() {
         return this.testCase;
     }
@@ -80,14 +94,25 @@ public class RecordEventExecute {
 
     public RecordEventExecute builderRecordCleanBefore(Record... records) {
         this.records = new ArrayList<>();
-        this.records.addAll(Arrays.asList(records));
+        for (Record record : records) {
+            Record map = Record.create();
+            map.putAll(this.code(InstanceFactory.instance(TapUtils.class).cloneMap(record)));
+            this.records.add(map);
+        }
         return this;
+    }
+    public Record[] records(){
+        return this.records.toArray(new Record[0]);
     }
 
     public RecordEventExecute builderRecord(Record... records) {
         if (null == records || records.length <= 0) return this;
         if (this.records == null) this.records = new ArrayList<>();
-        this.records.addAll(Arrays.asList(records));
+        for (Record record : records) {
+            Record map = Record.create();
+            map.putAll(this.code(InstanceFactory.instance(TapUtils.class).cloneMap(record)));
+            this.records.add(map);
+        }
         return this;
     }
 
