@@ -591,7 +591,7 @@ public class MongodbConnector extends ConnectorBase {
 				.startSplitting();
 	}
 
-	private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+	protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
 		RetryOptions retryOptions = RetryOptions.create();
 		if ( null != matchThrowable(throwable, MongoClientException.class)
 				|| null != matchThrowable(throwable, MongoSocketException.class)
