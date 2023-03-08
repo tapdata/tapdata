@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 
-public class Record extends HashMap<String,Object> {
+public class Record extends HashMap<String, Object> {
     public static Record create() {
         return new Record();
     }
@@ -61,31 +61,31 @@ public class Record extends HashMap<String,Object> {
      * records ： 待修改的记录
      * modifyNums： 需要修改字段的数量，小于等于0时表示修改全部，否则修改指定部分数，除非大于表字段数
      * needModifyPrimaryKey ： 是否修改主键
-     * */
-    public static Record[] modifyRecordWithTapTable(TapTable table, Record[] records,int modifyNums, boolean needModifyPrimaryKey) {
+     */
+    public static Record[] modifyRecordWithTapTable(TapTable table, Record[] records, int modifyNums, boolean needModifyPrimaryKey) {
         LinkedHashMap<String, TapField> nameFieldMap = table.getNameFieldMap();
-        AtomicInteger num = new AtomicInteger((modifyNums <= 0 ? nameFieldMap.size() : modifyNums) + 1 ) ;
+        AtomicInteger num = new AtomicInteger((modifyNums <= 0 ? nameFieldMap.size() : modifyNums) + 1);
         for (int i = 0; i < records.length; i++) {
             Record record = records[i];
-            builderKey(record, nameFieldMap, field -> needModifyPrimaryKey ? (!field.getPrimaryKey() && num.decrementAndGet() > 0) : (!field.getPrimaryKey() && num.decrementAndGet() > 0) );
+            builderKey(record, nameFieldMap, field -> needModifyPrimaryKey ? (!field.getPrimaryKey() && num.decrementAndGet() > 0) : (!field.getPrimaryKey() && num.decrementAndGet() > 0));
             //records[i] = record;
         }
         return records;
     }
 
-    public static Record[] modifyAsNewRecordWithTapTable(TapTable table, Record[] records,int modifyNums, boolean needModifyPrimaryKey){
+    public static Record[] modifyAsNewRecordWithTapTable(TapTable table, Record[] records, int modifyNums, boolean needModifyPrimaryKey) {
         LinkedHashMap<String, TapField> nameFieldMap = table.getNameFieldMap();
-        AtomicInteger num = new AtomicInteger((modifyNums <= 0 ? nameFieldMap.size() : modifyNums) + 1 ) ;
+        AtomicInteger num = new AtomicInteger((modifyNums <= 0 ? nameFieldMap.size() : modifyNums) + 1);
         Record[] newRecords = new Record[records.length];
         for (int i = 0; i < records.length; i++) {
             Record record = new Record();
             Collection<String> strings = table.primaryKeys(true);
-            if (Objects.nonNull(strings)){
+            if (Objects.nonNull(strings)) {
                 for (String key : strings) {
-                    record.builder(key,records[i].get(key));
+                    record.builder(key, records[i].get(key));
                 }
             }
-            builderKey(record, nameFieldMap, field -> needModifyPrimaryKey ? (!field.getPrimaryKey() && num.decrementAndGet() > 0) : (!field.getPrimaryKey() && num.decrementAndGet() > 0) );
+            builderKey(record, nameFieldMap, field -> needModifyPrimaryKey ? (!field.getPrimaryKey() && num.decrementAndGet() > 0) : (!field.getPrimaryKey() && num.decrementAndGet() > 0));
             newRecords[i] = record;
         }
         return newRecords;
@@ -105,22 +105,14 @@ public class Record extends HashMap<String,Object> {
                         list.add(UUID.randomUUID().toString());
                         record.builder(keyName, list);
                     }
-                    ;
                     break;
                     case JAVA_Binary: {
                         record.builder(keyName, UUID.randomUUID().toString().getBytes(StandardCharsets.UTF_8));
                     }
-                    ;
                     break;
                     case JAVA_Integer: {
                         record.builder(keyName, random.nextInt(Integer.MAX_VALUE));
                     }
-                    ;
-                    break;
-                    case JAVA_Date: {
-                        record.builder(keyName,new Date(random.nextInt(Integer.MAX_VALUE)));
-                    }
-                    ;
                     break;
                     case JAVA_Map: {
                         Map<String, Object> map = new HashMap<>();
@@ -128,12 +120,6 @@ public class Record extends HashMap<String,Object> {
                         map.put(UUID.randomUUID().toString(), UUID.randomUUID().toString());
                         record.builder(keyName, map);
                     }
-                    ;
-                    break;
-                    case JAVA_String: {
-                        record.builder(keyName, UUID.randomUUID().toString());
-                    }
-                    ;
                     break;
                     case JAVA_BigDecimal: {
                         BigDecimal bd = BigDecimal.valueOf(Math.random() * 10 + 50);
@@ -159,30 +145,24 @@ public class Record extends HashMap<String,Object> {
                         record.builder(keyName, bd.setScale(4, RoundingMode.HALF_UP).doubleValue());
                     }
                     break;
-                    case "Date_Time": {
-//                        try {
-//                            Thread.sleep(50);
-//                            record.builder(keyName,DateUtil.dateTimeToStr());
-//                        } catch (InterruptedException e) {
-                        record.builder(keyName, new Date((long) (1293861599 + new Random().nextDouble() * 60 * 60 * 24 * 365)));
-//                        }
-                    }
-                    break;
-                    case "STRING(100)": {
+                    case JAVA_String:
+                    case "STRING(100)":
                         record.builder(keyName, UUID.randomUUID().toString());
+                        break;
+                    case JAVA_Date: {
+                        record.builder(keyName, new Date(random.nextInt(Integer.MAX_VALUE)));
                     }
                     break;
-                    case "Time": {
+                    case "Date_Time": {
+                        record.builder(keyName, new Date((long) (1293861599 + new Random().nextDouble() * 60 * 60 * 24 * 365)));
+                    }
+                    break;
+                    case "Time":
+                    case "Year":
                         record.builder(keyName, new Date(random.nextInt()));
-                    }
-                    break;
-                    case "Year": {
-                        record.builder(keyName, new Date(random.nextInt()));
-                    }
-                    break;
+                        break;
                     default:
                         record.builder(keyName, null);
-                        ;
                 }
             }
         });
@@ -192,7 +172,8 @@ public class Record extends HashMap<String,Object> {
     interface Checker {
         //!field.getPrimaryKey()
         public boolean check(TapField field);
-        public default boolean check(){
+
+        public default boolean check() {
             return true;
         }
     }
