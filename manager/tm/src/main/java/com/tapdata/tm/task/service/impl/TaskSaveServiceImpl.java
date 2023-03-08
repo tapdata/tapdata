@@ -43,27 +43,9 @@ import java.util.stream.Collectors;
 @Service
 @Setter(onMethod_ = {@Autowired})
 public class TaskSaveServiceImpl implements TaskSaveService {
-    private TaskService taskService;
-    private TaskDagCheckLogService taskDagCheckLogService;
     private MetadataInstancesService metadataInstancesService;
     private AlarmSettingService alarmSettingService;
     private AlarmRuleService alarmRuleService;
-
-    @Override
-    public boolean taskSaveCheckLog(TaskDto taskDto, UserDetail userDetail) {
-        taskDagCheckLogService.removeAllByTaskId(taskDto.getId().toHexString());
-
-        boolean noPass = false;
-        List<TaskDagCheckLog> taskDagCheckLogs = taskDagCheckLogService.dagCheck(taskDto, userDetail, true);
-        if (CollectionUtils.isNotEmpty(taskDagCheckLogs)) {
-            Optional<TaskDagCheckLog> any = taskDagCheckLogs.stream().filter(log -> Level.ERROR.equals(log.getGrade())).findAny();
-            if (any.isPresent()) {
-                noPass = true;
-            }
-        }
-
-        return noPass;
-    }
 
     @Override
     public void syncTaskSetting(TaskDto taskDto, UserDetail userDetail) {

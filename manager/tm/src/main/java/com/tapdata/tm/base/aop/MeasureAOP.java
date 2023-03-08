@@ -3,9 +3,7 @@ package com.tapdata.tm.base.aop;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import com.google.common.collect.Maps;
-import com.sun.org.apache.bcel.internal.generic.IFGE;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
-import com.tapdata.tm.alarm.constant.AlarmContentTemplate;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
@@ -18,7 +16,6 @@ import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.MongoUtils;
-import io.tapdata.common.sample.request.Sample;
 import io.tapdata.common.sample.request.SampleRequest;
 import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
@@ -31,13 +28,11 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
 
-import java.text.MessageFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -104,17 +99,20 @@ public class MeasureAOP {
         String now = DateUtil.now();
         Number snapshotStartAt = vs.get("snapshotStartAt");
         Number snapshotDoneAt = vs.get("snapshotDoneAt");
+        String alarmDate = DateUtil.now();
         if (Objects.isNull(taskDto.getSnapshotDoneAt()) && Objects.nonNull(snapshotStartAt) && Objects.nonNull(snapshotDoneAt)) {
 
             Long diff = (Long)snapshotDoneAt - (Long)snapshotStartAt;
-            String summary = MessageFormat.format(AlarmContentTemplate.TASK_FULL_COMPLETE, diff, DateUtil.date((Long) snapshotDoneAt).toString(), now);
 
             Map<String, Object> param = Maps.newHashMap();
-            param.put("fullTime", now);
+            param.put("costTime", diff);
+            param.put("snapDoneDate", now);
+            param.put("alarmDate", alarmDate);
+            param.put("taskName", taskDto.getName());
 
             AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.NORMAL).component(AlarmComponentEnum.FE)
                     .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(taskDto.getAgentId()).taskId(taskId)
-                    .name(taskDto.getName()).summary(summary).metric(AlarmKeyEnum.TASK_FULL_COMPLETE)
+                    .name(taskDto.getName()).summary("TASK_FULL_COMPLETE").metric(AlarmKeyEnum.TASK_FULL_COMPLETE)
                     .param(param)
                     .build();
 
@@ -124,13 +122,14 @@ public class MeasureAOP {
 
         Number currentEventTimestamp = vs.get("currentEventTimestamp");
         if (Objects.isNull(taskDto.getCurrentEventTimestamp()) && Objects.nonNull(currentEventTimestamp)) {
-            String summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_START, DateUtil.date((Long) currentEventTimestamp).toString(), now);
             Map<String, Object> param = Maps.newHashMap();
             param.put("cdcTime", now);
+            param.put("alarmDate", alarmDate);
+            param.put("taskName", taskDto.getName());
 
             AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.NORMAL).component(AlarmComponentEnum.FE)
                     .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(taskDto.getAgentId()).taskId(taskId)
-                    .name(taskDto.getName()).summary(summary).metric(AlarmKeyEnum.TASK_INCREMENT_START)
+                    .name(taskDto.getName()).summary("TASK_INCREMENT_START").metric(AlarmKeyEnum.TASK_INCREMENT_START)
                     .param(param)
                     .build();
             alarmInfo.setUserId(taskDto.getUserId());
@@ -186,6 +185,8 @@ public class MeasureAOP {
                 .name(task.getName()).metric(AlarmKeyEnum.TASK_INCREMENT_DELAY)
                 .build();
         alarmInfo.setUserId(task.getUserId());
+        String alarmDate = DateUtil.now();
+        Map<String, Object> param = Maps.newHashMap();
         if (taskReplicateLagCount.get() >= alarmRuleDto.getPoint()) {
             String summary;
             Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus())).findFirst();
@@ -195,11 +196,21 @@ public class MeasureAOP {
                 alarmInfo.setId(data.getId());
 
                 long continued = DateUtil.between(data.getFirstOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
-                summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_DELAY_ALWAYS, alarmRuleDto.getMs(), continued, replicateLag, DateUtil.now(), flag);
+                summary = "TASK_INCREMENT_DELAY_ALWAYS";
+                param.put("flag", flag);
+                param.put("alarmDate", alarmDate);
+                param.put("taskName", task.getName());
+                param.put("threshold", alarmRuleDto.getMs());
+                param.put("currentValue", replicateLag);
+                param.put("continueTime", continued);
+                alarmInfo.setParam(param);
             } else {
-                summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_DELAY_START, alarmRuleDto.getMs(), replicateLag, DateUtil.now(), flag);
-                Map<String, Object> param = Maps.newHashMap();
-                param.put("time", replicateLag);
+                summary = "TASK_INCREMENT_DELAY_START";
+                param.put("flag", flag);
+                param.put("alarmDate", alarmDate);
+                param.put("taskName", task.getName());
+                param.put("threshold", alarmRuleDto.getMs());
+                param.put("currentValue", replicateLag);
                 alarmInfo.setParam(param);
             }
             alarmInfo.setLevel(Level.WARNING);
@@ -208,7 +219,12 @@ public class MeasureAOP {
         } else {
             Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
             if (first.isPresent()) {
-                String summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_DELAY_RECOVER, replicateLag, DateUtil.now());
+                String summary = "TASK_INCREMENT_DELAY_RECOVER";
+
+                param.put("alarmDate", alarmDate);
+                param.put("taskName", task.getName());
+                param.put("currentValue", replicateLag);
+                alarmInfo.setParam(param);
 
                 alarmInfo.setId(first.get().getId());
                 alarmInfo.setLevel(Level.RECOVERY);
@@ -263,6 +279,15 @@ public class MeasureAOP {
                 .nodeId(nodeId).node(nodeName)
                 .build();
         alarmInfo.setUserId(task.getUserId());
+        Map<String, Object> param = Maps.newHashMap();
+        String alarmDate = DateUtil.now();
+        param.put("alarmDate", alarmDate);
+        param.put("taskName", task.getName());
+        param.put("nodeName", nodeName);
+        param.put("flag", flag);
+        param.put("threshold", alarmRuleDto.getMs());
+        param.put("currentValue", delay.get());
+        // 【Warning】任务[MySQL-2-Oracle] 的源节点[CUSTOMER]平均处理耗时超过阈值500ms，当前值：899ms，请关注！告警时间：2022-08-08 12:23:12
         if (count.get() >= alarmRuleDto.getPoint()) {
             String summary;
             Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus())).findFirst();
@@ -273,28 +298,29 @@ public class MeasureAOP {
                 alarmInfo.setLastOccurrenceTime(null);
 
                 long continued = DateUtil.between(data.getFirstOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
-                summary = MessageFormat.format(template[3], nodeName, alarmRuleDto.getMs(), continued, delay.get(), DateUtil.now(), flag);
+                param.put("continueTime", continued);
+
+                summary = template[3];
             } else {
                 alarmInfo.setStatus(AlarmStatusEnum.ING);
-                summary = MessageFormat.format(template[2], nodeName, alarmRuleDto.getMs(), delay.get(), DateUtil.now(), flag);
+                summary = template[2];
             }
+            alarmInfo.setParam(param);
             alarmInfo.setLevel(Level.WARNING);
             alarmInfo.setSummary(summary);
-            Map<String, Object> param = Maps.newHashMap();
-            param.put("interval", alarmRuleDto.getMs());
-            param.put("current", delay.get());
-            alarmInfo.setParam(param);
+
             alarmService.save(alarmInfo);
         } else {
             Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
             if (first.isPresent()) {
                 //Number current = samples.get(0).getVs().get(avgName);
-                String summary = MessageFormat.format(template[4], nodeName, delay, DateUtil.now(), flag);
+                String summary = template[4];
 
                 alarmInfo.setId(first.get().getId());
                 alarmInfo.setLevel(Level.RECOVERY);
                 alarmInfo.setSummary(summary);
                 alarmInfo.setRecoveryTime(DateUtil.date());
+                alarmInfo.setParam(param);
                 alarmService.save(alarmInfo);
             }
         }
@@ -305,20 +331,20 @@ public class MeasureAOP {
         if (alarmKeyEnum == AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME) {
             if (source) {
                 result = new String[]{AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME.name(), "snapshotSourceReadTimeCostAvg",
-                        AlarmContentTemplate.DATANODE_AVERAGE_HANDLE_CONSUME_START,
-                        AlarmContentTemplate.DATANODE_AVERAGE_HANDLE_CONSUME_ALWAYS,
-                        AlarmContentTemplate.DATANODE_AVERAGE_HANDLE_CONSUME_RECOVER};
+                        "DATANODE_AVERAGE_HANDLE_CONSUME_START",
+                        "DATANODE_AVERAGE_HANDLE_CONSUME_ALWAYS",
+                        "DATANODE_AVERAGE_HANDLE_CONSUME_RECOVER"};
             } else {
                 result = new String[]{AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME.name(), "targetWriteTimeCostAvg",
-                        AlarmContentTemplate.TARGET_AVERAGE_HANDLE_CONSUME_START,
-                        AlarmContentTemplate.TARGET_AVERAGE_HANDLE_CONSUME_ALWAYS,
-                        AlarmContentTemplate.TARGET_AVERAGE_HANDLE_CONSUME_RECOVER};
+                        "TARGET_AVERAGE_HANDLE_CONSUME_START",
+                        "TARGET_AVERAGE_HANDLE_CONSUME_ALWAYS",
+                        "TARGET_AVERAGE_HANDLE_CONSUME_RECOVER"};
             }
         } else if (alarmKeyEnum == AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME) {
             result = new String[]{AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME.name(), "timeCostAvg",
-                    AlarmContentTemplate.PROCESSNODE_AVERAGE_HANDLE_CONSUME_START,
-                    AlarmContentTemplate.PROCESSNODE_AVERAGE_HANDLE_CONSUME_ALWAYS,
-                    AlarmContentTemplate.PROCESSNODE_AVERAGE_HANDLE_CONSUME_RECOVER};
+                    "PROCESSNODE_AVERAGE_HANDLE_CONSUME_START",
+                    "PROCESSNODE_AVERAGE_HANDLE_CONSUME_ALWAYS",
+                    "PROCESSNODE_AVERAGE_HANDLE_CONSUME_RECOVER"};
         }
 
         return result;

@@ -4,8 +4,6 @@ import cn.hutool.core.date.DateUtil;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -17,6 +15,7 @@ import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.task.service.TaskDagCheckLogService;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
@@ -24,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 @Component("sourceConnectStrategy")
@@ -35,7 +35,7 @@ public class SourceConnectStrategyImpl implements DagLogStrategy {
     private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.SOURCE_CONNECT_CHECK;
 
     @Override
-    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
+    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail, Locale locale) {
         DAG dag = taskDto.getDag();
         if (Objects.isNull(dag) || CollectionUtils.isEmpty(dag.getNodes())) {
             return null;
@@ -43,6 +43,7 @@ public class SourceConnectStrategyImpl implements DagLogStrategy {
         String taskId = taskDto.getId().toHexString();
         String userId = userDetail.getUserId();
         Level grade;
+        String template;
 
         List<TaskDagCheckLog> result = Lists.newArrayList();
         for (Node node : dag.getSources()) {
@@ -51,9 +52,17 @@ public class SourceConnectStrategyImpl implements DagLogStrategy {
             if (Objects.isNull(connectionDto)) {
                 continue;
             }
-            grade = DataSourceEntity.STATUS_READY.equals(connectionDto.getStatus()) ? Level.INFO : Level.ERROR;
+            if (DataSourceEntity.STATUS_READY.equals(connectionDto.getStatus())) {
+                grade = Level.INFO;
+                template = MessageUtil.getDagCheckMsg(locale, "SOURCE_CONNECT_INFO");
+            } else {
+                grade = Level.ERROR;
+                template = MessageUtil.getDagCheckMsg(locale, "SOURCE_CONNECT_ERROR");
+            }
 
-            taskDagCheckLogService.createLog(taskId, userId, grade, templateEnum, true, true, DateUtil.now(), connectionDto.getAlarmInfo());
+
+            TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, userId, grade, templateEnum, template, true, true, DateUtil.now(), connectionDto.getAlarmInfo());
+            result.add(log);
         }
         return result;
     }

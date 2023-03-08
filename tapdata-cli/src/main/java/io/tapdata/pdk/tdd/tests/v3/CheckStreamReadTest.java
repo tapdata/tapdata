@@ -269,8 +269,8 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
         } else {
             TapAssert.succeed(testCase, langUtil.formatLang("checkStreamRead.insert.timely", recordCount, delay <= 0 ? (readTime - writeTime) * 0.000001F : delay));
         }
-
-        if (event.size() != records.length) {
+        Record[] recordCopy = execute.records();
+        if (event.size() != recordCopy.length) {
             TapAssert.errorNotThrow(testCase, langUtil.formatLang("checkStreamRead.insert.delay", recordCount, delay));
             return Boolean.TRUE;
         }
@@ -287,7 +287,7 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
             Collection<String> primaryKeys = super.targetTable.primaryKeys(true);
             boolean equals = true;
             for (String key : primaryKeys) {
-                Object keyValue1 = records[index].get(key);
+                Object keyValue1 = recordCopy[index].get(key);
                 Object keyValue2 = after.get(key);
                 if (!(equals = Objects.equals(keyValue1, keyValue2))) {
                     break;
@@ -387,8 +387,9 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
             // 检查数据顺序
             Collection<String> primaryKeys = Optional.ofNullable(super.targetTable.primaryKeys(true)).orElse(super.targetTable.getNameFieldMap().keySet());
             boolean equals = true;
+            Record[] recordCopy = execute.records();
             for (String key : primaryKeys) {
-                Object keyValue1 = records[index].get(key);
+                Object keyValue1 = recordCopy[index].get(key);
                 Object keyValue2 = before.get(key);
                 if (!(equals = Objects.nonNull(keyValue2))) {
                     //主键不能为空
@@ -501,8 +502,9 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
             // 通过主键检查数据顺序
             Collection<String> primaryKeys = Optional.ofNullable(super.targetTable.primaryKeys(true)).orElse(super.targetTable.getNameFieldMap().keySet());
             boolean equals = true;
+            Record[] recordCopy = execute.records();
             for (String key : primaryKeys) {
-                Object keyValue1 = records[index].get(key);
+                Object keyValue1 = recordCopy[index].get(key);
                 Object keyValue2 = after.get(key);
                 if (!(equals = !Objects.isNull(keyValue2))) {
                     //主键不能为空

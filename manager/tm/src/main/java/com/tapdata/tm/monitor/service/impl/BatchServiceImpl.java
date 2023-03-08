@@ -1,6 +1,5 @@
 package com.tapdata.tm.monitor.service.impl;
 
-import cn.hutool.core.date.StopWatch;
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -34,15 +33,19 @@ public class BatchServiceImpl implements BatchService {
     private static final ScheduledExecutorService scheduler = ExecutorsManager.getInstance().getScheduledExecutorService();
 
     @Override
-    public Map<String, Object> batch(BatchRequestDto batchRequestDto) throws ExecutionException, InterruptedException {
+    public Map<String, Object> batch(BatchRequestDto batchRequestDto, Locale locale) throws ExecutionException, InterruptedException {
         List<CompletableFuture<Map<String, Object>>> futuresList = Lists.newLinkedList();
 
         batchRequestDto.forEach((k, v) -> {
             BatchUriParamDto req = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(v), BatchUriParamDto.class);
-            Map<?, ?> param = Objects.requireNonNull(req).getParam();
+            Map param = Objects.requireNonNull(req).getParam();
             String uri = req.getUri();
 
             BatchServiceEnum serviceEnum = BatchServiceEnum.getEnumByServiceAndMethod(uri);
+            if (BatchServiceEnum.TASK_ALARM_LIST.equals(serviceEnum)) {
+                param.put("locale", locale);
+            }
+
             CompletableFuture<Map<String, Object>> query = CompletableFuture.supplyAsync(() -> {
                 Map<String, Object> result = Maps.newHashMap();
                 try {
@@ -73,11 +76,10 @@ public class BatchServiceImpl implements BatchService {
             futuresList.add(chains);
         });
 
-        Map<String, Object> result = futuresList.stream().map(CompletableFuture::join)
+        return futuresList.stream().map(CompletableFuture::join)
                 .map(Map::entrySet)
                 .flatMap(Set::stream)
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a));
-        return result;
     }
 
     public CompletableFuture<Map<String, Object>> failAfter(Duration duration, String key){

@@ -59,9 +59,9 @@ public class BatchWriteRecordTest extends PDKTestBaseV2 {
             this.insertRecords(node, hasCreatedTable, records);
             //查询数据，并校验
             List<Map<String, Object>> result = new ArrayList<>();
-            for (int index = 0; index < records.length; index++) {
+            for (int index = 0; index < insertAfter.length; index++) {
                 Record[] r = new Record[1];
-                r[0] = records[index];
+                r[0] = insertAfter[index];
                 //查询数据，并校验
                 List<Map<String, Object>> res = super.queryRecords(node, super.targetTable, r);
                 result.addAll(res);
@@ -71,10 +71,10 @@ public class BatchWriteRecordTest extends PDKTestBaseV2 {
                 //分批次插入后查询结果不一致-数目不一致
                 TapAssert.error(testCase, langUtil.formatLang("batchWrite.batch.query.fail", recordCount, 1, filterCount));
             } else {
-                for (int index = 0; index < records.length; index++) {
+                for (int index = 0; index < insertAfter.length; index++) {
                     Map<String, Object> resultMap = result.get(index);
                     StringBuilder builder = new StringBuilder();
-                    boolean equals = super.mapEquals(records[index], resultMap, builder);
+                    boolean equals = super.mapEquals(insertAfter[index], resultMap, builder);
                     final int finalIndex = index + 1;
                     TapAssert.asserts(() -> {
                         //分批次插入后查询结果不一致-内容不一致
@@ -91,6 +91,7 @@ public class BatchWriteRecordTest extends PDKTestBaseV2 {
         });
     }
 
+    Record[] insertAfter = new Record[recordCount];
     private boolean insertRecords(TestNode node, AtomicBoolean hasCreatedTable, Record[] records) {
         RecordEventExecute execute = node.recordEventExecute();
         Method testCase = execute.testCase();
@@ -101,6 +102,7 @@ public class BatchWriteRecordTest extends PDKTestBaseV2 {
         WriteListResult<TapRecordEvent> insert;
         for (int index = 0; index < records.length; index++) {
             execute.builderRecordCleanBefore(records[index]);
+            insertAfter[index] = execute.records()[0];
             final int finalIndex = index + 1;
             try {
                 //插入数据
