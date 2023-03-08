@@ -1168,6 +1168,28 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return new Page<>(totals, rows);
     }
 
+
+    public List<Map<String, String>> tableValues(String connectId, String sourceType) {
+        Criteria criteria = Criteria.where("source._id").is(connectId)
+                .and("sourceType").is(sourceType)
+                .and("is_deleted").ne(true)
+                .and("taskId").exists(false)
+                .and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
+        Query query = new Query(criteria);
+        query.fields().include("original_name");
+        List<MetadataInstancesEntity> list = mongoTemplate.find(query, MetadataInstancesEntity.class);
+        List<Map<String, String>> values = new ArrayList<>();
+        if (CollectionUtils.isNotEmpty(list)) {
+            for (MetadataInstancesEntity entity : list) {
+                Map<String, String> value = new HashMap<>();
+                value.put("tableName", entity.getOriginalName());
+                value.put("tableId", entity.getId().toHexString());
+                values.add(value);
+            }
+        }
+        return values;
+    }
+
     public TableSupportInspectVo tableSupportInspect(String connectId, String tableName) {
         TableSupportInspectVo tableSupportInspectVo = new TableSupportInspectVo();
         Criteria criteria = Criteria.where("source._id").is(connectId)

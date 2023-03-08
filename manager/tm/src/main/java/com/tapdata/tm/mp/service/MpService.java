@@ -90,6 +90,10 @@ public class MpService {
         return StringUtils.isNotBlank(this.appId) && StringUtils.isNotBlank(this.appSecret);
     }
 
+    public String getType() {
+        return "wechat";
+    }
+
     public void sendMessage(String openid, Message message) {
 
         Validate.notNull(openid, "OpenId can't be empty on send weChat message.");
@@ -134,12 +138,12 @@ public class MpService {
                 if (response.getStatusLine().getStatusCode() == 200 && StringUtils.isNotBlank(body)) {
                     Map<String, ?> data = JsonUtil.parseJsonUseJackson(body, new TypeReference<Map<String, Object>>(){});
                     log.debug(body);
-                    Object errorCode = data != null ? data.get("errcode") : null;
-                    if (errorCode != null && "40001".equals(errorCode.toString())) {
+                    String errorCode = data != null && data.get("errcode") != null ? data.get("errcode").toString() : "";
+                    if ("40001".equals(errorCode) || "42001".equals(errorCode)) {
                         // invalid credential, access_token is invalid or not latest
                         // refresh access token and try send
                         refreshAccessToken(true);
-                    } else if (data.get("errcode") != null && "0".equals(data.get("errcode").toString())){
+                    } else if ("0".equals(errorCode)){
                         break;
                     } else {
                         log.error("Send weChat message failed and try send, response {}", body);
