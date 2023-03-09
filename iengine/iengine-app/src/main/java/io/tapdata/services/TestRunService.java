@@ -186,24 +186,27 @@ public class TestRunService {
               String syncType = request.getSyncType();
               if (StringUtils.contains(syncType, "initial_sync")) {
                 // initial_sync
+                collectLog.info("Source starts to initial sync ");
                 BatchReadFunction batchReadFunction = connectorFunctions.getBatchReadFunction();
                 PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_BATCH_READ,
                         () -> batchReadFunction.batchRead(connectorContext, tapTable, null, 512,
                                 (events, offsetObject) -> collectLog.info("initial_sync: {} {}", events, offsetObject)),
                         TAG);
-              } else if (StringUtils.contains(syncType, "cdc")) {
+                collectLog.info("initial sync end...");
+              }
+              if (StringUtils.contains(syncType, "cdc")) {
                 // cdc
+                collectLog.info("Source starts to incremental sync");
                 StreamReadFunction streamReadFunction = connectorFunctions.getStreamReadFunction();
                 PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_STREAM_READ,
                         () -> streamReadFunction.streamRead(connectorContext, Collections.singletonList("tableName"), null, 512,
                                 StreamReadConsumer.create((events, offsetObject) -> collectLog.info("cdc: {} {}", events, offsetObject))),
                         TAG);
-              } else {
-                collectLog.error("Unsupported sync type: {}", syncType);
+                collectLog.info("is complete");
               }
 
             } else if (StringUtils.equals(type, "target")) {
-              // target
+              collectLog.info("The target starts processing the data");
               List<TapRecordEvent> recordEvents = new ArrayList<>();
               WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
               PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,
@@ -219,6 +222,7 @@ public class TestRunService {
                         response.incrementRemove(writeListResult.getRemovedCount());
                       }),
                       TAG);
+              collectLog.info("The target processing data is complete");
             } else {
               collectLog.error("Unsupported type: {}", type);
             }
