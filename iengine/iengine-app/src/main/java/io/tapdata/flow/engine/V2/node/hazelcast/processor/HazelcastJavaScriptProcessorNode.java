@@ -188,6 +188,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
     Map<String, Object> contextMap = MapUtil.obj2Map(processContext);
     contextMap.put("event", eventMap);
     contextMap.put("before", before);
+    contextMap.put("info", tapEvent.getInfo());
     Map<String, Object> context = this.processContextThreadLocal.get();
     context.putAll(contextMap);
     ((ScriptEngine) this.engine).put("context", context);
