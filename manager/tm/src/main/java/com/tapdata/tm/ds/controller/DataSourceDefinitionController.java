@@ -134,7 +134,7 @@ public class DataSourceDefinitionController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        return success(dataSourceDefinitionService.dataSourceTypesV2(null, filter));
+        return success(dataSourceDefinitionService.dataSourceTypesV2(getLoginUser(), filter));
     }
 
 }
