@@ -13,4 +13,14 @@ import lombok.EqualsAndHashCode;
 public class LiveDataPlatformDto extends BaseDto {
     private String mode;
 
+    private String fdmStorageCluster;
+
+    private String fdmStorageAddress;
+
+
+    private String mdmStorageCluster;
+
+
+    private String mdmStorageAddress;
+
 }
