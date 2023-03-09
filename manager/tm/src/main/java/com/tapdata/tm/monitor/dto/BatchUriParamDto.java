@@ -11,5 +11,5 @@ public class BatchUriParamDto {
     @Schema(description = "请求uri，/api/task-console")
     private String uri;
     @Schema(description = "请求参数")
-    private Map<?, ?> param;
+    private Map param;
 }

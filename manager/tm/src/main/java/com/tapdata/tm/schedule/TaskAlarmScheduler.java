@@ -2,11 +2,11 @@ package com.tapdata.tm.schedule;
 
 import cn.hutool.core.date.DateUtil;
 import com.alibaba.fastjson.JSON;
+import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
-import com.tapdata.tm.alarm.constant.AlarmContentTemplate;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
@@ -33,7 +33,6 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.text.MessageFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -110,40 +109,40 @@ public class TaskAlarmScheduler {
 
             String orginAgentId = data.getAgentId();
             AtomicReference<String> summary = new AtomicReference<>();
+            Map<String, Object> param = Maps.newHashMap();
+            String alarmDate = DateUtil.now();
+            param.put("alarmDate", alarmDate);
+            param.put("taskName", data.getName());
+            param.put("agentName", orginAgentId);
             if (CollectionUtils.isEmpty(workerList)) {
-                String finalOrginAgentId = orginAgentId;
                 FunctionUtils.isTureOrFalse(isCloud).trueOrFalseHandle(
-                        () -> summary.set(MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_CLOUD, finalOrginAgentId, DateUtil.now())),
-                        () -> summary.set(MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_NO_AGENT, finalOrginAgentId, DateUtil.now()))
+                        () -> summary.set("SYSTEM_FLOW_EGINGE_DOWN_CLOUD"),
+                        () -> summary.set("SYSTEM_FLOW_EGINGE_DOWN_NO_AGENT")
                 );
-
-                AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
-                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(orginAgentId).taskId(data.getId().toHexString())
-                        .name(data.getName()).summary(summary.get()).metric(AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN)
-                        .build();
-                alarmInfo.setUserId(data.getUserId());
-                alarmService.save(alarmInfo);
             } else {
                 if (isCloud) {
-                    summary.set(MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_CLOUD, orginAgentId, DateUtil.now()));
+                    summary.set("SYSTEM_FLOW_EGINGE_DOWN_CLOUD");
                 } else {
                     data.setAgentId(null);
                     CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(data, userDetailMap.get(data.getUserId()), "task", data.getName());
-                    summary.set(MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_CHANGE_AGENT, orginAgentId, workerList.size(), calculationEngineVo.getProcessId(), DateUtil.now()));
+                    param.put("number", workerList.size());
+                    param.put("otherAgentName", calculationEngineVo.getProcessId());
+                    summary.set("SYSTEM_FLOW_EGINGE_DOWN_CHANGE_AGENT");
                     orginAgentId = calculationEngineVo.getProcessId();
                 }
-
-                AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
-                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(orginAgentId).taskId(data.getId().toHexString())
-                        .name(data.getName()).summary(summary.get()).metric(AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN)
-                        .build();
-                alarmInfo.setUserId(data.getUserId());
-                alarmService.save(alarmInfo);
 
                 if (!isCloud) {
                     taskService.start(data, userDetailMap.get(data.getUserId()), "11");
                 }
             }
+
+            AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
+                    .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(orginAgentId).taskId(data.getId().toHexString())
+                    .name(data.getName()).summary(summary.get()).metric(AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN)
+                    .build();
+            alarmInfo.setParam(param);
+            alarmInfo.setUserId(data.getUserId());
+            alarmService.save(alarmInfo);
         }
     }
 }

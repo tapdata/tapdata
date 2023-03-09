@@ -249,7 +249,11 @@ public class SettingsService {
     }
 
     public List<Settings> findAll() {
-        return mongoTemplate.find(new Query(), Settings.class);
+        return findAll(new Query());
+    }
+
+    public List<Settings> findAll(Query query) {
+        return mongoTemplate.find(query, Settings.class);
     }
 
     public void testSendMail(TestMailDto testMailDto) {

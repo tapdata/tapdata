@@ -11,6 +11,7 @@ import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MessageUtil;
 import org.apache.commons.collections.CollectionUtils;
 import org.bson.types.ObjectId;
 import org.springframework.stereotype.Component;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Component;
 import java.text.MessageFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -27,7 +29,7 @@ public class TableEditStrategyImpl implements DagLogStrategy {
     private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.TABLE_EDIT_NODE_CHECK;
 
     @Override
-    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
+    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail, Locale locale) {
         ObjectId taskId = taskDto.getId();
         String current = DateUtil.now();
         Date now = new Date();
@@ -53,7 +55,7 @@ public class TableEditStrategyImpl implements DagLogStrategy {
             log.setCheckType(templateEnum.name());
             log.setCreateAt(now);
             log.setCreateUser(userDetail.getUserId());
-            log.setLog(MessageFormat.format(templateEnum.getInfoTemplate(), current, node.getName()));
+            log.setLog(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "TABLE_EDIT_NODE_INFO"), current, node.getName()));
             log.setGrade(Level.INFO);
             log.setNodeId(node.getId());
 

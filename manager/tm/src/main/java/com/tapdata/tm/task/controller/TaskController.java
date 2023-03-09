@@ -29,6 +29,7 @@ import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.service.*;
 import com.tapdata.tm.task.vo.*;
+import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -83,6 +84,8 @@ public class TaskController extends BaseController {
     private AlarmService alarmService;
 
     private TaskResetLogService taskResetLogService;
+
+    private UserService userService;
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -211,12 +214,7 @@ public class TaskController extends BaseController {
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
         taskSaveService.supplementAlarm(task, user);
         TaskDto taskDto = taskService.confirmById(task, user, confirm);
-        boolean noPass = taskSaveService.taskSaveCheckLog(taskDto, user);
-        if (noPass) {
-            return failed("Task.Save.Error");
-        } else {
-            return success(taskDto);
-        }
+        return success(taskDto);
     }
 
     /**
@@ -247,11 +245,7 @@ public class TaskController extends BaseController {
         task.setId(MongoUtils.toObjectId(id));
         UserDetail user = getLoginUser();
 
-        boolean noPass = taskStartService.taskStartCheckLog(task, user);
-        TaskDto taskDto = task;
-        if (!noPass) {
-            taskDto = taskService.confirmStart(task, user, confirm);
-        }
+        TaskDto taskDto = taskService.confirmStart(task, user, confirm);
 
         return success(taskDto);
     }
@@ -1046,6 +1040,13 @@ public class TaskController extends BaseController {
     public ResponseMessage<DataFlowInsightStatisticsDto> statsTransport(@RequestParam("granularity") String granularity) {
         return success(taskService.statsTransport(getLoginUser()));
     }
+
+
+//    @Operation(summary = "任务数据量统计")
+//    @GetMapping("/stats/transport1")
+//    public ResponseMessage<DataFlowInsightStatisticsDto> statsTransport1(@RequestParam("userId") String userId) {
+//        return success(taskService.statsTransport(userService.loadUserById(new ObjectId(userId))));
+//    }
 
 
 

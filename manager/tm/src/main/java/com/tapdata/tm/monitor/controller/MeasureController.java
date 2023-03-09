@@ -9,8 +9,8 @@ import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.service.BatchService;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
-import com.tapdata.tm.monitor.vo.BatchDataVo;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
+import com.tapdata.tm.utils.WebUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -24,11 +24,11 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Collections;
+import javax.servlet.http.HttpServletRequest;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping(value = "/api/measurement")
@@ -66,8 +66,10 @@ public class MeasureController extends BaseController {
     @PostMapping("/batch")
     public ResponseMessage<Map<String, Object>> batch(@Parameter(description = "多个请求的参数集合", required = true,
                                                          content = @Content(schema = @Schema(implementation = BatchRequestDto.class)))
-                                                 @RequestBody BatchRequestDto batchRequestDto) throws ExecutionException, InterruptedException {
-        Map<String, Object> data = batchService.batch(batchRequestDto);
+                                                 @RequestBody BatchRequestDto batchRequestDto,
+                                                      HttpServletRequest request) throws ExecutionException, InterruptedException {
+        Locale locale = WebUtils.getLocale(request);
+        Map<String, Object> data = batchService.batch(batchRequestDto, locale);
         return success(data);
     }
 
