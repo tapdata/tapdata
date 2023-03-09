@@ -7,14 +7,18 @@ import com.tapdata.entity.sharecdc.LogContent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
+import io.tapdata.aspect.WriteRecordFuncAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.construct.HazelcastConstruct;
 import io.tapdata.construct.constructImpl.ConstructRingBuffer;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -106,54 +110,77 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	@SneakyThrows
 	void processShareLog(List<TapdataShareLogEvent> tapdataShareLogEvents) {
 		if (CollectionUtils.isEmpty(tapdataShareLogEvents)) return;
+
+		List<TapRecordEvent> tapRecordEvents = new ArrayList<>();
 		for (TapdataShareLogEvent tapdataShareLogEvent : tapdataShareLogEvents) {
 			TapEvent tapEvent = tapdataShareLogEvent.getTapEvent();
 			if (!(tapEvent instanceof TapRecordEvent)) {
 				throw new RuntimeException("Share cdc target expected " + TapRecordEvent.class.getName() + ", actual: " + tapEvent.getClass().getName());
 			}
-			String tableId = TapEventUtil.getTableId(tapEvent);
-			String op = TapEventUtil.getOp(tapEvent);
-			Long timestamp = TapEventUtil.getTimestamp(tapEvent);
-			Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
-			handleData(before);
-			Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
-			handleData(after);
-			Object streamOffset = tapdataShareLogEvent.getStreamOffset();
-			String offsetStr = "";
-			if (null != streamOffset) {
-				offsetStr = PdkUtil.encodeOffset(streamOffset);
-			}
-			verify(tableId, op, before, after, timestamp, offsetStr);
-			LogContent logContent = new LogContent(
-					tableId,
-					timestamp,
-					before,
-					after,
-					op,
-					offsetStr
-			);
-			Document document;
-			try {
-				document = MapUtil.obj2Document(logContent);
-			} catch (Exception e) {
-				throw new RuntimeException("Convert map to document failed; Map data: " + logContent + ". Error: " + e.getMessage(), e);
-			}
-			if (!batchCacheData.containsKey(tableId)) {
-				batchCacheData.put(tableId, new ArrayList<>());
-			}
-			batchCacheData.get(tableId).add(document);
-			if (batchCacheData.get(tableId).size() >= INSERT_BATCH_SIZE) {
-				insertMany(tableId);
-				batchCacheData.get(tableId).clear();
-			}
+			tapRecordEvents.add((TapRecordEvent) tapEvent);
 		}
-		for (Map.Entry<String, List<Document>> entry : batchCacheData.entrySet()) {
-			String tableName = entry.getKey();
-			List<Document> list = entry.getValue();
-			if (CollectionUtils.isNotEmpty(list)) {
-				insertMany(tableName);
-			}
-		}
+
+		WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>();
+
+		executeDataFuncAspect(
+				WriteRecordFuncAspect.class,
+				() -> new WriteRecordFuncAspect()
+						.recordEvents(tapRecordEvents)
+						.table(new TapTable(externalStorageDto.getName()))
+						.connectorContext(getConnectorNode().getConnectorContext())
+						.dataProcessorContext(dataProcessorContext)
+						.start(),
+				writeRecordFuncAspect -> {
+					for (TapdataShareLogEvent tapdataShareLogEvent : tapdataShareLogEvents) {
+						TapEvent tapEvent = tapdataShareLogEvent.getTapEvent();
+						String tableId = TapEventUtil.getTableId(tapEvent);
+						String op = TapEventUtil.getOp(tapEvent);
+						Long timestamp = TapEventUtil.getTimestamp(tapEvent);
+						Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
+						handleData(before);
+						Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
+						handleData(after);
+						Object streamOffset = tapdataShareLogEvent.getStreamOffset();
+						String offsetStr = "";
+						if (null != streamOffset) {
+							offsetStr = PdkUtil.encodeOffset(streamOffset);
+						}
+						verify(tableId, op, before, after, timestamp, offsetStr);
+						LogContent logContent = new LogContent(
+								tableId,
+								timestamp,
+								before,
+								after,
+								op,
+								offsetStr
+						);
+						Document document;
+						try {
+							document = MapUtil.obj2Document(logContent);
+						} catch (Exception e) {
+							throw new RuntimeException("Convert map to document failed; Map data: " + logContent + ". Error: " + e.getMessage(), e);
+						}
+						if (!batchCacheData.containsKey(tableId)) {
+							batchCacheData.put(tableId, new ArrayList<>());
+						}
+						batchCacheData.get(tableId).add(document);
+						if (batchCacheData.get(tableId).size() >= INSERT_BATCH_SIZE) {
+							insertMany(tableId);
+							writeListResult.incrementInserted(batchCacheData.get(tableId).size());
+							batchCacheData.get(tableId).clear();
+						}
+					}
+					for (Map.Entry<String, List<Document>> entry : batchCacheData.entrySet()) {
+						String tableName = entry.getKey();
+						List<Document> list = entry.getValue();
+						if (CollectionUtils.isNotEmpty(list)) {
+							insertMany(tableName);
+							writeListResult.incrementInserted(list.size());
+						}
+					}
+					AspectUtils.accept(writeRecordFuncAspect.state(WriteRecordFuncAspect.STATE_WRITING).getConsumers(), tapRecordEvents, writeListResult);
+				}
+		);
 		batchCacheData.clear();
 	}
 

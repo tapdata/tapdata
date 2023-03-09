@@ -500,7 +500,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	abstract void processEvents(List<TapEvent> tapEvents);
 
-	abstract void processShareLog(List<TapdataShareLogEvent> tapdataShareLogEvents);
+	void processShareLog(List<TapdataShareLogEvent> tapdataShareLogEvents){
+		throw new UnsupportedOperationException();
+	}
 
 	protected void handleTapTablePrimaryKeys(TapTable tapTable) {
 		if (writeStrategy.equals(com.tapdata.tm.commons.task.dto.MergeTableProperties.MergeType.updateOrInsert.name())) {
