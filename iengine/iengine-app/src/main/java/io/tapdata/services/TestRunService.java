@@ -1,12 +1,13 @@
 package io.tapdata.services;
 
+import cn.hutool.core.thread.ThreadUtil;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.logger.CollectLog;
+import io.tapdata.flow.engine.V2.log.CollectLog;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.FormatUtils;
@@ -37,6 +38,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 @RemoteService
 public class TestRunService {
@@ -62,12 +65,14 @@ public class TestRunService {
      */
     private String syncType;
 
+    private int timeout;
+
     /**
      * connections
      */
     private Connections connections;
 
-    private Map<String, Object> param;
+    private Map<String, Object> params;
 
     private String version;
 
@@ -108,114 +113,117 @@ public class TestRunService {
   }
 
 
-  public Response testRun(Request request) throws Throwable {
-
-    CollectLog collectLog = getCollectLog();
-    String version = request == null ? "" : request.getVersion();
-    Response response = new Response(collectLog.getLogs(), version);
-    if (request == null) {
-      collectLog.error("request param is null");
-      return response;
-    }
-
-    Connections connections = request.getConnections();
-    if (connections == null) {
-      collectLog.error("connections is null");
-      return response;
-    }
-    String pdkType = connections.getPdkType();
-    if (StringUtils.isBlank(pdkType)) {
-      throw new ConnectionException("Unknown connection pdk type");
-    }
-
-
-    ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
-    DatabaseTypeEnum.DatabaseType databaseDefinition = ConnectionUtil.getDatabaseType(clientMongoOperator, pdkType);
-    if (databaseDefinition == null) {
-      throw new ConnectionException(String.format("Unknown database type %s", connections.getDatabase_type()));
-    }
-
-    PDKUtils pdkUtils = InstanceFactory.instance(PDKUtils.class);
-    pdkUtils.downloadPdkFileIfNeed(connections.getPdkHash());
-
+  public Response testRun(final Request request) throws Throwable {
     long ts = System.currentTimeMillis();
-    String associateId = "TEST_RUN-" + connections.getName() + "_" + ts;
-    ConnectorNode connectorNode = null;
+    final CollectLog collectLog = getCollectLog();
+    String version = request == null ? "" : request.getVersion();
+    final Response response = new Response(collectLog.getLogs(), version);
     try {
+      if (request == null) {
+        collectLog.error("request param is null");
+        return response;
+      }
 
-      String tableName = (String) connections.getConfig().get("");
-      TapTable tapTable = TapTableUtil.getTapTableByConnectionId(connections.getId(), tableName);
-      connectorNode = PDKIntegration.createConnectorBuilder()
-              .withDagId("")
-              .withGroup(databaseDefinition.getGroup())
-              .withPdkId(databaseDefinition.getPdkId())
-              .withVersion(databaseDefinition.getVersion())
-              .withAssociateId(associateId)
-              .withConnectionConfig(DataMap.create(connections.getConfig()))
-              .withLog(collectLog)
-              .build();
+      final Connections connections = request.getConnections();
+      if (connections == null) {
+        collectLog.error("connections is null");
+        return response;
+      }
+      final String pdkType = connections.getPdkType();
+      if (StringUtils.isBlank(pdkType)) {
+        throw new ConnectionException("Unknown connection pdk type");
+      }
+      String associateId = "TEST_RUN-" + connections.getName() + "_" + ts;
+      collectLog.info("start {}...", associateId);
 
-      PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, "Init PDK", TAG);
-
-      try {
-        TapConnectorContext connectorContext = connectorNode.getConnectorContext();
-        ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
-
-        String type = request.getType();
-        if (StringUtils.equals(type, "source")) {
-          String syncType = request.getSyncType();
-          if (StringUtils.contains(syncType, "initial_sync")) {
-            // initial_sync
-            BatchReadFunction batchReadFunction = connectorFunctions.getBatchReadFunction();
-            PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_BATCH_READ,
-                    () -> batchReadFunction.batchRead(connectorContext, tapTable, null, 512,
-                            (events, offsetObject) -> collectLog.info("initial_sync: {} {}", events, offsetObject)),
-                    TAG);
-          } else if (StringUtils.contains(syncType, "cdc")) {
-            // cdc
-            StreamReadFunction streamReadFunction = connectorFunctions.getStreamReadFunction();
-            PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_STREAM_READ,
-                    () -> streamReadFunction.streamRead(connectorContext, Collections.singletonList("tableName"), null, 512,
-                            StreamReadConsumer.create((events, offsetObject) -> collectLog.info("cdc: {} {}", events, offsetObject))),
-                    TAG);
-          } else {
-            collectLog.error("Unsupported sync type: {}", syncType);
-          }
-
-        } else if (StringUtils.equals(type, "target")) {
-          // target
-          List<TapRecordEvent> recordEvents = new ArrayList<>();
-          WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
-          PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,
-                  () -> writeRecordFunction.writeRecord(connectorContext, recordEvents, tapTable, writeListResult -> {
-                    Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
-                    if (MapUtils.isNotEmpty(errorMap)) {
-                      for (Map.Entry<TapRecordEvent, Throwable> entry : errorMap.entrySet()) {
-                        collectLog.error("Error record {} {}", entry.getKey(), entry.getValue());
-                      }
-                    }
-                    response.incrementInserted(writeListResult.getInsertedCount());
-                    response.incrementModified(writeListResult.getModifiedCount());
-                    response.incrementRemove(writeListResult.getRemovedCount());
-                  }),
-                  TAG);
-        } else {
-          collectLog.error("Unsupported type: {}", type);
+      Runnable runnable = () -> {
+        Thread.currentThread().setName(associateId);
+        ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
+        DatabaseTypeEnum.DatabaseType databaseDefinition = ConnectionUtil.getDatabaseType(clientMongoOperator, pdkType);
+        if (databaseDefinition == null) {
+          throw new ConnectionException(String.format("Unknown database type %s", connections.getDatabase_type()));
         }
 
+        PDKUtils pdkUtils = InstanceFactory.instance(PDKUtils.class);
+        pdkUtils.downloadPdkFileIfNeed(connections.getPdkHash());
 
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      } finally {
-        PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, "Stop PDK", TAG);
-      }
-    } finally {
-      if(connectorNode != null) {
-        connectorNode.unregisterMemoryFetcher();
-      }
-      PDKIntegration.releaseAssociateId(associateId);
+        ConnectorNode connectorNode = null;
+        try {
+          String tableName = (String) connections.getConfig().get("");
+          TapTable tapTable = TapTableUtil.getTapTableByConnectionId(connections.getId(), tableName);
+          connectorNode = PDKIntegration.createConnectorBuilder()
+                  .withDagId("")
+                  .withGroup(databaseDefinition.getGroup())
+                  .withPdkId(databaseDefinition.getPdkId())
+                  .withVersion(databaseDefinition.getVersion())
+                  .withAssociateId(associateId)
+                  .withConnectionConfig(DataMap.create(connections.getConfig()))
+                  .withLog(collectLog)
+                  .build();
+
+          PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, "Init PDK", TAG);
+
+          try {
+            TapConnectorContext connectorContext = connectorNode.getConnectorContext();
+            ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+
+            String type = request.getType();
+            if (StringUtils.equals(type, "source")) {
+              String syncType = request.getSyncType();
+              if (StringUtils.contains(syncType, "initial_sync")) {
+                // initial_sync
+                BatchReadFunction batchReadFunction = connectorFunctions.getBatchReadFunction();
+                PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_BATCH_READ,
+                        () -> batchReadFunction.batchRead(connectorContext, tapTable, null, 512,
+                                (events, offsetObject) -> collectLog.info("initial_sync: {} {}", events, offsetObject)),
+                        TAG);
+              } else if (StringUtils.contains(syncType, "cdc")) {
+                // cdc
+                StreamReadFunction streamReadFunction = connectorFunctions.getStreamReadFunction();
+                PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_STREAM_READ,
+                        () -> streamReadFunction.streamRead(connectorContext, Collections.singletonList("tableName"), null, 512,
+                                StreamReadConsumer.create((events, offsetObject) -> collectLog.info("cdc: {} {}", events, offsetObject))),
+                        TAG);
+              } else {
+                collectLog.error("Unsupported sync type: {}", syncType);
+              }
+
+            } else if (StringUtils.equals(type, "target")) {
+              // target
+              List<TapRecordEvent> recordEvents = new ArrayList<>();
+              WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
+              PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,
+                      () -> writeRecordFunction.writeRecord(connectorContext, recordEvents, tapTable, writeListResult -> {
+                        Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
+                        if (MapUtils.isNotEmpty(errorMap)) {
+                          for (Map.Entry<TapRecordEvent, Throwable> entry : errorMap.entrySet()) {
+                            collectLog.error("Error record {} {}", entry.getKey(), entry.getValue());
+                          }
+                        }
+                        response.incrementInserted(writeListResult.getInsertedCount());
+                        response.incrementModified(writeListResult.getModifiedCount());
+                        response.incrementRemove(writeListResult.getRemovedCount());
+                      }),
+                      TAG);
+            } else {
+              collectLog.error("Unsupported type: {}", type);
+            }
+          } finally {
+            PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, "Stop PDK", TAG);
+          }
+        } finally {
+          if(connectorNode != null) {
+            connectorNode.unregisterMemoryFetcher();
+          }
+          PDKIntegration.releaseAssociateId(associateId);
+        }
+      };
+      Future<?> future = ThreadUtil.execAsync(runnable);
+      future.get(request.getTimeout(), TimeUnit.SECONDS);
+      collectLog.info("test run end, cost {}ms", (System.currentTimeMillis() - ts));
+    } catch (Throwable t) {
+      collectLog.error("execute test run error", t);
     }
-
     return response;
   }
 

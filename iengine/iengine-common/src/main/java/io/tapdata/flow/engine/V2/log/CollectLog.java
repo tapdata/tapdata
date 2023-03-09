@@ -1,5 +1,6 @@
-package io.tapdata.entity.logger;
+package io.tapdata.flow.engine.V2.log;
 
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.utils.FormatUtils;
 
 import java.util.LinkedList;
