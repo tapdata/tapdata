@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.service;
 
 import com.alibaba.fastjson.JSON;
+import com.google.common.collect.Maps;
 import com.mongodb.ConnectionString;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.util.JsonUtil;
@@ -994,6 +995,9 @@ public class LogCollectorService {
             logCollectorNode.setName(UUIDUtil.getUUID());
             logCollectorNode.setTableNames(tableNames);
             logCollectorNode.setSelectType(LogCollectorNode.SELECT_TYPE_RESERVATION);
+            Map<String, Object> attr = Maps.newHashMap();
+            attr.put("pdkHash", dataSource.getPdkHash());
+            logCollectorNode.setAttrs(attr);
 
             HazelCastImdgNode hazelCastImdgNode = new HazelCastImdgNode();
             hazelCastImdgNode.setId(UUIDUtil.getUUID());
