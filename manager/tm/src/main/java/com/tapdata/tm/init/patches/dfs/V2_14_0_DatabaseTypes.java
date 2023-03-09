@@ -28,7 +28,7 @@ import java.util.Objects;
  * @author <a href="mailto:meteor209@gmail.com">jiuye</a>
  * @version v1.0 2023/2/10 15:47 Create
  */
-@PatchAnnotation(appTypes = {AppType.DFS}, version = "2.14-0")
+@PatchAnnotation(appType = AppType.DFS, version = "2.14-0")
 public class V2_14_0_DatabaseTypes extends AbsPatch {
     private static final Logger logger = LogManager.getLogger(V2_14_0_DatabaseTypes.class);
 
