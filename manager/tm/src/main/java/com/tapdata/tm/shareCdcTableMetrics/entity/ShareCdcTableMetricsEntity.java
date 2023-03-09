@@ -1,13 +1,9 @@
 package com.tapdata.tm.shareCdcTableMetrics.entity;
 
+import com.tapdata.tm.base.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import com.tapdata.tm.base.entity.BaseEntity;
-import lombok.NonNull;
 import org.springframework.data.mongodb.core.mapping.Document;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 
 /**
