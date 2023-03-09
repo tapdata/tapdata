@@ -127,7 +127,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected SettingService settingService;
 
 	protected Map<String, String> tags;
-	protected MilestoneService milestoneService;
 	protected NodeException error;
 	protected String errorMessage;
 	protected ProcessorBaseContext processorBaseContext;
@@ -144,11 +143,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected ObsLogger obsLogger;
 	protected MonitorManager monitorManager;
 	private JetJobStatusMonitor jetJobStatusMonitor;
-
-	private final TapCache<Boolean> isJobRunning = new TapCache<Boolean>().expireTime(2000).supplier(this::isJetJobRunning).disableCacheValue(false);
-
 	protected String lastTableName;
-
 	protected ExternalStorageDto externalStorageDto;
 
 	public HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
@@ -588,10 +583,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 	}
 
-	public void setMilestoneService(MilestoneService milestoneService) {
-		this.milestoneService = milestoneService;
-	}
-
 	protected void onDataStats(OnData onData, Stats stats) {
 		Map<String, Long> total = stats.getTotal();
 		Long processed = total.getOrDefault(Stats.PROCESSED_FIELD_NAME, 0L);
@@ -703,7 +694,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		List<String> vertexNames = nextOrPreDataNodes.stream().map(NodeUtil::getVertexName).collect(Collectors.toList());
 
 		HttpClientMongoOperator httpClientMongoOperator = (HttpClientMongoOperator) clientMongoOperator;
-		this.milestoneService = MilestoneFactory.getJetEdgeMilestoneService(processorBaseContext.getTaskDto(), httpClientMongoOperator.getRestTemplateOperator().getBaseURLs(), httpClientMongoOperator.getRestTemplateOperator().getRetryTime(), httpClientMongoOperator.getConfigCenter(), node, vertexName, vertexNames, null, vertexType);
 	}
 
 	public synchronized NodeException errorHandle(Throwable throwable, String errorMessage) {

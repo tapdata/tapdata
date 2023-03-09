@@ -49,7 +49,6 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private ClientMongoOperator clientMongoOperator;
 	private HazelcastInstance hazelcastInstance;
 	private MonitorManager monitorManager;
-	private SnapshotProgressManager snapshotProgressManager;
 	private String cacheName;
 	private Throwable error;
 	private TerminalMode terminalMode;

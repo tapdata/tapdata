@@ -157,7 +157,12 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     public void scheduleFailed(TaskDto taskDto, UserDetail user) {
         log.warn("No available agent found, task name = {}", taskDto.getName());
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
-        throw new BizException("Task.AgentNotFound");
+        if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(taskDto.getAccessNodeType())
+                && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
+            throw new BizException("Task.SpecifyAgentOffline", taskDto.getAccessNodeProcessIdList().get(0));
+        } else {
+            throw new BizException("Task.AgentNotFound");
+        }
     }
 
 }
