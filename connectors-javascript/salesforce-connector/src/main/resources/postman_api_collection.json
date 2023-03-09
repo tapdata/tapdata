@@ -1,0 +1,321 @@
+{
+  "info": {
+    "_postman_id": "8b3a16f3-80e2-4a1c-939b-e6091c186506",
+    "name": "Salesforce js api",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "16923698"
+  },
+  "item": [
+    {
+      "name": "query contact",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Chatter-Entity-Encoding",
+            "value": "false"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{Authorization}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Cookie",
+            "value": "BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1"
+          }
+        ],
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query contact($first: Int) {\r\n  uiapi {\r\n    query {\r\n      Contact(first: $first) {\r\n        edges {\r\n          node {\r\n              Id\r\n            AccountId {\r\n                value\r\n            }\r\n            AssistantName {\r\n                value\r\n            }\r\n            AssistantPhone {\r\n                value\r\n            }\r\n            Birthdate {\r\n                value\r\n            }\r\n            CleanStatus {\r\n                value\r\n            }\r\n            Department {\r\n                value\r\n            }\r\n            Description {\r\n                value\r\n            }\r\n            Email {\r\n                value\r\n            }\r\n            EmailBouncedDate {\r\n                value\r\n            }\r\n            EmailBouncedReason {\r\n                value\r\n            }\r\n            Fax {\r\n                value\r\n            }\r\n            FirstName {\r\n                value\r\n            }\r\n            HomePhone {\r\n                value\r\n            }\r\n            IndividualId {\r\n                value\r\n            }\r\n            IsDeleted {\r\n                value\r\n            }\r\n            IsEmailBounced {\r\n                value\r\n            }\r\n            Jigsaw {\r\n                value\r\n            }\r\n            Languages__c {\r\n                value\r\n            }\r\n            LastActivityDate {\r\n                value\r\n            }\r\n            LastName {\r\n                value\r\n            }\r\n            LastReferencedDate {\r\n                value\r\n            }\r\n            LastViewedDate {\r\n                value\r\n            }\r\n            LeadSource {\r\n                value\r\n            }\r\n            MailingCity {\r\n                value\r\n            }\r\n            MailingCountry {\r\n                value\r\n            }\r\n            MailingGeocodeAccuracy {\r\n                value\r\n            }\r\n            MailingLatitude {\r\n                value\r\n            }\r\n            MailingLongitude {\r\n                value\r\n            }\r\n            MailingPostalCode {\r\n                value\r\n            }\r\n            MailingState {\r\n                value\r\n            }\r\n            MailingStreet {\r\n                value\r\n            }\r\n            MasterRecordId {\r\n                value\r\n            }\r\n            MobilePhone {\r\n                value\r\n            }\r\n            Name {\r\n                value\r\n            }\r\n            OtherCity {\r\n                value\r\n            }\r\n            OtherCountry {\r\n                value\r\n            }\r\n            OtherGeocodeAccuracy {\r\n                value\r\n            }\r\n            OtherLatitude {\r\n                value\r\n            }\r\n            OtherLongitude {\r\n                value\r\n            }\r\n            OtherPhone {\r\n                value\r\n            }\r\n            OtherPostalCode {\r\n                value\r\n            }\r\n            OtherState {\r\n                value\r\n            }\r\n            OtherStreet {\r\n                value\r\n            }\r\n            OwnerId {\r\n                value\r\n            }\r\n            Phone {\r\n                value\r\n            }\r\n            PhotoUrl {\r\n                value\r\n            }\r\n            RecordTypeId {\r\n                value\r\n            }\r\n            ReportsToId {\r\n                value\r\n            }\r\n            Salutation {\r\n                value\r\n            }\r\n            Title {\r\n                value\r\n            }\r\n        }\r\n        cursor\r\n        }\r\n        totalCount\r\n        pageInfo {\r\n          hasNextPage\r\n          hasPreviousPage\r\n          startCursor\r\n          endCursor\r\n        }\r\n      }\r\n    }\r\n  }\r\n}",
+            "variables": "{\r\n    \"first\" :{{first}}\r\n}"
+          }
+        },
+        "url": {
+          "raw": "{{_endpoint}}/services/data/v{{version}}/graphql",
+          "host": [
+            "{{_endpoint}}"
+          ],
+          "path": [
+            "services",
+            "data",
+            "v{{version}}",
+            "graphql"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "query contact by after",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Chatter-Entity-Encoding",
+            "value": "false"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{Authorization}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Cookie",
+            "value": "BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1"
+          }
+        ],
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query contact($first: Int, $after: String) {\r\n  uiapi {\r\n    query {\r\n      Contact(first: $first, after: $after) {\r\n        edges {\r\n          node {\r\n              Id\r\n            AccountId {\r\n                value\r\n            }\r\n            AssistantName {\r\n                value\r\n            }\r\n            AssistantPhone {\r\n                value\r\n            }\r\n            Birthdate {\r\n                value\r\n            }\r\n            CleanStatus {\r\n                value\r\n            }\r\n            Department {\r\n                value\r\n            }\r\n            Description {\r\n                value\r\n            }\r\n            Email {\r\n                value\r\n            }\r\n            EmailBouncedDate {\r\n                value\r\n            }\r\n            EmailBouncedReason {\r\n                value\r\n            }\r\n            Fax {\r\n                value\r\n            }\r\n            FirstName {\r\n                value\r\n            }\r\n            HomePhone {\r\n                value\r\n            }\r\n            IndividualId {\r\n                value\r\n            }\r\n            IsDeleted {\r\n                value\r\n            }\r\n            IsEmailBounced {\r\n                value\r\n            }\r\n            Jigsaw {\r\n                value\r\n            }\r\n            Languages__c {\r\n                value\r\n            }\r\n            LastActivityDate {\r\n                value\r\n            }\r\n            LastName {\r\n                value\r\n            }\r\n            LastReferencedDate {\r\n                value\r\n            }\r\n            LastViewedDate {\r\n                value\r\n            }\r\n            LeadSource {\r\n                value\r\n            }\r\n            MailingCity {\r\n                value\r\n            }\r\n            MailingCountry {\r\n                value\r\n            }\r\n            MailingGeocodeAccuracy {\r\n                value\r\n            }\r\n            MailingLatitude {\r\n                value\r\n            }\r\n            MailingLongitude {\r\n                value\r\n            }\r\n            MailingPostalCode {\r\n                value\r\n            }\r\n            MailingState {\r\n                value\r\n            }\r\n            MailingStreet {\r\n                value\r\n            }\r\n            MasterRecordId {\r\n                value\r\n            }\r\n            MobilePhone {\r\n                value\r\n            }\r\n            Name {\r\n                value\r\n            }\r\n            OtherCity {\r\n                value\r\n            }\r\n            OtherCountry {\r\n                value\r\n            }\r\n            OtherGeocodeAccuracy {\r\n                value\r\n            }\r\n            OtherLatitude {\r\n                value\r\n            }\r\n            OtherLongitude {\r\n                value\r\n            }\r\n            OtherPhone {\r\n                value\r\n            }\r\n            OtherPostalCode {\r\n                value\r\n            }\r\n            OtherState {\r\n                value\r\n            }\r\n            OtherStreet {\r\n                value\r\n            }\r\n            OwnerId {\r\n                value\r\n            }\r\n            Phone {\r\n                value\r\n            }\r\n            PhotoUrl {\r\n                value\r\n            }\r\n            RecordTypeId {\r\n                value\r\n            }\r\n            ReportsToId {\r\n                value\r\n            }\r\n            Salutation {\r\n                value\r\n            }\r\n            Title {\r\n                value\r\n            }\r\n        }\r\n        cursor\r\n        }\r\n        totalCount\r\n        pageInfo {\r\n          hasNextPage\r\n          hasPreviousPage\r\n          startCursor\r\n          endCursor\r\n        }\r\n      }\r\n    }\r\n  }\r\n}",
+            "variables": "{\r\n    \"first\" :{{first}},\r\n    \"after\" : \"{{after}}\"\r\n}"
+          }
+        },
+        "url": {
+          "raw": "{{_endpoint}}/services/data/v{{version}}/graphql",
+          "host": [
+            "{{_endpoint}}"
+          ],
+          "path": [
+            "services",
+            "data",
+            "v{{version}}",
+            "graphql"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "query opportunity",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Chatter-Entity-Encoding",
+            "value": "false"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{Authorization}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Cookie",
+            "value": "BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1"
+          }
+        ],
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query opportunity($first: Int) {\r\n  uiapi {\r\n    query {\r\n      Opportunity(first: $first) {\r\n        edges {\r\n          node {\r\n              Id\r\n            AccountId {\r\n                value\r\n            }\r\n            Amount {\r\n                value\r\n            }\r\n            CampaignId {\r\n                value\r\n            }\r\n            CloseDate {\r\n                value\r\n            }\r\n            ContactId {\r\n                value\r\n            }\r\n            Description {\r\n                value\r\n            }\r\n            ExpectedRevenue {\r\n                value\r\n            }\r\n            Fiscal {\r\n                value\r\n            }\r\n            FiscalQuarter {\r\n                value\r\n            }\r\n            FiscalYear {\r\n                value\r\n            }\r\n            ForecastCategory {\r\n                value\r\n            }\r\n            ForecastCategoryName {\r\n                value\r\n            }\r\n            HasOpenActivity {\r\n                value\r\n            }\r\n            HasOpportunityLineItem {\r\n                value\r\n            }\r\n            HasOverdueTask {\r\n                value\r\n            }\r\n            IsClosed {\r\n                value\r\n            }\r\n            IsDeleted {\r\n                value\r\n            }\r\n            IsWon {\r\n                value\r\n            }\r\n            LastActivityDate {\r\n                value\r\n            }\r\n            \r\n            LastAmountChangedHistoryId {\r\n                value\r\n            }\r\n            LastCloseDateChangedHistoryId {\r\n                value\r\n            }\r\n            LastReferencedDate {\r\n                value\r\n            }\r\n            LastStageChangeDate {\r\n                value\r\n            }\r\n            LastViewedDate {\r\n                value\r\n            }\r\n            LeadSource {\r\n                value\r\n            }\r\n            Name {\r\n                value\r\n            }\r\n            NextStep {\r\n                value\r\n            }\r\n            OwnerId {\r\n                value\r\n            }\r\n            Pricebook2Id {\r\n                value\r\n            }\r\n            Probability {\r\n                value\r\n            }\r\n            PushCount {\r\n                value\r\n            }\r\n            RecordTypeId {\r\n                value\r\n            }\r\n            StageName {\r\n                value\r\n            }\r\n            TotalOpportunityQuantity {\r\n                value\r\n            }\r\n            Type {\r\n                value\r\n            }\r\n        }\r\n        cursor\r\n        }\r\n        totalCount\r\n        pageInfo {\r\n          hasNextPage\r\n          hasPreviousPage\r\n          startCursor\r\n          endCursor\r\n        }\r\n      }\r\n    }\r\n  }\r\n  }",
+            "variables": "{\r\n    \"first\" :{{first}}\r\n}"
+          }
+        },
+        "url": {
+          "raw": "{{_endpoint}}/services/data/v{{version}}/graphql",
+          "host": [
+            "{{_endpoint}}"
+          ],
+          "path": [
+            "services",
+            "data",
+            "v{{version}}",
+            "graphql"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "query opportunity by after",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Chatter-Entity-Encoding",
+            "value": "false"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{Authorization}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Cookie",
+            "value": "BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1"
+          }
+        ],
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query opportunity($first: Int, $after: String) {\r\n  uiapi {\r\n    query {\r\n      Opportunity(first: $first, after: $after) {\r\n        edges {\r\n          node {\r\n              Id\r\n            AccountId {\r\n                value\r\n            }\r\n            Amount {\r\n                value\r\n            }\r\n            CampaignId {\r\n                value\r\n            }\r\n            CloseDate {\r\n                value\r\n            }\r\n            ContactId {\r\n                value\r\n            }\r\n            Description {\r\n                value\r\n            }\r\n            ExpectedRevenue {\r\n                value\r\n            }\r\n            Fiscal {\r\n                value\r\n            }\r\n            FiscalQuarter {\r\n                value\r\n            }\r\n            FiscalYear {\r\n                value\r\n            }\r\n            ForecastCategory {\r\n                value\r\n            }\r\n            ForecastCategoryName {\r\n                value\r\n            }\r\n            HasOpenActivity {\r\n                value\r\n            }\r\n            HasOpportunityLineItem {\r\n                value\r\n            }\r\n            HasOverdueTask {\r\n                value\r\n            }\r\n            IsClosed {\r\n                value\r\n            }\r\n            IsDeleted {\r\n                value\r\n            }\r\n            IsWon {\r\n                value\r\n            }\r\n            LastActivityDate {\r\n                value\r\n            }\r\n            \r\n            LastAmountChangedHistoryId {\r\n                value\r\n            }\r\n            LastCloseDateChangedHistoryId {\r\n                value\r\n            }\r\n            LastReferencedDate {\r\n                value\r\n            }\r\n            LastStageChangeDate {\r\n                value\r\n            }\r\n            LastViewedDate {\r\n                value\r\n            }\r\n            LeadSource {\r\n                value\r\n            }\r\n            Name {\r\n                value\r\n            }\r\n            NextStep {\r\n                value\r\n            }\r\n            OwnerId {\r\n                value\r\n            }\r\n            Pricebook2Id {\r\n                value\r\n            }\r\n            Probability {\r\n                value\r\n            }\r\n            PushCount {\r\n                value\r\n            }\r\n            RecordTypeId {\r\n                value\r\n            }\r\n            StageName {\r\n                value\r\n            }\r\n            TotalOpportunityQuantity {\r\n                value\r\n            }\r\n            Type {\r\n                value\r\n            }\r\n        }\r\n        cursor\r\n        }\r\n        totalCount\r\n        pageInfo {\r\n          hasNextPage\r\n          hasPreviousPage\r\n          startCursor\r\n          endCursor\r\n        }\r\n      }\r\n    }\r\n  }\r\n  }",
+            "variables": "{\r\n    \"first\" :{{first}},\r\n    \"after\" : \"{{after}}\"\r\n}"
+          }
+        },
+        "url": {
+          "raw": "{{_endpoint}}/services/data/v{{version}}/graphql",
+          "host": [
+            "{{_endpoint}}"
+          ],
+          "path": [
+            "services",
+            "data",
+            "v{{version}}",
+            "graphql"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "query lead",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Chatter-Entity-Encoding",
+            "value": "false"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{Authorization}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Cookie",
+            "value": "BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1"
+          }
+        ],
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query lead($first: Int) {\r\n  uiapi {\r\n    query {\r\n      Lead(first: $first) {\r\n        edges {\r\n          node {\r\n              Id\r\n            AnnualRevenue {\r\n                value\r\n            }\r\n            City {\r\n                value\r\n            }\r\n            CleanStatus {\r\n                value\r\n            }\r\n            Company {\r\n                value\r\n            }\r\n            CompanyDunsNumber {\r\n                value\r\n            }\r\n            ConvertedAccountId {\r\n                value\r\n            }\r\n            ConvertedContactId {\r\n                value\r\n            }\r\n            ConvertedDate {\r\n                value\r\n            }\r\n            ConvertedOpportunityId {\r\n                value\r\n            }\r\n            Country {\r\n                value\r\n            }\r\n            Description {\r\n                value\r\n            }\r\n            Email {\r\n                value\r\n            }\r\n            EmailBouncedDate {\r\n                value\r\n            }\r\n            EmailBouncedReason {\r\n                value\r\n            }\r\n            Fax {\r\n                value\r\n            }\r\n            FirstName {\r\n                value\r\n            }\r\n            GeocodeAccuracy {\r\n                value\r\n            }\r\n            IndividualId {\r\n                value\r\n            }\r\n            Industry {\r\n                value\r\n            }\r\n            IsConverted {\r\n                value\r\n            }\r\n            IsDeleted {\r\n                value\r\n            }\r\n            IsUnreadByOwner {\r\n                value\r\n            }\r\n            Jigsaw {\r\n                value\r\n            }\r\n            LastActivityDate {\r\n                value\r\n            }\r\n            LastName {\r\n                value\r\n            }\r\n            LastReferencedDate{\r\n                value\r\n            }\r\n            LastViewedDate{\r\n                value\r\n            }\r\n            Latitude{\r\n                value\r\n            }\r\n            Longitude{\r\n                value\r\n            }\r\n            LeadSource{\r\n                value\r\n            }\r\n            MasterRecordId{\r\n                value\r\n            }\r\n            MobilePhone{\r\n                value\r\n            }\r\n            Name{\r\n                value\r\n            }\r\n            NumberOfEmployees{\r\n                value\r\n            }\r\n            NumberOfEmployees{\r\n                value\r\n            }\r\n            Phone{\r\n                value\r\n            }\r\n            PhotoUrl{\r\n                value\r\n            }\r\n            PostalCode{\r\n                value\r\n            }\r\n            RecordTypeId{\r\n                value\r\n            }\r\n            Salutation{\r\n                value\r\n            }\r\n            State{\r\n                value\r\n            }\r\n            Status{\r\n                value\r\n            }\r\n            Street{\r\n                value\r\n            }\r\n            Title{\r\n                value\r\n            }\r\n            Website{\r\n                value\r\n            }\r\n        }\r\n        cursor\r\n        }\r\n        totalCount\r\n        pageInfo {\r\n          hasNextPage\r\n          hasPreviousPage\r\n          startCursor\r\n          endCursor\r\n        }\r\n      }\r\n    }\r\n  }\r\n}",
+            "variables": "{\r\n    \"first\" :{{first}}\r\n}"
+          }
+        },
+        "url": {
+          "raw": "{{_endpoint}}/services/data/v{{version}}/graphql",
+          "host": [
+            "{{_endpoint}}"
+          ],
+          "path": [
+            "services",
+            "data",
+            "v{{version}}",
+            "graphql"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "query lead by after",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Chatter-Entity-Encoding",
+            "value": "false"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{Authorization}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Cookie",
+            "value": "BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1"
+          }
+        ],
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query lead($first: Int, $after: String) {\r\n  uiapi {\r\n    query {\r\n      Lead(first: $first, after: $after) {\r\n        edges {\r\n          node {\r\n              Id\r\n            AnnualRevenue {\r\n                value\r\n            }\r\n            City {\r\n                value\r\n            }\r\n            CleanStatus {\r\n                value\r\n            }\r\n            Company {\r\n                value\r\n            }\r\n            CompanyDunsNumber {\r\n                value\r\n            }\r\n            ConvertedAccountId {\r\n                value\r\n            }\r\n            ConvertedContactId {\r\n                value\r\n            }\r\n            ConvertedDate {\r\n                value\r\n            }\r\n            ConvertedOpportunityId {\r\n                value\r\n            }\r\n            Country {\r\n                value\r\n            }\r\n            Description {\r\n                value\r\n            }\r\n            Email {\r\n                value\r\n            }\r\n            EmailBouncedDate {\r\n                value\r\n            }\r\n            EmailBouncedReason {\r\n                value\r\n            }\r\n            Fax {\r\n                value\r\n            }\r\n            FirstName {\r\n                value\r\n            }\r\n            GeocodeAccuracy {\r\n                value\r\n            }\r\n            IndividualId {\r\n                value\r\n            }\r\n            Industry {\r\n                value\r\n            }\r\n            IsConverted {\r\n                value\r\n            }\r\n            IsDeleted {\r\n                value\r\n            }\r\n            IsUnreadByOwner {\r\n                value\r\n            }\r\n            Jigsaw {\r\n                value\r\n            }\r\n            LastActivityDate {\r\n                value\r\n            }\r\n            LastName {\r\n                value\r\n            }\r\n            LastReferencedDate{\r\n                value\r\n            }\r\n            LastViewedDate{\r\n                value\r\n            }\r\n            Latitude{\r\n                value\r\n            }\r\n            Longitude{\r\n                value\r\n            }\r\n            LeadSource{\r\n                value\r\n            }\r\n            MasterRecordId{\r\n                value\r\n            }\r\n            MobilePhone{\r\n                value\r\n            }\r\n            Name{\r\n                value\r\n            }\r\n            NumberOfEmployees{\r\n                value\r\n            }\r\n            NumberOfEmployees{\r\n                value\r\n            }\r\n            Phone{\r\n                value\r\n            }\r\n            PhotoUrl{\r\n                value\r\n            }\r\n            PostalCode{\r\n                value\r\n            }\r\n            RecordTypeId{\r\n                value\r\n            }\r\n            Salutation{\r\n                value\r\n            }\r\n            State{\r\n                value\r\n            }\r\n            Status{\r\n                value\r\n            }\r\n            Street{\r\n                value\r\n            }\r\n            Title{\r\n                value\r\n            }\r\n            Website{\r\n                value\r\n            }\r\n        }\r\n        cursor\r\n        }\r\n        totalCount\r\n        pageInfo {\r\n          hasNextPage\r\n          hasPreviousPage\r\n          startCursor\r\n          endCursor\r\n        }\r\n      }\r\n    }\r\n  }\r\n}",
+            "variables": "{\r\n    \"first\" :{{first}},\r\n    \"after\" : \"{{after}}\"\r\n}"
+          }
+        },
+        "url": {
+          "raw": "{{_endpoint}}/services/data/v{{version}}/graphql",
+          "host": [
+            "{{_endpoint}}"
+          ],
+          "path": [
+            "services",
+            "data",
+            "v{{version}}",
+            "graphql"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "Authorization",
+      "value": "00D2w00000RIjat!AQYAQFfx2q22TXm.pf6rLuPlG8_nk1JJLCS3iAzLm5pzCn7DfqUAzNFxwXEx2QpUpy3EvHvwPvKi0MggjeQivJyzeCWTcepK",
+      "type": "string"
+    },
+    {
+      "key": "_endpoint",
+      "value": "https://163com-8a-dev-ed.develop.my.salesforce.com",
+      "type": "string"
+    },
+    {
+      "key": "version",
+      "value": "57.0",
+      "type": "string"
+    },
+    {
+      "key": "first",
+      "value": "10",
+      "type": "string"
+    },
+    {
+      "key": "after",
+      "value": "djE6OQ==",
+      "type": "string"
+    }
+  ]
+}

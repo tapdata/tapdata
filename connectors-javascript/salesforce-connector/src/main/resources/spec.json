@@ -1,0 +1,45 @@
+{
+  "properties": {
+    "name": "Salesforce",
+    "icon": "icon/Salesforce-Logo.png",
+    "doc" : "${doc}",
+    "id": "salesforce"
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+        "clientID": {
+          "required": true,
+          "type": "string",
+          "title": "${salesforce_clientID}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_username",
+          "x-index": 1
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "doc/demo_en_US.md",
+      "salesforce_clientID": "Client ID"
+    },
+    "zh_CN": {
+      "doc": "doc/demo_zh_CN.md",
+      "salesforce_clientID": "客户端 ID"
+    },
+    "zh_TW": {
+      "doc": "doc/demo_zh_TW.md",
+      "salesforce_clientID": "客戶端 ID"
+    }
+  }
+}
