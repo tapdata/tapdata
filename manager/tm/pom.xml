@@ -500,10 +500,6 @@
 					<target>8</target>
 				</configuration>
 			</plugin>
-			<plugin>
-				<groupId>org.springframework.boot</groupId>
-				<artifactId>spring-boot-maven-plugin</artifactId>
-			</plugin>
 			<!--在这里修改版本-->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
