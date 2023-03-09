@@ -21,9 +21,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Watch message queue collection, read and process new document.
@@ -57,8 +55,16 @@ public class MessageQueueWatch {
     public void fetchNewMessage() {
 
         List<String> clientIds = WebSocketManager.getAllClientId();
+        Set<String> agentClientIds = WebSocketClusterServer.agentMap.keySet();
 
-        if (clientIds == null || clientIds.size() == 0) {
+        if (clientIds == null) {
+            clientIds = new ArrayList<>();
+        }
+        if (agentClientIds.size() > 0) {
+            clientIds.addAll(agentClientIds);
+        }
+
+        if (clientIds.size() == 0) {
             offset = getLastOffset();
             return;
         }
