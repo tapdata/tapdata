@@ -9,19 +9,22 @@ import com.hazelcast.jet.config.ProcessingGuarantee;
 import com.hazelcast.jet.core.AbstractProcessor;
 import com.hazelcast.jet.core.DAG;
 import com.hazelcast.jet.core.Vertex;
-import com.hazelcast.logging.LogEvent;
-import com.hazelcast.logging.LogListener;
 import com.tapdata.cache.ICacheService;
 import com.tapdata.cache.external.ExternalStorageCacheService;
-import com.tapdata.cache.hazelcast.HazelcastCacheService;
-import com.tapdata.constant.*;
-import com.tapdata.entity.*;
+import com.tapdata.constant.ConfigurationCenter;
+import com.tapdata.constant.ConnectionUtil;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.HazelcastUtil;
+import com.tapdata.constant.Log4jUtil;
+import com.tapdata.entity.Connections;
+import com.tapdata.entity.DatabaseTypeEnum;
+import com.tapdata.entity.JetDag;
+import com.tapdata.entity.RelateDataBaseTable;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.autoinspect.exception.AutoInspectException;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Element;
@@ -29,7 +32,10 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
-import com.tapdata.tm.commons.dag.nodes.*;
+import com.tapdata.tm.commons.dag.nodes.AutoInspectNode;
+import com.tapdata.tm.commons.dag.nodes.CacheNode;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
@@ -46,21 +52,34 @@ import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastBlank;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastCacheTarget;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastSchemaTargetNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskSource;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskSourceAndTarget;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskTarget;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastVirtualTargetNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastPdkSourceAndTargetTableNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSampleSourcePdkDataNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkShareCDCNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkAutoInspectNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkCacheNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkDataNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkShareCDCNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcessor;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastJavaScriptProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMigrateFieldRenameProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastRenameTableProcessorNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
-import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.MergeTableUtil;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
-import io.tapdata.milestone.MilestoneContext;
-import io.tapdata.milestone.MilestoneFactory;
-import io.tapdata.milestone.MilestoneFlowServiceJetV2;
-import io.tapdata.milestone.MilestoneJetEdgeService;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.schema.TapTableMap;
@@ -76,9 +95,12 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -709,49 +731,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		connections.decodeDatabasePassword();
 		connections.initCustomTimeZone();
 		return connections;
-	}
-
-	private MilestoneFlowServiceJetV2 initMilestone(TaskDto taskDto) {
-		if (null == taskDto) {
-			throw new IllegalArgumentException("Input parameter subTaskDto,dag cannot be empty");
-		}
-
-		// 初始化dag里面每条连线的里程碑
-		List<Node> nodes = taskDto.getDag().getNodes();
-		HttpClientMongoOperator httpClientMongoOperator = (HttpClientMongoOperator) clientMongoOperator;
-
-		MilestoneFlowServiceJetV2 jetMilestoneService = MilestoneFactory.getJetMilestoneService(taskDto, httpClientMongoOperator.getRestTemplateOperator().getBaseURLs(),
-				httpClientMongoOperator.getRestTemplateOperator().getRetryTime(), httpClientMongoOperator.getConfigCenter());
-
-		List<Node> dataNodes = nodes.stream().filter(n -> n.isDataNode() || n instanceof DatabaseNode).collect(Collectors.toList());
-
-		for (Node<?> node : dataNodes) {
-			String sourceVertexName = NodeUtil.getVertexName(node);
-			List<Node<?>> successors = GraphUtil.successors(node, Node::isDataNode);
-			for (Node<?> successor : successors) {
-				String destVertexName = NodeUtil.getVertexName(successor);
-				MilestoneContext taskMilestoneContext = jetMilestoneService.getMilestoneContext();
-				MilestoneJetEdgeService jetEdgeMilestoneService = MilestoneFactory.getJetEdgeMilestoneService(
-						taskDto,
-						httpClientMongoOperator.getRestTemplateOperator().getBaseURLs(),
-						httpClientMongoOperator.getRestTemplateOperator().getRetryTime(),
-						httpClientMongoOperator.getConfigCenter(),
-						node,
-						successor,
-						sourceVertexName,
-						destVertexName,
-						taskMilestoneContext
-				);
-
-				List<Milestone> milestones = jetEdgeMilestoneService.initMilestones();
-				jetEdgeMilestoneService.updateList(milestones);
-			}
-		}
-
-		// 初始化并更新整个SubTask的里程碑
-		jetMilestoneService.updateList();
-
-		return jetMilestoneService;
 	}
 
 	private TaskConfig getTaskConfig(TaskDto taskDto) {
