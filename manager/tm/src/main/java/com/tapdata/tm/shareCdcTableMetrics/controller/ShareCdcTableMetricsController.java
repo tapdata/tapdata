@@ -87,6 +87,16 @@ public class ShareCdcTableMetricsController extends BaseController {
         return success(shareCdcTableMetricsService.find(filter, getLoginUser()));
     }
 
+    @Operation(summary = "Find all instances of the model matched by filter from the data source")
+    @GetMapping("/list_task")
+    public ResponseMessage<Page<ShareCdcTableMetricsDto>> listByTask(
+            @RequestParam(value = "taskId") String taskId,
+            @RequestParam(value = "page") int page,
+            @RequestParam(value = "size") int size) {
+
+        return success(shareCdcTableMetricsService.getPageInfo(taskId, page, size));
+    }
+
     /**
      *  Replace an existing model instance or insert a new one into the data source
      * @param shareCdcTableMetrics
