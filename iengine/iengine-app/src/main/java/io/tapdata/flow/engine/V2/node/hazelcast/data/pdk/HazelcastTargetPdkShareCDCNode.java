@@ -127,7 +127,6 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 				() -> new WriteRecordFuncAspect()
 						.recordEvents(tapRecordEvents)
 						.table(new TapTable(externalStorageDto.getName()))
-						.connectorContext(getConnectorNode().getConnectorContext())
 						.dataProcessorContext(dataProcessorContext)
 						.start(),
 				writeRecordFuncAspect -> {
