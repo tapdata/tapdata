@@ -54,7 +54,7 @@ public class LdpServiceImpl implements LdpService {
 
         //target need fdm connection
         LiveDataPlatformDto platformDto = liveDataPlatformService.findOne(new Query(), user);
-        String fdmConnectionId = platformDto.getFdmStorageAddress();
+        String fdmConnectionId = platformDto.getFdmStorageConnectionId();
 
         DAG dag = task.getDag();
         if (dag == null) {
@@ -92,8 +92,8 @@ public class LdpServiceImpl implements LdpService {
 
         //target need fdm connection
         LiveDataPlatformDto platformDto = liveDataPlatformService.findOne(new Query(), user);
-        String fdmConnectionId = platformDto.getFdmStorageAddress();
-        String mdmConnectionId = platformDto.getMdmStorageAddress();
+        String fdmConnectionId = platformDto.getFdmStorageConnectionId();
+        String mdmConnectionId = platformDto.getMdmStorageConnectionId();
 
         DAG dag = task.getDag();
         if (dag == null) {
