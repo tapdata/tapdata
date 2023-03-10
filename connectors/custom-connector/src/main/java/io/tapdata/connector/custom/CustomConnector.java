@@ -176,9 +176,9 @@ public class CustomConnector extends ConnectorBase {
                 }
             }
         } catch (ScriptException e) {
-            logger.error( "{} execute script error {}", TAG, e);
+            logger.error( "{} execute script error:\n {}", TAG, e);
         } catch (Throwable throwable) {
-            logger.error(TAG, "{} execute command error {}", TAG, throwable);
+            logger.error( "{} execute command error:\n {}", TAG, throwable);
         } finally {
             try {
                 stop(newTapConnectionContext);
