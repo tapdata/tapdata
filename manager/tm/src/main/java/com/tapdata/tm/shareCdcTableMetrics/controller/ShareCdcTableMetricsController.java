@@ -262,4 +262,10 @@ public class ShareCdcTableMetricsController extends BaseController {
         return success(shareCdcTableMetricsService.upsertByWhere(where, shareCdcTableMetrics, getLoginUser()));
     }
 
+    @Operation(summary = "Insert or update according to natural day judgment")
+    @PostMapping("saveOrUpdateDaily")
+    public ResponseMessage<ShareCdcTableMetricsDto> saveOrUpdateDaily(@RequestBody ShareCdcTableMetricsDto shareCdcTableMetricsDto) {
+        return success(shareCdcTableMetricsService.saveOrUpdateDaily(shareCdcTableMetricsDto, getLoginUser()));
+    }
+
 }

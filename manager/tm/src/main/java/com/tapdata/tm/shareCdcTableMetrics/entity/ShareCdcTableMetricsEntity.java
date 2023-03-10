@@ -16,6 +16,7 @@ public class ShareCdcTableMetricsEntity extends BaseEntity {
     private String taskId;
     private String nodeId;
     private String connectionId;
+    private String tableName;
     private Long startCdcTime;
     private Long firstEventTime;
     private Long currentEventTime;

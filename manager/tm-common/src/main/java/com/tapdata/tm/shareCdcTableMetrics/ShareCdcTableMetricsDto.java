@@ -15,6 +15,7 @@ public class ShareCdcTableMetricsDto extends BaseDto {
     private String nodeId;
     private String connectionId;
     private String connectionName;
+    private String tableName;
     private Long startCdcTime;
     private Long firstEventTime;
     private Long currentEventTime;

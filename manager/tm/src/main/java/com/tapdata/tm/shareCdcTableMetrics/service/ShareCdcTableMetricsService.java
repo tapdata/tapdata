@@ -4,24 +4,28 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
 import com.tapdata.tm.shareCdcTableMetrics.entity.ShareCdcTableMetricsEntity;
 import com.tapdata.tm.shareCdcTableMetrics.repository.ShareCdcTableMetricsRepository;
-import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.utils.Lists;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.CollectionUtils;
-import org.aspectj.weaver.ast.Var;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -71,5 +75,80 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
         list.forEach(info -> info.setConnectionId(nameMap.get(new ObjectId(info.getConnectionId()))));
 
         return new Page<>(count, list);
+    }
+
+    public ShareCdcTableMetricsDto saveOrUpdateDaily(ShareCdcTableMetricsDto shareCdcTableMetricsDto, UserDetail userDetail) {
+        if (StringUtils.isBlank(shareCdcTableMetricsDto.getTaskId())) {
+            throw new IllegalArgumentException("Task id cannot be empty");
+        }
+        if (StringUtils.isBlank(shareCdcTableMetricsDto.getNodeId())) {
+            throw new IllegalArgumentException("Node id cannot be empty");
+        }
+        if (StringUtils.isBlank(shareCdcTableMetricsDto.getConnectionId())) {
+            throw new IllegalArgumentException("Connection id cannot be empty");
+        }
+        if (StringUtils.isBlank(shareCdcTableMetricsDto.getTableName())) {
+            throw new IllegalArgumentException("Table name cannot be empty");
+        }
+        if (null == shareCdcTableMetricsDto.getCount()
+                || shareCdcTableMetricsDto.getCount().compareTo(0L) < 0) {
+            shareCdcTableMetricsDto.setCount(0L);
+        }
+        Criteria criteria = new Criteria().andOperator(
+                Criteria.where("taskId").is(shareCdcTableMetricsDto.getTaskId()),
+                Criteria.where("nodeId").is(shareCdcTableMetricsDto.getNodeId()),
+                Criteria.where("connectionId").is(shareCdcTableMetricsDto.getConnectionId()),
+                Criteria.where("tableName").is(shareCdcTableMetricsDto.getTableName())
+        );
+        Query query = Query.query(criteria).with(Sort.by(Sort.Direction.DESC, "_id")).limit(1);
+        ShareCdcTableMetricsEntity lastShareCdcTableMetrics = repository.findOne(query, userDetail).orElse(null);
+        Operation operation = Operation.INSERT;
+        if (null != lastShareCdcTableMetrics) {
+            LocalDate today = LocalDate.now(ZoneId.systemDefault());
+            Date createAt = lastShareCdcTableMetrics.getCreateAt();
+            if (null != createAt) {
+                LocalDate lastDate = LocalDateTime.ofInstant(createAt.toInstant(), ZoneId.systemDefault()).toLocalDate();
+                if (today.equals(lastDate)) {
+                    operation = Operation.UPDATE;
+                }
+            }
+        }
+        switch (operation) {
+            case INSERT:
+                shareCdcTableMetricsDto.setCreateAt(new Date());
+                if (null != lastShareCdcTableMetrics) {
+                    shareCdcTableMetricsDto.setAllCount(lastShareCdcTableMetrics.getAllCount() + shareCdcTableMetricsDto.getCount());
+                    shareCdcTableMetricsDto.setStartCdcTime(lastShareCdcTableMetrics.getStartCdcTime());
+                } else {
+                    shareCdcTableMetricsDto.setAllCount(shareCdcTableMetricsDto.getCount());
+                }
+                ShareCdcTableMetricsEntity shareCdcTableMetricsEntity = convertToEntity(ShareCdcTableMetricsEntity.class, shareCdcTableMetricsDto);
+                repository.insert(shareCdcTableMetricsEntity, userDetail);
+                if (log.isDebugEnabled()) {
+                    log.debug("Insert share cdc table metrics: {}", shareCdcTableMetricsEntity);
+                }
+                break;
+            case UPDATE:
+                long count = shareCdcTableMetricsDto.getCount();
+                shareCdcTableMetricsDto.setCount(lastShareCdcTableMetrics.getCount() + count);
+                shareCdcTableMetricsDto.setAllCount(lastShareCdcTableMetrics.getAllCount() + count);
+                query = Query.query(Criteria.where("_id").is(lastShareCdcTableMetrics.getId()));
+                Update update = new Update().set("count", shareCdcTableMetricsDto.getCount())
+                        .set("allCount", shareCdcTableMetricsDto.getAllCount())
+                        .set("currentEventTime", shareCdcTableMetricsDto.getCurrentEventTime());
+                repository.update(query, update, userDetail);
+                if (log.isDebugEnabled()) {
+                    log.debug("Update share cdc table metrics, query: {}, update: {}", query.getQueryObject().toJson(), update.getUpdateObject().toJson());
+                }
+                break;
+            default:
+                break;
+        }
+        return shareCdcTableMetricsDto;
+    }
+
+    private enum Operation{
+        INSERT,
+        UPDATE,
     }
 }
