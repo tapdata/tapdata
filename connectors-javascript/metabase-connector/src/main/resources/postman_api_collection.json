@@ -30,7 +30,7 @@
           }
         },
         "url": {
-          "raw": "http://36.134.131.197:12345/api/session",
+          "raw": "{{matebaseDomainName}}/api/session",
           "protocol": "http",
           "host": [
             "36.134.131.197",
@@ -70,7 +70,7 @@
           "raw": ""
         },
         "url": {
-          "raw": "http://36.134.131.197:12345/api/card",
+          "raw": "{{matebaseDomainName}}/api/card",
           "protocol": "http",
           "host": [
             "36.134.131.197",
