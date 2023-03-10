@@ -9,6 +9,7 @@ import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
@@ -45,6 +46,8 @@ public class PdkDataSourceRowsGetter implements IDataSourceRowsGetter {
 
   private final TapCodecsFilterManager codecsFilterManager;
 
+	private final TapCodecsFilterManager genericCodecFilterManager;
+
   public PdkDataSourceRowsGetter(DataFlowCacheConfig dataFlowCacheConfig,
                                  ClientMongoOperator clientMongoOperator,
                                  HazelcastInstance hazelcastInstance) {
@@ -79,6 +82,7 @@ public class PdkDataSourceRowsGetter implements IDataSourceRowsGetter {
     }
 
     this.codecsFilterManager = connectorNode.getCodecsFilterManager();
+		this.genericCodecFilterManager = new TapCodecsFilterManager(TapCodecsRegistry.create());
   }
 
   @Override
@@ -115,7 +119,7 @@ public class PdkDataSourceRowsGetter implements IDataSourceRowsGetter {
     if (CollectionUtils.isNotEmpty(maps)) {
       for (Map<String, Object> map : maps) {
         codecsFilterManager.transformToTapValueMap(map, tapTable.getNameFieldMap());
-        codecsFilterManager.transformFromTapValueMap(map);
+				this.genericCodecFilterManager.transformFromTapValueMap(map);
       }
     }
 
