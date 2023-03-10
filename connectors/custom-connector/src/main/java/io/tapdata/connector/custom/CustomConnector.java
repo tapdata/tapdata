@@ -140,6 +140,7 @@ public class CustomConnector extends ConnectorBase {
                         logger.info("Start cdc sync......");
                         CountDownLatch countDownLatch = new CountDownLatch(1);
                         Thread thread = new Thread(() -> {
+                            Thread.currentThread().setName("CustomConnector-Test-Runner");
                             try {
                                 streamRead(null, Collections.singletonList(tableName), new Object(), 1, StreamReadConsumer.create((events, offsetObject) -> {
                                     logger.info("Execute cdc, get the data: {}", toTapEventStr(events, offsetObject));
@@ -164,7 +165,7 @@ public class CustomConnector extends ConnectorBase {
                     Map<String, Object> argMap = commandInfo.getArgMap();
                     List<TapRecordEvent> tapRecordEvents = getTapRecordEvents((List<Map<String, Object>>) argMap.get("input"));
                     writeRecord(null, tapRecordEvents, tapTable, writeListResult -> {
-                        logger.info("Processing data, result: {}", writeListResult);
+                        logger.info("Processing data, result: {}", toWriteListResultStr(writeListResult));
                     });
                     logger.info("Process data completion as target.");
                 }
@@ -186,34 +187,54 @@ public class CustomConnector extends ConnectorBase {
         return commandResult;
     }
 
+    private String toWriteListResultStr(WriteListResult<TapRecordEvent> writeListResult) {
+        StringBuilder sb = new StringBuilder("\n");
+        sb.append("\tSuccessfully processed: ").append("i=").append(writeListResult.getInsertedCount()).append(", ")
+                .append("u=").append(writeListResult.getModifiedCount()).append(", ")
+                .append("d=").append(writeListResult.getRemovedCount()).append("\n");
+        Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
+        if (errorMap != null && errorMap.size() != 0) {
+            sb.append("\tError Record: \n");
+            for (Map.Entry<TapRecordEvent, Throwable> entry : errorMap.entrySet()) {
+                sb.append("\t\t").append("Record").append(toTapEventStr(Collections.singletonList(entry.getKey()), null)).append("\n")
+                        .append("\t\t").append("Error: ").append(entry.getValue());
+            }
+        }
+        return sb.toString();
+    }
+
 
     private String toTapEventStr(List<TapEvent> events, Object offsetObject) {
         StringBuilder sb = new StringBuilder("\n");
 
-        for (TapEvent event : events) {
-            if (event instanceof TapInsertRecordEvent) {
-                sb.append("\t").append("from: ").append(((TapInsertRecordEvent) event).getTableId()).append("\n")
-                        .append("\t").append("op: i").append("\n")
-                        .append("\t").append("data: ").append(((TapInsertRecordEvent) event).getAfter()).append("\n");
+        if (events != null) {
+            for (TapEvent event : events) {
+                if (event instanceof TapInsertRecordEvent) {
+                    sb.append("\t").append("from: ").append(((TapInsertRecordEvent) event).getTableId()).append("\n")
+                            .append("\t").append("op: i").append("\n")
+                            .append("\t").append("data: ").append(((TapInsertRecordEvent) event).getAfter()).append("\n");
 
-            } else if (event instanceof TapUpdateRecordEvent) {
-                sb.append("\t").append("from: ").append(((TapUpdateRecordEvent) event).getTableId()).append("\n")
-                        .append("\t").append("op: u").append("\n")
-                        .append("\t").append("data: ").append("\n")
-                        .append("\t\t").append("before").append(((TapUpdateRecordEvent) event).getBefore()).append("\n")
-                        .append("\t\t").append("after").append(((TapUpdateRecordEvent) event).getAfter()).append("\n");
+                } else if (event instanceof TapUpdateRecordEvent) {
+                    sb.append("\t").append("from: ").append(((TapUpdateRecordEvent) event).getTableId()).append("\n")
+                            .append("\t").append("op: u").append("\n")
+                            .append("\t").append("data: ").append("\n")
+                            .append("\t\t").append("before").append(((TapUpdateRecordEvent) event).getBefore()).append("\n")
+                            .append("\t\t").append("after").append(((TapUpdateRecordEvent) event).getAfter()).append("\n");
 
-            } else if (event instanceof TapDeleteRecordEvent) {
-                sb.append("\t").append("from: ").append(((TapDeleteRecordEvent) event).getTableId()).append("\n")
-                        .append("\t").append("op: u").append("\n")
-                        .append("\t").append("data: ").append("\n")
-                        .append("\t\t").append("before").append(((TapDeleteRecordEvent) event).getBefore()).append("\n");
-            } else {
-                sb.append("\t").append(event).append("\n");
+                } else if (event instanceof TapDeleteRecordEvent) {
+                    sb.append("\t").append("from: ").append(((TapDeleteRecordEvent) event).getTableId()).append("\n")
+                            .append("\t").append("op: u").append("\n")
+                            .append("\t").append("data: ").append("\n")
+                            .append("\t\t").append("before").append(((TapDeleteRecordEvent) event).getBefore()).append("\n");
+                } else {
+                    sb.append("\t").append(event).append("\n");
+                }
             }
         }
-        sb.append("\t").append("offset: ").append(offsetObject).append("\n");
 
+        if (offsetObject != null) {
+            sb.append("\t").append("offset: ").append(offsetObject).append("\n");
+        }
         return sb.toString();
     }
 
