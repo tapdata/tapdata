@@ -40,6 +40,8 @@ public class MongodbConfig extends CommonDbConfig {
 
 	private String updateDmlPolicy;
 
+	private boolean enableSaveDeleteData;
+
 //	public static MongodbConfig load(String jsonFile) throws IOException {
 //		ObjectMapper mapper = new ObjectMapper(new JsonFactory());
 //		mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -206,5 +208,13 @@ public class MongodbConfig extends CommonDbConfig {
 
 	public void setUpdateDmlPolicy(String updateDmlPolicy) {
 		this.updateDmlPolicy = updateDmlPolicy;
+	}
+
+	public boolean isEnableSaveDeleteData() {
+		return enableSaveDeleteData;
+	}
+
+	public void setEnableSaveDeleteData(boolean enableSaveDeleteData) {
+		this.enableSaveDeleteData = enableSaveDeleteData;
 	}
 }

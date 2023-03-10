@@ -647,6 +647,7 @@ public class MongodbConnector extends ConnectorBase {
 			throw new RuntimeException("connection config cannot be empty");
 		}
 		mongoConfig =(MongodbConfig) new MongodbConfig().load(connectionConfig);
+		mongoConfig.load(connectionContext.getNodeConfig());
 		if (mongoConfig == null) {
 			throw new RuntimeException("load mongo config failed from connection config");
 		}
