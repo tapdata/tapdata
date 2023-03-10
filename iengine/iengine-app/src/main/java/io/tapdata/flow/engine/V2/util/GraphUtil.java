@@ -66,7 +66,7 @@ public class GraphUtil {
 				if (nodeFilter.test(nodePredecessor)) {
 					result.add(nodePredecessor);
 				} else {
-					result = predecessors(nodePredecessor, nodeFilter, result);
+					result.addAll(predecessors(nodePredecessor, nodeFilter, result));
 				}
 			}
 		}
