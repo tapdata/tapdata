@@ -8,4 +8,6 @@ import java.util.List;
 public class TagBindingReq {
     private List<TagBindingParam> tagBindingParams;
     private List<String> tagIds;
+
+    private List<String> oldTagIds;
 }
