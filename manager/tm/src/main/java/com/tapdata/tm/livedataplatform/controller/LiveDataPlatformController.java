@@ -61,7 +61,7 @@ public class LiveDataPlatformController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        return success(liveDataPlatformService.findData(filter, getLoginUser()));
+        return success(liveDataPlatformService.find(filter, getLoginUser()));
     }
 
 

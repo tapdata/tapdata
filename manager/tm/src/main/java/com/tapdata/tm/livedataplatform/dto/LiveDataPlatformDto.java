@@ -5,9 +5,6 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 
-/**
- * LineageGraph
- */
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class LiveDataPlatformDto extends BaseDto {
@@ -15,12 +12,12 @@ public class LiveDataPlatformDto extends BaseDto {
 
     private String fdmStorageCluster;
 
-    private String fdmStorageAddress;
+    private String fdmStorageConnectionId;
 
 
     private String mdmStorageCluster;
 
 
-    private String mdmStorageAddress;
+    private String mdmStorageConnectionId;
 
 }

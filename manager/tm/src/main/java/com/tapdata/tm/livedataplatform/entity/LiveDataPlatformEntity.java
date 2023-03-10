@@ -17,13 +17,13 @@ public class LiveDataPlatformEntity extends BaseEntity {
 
     private String fdmStorageCluster;
 
-    private String fdmStorageAddress;
+    private String fdmStorageConnectionId;
 
 
     private String mdmStorageCluster;
 
 
-    private String mdmStorageAddress;
+    private String mdmStorageConnectionId;
 
 
 
