@@ -13,6 +13,7 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.schema.value.TapDateValue;
@@ -20,16 +21,21 @@ import io.tapdata.entity.schema.value.TapRawValue;
 import io.tapdata.entity.schema.value.TapTimeValue;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
+import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.FormatUtils;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import org.apache.commons.lang3.StringUtils;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
@@ -47,6 +53,7 @@ import java.util.function.Consumer;
 @TapConnectorClass("spec_custom.json")
 public class CustomConnector extends ConnectorBase {
 
+    private static final String TAG = CustomConnector.class.getSimpleName();
     private static final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "engine"); //script factory
     private CustomConfig customConfig;
     private ScriptEngine initScriptEngine;
@@ -56,10 +63,10 @@ public class CustomConnector extends ConnectorBase {
         customConfig = new CustomConfig().load(connectorContext.getConnectionConfig());
         writeEnginePool = new ConcurrentHashMap<>(16);
         assert scriptFactory != null;
-        initScriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
+        initScriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT,
+                new ScriptOptions().engineName(customConfig.getJsEngineName()).log(connectorContext.getLog()));
         initScriptEngine.eval(ScriptUtil.appendBeforeFunctionScript(customConfig.getCustomBeforeScript()) + "\n"
                 + ScriptUtil.appendAfterFunctionScript(customConfig.getCustomAfterScript()));
-//        initScriptEngine.put("log", new CustomLog());
     }
 
     @Override
@@ -102,6 +109,144 @@ public class CustomConnector extends ConnectorBase {
         connectorFunctions.supportBatchRead(this::batchRead);
         connectorFunctions.supportStreamRead(this::streamRead);
         connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
+        connectorFunctions.supportCommandCallbackFunction(this::handleCommand);
+    }
+
+    private CommandResult handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
+        CollectLog logger = new CollectLog(tapConnectionContext.getLog());
+
+        String command = commandInfo.getCommand();
+        logger.info("Start executing command [{}] ", command);
+        TapConnectionContext newTapConnectionContext = new TapConnectionContext(tapConnectionContext.getSpecification(),
+                DataMap.create(commandInfo.getConnectionConfig()), DataMap.create(commandInfo.getNodeConfig()), logger);
+        try {
+            init(newTapConnectionContext);
+            if (StringUtils.equals(command, "testRun")) {
+                String tableName = (String) commandInfo.getConnectionConfig().get("collectionName");
+                String type = commandInfo.getType();
+                TapTable tapTable = new TapTable(tableName);
+                if (StringUtils.equals(type, "source")) {
+                    logger.info("Start fetching data as a source......");
+                    String action = commandInfo.getAction();
+                    if (StringUtils.contains(action, "initial_sync")) {
+                        logger.info("Start initializing sync......");
+                        batchRead(null, tapTable, null, 1, (events, offsetObject) -> {
+                            logger.info("Execute initial sync: get the data, events: {} offset: {}", events, offsetObject);
+                        });
+                        logger.info("Initial sync complete.");
+                    }
+                    if (StringUtils.contains(action, "cdc")) {
+                        logger.info("Start cdc sync......");
+                        streamRead(null, Collections.singletonList(tableName), null, 1, StreamReadConsumer.create((events, offsetObject) -> {
+                            logger.info("Execute cdc: get the data, events: {} offset: {}", events, offsetObject);
+                        }));
+                        logger.info("Cdc sync complete.");
+                    }
+                    logger.info("Obtaining data as a source is complete.");
+
+                } else if (StringUtils.equals(type, "target")) {
+                    logger.info("Start processing data as a target......");
+                    Map<String, Object> argMap = commandInfo.getArgMap();
+                    List<TapRecordEvent> tapRecordEvents = new ArrayList<>();
+                    tapRecordEvents.add(new TapInsertRecordEvent());
+
+                    writeRecord(null, tapRecordEvents, tapTable, writeListResult -> {
+                        logger.info("Processing data, result: {}", writeListResult);
+                    });
+                    logger.info("Process data completion as target.");
+                }
+            }
+        } catch (ScriptException e) {
+            logger.error( "{} execute script error {}", TAG, e);
+        } catch (Throwable throwable) {
+            logger.error(TAG, "{} execute command error {}", TAG, throwable);
+        } finally {
+            try {
+                stop(newTapConnectionContext);
+            } catch (Throwable e) {
+                logger.error("{} stop error {}", TAG, e);
+            }
+        }
+        logger.info("Command [{}] execution complete.", command);
+        CommandResult commandResult = new CommandResult();
+        commandResult.setData(logger.getLogs());
+        return commandResult;
+    }
+    
+    private static class CollectLog implements Log {
+
+        private final Log logger;
+
+        private final List<LogRecord> logRecords = new LinkedList<>();
+
+        public CollectLog(Log log) {
+            this.logger = log;
+        }
+
+        public List<LogRecord> getLogs() {
+            return logRecords;
+        }
+
+        @Override
+        public void debug(String message, Object... params) {
+            logger.debug(message, params);
+            logRecords.add(new LogRecord("DEBUG", FormatUtils.format(message, params), System.currentTimeMillis()));
+        }
+
+        @Override
+        public void info(String message, Object... params) {
+            logger.info(message, params);
+            logRecords.add(new LogRecord("INFO", FormatUtils.format(message, params), System.currentTimeMillis()));
+        }
+
+        @Override
+        public void warn(String message, Object... params) {
+            logger.warn(message, params);
+            logRecords.add(new LogRecord("WARN", FormatUtils.format(message, params), System.currentTimeMillis()));
+        }
+
+        @Override
+        public void error(String message, Object... params) {
+            logger.error(message, params);
+            logRecords.add(new LogRecord("ERROR", FormatUtils.format(message, params), System.currentTimeMillis()));
+        }
+
+        @Override
+        public void error(String message, Throwable throwable) {
+            logger.error(message, throwable);
+            logRecords.add(new LogRecord("ERROR", FormatUtils.format(message, throwable), System.currentTimeMillis()));
+        }
+
+        @Override
+        public void fatal(String message, Object... params) {
+            logger.fatal(message, params);
+            logRecords.add(new LogRecord("FATAL", FormatUtils.format(message, params), System.currentTimeMillis()));
+        }
+
+        private static class LogRecord {
+            private final String level;
+            private final String message;
+
+            private final Long timestamp;
+
+            private LogRecord(String level, String message, Long timestamp) {
+                this.level = level;
+                this.message = message;
+                this.timestamp = timestamp;
+            }
+
+            public String getLevel() {
+                return level;
+            }
+
+            public String getMessage() {
+                return message;
+            }
+
+            public Long getTimestamp() {
+                return timestamp;
+            }
+        }
     }
 
     @Override
