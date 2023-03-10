@@ -39,6 +39,9 @@ public class TaskDto extends ParentTaskDto {
 
     public static final String PING_TIME_FIELD = "pingTime";
 
+    public static final String LDP_TYPE_FDM = "fdm";
+    public static final String LDP_TYPE_MDM = "mdm";
+
     /** 任务图*/
     @JsonSerialize( using = DagSerialize.class)
     @JsonDeserialize( using = DagDeserialize.class)
@@ -139,6 +142,9 @@ public class TaskDto extends ParentTaskDto {
     private int stopRetryTimes;
 
     private boolean isSnapShotInterrupt;
+
+    /** ldp 类型， fdm, mdm   为空或者其他为其他任务*/
+    private String ldpType;
 
     public DAG getDag() {
         if (dag != null) {
