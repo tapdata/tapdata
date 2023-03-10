@@ -61,6 +61,7 @@ public abstract class LogMiner implements ILogMiner {
     protected Map<String, TapTable> lobTables; //table those have lob type
     protected int recordSize;
     protected StreamReadConsumer consumer;
+    protected AtomicReference<Throwable> threadException = new AtomicReference<>();
 
     //init with pdk params
     @Override
