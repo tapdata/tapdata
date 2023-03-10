@@ -9,6 +9,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -17,9 +18,9 @@ import java.util.Map;
  * @date 2021/8/12 4:52 PM
  **/
 public class TapdataEvent implements Serializable, Cloneable {
-
 	private static final long serialVersionUID = 2586329076282260051L;
-
+	public final static String CONNECTION_ID_INFO_KEY = "connectionId";
+	public final static String TABLE_NAMES_INFO_KEY = "tableNames";
 	private SyncStage syncStage;
 
 	private TapEvent tapEvent;
@@ -34,6 +35,7 @@ public class TapdataEvent implements Serializable, Cloneable {
 	private Object batchOffset;
 	private Object streamOffset;
 	protected SyncProgress.Type type;
+	protected volatile Map<String, Object> info;
 
 	public TapdataEvent() {
 		this.nodeIds = new ArrayList<>();
@@ -204,6 +206,36 @@ public class TapdataEvent implements Serializable, Cloneable {
 
 	public boolean isDDL() {
 		return tapEvent instanceof TapDDLEvent;
+	}
+
+	public Object addInfo(String key, Object value) {
+		initInfo();
+		return info.put(key, value);
+	}
+
+	public void addInfos(Map<String, Object> map) {
+		initInfo();
+		info.putAll(map);
+	}
+
+	public Object getInfo(String key) {
+		initInfo();
+		return info.get(key);
+	}
+
+	public Object removeInfo(String key) {
+		initInfo();
+		return info.remove(key);
+	}
+
+	private void initInfo() {
+		if (null == info) {
+			synchronized (this) {
+				if (null == info) {
+					info = new LinkedHashMap<>();
+				}
+			}
+		}
 	}
 
 	@Override

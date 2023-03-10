@@ -6,6 +6,7 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
 import com.tapdata.tm.shareCdcTableMetrics.service.ShareCdcTableMetricsService;
 import com.tapdata.tm.utils.MongoUtils;
@@ -13,6 +14,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -26,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 
@@ -264,8 +267,14 @@ public class ShareCdcTableMetricsController extends BaseController {
 
     @Operation(summary = "Insert or update according to natural day judgment")
     @PostMapping("saveOrUpdateDaily")
-    public ResponseMessage<ShareCdcTableMetricsDto> saveOrUpdateDaily(@RequestBody ShareCdcTableMetricsDto shareCdcTableMetricsDto) {
-        return success(shareCdcTableMetricsService.saveOrUpdateDaily(shareCdcTableMetricsDto, getLoginUser()));
+    public ResponseMessage<List<ShareCdcTableMetricsDto>> saveOrUpdateDaily(@RequestBody List<ShareCdcTableMetricsDto> shareCdcTableMetricsDtoList) {
+        if (CollectionUtils.isEmpty(shareCdcTableMetricsDtoList)) {
+            return success();
+        }
+        UserDetail loginUser = getLoginUser();
+        for (ShareCdcTableMetricsDto shareCdcTableMetricsDto : shareCdcTableMetricsDtoList) {
+            shareCdcTableMetricsService.saveOrUpdateDaily(shareCdcTableMetricsDto, loginUser);
+        }
+        return success(shareCdcTableMetricsDtoList);
     }
-
 }

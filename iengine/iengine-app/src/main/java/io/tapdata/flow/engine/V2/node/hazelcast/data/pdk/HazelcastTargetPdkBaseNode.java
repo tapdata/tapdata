@@ -11,7 +11,8 @@ import com.tapdata.entity.TapdataCompleteSnapshotEvent;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TapdataHeartbeatEvent;
 import com.tapdata.entity.TapdataShareLogEvent;
-import com.tapdata.entity.TapdataStartCdcEvent;
+import com.tapdata.entity.TapdataStartedCdcEvent;
+import com.tapdata.entity.TapdataStartingCdcEvent;
 import com.tapdata.entity.TapdataTaskErrorEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -23,6 +24,7 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
 import io.tapdata.aspect.TaskMilestoneFuncAspect;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
@@ -249,7 +251,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						final Iterator<TapdataEvent> iterator = consumeEvents.iterator();
 						while (iterator.hasNext()) {
 							final TapdataEvent tapdataEvent = iterator.next();
-							if (tapdataEvent instanceof TapdataStartCdcEvent || inCdc) {
+							if (tapdataEvent instanceof TapdataStartingCdcEvent || inCdc) {
 								inCdc = true;
 								partialCdcEvents.add(tapdataEvent);
 								iterator.remove();
@@ -341,8 +343,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						handleTapdataHeartbeatEvent(tapdataEvent);
 					} else if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
 						handleTapdataCompleteSnapshotEvent();
-					} else if (tapdataEvent instanceof TapdataStartCdcEvent) {
+					} else if (tapdataEvent instanceof TapdataStartingCdcEvent) {
 						handleTapdataStartCdcEvent(tapdataEvent);
+					} else if (tapdataEvent instanceof TapdataStartedCdcEvent) {
+						flushShareCdcTableMetrics(tapdataEvent);
 					} else if (tapdataEvent instanceof TapdataTaskErrorEvent) {
 						throw ((TapdataTaskErrorEvent) tapdataEvent).getThrowable();
 					} else if (tapdataEvent instanceof TapdataShareLogEvent) {
@@ -378,6 +382,42 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		} finally {
 			flushSyncProgressMap(lastDmlTapdataEvent.get());
+		}
+	}
+
+	private void flushShareCdcTableMetrics(TapdataEvent tapdataEvent) {
+		if (tapdataEvent.getType().equals(SyncProgress.Type.LOG_COLLECTOR)) {
+			Object connIdObj = tapdataEvent.getInfo(TapdataStartedCdcEvent.CONNECTION_ID_INFO_KEY);
+			String connectionId = "";
+			if (connIdObj instanceof String) {
+				connectionId = (String) connIdObj;
+			}
+			Object tableNamesObj = tapdataEvent.getInfo(TapdataEvent.TABLE_NAMES_INFO_KEY);
+			List<ShareCdcTableMetricsDto> shareCdcTableMetricsDtoList = new ArrayList<>();
+			if (tableNamesObj instanceof List
+					&& CollectionUtils.isNotEmpty((List<?>) tableNamesObj)) {
+				for (Object tableNameObj : (List<?>) tableNamesObj) {
+					if (!(tableNameObj instanceof String)) {
+						continue;
+					}
+					ShareCdcTableMetricsDto shareCdcTableMetricsDto = new ShareCdcTableMetricsDto();
+					shareCdcTableMetricsDto.setTaskId(dataProcessorContext.getTaskDto().getId().toHexString());
+					shareCdcTableMetricsDto.setNodeId(tapdataEvent.getNodeIds().get(0));
+					shareCdcTableMetricsDto.setConnectionId(connectionId);
+					shareCdcTableMetricsDto.setTableName((String) tableNameObj);
+					shareCdcTableMetricsDto.setStartCdcTime(((TapdataStartedCdcEvent) tapdataEvent).getCdcStartTime());
+
+					shareCdcTableMetricsDtoList.add(shareCdcTableMetricsDto);
+					if (shareCdcTableMetricsDtoList.size() == 10) {
+						clientMongoOperator.insertMany(shareCdcTableMetricsDtoList, ConnectorConstant.SHARE_CDC_TABLE_METRICS_COLLECTION + "/saveOrUpdateDaily");
+						shareCdcTableMetricsDtoList.clear();
+					}
+				}
+				if (CollectionUtils.isNotEmpty(shareCdcTableMetricsDtoList)) {
+					clientMongoOperator.insertMany(shareCdcTableMetricsDtoList, ConnectorConstant.SHARE_CDC_TABLE_METRICS_COLLECTION + "/saveOrUpdateDaily");
+					shareCdcTableMetricsDtoList.clear();
+				}
+			}
 		}
 	}
 
@@ -465,7 +505,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			syncProgress = new SyncProgress();
 			this.syncProgressMap.put(progressKey, syncProgress);
 		}
-		if (tapdataEvent instanceof TapdataStartCdcEvent) {
+		if (tapdataEvent instanceof TapdataStartingCdcEvent) {
 			if (null == tapdataEvent.getSyncStage()) return;
 			syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
 		} else if (tapdataEvent instanceof TapdataHeartbeatEvent) {
@@ -500,7 +540,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	abstract void processEvents(List<TapEvent> tapEvents);
 
-	void processShareLog(List<TapdataShareLogEvent> tapdataShareLogEvents){
+	void processShareLog(List<TapdataShareLogEvent> tapdataShareLogEvents) {
 		throw new UnsupportedOperationException();
 	}
 
@@ -607,8 +647,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		 */
 		@Override
 		public <E extends TapdataEvent> boolean test(E tapdataEvent) {
-			if(null == tapdataEvent || null == tapdataEvent.getTapEvent()) return false;
-			if(SyncProgress.Type.LOG_COLLECTOR == tapdataEvent.getType()) return false;
+			if (null == tapdataEvent || null == tapdataEvent.getTapEvent()) return false;
+			if (SyncProgress.Type.LOG_COLLECTOR == tapdataEvent.getType()) return false;
 			TapEvent tapEvent = tapdataEvent.getTapEvent();
 			if (!(tapEvent instanceof TapDeleteRecordEvent)) return false;
 			TapDeleteRecordEvent tapDeleteRecordEvent = (TapDeleteRecordEvent) tapEvent;

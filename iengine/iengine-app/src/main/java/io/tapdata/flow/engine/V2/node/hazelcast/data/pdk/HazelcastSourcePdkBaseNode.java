@@ -7,6 +7,7 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
+import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
@@ -632,6 +633,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					break;
 				case LOG_COLLECTOR:
 					tapdataEvent = new TapdataShareLogEvent();
+					Connections connections = dataProcessorContext.getConnections();
+					if (null != connections) {
+						tapdataEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connections.getId());
+					}
 					break;
 			}
 			tapdataEvent.setTapEvent(tapRecordEvent);

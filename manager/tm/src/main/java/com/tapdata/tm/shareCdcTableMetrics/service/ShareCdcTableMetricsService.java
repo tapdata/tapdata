@@ -77,7 +77,7 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
         return new Page<>(count, list);
     }
 
-    public ShareCdcTableMetricsDto saveOrUpdateDaily(ShareCdcTableMetricsDto shareCdcTableMetricsDto, UserDetail userDetail) {
+    public void saveOrUpdateDaily(ShareCdcTableMetricsDto shareCdcTableMetricsDto, UserDetail userDetail) {
         if (StringUtils.isBlank(shareCdcTableMetricsDto.getTaskId())) {
             throw new IllegalArgumentException("Task id cannot be empty");
         }
@@ -89,10 +89,6 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
         }
         if (StringUtils.isBlank(shareCdcTableMetricsDto.getTableName())) {
             throw new IllegalArgumentException("Table name cannot be empty");
-        }
-        if (null == shareCdcTableMetricsDto.getCount()
-                || shareCdcTableMetricsDto.getCount().compareTo(0L) < 0) {
-            shareCdcTableMetricsDto.setCount(0L);
         }
         Criteria criteria = new Criteria().andOperator(
                 Criteria.where("taskId").is(shareCdcTableMetricsDto.getTaskId()),
@@ -116,11 +112,21 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
         switch (operation) {
             case INSERT:
                 shareCdcTableMetricsDto.setCreateAt(new Date());
+                if (null == shareCdcTableMetricsDto.getCount()
+                        || shareCdcTableMetricsDto.getCount().compareTo(0L) < 0) {
+                    shareCdcTableMetricsDto.setCount(0L);
+                }
                 if (null != lastShareCdcTableMetrics) {
                     shareCdcTableMetricsDto.setAllCount(lastShareCdcTableMetrics.getAllCount() + shareCdcTableMetricsDto.getCount());
                     shareCdcTableMetricsDto.setStartCdcTime(lastShareCdcTableMetrics.getStartCdcTime());
+                    if (null == shareCdcTableMetricsDto.getCurrentEventTime()) {
+                        shareCdcTableMetricsDto.setCurrentEventTime(lastShareCdcTableMetrics.getCurrentEventTime());
+                    }
                 } else {
                     shareCdcTableMetricsDto.setAllCount(shareCdcTableMetricsDto.getCount());
+                    if (null == shareCdcTableMetricsDto.getCurrentEventTime()) {
+                        shareCdcTableMetricsDto.setCurrentEventTime(0L);
+                    }
                 }
                 ShareCdcTableMetricsEntity shareCdcTableMetricsEntity = convertToEntity(ShareCdcTableMetricsEntity.class, shareCdcTableMetricsDto);
                 repository.insert(shareCdcTableMetricsEntity, userDetail);
@@ -129,7 +135,10 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
                 }
                 break;
             case UPDATE:
-                long count = shareCdcTableMetricsDto.getCount();
+                Long count = shareCdcTableMetricsDto.getCount();
+                if (null == count || count.compareTo(0L) < 0) {
+                    break;
+                }
                 shareCdcTableMetricsDto.setCount(lastShareCdcTableMetrics.getCount() + count);
                 shareCdcTableMetricsDto.setAllCount(lastShareCdcTableMetrics.getAllCount() + count);
                 query = Query.query(Criteria.where("_id").is(lastShareCdcTableMetrics.getId()));
@@ -144,7 +153,6 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
             default:
                 break;
         }
-        return shareCdcTableMetricsDto;
     }
 
     private enum Operation{
