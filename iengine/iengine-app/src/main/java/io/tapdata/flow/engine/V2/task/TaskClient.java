@@ -35,10 +35,34 @@ public interface TaskClient<T> {
 	void join();
 
 	default void error(Throwable throwable) {
-
+		throw new UnsupportedOperationException();
 	}
 
 	default Throwable getError() {
-		return null;
+		throw new UnsupportedOperationException();
+	}
+
+	default void terminalMode(TerminalMode terminalMode) {
+		throw new UnsupportedOperationException();
+	}
+
+	default TerminalMode getTerminalMode() {
+		throw new UnsupportedOperationException();
+	}
+
+	default boolean isRunning() {
+		throw new UnsupportedOperationException();
+	}
+
+	default boolean canRetry() {
+		return false;
+	}
+
+	default int getRetryTime() {
+		return 0;
+	}
+
+	default boolean resume() {
+		throw new UnsupportedOperationException();
 	}
 }

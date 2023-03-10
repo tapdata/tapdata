@@ -15,6 +15,7 @@ import io.tapdata.TapInterface;
 import io.tapdata.common.ConverterUtil;
 import io.tapdata.common.TapInterfaceUtil;
 import io.tapdata.entity.LoadSchemaResult;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.core.api.ConnectionNode;
@@ -164,15 +165,17 @@ public class LoadSchemaEventHandler extends BaseEventHandler implements WebSocke
 							}
 						}
 					} else {
+						ConnectionNode connectionNode = null;
 						try {
 							List<TapTable> tapTables = new ArrayList<>();
 							DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
-							ConnectionNode connectionNode = PDKIntegration.createConnectionConnectorBuilder()
+							connectionNode = PDKIntegration.createConnectionConnectorBuilder()
 									.withConnectionConfig(DataMap.create(connection.getConfig()))
 									.withGroup(databaseType.getGroup())
 									.withPdkId(databaseType.getPdkId())
 									.withAssociateId(connection.getName() + "_" + connection.getUser_id())
 									.withVersion(databaseType.getVersion())
+									.withLog(new TapLog())
 									.build();
 							PDKInvocationMonitor.invoke(connectionNode, PDKMethod.INIT, connectionNode::connectorInit,
 									LoadSchemaEventHandler.class.getSimpleName());
@@ -190,6 +193,13 @@ public class LoadSchemaEventHandler extends BaseEventHandler implements WebSocke
 							);
 							connIdTablesMap.put(connId, tapTables);
 						} finally {
+							if (null != connectionNode) {
+								try {
+									PDKInvocationMonitor.invoke(connectionNode, PDKMethod.STOP, connectionNode::connectorStop, LoadSchemaEventHandler.class.getSimpleName());
+								} catch (Exception e) {
+									logger.warn("PDK ConnectionNode stop failed: {}", e.getMessage(), e);
+								}
+							}
 							PDKIntegration.releaseAssociateId(connection.getName() + "_" + connection.getUser_id());
 						}
 					}

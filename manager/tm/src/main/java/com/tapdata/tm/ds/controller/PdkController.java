@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.commons.CommonsMultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -58,6 +59,12 @@ public class PdkController extends BaseController {
 
     @GetMapping(value = "/jar", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     public void downloadJar(@RequestParam("pdkHash") String pdkHash,
+                            HttpServletResponse response) throws IOException {
+        response.sendError(HttpServletResponse.SC_NOT_FOUND, "Please upgrade engine");
+    }
+
+    @GetMapping(value = "/jar/v2", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    public void downloadJarV2(@RequestParam("pdkHash") String pdkHash,
                             @RequestParam(value = "pdkBuildNumber", defaultValue = "0", required = false) Integer pdkBuildNumber,
                             HttpServletResponse response) {
         pkdSourceService.uploadAndView(pdkHash, pdkBuildNumber, getLoginUser(), PdkFileTypeEnum.JAR, response);
@@ -65,15 +72,13 @@ public class PdkController extends BaseController {
 
     @GetMapping(value = "/icon")
     public void downloadIcon(@RequestParam("pdkHash") String pdkHash,
-                             @RequestParam(value = "pdkBuildNumber", defaultValue = "0", required = false) Integer pdkBuildNumber,
                              HttpServletResponse response) {
-        pkdSourceService.uploadAndView(pdkHash, pdkBuildNumber, getLoginUser(),PdkFileTypeEnum.IMAGE, response);
+        pkdSourceService.uploadAndView(pdkHash, null, getLoginUser(),PdkFileTypeEnum.IMAGE, response);
     }
 
     @GetMapping(value = "/doc", produces = MediaType.TEXT_MARKDOWN_VALUE)
     public void downloadDoc(@RequestParam("pdkHash") String pdkHash,
-                            @RequestParam(value = "pdkBuildNumber", defaultValue = "0", required = false) Integer pdkBuildNumber,
                             HttpServletResponse response) {
-        pkdSourceService.uploadAndView(pdkHash, pdkBuildNumber, getLoginUser(),PdkFileTypeEnum.MARKDOWN, response);
+        pkdSourceService.uploadAndView(pdkHash, null, getLoginUser(),PdkFileTypeEnum.MARKDOWN, response);
     }
 }

@@ -36,34 +36,34 @@ which contains the following keywords:
 - B. \[Tickets\]: Specify the table name, generally the same as TAP_ The TABLE keyword appears together, specifying the table name after the table is created and the data obtained by the API is stored in this table. A text wrapped with []. Please organize the table name reasonably. It is not recommended to use special characters. For example, using one of the two characters [] in the table name will affect the table name after the table is created.
 
 
-- C. (PAGE_LIMIT: data)_ The LIMIT paging type queries the data, indicating that the API is paging based on the record index and intra page offset. The specific paging type needs to be indicated after you analyze the API interface, otherwise it will affect the query results and cause data errors. The following page types are provided. You can specify the page types according to the relevant API features:
+- C. (PAGE_LIMIT: data) The LIMIT paging type queries the data, indicating that the API is paging based on the record index and intra page offset. The specific paging type needs to be indicated after you analyze the API interface, otherwise it will affect the query results and cause data errors. The following page types are provided. You can specify the page types according to the relevant API features:
 
 
 ```
 
-    PAGE_ SIZE_ PAGE_ INDEX: Applicable to pagination using page numbers and intra page offsets. Need to match TAP_ PAGE_ SIZE and TAP_ PAGE_ The INDEX tag specifies paging parameters.
+    PAGE_SIZE_PAGE_INDEX: Applicable to pagination using page numbers and intra page offsets. Need to match TAP_PAGE_SIZE and TAP_PAGE_INDEX the tag specifies paging parameters.
 
-    FROM_ TO: It is applicable to pagination using record start index and end index. Single TAP required_ PAGE_ FROM and TAP_ PAGE_ The TO label specifies paging parameters.
+    FROM_TO: It is applicable to pagination using record start index and end index. Single required TAP_PAGE_FROM and TAP_PAGE_TO the label specifies paging parameters.
 
-    PAGE_ LIMIT: Applicable to paging by using record index and intra page offset. Need to match TAP_ PAGE_ OFFSET and TAP_ PAGE_ The LIMIT tag specifies paging parameters.
+    PAGE_LIMIT: Applicable to paging by using record index and intra page offset. Need to match TAP_PAGE_OFFSET and TAP_PAGE_LIMIT The tag specifies paging parameters.
 
-    PAGE_ TOKEN: It is applicable to paging using cached paging tokens. The first page is empty, and the next page is queried using the token returned from the last query. Use TAP together_ PAGE_ The TOKEN tag specifies paging parameters.
+    PAGE_TOKEN: It is applicable to paging using cached paging tokens. The first page is empty, and the next page is queried using the token returned from the last query. Use together TAP_PAGE_TOKEN The tag specifies paging parameters, while using TAP_PAGE_SIZE specifies the number of records per paging query, use TAP_HAS_MORE_PAGE to describe whether there is a field name on the next page (you need to specify this parameter in the parameter list and add this label in the parameter description).
 
-    PAGE_ NONE: It is applicable to the general data acquisition of non pagination returned from the list.
+    PAGE_NONE: It is applicable to the general data acquisition of non pagination returned from the list.
 
 ```
 
 
-- D. Paging parameter specification: Take the current query of ZoHo Desk work order API as an example, and the paging type used is PAGE_ LIMIT, the paging parameter needs to add a corresponding parameter label in its corresponding description text to indicate TAP_ PAGE_ OFFSET and TAP_ PAGE_ LIMIT ，
+- D. Paging parameter specification: Take the current query of ZoHo Desk work order API as an example, and the paging type used is PAGE_LIMIT, the paging parameter needs to add a corresponding parameter label in its corresponding description text to indicate TAP_PAGE_OFFSET and TAP_PAGE_LIMIT ,
 ```
-    TAP_ PAGE_ OFFSET corresponds to interface parameters from, 
-    TAP_ PAGE_ The interface parameter corresponding to LIMIT is limit
+    TAP_PAGE_OFFSET corresponds to interface parameters from, 
+    TAP_PAGE_LIMIT The interface parameter corresponding to is limit
 ```
 ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/quickAPI/doc/TAP_TABLE.PNG)
 
 **Supplementary note:**The above is a case of ZoHo Desk work order interface declaration, and the case of API name declaration of coding acquisition is:
 
-TAP_ TABLE [Issues] (PAGE_SIZE_PAGE_INDEX: Response. Data. List) Get the list of events
+TAP_TABLE [Issues] (PAGE_SIZE_PAGE_INDEX:Response.Data.List) Get the list of events
 
 Its semantics are as follows: the event table name is set as Issues, and PAGE is used_ SIZE_ PAGE_ INDEX, the paging logic, specifies the data of Response. Data. List in the API result as the table data.
 
@@ -71,7 +71,7 @@ Its semantics are as follows: the event table name is set as Issues, and PAGE is
 
 #####2.2.2 Statement of login authorization interface
 
-You need to use TAP_ The LOGIN tag declares the login interface. It is consistent with the declaration method of the table data interface. A declaration label needs to be added to the interface name. The keyword of the declaration label of the login interface is TAP_ LOGIN, this label indicates that the data source will have access when calling the API to obtain data_ To judge the past of token, you need to describe the expiration status and specify access on the connection configuration page_ The key value obtained by token matches., For example, the following figure shows the statement of the login interface for ZoHo Desk in Postman:
+You need to use TAP_GET_TOKEN, the tag declares the login interface. It is consistent with the declaration method of the table data interface. A declaration label needs to be added to the interface name. The keyword of the declaration label of the login interface is TAP_GET_TOKEN, this label indicates that the data source will have access_token when calling the API to obtain data to judge , you need to describe the expiration status and specify access on the connection configuration page_ The key value obtained by token matches., For example, the following figure shows the statement of the login interface for ZoHo Desk in Postman:
 
 ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/quickAPI/doc/TAP_LOGIN.PNG)
 
@@ -81,27 +81,27 @@ You need to use TAP_ The LOGIN tag declares the login interface. It is consisten
 ####2.4 variable refers to some variables defined in the interface. It is necessary to ensure that the variables defined in the API can be found in this variable and have actual and correct values. Otherwise, the API interface that uses variables with missing or incorrect values will fail in the near future.
 
 
-###3. Fill in access_ Token expiration status description (optional)
+###3. Fill in access_token expiration status description (optional)
 
 
 Note: 
 
 The reason why this entry is optional is that the OpenAPI provided by some Saas platforms uses a permanent access token, regardless of the expiration of the token, such as Coding. However, for Saas platforms that use temporary tokens to access OpenAPI, you need to fill in this entry, otherwise unpredictable consequences may result.
 
-Fill in access_ Token expiration status description. (The access_token here generally refers to the API interface access token. The names of each Saas may be different.)
+Fill in access_token expiration status description. (The access_token here generally refers to the API interface access token. The names of each Saas may be different.)
 
 
-- 3.1 access_ Token expiration status refers to the access failure status returned by the Saas platform after calling the specified interface after your API access expires.
+- 3.1 access_token expiration status refers to the access failure status returned by the Saas platform after calling the specified interface after your API access expires.
 
 ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/quickAPI/doc/TAP_TABLE-ZoHo.PNG)
 
-For example, when we call ZoHo to obtain a work order, access_ The token has expired, and the returned result is shown in the following figure. Then you can describe the expiration status as errorCode=INVALID_ OAUTH, so that when the API is executed again, it can automatically recognize the expired token according to the returned results to refresh the token automatically.
+For example, when we call ZoHo to obtain a work order, access_token has expired, and the returned result is shown in the following figure. Then you can describe the expiration status as errorCode=INVALID_OAUTH, so that when the API is executed again, it can automatically recognize the expired token according to the returned results to refresh the token automatically.
 
 
 - 3.2 This status description needs to be summarized manually through the PostMan access API (because we cannot predict what response results these Saas platforms will return after the access_token expires);
 
 
-- 3.3 Declare the API interface for login (access to API) in PostMan. When the API is executed, access is found_ The token expires and regrets calling the specified API for access_ Token refresh. This login interface needs to add TAP to the name of the interface_ LOGIN is a symbolic text. For example, the name of the ZoHo token refresh interface is "TAP_LOGIN refresh AccessToken login", which adds TAP_ LOGIN (see the upper left corner) indicates that this interface is used to implement automatic token refresh operations.
+- 3.3 Declare the API interface for login (access to API) in PostMan. When the API is executed, access is found the token expires and regrets calling the specified API for access_token refresh. This login interface needs to add to the name of the interface TAP_LOGIN is a symbolic text. For example, the name of the ZoHo token refresh interface is "TAP_LOGIN refresh AccessToken login", which adds TAP_LOGIN (see the upper left corner) indicates that this interface is used to implement automatic token refresh operations.
 
 ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/quickAPI/doc/TAP_LOGIN-ZoHo.PNG)
 
@@ -189,7 +189,7 @@ At this point, we need to declare here that accessToken=access_ token 。
 ###Data source support
 
 
--1. API declaration in PostMan, which includes at least one TAP_ API declared by TABLE. Otherwise, the connection created by this will not be scanned to any table. TAP_ TABLE needs to declare the table name, page type, and page parameter at the same time. Otherwise, incorrect results will occur.
+-1. API declaration in PostMan, which includes at least one API declared by TAP_TABLE. Otherwise, the connection created by this will not be scanned to any table. TAP_TABLE needs to declare the table name, page type, and page parameter at the same time. Otherwise, incorrect results will occur.
 
 
 -2. You may need to configure the login authorization API. If you have configured the login authorization API, you need to configure the token expiration rule on the connection configuration page and specify the corresponding relationship between the returned result and the token variable in the global variable in the interface to obtain the token.

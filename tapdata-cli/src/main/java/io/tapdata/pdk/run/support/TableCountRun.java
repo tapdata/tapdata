@@ -4,13 +4,17 @@ import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.run.base.PDKBaseRun;
 import io.tapdata.pdk.run.base.RunnerSummary;
+import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.core.base.TestNode;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.support.TapTestCase;
-import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  *
@@ -24,7 +28,7 @@ public class TableCountRun extends PDKBaseRun {
     public void tableCount() throws NoSuchMethodException {
         Method testCase = super.getMethod("tableCount");
         consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKBaseRun.TestNode prepare = prepare(nodeInfo);
+            TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
                 super.connectorOnStart(prepare);
@@ -41,7 +45,7 @@ public class TableCountRun extends PDKBaseRun {
         });
     }
 
-//    public static List<SupportFunction> testFunctions() {
-//        return list(support(TimestampToStreamOffsetFunction.class, RunnerSummary.format("jsFunctionInNeed","table_count")));
-//    }
+    public static List<SupportFunction> testFunctions() {
+        return new ArrayList<>();
+    }
 }

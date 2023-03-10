@@ -7,10 +7,11 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.run.base.PDKBaseRun;
 import io.tapdata.pdk.run.base.RunnerSummary;
-import io.tapdata.pdk.tdd.core.PDKTestBase;
+import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.core.base.TestNode;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.support.TapTestCase;
-import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -28,7 +29,7 @@ public class ConnectionTestRun extends PDKBaseRun {
     public void connectionTest() throws NoSuchMethodException {
         Method testCase = super.getMethod("connectionTest");
         consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = prepare(nodeInfo);
+            TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
                 super.connectorOnStart(prepare);
@@ -54,7 +55,7 @@ public class ConnectionTestRun extends PDKBaseRun {
             }
         });
     }
-//    public static List<SupportFunction> testFunctions() {
-//        return list(support(BatchReadFunction.class, RunnerSummary.format("jsFunctionInNeed","connection_test")));
-//    }
+    public static List<SupportFunction> testFunctions() {
+        return new ArrayList<>();
+    }
 }

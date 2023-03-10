@@ -6,12 +6,9 @@
  */
 package com.tapdata.tm.ws.dto;
 
-import com.tapdata.tm.commons.websocket.ReturnCallback;
-import lombok.*;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.web.socket.WebSocketSession;
-
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class WebSocketInfo {
 	/**
@@ -27,6 +24,10 @@ public class WebSocketInfo {
 	@Getter
 	@Setter
 	private String agentId;
+
+	@Getter
+	@Setter
+	private String singletonTag;
 
 	/**
 	 * 用户ID
@@ -49,11 +50,23 @@ public class WebSocketInfo {
 
 
 
-	public WebSocketInfo(String id, String agentId, String userId, WebSocketSession session, String ip) {
+	public WebSocketInfo(String id, String agentId, String singletonTag, String userId, WebSocketSession session, String ip) {
 		this.id = id;
 		this.agentId = agentId;
+		this.singletonTag = singletonTag;
 		this.userId = userId;
 		this.session = session;
 		this.ip = ip;
+	}
+
+	@Override
+	public String toString() {
+		return "WebSocketInfo{" +
+				"id='" + id + '\'' +
+				", agentId='" + agentId + '\'' +
+				", singletonTag='" + singletonTag + '\'' +
+				", userId='" + userId + '\'' +
+				", ip='" + ip + '\'' +
+				'}';
 	}
 }

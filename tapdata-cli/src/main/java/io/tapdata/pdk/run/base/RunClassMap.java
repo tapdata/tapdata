@@ -4,16 +4,16 @@ import java.util.Objects;
 import java.util.StringJoiner;
 
 public enum RunClassMap {
-    BATCH_COUNT_RUN("1", "io.tapdata.pdk.run.support.BatchCountRun", "BatchCountFunction", new String[]{"batch_count"}, "BatchCountRun"),
-    BATCH_READ_RUN("2", "io.tapdata.pdk.run.support.BatchReadRun", "BatchReadFunction", new String[]{"batch_read"}, "BatchReadRun"),
-    COMMAND_RUN("3", "io.tapdata.pdk.run.support.CommandRun", "", new String[]{"command_callback"}, "CommandRun"),
-    CONNECTION_TEST_RUN("4", "io.tapdata.pdk.run.support.ConnectionTestRun", "", new String[]{"connection_test"}, "ConnectionTestRun"),
-    DISCOVER_SCHEMA_RUN("5", "io.tapdata.pdk.run.support.DiscoverSchemaRun", "", new String[]{"discover_schema"}, "DiscoverSchemaRun"),
-    STREAM_READ_RUN("6", "io.tapdata.pdk.run.support.StreamReadRun", "", new String[]{"stream_read"}, "StreamReadRun"),
-    TABLE_COUNT_RUN("7", "io.tapdata.pdk.run.support.TableCountRun", "", new String[]{"table_count"}, "TableCountRun"),
-    TIMESTAMP_TO_STREAM_OFFSET_RUN("8", "io.tapdata.pdk.run.support.TimestampToStreamOffsetRun", "", new String[]{"timestamp_to_stream_offset"}, "TimestampToStreamOffsetRun"),
-    WEB_HOOK_EVENT_RUN("9", "io.tapdata.pdk.run.support.WebHookEventRun", "", new String[]{"web_hook_event"}, "WebHookEventRun"),
-    WRITE_RECORD_RUN("10", "io.tapdata.pdk.run.support.WriteRecordRun", "", new String[]{"write_record", "insert_record", "update_record", "delete_record"}, "WriteRecordRun"),
+    BATCH_COUNT_RUN("1", "io.tapdata.pdk.run.support.BatchCountRun", "BatchCountFunction", new String[]{"batchCount"}, "BatchCountRun"),
+    BATCH_READ_RUN("2", "io.tapdata.pdk.run.support.BatchReadRun", "BatchReadFunction", new String[]{"batchRead"}, "BatchReadRun"),
+    COMMAND_RUN("3", "io.tapdata.pdk.run.support.CommandRun", "", new String[]{"commandCallback"}, "CommandRun"),
+    CONNECTION_TEST_RUN("4", "io.tapdata.pdk.run.support.ConnectionTestRun", "", new String[]{"connectionTest"}, "ConnectionTestRun"),
+    DISCOVER_SCHEMA_RUN("5", "io.tapdata.pdk.run.support.DiscoverSchemaRun", "", new String[]{"discoverSchema"}, "DiscoverSchemaRun"),
+    STREAM_READ_RUN("6", "io.tapdata.pdk.run.support.StreamReadRun", "", new String[]{"streamRead"}, "StreamReadRun"),
+    TABLE_COUNT_RUN("7", "io.tapdata.pdk.run.support.TableCountRun", "", new String[]{"tableCount"}, "TableCountRun"),
+    TIMESTAMP_TO_STREAM_OFFSET_RUN("8", "io.tapdata.pdk.run.support.TimestampToStreamOffsetRun", "", new String[]{"timestampToStreamOffset"}, "TimestampToStreamOffsetRun"),
+    WEB_HOOK_EVENT_RUN("9", "io.tapdata.pdk.run.support.WebHookEventRun", "", new String[]{"webhookEvent"}, "WebHookEventRun"),
+    WRITE_RECORD_RUN("10", "io.tapdata.pdk.run.support.WriteRecordRun", "", new String[]{"writeRecord", "insertRecord", "updateRecord", "deleteRecord"}, "WriteRecordRun"),
     ;
     String classPath;
     String functionJavaName;
@@ -149,5 +149,10 @@ public enum RunClassMap {
             builder.append("-");
         }
         return builder.toString();
+    }
+
+    public String jsName(int index) {
+        if (index >= this.functionJsName.length || index < 0) return this.functionJsName[0];
+        return this.functionJsName[index];
     }
 }

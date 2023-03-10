@@ -104,7 +104,7 @@ public class PkdSourceService {
                 if (oldDefinitionDto.getIcon() != null) {
                     fileService.deleteFileById(MongoUtils.toObjectId(oldDefinitionDto.getIcon()));
                 }
-                fileService.deleteFileByPdkHash(pdkHash);
+                fileService.deleteFileByPdkHash(pdkHash, pdkAPIBuildNumber);
             }
 
             // upload the associated files(jar/icons)
@@ -114,6 +114,7 @@ public class PkdSourceService {
             try {
                 Map<String, Object> fileInfo = Maps.newHashMap();
                 fileInfo.put("pdkHash", pdkHash);
+                fileInfo.put("pdkAPIBuildNumber", pdkAPIBuildNumber);
 
                 // 1. upload jar file, only update once
                 jarObjectId = fileService.storeFile(jarFile.getInputStream(), jarFile.getOriginalFilename(), null, fileInfo);
@@ -181,17 +182,22 @@ public class PkdSourceService {
                 Update removeLatest = Update.update("latest", false);
                 dataSourceDefinitionService.update(new Query(criteriaLatest), removeLatest);
             }
-            dataSourceDefinitionService.save(definitionDto, user);
+            if (Objects.isNull(oldDefinitionDto)) {
+                dataSourceDefinitionService.save(definitionDto, user);
+            } else {
+                dataSourceDefinitionService.upsert(Query.query(Criteria.where("_id").is(definitionDto.getId())), definitionDto, user);
+            }
         }
     }
 
     public void uploadAndView(String pdkHash, Integer pdkBuildNumber, UserDetail user, PdkFileTypeEnum type, HttpServletResponse response) {
-        Criteria criteria = Criteria.where("pdkHash").is(pdkHash).and("pdkAPIBuildNumber").lte(pdkBuildNumber);
+        Criteria criteria = Criteria.where("pdkHash").is(pdkHash);
         Query query = new Query(criteria);
 
         switch (type) {
             case JAR:
                 query.fields().include("jarRid");
+                criteria.and("pdkAPIBuildNumber").lte(pdkBuildNumber);
                 break;
             case IMAGE:
             query.fields().include("icon");

@@ -89,10 +89,11 @@ public final class ObsLoggerFactory {
 		taskLoggersMap.computeIfPresent(taskId, (k, v) -> v.withTask(taskId, task.getName(), task.getTaskRecordId()));
 		taskLoggersMap.computeIfAbsent(taskId, k -> {
 			loggerToBeRemoved.remove(taskId);
-			return new TaskLogger(this::closeDebugForTask).withTask(taskId, task.getName(), task.getTaskRecordId()).withTaskLogSetting(
+			TaskLogger taskLogger = new TaskLogger(this::closeDebugForTask).withTask(taskId, task.getName(), task.getTaskRecordId()).withTaskLogSetting(
 					getLogSettingLogLevel(task), getLogSettingRecordCeiling(task), getLogSettingIntervalCeiling(task));
+			taskLogger.registerTaskFileAppender(taskId);
+			return taskLogger;
 		});
-		taskLoggersMap.get(taskId).registerTaskFileAppender(taskId);
 
 		return taskLoggersMap.get(taskId);
 	}

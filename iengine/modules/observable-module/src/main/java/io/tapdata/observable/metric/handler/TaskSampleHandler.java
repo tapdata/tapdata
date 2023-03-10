@@ -1,5 +1,8 @@
 package io.tapdata.observable.metric.handler;
 
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.sampler.AverageSampler;
@@ -9,7 +12,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.ObjectUtils;
+import org.springframework.util.ObjectUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,9 +33,12 @@ public class TaskSampleHandler extends AbstractHandler {
     static final String SNAPSHOT_INSERT_ROW_TOTAL             = "snapshotInsertRowTotal";
     static final String SNAPSHOT_START_AT                     = "snapshotStartAt";
     static final String SNAPSHOT_DONE_AT                      = "snapshotDoneAt";
+    static final String SNAPSHOT_DONE_COST                    = "snapshotDoneCost";
     static final String CURR_SNAPSHOT_TABLE                   = "currentSnapshotTable";
     static final String CURR_SNAPSHOT_TABLE_ROW_TOTAL         = "currentSnapshotTableRowTotal";
     static final String CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL  = "currentSnapshotTableInsertRowTotal";
+    static final String OUTPUT_QPS_MAX                        = "outputQpsMax";
+    static final String OUTPUT_QPS_AVG                        = "outputQpsAvg";
 
 
     CounterSampler inputInsertCounter;
@@ -57,9 +63,14 @@ public class TaskSampleHandler extends AbstractHandler {
     private CounterSampler snapshotInsertRowTotal;
     private Long snapshotStartAt = null;
     private Long snapshotDoneAt = null;
+    private Long snapshotDoneCost = null;
     private String currentSnapshotTable = null;
-    private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
+//    private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
     private Long currentSnapshotTableInsertRowTotal = null;
+    private Long currentSnapshotTableRowTotal = null;
+    private Double outputQpsMax;
+    private Double outputQpsAvg;
+
     private final Set<String> taskTables = new HashSet<>();
 
     private final HashMap<String, DataNodeSampleHandler> targetNodeHandlers = new HashMap<>();
@@ -102,9 +113,12 @@ public class TaskSampleHandler extends AbstractHandler {
                 SNAPSHOT_ROW_TOTAL,
                 SNAPSHOT_INSERT_ROW_TOTAL,
                 SNAPSHOT_DONE_AT,
+                SNAPSHOT_DONE_COST,
                 CURR_SNAPSHOT_TABLE,
                 CURR_SNAPSHOT_TABLE_ROW_TOTAL,
-                CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL
+                CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL,
+                OUTPUT_QPS_MAX,
+                OUTPUT_QPS_AVG
         );
     }
 
@@ -175,27 +189,45 @@ public class TaskSampleHandler extends AbstractHandler {
             snapshotDoneAt = retrieveSnapshotDoneAt.longValue();
         }
         collector.addSampler(SNAPSHOT_DONE_AT, () -> {
-            List<Long> collect = sourceNodeHandlers.values().stream()
-                    .map(DataNodeSampleHandler::getSnapshotDoneAt)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-            if (CollectionUtils.isNotEmpty(collect) && collect.size() == sourceNodeHandlers.size()) {
-                snapshotDoneAt = Collections.max(collect);
+            if (Objects.isNull(snapshotDoneAt)) {
+                sourceNodeHandlers.values().stream()
+                        .filter(h -> Objects.nonNull(h.getSnapshotDoneAt()))
+                        .findAny().ifPresent(dh -> this.snapshotDoneAt = dh.getSnapshotDoneAt());
             }
             return snapshotDoneAt;
+        });
+
+        collector.addSampler(SNAPSHOT_DONE_COST, () -> {
+            if (Objects.nonNull(snapshotDoneAt) && Objects.nonNull(snapshotStartAt)) {
+                snapshotDoneCost = snapshotDoneAt - snapshotStartAt;
+            }
+            return snapshotDoneCost;
         });
 
         // TODO(dexter): find a way to record the current table name
         collector.addSampler(CURR_SNAPSHOT_TABLE, () -> null);
         collector.addSampler(CURR_SNAPSHOT_TABLE_ROW_TOTAL, () -> {
             if (null == currentSnapshotTable) return null;
-            return currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
+            return currentSnapshotTableRowTotal;
         });
         collector.addSampler(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL, () -> {
-            if (ObjectUtils.allNotNull(currentSnapshotTable, snapshotDoneAt)) {
-                return currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
+            if (Objects.nonNull(snapshotTableTotal.value()) && CollectionUtils.isNotEmpty(taskTables) &&
+            snapshotTableTotal.value().intValue() == taskTables.size()) {
+                return currentSnapshotTableRowTotal;
             }
             return currentSnapshotTableInsertRowTotal;
+        });
+        collector.addSampler(OUTPUT_QPS_MAX, () -> {
+            Optional.ofNullable(outputSpeed).ifPresent(speed -> {
+                outputQpsMax = speed.getMaxValue();
+            });
+            return outputQpsMax;
+        });
+        collector.addSampler(OUTPUT_QPS_AVG, () -> {
+            Optional.ofNullable(outputSpeed).ifPresent(speed -> {
+                outputQpsAvg = speed.getAvgValue();
+            });
+            return outputQpsAvg;
         });
     }
 
@@ -212,9 +244,10 @@ public class TaskSampleHandler extends AbstractHandler {
         taskTables.addAll(Arrays.asList(tables));
     }
 
-    public void handleTableCountAccept(String table, long count) {
+    public void handleTableCountAccept(long count) {
         snapshotRowTotal.inc(count);
-        currentSnapshotTableRowTotalMap.put(table, count > 0 ? count : null);
+        currentSnapshotTableInsertRowTotal = 0L;
+        currentSnapshotTableRowTotal = count;
     }
 
     public void handleCreateTableEnd() {
@@ -237,25 +270,24 @@ public class TaskSampleHandler extends AbstractHandler {
     public void handleBatchReadStart(String table) {
         currentSnapshotTable = table;
         currentSnapshotTableInsertRowTotal = 0L;
-        if (firstBatchRead.get()) {
-            if (Objects.nonNull(snapshotTableTotal)) {
-                snapshotTableTotal.reset();
-            }
-            firstBatchRead.set(false);
-        }
+//        if (firstBatchRead.get()) {
+//            if (Objects.nonNull(snapshotTableTotal)) {
+//                snapshotTableTotal.reset();
+//            }
+//            firstBatchRead.set(false);
+//        }
     }
+
     public void handleBatchReadAccept(long size) {
         inputInsertCounter.inc(size);
         inputSpeed.add(size);
-        currentSnapshotTableInsertRowTotal += size;
+//        currentSnapshotTableInsertRowTotal += size;
 
-        snapshotInsertRowTotal.inc(size);
+//        snapshotInsertRowTotal.inc(size);
     }
 
     public void handleBatchReadFuncEnd() {
         snapshotTableTotal.inc();
-//        currentSnapshotTable = null;
-        currentSnapshotTableInsertRowTotal = 0L;
     }
 
     public void handleStreamReadStart(List<String> tables) {
@@ -295,6 +327,13 @@ public class TaskSampleHandler extends AbstractHandler {
         outputDeleteCounter.inc(deleted);
         outputSpeed.add(total);
 
+        snapshotInsertRowTotal.inc(total);
+        if (Objects.isNull(currentSnapshotTableInsertRowTotal)) {
+            currentSnapshotTableInsertRowTotal = total;
+        } else {
+            currentSnapshotTableInsertRowTotal += total;
+        }
+
         long timeCostTotal = 0L;
         for (TapRecordEvent event : events) {
             Long time = event.getTime();
@@ -329,5 +368,9 @@ public class TaskSampleHandler extends AbstractHandler {
             return;
         }
         inputDdlCounter.inc(tables.size());
+    }
+
+    public Long getSnapshotDone() {
+        return snapshotDoneAt;
     }
 }

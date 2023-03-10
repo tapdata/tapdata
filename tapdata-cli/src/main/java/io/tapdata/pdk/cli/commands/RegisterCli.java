@@ -2,7 +2,6 @@ package io.tapdata.pdk.cli.commands;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.tapdata.tm.commons.constants.DataSourceQCType;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
@@ -13,6 +12,7 @@ import io.tapdata.pdk.cli.CommonCli;
 import io.tapdata.pdk.cli.services.UploadFileService;
 import io.tapdata.pdk.core.connector.TapConnector;
 import io.tapdata.pdk.core.connector.TapConnectorManager;
+import io.tapdata.pdk.core.constants.DataSourceQCType;
 import io.tapdata.pdk.core.tapnode.TapNodeContainer;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -108,17 +108,9 @@ public class RegisterCli extends CommonCli {
                     o.put("qcType", qcType);
 
                     String pdkAPIVersion = specification.getManifest().get("PDK-API-Version");
-                    AtomicInteger pdkAPIBuildNumber = new AtomicInteger();
-                    if (StringUtils.isNotBlank(pdkAPIVersion)) {
-                        CommonUtils.ignoreAnyError(() -> {
-                            String last = Arrays.stream(pdkAPIVersion.split("[.]")).collect(Collectors.toCollection(LinkedList::new)).getLast();
-                            if (last.chars().allMatch(Character::isDigit)) {
-                                pdkAPIBuildNumber.set(Integer.parseInt(last));
-                            }
-                        }, TAG);
-                    }
+                    int pdkAPIBuildNumber = CommonUtils.getPdkBuildNumer(pdkAPIVersion);
                     o.put("pdkAPIVersion", pdkAPIVersion);
-                    o.put("pdkAPIBuildNumber", pdkAPIBuildNumber.get());
+                    o.put("pdkAPIBuildNumber", pdkAPIBuildNumber);
 
                     o.put("beta", "beta".equals(specification.getManifest().get("Authentication")));
 

@@ -1,18 +1,16 @@
 package io.tapdata.pdk.tdd.tests.basic;
 
-import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.DataMap;
-import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 @DisplayName("Tests for basic test")
 public class BasicTest extends PDKTestBase {

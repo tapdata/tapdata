@@ -8,12 +8,13 @@ import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.run.base.PDKBaseRun;
 import io.tapdata.pdk.run.base.ReadStopException;
+import io.tapdata.pdk.run.base.RunClassMap;
 import io.tapdata.pdk.run.base.RunnerSummary;
-import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.core.base.TestNode;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.support.TapTestCase;
-import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -28,6 +29,7 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 @DisplayName("batchReadRun")
 @TapGo(sort = 5)
 public class BatchReadRun extends PDKBaseRun {
+    private static final String jsName = RunClassMap.BATCH_READ_RUN.jsName(0);
     @DisplayName("batchReadRun.run")
     @TapTestCase(sort = 1)
     @Test
@@ -35,7 +37,7 @@ public class BatchReadRun extends PDKBaseRun {
         Method testCase = super.getMethod("batchRead");
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             List<TapEvent> list = new ArrayList<>();
-            PDKTestBase.TestNode prepare = prepare(nodeInfo);
+            TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
                 super.connectorOnStart(prepare);
@@ -47,7 +49,7 @@ public class BatchReadRun extends PDKBaseRun {
                     return;
                 }
                 BatchReadFunction batchReadFun = functions.getBatchReadFunction();
-                Map<String, Object> batchReadConfig = (Map<String, Object>) Optional.ofNullable(super.debugConfig.get("batch_read")).orElse(new HashMap<>());
+                Map<String, Object> batchReadConfig = (Map<String, Object>) Optional.ofNullable(super.debugConfig.get(BatchReadRun.jsName)).orElse(new HashMap<>());
                 final int batchSize = (int) batchReadConfig.get("pageSize");
                 final String tableName = (String) batchReadConfig.get("tableName");
                 final Object offset = batchReadConfig.get("offset");
@@ -71,6 +73,6 @@ public class BatchReadRun extends PDKBaseRun {
     }
 
     public static List<SupportFunction> testFunctions() {
-        return list(support(BatchReadFunction.class, RunnerSummary.format("jsFunctionInNeed", "batch_count")));
+        return list(support(BatchReadFunction.class, RunnerSummary.format("jsFunctionInNeed", BatchReadRun.jsName)));
     }
 }

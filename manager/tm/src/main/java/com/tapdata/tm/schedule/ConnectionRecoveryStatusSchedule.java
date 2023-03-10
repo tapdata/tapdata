@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Component
@@ -33,10 +34,11 @@ public class ConnectionRecoveryStatusSchedule {
     @SchedulerLock(name ="connection_recovery_status_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void recoveryStatus() {
         Criteria criteria = Criteria.where("status").is(DataSourceConnectionDto.STATUS_TESTING)
-                .and("last_updated").lt(new Date(System.currentTimeMillis() - 90 * 1000));
+                .and("testTime").lt(System.currentTimeMillis() - 90 * 1000);
         Query query = new Query(criteria);
         List<DataSourceConnectionDto> all = dataSourceService.findAll(query);
         List<String> userIdList = all.stream().map(BaseDto::getUserId).distinct().collect(Collectors.toList());
+
         if (CollectionUtils.isEmpty(userIdList)) {
             return;
         }
@@ -47,8 +49,9 @@ public class ConnectionRecoveryStatusSchedule {
             if (userMap.get(connectionDto.getUserId()) == null) {
                 continue;
             }
-            Update update = Update.update("status", connectionDto.getLastStatus());
-            dataSourceService.updateById(connectionDto.getId(), update, userMap.get(connectionDto.getUserId()));
+            Update update = Update.update("status", Optional.ofNullable(connectionDto.getLastStatus()).orElse(DataSourceConnectionDto.STATUS_INVALID))
+                    .set("testTime", System.currentTimeMillis());
+            dataSourceService.updateByIdNotChangeLast(connectionDto.getId(), update, userMap.get(connectionDto.getUserId()));
         }
     }
 }

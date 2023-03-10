@@ -8,12 +8,13 @@ import io.tapdata.pdk.apis.functions.connection.CommandCallbackFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.run.base.PDKBaseRun;
+import io.tapdata.pdk.run.base.RunClassMap;
 import io.tapdata.pdk.run.base.RunnerSummary;
-import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import io.tapdata.pdk.tdd.core.base.TestNode;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
 import io.tapdata.pdk.tdd.tests.support.TapTestCase;
-import io.tapdata.pdk.tdd.tests.v2.RecordEventExecute;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -25,13 +26,14 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 @DisplayName("commandRun")
 @TapGo(sort = 0)
 public class CommandRun extends PDKBaseRun {
+    private static final String jsName = RunClassMap.COMMAND_RUN.jsName(0);
     @DisplayName("commandRun.run")
     @TapTestCase(sort = 1)
     @Test
     void command() throws NoSuchMethodException {
         Method testCase = super.getMethod("command");
         consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = prepare(nodeInfo);
+            TestNode prepare = prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             try {
                 super.connectorOnStart(prepare);
@@ -44,7 +46,7 @@ public class CommandRun extends PDKBaseRun {
                     return;
                 }
                 CommandCallbackFunction commandCallbackFunction = functions.getCommandCallbackFunction();
-                Map<String, Object> callback = (Map<String, Object>) Optional.ofNullable(super.debugConfig.get("command_callback")).orElse(new HashMap<>());
+                Map<String, Object> callback = (Map<String, Object>) Optional.ofNullable(super.debugConfig.get(CommandRun.jsName)).orElse(new HashMap<>());
                 Object commandInfo = callback.get("commandInfo");
                 if (Objects.isNull(commandInfo)) {
                     super.runError(testCase, RunnerSummary.format("commandRun.notCommandInfo"));
@@ -72,6 +74,6 @@ public class CommandRun extends PDKBaseRun {
     }
 
     public static List<SupportFunction> testFunctions() {
-        return list(support(BatchReadFunction.class, RunnerSummary.format("jsFunctionInNeed","command_callback")));
+        return list(support(BatchReadFunction.class, RunnerSummary.format("jsFunctionInNeed",CommandRun.jsName)));
     }
 }

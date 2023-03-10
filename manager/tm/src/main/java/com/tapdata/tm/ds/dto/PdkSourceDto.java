@@ -1,6 +1,6 @@
 package com.tapdata.tm.ds.dto;
 
-import com.tapdata.tm.commons.constants.DataSourceQCType;
+import io.tapdata.pdk.core.constants.DataSourceQCType;
 import io.tapdata.pdk.apis.entity.Capability;
 import lombok.*;
 

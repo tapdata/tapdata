@@ -6,7 +6,6 @@ import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.dto.NotificationDto;
@@ -19,18 +18,17 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.service.BaseService;
-import com.tapdata.tm.commons.base.dto.BaseDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.events.constant.Type;
 import com.tapdata.tm.events.service.EventsService;
-import com.tapdata.tm.message.constant.Level;
-import com.tapdata.tm.message.constant.MessageMetadata;
-import com.tapdata.tm.message.constant.MsgTypeEnum;
-import com.tapdata.tm.message.constant.SystemEnum;
+import com.tapdata.tm.message.constant.*;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.message.entity.MessageEntity;
 import com.tapdata.tm.message.repository.MessageRepository;
 import com.tapdata.tm.message.vo.MessageListVo;
+import com.tapdata.tm.mp.service.MpService;
+import com.tapdata.tm.sms.SmsService;
 import com.tapdata.tm.task.constant.TaskEnum;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.repository.TaskRepository;
@@ -39,7 +37,6 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SendStatus;
-import com.tapdata.tm.sms.SmsService;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -67,7 +64,7 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
-public class MessageService extends BaseService {
+public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectId,MessageRepository> {
 
     MessageRepository messageRepository;
     UserService userService;
@@ -78,6 +75,9 @@ public class MessageService extends BaseService {
 
     @Autowired
     private SmsService smsService;
+
+    @Autowired
+    private MpService mpService;
 
     private final static String MAIL_SUBJECT = "【Tapdata】";
     private final static String MAIL_CONTENT = "尊敬的用户您好，您在Tapdata Cloud上创建的Agent:";
@@ -101,7 +101,7 @@ public class MessageService extends BaseService {
      * @param userDetail
      * @return
      */
-    public Page<MessageListVo> find(Filter filter, UserDetail userDetail) {
+    public Page<MessageListVo> findMessage(Filter filter, UserDetail userDetail) {
         TmPageable tmPageable = new TmPageable();
 
         //page由limit 和skip计算的来
@@ -113,6 +113,11 @@ public class MessageService extends BaseService {
         List<String> collect = Arrays.stream(MsgTypeEnum.values()).filter(t -> t != MsgTypeEnum.ALARM).map(MsgTypeEnum::getValue).collect(Collectors.toList());
         query.addCriteria(Criteria.where("msg").in(collect));
         return getMessageListVoPage(query, tmPageable);
+    }
+
+    @Override
+    protected void beforeSave(MessageDto dto, UserDetail userDetail) {
+
     }
 
     @NotNull
@@ -177,7 +182,7 @@ public class MessageService extends BaseService {
 
             messageEntity.setUserId(userDetail.getUserId());
             messageEntity.setCustomId(userDetail.getCustomerId());
-            repository.getMongoOperations().save(messageEntity);
+            repository.save(messageEntity,userDetail);
             informUser(msgTypeEnum, systemEnum, messageMetadata, sourceId, messageEntity.getId().toString(), userDetail);
         } catch (Exception e) {
             log.error("新增消息异常，", e);
@@ -398,7 +403,7 @@ public class MessageService extends BaseService {
         messageEntity.setLastUpdAt(new Date());
         messageEntity.setUserId(userDetail.getUserId());
         messageEntity.setRead(false);
-        repository.getMongoOperations().save(messageEntity);
+        repository.save(messageEntity,userDetail);
         return messageEntity;
     }
 
@@ -415,12 +420,12 @@ public class MessageService extends BaseService {
         messageEntity.setUserId(userDetail.getUserId());
         messageEntity.setRead(false);
         messageEntity.setIsDeleted((!isNotify));
-        repository.getMongoOperations().save(messageEntity);
+        repository.save(messageEntity,userDetail);
         return messageEntity;
     }
 
-    public void addMessage(MessageEntity messageEntity) {
-        repository.getMongoOperations().save(messageEntity);
+    public void addMessage(MessageEntity messageEntity,UserDetail userDetail) {
+        repository.save(messageEntity,userDetail);
     }
 
     /**
@@ -599,30 +604,20 @@ public class MessageService extends BaseService {
      * @param messageDto
      * @return
      */
-    @Async("NotificationExecutor")
-    public MessageDto add(MessageDto messageDto) {
+    public MessageDto add(MessageDto messageDto, UserDetail userDetail) {
         try {
             MessageEntity messageEntity = new MessageEntity();
             BeanUtil.copyProperties(messageDto, messageEntity, "messageMetadata");
-
             MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
             messageEntity.setMessageMetadata(messageMetadata);
-
-            String userId = messageDto.getUserId();
-            UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(userId));
-            if (null != userDetail) {
-                messageEntity.setUserId(userId);
-                messageEntity.setCreateAt(new Date());
-                messageEntity.setServerName(messageDto.getAgentName());
-                messageEntity.setLastUpdAt(new Date());
-                messageEntity.setLastUpdBy(userDetail.getUsername());
-                repository.getMongoOperations().save(messageEntity);
-                messageDto.setId(messageEntity.getId().toString());
-                informUser(messageDto);
-            } else {
-                log.error("找不到用户信息. userId:{}", userId);
-            }
-
+            messageEntity.setUserId(userDetail.getUserId());
+            messageEntity.setCreateAt(new Date());
+            messageEntity.setServerName(messageDto.getAgentName());
+            messageEntity.setLastUpdAt(new Date());
+            messageEntity.setLastUpdBy(userDetail.getUsername());
+            repository.save(messageEntity, userDetail);
+            messageDto.setId(messageEntity.getId());
+            informUser(messageDto);
         } catch (Exception e) {
             log.error("新增消息异常，", e);
         }
@@ -648,14 +643,17 @@ public class MessageService extends BaseService {
         //判断notification是否为空，如果为空，则按照系统配置发送通知
         Boolean sendEmail = false;
         Boolean sendSms = false;
+        Boolean sendWeChat = false;
         if (null != notification) {
             Object eventType = BeanUtil.getProperty(notification, msgType);
             sendEmail = BeanUtil.getProperty(eventType, "email");
             sendSms = BeanUtil.getProperty(eventType, "sms");
+            sendWeChat = BeanUtil.getProperty(eventType, "weChat");
         } else {
             //如果用户的设置通知为空,就全全局设置  setting中取
             sendEmail = getDefaultNotification(system, msgType, "email");
             sendSms = getDefaultNotification(system, msgType, "notice");
+            sendWeChat = getDefaultNotification(system, msgType, "weChat");
         }
 
         MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
@@ -664,22 +662,41 @@ public class MessageService extends BaseService {
         String metadataName = messageMetadata.getName();
         String emailTip = "";
         String smsContent = "";
+        String title = "";
+        String content = "";
 
-        if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
-            emailTip = "状态变为运行中";
-            smsContent = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 正在运行";
-        } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
-            emailTip = "状态已由运行中变为离线，可能会影响您的任务正常运行，请及时处理。";
-            smsContent = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 出错，请及时处理";
-        } else if (MsgTypeEnum.STOPPED_BY_ERROR.getValue().equals(msgType)) {
+        if (SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())) {
+            if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+                emailTip = "实例上线";
+                smsContent = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已上线运行";
+                title = "实例 " + metadataName + "已上线运行";
+                content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已上线运行";
+            } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
+                emailTip = "实例离线";
+                smsContent = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已离线，请及时处理";
+                title = "实例 " + metadataName + "已离线";
+                content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已离线，请及时处理";
+            }
+        } else {
+            if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+                emailTip = "状态变为运行中";
+                smsContent = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 正在运行";
+                title = "任务:" + metadataName + " 正在运行";
+                content = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 正在运行";
+            } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
+                emailTip = "状态已由运行中变为离线，可能会影响您的任务正常运行，请及时处理。";
+                smsContent = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 出错，请及时处理";
+                title = "任务:" + metadataName + " 出错";
+                content = "您在Tapdata Cloud 上创建的任务:" + metadataName + " 出错，请及时处理";
+            } else if (MsgTypeEnum.STOPPED_BY_ERROR.getValue().equals(msgType)) {
 
+            }
         }
-
 
         //发送邮件
         if (sendEmail) {
             Integer retry = 1;
-            log.info("发送邮件通知");
+            log.info("发送邮件通知{}", userDetail.getEmail());
             String username = "Hi, " + (messageDto.getUsername() == null ? "" : messageDto.getUsername()) + ": ";
 //            Object hostUrl = settingsService.getByCategoryAndKey("SMTP", "emailHref");
 //            String clickHref = hostUrl + "monitor?id=" + sourceId + "{sourceId}&isMoniting=true&mapping=cluster-clone";
@@ -694,10 +711,25 @@ public class MessageService extends BaseService {
         if (sendSms) {
             Integer retry = 1;
             String phone = userDetail.getPhone();
+            log.info("发送短信通知{}", phone);
             String smsTemplateCode = smsService.getTemplateCode(messageDto);
             SendStatus sendStatus = smsService.sendShortMessage(smsTemplateCode, phone, system, metadataName);
             eventsService.recordEvents(MAIL_SUBJECT, smsContent, phone, messageDto, sendStatus, retry, Type.NOTICE_SMS);
 
+        }
+
+        // 发送微信通知
+        if (sendWeChat) {
+            String openId = userDetail.getOpenid();
+            if (StringUtils.isBlank(openId)) {
+                log.error("Current user ({}, {}) can't bind weChat, cancel push message.", userDetail.getUsername(), userDetail.getUserId());
+            } else {
+                log.info("Send alarm message ({}, {}) to user ({}, {}).",
+                        title, content, userDetail.getUsername(), userDetail.getUserId());
+            }
+            log.info("Send weChat message {}", openId);
+            SendStatus status = mpService.sendAlarmMsg(openId, title, content, new Date());
+            eventsService.recordEvents(MAIL_SUBJECT, content, openId, messageDto, status, 0, Type.NOTICE_WECHAT);
         }
     }
 
@@ -756,11 +788,6 @@ public class MessageService extends BaseService {
         Query query = new Query(criteria);
         UpdateResult wr = messageRepository.getMongoOperations().updateMulti(query, update, MessageEntity.class);
         return true;
-    }
-
-    @Override
-    protected void beforeSave(BaseDto dto, UserDetail userDetail) {
-
     }
 
 

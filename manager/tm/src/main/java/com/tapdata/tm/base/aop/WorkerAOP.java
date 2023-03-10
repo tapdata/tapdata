@@ -1,7 +1,7 @@
 package com.tapdata.tm.base.aop;
 
 import cn.hutool.core.date.DateUtil;
-import com.tapdata.tm.alarm.constant.AlarmContentTemplate;
+import com.google.common.collect.Maps;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
@@ -17,8 +17,8 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Component;
 
-import java.text.MessageFormat;
 import java.util.List;
+import java.util.Map;
 
 @Aspect
 @Component
@@ -41,9 +41,14 @@ public class WorkerAOP {
             return;
         }
 
+        Map<String, Object> param = Maps.newHashMap();
+        String alarmDate = DateUtil.now();
+        param.put("alarmDate", alarmDate);
+
         alarmInfos.forEach(alarmInfo -> {
+            String summary = "SYSTEM_FLOW_EGINGE_RECOVER";
             alarmInfo.setStatus(AlarmStatusEnum.RECOVER);
-            String summary = MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_RECOVER, processId, DateUtil.now());
+            alarmInfo.setParam(param);
             alarmInfo.setSummary(summary);
             alarmInfo.setRecoveryTime(DateUtil.date());
             alarmService.save(alarmInfo);

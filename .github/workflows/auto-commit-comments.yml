@@ -31,15 +31,14 @@ jobs:
         id: check-style
         run: |
           message=`git log -1 --pretty=%B`
-          echo "commit-message=$message" >>$GITHUB_OUTPUT
+          echo ::set-output name=commit-message::$message
           commit_id=`git rev-parse HEAD`
-          echo "commit-id=$commit_id" >>$GITHUB_OUTPUT
-          echo $message | egrep "#[0-9]+" -o | egrep "[0-9]+" -o > /tmp/commit_msg | ls
-          issue_code=`cat /tmp/commit_msg`
-          echo "issue-code=$issue_code" >>$GITHUB_OUTPUT
+          echo ::set-output name=commit-id::$commit_id
+          echo $message | egrep "#[0-9]+" -o | egrep "[0-9]+" -o > /tmp/commit_msg | cat /tmp/commit_msg
+          echo ::set-output name=issue-code::`cat /tmp/commit_msg`
           flag=`cat /tmp/commit_msg`
           if [[ "X${flag}" != "X" ]]; then isPost='true'; else isPost='false'; fi
-          echo "error=$isPost" >>$GITHUB_OUTPUT
+          echo ::set-output name=error::$isPost
 
   Post-Commit-Message:
     runs-on: ubuntu-latest

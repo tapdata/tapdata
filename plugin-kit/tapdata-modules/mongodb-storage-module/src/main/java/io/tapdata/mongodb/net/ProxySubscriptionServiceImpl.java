@@ -30,7 +30,7 @@ public class ProxySubscriptionServiceImpl implements ProxySubscriptionService {
 
 	@Override
 	public List<String> subscribedNodeIds(String service, Collection<String> subscribeIds) {
-		return getSubscribedNodeIds(service, new Document().append(ProxySubscriptionEntity.FIELD_SUBSCRIPTION + ".subscribeIds", new Document("$in", subscribeIds)));
+		return getSubscribedNodeIds(service, new Document().append(ProxySubscriptionEntity.FIELD_SUBSCRIPTION + ".subscribeIds", new Document("$all", subscribeIds)));
 	}
 
 	private List<String> getSubscribedNodeIds(String service, Document filter) {

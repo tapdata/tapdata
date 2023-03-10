@@ -1,6 +1,8 @@
 package com.tapdata.tm.worker.controller;
 
+import com.alibaba.fastjson.JSONObject;
 import com.google.gson.reflect.TypeToken;
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
@@ -18,6 +20,9 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Date;
@@ -361,6 +366,45 @@ public class WorkerController extends BaseController {
             worker.setPingTime(nowTimeStamp);
         }
         return success(workerService.upsertByWhere(where, worker, getLoginUser()));
+    }
+    @Operation(summary = "单例启动检测")
+    @PostMapping("singleton-lock/upsertWithWhere")
+    public ResponseMessage<String> singletonLock(@RequestParam("where") String whereJson, @RequestBody WorkerDto updateWorker) {
+        JSONObject json = JSONObject.parseObject(whereJson);
+
+        String processId = json.getString("process_id");
+        String workerType = json.getString("worker_type");
+        String checkSingletonLock = json.getString("singletonLock");
+
+        WorkerDto oldWorker = workerService.findOne(Query.query(Criteria
+                .where("process_id").is(processId)
+                .and("worker_type").is(workerType)
+        ));
+
+        // 数据不存在，可以启动
+        if (null == oldWorker) {
+            return success("ok");
+        }
+
+        String restoreTip = ", If you want to restore, you need to set '.agentSingletonLock' file content is 'force', where: " + whereJson + ", update: " + updateWorker.getSingletonLock();
+        if (!"force".equals(checkSingletonLock)) {
+            checkSingletonLock = (null == checkSingletonLock) ? "" : checkSingletonLock;
+            oldWorker.setSingletonLock((null == oldWorker.getSingletonLock()) ? "" : oldWorker.getSingletonLock());
+
+            // 可以启动的情况：Agent离线、标签一致
+            if (!(workerService.isAgentTimeout(oldWorker.getPingTime())
+                    || checkSingletonLock.equals(oldWorker.getSingletonLock())
+            )) {
+                return success("White agent timeout" + restoreTip);
+            }
+        }
+
+        UpdateResult result = workerService.updateById(oldWorker.getId(), Update.update("singletonLock", updateWorker.getSingletonLock()), getLoginUser());
+        if (result.getModifiedCount() == 1) {
+            return success("ok");
+        } else {
+            return failed("IllegalArgument", "Not found worker" + restoreTip);
+        }
     }
 
     @Operation(summary = "创建实例接口")

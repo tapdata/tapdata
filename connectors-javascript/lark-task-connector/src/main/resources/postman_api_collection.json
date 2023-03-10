@@ -1,0 +1,350 @@
+{
+	"info": {
+		"_postman_id": "9af07d90-51dd-46a3-9dbf-0890e109b912",
+		"name": "task",
+		"schema": "https://schema.getpostman.com/json/collection/v2.0.0/collection.json",
+		"_exporter_id": "16923698"
+	},
+	"item": [
+		{
+			"name": "Obtain the App Token and Tenant Token",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"app_id\": \"{{app_id}}\",\n    \"app_secret\": \"{{app_secret}}\"\n}\n"
+				},
+				"url": "https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal"
+			},
+			"response": []
+		},
+		{
+			"name": "Obtain application information",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "{{Authorization}}"
+					}
+				],
+				"url": {
+					"raw": "https://open.feishu.cn/open-apis/application/v6/applications/me?lang=zh_cn",
+					"protocol": "https",
+					"host": [
+						"open",
+						"feishu",
+						"cn"
+					],
+					"path": [
+						"open-apis",
+						"application",
+						"v6",
+						"applications",
+						"cli_a302e1fcf4b9900d"
+					],
+					"query": [
+						{
+							"key": "lang",
+							"value": "zh_cn"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get the user ID by phone number or email",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "{{Authorization}}"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"mobiles\":[\"{{userMobiles}}\"],\"emails\":[\"{{userEmails}}\"]}"
+				},
+				"url": {
+					"raw": "https://open.feishu.cn/open-apis/contact/v3/users/batch_get_id?user_id_type=user_id",
+					"protocol": "https",
+					"host": [
+						"open",
+						"feishu",
+						"cn"
+					],
+					"path": [
+						"open-apis",
+						"contact",
+						"v3",
+						"users",
+						"batch_get_id"
+					],
+					"query": [
+						{
+							"key": "user_id_type",
+							"value": "user_id"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create task",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "{{Authorization}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n\t\"can_edit\": true,\n\t\"collaborator_ids\": [{{collaboratorIds}}],\n\t\"due\": {\n\t\t\"is_all_day\": false,\n\t\t\"time\": \"{{time}}\",\n\t\t\"timezone\": \"Asia/Shanghai\"\n\t},\n\t\"extra\": \"dGVzdA==\",\n\t\"follower_ids\": [{{followerIds}}],\n\t\"origin\": {\n\t\t\"href\": {\n\t\t\t\"title\": \"{{title}}\",\n\t\t\t\"url\": \"{{url}}\"\n\t\t},\n\t\t\"platform_i18n_name\": \"{\\\"zh_cn\\\": \\\"飞书开放平台\\\", \\\"en_us\\\": \\\"Lark Open API\\\"}\"\n\t},\n\t\"rich_description\": \"{{rich_description}}\",\n\t\"rich_summary\": \"{{rich_summary}}\"}"
+				},
+				"url": {
+					"raw": "https://open.feishu.cn/open-apis/task/v1/tasks?user_id_type=user_id",
+					"protocol": "https",
+					"host": [
+						"open",
+						"feishu",
+						"cn"
+					],
+					"path": [
+						"open-apis",
+						"task",
+						"v1",
+						"tasks"
+					],
+					"query": [
+						{
+							"key": "user_id_type",
+							"value": "user_id"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetSubDept",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "{{Authorization}}"
+					}
+				],
+				"url": {
+					"raw": "https://open.feishu.cn/open-apis/contact/v3/departments/:department_id/children?department_id_type=department_id&fetch_child=true&page_size=50&page_token={{page_token}}",
+					"protocol": "https",
+					"host": [
+						"open",
+						"feishu",
+						"cn"
+					],
+					"path": [
+						"open-apis",
+						"contact",
+						"v3",
+						"departments",
+						":department_id",
+						"children"
+					],
+					"query": [
+						{
+							"key": "department_id_type",
+							"value": "department_id"
+						},
+						{
+							"key": "page_token",
+							"value": ""
+						},
+						{
+							"key": "fetch_child",
+							"value": "true"
+						},
+						{
+							"key": "page_size",
+							"value": "50"
+						},
+						{
+							"key": "user_id_type",
+							"value": "open_id",
+							"disabled": true
+						},
+						{
+							"key": "page_token",
+							"value": "",
+							"disabled": true
+						}
+					],
+					"variable": [
+						{
+							"key": "department_id",
+							"value": "0"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetDeptUsers",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "{{Authorization}}"
+					}
+				],
+				"url": {
+					"raw": "https://open.feishu.cn/open-apis/contact/v3/users/find_by_department?department_id_type=department_id&department_id={{departmentId}}&page_token={{page_token}}",
+					"protocol": "https",
+					"host": [
+						"open",
+						"feishu",
+						"cn"
+					],
+					"path": [
+						"open-apis",
+						"contact",
+						"v3",
+						"users",
+						"find_by_department"
+					],
+					"query": [
+						{
+							"key": "department_id_type",
+							"value": "department_id"
+						},
+						{
+							"key": "department_id",
+							"value": "{{departmentId}}"
+						},
+						{
+							"key": "page_token",
+							"value": "",
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "Authorization",
+			"value": "Bearer t-g1042rf0UBJOLUIISYQYHFXUXYMLOGOKBHGCOOAL",
+			"type": "string"
+		},
+		{
+			"key": "app_id",
+			"value": "cli_a302e1fcf4b9900d",
+			"type": "string"
+		},
+		{
+			"key": "app_secret",
+			"value": "bLuYRsGYUAbS87ethAas3g2gJaWm5ah6",
+			"type": "string"
+		},
+		{
+			"key": "collaboratorIds",
+			"value": "[\"bb8cb75b\",\"79bba6gg\"]",
+			"type": "string"
+		},
+		{
+			"key": "time",
+			"value": "1676792959",
+			"type": "string"
+		},
+		{
+			"key": "followerIds",
+			"value": "bb8cb75b",
+			"type": "string"
+		},
+		{
+			"key": "title",
+			"value": "反馈一个问题，需要协助排查",
+			"type": "string"
+		},
+		{
+			"key": "url",
+			"value": "https://support.feishu.com/internal/foo-bar",
+			"type": "string"
+		},
+		{
+			"key": "rich_description",
+			"value": "富文本备注[666](https://open.feishu.cn)",
+			"type": "string"
+		},
+		{
+			"key": "rich_summary",
+			"value": "两个负责人",
+			"type": "string"
+		},
+		{
+			"key": "mobiles",
+			"value": "13320063291",
+			"type": "string"
+		},
+		{
+			"key": "emails",
+			"value": "13320063291",
+			"type": "string"
+		},
+		{
+			"key": "userEmails",
+			"value": ""
+		},
+		{
+			"key": "userMobiles",
+			"value": ""
+		},
+		{
+			"key": "department_id",
+			"value": "0"
+		}
+	]
+}

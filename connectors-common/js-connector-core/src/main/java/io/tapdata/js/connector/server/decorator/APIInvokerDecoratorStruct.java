@@ -62,6 +62,16 @@ public class APIInvokerDecoratorStruct implements APIInvoker {
     }
 
     @Override
+    public void setConnectorConfig(Object setConnectorConfig) {
+        apiInvoker.setConnectorConfig(setConnectorConfig);
+    }
+
+    @Override
+    public void addConnectorConfig(Object setConnectorConfig) {
+        apiInvoker.addConnectorConfig(setConnectorConfig);
+    }
+
+    @Override
     public void pageStage(TapConnectorContext connectorContext, TapTable table, Object offset, int batchCount, AtomicBoolean task, BiConsumer<List<TapEvent>, Object> consumer) {
         apiInvoker.pageStage(connectorContext, table, offset, batchCount, task, consumer);
     }

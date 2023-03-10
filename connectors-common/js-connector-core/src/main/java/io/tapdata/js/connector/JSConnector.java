@@ -3,16 +3,17 @@ package io.tapdata.js.connector;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.APIFactoryImpl;
 import io.tapdata.common.support.APIFactory;
-import io.tapdata.common.support.core.ConnectorLog;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.js.connector.base.JsUtil;
+import io.tapdata.js.connector.base.TapConfigContext;
+import io.tapdata.js.connector.base.TapConnectorLog;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.server.decorator.APIFactoryDecorator;
-import io.tapdata.js.connector.server.function.ExecuteConfig;
 import io.tapdata.js.connector.server.function.FunctionSupport;
 import io.tapdata.js.connector.server.function.support.*;
 import io.tapdata.js.connector.server.inteceptor.JSAPIInterceptorConfig;
@@ -35,6 +36,7 @@ public class JSConnector extends ConnectorBase {
     private LoadJavaScripter javaScripter;
     private Map<String, Object> apiParam = new HashMap<>();
     private APIFactory apiFactory = new APIFactoryImpl();
+    public static final TapConfigContext tapConfig = new TapConfigContext();
     //private CacheContext cacheContext = new CacheContext();
 
     private final AtomicBoolean isAlive = new AtomicBoolean(true);
@@ -48,7 +50,7 @@ public class JSConnector extends ConnectorBase {
         if (connectionContext instanceof TapConnectorContext) {
             DataMap configMap = Optional.ofNullable(connectionContext.getConnectionConfig()).orElse(new DataMap());
             DataMap nodeConfig = connectionContext.getNodeConfig();
-            if (Objects.nonNull(nodeConfig) && !nodeConfig.isEmpty()){
+            if (Objects.nonNull(nodeConfig) && !nodeConfig.isEmpty()) {
                 configMap.putAll(nodeConfig);
             }
             this.instanceScript(connectionContext, configMap);
@@ -124,11 +126,12 @@ public class JSConnector extends ConnectorBase {
                     interceptor.updateToken(BaseUpdateTokenFunction.create(this.javaScripter, connectionContext));
                     APIFactoryDecorator factory = new APIFactoryDecorator(this.apiFactory).interceptor(interceptor);
                     this.javaScripter.scriptEngine().put("tapAPI", factory);
-                    this.javaScripter.scriptEngine().put("log", new ConnectorLog());
                     //this.javaScripter.scriptEngine().put("tapCache", this.cacheContext);
                     this.javaScripter.scriptEngine().put("tapUtil", new JsUtil());
                     this.javaScripter.scriptEngine().put("nodeIsAlive", isAlive);
                     this.javaScripter.scriptEngine().put("_tapConfig_", configMap);
+                    this.javaScripter.scriptEngine().put("tapConfig", tapConfig);
+                    this.javaScripter.scriptEngine().put("tapLog", new TapConnectorLog(new TapLog()));
                     this.load();
                 }
             }
@@ -137,18 +140,19 @@ public class JSConnector extends ConnectorBase {
             JSAPIResponseInterceptor interceptor = JSAPIResponseInterceptor.create(config).configMap(configMap);
             if (Objects.nonNull(connectionContext)) {
                 interceptor.updateToken(BaseUpdateTokenFunction.create(this.javaScripter, connectionContext));
+                this.javaScripter.scriptEngine().put("tapLog", new TapConnectorLog(connectionContext.getLog()));
             }
             Object tapAPI = this.javaScripter.scriptEngine().get("tapAPI");
-            if (Objects.isNull(tapAPI) || !(tapAPI instanceof APIFactoryDecorator)){
+            if (Objects.isNull(tapAPI) || !(tapAPI instanceof APIFactoryDecorator)) {
                 APIFactoryDecorator factory = new APIFactoryDecorator(this.apiFactory);
-                this.javaScripter.scriptEngine().put("tapAPI",factory.interceptor(interceptor));
-            }else {
+                this.javaScripter.scriptEngine().put("tapAPI", factory.interceptor(interceptor));
+            } else {
                 this.javaScripter.scriptEngine().put("tapAPI", ((APIFactoryDecorator) tapAPI).interceptor(interceptor));
             }
             Object configMapObj = this.javaScripter.scriptEngine().get("_tapConfig_");
             if (Objects.nonNull(configMapObj) && ((Map<String, Object>) configMapObj).isEmpty() && !configMap.isEmpty()) {
                 ((Map<String, Object>) configMapObj).putAll(configMap);
-            }else {
+            } else {
                 this.javaScripter.scriptEngine().put("_tapConfig_", configMap);
             }
         }

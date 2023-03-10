@@ -31,7 +31,8 @@ public class JavaPatchScanner implements IPatchScanner {
     public void scanPatches(@NonNull List<IPatch> patches, @NonNull Function<PatchVersion, Boolean> isVersion) {
         Reflections ref = new Reflections(SCAN_PACKAGE);
 
-        Set<Class<?>> classSet = ref.getTypesAnnotatedWith(PatchAnnotations.class);
+        Set<Class<?>> classSet = ref.getTypesAnnotatedWith(PatchAnnotation.class);
+        classSet.addAll(ref.getTypesAnnotatedWith(PatchAnnotations.class));
         for (Class<?> c : classSet) {
             PatchAnnotation[] patchAnnotations = c.getAnnotationsByType(PatchAnnotation.class);
 

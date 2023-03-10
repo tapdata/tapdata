@@ -7,7 +7,6 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.cli.CommonCli;
-import io.tapdata.pdk.cli.support.LoggerManager;
 import io.tapdata.pdk.core.connector.TapConnector;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
@@ -134,7 +133,7 @@ public class TapPDKRunnerCli extends CommonCli {
             this.runClass = commandLine.split(" ");
         }
         TapLogger.enable(false);
-        LoggerManager.changeLogLeave(LoggerManager.LogLeave.DENY);
+//        LoggerManager.changeLogLeave(LoggerManager.LogLeave.DENY);
         //RunnerSummary.create().showLogo();
         CommonUtils.setProperty("refresh_local_jars", "true");
         if (this.verbose)
