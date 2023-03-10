@@ -23,6 +23,7 @@ import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -57,6 +58,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	private static final int INSERT_BATCH_SIZE = 1000;
 	private static final long MIN_FLUSH_METRICS_INTERVAL_MS = 5000L;
 	private static final int FLUSH_METRICS_BATCH_SIZE = 10;
+	public static final String TAG = HazelcastTargetPdkShareCDCNode.class.getSimpleName();
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkShareCDCNode.class);
 	private LRUMap constructMap;
 	private List<String> tableNames;
@@ -351,16 +353,20 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 			flushShareCdcTableMetricsThreadPool.shutdownNow();
 		}
 		if (CollectionUtils.isNotEmpty(cacheMetricsList)) {
-			flushShareCdcTableMetrics(cacheMetricsList);
-			cacheMetricsList.clear();
+			CommonUtils.ignoreAnyError(() -> {
+				flushShareCdcTableMetrics(cacheMetricsList);
+				cacheMetricsList.clear();
+			}, TAG);
 		}
 		if (!tableMetricsQueue.isEmpty()) {
-			cacheMetricsList.addAll(tableMetricsQueue);
-			flushShareCdcTableMetrics(cacheMetricsList);
-			cacheMetricsList.clear();
-			tableMetricsQueue.clear();
-			tableMetricsQueue = null;
-			cacheMetricsList = null;
+			CommonUtils.ignoreAnyError(() -> {
+				cacheMetricsList.addAll(tableMetricsQueue);
+				flushShareCdcTableMetrics(cacheMetricsList);
+				cacheMetricsList.clear();
+				tableMetricsQueue.clear();
+				tableMetricsQueue = null;
+				cacheMetricsList = null;
+			}, TAG);
 		}
 		super.doClose();
 	}
