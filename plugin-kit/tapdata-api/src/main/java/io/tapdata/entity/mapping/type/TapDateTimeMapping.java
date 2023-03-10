@@ -34,7 +34,7 @@ public class TapDateTimeMapping extends TapDateBase {
             return localDateTime.atZone(ZoneId.of("GMT-0")).toInstant();
         } catch (Throwable e) {
 //            e.printStackTrace();
-            TapLogger.warn(TAG, "Parse date time {} pattern {}, failed, {}", dateTimeString, thePattern, e.getMessage());
+            TapLogger.debug(TAG, "Parse date time {} pattern {}, failed, {}", dateTimeString, thePattern, e.getMessage());
         }
         return null;
     }
