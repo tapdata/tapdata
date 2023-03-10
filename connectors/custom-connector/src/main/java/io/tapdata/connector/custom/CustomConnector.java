@@ -44,6 +44,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -130,16 +131,30 @@ public class CustomConnector extends ConnectorBase {
                     String action = commandInfo.getAction();
                     if (StringUtils.contains(action, "initial_sync")) {
                         logger.info("Start initializing sync......");
-                        batchRead(null, tapTable, null, 1, (events, offsetObject) -> {
-                            logger.info("Execute initial sync: get the data, events: {} offset: {}", events, offsetObject);
+                        batchRead(null, tapTable, new Object(), 1, (events, offsetObject) -> {
+                            logger.info("Execute initial sync, get the data: {}", toTapEventStr(events, offsetObject));
                         });
                         logger.info("Initial sync complete.");
                     }
                     if (StringUtils.contains(action, "cdc")) {
                         logger.info("Start cdc sync......");
-                        streamRead(null, Collections.singletonList(tableName), null, 1, StreamReadConsumer.create((events, offsetObject) -> {
-                            logger.info("Execute cdc: get the data, events: {} offset: {}", events, offsetObject);
-                        }));
+                        CountDownLatch countDownLatch = new CountDownLatch(1);
+                        Thread thread = new Thread(() -> {
+                            try {
+                                streamRead(null, Collections.singletonList(tableName), new Object(), 1, StreamReadConsumer.create((events, offsetObject) -> {
+                                    logger.info("Execute cdc, get the data: {}", toTapEventStr(events, offsetObject));
+                                }));
+                            } catch (Throwable e) {
+                                logger.error("Execute cdc error {}", e);
+                            } finally {
+                                countDownLatch.countDown();
+                            }
+                        });
+                        thread.start();
+                        boolean threadFinished = countDownLatch.await(5L, TimeUnit.SECONDS);
+                        if (!threadFinished) {
+                            thread.stop();
+                        }
                         logger.info("Cdc sync complete.");
                     }
                     logger.info("Obtaining data as a source is complete.");
@@ -147,9 +162,7 @@ public class CustomConnector extends ConnectorBase {
                 } else if (StringUtils.equals(type, "target")) {
                     logger.info("Start processing data as a target......");
                     Map<String, Object> argMap = commandInfo.getArgMap();
-                    List<TapRecordEvent> tapRecordEvents = new ArrayList<>();
-                    tapRecordEvents.add(new TapInsertRecordEvent());
-
+                    List<TapRecordEvent> tapRecordEvents = getTapRecordEvents((List<Map<String, Object>>) argMap.get("input"));
                     writeRecord(null, tapRecordEvents, tapTable, writeListResult -> {
                         logger.info("Processing data, result: {}", writeListResult);
                     });
@@ -171,6 +184,59 @@ public class CustomConnector extends ConnectorBase {
         CommandResult commandResult = new CommandResult();
         commandResult.setData(logger.getLogs());
         return commandResult;
+    }
+
+
+    private String toTapEventStr(List<TapEvent> events, Object offsetObject) {
+        StringBuilder sb = new StringBuilder("\n");
+
+        for (TapEvent event : events) {
+            if (event instanceof TapInsertRecordEvent) {
+                sb.append("\t").append("from: ").append(((TapInsertRecordEvent) event).getTableId()).append("\n")
+                        .append("\t").append("op: i").append("\n")
+                        .append("\t").append("data: ").append(((TapInsertRecordEvent) event).getAfter()).append("\n");
+
+            } else if (event instanceof TapUpdateRecordEvent) {
+                sb.append("\t").append("from: ").append(((TapUpdateRecordEvent) event).getTableId()).append("\n")
+                        .append("\t").append("op: u").append("\n")
+                        .append("\t").append("data: ").append("\n")
+                        .append("\t\t").append("before").append(((TapUpdateRecordEvent) event).getBefore()).append("\n")
+                        .append("\t\t").append("after").append(((TapUpdateRecordEvent) event).getAfter()).append("\n");
+
+            } else if (event instanceof TapDeleteRecordEvent) {
+                sb.append("\t").append("from: ").append(((TapDeleteRecordEvent) event).getTableId()).append("\n")
+                        .append("\t").append("op: u").append("\n")
+                        .append("\t").append("data: ").append("\n")
+                        .append("\t\t").append("before").append(((TapDeleteRecordEvent) event).getBefore()).append("\n");
+            } else {
+                sb.append("\t").append(event).append("\n");
+            }
+        }
+        sb.append("\t").append("offset: ").append(offsetObject).append("\n");
+
+        return sb.toString();
+    }
+
+    private List<TapRecordEvent> getTapRecordEvents(List<Map<String, Object>> maps) {
+        List<TapRecordEvent> tapRecordEvents = new ArrayList<>();
+        for (Map<String, Object> map : maps) {
+            String op = (String) map.get("op");
+            switch (op) {
+                case "i":
+                    tapRecordEvents.add(TapInsertRecordEvent.create().init().table((String) map.get("table")).after((Map<String, Object>) map.get("after")));
+                    break;
+                case "u":
+                    tapRecordEvents.add(TapUpdateRecordEvent.create().init().table((String) map.get("table"))
+                            .after((Map<String, Object>) map.get("after")).before((Map<String, Object>) map.get("before")));
+                    break;
+                case "d":
+                    tapRecordEvents.add(TapUpdateRecordEvent.create().init().table((String) map.get("table")).before((Map<String, Object>) map.get("before")));
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unsupported op: " + op);
+            }
+        }
+        return tapRecordEvents;
     }
     
     private static class CollectLog implements Log {
