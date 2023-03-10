@@ -213,7 +213,9 @@ public class CustomConnector extends ConnectorBase {
         StringBuilder sb = new StringBuilder("\n");
 
         if (events != null) {
-            for (TapEvent event : events) {
+            for (int i = 0; i < events.size(); i++) {
+                TapEvent event = events.get(i);
+                sb.append("  event ").append(i + 1).append(":").append("\n");
                 if (event instanceof TapInsertRecordEvent) {
                     sb.append("\t").append("from: ").append(((TapInsertRecordEvent) event).getTableId()).append("\n")
                             .append("\t").append("op: i").append("\n")
@@ -223,17 +225,18 @@ public class CustomConnector extends ConnectorBase {
                     sb.append("\t").append("from: ").append(((TapUpdateRecordEvent) event).getTableId()).append("\n")
                             .append("\t").append("op: u").append("\n")
                             .append("\t").append("data: ").append("\n")
-                            .append("\t\t").append("before: ").append(((TapUpdateRecordEvent) event).getBefore()).append("\n")
-                            .append("\t\t").append("after: ").append(((TapUpdateRecordEvent) event).getAfter()).append("\n");
+                            .append("\t ").append("before: ").append(((TapUpdateRecordEvent) event).getBefore()).append("\n")
+                            .append("\t ").append("after: ").append(((TapUpdateRecordEvent) event).getAfter()).append("\n");
 
                 } else if (event instanceof TapDeleteRecordEvent) {
                     sb.append("\t").append("from: ").append(((TapDeleteRecordEvent) event).getTableId()).append("\n")
                             .append("\t").append("op: d").append("\n")
                             .append("\t").append("data: ").append("\n")
-                            .append("\t\t").append("before: ").append(((TapDeleteRecordEvent) event).getBefore()).append("\n");
+                            .append("\t ").append("before: ").append(((TapDeleteRecordEvent) event).getBefore()).append("\n");
                 } else {
-                    sb.append("\t").append(event).append("\n");
+                    sb.append("\t").append(i).append(".").append(event).append("\n");
                 }
+                sb.append("\n");
             }
         }
 
