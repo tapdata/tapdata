@@ -154,7 +154,7 @@ public class CustomConnector extends ConnectorBase {
                         thread.start();
                         boolean threadFinished = countDownLatch.await(5L, TimeUnit.SECONDS);
                         if (!threadFinished) {
-                            thread.stop();
+                            thread.interrupt();
                         }
                         logger.info("Cdc sync complete.");
                     }
