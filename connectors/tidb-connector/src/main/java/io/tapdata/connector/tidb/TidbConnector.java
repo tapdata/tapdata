@@ -93,6 +93,7 @@ public class TidbConnector extends ConnectorBase {
 
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportConnectionCheckFunction(this::checkConnection);
         connectorFunctions.supportReleaseExternalFunction(this::onDestroy);
         // target functions
