@@ -14,6 +14,7 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
@@ -335,6 +336,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (!isRunning()) {
 			return;
 		}
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		this.endSnapshotLoop.set(true);
 		if (null == syncProgress.getStreamOffsetObj()) {
 			throw new NodeException("Starting stream read failed, errors: start point offset is null").context(getProcessorBaseContext());
@@ -358,7 +360,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					// Try to start with share cdc
 					doShareCdc();
 				} catch (ShareCdcUnsupportedException e) {
-					if (e.isContinueWithNormalCdc()) {
+					if (e.isContinueWithNormalCdc() && !taskDto.getEnforceShareCdc()) {
 						// If share cdc is unavailable, and continue with normal cdc is true
 						obsLogger.info("Share cdc unusable, will use normal cdc mode, reason: " + e.getMessage());
 						doNormalCDC();
