@@ -155,7 +155,7 @@ public class CustomConnector extends ConnectorBase {
                         thread.start();
                         boolean threadFinished = countDownLatch.await(5L, TimeUnit.SECONDS);
                         if (!threadFinished) {
-                            thread.stop();
+                            thread.interrupt();
                         }
                         logger.info("Cdc sync complete.");
                     }
@@ -165,16 +165,21 @@ public class CustomConnector extends ConnectorBase {
                     logger.info("Start processing data as a target......");
                     Map<String, Object> argMap = commandInfo.getArgMap();
                     List<TapRecordEvent> tapRecordEvents = getTapRecordEvents((List<Map<String, Object>>) argMap.get("input"));
-                    writeRecord(null, tapRecordEvents, tapTable, writeListResult -> {
-                        logger.info("Processing data, result: {}", toWriteListResultStr(writeListResult));
-                    });
+                    if (tapRecordEvents.size() == 0) {
+                        logger.warn("The input is empty and cannot be processed");
+                    } else {
+                        logger.info("Processing data, input: {}", toTapEventStr(tapRecordEvents, null));
+                        writeRecord(null, tapRecordEvents, tapTable, writeListResult -> {
+                            logger.info("Processing data, output: {}", toWriteListResultStr(writeListResult));
+                        });
+                    }
                     logger.info("Process data completion as target.");
                 }
             }
         } catch (ScriptException e) {
-            logger.error( "{} execute script error {}", TAG, e);
+            logger.error( "{} execute script error:\n {}", TAG, e);
         } catch (Throwable throwable) {
-            logger.error(TAG, "{} execute command error {}", TAG, throwable);
+            logger.error( "{} execute command error:\n {}", TAG, throwable);
         } finally {
             try {
                 stop(newTapConnectionContext);
@@ -205,11 +210,13 @@ public class CustomConnector extends ConnectorBase {
     }
 
 
-    private String toTapEventStr(List<TapEvent> events, Object offsetObject) {
+    private String toTapEventStr(List<? extends TapEvent> events, Object offsetObject) {
         StringBuilder sb = new StringBuilder("\n");
 
         if (events != null) {
-            for (TapEvent event : events) {
+            for (int i = 0; i < events.size(); i++) {
+                TapEvent event = events.get(i);
+                sb.append("  event ").append(i + 1).append(":").append("\n");
                 if (event instanceof TapInsertRecordEvent) {
                     sb.append("\t").append("from: ").append(((TapInsertRecordEvent) event).getTableId()).append("\n")
                             .append("\t").append("op: i").append("\n")
@@ -219,17 +226,18 @@ public class CustomConnector extends ConnectorBase {
                     sb.append("\t").append("from: ").append(((TapUpdateRecordEvent) event).getTableId()).append("\n")
                             .append("\t").append("op: u").append("\n")
                             .append("\t").append("data: ").append("\n")
-                            .append("\t\t").append("before").append(((TapUpdateRecordEvent) event).getBefore()).append("\n")
-                            .append("\t\t").append("after").append(((TapUpdateRecordEvent) event).getAfter()).append("\n");
+                            .append("\t ").append("before: ").append(((TapUpdateRecordEvent) event).getBefore()).append("\n")
+                            .append("\t ").append("after: ").append(((TapUpdateRecordEvent) event).getAfter()).append("\n");
 
                 } else if (event instanceof TapDeleteRecordEvent) {
                     sb.append("\t").append("from: ").append(((TapDeleteRecordEvent) event).getTableId()).append("\n")
-                            .append("\t").append("op: u").append("\n")
+                            .append("\t").append("op: d").append("\n")
                             .append("\t").append("data: ").append("\n")
-                            .append("\t\t").append("before").append(((TapDeleteRecordEvent) event).getBefore()).append("\n");
+                            .append("\t ").append("before: ").append(((TapDeleteRecordEvent) event).getBefore()).append("\n");
                 } else {
-                    sb.append("\t").append(event).append("\n");
+                    sb.append("\t").append(i).append(".").append(event).append("\n");
                 }
+                sb.append("\n");
             }
         }
 
@@ -252,7 +260,7 @@ public class CustomConnector extends ConnectorBase {
                             .after((Map<String, Object>) map.get("after")).before((Map<String, Object>) map.get("before")));
                     break;
                 case "d":
-                    tapRecordEvents.add(TapUpdateRecordEvent.create().init().table((String) map.get("table")).before((Map<String, Object>) map.get("before")));
+                    tapRecordEvents.add(TapDeleteRecordEvent.create().init().table((String) map.get("table")).before((Map<String, Object>) map.get("before")));
                     break;
                 default:
                     throw new IllegalArgumentException("Unsupported op: " + op);
