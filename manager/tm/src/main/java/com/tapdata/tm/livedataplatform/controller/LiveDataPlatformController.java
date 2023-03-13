@@ -48,6 +48,7 @@ public class LiveDataPlatformController extends BaseController {
                         ModeEnum.SERVICE_PLATFORM.getValue())){
             throw new BizException("IllegalArgument","mode");
         }
+        liveDataPlatformDto.setInit(Boolean.FALSE);
         return success(liveDataPlatformService.save(liveDataPlatformDto, getLoginUser()));
     }
 
@@ -61,7 +62,7 @@ public class LiveDataPlatformController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        return success(liveDataPlatformService.find(filter, getLoginUser()));
+        return success(liveDataPlatformService.findData(filter, getLoginUser()));
     }
 
 
@@ -84,7 +85,7 @@ public class LiveDataPlatformController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        return success(liveDataPlatformService.findOne(filter, getLoginUser()));
+        return success(liveDataPlatformService.findOneData(filter, getLoginUser()));
     }
 
 

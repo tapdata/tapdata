@@ -17,7 +17,8 @@ public class LiveDataPlatformDto extends BaseDto {
 
     private String mdmStorageCluster;
 
-
     private String mdmStorageConnectionId;
+
+    private boolean isInit;
 
 }
