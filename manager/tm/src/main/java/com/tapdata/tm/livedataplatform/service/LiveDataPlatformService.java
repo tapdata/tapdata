@@ -48,9 +48,10 @@ public class LiveDataPlatformService extends BaseService<LiveDataPlatformDto, Li
     public LiveDataPlatformDto findOneData(Filter filter, UserDetail userDetail) {
         LiveDataPlatformDto liveDataPlatformDto = findOne(filter, userDetail);
         if (liveDataPlatformDto == null) {
-            liveDataPlatformDto.setMode(ModeEnum.INTEGRATION_PLATFORM.getValue());
-            liveDataPlatformDto.setInit(Boolean.TRUE);
-            liveDataPlatformDto = save(liveDataPlatformDto, userDetail);
+            LiveDataPlatformDto liveDataPlatform = new LiveDataPlatformDto();
+            liveDataPlatform.setMode(ModeEnum.INTEGRATION_PLATFORM.getValue());
+            liveDataPlatform.setInit(Boolean.TRUE);
+            liveDataPlatformDto = save(liveDataPlatform, userDetail);
         }
         return liveDataPlatformDto;
     }
