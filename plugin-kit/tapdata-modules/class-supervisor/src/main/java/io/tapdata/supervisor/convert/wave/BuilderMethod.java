@@ -40,7 +40,7 @@ class BuilderMethod implements Builder<BuilderMethod> {
     }
 
     public BuilderMethod appendAfter(boolean needFinally, boolean needRedundant, String script) throws CannotCompileException {
-        this.method.insertAfter(script, needFinally, needRedundant);
+        this.method.insertAfter(script, needFinally);
         return this;
     }
 

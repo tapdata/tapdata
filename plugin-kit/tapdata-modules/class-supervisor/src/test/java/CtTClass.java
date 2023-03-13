@@ -1,4 +1,3 @@
-import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import io.tapdata.supervisor.convert.entity.Parser;
 import javassist.*;
@@ -7,10 +6,10 @@ import org.junit.Test;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.HashMap;
 
 public class CtTClass {
     ClassPool pool = ClassPool.getDefault();
+
     @Test
     public void main1() throws NotFoundException, CannotCompileException, IOException, NoSuchMethodException, InvocationTargetException, IllegalAccessException, InstantiationException {
         ClassPool pool = ClassPool.getDefault();
@@ -29,7 +28,7 @@ public class CtTClass {
 //        Method method = aClass.getMethod("run");
 //        method.invoke(o);
 
-        new Thread(()->{
+        new Thread(() -> {
             System.out.println("Hello!");
         }).start();
 
@@ -75,9 +74,9 @@ public class CtTClass {
         CtConstructor constructor = CtNewConstructor.make(new CtClass[]{
                 intCls,
                 obj
-        },new CtClass[]{
+        }, new CtClass[]{
                 exception
-        },thread);
+        }, thread);
         constructor.setBody("{int i=0;i++;System.out.println(i);}");
         //constructor.addLocalVariable("i",intCls);
         //constructor.insertBefore("i = 0;");
@@ -86,7 +85,7 @@ public class CtTClass {
     }
 
     @Test
-    public void ttt(){
+    public void ttt() {
         Parser parser = Parser.parser(JSONUtil.parseObj(json));
         try {
             parser.wave();
@@ -101,13 +100,10 @@ public class CtTClass {
             "      \"target\": [{\n" +
             "        \"type\": \"extends\",\n" +
             "        \"path\": \"java.io.Closeable\",\n" +
-            "        \"scanPackage\": \"*\",\n" +
-            "        \"isCreate\": false\n" +
-            "      }\n" +
-            "      ],\n" +
+            "        \"scanPackage\": \"*\"\n" +
+            "      }],\n" +
             "      \"method\": [\n" +
             "        {\n" +
-            "          \"ignore\": false,\n" +
             "          \"isCreate\": true,\n" +
             "          \"createWith\": \"{super.close();}\",\n" +
             "          \"name\": \"close\",\n" +
@@ -115,12 +111,8 @@ public class CtTClass {
             "          \"returnType\": \"void\",\n" +
             "          \"code\": [\n" +
             "            {\n" +
-            "              \"type\": \"before\",\n" +
-            "              \"line\": \"System.out.println(\\\"1: this is hack code! Be careful please!\\\");\"\n" +
-            "            },\n" +
-            "            {\n" +
             "              \"type\": \"after\",\n" +
-            "              \"line\": \"System.out.println(\\\"3: this is hack code! Be careful please!\\\");\",\n" +
+            "              \"line\": \"io.tapdata.entity.utils.InstanceFactory.instance(io.tapdata.pdk.core.supervisor.ClassLifeCircleMonitor.class).instanceEnded(this);\",\n" +
             "              \"isFinally\": true,\n" +
             "              \"isRedundant\": false\n" +
             "            }\n" +
@@ -129,7 +121,6 @@ public class CtTClass {
             "      ],\n" +
             "      \"constructor\": [\n" +
             "        {\n" +
-            "          \"ignore\": false,\n" +
             "          \"isCreate\": false,\n" +
             "          \"args\": \"*\",\n" +
             "          \"type\": [\n" +
@@ -139,18 +130,13 @@ public class CtTClass {
             "          \"code\": [\n" +
             "            {\n" +
             "              \"type\": \"before\",\n" +
-            "              \"line\": \"System.out.println(\\\"1: this is hack code! Be careful please!\\\");\"\n" +
-            "            },\n" +
-            "            {\n" +
-            "              \"type\": \"after\",\n" +
-            "              \"line\": \"System.out.println(\\\"3: this is hack code! Be careful please!\\\");\",\n" +
-            "              \"isFinally\": true,\n" +
-            "              \"isRedundant\": false\n" +
+            "              \"line\": \"io.tapdata.entity.utils.InstanceFactory.instance(io.tapdata.pdk.core.supervisor.ClassLifeCircleMonitor.class).instanceStarted($this);\"\n" +
             "            }\n" +
             "          ]\n" +
             "        }\n" +
             "      ]\n" +
             "    }\n" +
             "  ]\n" +
+            "} ]\n" +
             "}";
 }

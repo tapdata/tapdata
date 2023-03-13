@@ -4,13 +4,10 @@
       "target": [{
         "type": "extends",
         "path": "java.io.Closeable",
-        "scanPackage": "*",
-        "isCreate": false
-      }
-      ],
+        "scanPackage": "*"
+      }],
       "method": [
         {
-          "ignore": false,
           "isCreate": true,
           "createWith": "{super.close();}",
           "name": "close",
@@ -18,12 +15,8 @@
           "returnType": "void",
           "code": [
             {
-              "type": "before",
-              "line": "System.out.println(\"1: this is hack code! Be careful please!\");"
-            },
-            {
               "type": "after",
-              "line": "System.out.println(\"3: this is hack code! Be careful please!\");",
+              "line": "((io.tapdata.pdk.core.supervisor.ClassLifeCircleMonitor)io.tapdata.entity.utils.InstanceFactory.instance(io.tapdata.pdk.core.supervisor.ClassLifeCircleMonitor.class)).instanceEnded($0);",
               "isFinally": true,
               "isRedundant": false
             }
@@ -32,23 +25,14 @@
       ],
       "constructor": [
         {
-          "ignore": false,
           "isCreate": false,
           "args": "*",
-          "type": [
-            "void"
-          ],
+          "type": [ "void"],
           "returnType": "void",
           "code": [
             {
               "type": "before",
-              "line": "System.out.println(\"1: this is hack code! Be careful please!\");"
-            },
-            {
-              "type": "after",
-              "line": "System.out.println(\"3: this is hack code! Be careful please!\");",
-              "isFinally": true,
-              "isRedundant": false
+              "line": "((io.tapdata.pdk.core.supervisor.ClassLifeCircleMonitor)io.tapdata.entity.utils.InstanceFactory.instance(io.tapdata.pdk.core.supervisor.ClassLifeCircleMonitor.class)).instanceStarted($0);"
             }
           ]
         }

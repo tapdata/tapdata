@@ -1,12 +1,15 @@
 package io.tapdata.supervisor.convert.entity;
 
+import cn.hutool.json.JSONUtil;
 import io.tapdata.supervisor.convert.wave.JavassistHandle;
-import io.tapdata.supervisor.utils.JavassistTag;
 import io.tapdata.supervisor.convert.wave.JavassistWaver;
+import io.tapdata.supervisor.utils.JavassistTag;
 import javassist.CannotCompileException;
 import javassist.NotFoundException;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class Parser {
@@ -31,6 +34,10 @@ public class Parser {
 
     public static Parser parser(Map<String, Object> parserMap) {
         return new Parser(parserMap);
+    }
+    public static Parser parser() {
+        Map<String,Object> map = JSONUtil.readJSONObject(new File("plugin-kit/tapdata-modules/class-supervisor/src/main/resources/supervisor.json"), StandardCharsets.UTF_8);
+        return new Parser(map);
     }
 
     public void wave() throws NotFoundException, CannotCompileException {
