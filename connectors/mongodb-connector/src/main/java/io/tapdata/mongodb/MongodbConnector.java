@@ -591,7 +591,7 @@ public class MongodbConnector extends ConnectorBase {
 				.startSplitting();
 	}
 
-	private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+	protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
 		RetryOptions retryOptions = RetryOptions.create();
 		if ( null != matchThrowable(throwable, MongoClientException.class)
 				|| null != matchThrowable(throwable, MongoSocketException.class)
@@ -651,6 +651,7 @@ public class MongodbConnector extends ConnectorBase {
 			throw new RuntimeException("connection config cannot be empty");
 		}
 		mongoConfig =(MongodbConfig) new MongodbConfig().load(connectionConfig);
+		mongoConfig.load(connectionContext.getNodeConfig());
 		if (mongoConfig == null) {
 			throw new RuntimeException("load mongo config failed from connection config");
 		}
