@@ -103,81 +103,13 @@ public class CtTClass {
             "        \"path\": \"java.io.Closeable\",\n" +
             "        \"scanPackage\": \"*\",\n" +
             "        \"isCreate\": false\n" +
-            "      },\n" +
-            "      {\n" +
-            "        \"type\": \"path\",\n" +
-            "        \"path\": \"java.lang.Thread\",\n" +
-            "        \"isCreate\": false,\n" +
-            "        \"ignore\": true\n" +
-            "      },\n" +
-            "      {\n" +
-            "        \"type\": \"name\",\n" +
-            "        \"scanPackage\": \"java.lang\",\n" +
-            "        \"path\": \"%Thread%\",\n" +
-            "        \"isCreate\": false,\n" +
-            "        \"saveTo\": \"java.lang\",\n" +
-            "        \"ignore\": true\n" +
-            "      },\n" +
-            "        {\n" +
-            "        \"type\": \"name\",\n" +
-            "        \"path\": \"%Thread_\",\n" +
-            "        \"isCreate\": false,\n" +
-            "        \"saveTo\": \"java.lang\",\n" +
-            "          \"ignore\": true\n" +
-            "      },\n" +
-            "      {\n" +
-            "        \"type\": \"name\",\n" +
-            "        \"path\": \"_Thread_\",\n" +
-            "        \"isCreate\": false,\n" +
-            "        \"saveTo\": \"java.lang\",\n" +
-            "          \"ignore\": true\n" +
-            "      },\n" +
-            "      {\n" +
-            "        \"type\": \"name\",\n" +
-            "        \"path\": \"Thread%\",\n" +
-            "        \"isCreate\": false,\n" +
-            "        \"saveTo\": \"java.lang\",\n" +
-            "          \"ignore\": true\n" +
             "      }\n" +
             "      ],\n" +
             "      \"method\": [\n" +
             "        {\n" +
-            "          \"ignore\": true,\n" +
-            "          \"isCreate\": false,\n" +
-            "          \"name\": \"run\",\n" +
-            "          \"args:\": [],\n" +
-            "          \"returnType\": \"void\",\n" +
-            "          \"code\": [\n" +
-            "            {\n" +
-            "              \"type\": \"normal\",\n" +
-            "              \"index\": 1,\n" +
-            "              \"isAppend\": true,\n" +
-            "              \"line\": \"System.out.println(\\\"2: this is hack code! Be careful please!\\\");\"\n" +
-            "            },\n" +
-            "            {\n" +
-            "              \"type\": \"before\",\n" +
-            "              \"line\": \"System.out.println(\\\"1: this is hack code! Be careful please!\\\");\"\n" +
-            "            },\n" +
-            "            {\n" +
-            "              \"type\": \"after\",\n" +
-            "              \"line\": \"System.out.println(\\\"3: this is hack code! Be careful please!\\\");\",\n" +
-            "              \"isFinally\": true,\n" +
-            "              \"isRedundant\": false\n" +
-            "            },\n" +
-            "            {\n" +
-            "              \"type\": \"catch\",\n" +
-            "              \"line\": \"System.out.println(\\\"0: this is hack code! Be careful please!\\\" + $e.getMessage());throw $e;\",\n" +
-            "              \"exception\": {\n" +
-            "                \"path\": \"java.lang.Throwable\",\n" +
-            "                \"name\": \"$e\"\n" +
-            "              }\n" +
-            "            }\n" +
-            "          ]\n" +
-            "        },\n" +
-            "        {\n" +
             "          \"ignore\": false,\n" +
             "          \"isCreate\": true,\n" +
-            "          \"createWith\": \"{super.close();}\"," +
+            "          \"createWith\": \"{super.close();}\",\n" +
             "          \"name\": \"close\",\n" +
             "          \"args:\": [],\n" +
             "          \"returnType\": \"void\",\n" +
@@ -199,28 +131,10 @@ public class CtTClass {
             "        {\n" +
             "          \"ignore\": false,\n" +
             "          \"isCreate\": false,\n" +
-            "          \"args\": \"*\"," +
-            "          \"type\": [\"public\",\"static\",\"void\"],\n" +
-            "          \"returnType\": \"void\",\n" +
-            "          \"code\": [\n" +
-            "            {\n" +
-            "              \"type\": \"before\",\n" +
-            "              \"line\": \"System.out.println(\\\"1: this is hack code! Be careful please!\\\");\"\n" +
-            "            },\n" +
-            "            {\n" +
-            "              \"type\": \"after\",\n" +
-            "              \"line\": \"System.out.println(\\\"3: this is hack code! Be careful please!\\\");\",\n" +
-            "              \"isFinally\": true,\n" +
-            "              \"isRedundant\": false\n" +
-            "            }\n" +
-            "          ]\n" +
-            "        },\n" +
-            "        {\n" +
-            "          \"ignore\": false,\n" +
-            "          \"isCreate\": false,\n" +
-            "          \"args\": [\n" +
+            "          \"args\": \"*\",\n" +
+            "          \"type\": [\n" +
+            "            \"void\"\n" +
             "          ],\n" +
-            "          \"type\": [\"public\"],\n" +
             "          \"returnType\": \"void\",\n" +
             "          \"code\": [\n" +
             "            {\n" +

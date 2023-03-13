@@ -17,8 +17,8 @@ class BuilderMethod implements Builder<BuilderMethod> {
         CtClass[] ctClasses = CtClassGetter.byName(pool, args);
         CtClass returnClass = CtClassGetter.byName(pool, returnType);
         try {
-            String parameters = Descriptor.ofMethod(returnClass, ctClasses);
-            this.method = ctClass.getMethod(methodName, parameters);
+            //String parameters = Descriptor.ofMethod(returnClass, ctClasses);
+            this.method = ctClass.getDeclaredMethod(methodName, ctClasses);
         } catch (NotFoundException e) {
             if (createNotExist) {
                 CtMethod m = new CtMethod(returnClass, methodName, ctClasses, this.ctClass);

@@ -40,15 +40,8 @@ public class JavassistWaver {
             try {
                 return new BuilderConstructor(this.ctClass, args, returnType);
             } catch (Exception e) {
-                String claName = "Unknow Class";
-                String nameClass = "Unknow Class Name";
-                try {
-                    claName = this.ctClass.toClass().getName();
-                    nameClass = this.ctClass.toClass().getSimpleName();
-                } catch (Exception e1) {
-                    claName = claName + "(" + e1.getMessage() + ")";
-                }
-                System.out.printf("[WARN GET CONSTRUCTOR] Class - %s, Constructor - %s, Constructor args - [%s], return type - %s. %s.%n", claName, nameClass, this.showList(args), returnType, e.getMessage());
+                String claInfo = this.ctClass.toString();
+                System.out.printf("[WARN GET CONSTRUCTOR] Class info - %s, Constructor args - [%s], return type - %s. %s.%n", claInfo, this.showList(args), returnType, e.getMessage());
                 return null;
             }
         }
@@ -60,15 +53,8 @@ public class JavassistWaver {
                 try {
                     list.add(new BuilderConstructor(this.ctClass, constructor));
                 } catch (Exception e) {
-                    String claName = "Unknow Class";
-                    String nameClass = "Unknow Class Name";
-                    try {
-                        claName = this.ctClass.toClass().getName();
-                        nameClass = this.ctClass.toClass().getSimpleName();
-                    } catch (Exception e1) {
-                        claName = claName + "(" + e1.getMessage() + ")";
-                    }
-                    System.out.printf("[WARN GET CONSTRUCTOR] Class - %s, Constructor - %s, Signature - %s, %s.%n", claName, nameClass, constructor.getSignature(), e.getMessage());
+                    String claInfo = this.ctClass.toString();
+                    System.out.printf("[WARN GET CONSTRUCTOR] Class info - %s, Signature - %s, %s.%n", claInfo, constructor.getSignature(), e.getMessage());
                 }
             }
             return list;
@@ -78,25 +64,21 @@ public class JavassistWaver {
             try {
                 return new BuilderMethod(this.ctClass, name, args, returnType, createNotExist, createWith);
             } catch (Exception e) {
-                String claName = "Unknow Class";
-                String nameClass = "Unknow Class Name";
-                try {
-                    claName = this.ctClass.toClass().getName();
-                    nameClass = this.ctClass.toClass().getSimpleName();
-                } catch (Exception e1) {
-                    claName = claName + "(" + e1.getMessage() + ")";
-                }
-                System.out.printf("[WARN GET METHOD] Class - %s, method - %s, method args - [%s], return type - %s. %s.%n", claName, nameClass, this.showList(args), returnType, e.getMessage());
+                String claInfo = this.ctClass.toString();
+                System.out.printf("[WARN GET METHOD] Class info - %s, method - %s, method args - [%s], return type - %s. %s.%n", claInfo, name, this.showList(args), returnType, e.getMessage());
                 return null;
             }
         }
 
         public void build() throws IOException, CannotCompileException, NotFoundException {
+            this.defrost();
             if (Objects.isNull(this.saveTo) || this.saveTo.trim().equals(JavassistTag.EMPTY)) {
                 this.ctClass.writeFile();
             } else {
                 this.ctClass.writeFile(this.saveTo);
             }
+            this.defrost();
+            ctClass.setSuperclass(ctClass.getSuperclass());
         }
 
         private String showList(List<String> args) {
@@ -108,6 +90,13 @@ public class JavassistWaver {
                 }
             }
             return joiner.toString();
+        }
+
+        private void defrost() throws NotFoundException, CannotCompileException {
+            if(ctClass.isFrozen()){
+                ctClass.defrost();
+                ctClass.setSuperclass(ctClass.getSuperclass());
+            }
         }
     }
 }

@@ -1,4 +1,7 @@
 {
+  "info": {
+    "url": "https://www.cnblogs.com/Java-Script/p/11091330.html"
+  },
   "class": [
     {
       "target": [{
@@ -7,41 +10,41 @@
         "scanPackage": "*",
         "isCreate": false
       },
-      {
-        "type": "path",
-        "path": "java.lang.Thread",
-        "isCreate": false,
-        "ignore": true
-      },
-      {
-        "type": "name",
-        "scanPackage": "java.lang",
-        "path": "%Thread%",
-        "isCreate": false,
-        "saveTo": "java.lang",
-        "ignore": true
-      },
         {
-        "type": "name",
-        "path": "%Thread_",
-        "isCreate": false,
-        "saveTo": "java.lang",
+          "type": "path",
+          "path": "java.lang.Thread",
+          "isCreate": false,
           "ignore": true
-      },
-      {
-        "type": "name",
-        "path": "_Thread_",
-        "isCreate": false,
-        "saveTo": "java.lang",
+        },
+        {
+          "type": "name",
+          "scanPackage": "java.lang",
+          "path": "%Thread%",
+          "isCreate": false,
+          "saveTo": "java.lang",
           "ignore": true
-      },
-      {
-        "type": "name",
-        "path": "Thread%",
-        "isCreate": false,
-        "saveTo": "java.lang",
+        },
+        {
+          "type": "name",
+          "path": "%Thread_",
+          "isCreate": false,
+          "saveTo": "java.lang",
           "ignore": true
-      }
+        },
+        {
+          "type": "name",
+          "path": "_Thread_",
+          "isCreate": false,
+          "saveTo": "java.lang",
+          "ignore": true
+        },
+        {
+          "type": "name",
+          "path": "Thread%",
+          "isCreate": false,
+          "saveTo": "java.lang",
+          "ignore": true
+        }
       ],
       "method": [
         {

@@ -1,0 +1,58 @@
+{
+  "class": [
+    {
+      "target": [{
+        "type": "extends",
+        "path": "java.io.Closeable",
+        "scanPackage": "*",
+        "isCreate": false
+      }
+      ],
+      "method": [
+        {
+          "ignore": false,
+          "isCreate": true,
+          "createWith": "{super.close();}",
+          "name": "close",
+          "args:": [],
+          "returnType": "void",
+          "code": [
+            {
+              "type": "before",
+              "line": "System.out.println(\"1: this is hack code! Be careful please!\");"
+            },
+            {
+              "type": "after",
+              "line": "System.out.println(\"3: this is hack code! Be careful please!\");",
+              "isFinally": true,
+              "isRedundant": false
+            }
+          ]
+        }
+      ],
+      "constructor": [
+        {
+          "ignore": false,
+          "isCreate": false,
+          "args": "*",
+          "type": [
+            "void"
+          ],
+          "returnType": "void",
+          "code": [
+            {
+              "type": "before",
+              "line": "System.out.println(\"1: this is hack code! Be careful please!\");"
+            },
+            {
+              "type": "after",
+              "line": "System.out.println(\"3: this is hack code! Be careful please!\");",
+              "isFinally": true,
+              "isRedundant": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
