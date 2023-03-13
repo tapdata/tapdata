@@ -1,5 +1,6 @@
 package com.tapdata.tm.shareCdcTableMetrics.service;
 
+import cn.hutool.extra.cglib.CglibUtil;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.service.BaseService;
@@ -8,19 +9,24 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
 import com.tapdata.tm.shareCdcTableMetrics.entity.ShareCdcTableMetricsEntity;
+import com.tapdata.tm.shareCdcTableMetrics.entity.ShareCdcTableMetricsVo;
 import com.tapdata.tm.shareCdcTableMetrics.repository.ShareCdcTableMetricsRepository;
 import com.tapdata.tm.utils.Lists;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
+import org.yaml.snakeyaml.nodes.NodeId;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -41,6 +47,7 @@ import java.util.stream.Collectors;
 public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetricsDto, ShareCdcTableMetricsEntity, ObjectId, ShareCdcTableMetricsRepository> {
 
     private DataSourceService sourceService;
+    private MongoTemplate mongoTemplate;
 
     public ShareCdcTableMetricsService(@NonNull ShareCdcTableMetricsRepository repository) {
         super(repository, ShareCdcTableMetricsDto.class, ShareCdcTableMetricsEntity.class);
@@ -50,31 +57,60 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
 
     }
 
-    public Page<ShareCdcTableMetricsDto> getPageInfo(String taskId, int page, int size) {
-        TmPageable pageable = new TmPageable();
-        pageable.setPage(page);
-        pageable.setSize(size);
-
+    public Page<ShareCdcTableMetricsDto> getPageInfo(String taskId, String nodeId, String keyword, int page, int size) {
         Criteria criteria = Criteria.where("taskId").is(taskId);
-        Query query = Query.query(criteria);
-
-        long count = count(query);
-        if (count == 0) {
-            return new Page<>(count, Lists.newArrayList());
+        if (StringUtils.isNotBlank(nodeId)) {
+            criteria.and("nodeId").is(nodeId);
         }
-        query.with(Sort.by(Sort.Direction.DESC, "currentEventTime"));
-        query.with(pageable);
+        if (StringUtils.isNotBlank(keyword)) {
+            criteria.and("tableName").regex(keyword);
+        }
 
-        // TODO: 2023/3/9 need add group by
-        List<ShareCdcTableMetricsDto> list = findAll(query);
-        List<String> connectionIds = list.stream().map(ShareCdcTableMetricsDto::getConnectionId).collect(Collectors.toList());
+        MatchOperation match = Aggregation.match(criteria);
+        SortOperation sort = Aggregation.sort(Sort.by("currentEventTime").descending());
+        GroupOperation group = Aggregation.group("taskId", "connectionId", "tableName")
+                .first("taskId").as("taskId")
+                .first("nodeId").as("nodeId")
+                .first("connectionId").as("connectionId")
+                .first("tableName").as("tableName")
+                .first("startCdcTime").as("startCdcTime")
+                .first("currentEventTime").as("currentEventTime")
+                .first("count").as("count")
+                .first("allCount").as("allCount");
+        AggregationResults<ShareCdcTableMetricsVo> tableMetrics = mongoTemplate.aggregate(Aggregation.newAggregation(match, sort, group), "ShareCdcTableMetrics", ShareCdcTableMetricsVo.class);
+        if (CollectionUtils.isEmpty(tableMetrics.getMappedResults())) {
+            return new Page<>(0, Lists.newArrayList());
+        }
+        SkipOperation skip = Aggregation.skip(page - 1);
+        LimitOperation limit = Aggregation.limit(size);
+        Aggregation aggregation = Aggregation.newAggregation(match, sort, group, skip, limit);
+        AggregationResults<ShareCdcTableMetricsVo> metrics = mongoTemplate.aggregate(aggregation, "ShareCdcTableMetrics", ShareCdcTableMetricsVo.class);
+        List<ShareCdcTableMetricsVo> list = metrics.getMappedResults();
+
+        List<String> connectionIds = list.stream().map(ShareCdcTableMetricsVo::getConnectionId).collect(Collectors.toList());
 
         List<DataSourceConnectionDto> connectionDtos = sourceService.findAllByIds(connectionIds);
         Map<ObjectId, String> nameMap = connectionDtos.stream().collect(Collectors.toMap(DataSourceConnectionDto::getId, DataSourceConnectionDto::getName, (existing, replacement) -> existing));
 
-        list.forEach(info -> info.setConnectionId(nameMap.get(new ObjectId(info.getConnectionId()))));
+        List<ShareCdcTableMetricsDto> result = list.stream().map(info -> {
+            ShareCdcTableMetricsDto copy = CglibUtil.copy(info, ShareCdcTableMetricsDto.class);
+            copy.setConnectionId(nameMap.get(new ObjectId(info.getConnectionId())));
+            return copy;
+        }).collect(Collectors.toList());
 
-        return new Page<>(count, list);
+        return new Page<>(tableMetrics.getMappedResults().size(), result);
+    }
+
+    public List<ShareCdcTableMetricsVo> getCollectInfoByTaskId(String taskId) {
+        MatchOperation match = Aggregation.match(Criteria.where("taskId").is(taskId));
+        SortOperation sort = Aggregation.sort(Sort.by("currentEventTime").descending());
+        GroupOperation group = Aggregation.group("taskId", "connectionId", "tableName")
+                .first("taskId").as("taskId")
+                .first("nodeId").as("nodeId")
+                .first("connectionId").as("connectionId")
+                .first("tableName").as("tableName");
+        AggregationResults<ShareCdcTableMetricsVo> tableMetrics = mongoTemplate.aggregate(Aggregation.newAggregation(match, sort, group), "ShareCdcTableMetrics", ShareCdcTableMetricsVo.class);
+        return tableMetrics.getMappedResults();
     }
 
     public void saveOrUpdateDaily(ShareCdcTableMetricsDto shareCdcTableMetricsDto, UserDetail userDetail) {
@@ -158,5 +194,9 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
     private enum Operation{
         INSERT,
         UPDATE,
+    }
+
+    public void deleteByTaskId(String taskId) {
+        deleteAll(Query.query(Criteria.where("taskId").is(taskId)));
     }
 }
