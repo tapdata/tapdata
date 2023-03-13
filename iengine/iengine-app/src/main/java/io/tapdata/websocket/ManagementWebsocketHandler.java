@@ -171,7 +171,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 					logger.error("Websocket heartbeat failed, will reconnect. Error: " + e.getMessage(), e);
 					createClients();
 				}
-			} catch (Exception e) {
+			} catch (Throwable e) {
 				logger.error("Websocket heartbeat failed, will reconnect after {}s. Error: {}", PING_INTERVAL, e.getMessage(), e);
 			}
 		}, 0, PING_INTERVAL, TimeUnit.SECONDS);
