@@ -1,22 +1,20 @@
-var batchStart = dateUtils.nowDate();
+config.setStreamReadIntervalSeconds(3);
 var afterData;
+var nodes = {};
+
 function discoverSchema(connectionConfig) {
     return ['Leads', 'Contacts', 'Opportunity'];
 }
-
-
 function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
     let invoke;
-    let first = true;
-    let nodes = {};
-    let result = {};
+    let isFirst = true;
     do {
         if (!isAlive()) break;
-        if (tableName === 'Leads' && first) {
-           invoke =  invoker.invoke(getApiName(tableName), {"first": 2000}).result.data.uiapi.query.Contact;
+        if (isFirst) {
+           invoke =  invoker.invoke(getApiName(tableName), {"first": 2000}).result.data.uiapi.query[tableName+""];
             afterData = invoke.pageInfo.endCursor;
         } else {
-           invoke = invoker.invoke(getApiName(tableName), {"first": 2000,"after": afterData}).result.data.uiapi.query.Contact;
+           invoke = invoker.invoke(getApiName(tableName), {"first": 2000,"after": afterData}).result.data.uiapi.query[tableName+""];
         }
         let resultData = invoke.edges;
         for (let j = 0; j < resultData.length; j++) {
@@ -33,19 +31,50 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
             }
             nodes.push(newNode)
         }
-        result.push(nodes)
-        first = false;
-        batchReadSender.send(result, tableName, {}, false);
+        isFirst = false;
+        batchReadSender.send(nodes, tableName, {}, false);
+        nodes = {};
     } while (invoke.pageInfo.hasNextPage);
 }
 
 function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
-    if (!isParam(offset) || null == offset || typeof (offset) != 'object') offset = {};
+    var arr = [];
+    if (!checkParam(tableNameList)) return [];
+    for(let tableName in tableNameList) {
+        var date = offset[tableName];
+        let invoke = invoker.invoke(getApiName(tableName) + "stream read", {"first": 2000}).result.data.uiapi.query[tableName + ""];
+        let edges = invoke.edges;
+        if (checkParam(edges)) {
+            for (let j = 0; j < edges.length; j++) {
+                let newNode = {};
+                let n = edges[j].node;
 
-    streamReadSender.send(offset);
+                let lastModifiedDate = new Date(n.LastModifiedDate.value);
+                let createdDate = new Date(n.CreatedDate.value);
+                log.warn("createdDate:{}", createdDate);
+                log.warn("lastModifiedDate:{}", lastModifiedDate);
+
+                if (n.LastModifiedDate.value === n.CreatedDate.value) {
+                    arr[j] = {
+                        "eventType": "i",
+                        "tableName": tableName,
+                        "afterData": sendData(n, newNode)
+                    };
+                } else {
+                    arr[j] = {
+                        "eventType": "u",
+                        "tableName": tableName,
+                        "afterData": sendData(n, newNode)
+                    };
+                }
+            }
+            offset[tableName] = dateUtils.nowDate();
+            streamReadSender.send(arr, tableName, offset);
+        } else {
+            return;
+        }
+    }
 }
-
-
 function connectionTest(connectionConfig) {
     let sessionToken = invoker.invoke('TAP_GET_TOKEN session api');
     let invoke = invoker.invoke('TAP_TABLE[allCard](PAGE_NONE)allCard',
