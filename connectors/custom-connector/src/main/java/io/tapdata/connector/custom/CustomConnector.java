@@ -127,12 +127,14 @@ public class CustomConnector extends ConnectorBase {
                 String tableName = (String) commandInfo.getConnectionConfig().get("collectionName");
                 String type = commandInfo.getType();
                 TapTable tapTable = new TapTable(tableName);
+                TapConnectorContext tapConnectorContext = new TapConnectorContext(tapConnectionContext.getSpecification(),
+                        tapConnectionContext.getConnectionConfig(), tapConnectionContext.getNodeConfig(), logger);
                 if (StringUtils.equals(type, "source")) {
                     logger.info("Start fetching data as a source......");
                     String action = commandInfo.getAction();
                     if (StringUtils.contains(action, "initial_sync")) {
                         logger.info("Start initializing sync......");
-                        batchRead(null, tapTable, new Object(), 1, (events, offsetObject) -> {
+                        batchRead(tapConnectorContext, tapTable, new Object(), 1, (events, offsetObject) -> {
                             logger.info("Execute initial sync, get the data: {}", toTapEventStr(events, offsetObject));
                         });
                         logger.info("Initial sync complete.");
@@ -143,9 +145,10 @@ public class CustomConnector extends ConnectorBase {
                         Thread thread = new Thread(() -> {
                             Thread.currentThread().setName("CustomConnector-Test-Runner");
                             try {
-                                streamRead(null, Collections.singletonList(tableName), new Object(), 1, StreamReadConsumer.create((events, offsetObject) -> {
+                                streamRead(tapConnectorContext, Collections.singletonList(tableName), new Object(), 1, StreamReadConsumer.create((events, offsetObject) -> {
                                     logger.info("Execute cdc, get the data: {}", toTapEventStr(events, offsetObject));
                                 }));
+
                             } catch (Throwable e) {
                                 logger.error("Execute cdc error {}", e);
                             } finally {
@@ -169,7 +172,7 @@ public class CustomConnector extends ConnectorBase {
                         logger.warn("The input is empty and cannot be processed");
                     } else {
                         logger.info("Processing data, input: {}", toTapEventStr(tapRecordEvents, null));
-                        writeRecord(null, tapRecordEvents, tapTable, writeListResult -> {
+                        writeRecord(tapConnectorContext, tapRecordEvents, tapTable, writeListResult -> {
                             logger.info("Processing data, output: {}", toWriteListResultStr(writeListResult));
                         });
                     }
@@ -379,7 +382,7 @@ public class CustomConnector extends ConnectorBase {
         if (writeEnginePool.containsKey(threadName)) {
             scriptEngine = writeEnginePool.get(threadName);
         } else {
-            scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
+            scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()).log(connectorContext.getLog()));
             scriptEngine.eval(ScriptUtil.appendTargetFunctionScript(customConfig.getTargetScript()));
 //            scriptEngine.put("log", new CustomLog());
             writeEnginePool.put(threadName, scriptEngine);
@@ -418,7 +421,7 @@ public class CustomConnector extends ConnectorBase {
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws ScriptException {
         ScriptCore scriptCore = new ScriptCore(tapTable.getId());
         assert scriptFactory != null;
-        ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
+        ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()).log(tapConnectorContext.getLog()));
         scriptEngine.eval(ScriptUtil.appendSourceFunctionScript(customConfig.getHistoryScript(), true));
         scriptEngine.put("core", scriptCore);
 //        scriptEngine.put("log", new CustomLog());
@@ -470,7 +473,7 @@ public class CustomConnector extends ConnectorBase {
         ScriptCore scriptCore = new ScriptCore(tableList.get(0));
         AtomicReference<Object> contextMap = new AtomicReference<>(offsetState);
         assert scriptFactory != null;
-        ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
+        ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()).log(nodeContext.getLog()));
         scriptEngine.eval(ScriptUtil.appendSourceFunctionScript(customConfig.getCdcScript(), false));
         scriptEngine.put("core", scriptCore);
 //        scriptEngine.put("log", new CustomLog());
