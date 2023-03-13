@@ -140,7 +140,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
         }
     }
 
-    private static final String FIND_KEY_FROM_OFFSET = "select * from (select \"%s\", row_number() over (order by \"%s\") as rowno from \"%s\".\"%s\" ) where rowno=%s";
+    private static final String FIND_KEY_FROM_OFFSET = "select * from (select \"%s\", row_number() over (order by \"%s\") as rowno from \"%s\".\"%s\" ) a where rowno=%s";
 
     protected DataMap findPrimaryKeyValue(TapTable tapTable, Long offsetSize) throws Throwable {
         String primaryKeyString = String.join("\",\"", tapTable.primaryKeys());
