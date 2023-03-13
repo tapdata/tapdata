@@ -27,10 +27,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -150,7 +147,7 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
         List<TaskDto> tasks = taskService.findAllTasksByIds(taskIdList);
         Map<String, TaskDto> taskMap = tasks.stream().collect(Collectors.toMap(t -> t.getId().toHexString(), Function.identity(), (a, b) -> b));
 
-        logTasks.forEach(task -> {
+        for (TaskDto task : logTasks) {
             String taskId = task.getId().toHexString();
             RelationTaskInfoVo logRelation = RelationTaskInfoVo.builder().id(taskId)
                     .name(task.getName()).status(task.getStatus())
@@ -158,6 +155,10 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
                     .build();
             if (taskMap.containsKey(taskId)) {
                 TaskDto taskInfo = taskMap.get(taskId);
+                boolean match = task.getDag().getSourceNodes().stream().anyMatch(t -> connectionIds.contains(((DataParentNode) t).getConnectionId()));
+                if (!match) {
+                    continue;
+                }
                 logRelation.setCurrentEventTimestamp(taskInfo.getCurrentEventTimestamp());
                 logRelation.setTaskType(taskInfo.getType());
                 logRelation.setCreateDate(taskInfo.getCreateAt());
@@ -174,7 +175,7 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
             }
 
             result.add(logRelation);
-        });
+        }
     }
 
     private List<TaskDto> getFilterCriteria(RelationTaskRequest request, Criteria criteria) {

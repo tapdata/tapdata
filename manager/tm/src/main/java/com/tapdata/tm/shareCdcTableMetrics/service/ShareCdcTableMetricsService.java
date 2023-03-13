@@ -2,15 +2,19 @@ package com.tapdata.tm.shareCdcTableMetrics.service;
 
 import cn.hutool.extra.cglib.CglibUtil;
 import com.tapdata.tm.base.dto.Page;
-import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.service.BaseService;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
 import com.tapdata.tm.shareCdcTableMetrics.entity.ShareCdcTableMetricsEntity;
 import com.tapdata.tm.shareCdcTableMetrics.entity.ShareCdcTableMetricsVo;
 import com.tapdata.tm.shareCdcTableMetrics.repository.ShareCdcTableMetricsRepository;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.Lists;
 import lombok.NonNull;
 import lombok.Setter;
@@ -26,7 +30,6 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
-import org.yaml.snakeyaml.nodes.NodeId;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -48,6 +51,7 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
 
     private DataSourceService sourceService;
     private MongoTemplate mongoTemplate;
+    private TaskService taskService;
 
     public ShareCdcTableMetricsService(@NonNull ShareCdcTableMetricsRepository repository) {
         super(repository, ShareCdcTableMetricsDto.class, ShareCdcTableMetricsEntity.class);
@@ -57,13 +61,25 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
 
     }
 
-    public Page<ShareCdcTableMetricsDto> getPageInfo(String taskId, String nodeId, String keyword, int page, int size) {
+    public Page<ShareCdcTableMetricsDto> getPageInfo(String taskId, String nodeId, String tableTaskId, String keyword, int page, int size) {
         Criteria criteria = Criteria.where("taskId").is(taskId);
         if (StringUtils.isNotBlank(nodeId)) {
             criteria.and("nodeId").is(nodeId);
         }
         if (StringUtils.isNotBlank(keyword)) {
             criteria.and("tableName").regex(keyword);
+        }
+        if (StringUtils.isNotBlank(tableTaskId)) {
+            TaskDto dto = taskService.findById(new ObjectId(tableTaskId));
+            List<String> tableNames = Lists.newArrayList();
+            dto.getDag().getSourceNodes().forEach(node -> {
+                if (node instanceof TableNode) {
+                    tableNames.add((((TableNode) node).getTableName()));
+                } else if (node instanceof DatabaseNode) {
+                    tableNames.addAll(((DatabaseNode) node).getTableNames());
+                }
+            });
+            criteria.and("tableName").in(tableNames);
         }
 
         MatchOperation match = Aggregation.match(criteria);
@@ -94,7 +110,7 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
 
         List<ShareCdcTableMetricsDto> result = list.stream().map(info -> {
             ShareCdcTableMetricsDto copy = CglibUtil.copy(info, ShareCdcTableMetricsDto.class);
-            copy.setConnectionId(nameMap.get(new ObjectId(info.getConnectionId())));
+            copy.setConnectionName(nameMap.get(new ObjectId(info.getConnectionId())));
             return copy;
         }).collect(Collectors.toList());
 

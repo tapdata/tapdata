@@ -95,11 +95,12 @@ public class ShareCdcTableMetricsController extends BaseController {
     public ResponseMessage<Page<ShareCdcTableMetricsDto>> listByTask(
             @RequestParam(value = "taskId") String taskId,
             @RequestParam(value = "nodeId", required = false) String nodeId,
-            @RequestParam(value = "nodeId", defaultValue = "") String keyword,
+            @RequestParam(value = "tableTaskId", required = false) String tableTaskId,
+            @RequestParam(value = "keyword", defaultValue = "") String keyword,
             @RequestParam(value = "page", defaultValue = "1") int page,
             @RequestParam(value = "size", defaultValue = "20") int size) {
 
-        return success(shareCdcTableMetricsService.getPageInfo(taskId, nodeId, keyword, page, size));
+        return success(shareCdcTableMetricsService.getPageInfo(taskId, nodeId, tableTaskId, keyword, page, size));
     }
 
     /**
