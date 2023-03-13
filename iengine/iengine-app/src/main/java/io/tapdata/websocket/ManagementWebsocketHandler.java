@@ -139,33 +139,37 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 				Collections.singletonList(EventHandlerAnnotation.class));
 		healthThreadPool = new ScheduledThreadPoolExecutor(1);
 		healthThreadPool.scheduleWithFixedDelay(() -> {
-			Thread.currentThread().setName("Management Websocket Health Check");
-			if (!isOpen()) {
-				logger.info("It is detected that the websocket is not connected, a connection will be created");
-				createClients();
-			}
-
 			try {
-				WebSocketEvent<PingDto> webSocketEvent = new WebSocketEvent<>();
-				PingDto pingDto = new PingDto();
-				String pingId = UUIDGenerator.uuid();
-				pingDto.setPingId(pingId);
-				pingDto.setPingType(PingType.WEBSOCKET_HEALTH);
-				webSocketEvent.setType("ping");
-				webSocketEvent.setData(pingDto);
-				sendMessage(new TextMessage(JSONUtil.obj2Json(webSocketEvent)));
-				boolean response = PongHandler.handleResponse(pingId, event -> {
-					pingFailTime.set(0);
-					handleWhenPingSucceed();
-				});
-				if (!response) {
-					if (pingFailTime.incrementAndGet() > MAX_PING_FAIL_TIME) {
-						throw new RuntimeException(String.format("No response was received for %s consecutive websocket heartbeats", MAX_PING_FAIL_TIME));
-					}
+				Thread.currentThread().setName("Management Websocket Health Check");
+				if (!isOpen()) {
+					logger.info("It is detected that the websocket is not connected, a connection will be created");
+					createClients();
 				}
-			} catch (Exception e) {
-				logger.error("Websocket heartbeat failed, will reconnect. Error: " + e.getMessage(), e);
-				createClients();
+
+				try {
+					WebSocketEvent<PingDto> webSocketEvent = new WebSocketEvent<>();
+					PingDto pingDto = new PingDto();
+					String pingId = UUIDGenerator.uuid();
+					pingDto.setPingId(pingId);
+					pingDto.setPingType(PingType.WEBSOCKET_HEALTH);
+					webSocketEvent.setType("ping");
+					webSocketEvent.setData(pingDto);
+					sendMessage(new TextMessage(JSONUtil.obj2Json(webSocketEvent)));
+					boolean response = PongHandler.handleResponse(pingId, event -> {
+						pingFailTime.set(0);
+						handleWhenPingSucceed();
+					});
+					if (!response) {
+						if (pingFailTime.incrementAndGet() > MAX_PING_FAIL_TIME) {
+							throw new RuntimeException(String.format("No response was received for %s consecutive websocket heartbeats", MAX_PING_FAIL_TIME));
+						}
+					}
+				} catch (Throwable e) {
+					logger.error("Websocket heartbeat failed, will reconnect. Error: " + e.getMessage(), e);
+					createClients();
+				}
+			} catch (Throwable e) {
+				logger.error("Websocket heartbeat failed, will reconnect after {}s. Error: {}", PING_INTERVAL, e.getMessage(), e);
 			}
 		}, 0, PING_INTERVAL, TimeUnit.SECONDS);
 	}
