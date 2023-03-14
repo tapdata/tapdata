@@ -110,23 +110,41 @@ public class CustomConnector extends ConnectorBase {
         connectorFunctions.supportCommandCallbackFunction(this::handleCommand);
     }
 
-    private CommandResult handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
-        CollectLog logger = new CollectLog(tapConnectionContext.getLog());
-
-        String command = commandInfo.getCommand();
+    private CommandResult handleCommand(final TapConnectionContext tapConnectionContext, final CommandInfo commandInfo) {
+        final CollectLog logger = new CollectLog(tapConnectionContext.getLog());
+        final String command = commandInfo.getCommand();
         logger.info("Start executing command [{}] ", command);
-        TapConnectionContext newTapConnectionContext = new TapConnectionContext(tapConnectionContext.getSpecification(),
-                DataMap.create(commandInfo.getConnectionConfig()), DataMap.create(commandInfo.getNodeConfig()), logger);
-        try {
-            init(newTapConnectionContext);
-            if (StringUtils.equals(command, "testRun")) {
+        CommandResult commandResult = new CommandResult();
+        if (StringUtils.equals(command, "testRun")) {
+            Object data = testRun(tapConnectionContext, commandInfo, logger);
+            commandResult.setData(data);
+        } else {
+            logger.error("Unsupported command [{}]", command);
+            commandResult.setData(logger.getLogs());
+        }
+        logger.info("Command [{}] execution complete.", command);
+
+        return commandResult;
+    }
+
+    private Object testRun(TapConnectionContext tapConnectionContext, CommandInfo commandInfo, CollectLog logger) {
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        Map<String, Object> argMap = commandInfo.getArgMap();
+        String threadName = "CustomConnector-Test-Runner";
+        Runnable runnable = () -> {
+            Thread.currentThread().setName(threadName);
+            TapConnectionContext newTapConnectionContext = new TapConnectionContext(tapConnectionContext.getSpecification(),
+                    DataMap.create(commandInfo.getConnectionConfig()), DataMap.create(commandInfo.getNodeConfig()), logger);
+            try {
+                init(newTapConnectionContext);
                 String tableName = (String) commandInfo.getConnectionConfig().get("collectionName");
                 String type = commandInfo.getType();
                 TapTable tapTable = new TapTable(tableName);
                 TapConnectorContext tapConnectorContext = new TapConnectorContext(tapConnectionContext.getSpecification(),
                         tapConnectionContext.getConnectionConfig(), tapConnectionContext.getNodeConfig(), logger);
                 if (StringUtils.equals(type, "source")) {
-                    logger.info("Start fetching data as a source......");
+                    logger.info("Start fetching data as a source....." +
+                            ".");
                     String action = commandInfo.getAction();
                     if (StringUtils.contains(action, "initial_sync")) {
                         logger.info("Start initializing sync......");
@@ -137,32 +155,15 @@ public class CustomConnector extends ConnectorBase {
                     }
                     if (StringUtils.contains(action, "cdc")) {
                         logger.info("Start cdc sync......");
-                        CountDownLatch countDownLatch = new CountDownLatch(1);
-                        Thread thread = new Thread(() -> {
-                            Thread.currentThread().setName("CustomConnector-Test-Runner");
-                            try {
-                                streamRead(tapConnectorContext, Collections.singletonList(tableName), new Object(), 1, StreamReadConsumer.create((events, offsetObject) -> {
-                                    logger.info("Execute cdc, get the data: {}", toTapEventStr(events, offsetObject, true));
-                                }));
-
-                            } catch (Throwable e) {
-                                logger.error("Execute cdc error {}", e);
-                            } finally {
-                                countDownLatch.countDown();
-                            }
-                        });
-                        thread.start();
-                        boolean threadFinished = countDownLatch.await(5L, TimeUnit.SECONDS);
-                        if (!threadFinished) {
-                            thread.interrupt();
-                        }
+                        streamRead(tapConnectorContext, Collections.singletonList(tableName), new Object(), 1, StreamReadConsumer.create((events, offsetObject) -> {
+                            logger.info("Execute cdc, get the data: {}", toTapEventStr(events, offsetObject, true));
+                        }));
                         logger.info("Cdc sync complete.");
                     }
                     logger.info("Obtaining data as a source is complete.");
 
                 } else if (StringUtils.equals(type, "target")) {
                     logger.info("Start processing data as a target......");
-                    Map<String, Object> argMap = commandInfo.getArgMap();
                     List<TapRecordEvent> tapRecordEvents = getTapRecordEvents((List<Map<String, Object>>) argMap.get("input"));
                     if (tapRecordEvents.size() == 0) {
                         logger.warn("The input is empty and cannot be processed");
@@ -174,22 +175,39 @@ public class CustomConnector extends ConnectorBase {
                     }
                     logger.info("Process data completion as target.");
                 }
+            } catch (ScriptException e) {
+                logger.error( "{} execute script error:\n {}", TAG, e);
+            } catch (Throwable throwable) {
+                logger.error( "{} execute command error:\n {}", TAG, throwable);
+            } finally {
+                try {
+                    stop(newTapConnectionContext);
+                } catch (Throwable e) {
+                    logger.error("{} stop error {}", TAG, e);
+                }
+                countDownLatch.countDown();
             }
-        } catch (ScriptException e) {
-            logger.error( "{} execute script error:\n {}", TAG, e);
+        };
+
+        try {
+            Thread thread = new Thread(runnable);
+            thread.start();
+            Integer timeout = (Integer) argMap.get("timeout");
+            if (timeout == null || timeout <= 0) {
+                timeout = 10;
+            }
+            boolean threadFinished = countDownLatch.await(timeout, TimeUnit.SECONDS);
+            if (!threadFinished) {
+                logger.error("Execution has timed out and will terminate.");
+                thread.interrupt();
+            }
+        } catch (InterruptedException e) {
+            logger.error("Thread [{}] interrupted, {}", threadName, e);
         } catch (Throwable throwable) {
-            logger.error( "{} execute command error:\n {}", TAG, throwable);
-        } finally {
-            try {
-                stop(newTapConnectionContext);
-            } catch (Throwable e) {
-                logger.error("{} stop error {}", TAG, e);
-            }
+            logger.error("[{}] execution failure， {}", throwable);
         }
-        logger.info("Command [{}] execution complete.", command);
-        CommandResult commandResult = new CommandResult();
-        commandResult.setData(logger.getLogs());
-        return commandResult;
+
+        return logger.getLogs();
     }
 
     private String toWriteListResultStr(WriteListResult<TapRecordEvent> writeListResult) {
