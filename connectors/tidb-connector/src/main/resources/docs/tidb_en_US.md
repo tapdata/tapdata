@@ -3,7 +3,7 @@
 ### **1. TiDB installation instructions**
 
 
-Please follow the instructions below to ensure that TiDB database is successfully added and used in Tapdata and TiCDC is successfully deployed.
+Please follow the instructions below to ensure that TiDB database is successfully added and used in Tapdata and TiCDC is successfully deployed，it is recommended that TIDB and TICDC versions be consistent.
 
 ### **2. Supported versions**
 TiDB 5.4+ , TiCDC6.3+
@@ -11,18 +11,18 @@ TiDB 5.4+ , TiCDC6.3+
 3.1 Example of configuration connection
 3.1.1 Incremental configuration is not enabled
 ```
-PdServer address: 192.168.1.179:2379
-Database address: 192.168.1.179
-Port: 4000
-Database name: kiki
-Account: root
-Password: root
+PdServer address: xxxx:xxxx
+Database address: xxxx
+Port: xxxx
+Database name: xxxx
+Account: xxxx
+Password: xxxx
 ```
 3.1.2 Only the following configurations need to be added to enable the increment
 ```
-Kafka address: 139.198.127.226:32761
-Kafka Subject: tidb-cdc
-Ticdc address: 192.168.1.179:8300
+Kafka address: xxxx:xxxx
+Kafka Subject: xxxx
+Ticdc address: xxxx:xxxx
 ```
 
 Assign select permission to a database
