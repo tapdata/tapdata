@@ -157,22 +157,23 @@ public class LogTransaction {
         if (EmptyKit.isNotEmpty(redoLogContents)) {
             redoLogContents.clear();
         }
-        if (EmptyKit.isNotEmpty(chronicleMap)) {
-            chronicleMap.clear();
-            chronicleMap.close();
+        if (isLarge()) {
+            if (EmptyKit.isNotEmpty(chronicleMap)) {
+                chronicleMap.clear();
+                chronicleMap.close();
+            }
+            if (EmptyKit.isNotNull(keyQueueAppender)) {
+                keyQueueAppender.close();
+            }
+            if (EmptyKit.isNotNull(keyTailer)) {
+                keyTailer.close();
+            }
+            if (EmptyKit.isNotNull(keyQueue)) {
+                keyQueue.close();
+            }
+            ErrorKit.ignoreAnyError(() -> FileSystemUtils.deleteRecursively(new File("cacheTransaction" + File.separator + connectorId + File.separator + xid + ".data")));
+            ErrorKit.ignoreAnyError(() -> FileSystemUtils.deleteRecursively(new File("cacheTransaction" + File.separator + connectorId + File.separator + xid + ".key")));
         }
-        if (EmptyKit.isNotNull(keyQueueAppender)) {
-            keyQueueAppender.close();
-        }
-        if (EmptyKit.isNotNull(keyTailer)) {
-            keyTailer.close();
-        }
-        if (EmptyKit.isNotNull(keyQueue)) {
-//            keyQueue.clear(); //Not yet implemented
-            keyQueue.close();
-        }
-        ErrorKit.ignoreAnyError(() -> FileSystemUtils.deleteRecursively(new File("cacheTransaction" + File.separator + connectorId + File.separator + xid + ".data")));
-        ErrorKit.ignoreAnyError(() -> FileSystemUtils.deleteRecursively(new File("cacheTransaction" + File.separator + connectorId + File.separator + xid + ".key")));
     }
 
     public Long getRacMinimalScn() {
