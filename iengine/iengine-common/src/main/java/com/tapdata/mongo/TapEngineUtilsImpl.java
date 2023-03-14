@@ -3,6 +3,7 @@ package com.tapdata.mongo;
 import com.tapdata.tm.sdk.util.CloudSignUtil;
 import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.modules.api.net.utils.TapEngineUtils;
+import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -42,6 +43,13 @@ public class TapEngineUtilsImpl implements TapEngineUtils {
 				} else if(url.getProtocol().equals("https")) {
 					return 443;
 				}
+			}
+		} else {
+			String port = CommonUtils.getProperty("proxy_port");
+			if(port != null) {
+				try {
+					return Integer.parseInt(port);
+				} catch (Throwable ignored) {}
 			}
 		}
 		return wsPort;

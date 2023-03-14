@@ -76,7 +76,8 @@ public class QuickApiConnector extends ConnectorBase {
 		if(Objects.nonNull(connectorFunctions)) {
 			connectorFunctions.supportBatchCount(this::batchCount)
 					.supportBatchRead(this::batchRead)
-					.supportTimestampToStreamOffset(this::timestampToStreamOffset);
+					.supportTimestampToStreamOffset(this::timestampToStreamOffset)
+					.supportErrorHandleFunction(this::errorHandle);
 		}else{
 			TapLogger.error(TAG,"ConnectorFunctions must be not null or not be empty. ");
 		}

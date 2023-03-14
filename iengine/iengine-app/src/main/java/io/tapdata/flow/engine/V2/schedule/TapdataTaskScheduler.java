@@ -5,6 +5,7 @@ import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.AppType;
+import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -539,7 +540,8 @@ public class TapdataTaskScheduler {
 				} catch (Exception e) {
 					if (StringUtils.isNotBlank(e.getMessage()) && e.getMessage().contains("Transition.Not.Supported")) {
 						// 违反TM状态机，不再进行修改任务状态的重试
-						logger.warn("Call api to stop task status to " + resource + " failed, message: " + e.getMessage(), e);
+						logger.warn("Call api to stop task status to " + resource + " failed, will set task to error, message: " + e.getMessage(), e);
+						clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/" + StopTaskResource.RUN_ERROR, taskId, TaskDto.class);
 					} else {
 						throw new RuntimeException(String.format("Call stop task api failed, api uri: %s, task: %s[%s]",
 								resource, taskClient.getTask().getName(), taskClient.getTask().getId()), e);
