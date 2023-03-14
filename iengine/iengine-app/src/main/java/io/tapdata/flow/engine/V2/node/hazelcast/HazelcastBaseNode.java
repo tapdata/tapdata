@@ -210,9 +210,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			super.init(context);
 			Log4jUtil.setThreadContext(processorBaseContext.getTaskDto());
 			running.compareAndSet(false, true);
-			TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
-			tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> tapValue.getValue().toInstant());
-			codecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
+			codecsFilterManager = TapCodecUtil.genericCodecsFilterManager();
 			// execute ProcessorNodeInitAspect before doInit since we need to init the aspect first;
 			if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
 				AspectUtils.executeAspect(ProcessorNodeInitAspect.class, () -> new ProcessorNodeInitAspect().processorBaseContext(processorBaseContext));
