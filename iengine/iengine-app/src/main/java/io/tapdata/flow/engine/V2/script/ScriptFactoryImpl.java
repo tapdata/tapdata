@@ -19,7 +19,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-@Implementation(value = ScriptFactory.class, type = "engine")
+@Implementation(value = ScriptFactory.class)
 public class ScriptFactoryImpl implements ScriptFactory {
     public static void main(String[] args) {
         ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class);
