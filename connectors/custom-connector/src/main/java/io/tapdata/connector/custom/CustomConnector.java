@@ -143,8 +143,7 @@ public class CustomConnector extends ConnectorBase {
                 TapConnectorContext tapConnectorContext = new TapConnectorContext(tapConnectionContext.getSpecification(),
                         tapConnectionContext.getConnectionConfig(), tapConnectionContext.getNodeConfig(), logger);
                 if (StringUtils.equals(type, "source")) {
-                    logger.info("Start fetching data as a source....." +
-                            ".");
+                    logger.info("Start fetching data as a source......");
                     String action = commandInfo.getAction();
                     if (StringUtils.contains(action, "initial_sync")) {
                         logger.info("Start initializing sync......");

@@ -453,6 +453,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 														syncProgress.setStreamOffsetObj(offsetObj);
 														if (streamReadFuncAspect != null)
 															AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
+														PDKInvocationMonitor.invokerRetrySetter(pdkMethodInvoker);
 													}
 												}
 											} catch (Throwable throwable) {
@@ -464,9 +465,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 												}
 											}
 										}).stateListener((oldState, newState) -> {
-											if (StreamReadConsumer.STATE_STREAM_READ_ENDED != newState) {
-												PDKInvocationMonitor.invokerRetrySetter(pdkMethodInvoker);
-											}
 											if (null != newState && StreamReadConsumer.STATE_STREAM_READ_STARTED == newState) {
 												// MILESTONE-READ_CDC_EVENT-FINISH
 												if (streamReadFuncAspect != null)

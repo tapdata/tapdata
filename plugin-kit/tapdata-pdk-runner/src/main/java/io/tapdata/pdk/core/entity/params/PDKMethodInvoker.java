@@ -30,6 +30,12 @@ public class PDKMethodInvoker {
     private long retryPeriodSeconds;
     private long maxRetryTimeMinute; //util:seconds
     private TapLogger.LogListener logListener;
+    private Runnable startRetry;
+
+    public PDKMethodInvoker startRetry(Runnable startRetry) {
+        this.startRetry = startRetry;
+        return this;
+    }
 
     public PDKMethodInvoker logListener(TapLogger.LogListener logListener) {
         this.logListener = logListener;
@@ -160,5 +166,9 @@ public class PDKMethodInvoker {
 
     public TapLogger.LogListener getLogListener() {
         return logListener;
+    }
+
+    public Runnable getStartRetry() {
+        return startRetry;
     }
 }
