@@ -1199,6 +1199,16 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         return page;
     }
 
+
+
+    public Page<DataDirectoryDto> getSource(DirectoryQueryParam param, UserDetail userDetail) {
+        return null;
+    }
+
+    public Page<DataDirectoryDto> getTarget(DirectoryQueryParam param, UserDetail userDetail) {
+        return null;
+    }
+
     //@Override
     public Page<DataDirectoryDto> findDataDirectory1(DirectoryQueryParam param, UserDetail user) {
         if (param.getPage() == null) {

@@ -1,0 +1,19 @@
+[
+  {
+    "insert": "MetadataDefinition",
+    "documents": [
+      {
+        "value": "SOURCE"
+      },
+      {
+        "value": "FDM"
+      },
+      {
+        "value": "MDM"
+      },
+      {
+        "value": "TARGET"
+      }
+    ]
+  }
+]

@@ -9,4 +9,6 @@ public interface LdpService {
 
 
     TaskDto createMdmTask(TaskDto task, UserDetail user);
+
+    void createLdpMetaByTask(String taskId, UserDetail user);
 }
