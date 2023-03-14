@@ -25,6 +25,6 @@ public class LiveDataPlatformEntity extends BaseEntity {
 
     private String mdmStorageConnectionId;
 
-
+    private boolean isInit;
 
 }
