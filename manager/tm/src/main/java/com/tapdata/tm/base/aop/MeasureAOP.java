@@ -44,7 +44,8 @@ public class MeasureAOP {
 
     private TaskService taskService;
     private AlarmService alarmService;
-    private final Map<String, AtomicInteger> obsMap = Maps.newConcurrentMap();
+    private final Map<String, Map<String, AtomicInteger>> obsMap = Maps.newConcurrentMap();
+
 
     @AfterReturning("execution(* com.tapdata.tm.monitor.service.MeasurementServiceV2.addAgentMeasurement(..))")
     public void addAgentMeasurement(JoinPoint joinPoint) {
@@ -158,9 +159,13 @@ public class MeasureAOP {
 
         String key = taskId + "-" + "replicateLag";
 
-        AtomicInteger taskReplicateLagCount = obsMap.get(key);
-        if (Objects.isNull(taskReplicateLagCount)) {
-            taskReplicateLagCount = new AtomicInteger();
+        AtomicInteger taskReplicateLagCount = new AtomicInteger();
+
+        Map<String, AtomicInteger> infoMap = obsMap.get(taskId);
+        if (Objects.nonNull(infoMap) && Objects.nonNull(infoMap.get(key))) {
+            taskReplicateLagCount.set(infoMap.get(key).intValue());
+        } else {
+            infoMap = Maps.newHashMap();
         }
 
         String flag = alarmRuleDto.getEqualsFlag() == -1 ? "小于" : "大于";
@@ -175,8 +180,11 @@ public class MeasureAOP {
         }
         if (b) {
             taskReplicateLagCount.incrementAndGet();
+        } else {
+            taskReplicateLagCount.set(0);
         }
-        obsMap.put(key, taskReplicateLagCount);
+        infoMap.put(key, taskReplicateLagCount);
+        obsMap.put(taskId, infoMap);
 
         List<AlarmInfo> alarmInfos = alarmService.find(taskId, null, AlarmKeyEnum.TASK_INCREMENT_DELAY);
 
@@ -247,11 +255,13 @@ public class MeasureAOP {
 
         String key = nodeId + "-" + avgName;
 
-        AtomicInteger count = obsMap.get(key);
-        if (Objects.isNull(obsMap.get(key))) {
-            count = new AtomicInteger();
+        AtomicInteger count = new AtomicInteger();
+        Map<String, AtomicInteger> infoMap = obsMap.get(taskId);
+        if (Objects.nonNull(infoMap) && Objects.nonNull(infoMap.get(key))) {
+            count.set(infoMap.get(key).intValue());
+        } else {
+            infoMap = Maps.newHashMap();
         }
-
 
         String flag = alarmRuleDto.getEqualsFlag() == -1 ? "LESS" : "GREATER";
         AtomicInteger delay = new AtomicInteger(0);
@@ -268,8 +278,11 @@ public class MeasureAOP {
         if (b) {
             delay.set(current);
             count.incrementAndGet();
+        } else {
+            count.set(0);
         }
-        obsMap.put(key, count);
+        infoMap.put(key, count);
+        obsMap.put(taskId, infoMap);
 
         List<AlarmInfo> alarmInfos = alarmService.find(taskId, nodeId, alarmKeyEnum);
 
@@ -347,5 +360,9 @@ public class MeasureAOP {
         }
 
         return result;
+    }
+
+    public void removeObsInfoByTaskId(String taskId) {
+        obsMap.remove(taskId);
     }
 }
