@@ -18,6 +18,7 @@ import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
+import io.tapdata.flow.engine.V2.util.TapCodecUtil;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
@@ -82,7 +83,7 @@ public class PdkDataSourceRowsGetter implements IDataSourceRowsGetter {
     }
 
     this.codecsFilterManager = connectorNode.getCodecsFilterManager();
-		this.genericCodecFilterManager = new TapCodecsFilterManager(TapCodecsRegistry.create());
+		this.genericCodecFilterManager = TapCodecUtil.genericCodecsFilterManager();;
   }
 
   @Override
