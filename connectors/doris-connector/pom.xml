@@ -21,7 +21,7 @@
 
         <guava.version>31.0.1-jre</guava.version>
         <sql.core.version>1.0-SNAPSHOT</sql.core.version>
-<!--        <tapdata.pdk.api.version>1.2.0</tapdata.pdk.api.version>-->
+        <tapdata.pdk.api.version>1.2.2-SNAPSHOT</tapdata.pdk.api.version>
     </properties>
     <!--<dependencyManagement>-->
     <dependencies>
