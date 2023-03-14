@@ -1,5 +1,7 @@
 package io.tapdata.supervisor.convert.entity;
 
+import io.tapdata.supervisor.utils.ClassUtil;
+
 import java.util.Map;
 import java.util.Objects;
 
@@ -10,6 +12,25 @@ class WBaseTarget extends WBase implements Resolvable<WBaseTarget> {
     protected String scanPackage;
     protected String saveTo;
     protected String[] classPathCache;
+    protected String jarFilePath;
+    protected ClassUtil classUtil;
+
+    public ClassUtil getClassUtil() {
+        return classUtil;
+    }
+
+    public void setClassUtil(ClassUtil classUtil) {
+        this.classUtil = classUtil;
+    }
+
+    public WBaseTarget classUtil(ClassUtil classUtil) {
+        this.classUtil = classUtil;
+        return this;
+    }
+    public WBaseTarget(String savePath, String jarFilePath) {
+        this.saveTo = savePath;
+        this.jarFilePath = jarFilePath;
+    }
 
     @Override
     public WBaseTarget parser(Map<String, Object> parserMap) {
@@ -19,17 +40,16 @@ class WBaseTarget extends WBase implements Resolvable<WBaseTarget> {
         this.path = WZTags.toString(parserMap, WZTags.W_PATH, WZTags.DEFAULT_EMPTY);
         this.needCreate = WZTags.toBoolean(parserMap, WZTags.W_IS_CREATE, Boolean.FALSE);
         this.scanPackage = WZTags.toString(parserMap, WZTags.W_SCAN_PACKAGE, WZTags.DEFAULT_EMPTY);
-        this.saveTo = WZTags.toString(parserMap, WZTags.W_SAVE_TO, WZTags.DEFAULT_EMPTY);
         WBaseTarget target;
         switch (this.type) {
             case WZTags.TYPE_EXTENDS:
-                target = new WTypeExtends();
+                target = new WTypeExtends(this.saveTo, this.jarFilePath);
                 break;
             case WZTags.W_PATH:
-                target = new WTypePath();
+                target = new WTypePath(this.saveTo, this.jarFilePath);
                 break;
             default:
-                target = new WTypeName();
+                target = new WTypeName(this.saveTo, this.jarFilePath);
         }
         this.parser(target);
         return target;
@@ -41,6 +61,7 @@ class WBaseTarget extends WBase implements Resolvable<WBaseTarget> {
         target.setNeedCreate(this.needCreate);
         target.setScanPackage(this.scanPackage);
         target.setSaveTo(this.saveTo);
+        target.setClassUtil(this.classUtil);
     }
 
     public String[] paths() {

@@ -1,5 +1,6 @@
 package io.tapdata.supervisor.convert.wave;
 
+import io.tapdata.supervisor.utils.DependencyURLClassLoader;
 import io.tapdata.supervisor.utils.JavassistTag;
 import javassist.*;
 
@@ -8,17 +9,20 @@ import java.util.*;
 
 public class JavassistWaver {
     private final ClassPool pool;
+    DependencyURLClassLoader dependencyURLClassLoader;
 
-    public static JavassistWaver create() {
-        return new JavassistWaver();
+    public static JavassistWaver create(DependencyURLClassLoader dependencyURLClassLoader) {
+        return new JavassistWaver(dependencyURLClassLoader);
     }
 
-    private JavassistWaver() {
+    private JavassistWaver(DependencyURLClassLoader dependencyURLClassLoader) {
         this.pool = ClassPool.getDefault();
+        this.pool.appendClassPath(new LoaderClassPath(dependencyURLClassLoader));
     }
 
     private JavassistWaver(ClassPool pool) {
         this.pool = Optional.ofNullable(pool).orElse(ClassPool.getDefault());
+        this.pool.appendClassPath(new LoaderClassPath(dependencyURLClassLoader));
     }
 
     public Builder builder(String path, String saveTo) throws NotFoundException {
@@ -93,7 +97,7 @@ public class JavassistWaver {
         }
 
         private void defrost() throws NotFoundException, CannotCompileException {
-            if(ctClass.isFrozen()){
+            if (ctClass.isFrozen()) {
                 ctClass.defrost();
                 ctClass.setSuperclass(ctClass.getSuperclass());
             }

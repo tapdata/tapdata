@@ -1,5 +1,5 @@
 import cn.hutool.json.JSONUtil;
-import io.tapdata.supervisor.convert.entity.Parser;
+import io.tapdata.supervisor.convert.entity.ClassModifier;
 import javassist.*;
 import org.junit.Test;
 
@@ -86,7 +86,7 @@ public class CtTClass {
 
     @Test
     public void ttt() {
-        Parser parser = Parser.parser(JSONUtil.parseObj(json));
+        ClassModifier parser = ClassModifier.load("");
         try {
             parser.wave();
         } catch (NotFoundException | CannotCompileException exception) {

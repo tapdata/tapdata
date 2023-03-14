@@ -16,6 +16,7 @@ public class WZTags {
     protected static final String W_IS_CREATE = "isCreate";
     protected static final String W_SAVE_TO = "saveTo";
     protected static final String W_RETURN_TYPE = "returnType";
+    protected static final String W_JAR_FILE_PATH = "jarPath";
 
     protected static final String W_NAME = "name";
     protected static final String W_CODE = "code";

@@ -1,47 +1,75 @@
 package io.tapdata.supervisor.convert.entity;
 
-import cn.hutool.json.JSONUtil;
 import io.tapdata.supervisor.convert.wave.JavassistHandle;
 import io.tapdata.supervisor.convert.wave.JavassistWaver;
+import io.tapdata.supervisor.utils.ClassUtil;
 import io.tapdata.supervisor.utils.JavassistTag;
 import javassist.CannotCompileException;
 import javassist.NotFoundException;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-public class Parser {
+public class ClassModifier {
     private final List<Waver> waver;
+    private String outputFilePath = "plugin-kit/tapdata-modules/class-supervisor/src/main";
+    private String jarFilePath = "plugin-kit/tapdata-modules/class-supervisor/src/main/resources/supervisor.json";
+    public static final String SUPERVISOR_CONFIG_PATH = "supervisor.json";
+    ClassUtil classUtil;
 
-    private Parser(Map<String, Object> parserMap) {
+    private ClassModifier(String jarFilePath, String outputPath) {
+        this.jarFilePath = Objects.isNull(jarFilePath) ? this.jarFilePath : jarFilePath;
+        this.outputFilePath = Objects.isNull(outputPath) ? this.outputFilePath : outputPath;
         this.waver = new ArrayList<>();
-        Optional.ofNullable(parserMap).ifPresent(map -> {
-            Object calMapObj = map.get(WZTags.W_CLASS);
-            if (calMapObj instanceof Collection) {
-                List<?> collection = (List<?>) calMapObj;
-                for (Object item : collection) {
-                    if (Objects.nonNull(item) && item instanceof Map) {
-                        Optional.ofNullable(Waver.waver().parser((Map<String, Object>) item)).ifPresent(this.waver::add);
+        this.classUtil = new ClassUtil(jarFilePath);
+        List<Map<String, Object>> jsonSource = ClassUtil.jsonSource(this.jarFilePath, ClassModifier.SUPERVISOR_CONFIG_PATH);
+        if (!jsonSource.isEmpty()) {
+            for (Map<String, Object> parserMap : jsonSource) {
+                Optional.ofNullable(parserMap).ifPresent(map -> {
+                    Object calMapObj = map.get(WZTags.W_CLASS);
+                    if (calMapObj instanceof Collection) {
+                        List<?> collection = (List<?>) calMapObj;
+                        for (Object item : collection) {
+                            if (Objects.nonNull(item) && item instanceof Map) {
+                                Map<String, Object> objectMap = (Map<String, Object>) item;
+                                objectMap.put(WZTags.W_SAVE_TO, this.outputFilePath);
+                                objectMap.put(WZTags.W_JAR_FILE_PATH, this.jarFilePath);
+                                Optional.ofNullable(Waver.waver().classUtil(this.classUtil).parser(objectMap)).ifPresent(this.waver::add);
+                            }
+                        }
+                    } else if (calMapObj instanceof Map) {
+                        Optional.ofNullable(Waver.waver().parser(map)).ifPresent(this.waver::add);
                     }
-                }
-            } else if (calMapObj instanceof Map) {
-                Optional.ofNullable(Waver.waver().parser(map)).ifPresent(this.waver::add);
+                });
+                break;
             }
-        });
+        }
     }
 
-    public static Parser parser(Map<String, Object> parserMap) {
-        return new Parser(parserMap);
+    /**
+     *
+     */
+    public static ClassModifier load(String jarFilePath, String outputPath) {
+        return new ClassModifier(jarFilePath, outputPath);
     }
-    public static Parser parser() {
-        Map<String,Object> map = JSONUtil.readJSONObject(new File("plugin-kit/tapdata-modules/class-supervisor/src/main/resources/supervisor.json"), StandardCharsets.UTF_8);
-        return new Parser(map);
+
+    /**
+     *
+     */
+    public static ClassModifier load(String outputPath) {
+        return new ClassModifier(null, outputPath);
+    }
+
+    /**
+     * @deprecated
+     */
+    public static ClassModifier load() {
+        //Map<String, Object> map = JSONUtil.readJSONObject(new File(this.jarFilePath), StandardCharsets.UTF_8);
+        return new ClassModifier(null, null);
     }
 
     public void wave() throws NotFoundException, CannotCompileException {
-        JavassistWaver javaSsistWaver = JavassistWaver.create();
+        JavassistWaver javaSsistWaver = JavassistWaver.create(classUtil.getDependencyURLClassLoader());
         for (Waver value : this.waver) {
             List<JavassistWaver.Builder> builders = new ArrayList<>();
             for (int jndex = JavassistTag.ZERO; jndex < value.targets.size(); jndex++) {
@@ -49,7 +77,6 @@ public class Parser {
                 String[] paths = wBaseTarget.paths();
                 for (String path : paths) {
                     JavassistWaver.Builder builder = javaSsistWaver.builder(path, wBaseTarget.getSaveTo());
-
                     builders.add(builder);
                 }
             }
@@ -112,7 +139,6 @@ public class Parser {
             }
         }
     }
-
 
     private WCodeAgent<JavassistHandle> create(WCode code) {
         String type = code.getType();

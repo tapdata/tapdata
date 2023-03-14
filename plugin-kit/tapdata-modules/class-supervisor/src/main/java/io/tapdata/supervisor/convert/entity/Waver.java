@@ -1,11 +1,27 @@
 package io.tapdata.supervisor.convert.entity;
 
+import io.tapdata.supervisor.utils.ClassUtil;
+
 import java.util.*;
 
 class Waver extends WBase implements Resolvable<Waver> {
     List<WBaseTarget> targets;
     List<WBaseMethod> methods;
     List<WBaseConstructor> constructors;
+    ClassUtil classUtil;
+
+    public ClassUtil getClassUtil() {
+        return classUtil;
+    }
+
+    public void setClassUtil(ClassUtil classUtil) {
+        this.classUtil = classUtil;
+    }
+
+    public Waver classUtil(ClassUtil classUtil) {
+        this.classUtil = classUtil;
+        return this;
+    }
 
     public static Waver waver() {
         return new Waver();
@@ -14,16 +30,19 @@ class Waver extends WBase implements Resolvable<Waver> {
     @Override
     public Waver parser(Map<String, Object> parserMap) {
         super.parser(parserMap);
-        if (!this.ignore){
+        if (!this.ignore) {
             this.targets = new ArrayList<>();
             try {
                 List<Map<String, Object>> mapList = (List<Map<String, Object>>) WZTags.toList(parserMap, WZTags.W_TARGET);
                 for (Map<String, Object> objectMap : mapList) {
                     if (Objects.nonNull(objectMap) && !objectMap.isEmpty()) {
-                        Optional.ofNullable((new WBaseTarget().parser(objectMap))).ifPresent(this.targets::add);
+                        Optional.ofNullable((new WBaseTarget(
+                                WZTags.toString(parserMap, WZTags.W_SAVE_TO, null),
+                                WZTags.toString(parserMap, WZTags.W_JAR_FILE_PATH, null)
+                        ).classUtil(this.classUtil).parser(objectMap))).ifPresent(this.targets::add);
                     }
                 }
-            }catch (Exception ignored){
+            } catch (Exception ignored) {
             }
 
             this.methods = new ArrayList<>();
@@ -34,7 +53,7 @@ class Waver extends WBase implements Resolvable<Waver> {
                         Optional.ofNullable((new WBaseMethod().parser(objectMap))).ifPresent(this.methods::add);
                     }
                 }
-            }catch (Exception ignored){
+            } catch (Exception ignored) {
             }
 
             this.constructors = new ArrayList<>();
@@ -45,7 +64,7 @@ class Waver extends WBase implements Resolvable<Waver> {
                         Optional.ofNullable((new WBaseConstructor().parser(objectMap))).ifPresent(this.constructors::add);
                     }
                 }
-            }catch (Exception ignored){
+            } catch (Exception ignored) {
             }
             return this;
         }
