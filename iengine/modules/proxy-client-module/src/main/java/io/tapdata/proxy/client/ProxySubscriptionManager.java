@@ -20,8 +20,8 @@ import io.tapdata.modules.api.proxy.data.NewDataReceived;
 import io.tapdata.modules.api.proxy.data.NodeSubscribeInfo;
 import io.tapdata.modules.api.proxy.data.ServiceCallerReceived;
 import io.tapdata.modules.api.service.SkeletonService;
-import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.entity.CommandResult;
+import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.entity.message.ServiceCaller;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.CommandCallbackFunction;
@@ -36,9 +36,9 @@ import io.tapdata.wsclient.modules.imclient.impls.websocket.ChannelStatus;
 import io.tapdata.wsclient.utils.EventManager;
 
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 
 @Bean
 public class ProxySubscriptionManager implements MemoryFetcher {

@@ -6,8 +6,13 @@ import com.hazelcast.jet.core.Inbox;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
-import com.tapdata.constant.MilestoneUtil;
-import com.tapdata.entity.*;
+import com.tapdata.entity.SyncStage;
+import com.tapdata.entity.TapdataCompleteSnapshotEvent;
+import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TapdataHeartbeatEvent;
+import com.tapdata.entity.TapdataShareLogEvent;
+import com.tapdata.entity.TapdataStartCdcEvent;
+import com.tapdata.entity.TapdataTaskErrorEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -35,20 +40,32 @@ import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.flow.engine.V2.util.TargetTapEventFilter;
-import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -105,7 +122,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				connectorNodeInit(dataProcessorContext);
 			} catch (Throwable e) {
 				TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, logger);
-				MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 				throw new NodeException(e).context(getProcessorBaseContext());
 			}
 		}
@@ -316,11 +332,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						if (syncStage == SyncStage.INITIAL_SYNC && firstBatchEvent.compareAndSet(false, true)) {
 							// MILESTONE-WRITE_SNAPSHOT-RUNNING
 							TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.RUNNING);
-							MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.RUNNING);
 						} else if (syncStage == SyncStage.CDC && firstStreamEvent.compareAndSet(false, true)) {
 							// MILESTONE-WRITE_CDC_EVENT-FINISH
 							TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.FINISH);
-							MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.FINISH);
 						}
 					}
 					if (tapdataEvent instanceof TapdataHeartbeatEvent) {
@@ -380,7 +394,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private void handleTapdataStartCdcEvent(TapdataEvent tapdataEvent) {
 		// MILESTONE-WRITE_CDC_EVENT-RUNNING
 		TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.RUNNING);
-		MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.RUNNING);
 		flushSyncProgressMap(tapdataEvent);
 		saveToSnapshot();
 	}
@@ -396,7 +409,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		// MILESTONE-WRITE_SNAPSHOT-FINISH
 		TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.FINISH);
-		MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.FINISH);
 	}
 
 	private void handleTapdataHeartbeatEvent(TapdataEvent tapdataEvent) {
@@ -457,6 +469,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			if (null == tapdataEvent.getSyncStage()) return;
 			syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
 		} else if (tapdataEvent instanceof TapdataHeartbeatEvent) {
+			if (null == tapdataEvent.getSyncStage()) return;
+			syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
 			if (null != tapdataEvent.getStreamOffset()) {
 				syncProgress.setStreamOffsetObj(tapdataEvent.getStreamOffset());
 			}
@@ -473,7 +487,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			if (null != tapdataEvent.getStreamOffset()) {
 				syncProgress.setStreamOffsetObj(tapdataEvent.getStreamOffset());
 			}
-			if (null != tapdataEvent.getSyncStage() && null != syncProgress.getSyncStage() && !syncProgress.getSyncStage().equals(SyncStage.CDC.name())) {
+			if (null != syncProgress.getSyncStage() && !syncProgress.getSyncStage().equals(SyncStage.CDC.name())) {
 				syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
 			}
 			syncProgress.setSourceTime(tapdataEvent.getSourceTime());
@@ -484,6 +498,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			flushOffset.set(true);
 		}
 		syncProgress.setEventSerialNo(syncProgress.addAndGetSerialNo(1));
+		if (syncProgress.getSyncStage() == null) {
+			obsLogger.warn(String.format("Found sync stage is null when flush sync progress, event: %s[%s]", tapdataEvent, tapdataEvent.getClass().getName()));
+		}
 	}
 
 	abstract void processEvents(List<TapEvent> tapEvents);

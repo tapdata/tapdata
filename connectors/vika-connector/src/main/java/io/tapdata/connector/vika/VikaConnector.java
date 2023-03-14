@@ -93,6 +93,7 @@ public class VikaConnector extends ConnectorBase {
 
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportWriteRecord(this::writeRecord);
         connectorFunctions.supportCreateTableV2(this::createTableV2);
         connectorFunctions.supportClearTable(this::clearTable);

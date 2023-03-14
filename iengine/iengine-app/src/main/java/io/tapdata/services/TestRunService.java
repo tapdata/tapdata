@@ -1,18 +1,21 @@
 package io.tapdata.services;
 
 import cn.hutool.core.thread.ThreadUtil;
+import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectionUtil;
+import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.flow.engine.V2.log.CollectLog;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.FormatUtils;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.exception.ConnectionException;
+import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.log.CollectLog;
 import io.tapdata.modules.api.pdk.PDKUtils;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -24,6 +27,8 @@ import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.schema.PdkTableMap;
+import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import io.tapdata.service.skeleton.annotation.RemoteService;
 import lombok.Data;
@@ -72,7 +77,7 @@ public class TestRunService {
      */
     private Connections connections;
 
-    private Map<String, Object> params;
+    private List<Map<String, Object>> params;
 
     private String version;
 
@@ -120,14 +125,12 @@ public class TestRunService {
     final Response response = new Response(collectLog.getLogs(), version);
     try {
       if (request == null) {
-        collectLog.error("request param is null");
-        return response;
+        throw new IllegalArgumentException("request param is null");
       }
 
       final Connections connections = request.getConnections();
       if (connections == null) {
-        collectLog.error("connections is null");
-        return response;
+        throw new IllegalArgumentException("connections is null");
       }
       final String pdkType = connections.getPdkType();
       if (StringUtils.isBlank(pdkType)) {
@@ -139,9 +142,10 @@ public class TestRunService {
       Runnable runnable = () -> {
         Thread.currentThread().setName(associateId);
         ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
-        DatabaseTypeEnum.DatabaseType databaseDefinition = ConnectionUtil.getDatabaseType(clientMongoOperator, pdkType);
+        DatabaseTypeEnum.DatabaseType databaseDefinition = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
         if (databaseDefinition == null) {
-          throw new ConnectionException(String.format("Unknown database type %s", connections.getDatabase_type()));
+          collectLog.error(String.format("Unknown database type %s", connections.getDatabase_type()));
+          return;
         }
 
         PDKUtils pdkUtils = InstanceFactory.instance(PDKUtils.class);
@@ -149,16 +153,26 @@ public class TestRunService {
 
         ConnectorNode connectorNode = null;
         try {
-          String tableName = (String) connections.getConfig().get("");
+          String tableName = (String) connections.getConfig().get("collectionName");
           TapTable tapTable = TapTableUtil.getTapTableByConnectionId(connections.getId(), tableName);
+          String nodeId = connections.getId();
+          TapTableMap<String, TapTable> tapTableMap = TapTableMap.create(nodeId, tapTable);
+          PdkTableMap pdkTableMap = new PdkTableMap(tapTableMap);
+          HazelcastInstance hazelcastInstance = HazelcastUtil.getInstance();
+          PdkStateMap pdkStateMap = new PdkStateMap(nodeId, hazelcastInstance);
+          PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
+
           connectorNode = PDKIntegration.createConnectorBuilder()
-                  .withDagId("")
+                  .withDagId(String.valueOf(ts))
                   .withGroup(databaseDefinition.getGroup())
                   .withPdkId(databaseDefinition.getPdkId())
                   .withVersion(databaseDefinition.getVersion())
                   .withAssociateId(associateId)
                   .withConnectionConfig(DataMap.create(connections.getConfig()))
                   .withLog(collectLog)
+                  .withTableMap(pdkTableMap)
+                  .withStateMap(pdkStateMap)
+                  .withGlobalStateMap(globalStateMap)
                   .build();
 
           PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, "Init PDK", TAG);
@@ -172,24 +186,27 @@ public class TestRunService {
               String syncType = request.getSyncType();
               if (StringUtils.contains(syncType, "initial_sync")) {
                 // initial_sync
+                collectLog.info("Source starts to initial sync ");
                 BatchReadFunction batchReadFunction = connectorFunctions.getBatchReadFunction();
                 PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_BATCH_READ,
                         () -> batchReadFunction.batchRead(connectorContext, tapTable, null, 512,
                                 (events, offsetObject) -> collectLog.info("initial_sync: {} {}", events, offsetObject)),
                         TAG);
-              } else if (StringUtils.contains(syncType, "cdc")) {
+                collectLog.info("initial sync end...");
+              }
+              if (StringUtils.contains(syncType, "cdc")) {
                 // cdc
+                collectLog.info("Source starts to incremental sync");
                 StreamReadFunction streamReadFunction = connectorFunctions.getStreamReadFunction();
                 PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_STREAM_READ,
                         () -> streamReadFunction.streamRead(connectorContext, Collections.singletonList("tableName"), null, 512,
                                 StreamReadConsumer.create((events, offsetObject) -> collectLog.info("cdc: {} {}", events, offsetObject))),
                         TAG);
-              } else {
-                collectLog.error("Unsupported sync type: {}", syncType);
+                collectLog.info("is complete");
               }
 
             } else if (StringUtils.equals(type, "target")) {
-              // target
+              collectLog.info("The target starts processing the data");
               List<TapRecordEvent> recordEvents = new ArrayList<>();
               WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
               PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,
@@ -205,6 +222,7 @@ public class TestRunService {
                         response.incrementRemove(writeListResult.getRemovedCount());
                       }),
                       TAG);
+              collectLog.info("The target processing data is complete");
             } else {
               collectLog.error("Unsupported type: {}", type);
             }
@@ -222,7 +240,7 @@ public class TestRunService {
       future.get(request.getTimeout(), TimeUnit.SECONDS);
       collectLog.info("test run end, cost {}ms", (System.currentTimeMillis() - ts));
     } catch (Throwable t) {
-      collectLog.error("execute test run error", t);
+      collectLog.error("execute test run error: {}", t);
     }
     return response;
   }
