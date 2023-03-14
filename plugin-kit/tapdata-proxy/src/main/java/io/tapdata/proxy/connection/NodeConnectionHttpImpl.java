@@ -219,7 +219,7 @@ public class NodeConnectionHttpImpl implements NodeConnection {
 		HttpURLConnection connection = (HttpURLConnection) theUrl.openConnection();
 		connection.setRequestMethod("POST");
 		connection.setConnectTimeout(10000);
-		connection.setReadTimeout(10000);
+		connection.setReadTimeout(65000);
 		connection.setDoInput(true);
 		try {
 			if(nodeMessage != null) {
