@@ -240,7 +240,8 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
         dtoPage.getItems().sort(Comparator.comparing(MetadataDefinitionDto::getValue));
         dtoPage.getItems().sort(Comparator.comparing(s -> {
             List<String> itemType = s.getItemType();
-            return !itemType.contains("default");
+
+            return itemType != null && !itemType.contains("default");
         }));
         Field fields = filter.getFields();
         if (fields != null) {
@@ -277,14 +278,14 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
         }
 
         List<String> userIdList = dtoPage.getItems().stream()
-                .filter(d -> d.getItemType().contains("root"))
+                .filter(d -> d.getItemType() != null && d.getItemType().contains("root"))
                 .map(BaseDto::getUserId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
         if (CollectionUtils.isNotEmpty(userIdList)) {
             Map<String, UserDetail> userMap = userService.getUserMapByIdList(userIdList);
             for (MetadataDefinitionDto item : dtoPage.getItems()) {
-                if (item.getItemType().contains("root")) {
+                if (item.getItemType() != null && item.getItemType().contains("root")) {
                     UserDetail userDetail = userMap.get(item.getUserId());
                     if (userDetail != null) {
                         item.setUserName(StringUtils.isBlank(userDetail.getUsername()) ? userDetail.getEmail() : userDetail.getUsername());
