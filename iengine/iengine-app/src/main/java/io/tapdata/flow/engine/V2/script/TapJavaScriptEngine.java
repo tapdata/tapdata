@@ -12,7 +12,7 @@ import com.tapdata.processor.LoggingOutputStream;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
 import io.tapdata.Application;
-import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.pdk.apis.error.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.net.URLClassLoader;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -45,21 +44,24 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable, Closeable {
         ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
         List<JavaScriptFunctions> javaScriptFunctions = JobUtil.getJavaScriptFunctions(clientMongoOperator);
         this.buildInScript = ScriptUtil.initBuildInMethod(javaScriptFunctions, clientMongoOperator, urlClassLoader -> externalJarClassLoader = urlClassLoader);
-        this.scriptEngine = initScriptEngine(scriptOptions.getEngineName());
-        invocable = (Invocable) scriptEngine;
         String contextTaskId = Log4jUtil.getContextTaskId();
-        this.scriptExecutorsManager = new ScriptExecutorsManager(new TapScriptLogger(contextTaskId), clientMongoOperator, HazelcastUtil.getInstance(), contextTaskId, "");
+        Log log = scriptOptions.getLog();
+        if (log == null) {
+            log = new TapScriptLogger(contextTaskId);
+        }
+        this.scriptEngine = initScriptEngine(scriptOptions.getEngineName(), log);
+        invocable = (Invocable) scriptEngine;
+        this.scriptExecutorsManager = new ScriptExecutorsManager(log, clientMongoOperator, HazelcastUtil.getInstance(), contextTaskId, "");
         scriptEngine.put("ScriptExecutorsManager", scriptExecutorsManager);
     }
 
-    private ScriptEngine initScriptEngine(String jsEngineName) {
+    private ScriptEngine initScriptEngine(String jsEngineName, Log log) {
         JSEngineEnum jsEngineEnum = JSEngineEnum.getByEngineName(jsEngineName);
         ScriptEngine scriptEngine;
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        String contextTaskId = Log4jUtil.getContextTaskId();
 
-        LoggingOutputStream out = new LoggingOutputStream(new TapScriptLogger(contextTaskId), Level.INFO);
-        LoggingOutputStream err = new LoggingOutputStream(new TapScriptLogger(contextTaskId), Level.ERROR);
+        LoggingOutputStream out = new LoggingOutputStream(log, Level.INFO);
+        LoggingOutputStream err = new LoggingOutputStream(log, Level.ERROR);
         try {
             //need to change as engine classLoader
             Thread.currentThread().setContextClassLoader(Application.class.getClassLoader());
@@ -94,7 +96,7 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable, Closeable {
             //return pdk classLoader
             Thread.currentThread().setContextClassLoader(classLoader);
         }
-        scriptEngine.put("log", new TapScriptLogger(contextTaskId));
+        scriptEngine.put("log", log);
         return scriptEngine;
     }
 

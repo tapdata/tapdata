@@ -172,7 +172,7 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 	private void startMessageExecutor(EngineMessage engineMessage, EngineMessageExecutor<?> engineMessageExecutor) {
 		engineMessageExecutor.scheduledFuture = ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> {
 			engineMessageExecutor.result(null, new TimeoutException("Time out"));
-		}, 45, TimeUnit.SECONDS);
+		}, 65, TimeUnit.SECONDS);
 		EngineMessageExecutor<?> old = commandIdExecutorMap.put(engineMessage.getId(), engineMessageExecutor);
 		if(old != null) {
 			TapLogger.debug(TAG, "Command info id {} already exists, will use new one instead, timer will be another 30 seconds", engineMessage.getId());

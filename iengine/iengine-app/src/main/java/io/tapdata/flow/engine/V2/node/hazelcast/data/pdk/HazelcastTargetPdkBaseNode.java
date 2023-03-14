@@ -473,6 +473,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			if (null == tapdataEvent.getSyncStage()) return;
 			syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
 		} else if (tapdataEvent instanceof TapdataHeartbeatEvent) {
+			if (null == tapdataEvent.getSyncStage()) return;
+			syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
 			if (null != tapdataEvent.getStreamOffset()) {
 				syncProgress.setStreamOffsetObj(tapdataEvent.getStreamOffset());
 			}
@@ -489,7 +491,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			if (null != tapdataEvent.getStreamOffset()) {
 				syncProgress.setStreamOffsetObj(tapdataEvent.getStreamOffset());
 			}
-			if (null != tapdataEvent.getSyncStage() && null != syncProgress.getSyncStage() && !syncProgress.getSyncStage().equals(SyncStage.CDC.name())) {
+			if (null != syncProgress.getSyncStage() && !syncProgress.getSyncStage().equals(SyncStage.CDC.name())) {
 				syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
 			}
 			syncProgress.setSourceTime(tapdataEvent.getSourceTime());
@@ -500,6 +502,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			flushOffset.set(true);
 		}
 		syncProgress.setEventSerialNo(syncProgress.addAndGetSerialNo(1));
+		if (syncProgress.getSyncStage() == null) {
+			obsLogger.warn(String.format("Found sync stage is null when flush sync progress, event: %s[%s]", tapdataEvent, tapdataEvent.getClass().getName()));
+		}
 	}
 
 	abstract void processEvents(List<TapEvent> tapEvents);

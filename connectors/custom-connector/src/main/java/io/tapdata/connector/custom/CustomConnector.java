@@ -6,13 +6,13 @@ import io.tapdata.connector.custom.core.Core;
 import io.tapdata.connector.custom.core.ScriptCore;
 import io.tapdata.connector.custom.util.ScriptUtil;
 import io.tapdata.constant.ConnectionTypeEnum;
-import io.tapdata.constant.SyncTypeEnum;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.schema.value.TapDateValue;
@@ -20,16 +20,21 @@ import io.tapdata.entity.schema.value.TapRawValue;
 import io.tapdata.entity.schema.value.TapTimeValue;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
+import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.FormatUtils;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import org.apache.commons.lang3.StringUtils;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
@@ -38,6 +43,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -47,6 +53,7 @@ import java.util.function.Consumer;
 @TapConnectorClass("spec_custom.json")
 public class CustomConnector extends ConnectorBase {
 
+    private static final String TAG = CustomConnector.class.getSimpleName();
     private static final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "engine"); //script factory
     private CustomConfig customConfig;
     private ScriptEngine initScriptEngine;
@@ -56,10 +63,10 @@ public class CustomConnector extends ConnectorBase {
         customConfig = new CustomConfig().load(connectorContext.getConnectionConfig());
         writeEnginePool = new ConcurrentHashMap<>(16);
         assert scriptFactory != null;
-        initScriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
+        initScriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT,
+                new ScriptOptions().engineName(customConfig.getJsEngineName()).log(connectorContext.getLog()));
         initScriptEngine.eval(ScriptUtil.appendBeforeFunctionScript(customConfig.getCustomBeforeScript()) + "\n"
                 + ScriptUtil.appendAfterFunctionScript(customConfig.getCustomAfterScript()));
-//        initScriptEngine.put("log", new CustomLog());
     }
 
     @Override
@@ -73,17 +80,14 @@ public class CustomConnector extends ConnectorBase {
     @Override
     public void onStop(TapConnectionContext connectionContext) {
         try {
+            if (EmptyKit.isNotNull(customConfig) && customConfig.getCustomAfterOpr()) {
+                ScriptUtil.executeScript(initScriptEngine, ScriptUtil.AFTER_FUNCTION_NAME);
+            }
             if (initScriptEngine instanceof Closeable) {
                 ((Closeable) initScriptEngine).close();
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    private void beforeStop() {
-        if (EmptyKit.isNotNull(customConfig) && customConfig.getCustomAfterOpr()) {
-            ScriptUtil.executeScript(initScriptEngine, ScriptUtil.AFTER_FUNCTION_NAME);
         }
     }
 
@@ -103,6 +107,260 @@ public class CustomConnector extends ConnectorBase {
         connectorFunctions.supportBatchRead(this::batchRead);
         connectorFunctions.supportStreamRead(this::streamRead);
         connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
+        connectorFunctions.supportCommandCallbackFunction(this::handleCommand);
+    }
+
+    private CommandResult handleCommand(final TapConnectionContext tapConnectionContext, final CommandInfo commandInfo) {
+        final CollectLog logger = new CollectLog(tapConnectionContext.getLog());
+        final String command = commandInfo.getCommand();
+        logger.info("Start executing command [{}] ", command);
+        CommandResult commandResult = new CommandResult();
+        if (StringUtils.equals(command, "testRun")) {
+            Object data = testRun(tapConnectionContext, commandInfo, logger);
+            commandResult.setData(data);
+        } else {
+            logger.error("Unsupported command [{}]", command);
+            commandResult.setData(logger.getLogs());
+        }
+        logger.info("Command [{}] execution complete.", command);
+
+        return commandResult;
+    }
+
+    private Object testRun(TapConnectionContext tapConnectionContext, CommandInfo commandInfo, CollectLog logger) {
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        Map<String, Object> argMap = commandInfo.getArgMap();
+        String threadName = "CustomConnector-Test-Runner";
+        Runnable runnable = () -> {
+            Thread.currentThread().setName(threadName);
+            TapConnectionContext newTapConnectionContext = new TapConnectionContext(tapConnectionContext.getSpecification(),
+                    DataMap.create(commandInfo.getConnectionConfig()), DataMap.create(commandInfo.getNodeConfig()), logger);
+            try {
+                init(newTapConnectionContext);
+                String tableName = (String) commandInfo.getConnectionConfig().get("collectionName");
+                String type = commandInfo.getType();
+                TapTable tapTable = new TapTable(tableName);
+                TapConnectorContext tapConnectorContext = new TapConnectorContext(tapConnectionContext.getSpecification(),
+                        tapConnectionContext.getConnectionConfig(), tapConnectionContext.getNodeConfig(), logger);
+                if (StringUtils.equals(type, "source")) {
+                    logger.info("Start fetching data as a source......");
+                    String action = commandInfo.getAction();
+                    if (StringUtils.contains(action, "initial_sync")) {
+                        logger.info("Start initializing sync......");
+                        batchRead(tapConnectorContext, tapTable, new Object(), 1, (events, offsetObject) -> {
+                            logger.info("Execute initial sync, get the data: {}", toTapEventStr(events, offsetObject, true));
+                        });
+                        logger.info("Initial sync complete.");
+                    }
+                    if (StringUtils.contains(action, "cdc")) {
+                        logger.info("Start cdc sync......");
+                        streamRead(tapConnectorContext, Collections.singletonList(tableName), new Object(), 1, StreamReadConsumer.create((events, offsetObject) -> {
+                            logger.info("Execute cdc, get the data: {}", toTapEventStr(events, offsetObject, true));
+                        }));
+                        logger.info("Cdc sync complete.");
+                    }
+                    logger.info("Obtaining data as a source is complete.");
+
+                } else if (StringUtils.equals(type, "target")) {
+                    logger.info("Start processing data as a target......");
+                    List<TapRecordEvent> tapRecordEvents = getTapRecordEvents((List<Map<String, Object>>) argMap.get("input"));
+                    if (tapRecordEvents.size() == 0) {
+                        logger.warn("The input is empty and cannot be processed");
+                    } else {
+                        logger.info("Processing data, input: {}", toTapEventStr(tapRecordEvents, null, true));
+                        writeRecord(tapConnectorContext, tapRecordEvents, tapTable, writeListResult -> {
+                            logger.info("Processing data, output: {}", toWriteListResultStr(writeListResult));
+                        });
+                    }
+                    logger.info("Process data completion as target.");
+                }
+            } catch (ScriptException e) {
+                logger.error( "{} execute script error:\n {}", TAG, e);
+            } catch (Throwable throwable) {
+                logger.error( "{} execute command error:\n {}", TAG, throwable);
+            } finally {
+                try {
+                    stop(newTapConnectionContext);
+                } catch (Throwable e) {
+                    logger.error("{} stop error {}", TAG, e);
+                }
+                countDownLatch.countDown();
+            }
+        };
+
+        try {
+            Thread thread = new Thread(runnable);
+            thread.start();
+            Integer timeout = (Integer) argMap.get("timeout");
+            if (timeout == null || timeout <= 0) {
+                timeout = 10;
+            }
+            boolean threadFinished = countDownLatch.await(timeout, TimeUnit.SECONDS);
+            if (!threadFinished) {
+                logger.error("Execution has timed out and will terminate.");
+                thread.interrupt();
+            }
+        } catch (InterruptedException e) {
+            logger.error("Thread [{}] interrupted, {}", threadName, e);
+        } catch (Throwable throwable) {
+            logger.error("[{}] execution failure， {}", throwable);
+        }
+
+        return logger.getLogs();
+    }
+
+    private String toWriteListResultStr(WriteListResult<TapRecordEvent> writeListResult) {
+        StringBuilder sb = new StringBuilder("\n");
+        sb.append("\tSuccessfully processed: ").append("i=").append(writeListResult.getInsertedCount()).append(", ")
+                .append("u=").append(writeListResult.getModifiedCount()).append(", ")
+                .append("d=").append(writeListResult.getRemovedCount()).append("\n");
+        Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
+        if (errorMap != null && errorMap.size() != 0) {
+            sb.append("\tError Record: \n");
+            for (Map.Entry<TapRecordEvent, Throwable> entry : errorMap.entrySet()) {
+                sb.append("\t\t").append("Record: ").append(toTapEventStr(Collections.singletonList(entry.getKey()), null, false))
+                        .append("\t\t").append("Error: ").append(entry.getValue()).append("\n");
+            }
+        }
+        return sb.toString();
+    }
+
+
+    private String toTapEventStr(List<? extends TapEvent> events, Object offsetObject, boolean printNum) {
+        StringBuilder sb = new StringBuilder("\n");
+
+        if (events != null) {
+            for (int i = 0; i < events.size(); i++) {
+                TapEvent event = events.get(i);
+                if (printNum) {
+                    sb.append("\t\t  event ").append(i + 1).append(":").append("\n");
+                }
+                if (event instanceof TapInsertRecordEvent) {
+                    sb.append("\t\t\t").append("from: ").append(((TapInsertRecordEvent) event).getTableId()).append("\n")
+                            .append("\t\t\t").append("op: i").append("\n")
+                            .append("\t\t\t").append("data: ").append(((TapInsertRecordEvent) event).getAfter()).append("\n");
+
+                } else if (event instanceof TapUpdateRecordEvent) {
+                    sb.append("\t\t\t").append("from: ").append(((TapUpdateRecordEvent) event).getTableId()).append("\n")
+                            .append("\t\t\t").append("op: u").append("\n")
+                            .append("\t\t\t").append("data: ").append("\n")
+                            .append("\t\t\t ").append("before: ").append(((TapUpdateRecordEvent) event).getBefore()).append("\n")
+                            .append("\t\t\t ").append("after: ").append(((TapUpdateRecordEvent) event).getAfter()).append("\n");
+
+                } else if (event instanceof TapDeleteRecordEvent) {
+                    sb.append("\t\t\t").append("from: ").append(((TapDeleteRecordEvent) event).getTableId()).append("\n")
+                            .append("\t\t\t").append("op: d").append("\n")
+                            .append("\t\t\t").append("data: ").append("\n")
+                            .append("\t\t\t ").append("before: ").append(((TapDeleteRecordEvent) event).getBefore()).append("\n");
+                } else {
+                    sb.append("\t\t\t").append(i).append(".").append(event).append("\n");
+                }
+                sb.append("\n");
+            }
+        }
+
+        if (offsetObject != null) {
+            sb.append("\t").append("offset: ").append(offsetObject).append("\n");
+        }
+        return sb.toString();
+    }
+
+    private List<TapRecordEvent> getTapRecordEvents(List<Map<String, Object>> maps) {
+        List<TapRecordEvent> tapRecordEvents = new ArrayList<>();
+        for (Map<String, Object> map : maps) {
+            String op = (String) map.get("op");
+            switch (op) {
+                case "i":
+                    tapRecordEvents.add(TapInsertRecordEvent.create().init().table((String) map.get("table")).after((Map<String, Object>) map.get("after")));
+                    break;
+                case "u":
+                    tapRecordEvents.add(TapUpdateRecordEvent.create().init().table((String) map.get("table"))
+                            .after((Map<String, Object>) map.get("after")).before((Map<String, Object>) map.get("before")));
+                    break;
+                case "d":
+                    tapRecordEvents.add(TapDeleteRecordEvent.create().init().table((String) map.get("table")).before((Map<String, Object>) map.get("before")));
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unsupported op: " + op);
+            }
+        }
+        return tapRecordEvents;
+    }
+    
+    private static class CollectLog implements Log {
+
+        private final Log logger;
+
+        private final List<LogRecord> logRecords = new LinkedList<>();
+
+        public CollectLog(Log log) {
+            this.logger = log;
+        }
+
+        public List<LogRecord> getLogs() {
+            return logRecords;
+        }
+
+        @Override
+        public void debug(String message, Object... params) {
+            logger.debug(message, params);
+            logRecords.add(new LogRecord("DEBUG", FormatUtils.format(message, params), System.currentTimeMillis()));
+        }
+
+        @Override
+        public void info(String message, Object... params) {
+            logger.info(message, params);
+            logRecords.add(new LogRecord("INFO", FormatUtils.format(message, params), System.currentTimeMillis()));
+        }
+
+        @Override
+        public void warn(String message, Object... params) {
+            logger.warn(message, params);
+            logRecords.add(new LogRecord("WARN", FormatUtils.format(message, params), System.currentTimeMillis()));
+        }
+
+        @Override
+        public void error(String message, Object... params) {
+            logger.error(message, params);
+            logRecords.add(new LogRecord("ERROR", FormatUtils.format(message, params), System.currentTimeMillis()));
+        }
+
+        @Override
+        public void error(String message, Throwable throwable) {
+            logger.error(message, throwable);
+            logRecords.add(new LogRecord("ERROR", FormatUtils.format(message, throwable), System.currentTimeMillis()));
+        }
+
+        @Override
+        public void fatal(String message, Object... params) {
+            logger.fatal(message, params);
+            logRecords.add(new LogRecord("FATAL", FormatUtils.format(message, params), System.currentTimeMillis()));
+        }
+
+        private static class LogRecord {
+            private final String level;
+            private final String message;
+
+            private final Long timestamp;
+
+            private LogRecord(String level, String message, Long timestamp) {
+                this.level = level;
+                this.message = message;
+                this.timestamp = timestamp;
+            }
+
+            public String getLevel() {
+                return level;
+            }
+
+            public String getMessage() {
+                return message;
+            }
+
+            public Long getTimestamp() {
+                return timestamp;
+            }
+        }
     }
 
     @Override
@@ -139,12 +397,10 @@ public class CustomConnector extends ConnectorBase {
         if (writeEnginePool.containsKey(threadName)) {
             scriptEngine = writeEnginePool.get(threadName);
         } else {
-            scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
+            scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()).log(connectorContext.getLog()));
             scriptEngine.eval(ScriptUtil.appendTargetFunctionScript(customConfig.getTargetScript()));
-//            scriptEngine.put("log", new CustomLog());
             writeEnginePool.put(threadName, scriptEngine);
         }
-        List<Map<String, Object>> data = new ArrayList<>();
         WriteListResult<TapRecordEvent> result = new WriteListResult<>();
         AtomicLong insert = new AtomicLong(0);
         AtomicLong update = new AtomicLong(0);
@@ -165,10 +421,17 @@ public class CustomConnector extends ConnectorBase {
                 delete.incrementAndGet();
             }
             temp.put("from", tapTable.getId());
-            data.add(temp);
+            try {
+                ScriptUtil.executeScript(scriptEngine, ScriptUtil.TARGET_FUNCTION_NAME, new ArrayList<Map<String, Object>>() {{
+                    add(temp);
+                }});
+                result.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get());
+            } catch (Exception e) {
+                result.addError(event, e);
+                break;
+            }
         }
-        ScriptUtil.executeScript(scriptEngine, ScriptUtil.TARGET_FUNCTION_NAME, data);
-        writeListResultConsumer.accept(result.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
+        writeListResultConsumer.accept(result);
     }
 
     private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) {
@@ -178,7 +441,7 @@ public class CustomConnector extends ConnectorBase {
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws ScriptException {
         ScriptCore scriptCore = new ScriptCore(tapTable.getId());
         assert scriptFactory != null;
-        ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
+        ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()).log(tapConnectorContext.getLog()));
         scriptEngine.eval(ScriptUtil.appendSourceFunctionScript(customConfig.getHistoryScript(), true));
         scriptEngine.put("core", scriptCore);
 //        scriptEngine.put("log", new CustomLog());
@@ -221,16 +484,13 @@ public class CustomConnector extends ConnectorBase {
         if (t.isAlive()) {
             t.stop();
         }
-        if (customConfig.getSyncType().equals(SyncTypeEnum.INITIAL_SYNC.getType())) {
-            beforeStop();
-        }
     }
 
     private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
         ScriptCore scriptCore = new ScriptCore(tableList.get(0));
         AtomicReference<Object> contextMap = new AtomicReference<>(offsetState);
         assert scriptFactory != null;
-        ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
+        ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()).log(nodeContext.getLog()));
         scriptEngine.eval(ScriptUtil.appendSourceFunctionScript(customConfig.getCdcScript(), false));
         scriptEngine.put("core", scriptCore);
 //        scriptEngine.put("log", new CustomLog());
@@ -281,7 +541,6 @@ public class CustomConnector extends ConnectorBase {
             t.stop();
         }
         consumer.streamReadEnded();
-        beforeStop();
     }
 
     private Object timestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) {
