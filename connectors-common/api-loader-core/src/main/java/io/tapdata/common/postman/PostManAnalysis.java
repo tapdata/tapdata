@@ -185,7 +185,7 @@ public class PostManAnalysis {
             try {
                 bodyMap.putAll((Map<String, Object>) fromJson(String.valueOf(apiBody.raw())));
             } catch (Exception e) {
-                TapLogger.error(TAG, "API name is {} which body row cannot cast to a map, error row text: {}, Please ensure that the interface call uses the correct parameters. msg: {}", api.api().name(), apiBody.raw(), e.getMessage());
+                TapLogger.debug(TAG, "API name is {} which body row cannot cast to a map, error row text: {}, Please ensure that the interface call uses the correct parameters. msg: {}", api.api().name(), apiBody.raw(), e.getMessage());
             }
         }
         List<Map<String, Object>> query = apiUrl.query();
