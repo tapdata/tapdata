@@ -12,7 +12,6 @@ import org.apache.logging.log4j.core.filter.BurstFilter;
 
 import java.io.Serializable;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * @author samuel
@@ -50,7 +49,7 @@ public class ObsHttpTMAppender implements Appender<MonitoringLogsDto>, Serializa
 
 	public void stop() {
 		if (null != this.obsHttpTMLog4jAppender) {
-			this.obsHttpTMLog4jAppender.stop(1L, TimeUnit.MINUTES);
+			this.obsHttpTMLog4jAppender.stop();
 		}
 	}
 
@@ -67,7 +66,11 @@ public class ObsHttpTMAppender implements Appender<MonitoringLogsDto>, Serializa
 				rootLogger.warn("Serialize monitor log to json failed, will ignored it\nEntity: {}\nError: {}", log, e.getMessage());
 				continue;
 			}
-			this.logger.info(logJson);
+			try {
+				this.logger.info(logJson);
+			} catch (Exception e) {
+				rootLogger.warn("Append log failed: {}", logJson);
+			}
 		}
 	}
 }

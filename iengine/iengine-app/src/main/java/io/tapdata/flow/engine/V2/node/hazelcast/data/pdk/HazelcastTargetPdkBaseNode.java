@@ -175,7 +175,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			putInGlobalMap(getCompletedInitialKey(), predecessors.size());
 		}
 		initTapEventFilter();
-		obsLogger.info("Init target queue consumer complete");
 	}
 
 	private void initTapEventFilter() {
