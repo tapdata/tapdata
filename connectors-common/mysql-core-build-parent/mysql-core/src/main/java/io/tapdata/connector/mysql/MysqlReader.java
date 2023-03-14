@@ -52,8 +52,22 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.ResultSetMetaData;
 import java.time.Instant;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.TimeZone;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -81,7 +95,6 @@ public class MysqlReader implements Closeable {
 	private MysqlJdbcContext mysqlJdbcContext;
 	private EmbeddedEngine embeddedEngine;
 	private LinkedBlockingQueue<MysqlStreamEvent> eventQueue;
-	private ExecutorService streamConsumerThreadPool;
 	private StreamReadConsumer streamReadConsumer;
 	private ScheduledExecutorService mysqlSchemaHistoryMonitor;
 	private KVReadOnlyMap<TapTable> tapTableMap;
@@ -225,11 +238,6 @@ public class MysqlReader implements Closeable {
 			TapLogger.info(TAG, "Starting mysql cdc, server name: " + serverName);
 			this.eventQueue = new LinkedBlockingQueue<>(10);
 			this.streamReadConsumer = consumer;
-			this.streamConsumerThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
-			this.streamConsumerThreadPool.submit(() -> {
-				tapConnectorContext.configContext();
-				this.eventQueueConsumer();
-			});
 			DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
 			String database = connectionConfig.getString("database");
 			initMysqlSchemaHistory(tapConnectorContext);
@@ -312,9 +320,9 @@ public class MysqlReader implements Closeable {
 						} else {
 							if (null != throwable) {
 								if (StringUtils.isNotBlank(message)) {
-									throwableAtomicReference.set(new RuntimeException(message + "\n " + throwable.getMessage(), throwable));
+									handleFailed(new RuntimeException(message + "\n " + throwable.getMessage(), throwable));
 								} else {
-									throwableAtomicReference.set(new RuntimeException(throwable));
+									handleFailed(throwable);
 								}
 							} else {
 								throwableAtomicReference.set(null);
@@ -328,10 +336,13 @@ public class MysqlReader implements Closeable {
 				throw throwableAtomicReference.get();
 			}
 		} finally {
-			Optional.ofNullable(streamConsumerThreadPool).ifPresent(ExecutorService::shutdownNow);
 			Optional.ofNullable(mysqlSchemaHistoryMonitor).ifPresent(ExecutorService::shutdownNow);
 			TapLogger.info(TAG, "Mysql binlog reader stopped");
 		}
+	}
+
+	private void handleFailed(Throwable throwable) {
+		throwableAtomicReference.set(new RuntimeException(throwable));
 	}
 
 	private MysqlStreamOffset binlogPosition2MysqlStreamOffset(MysqlBinlogPosition offset, JsonParser jsonParser) throws Throwable {
@@ -408,26 +419,36 @@ public class MysqlReader implements Closeable {
 				TapLogger.warn(TAG, "Close CDC engine failed, error: " + e.getMessage() + "\n" + TapSimplify.getStackString(e));
 			}
 		});
+		Optional.ofNullable(mysqlSchemaHistoryMonitor).ifPresent(ExecutorService::shutdownNow);
 	}
 
 	private void sourceRecordConsumer(SourceRecord record) {
+		if (null != throwableAtomicReference.get()) {
+			throw new RuntimeException(throwableAtomicReference.get());
+		}
 		if (null == record || null == record.value()) return;
 		Schema valueSchema = record.valueSchema();
-		MysqlStreamEvent mysqlStreamEvent;
+		List<MysqlStreamEvent> mysqlStreamEvents = new ArrayList<>();
 		if (null != valueSchema.field("op")) {
-			mysqlStreamEvent = wrapDML(record);
-			Optional.ofNullable(mysqlStreamEvent).ifPresent(this::enqueue);
+			MysqlStreamEvent mysqlStreamEvent = wrapDML(record);
+			Optional.ofNullable(mysqlStreamEvent).ifPresent(mysqlStreamEvents::add);
 		} else if (null != valueSchema.field("ddl")) {
-			List<MysqlStreamEvent> mysqlStreamEvents = wrapDDL(record);
-			if (null != mysqlStreamEvents && mysqlStreamEvents.size() > 0) {
-				mysqlStreamEvents.forEach(this::enqueue);
-			}
+			mysqlStreamEvents = wrapDDL(record);
 		} else if ("io.debezium.connector.common.Heartbeat".equals(valueSchema.name())) {
 			Optional.ofNullable((Struct) record.value())
 					.map(value -> value.getInt64("ts_ms"))
 					.map(TapSimplify::heartbeatEvent)
 					.map(heartbeatEvent -> new MysqlStreamEvent(heartbeatEvent, getMysqlStreamOffset(record)))
-					.ifPresent(this::enqueue);
+					.ifPresent(mysqlStreamEvents::add);
+		}
+		if (CollectionUtils.isNotEmpty(mysqlStreamEvents)) {
+			List<TapEvent> tapEvents = new ArrayList<>();
+			MysqlStreamOffset mysqlStreamOffset = null;
+			for (MysqlStreamEvent mysqlStreamEvent : mysqlStreamEvents) {
+				tapEvents.add(mysqlStreamEvent.getTapEvent());
+				mysqlStreamOffset = mysqlStreamEvent.getMysqlStreamOffset();
+			}
+			streamReadConsumer.accept(tapEvents, mysqlStreamOffset);
 		}
 	}
 
