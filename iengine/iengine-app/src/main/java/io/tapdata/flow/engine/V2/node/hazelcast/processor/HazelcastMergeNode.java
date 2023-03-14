@@ -491,7 +491,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			}
 			Object value = MapUtilV2.getValueByKey(data, joinKey);
 			if (value instanceof NotExistsNode) {
-				throw new RuntimeException("Cannot found value in data by join key: " + joinKey + ", data: " + data);
+//				throw new RuntimeException("Cannot found value in data by join key: " + joinKey + ", data: " + data);
+				return null;
 			}
 			values.add(String.valueOf(value));
 		}
@@ -587,6 +588,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			MergeTableProperties.MergeType mergeType = childMergeProperty.getMergeType();
 			ConstructIMap<Document> hazelcastConstruct = getHazelcastConstruct(childMergeProperty.getId());
 			String joinValueKey = getJoinValueKeyByTarget(data, childMergeProperty, mergeTableProperties);
+			if (joinValueKey == null) {
+				continue;
+			}
 			Document findData;
 			try {
 				findData = hazelcastConstruct.find(joinValueKey);
