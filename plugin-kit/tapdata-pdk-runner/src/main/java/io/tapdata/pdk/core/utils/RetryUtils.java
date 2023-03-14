@@ -104,6 +104,9 @@ public class RetryUtils extends CommonUtils {
 						}
 					}
 					callBeforeRetryMethodIfNeed(retryOptions, logTag, node);
+					if (null != invoker.getStartRetry()) {
+						invoker.getStartRetry().run();
+					}
 				} else {
 					if (errThrowable instanceof CoreException) {
 						throw (CoreException) errThrowable;
