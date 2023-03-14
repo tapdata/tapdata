@@ -3,16 +3,20 @@
     "insert": "MetadataDefinition",
     "documents": [
       {
-        "value": "SOURCE"
+        "value": "SOURCE",
+        "item_type": ["source"]
       },
       {
-        "value": "FDM"
+        "value": "FDM",
+        "item_type": ["fdm"]
       },
       {
-        "value": "MDM"
+        "value": "MDM",
+        "item_type": ["mdm"]
       },
       {
-        "value": "TARGET"
+        "value": "TARGET",
+        "item_type": ["target"]
       }
     ]
   }
