@@ -190,7 +190,10 @@ public class MysqlConnector extends ConnectorBase {
         retryOptions.setNeedRetry(true);
         retryOptions.beforeRetryMethod(()->{
             try {
-                this.onStart(tapConnectionContext);
+                this.onStop(tapConnectionContext);
+                if (isAlive()) {
+                    this.onStart(tapConnectionContext);
+                }
             } catch (Throwable ignore) {
             }
         });
