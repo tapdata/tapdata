@@ -122,6 +122,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		ddlEventHandlers.register(TapAlterFieldAttributesEvent.class, this::executeAlterFieldAttrFunction);
 		ddlEventHandlers.register(TapDropFieldEvent.class, this::executeDropFieldFunction);
 		ddlEventHandlers.register(TapCreateTableEvent.class, this::executeCreateTableFunction);
+		ddlEventHandlers.register(TapCreateIndexEvent.class, this::executeCreateIndexFunction);
 		ddlEventHandlers.register(TapDropTableEvent.class, tapDropTableEvent -> {
 			// only execute start function aspect so that it would be cheated as input
 			AspectUtils.executeAspect(new DropTableFuncAspect()
@@ -535,6 +536,34 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		return createTable(tgtTapTable);
 	}
 
+	private boolean executeCreateIndexFunction(TapCreateIndexEvent tapCreateIndexEvent){
+		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+		CreateIndexFunction createIndexFunction = getConnectorNode().getConnectorFunctions().getCreateIndexFunction();
+		if (null == createIndexFunction) {
+			return true;
+		}
+		for (String tableId : tapTableMap.keySet()) {
+			if (!isRunning()) {
+				return true;
+			}
+			TapTable tapTable = tapTableMap.get(tableId);
+			if (null == tapTable) {
+				NodeException e = new NodeException("Init target node failed, table \"" + tableId + "\"'s schema is null").context(getDataProcessorContext());
+				throw e;
+			}
+
+			executeDataFuncAspect(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
+							.table(tapTable)
+							.connectorContext(getConnectorNode().getConnectorContext())
+							.dataProcessorContext(dataProcessorContext)
+							.createIndexEvent(tapCreateIndexEvent)
+							.start(), createIndexFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(),
+							PDKMethod.TARGET_CREATE_INDEX,
+							() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), tapTable, tapCreateIndexEvent), TAG));
+		}
+		return true;
+	}
+
 	private void writeRecord(List<TapEvent> events) {
 		List<TapRecordEvent> tapRecordEvents = new ArrayList<>();
 		events.forEach(event -> tapRecordEvents.add((TapRecordEvent) event));
@@ -562,13 +591,18 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 							.start(), (writeRecordFuncAspect ->
 							PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_WRITE_RECORD,
 									pdkMethodInvoker.runnable(
-											() -> writeRecordFunction.writeRecord(getConnectorNode().getConnectorContext(), tapRecordEvents, tapTable, writeListResult -> {
-												Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
-												if (MapUtils.isNotEmpty(errorMap)) {
-													TapRecordEvent lastErrorTapRecord = null;
-													Throwable lastErrorThrowable = null;
-													for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
-														obsLogger.warn(tapRecordEventThrowableEntry.getValue().getMessage() + "\n" + Log4jUtil.getStackString(tapRecordEventThrowableEntry.getValue()));
+											() -> {
+												ConnectorNode connectorNode = getConnectorNode();
+												if (null == connectorNode) {
+													throw new NodeException("Node is stopped, need to exit write_record").context(getDataProcessorContext());
+												}
+												writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), tapRecordEvents, tapTable, writeListResult -> {
+													Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
+													if (MapUtils.isNotEmpty(errorMap)) {
+														TapRecordEvent lastErrorTapRecord = null;
+														Throwable lastErrorThrowable = null;
+														for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
+															obsLogger.warn(tapRecordEventThrowableEntry.getValue().getMessage() + "\n" + Log4jUtil.getStackString(tapRecordEventThrowableEntry.getValue()));
 														obsLogger.warn("Error record: " + tapRecordEventThrowableEntry.getKey());
 														lastErrorTapRecord = tapRecordEventThrowableEntry.getKey();
 														lastErrorThrowable = tapRecordEventThrowableEntry.getValue();
@@ -576,12 +610,13 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 													throw new RuntimeException(String.format("Write record %s failed", lastErrorTapRecord), lastErrorThrowable);
 												}
 
-												if (writeRecordFuncAspect != null)
-													AspectUtils.accept(writeRecordFuncAspect.state(WriteRecordFuncAspect.STATE_WRITING).getConsumers(), tapRecordEvents, writeListResult);
-												if (logger.isDebugEnabled()) {
-													logger.debug("Wrote {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
-												}
-											})
+													if (writeRecordFuncAspect != null)
+														AspectUtils.accept(writeRecordFuncAspect.state(WriteRecordFuncAspect.STATE_WRITING).getConsumers(), tapRecordEvents, writeListResult);
+													if (logger.isDebugEnabled()) {
+														logger.debug("Wrote {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
+													}
+												});
+											}
 									)
 							)));
 				} finally {
