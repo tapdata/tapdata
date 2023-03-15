@@ -15,7 +15,6 @@ import com.tapdata.tm.task.service.TaskConsoleService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.vo.RelationTaskInfoVo;
 import com.tapdata.tm.task.vo.RelationTaskRequest;
-import com.tapdata.tm.utils.CollectionsUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
@@ -27,8 +26,10 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 

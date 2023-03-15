@@ -851,7 +851,7 @@ public class LogCollectorService {
         //查询获取所有源的数据源连接
         Criteria criteria = Criteria.where("_id").in(group.keySet());
         Query query = new Query(criteria);
-        query.fields().include("_id", "shareCdcEnable", "shareCdcTTL", "uniqueName", "database_type", "name");
+        query.fields().include("_id", "shareCdcEnable", "shareCdcTTL", "uniqueName", "database_type", "name", "pdkHash");
         List<DataSourceConnectionDto> dataSourceDtos = dataSourceService.findAllDto(query, user);
 
         //根据数据源连接
