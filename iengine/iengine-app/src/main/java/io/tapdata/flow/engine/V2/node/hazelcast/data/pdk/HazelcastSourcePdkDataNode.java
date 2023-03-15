@@ -343,7 +343,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		} else {
 			TapdataStartingCdcEvent tapdataStartingCdcEvent = new TapdataStartingCdcEvent();
 			tapdataStartingCdcEvent.setSyncStage(SyncStage.CDC);
-			tapdataStartCdcEvent.setStreamOffset(syncProgress.getStreamOffsetObj());
+			tapdataStartingCdcEvent.setStreamOffset(syncProgress.getStreamOffsetObj());
 			enqueue(tapdataStartingCdcEvent);
 		}
 		// MILESTONE-READ_CDC_EVENT-RUNNING
