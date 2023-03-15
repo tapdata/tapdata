@@ -154,6 +154,7 @@ public class OpenGaussConnector extends ConnectorBase {
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
         //test
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportConnectionCheckFunction(this::checkConnection);
         //need to clear resource outer
         connectorFunctions.supportReleaseExternalFunction(this::onDestroy);

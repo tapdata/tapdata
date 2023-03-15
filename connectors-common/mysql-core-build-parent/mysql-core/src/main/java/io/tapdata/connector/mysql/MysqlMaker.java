@@ -93,7 +93,7 @@ public class MysqlMaker implements SqlMaker {
                 } else {
                     whereList.add(key + ">='" + value + "'");
                 }
-                orderList.add(key + " ASC");
+                orderList.add(String.format(MysqlJdbcContext.FIELD_TEMPLATE, key) + " ASC");
             }
         }
         if (CollectionUtils.isNotEmpty(pks)) {

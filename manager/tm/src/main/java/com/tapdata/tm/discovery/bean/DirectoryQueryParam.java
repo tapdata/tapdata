@@ -16,4 +16,7 @@ public class DirectoryQueryParam {
     private String queryKey;
     /** 分类id */
     private String tagId;
+
+    /** 查询的范围 current 当前分类下，  默认：currentAndChild 当前及其子类，包含子类的子类*/
+    private String range = "currentAndChild";
 }

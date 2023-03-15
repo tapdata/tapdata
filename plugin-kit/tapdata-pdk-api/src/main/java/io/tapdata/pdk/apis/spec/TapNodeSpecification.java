@@ -3,6 +3,7 @@ package io.tapdata.pdk.apis.spec;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.utils.DataMap;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -21,6 +22,8 @@ public class TapNodeSpecification {
     private DefaultExpressionMatchingMap dataTypesMap;
 
     private Map<String, String> manifest;
+    private String authentication;
+    private List<String> tags;
 
     public String verify() {
         if(name == null)
@@ -108,5 +111,21 @@ public class TapNodeSpecification {
 
     public void setManifest(Map<String, String> manifest) {
         this.manifest = manifest;
+    }
+
+    public String getAuthentication() {
+        return authentication;
+    }
+
+    public void setAuthentication(String authentication) {
+        this.authentication = authentication;
+    }
+
+    public List<String> getTags() {
+        return tags;
+    }
+
+    public void setTags(List<String> tags) {
+        this.tags = tags;
     }
 }
