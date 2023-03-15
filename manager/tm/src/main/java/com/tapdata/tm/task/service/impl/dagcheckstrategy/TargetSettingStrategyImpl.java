@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
 import cn.hutool.core.date.DateUtil;
+import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Sets;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -16,17 +17,17 @@ import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.utils.Lists;
-import io.github.classgraph.ArrayTypeSignature;
+import com.tapdata.tm.utils.MessageUtil;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.lang.reflect.Array;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 @Component("targetSettingStrategy")
 @Setter(onMethod_ = {@Autowired})
@@ -36,7 +37,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
     private MetadataInstancesService metadataInstancesService;
 
     @Override
-    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
+    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail, Locale locale) {
         String taskId = taskDto.getId().toHexString();
         String current = DateUtil.now();
         Date now = new Date();
@@ -59,7 +60,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
             if (StringUtils.isEmpty(name)) {
                 TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                         .grade(Level.ERROR).nodeId(nodeId)
-                        .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：目标节点{0}节点名称为空。", dataParentNode.getDatabaseType()))
+                        .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_EMPTY"), dataParentNode.getDatabaseType()))
                         .build();
                 log.setCreateAt(now);
                 log.setCreateUser(userId);
@@ -69,7 +70,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
             if (StringUtils.isEmpty(dataParentNode.getConnectionId())) {
                 TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                         .grade(Level.ERROR).nodeId(nodeId)
-                        .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：目标节点{0}未选择数据库。", name))
+                        .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_NOT_SELECT_DB"), name))
                         .build();
                 log.setCreateAt(now);
                 log.setCreateUser(userId);
@@ -83,21 +84,40 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
             } else {
                 TableNode tableNode = (TableNode) node;
                 tableNames.set(Lists.newArrayList(tableNode.getTableName()));
-                if (CollectionUtils.isEmpty(tableNode.getUpdateConditionFields())) {
+                List<String> updateConditionFields = tableNode.getUpdateConditionFields();
+                if (CollectionUtils.isEmpty(updateConditionFields)) {
                     TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                             .grade(Level.ERROR).nodeId(nodeId)
-                            .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：目标节点{0}更新条件字段未设置。", name))
+                            .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_UPDATE_ERROR"), name))
                             .build();
                     log.setCreateAt(now);
                     log.setCreateUser(userId);
                     result.add(log);
+                } else {
+                    List<MetadataInstancesDto> nodeSchemas = metadataInstancesService.findByNodeId(nodeId, userDetail);
+                    Optional.ofNullable(nodeSchemas).ifPresent(list -> {
+                        list.stream().filter(i -> tableNode.getTableName().equals(i.getName())).findFirst()
+                                .ifPresent(schema -> {
+                                    List<String> fields = schema.getFields().stream().map(Field::getFieldName).collect(Collectors.toList());
+                                    List<String> noExistsFields = updateConditionFields.stream().filter(d -> !fields.contains(d)).collect(Collectors.toList());
+                                    if (CollectionUtils.isNotEmpty(noExistsFields)) {
+                                        TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
+                                                .grade(Level.ERROR).nodeId(nodeId)
+                                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_UPDATE_NOT_EXISTS"), name, JSON.toJSON(noExistsFields)))
+                                                .build();
+                                        log.setCreateAt(now);
+                                        log.setCreateUser(userId);
+                                        result.add(log);
+                                    }
+                                });
+                    });
                 }
             }
 
             if (CollectionUtils.isEmpty(tableNames.get())) {
                 TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                         .grade(Level.ERROR).nodeId(nodeId)
-                        .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：目标节点{0}未选择表。", name))
+                        .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "TARGET_NOT_SELECT_TB"), name))
                         .build();
                 log.setCreateAt(now);
                 log.setCreateUser(userId);
@@ -115,7 +135,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                                     if (Objects.nonNull(field.getIsNullable()) && !(Boolean) field.getIsNullable()) {
                                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                                 .grade(Level.WARN).nodeId(nodeId)
-                                                .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：【{0}】【{1}】该Oracle非空约束字段不支持对“”数据的写入操作。", metadata.getName(), field.getFieldName()))
+                                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "TARGET_ORACLE_FIELD_EMPTY_TIP"), metadata.getName(), field.getFieldName()))
                                                 .build();
                                         log.setCreateAt(now);
                                         log.setCreateUser(userId);
@@ -129,7 +149,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                                                     field.getDataType().contains("Decimal"))) {
                                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                                 .grade(Level.WARN).nodeId(nodeId)
-                                                .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：【{0}】该ClickHouse表主键为浮点数据类型，不支持对更新和删除事件的处理。", metadata.getName()))
+                                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "TARGET_CK_FIELD_FLOAT_TIP"), metadata.getName()))
                                                 .build();
                                         log.setCreateAt(now);
                                         log.setCreateUser(userId);
@@ -140,16 +160,15 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                         }
                     }
                 });
-
             }
 
             String template;
             Level grade;
             if (nameSet.contains(name)) {
-                template = templateEnum.getErrorTemplate();
+                template = MessageUtil.getDagCheckMsg(locale, "TARGET_NODE_ERROR");
                 grade = Level.ERROR;
             } else {
-                template = templateEnum.getInfoTemplate();
+                template = MessageUtil.getDagCheckMsg(locale, "TARGET_NODE_INFO");
                 grade = Level.INFO;
             }
             nameSet.add(name);

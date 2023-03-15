@@ -4,6 +4,7 @@ import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.dataflow.SyncProgress;
+import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.DmlPolicy;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
@@ -24,6 +25,8 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
+import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
+import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.node.pdk.ConnectorNodeService;
@@ -40,7 +43,11 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -100,17 +107,31 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	}
 
 	public PDKMethodInvoker createPdkMethodInvoker() {
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
+		TaskConfig taskConfig = dataProcessorContext.getTaskConfig();
+		Long retryIntervalSecond = taskConfig.getTaskRetryConfig().getRetryIntervalSecond();
+		long retryIntervalMs = TimeUnit.SECONDS.toMillis(retryIntervalSecond);
+		Long maxRetryTimeSecond = taskConfig.getTaskRetryConfig().getMaxRetryTime(TimeUnit.SECONDS);
+		long retryDurationMs = TimeUnit.SECONDS.toMillis(maxRetryTimeSecond);
+		TaskRetryService taskRetryService = TaskRetryFactory.getInstance().getTaskRetryService(taskDto, retryDurationMs);
+		if (maxRetryTimeSecond > 0) {
+			long methodRetryDurationMs = taskRetryService.getMethodRetryDurationMs(retryIntervalMs);
+			maxRetryTimeSecond = Math.max(TimeUnit.MILLISECONDS.toMinutes(methodRetryDurationMs), 1L);
+		} else {
+			maxRetryTimeSecond = 0L;
+		}
 		PDKMethodInvoker pdkMethodInvoker = PDKMethodInvoker.create()
 				.logTag(TAG)
-				.retryPeriodSeconds(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getRetryIntervalSecond())
-				.maxRetryTimeMinute(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getMaxRetryTime(TimeUnit.MINUTES))
-				.logListener(logListener);
+				.retryPeriodSeconds(retryIntervalSecond)
+				.maxRetryTimeMinute(maxRetryTimeSecond)
+				.logListener(logListener)
+				.startRetry(taskRetryService::start);
 		this.pdkMethodInvokerList.add(pdkMethodInvoker);
 		return pdkMethodInvoker;
 	}
 
 	public void removePdkMethodInvoker(PDKMethodInvoker pdkMethodInvoker) {
-		if(null == pdkMethodInvoker) return;
+		if (null == pdkMethodInvoker) return;
 		pdkMethodInvokerList.remove(pdkMethodInvoker);
 	}
 
@@ -127,7 +148,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		Map<String, Object> connectionConfig = dataProcessorContext.getConnectionConfig();
 		DatabaseTypeEnum.DatabaseType databaseType = dataProcessorContext.getDatabaseType();
 		PdkTableMap pdkTableMap = new PdkTableMap(dataProcessorContext.getTapTableMap());
-		PdkStateMap pdkStateMap = new PdkStateMap(dataProcessorContext.getNode().getId(), hazelcastInstance, PdkStateMap.StateMapMode.HTTP_TM);
+		PdkStateMap pdkStateMap = new PdkStateMap(dataProcessorContext.getNode().getId(), hazelcastInstance, taskDto, getNode(), clientMongoOperator, "processor");
 		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
 		Node<?> node = dataProcessorContext.getNode();
 		ConnectorCapabilities connectorCapabilities = ConnectorCapabilities.create();
@@ -135,7 +156,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		Map<String, Object> nodeConfig = null;
 		if (node instanceof TableNode) {
 			nodeConfig = ((TableNode) node).getNodeConfig();
-		} else if(node instanceof DatabaseNode) {
+		} else if (node instanceof DatabaseNode) {
 			nodeConfig = ((DatabaseNode) node).getNodeConfig();
 		}
 		this.associateId = ConnectorNodeService.getInstance().putConnectorNode(

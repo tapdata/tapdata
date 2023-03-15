@@ -14,12 +14,17 @@ import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.basic.BasicTest;
+import io.tapdata.pdk.tdd.tests.support.LangUtil;
 import io.tapdata.pdk.tdd.tests.support.TapGo;
+import io.tapdata.pdk.tdd.tests.support.TapSummary;
+import io.tapdata.pdk.tdd.tests.support.printf.ChokeTag;
+import io.tapdata.pdk.tdd.tests.support.printf.SummaryData;
 import io.tapdata.pdk.tdd.tests.v2.WriteRecordTest;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.apache.maven.shared.invoker.*;
+import org.junit.jupiter.api.Test;
 import org.junit.platform.engine.DiscoverySelector;
 import org.junit.platform.engine.discovery.DiscoverySelectors;
 import org.junit.platform.launcher.Launcher;
@@ -35,6 +40,7 @@ import java.io.*;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.fail;
@@ -64,7 +70,7 @@ public class TDDCli extends CommonCli {
     @CommandLine.Option(names = {"-l", "--lang"}, usageHelp = false, description = "TapData cli lang，values zh_CN/zh_TW/en,default is en")
     private String lan = "en";
     @CommandLine.Option(names = {"-p", "--path"}, usageHelp = false, description = "TapData cli path,need test package ,path split as .")
-    private String packagePath = WriteRecordTest.class.getPackage().getName();
+    private String packagePath = "io.tapdata.pdk.tdd.tests";//WriteRecordTest.class.getPackage().getName();
     @CommandLine.Option(names = {"-log", "--logPath"}, usageHelp = false, description = "TapData cli log,need test to log test result ,path to log ,default ./tapdata-pdk-cli/tss-logs/")
     private String logPath = TapSummary.basePath("tdd-logs");
 
@@ -90,10 +96,13 @@ public class TDDCli extends CommonCli {
 
     public void runLevel(List<DiscoverySelector> selectors, TapSummary testResultSummary) {
         testResultSummary.setLanType(new Locale(lan)).showCapabilities(nodeInfo());
+        System.setProperty("tdd_running_is","1");
         for (DiscoverySelector selector : selectors) {
             LauncherDiscoveryRequestBuilder request = LauncherDiscoveryRequestBuilder.request();
             LauncherDiscoveryRequest build = request.selectors(selector).build();
-            runTests(build, testResultSummary);
+            if (runTests(build, testResultSummary).hasBlocked()) {
+                break;
+            }
         }
         testResultSummary.endingShow(testResultSummary, file.getName());
         testResultSummary.asFileV2(file.getName());
@@ -103,7 +112,7 @@ public class TDDCli extends CommonCli {
         if (this.autoExit) System.exit(0);
     }
 
-    private void runTests(LauncherDiscoveryRequest request, TapSummary testResultSummary) {
+    private ChokeTag runTests(LauncherDiscoveryRequest request, TapSummary testResultSummary) {
         Launcher launcher = LauncherFactory.create();
         //TestPlan testPlan = launcher.discover(request);
         launcher.registerTestExecutionListeners(listener);
@@ -111,8 +120,8 @@ public class TDDCli extends CommonCli {
 
         String pdkId = CommonUtils.getProperty("pdk_test_pdk_id", null);
         TestExecutionSummary summary = listener.getSummary();
-        testResultSummary.summary = summary;
-        testResultSummary.setLanType(new Locale(lan)).showTestResult(testResultSummary);
+        testResultSummary.summary(summary);
+        return testResultSummary.setLanType(new Locale(lan)).showTestResult(testResultSummary);
     }
 
     public Integer execute() {
@@ -266,7 +275,7 @@ public class TDDCli extends CommonCli {
     private void runLevelWithNodeInfo(TapNodeInfo tapNodeInfo) throws Throwable {
         CommonUtils.setProperty("pdk_test_pdk_id", tapNodeInfo.getTapNodeSpecification().getId());
         TapSummary testResultSummary = TapSummary.create();
-        testResultSummary.tapNodeInfo = tapNodeInfo;
+        testResultSummary.tapNodeInfo(tapNodeInfo);
         testResultSummaries.add(testResultSummary);
         runLevel(generateTestTargets(tapNodeInfo, testResultSummary), testResultSummary);
     }
@@ -302,11 +311,11 @@ public class TDDCli extends CommonCli {
                         try {
                             if (!PDKTestBase.isSupportFunction(supportFunction, connectorFunctions)) {
                                 allFound = false;
-                                testResultSummary.doNotSupportFunTest.put(testClass, TapSummary.format(supportFunction.getErrorMessage()));
+                                testResultSummary.doNotSupportFunTest().put(testClass, LangUtil.format(supportFunction.getErrorMessage()));
                             }
                         } catch (NoSuchMethodException e) {
                             allFound = false;
-                            testResultSummary.doNotSupportFunTest.put(testClass, TapSummary.format(supportFunction.getErrorMessage()));
+                            testResultSummary.doNotSupportFunTest().put(testClass, LangUtil.format(supportFunction.getErrorMessage()));
                         }
                         if (!allFound) {
                             Set<Class<? extends PDKTestBase>> classes = subTest(testClass);
@@ -327,7 +336,13 @@ public class TDDCli extends CommonCli {
                 Annotation annotation1 = cla1.getAnnotation(TapGo.class);
                 Annotation annotation2 = cla2.getAnnotation(TapGo.class);
                 return ((TapGo) annotation1).sort() > ((TapGo) annotation2).sort() ? 0 : -1;
-            }).forEach(testClass -> selectorsAddClass(selectors, testClass, testResultSummary));
+            }).forEach(testClass -> {
+                        //计算需要执行的用例数
+                        SummaryData summaryData = testResultSummary.summaryData();
+                        summaryData.needAny(this.caseNum(testClass));
+                        this.selectorsAddClass(selectors, testClass, testResultSummary);
+                    }
+            );
             //if(connectorFunctions.getWriteRecordFunction() != null && connectorFunctions.getCreateTableFunction() == null) {
             //    selectorsAddClass(selectors, DMLTest.class, testResultSummary);
             //}
@@ -348,7 +363,7 @@ public class TDDCli extends CommonCli {
 
     private void selectorsAddClass(List<DiscoverySelector> selectors, Class<?> theClass, TapSummary testResultSummary) {
         selectors.add(DiscoverySelectors.selectClass(theClass));
-        testResultSummary.testClasses.add(theClass);
+        testResultSummary.testClasses().add(theClass);
     }
 
     private TapNodeInfo nodeInfo() {
@@ -386,12 +401,18 @@ public class TDDCli extends CommonCli {
         Reflections reflections = new Reflections(packagePath);
         //返回带有指定注解的所有类对象
         Set<Class<?>> typesAnnotatedWith = reflections.getTypesAnnotatedWith(TapGo.class);
+        boolean isDebugMode = "true".equals(System.getProperty("is_debug_mode", "false"));
+        if (isDebugMode){
+            System.out.println("It's debug mode for running test, maybe ignore some case which Annotation of TapGo's debug value is false, note that please.");
+        }
         return typesAnnotatedWith.stream().filter(cls -> {
             try {
                 TapGo tapGo = cls.getAnnotation(TapGo.class);
                 boolean goTest = tapGo.goTest();
                 boolean isSub = tapGo.isSub();
-                return (PDKTestBase.class.isAssignableFrom(cls)) && goTest && !isSub;
+                boolean debug = !isDebugMode || tapGo.debug();
+                boolean ignored = tapGo.ignore();
+                return (PDKTestBase.class.isAssignableFrom(cls)) && !ignored && goTest && !isSub && debug ;
             } catch (Exception e) {
                 return false;
             }
@@ -423,5 +444,19 @@ public class TDDCli extends CommonCli {
             }
         }
         return test;
+    }
+
+    private int caseNum(Class<? extends PDKTestBase> aClass) {
+        AtomicInteger caseNum = new AtomicInteger();
+        HashSet<Method> methods = new HashSet<>(Arrays.asList(aClass.getDeclaredMethods()));
+        for (Method method : methods) {
+            Optional.ofNullable(method).ifPresent(m -> {
+                Test testAnn = method.getAnnotation(Test.class);
+                if (null != testAnn) {
+                    caseNum.getAndIncrement();
+                }
+            });
+        }
+        return caseNum.get();
     }
 }

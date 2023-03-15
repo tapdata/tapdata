@@ -19,6 +19,7 @@ public class TaskDagCheckLog extends BaseEntity {
     private String log;
     private Level grade;
 
+
     public TaskDagCheckLog(String log, Level grade) {
         this.log = log;
         this.grade = grade;

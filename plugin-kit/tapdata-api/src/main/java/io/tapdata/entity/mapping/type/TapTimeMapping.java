@@ -44,15 +44,15 @@ public class TapTimeMapping extends TapDateBase {
                 LocalDateTime localDateTime = LocalDateTime.parse(timeString, dateTimeFormatter);
                 return localDateTime.atZone(ZoneId.of("GMT-0")).toInstant();
             } catch (Throwable e) {
-                e.printStackTrace();
-                TapLogger.error(TAG, "Parse time {} pattern {}, failed, {}", timeString, thePattern, e.getMessage());
+//                e.printStackTrace();
+                TapLogger.debug(TAG, "Parse time {} pattern {}, failed, {}", timeString, thePattern, e.getMessage());
             }
         } else {
             try {
                 return Instant.ofEpochMilli(Time.valueOf(timeString).getTime());
             } catch(Throwable throwable) {
-                throwable.printStackTrace();
-                TapLogger.error(TAG, "parse time {} pattern {}, failed {}", timeString, thePattern, throwable.getMessage());
+//                throwable.printStackTrace();
+                TapLogger.debug(TAG, "parse time {} pattern {}, failed {}", timeString, thePattern, throwable.getMessage());
             }
         }
         return null;

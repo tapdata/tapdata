@@ -29,11 +29,9 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.time.format.DateTimeFormatter;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 @Service
@@ -98,28 +96,12 @@ public class TaskRecordServiceImpl implements TaskRecordService {
             TaskEntity taskSnapshot = r.getTaskSnapshot();
             vo.setStatus(taskSnapshot.getStatus());
 
-            Long inputTotal = r.getInputTotal();
-            Long outputTotal = r.getOutputTotal();
-
-            if (ObjectUtils.anyNull(inputTotal, outputTotal) || inputTotal == 0 || outputTotal == 0 || TaskDto.STATUS_RUNNING.equals(vo.getStatus())) {
-                Long[] values = measurementServiceV2.countEventByTaskRecord(taskId, taskRecordId);
-                if (null != values && values.length == 2) {
-                    inputTotal = values[0];
-                    outputTotal = values[1];
-
-                    Query id = Query.query(Criteria.where("_id").is(taskRecordId));
-                    Update set = Update.update("inputTotal", inputTotal).set("outputTotal", outputTotal);
-                    CompletableFuture.runAsync(() -> mongoTemplate.updateFirst(id, set, TaskRecord.class));
-                }
-            }
-            vo.setInputTotal(inputTotal);
-            vo.setOutputTotal(outputTotal);
-
             if (userMap.containsKey(r.getUserId())) {
                 vo.setOperator(userMap.get(r.getUserId()));
             }
 
             List<TaskRecord.TaskStatusUpdate> statusStack = r.getStatusStack();
+            AtomicReference<Date> endDate = new AtomicReference<>();
             if (CollectionUtils.isNotEmpty(statusStack)) {
                 Map<String, List<Date>> statusDateMap = statusStack.stream()
                         .collect(Collectors.groupingBy(TaskRecord.TaskStatusUpdate::getStatus,
@@ -140,11 +122,33 @@ public class TaskRecordServiceImpl implements TaskRecordService {
                     List<Date> endDates = statusDateMap.get(taskSnapshot.getStatus());
                     if (CollectionUtils.isNotEmpty(endDates)) {
                         endDates.stream().max(Date::compareTo).ifPresent(date -> {
+                            endDate.set(date);
                             vo.setEndDate(DateUtil.toLocalDateTime(date).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
                         });
                     }
                 }
             }
+
+            Long inputTotal = r.getInputTotal();
+            Long outputTotal = r.getOutputTotal();
+
+            if (ObjectUtils.anyNull(inputTotal, outputTotal) ||
+                    inputTotal == 0 || outputTotal == 0 ||
+                    (Objects.isNull(endDate.get())) ||
+                    (endDate.get().getTime() > (System.currentTimeMillis() - 60000)) ||
+                    TaskDto.STATUS_RUNNING.equals(vo.getStatus())) {
+                Long[] values = measurementServiceV2.countEventByTaskRecord(taskId, taskRecordId);
+                if (null != values && values.length == 2) {
+                    inputTotal = values[0];
+                    outputTotal = values[1];
+
+                    Query id = Query.query(Criteria.where("_id").is(taskRecordId));
+                    Update set = Update.update("inputTotal", inputTotal).set("outputTotal", outputTotal);
+                    CompletableFuture.runAsync(() -> mongoTemplate.updateFirst(id, set, TaskRecord.class));
+                }
+            }
+            vo.setInputTotal(inputTotal);
+            vo.setOutputTotal(outputTotal);
 
             return vo;
         }).collect(Collectors.toList());

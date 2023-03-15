@@ -14,8 +14,8 @@ public class MilestoneEntity implements Serializable {
     private String errorMessage;
     private Long begin;
     private Long end;
-    private Integer progress;
-    private Integer totals;
+    private Long progress;
+    private Long totals;
 
     public MilestoneEntity() {
     }
@@ -65,19 +65,19 @@ public class MilestoneEntity implements Serializable {
         this.end = end;
     }
 
-    public Integer getProgress() {
+    public Long getProgress() {
         return progress;
     }
 
-    public void setProgress(Integer progress) {
+    public void setProgress(Long progress) {
         this.progress = progress;
     }
 
-    public Integer getTotals() {
+    public Long getTotals() {
         return totals;
     }
 
-    public void setTotals(Integer totals) {
+    public void setTotals(Long totals) {
         this.totals = totals;
     }
 }

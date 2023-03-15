@@ -12,7 +12,6 @@ public class TidbConfig extends CommonDbConfig implements Serializable {
     private String pdServer;
     private  boolean enableIncrement;
     private  String nameSrvAddr;
-    private String changefeedId;
     private  String mqTopic;
     private  String mqUsername;
     private  String mqPassword;
@@ -33,15 +32,6 @@ public class TidbConfig extends CommonDbConfig implements Serializable {
     public void setNameSrvAddr(String nameSrvAddr) {
         this.nameSrvAddr = nameSrvAddr;
     }
-
-    public String getChangefeedId() {
-        return changefeedId;
-    }
-
-    public void setChangefeedId(String changefeedId) {
-        this.changefeedId = changefeedId;
-    }
-
     public String getMqTopic() {
         return mqTopic;
     }

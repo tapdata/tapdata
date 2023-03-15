@@ -11,6 +11,7 @@ import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MessageUtil;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
@@ -18,13 +19,14 @@ import org.springframework.stereotype.Component;
 import java.text.MessageFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 @Component("mergeTableNodeStrategy")
 public class MergeTableNodeStrategyImpl implements DagLogStrategy {
     private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.MERGE_NODE_CHECK;
     @Override
-    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
+    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail, Locale locale) {
         String taskId = taskDto.getId().toHexString();
         DAG dag = taskDto.getDag();
 
@@ -46,7 +48,7 @@ public class MergeTableNodeStrategyImpl implements DagLogStrategy {
                     if (StringUtils.isEmpty(name)) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log("$date【$taskName】【主从合并节点设置检测】：主从合并节点节点名称为空。")
+                                .log(MessageUtil.getDagCheckMsg(locale, "MERGE_TABLE_NAME_EMPTY"))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -66,7 +68,7 @@ public class MergeTableNodeStrategyImpl implements DagLogStrategy {
                     if (noRelate) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log(MessageFormat.format("$date【$taskName】【主从合并节点设置检测】：主从合并节点{0}的关联字段未设置。", name))
+                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "MERGE_TABLE_RELATE_EMPTY"), name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -76,7 +78,7 @@ public class MergeTableNodeStrategyImpl implements DagLogStrategy {
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.INFO).nodeId(nodeId)
-                                .log(MessageFormat.format("$date【$taskName】【主从合并节点设置检测】：主从合并节点{0}检测通过。", name))
+                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "MERGE_TABLE_PASS"), name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);

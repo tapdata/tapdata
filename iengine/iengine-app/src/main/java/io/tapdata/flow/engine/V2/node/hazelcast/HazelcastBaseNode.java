@@ -5,24 +5,9 @@ import com.hazelcast.jet.core.AbstractProcessor;
 import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
 import com.hazelcast.jet.core.Processor;
-import com.tapdata.constant.BeanUtil;
-import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.DataFlowStageUtil;
-import com.tapdata.constant.DataFlowUtil;
-import com.tapdata.constant.HazelcastUtil;
-import com.tapdata.constant.Log4jUtil;
-import com.tapdata.entity.Job;
-import com.tapdata.entity.JoinTable;
-import com.tapdata.entity.MessageEntity;
-import com.tapdata.entity.OperationType;
-import com.tapdata.entity.RuntimeInfo;
-import com.tapdata.entity.Stats;
-import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.dataflow.DataFlow;
-import com.tapdata.entity.dataflow.DataFlowSetting;
-import com.tapdata.entity.dataflow.RuntimeThroughput;
-import com.tapdata.entity.dataflow.Stage;
-import com.tapdata.entity.dataflow.StageRuntimeStats;
+import com.tapdata.constant.*;
+import com.tapdata.entity.*;
+import com.tapdata.entity.dataflow.*;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -37,17 +22,12 @@ import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.DataFunctionAspect;
-import io.tapdata.aspect.DataNodeCloseAspect;
-import io.tapdata.aspect.DataNodeInitAspect;
-import io.tapdata.aspect.ProcessorNodeCloseAspect;
-import io.tapdata.aspect.ProcessorNodeInitAspect;
+import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.OnData;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
-import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -58,7 +38,6 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
@@ -70,14 +49,8 @@ import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastM
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
-import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
-import io.tapdata.flow.engine.V2.util.GraphUtil;
-import io.tapdata.flow.engine.V2.util.NodeUtil;
-import io.tapdata.flow.engine.V2.util.TapCache;
-import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.flow.engine.V2.util.*;
 import io.tapdata.milestone.MilestoneContext;
-import io.tapdata.milestone.MilestoneFactory;
-import io.tapdata.milestone.MilestoneService;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -93,13 +66,7 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -131,7 +98,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected SettingService settingService;
 
 	protected Map<String, String> tags;
-	protected MilestoneService milestoneService;
 	protected NodeException error;
 	protected String errorMessage;
 	protected ProcessorBaseContext processorBaseContext;
@@ -148,11 +114,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected ObsLogger obsLogger;
 	protected MonitorManager monitorManager;
 	private JetJobStatusMonitor jetJobStatusMonitor;
-
-	private final TapCache<Boolean> isJobRunning = new TapCache<Boolean>().expireTime(2000).supplier(this::isJetJobRunning).disableCacheValue(false);
-
 	protected String lastTableName;
-
 	protected ExternalStorageDto externalStorageDto;
 
 	public HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
@@ -192,8 +154,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 					processorBaseContext.getNodes(),
 					(processorBaseContext instanceof DataProcessorContext ? ((DataProcessorContext) processorBaseContext).getConnections() : null)
 			);
-			logger.info("[External Storage]Node {}[{}]: {}", getNode().getName(), getNode().getId(), externalStorageDto);
-			obsLogger.info("[External Storage]Node {}[{}]: {}", getNode().getName(), getNode().getId(), externalStorageDto);
 		} catch (Exception e) {
 			errorHandle(e, String.format("Init node[%s] failed", getNode().getName()));
 		}
@@ -221,9 +181,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			super.init(context);
 			Log4jUtil.setThreadContext(processorBaseContext.getTaskDto());
 			running.compareAndSet(false, true);
-			TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
-			tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> tapValue.getValue().toInstant());
-			codecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
+			codecsFilterManager = TapCodecUtil.genericCodecsFilterManager();
 			// execute ProcessorNodeInitAspect before doInit since we need to init the aspect first;
 			if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
 				AspectUtils.executeAspect(ProcessorNodeInitAspect.class, () -> new ProcessorNodeInitAspect().processorBaseContext(processorBaseContext));
@@ -572,7 +530,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				TaskClient<TaskDto> taskDtoTaskClient = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(processorBaseContext.getTaskDto().getId().toHexString());
 				if (taskDtoTaskClient != null) {
 					TaskDto taskDto = taskDtoTaskClient.getTask();
-					processorBaseContext.getTaskDto().setManualStop(taskDto.isManualStop());
+					processorBaseContext.getTaskDto().setSnapShotInterrupt(taskDto.isSnapShotInterrupt());
 				}
 			}, TAG);
 			obsLogger.info(String.format("Node %s[%s] running status set to false", getNode().getName(), getNode().getId()));
@@ -592,10 +550,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			sw.stop();
 			obsLogger.info(String.format("Node %s[%s] close complete, cost %d ms", getNode().getName(), getNode().getId(), sw.getTotalTimeMillis()));
 		}
-	}
-
-	public void setMilestoneService(MilestoneService milestoneService) {
-		this.milestoneService = milestoneService;
 	}
 
 	protected void onDataStats(OnData onData, Stats stats) {
@@ -709,7 +663,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		List<String> vertexNames = nextOrPreDataNodes.stream().map(NodeUtil::getVertexName).collect(Collectors.toList());
 
 		HttpClientMongoOperator httpClientMongoOperator = (HttpClientMongoOperator) clientMongoOperator;
-		this.milestoneService = MilestoneFactory.getJetEdgeMilestoneService(processorBaseContext.getTaskDto(), httpClientMongoOperator.getRestTemplateOperator().getBaseURLs(), httpClientMongoOperator.getRestTemplateOperator().getRetryTime(), httpClientMongoOperator.getConfigCenter(), node, vertexName, vertexNames, null, vertexType);
 	}
 
 	public synchronized NodeException errorHandle(Throwable throwable, String errorMessage) {
@@ -753,7 +706,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 				if (hazelcastJob != null) {
 					JobStatus status = hazelcastJob.getStatus();
-					if (JobStatus.COMPLETING != status) {
+					if (JobStatus.RUNNING == status) {
 						logger.info("Job suspend in error handle");
 						Optional.ofNullable(obsLogger).ifPresent(log -> log.info("Job suspend in error handle"));
 						TaskClient<TaskDto> taskDtoTaskClient = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(taskDto.getId().toHexString());

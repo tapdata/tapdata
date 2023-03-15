@@ -3,10 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MapUtil;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.JavaScriptFunctions;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.*;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.processor.ScriptUtil;
@@ -18,7 +15,10 @@ import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.script.ScriptExecutorsManager;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
@@ -35,13 +35,14 @@ import org.springframework.data.mongodb.core.query.Query;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
+import javax.script.ScriptException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -187,40 +188,87 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
     Map<String, Object> contextMap = MapUtil.obj2Map(processContext);
     contextMap.put("event", eventMap);
     contextMap.put("before", before);
+    contextMap.put("info", tapEvent.getInfo());
     Map<String, Object> context = this.processContextThreadLocal.get();
     context.putAll(contextMap);
     ((ScriptEngine) this.engine).put("context", context);
-    Object obj;
+    AtomicReference<Object> scriptInvokeResult = new AtomicReference<>();
     if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-						TaskDto.SYNC_TYPE_TEST_RUN,
+            TaskDto.SYNC_TYPE_TEST_RUN,
             TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
       Map<String, Object> finalRecord = record;
-      Future<Object> future = Executors.newSingleThreadExecutor().submit(() -> engine.invokeFunction(ScriptUtil.FUNCTION_NAME, finalRecord));
-      obj = future.get(10, TimeUnit.SECONDS);
+      CountDownLatch countDownLatch = new CountDownLatch(1);
+      Thread thread = new Thread(() -> {
+        Thread.currentThread().setName("Javascript-Test-Runner");
+        try {
+          scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, finalRecord));
+        } catch (ScriptException | NoSuchMethodException ignored) {
+        } finally {
+          countDownLatch.countDown();
+        }
+      });
+      thread.start();
+      boolean threadFinished = countDownLatch.await(10L, TimeUnit.SECONDS);
+      if (!threadFinished) {
+        thread.stop();
+      }
     } else {
-      obj = engine.invokeFunction(ScriptUtil.FUNCTION_NAME, record);
+      scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, record));
+    }
+
+    if (StringUtils.isNotEmpty((CharSequence) context.get("op"))) {
+      op = (String) context.get("op");
     }
 
     context.clear();
 
-    if (obj == null) {
+    if (null == scriptInvokeResult.get()) {
       if (logger.isDebugEnabled()) {
         logger.debug("The event does not need to continue to be processed {}", tapdataEvent);
       }
-    } else if (obj instanceof List) {
-      for (Object o : (List) obj) {
+    } else if (scriptInvokeResult.get() instanceof List) {
+      for (Object o : (List) scriptInvokeResult.get()) {
         Map<String, Object> recordMap = new HashMap<>();
         MapUtil.copyToNewMap((Map<String, Object>) o, recordMap);
         TapdataEvent cloneTapdataEvent = (TapdataEvent) tapdataEvent.clone();
-        setRecordMap(cloneTapdataEvent.getTapEvent(), op, recordMap);
+        TapEvent returnTapEvent = getTapEvent(cloneTapdataEvent.getTapEvent(), op);
+        setRecordMap(returnTapEvent, op, recordMap);
+        cloneTapdataEvent.setTapEvent(returnTapEvent);
         consumer.accept(cloneTapdataEvent, processResult);
       }
     } else {
       Map<String, Object> recordMap = new HashMap<>();
-      MapUtil.copyToNewMap((Map<String, Object>) obj, recordMap);
-      setRecordMap(tapEvent, op, recordMap);
+      MapUtil.copyToNewMap((Map<String, Object>) scriptInvokeResult.get(), recordMap);
+      TapEvent returnTapEvent = getTapEvent(tapEvent, op);
+      setRecordMap(returnTapEvent, op, recordMap);
+      tapdataEvent.setTapEvent(returnTapEvent);
       consumer.accept(tapdataEvent, processResult);
     }
+  }
+
+  private TapEvent getTapEvent(TapEvent tapEvent, String op) {
+    if (StringUtils.equals(TapEventUtil.getOp(tapEvent), op)) {
+      return tapEvent;
+    }
+    OperationType operationType = OperationType.fromOp(op);
+    TapEvent result;
+
+    switch (operationType) {
+      case INSERT:
+        result = TapInsertRecordEvent.create();
+        break;
+      case UPDATE:
+        result = TapUpdateRecordEvent.create();
+        break;
+      case DELETE:
+        result = TapDeleteRecordEvent.create();
+        break;
+      default:
+        throw new IllegalArgumentException("Unsupported operation type: " + op);
+    }
+    tapEvent.clone(result);
+
+    return result;
   }
 
   private static void setRecordMap(TapEvent tapEvent, String op, Map<String, Object> recordMap) {

@@ -2,6 +2,7 @@ package io.tapdata.pdk.apis.functions.connector.source;
 
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.functions.connector.TapConnectorFunction;
 import io.tapdata.pdk.apis.functions.connector.TapFunction;
 import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
@@ -12,7 +13,7 @@ import java.util.function.Consumer;
 /**
  * @author aplomb
  */
-public interface GetReadPartitionsFunction extends TapFunction {
+public interface GetReadPartitionsFunction extends TapConnectorFunction {
 
 	/**
 	 * numberOfPartition可以为空， 默认16， partition数量 x maxRecordInPartition可能会小于总数，

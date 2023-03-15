@@ -2,7 +2,6 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
-import com.tapdata.constant.MilestoneUtil;
 import com.tapdata.entity.TapdataShareLogEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.ExistsDataProcessEnum;
@@ -17,7 +16,13 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
-import io.tapdata.entity.event.ddl.table.*;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
+import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
@@ -31,7 +36,17 @@ import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
 import io.tapdata.pdk.apis.entity.merge.MergeTableProperties;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.target.*;
+import io.tapdata.pdk.apis.functions.connector.target.AlterFieldAttributesFunction;
+import io.tapdata.pdk.apis.functions.connector.target.AlterFieldNameFunction;
+import io.tapdata.pdk.apis.functions.connector.target.ClearTableFunction;
+import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
+import io.tapdata.pdk.apis.functions.connector.target.DropFieldFunction;
+import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
+import io.tapdata.pdk.apis.functions.connector.target.NewFieldFunction;
+import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -45,12 +60,21 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-import static io.tapdata.entity.simplify.TapSimplify.*;
+import static io.tapdata.entity.simplify.TapSimplify.clearTableEvent;
+import static io.tapdata.entity.simplify.TapSimplify.createIndexEvent;
+import static io.tapdata.entity.simplify.TapSimplify.createTableEvent;
+import static io.tapdata.entity.simplify.TapSimplify.dropTableEvent;
 
 /**
  * @author jackin
@@ -84,11 +108,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			initTargetDB();
 			// MILESTONE-INIT_TRANSFORMER-FINISH
 			TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.FINISH);
-			MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.FINISH);
 		} catch (Exception e) {
 			// MILESTONE-INIT_TRANSFORMER-ERROR
 			TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, logger);
-			MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 			throw e;
 		}
 		ddlEventHandlers = new ClassHandlers();
@@ -97,6 +119,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		ddlEventHandlers.register(TapAlterFieldAttributesEvent.class, this::executeAlterFieldAttrFunction);
 		ddlEventHandlers.register(TapDropFieldEvent.class, this::executeDropFieldFunction);
 		ddlEventHandlers.register(TapCreateTableEvent.class, this::executeCreateTableFunction);
+		ddlEventHandlers.register(TapCreateIndexEvent.class, this::executeCreateIndexFunction);
 		ddlEventHandlers.register(TapDropTableEvent.class, tapDropTableEvent -> {
 			// only execute start function aspect so that it would be cheated as input
 			AspectUtils.executeAspect(new DropTableFuncAspect()
@@ -111,23 +134,32 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	private void initTargetDB() {
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
-		Node<?> node = dataProcessorContext.getNode();
-		ExistsDataProcessEnum existsDataProcessEnum = getExistsDataProcess(node);
-		SyncProgress syncProgress = initSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
-		if (null != syncProgress) return;
-		for (String tableId : tapTableMap.keySet()) {
-			if (!isRunning()) {
-				break;
+		executeDataFuncAspect(TableInitFuncAspect.class, () -> new TableInitFuncAspect()
+				.tapTableMap(tapTableMap)
+				.dataProcessorContext(dataProcessorContext)
+				.start(), (funcAspect -> {
+			Node<?> node = dataProcessorContext.getNode();
+			ExistsDataProcessEnum existsDataProcessEnum = getExistsDataProcess(node);
+			SyncProgress syncProgress = initSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
+			if (null == syncProgress) {
+				for (String tableId : tapTableMap.keySet()) {
+					if (!isRunning()) {
+						return;
+					}
+					TapTable tapTable = tapTableMap.get(tableId);
+					if (null == tapTable) {
+						NodeException e = new NodeException("Init target node failed, table \"" + tableId + "\"'s schema is null").context(getDataProcessorContext());
+						if (null != funcAspect) funcAspect.setThrowable(e);
+						throw e;
+					}
+					dropTable(existsDataProcessEnum, tableId);
+					boolean createdTable = createTable(tapTable);
+					clearData(existsDataProcessEnum, tableId);
+					createTargetIndex(node, tableId, tapTable, createdTable);
+					if (null != funcAspect) funcAspect.state(TableInitFuncAspect.STATE_PROCESS).completed(tableId, createdTable);
+				}
 			}
-			TapTable tapTable = tapTableMap.get(tableId);
-			if (null == tapTable) {
-				throw new NodeException("Init target node failed, table \"" + tableId + "\"'s schema is null").context(getDataProcessorContext());
-			}
-			dropTable(existsDataProcessEnum, tableId);
-			boolean createdTable = createTable(tapTable);
-			clearData(existsDataProcessEnum, tableId);
-			createTargetIndex(node, tableId, tapTable, createdTable);
-		}
+		}));
 	}
 
 	private void createTargetIndex(Node node, String tableId, TapTable tapTable, boolean createdTable) {
@@ -545,6 +577,34 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		return createTable(tgtTapTable);
 	}
 
+	private boolean executeCreateIndexFunction(TapCreateIndexEvent tapCreateIndexEvent){
+		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+		CreateIndexFunction createIndexFunction = getConnectorNode().getConnectorFunctions().getCreateIndexFunction();
+		if (null == createIndexFunction) {
+			return true;
+		}
+		for (String tableId : tapTableMap.keySet()) {
+			if (!isRunning()) {
+				return true;
+			}
+			TapTable tapTable = tapTableMap.get(tableId);
+			if (null == tapTable) {
+				NodeException e = new NodeException("Init target node failed, table \"" + tableId + "\"'s schema is null").context(getDataProcessorContext());
+				throw e;
+			}
+
+			executeDataFuncAspect(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
+							.table(tapTable)
+							.connectorContext(getConnectorNode().getConnectorContext())
+							.dataProcessorContext(dataProcessorContext)
+							.createIndexEvent(tapCreateIndexEvent)
+							.start(), createIndexFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(),
+							PDKMethod.TARGET_CREATE_INDEX,
+							() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), tapTable, tapCreateIndexEvent), TAG));
+		}
+		return true;
+	}
+
 	private void writeRecord(List<TapEvent> events) {
 		List<TapRecordEvent> tapRecordEvents = new ArrayList<>();
 		events.forEach(event -> tapRecordEvents.add((TapRecordEvent) event));
@@ -572,28 +632,34 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 							.start(), (writeRecordFuncAspect ->
 							PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_WRITE_RECORD,
 									pdkMethodInvoker.runnable(
-											() -> writeRecordFunction.writeRecord(getConnectorNode().getConnectorContext(), tapRecordEvents, tapTable, writeListResult -> {
-												Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
-												if (MapUtils.isNotEmpty(errorMap)) {
-													TapRecordEvent lastErrorTapRecord = null;
-													Throwable lastErrorThrowable = null;
-													for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
-														logger.warn(tapRecordEventThrowableEntry.getValue().getMessage() + "\n" + Log4jUtil.getStackString(tapRecordEventThrowableEntry.getValue()));
-														logger.warn("Error record: " + tapRecordEventThrowableEntry.getKey());
-														obsLogger.warn(tapRecordEventThrowableEntry.getValue().getMessage() + "\n" + Log4jUtil.getStackString(tapRecordEventThrowableEntry.getValue()));
-														obsLogger.warn("Error record: " + tapRecordEventThrowableEntry.getKey());
-														lastErrorTapRecord = tapRecordEventThrowableEntry.getKey();
-														lastErrorThrowable = tapRecordEventThrowableEntry.getValue();
+											() -> {
+												ConnectorNode connectorNode = getConnectorNode();
+												if (null == connectorNode) {
+													throw new NodeException("Node is stopped, need to exit write_record").context(getDataProcessorContext());
+												}
+												writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), tapRecordEvents, tapTable, writeListResult -> {
+													Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
+													if (MapUtils.isNotEmpty(errorMap)) {
+														TapRecordEvent lastErrorTapRecord = null;
+														Throwable lastErrorThrowable = null;
+														for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
+															logger.warn(tapRecordEventThrowableEntry.getValue().getMessage() + "\n" + Log4jUtil.getStackString(tapRecordEventThrowableEntry.getValue()));
+															logger.warn("Error record: " + tapRecordEventThrowableEntry.getKey());
+															obsLogger.warn(tapRecordEventThrowableEntry.getValue().getMessage() + "\n" + Log4jUtil.getStackString(tapRecordEventThrowableEntry.getValue()));
+															obsLogger.warn("Error record: " + tapRecordEventThrowableEntry.getKey());
+															lastErrorTapRecord = tapRecordEventThrowableEntry.getKey();
+															lastErrorThrowable = tapRecordEventThrowableEntry.getValue();
+														}
+														throw new RuntimeException(String.format("Write record %s failed", lastErrorTapRecord), lastErrorThrowable);
 													}
-													throw new RuntimeException(String.format("Write record %s failed", lastErrorTapRecord), lastErrorThrowable);
-												}
 
-												if (writeRecordFuncAspect != null)
-													AspectUtils.accept(writeRecordFuncAspect.state(WriteRecordFuncAspect.STATE_WRITING).getConsumers(), tapRecordEvents, writeListResult);
-												if (logger.isDebugEnabled()) {
-													logger.debug("Wrote {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
-												}
-											})
+													if (writeRecordFuncAspect != null)
+														AspectUtils.accept(writeRecordFuncAspect.state(WriteRecordFuncAspect.STATE_WRITING).getConsumers(), tapRecordEvents, writeListResult);
+													if (logger.isDebugEnabled()) {
+														logger.debug("Wrote {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
+													}
+												});
+											}
 									)
 							)));
 				} finally {

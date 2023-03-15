@@ -1,13 +1,12 @@
 package io.tapdata.inspect.compare;
 
-import com.tapdata.entity.inspect.InspectResultStats;
 import com.tapdata.entity.inspect.InspectStatus;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.inspect.InspectJob;
 import io.tapdata.inspect.InspectTaskContext;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.apis.functions.PDKMethod;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -33,22 +32,8 @@ public class TableRowCountInspectJob extends InspectJob {
 	}
 
 	@Override
-	public void run() {
+	protected void doRun() {
 		try {
-			Thread.currentThread().setName(name);
-			logger.info(String.format("Start compare the count of rows in table %s.%s and table %s.%s, the taskId is %s",
-					source.getName(), inspectTask.getSource().getTable(),
-					target.getName(), inspectTask.getTarget().getTable(), inspectTask.getTaskId()));
-
-			InspectResultStats stats = new InspectResultStats();
-			stats.setStart(new Date());
-
-			stats.setStatus("running");
-			stats.setProgress(0);
-			stats.setTaskId(inspectTask.getTaskId());
-			stats.setSource(inspectTask.getSource());
-			stats.setTarget(inspectTask.getTarget());
-
 			int retry = 0;
 			while (retry < 4) {
 				try {
@@ -110,10 +95,6 @@ public class TableRowCountInspectJob extends InspectJob {
 					}
 				}
 			}
-
-			logger.info(String.format("Inspect completed for task %s", inspectTask.getTaskId()));
-
-			progressUpdateCallback.progress(inspectTask, stats, null);
 		} catch (Throwable e) {
 			logger.error("Inspect failed " + name, e);
 		}

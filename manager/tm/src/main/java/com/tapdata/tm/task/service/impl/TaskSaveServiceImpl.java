@@ -42,27 +42,9 @@ import java.util.stream.Collectors;
 @Service
 @Setter(onMethod_ = {@Autowired})
 public class TaskSaveServiceImpl implements TaskSaveService {
-    private TaskService taskService;
-    private TaskDagCheckLogService taskDagCheckLogService;
     private MetadataInstancesService metadataInstancesService;
     private AlarmSettingService alarmSettingService;
     private AlarmRuleService alarmRuleService;
-
-    @Override
-    public boolean taskSaveCheckLog(TaskDto taskDto, UserDetail userDetail) {
-        taskDagCheckLogService.removeAllByTaskId(taskDto.getId().toHexString());
-
-        boolean noPass = false;
-        List<TaskDagCheckLog> taskDagCheckLogs = taskDagCheckLogService.dagCheck(taskDto, userDetail, true);
-        if (CollectionUtils.isNotEmpty(taskDagCheckLogs)) {
-            Optional<TaskDagCheckLog> any = taskDagCheckLogs.stream().filter(log -> Level.ERROR.equals(log.getGrade())).findAny();
-            if (any.isPresent()) {
-                noPass = true;
-            }
-        }
-
-        return noPass;
-    }
 
     @Override
     public void syncTaskSetting(TaskDto taskDto, UserDetail userDetail) {
@@ -140,8 +122,8 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
     @Override
     public void supplementAlarm(TaskDto taskDto, UserDetail userDetail) {
-        List<AlarmSettingDto> settingDtos = alarmSettingService.findAll(userDetail);
-        List<AlarmRuleDto> ruleDtos = alarmRuleService.findAll(userDetail);
+        List<AlarmSettingDto> settingDtos = alarmSettingService.findAllAlarmSetting(userDetail);
+        List<AlarmRuleDto> ruleDtos = alarmRuleService.findAllAlarm(userDetail);
 
         Map<AlarmKeyEnum, AlarmSettingDto> settingDtoMap = settingDtos.stream().collect(Collectors.toMap(AlarmSettingDto::getKey, Function.identity(), (e1, e2) -> e1));
         Map<AlarmKeyEnum, AlarmRuleDto> ruleDtoMap = ruleDtos.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
@@ -150,7 +132,7 @@ public class TaskSaveServiceImpl implements TaskSaveService {
         List<AlarmRuleDto> alarmRuleDtos = Lists.newArrayList();
         if (CollectionUtils.isEmpty(taskDto.getAlarmSettings())) {
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_ERROR));
-            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INSPECT_ERROR));
+            //alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INSPECT_ERROR));
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_FULL_COMPLETE));
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_START));
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_STOP));

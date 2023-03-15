@@ -25,7 +25,7 @@
 		<module>mariadb-connector</module>
 		<module>hive1-connector</module>
 		<module>coding-connector</module>
-		<module>zoho-connector</module>
+		<module>zoho-desk-connector</module>
 		<module>tidb-connector</module>
 		<module>tablestore-connector</module>
 		<module>custom-connector</module>
@@ -54,6 +54,7 @@
 		<module>aliyun-rds-mariadb-connector</module>
 		<module>databend-connector</module>
 		<module>hazelcast-connector</module>
+		<module>opengauss-connector</module>
 	</modules>
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
@@ -67,6 +68,8 @@
 		<commons.collections4.version>4.4</commons.collections4.version>
 		<log4j.version>2.17.1</log4j.version>
 		<guava.version>31.0.1-jre</guava.version>
+		<maven.compiler.encoding>UTF-8</maven.compiler.encoding>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
 
 	<dependencyManagement>

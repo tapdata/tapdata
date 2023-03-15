@@ -1,6 +1,5 @@
 package io.tapdata.pdk.cli.run;
 
-//import com.tapdata.constant.ConfigurationCenter;
 import io.tapdata.pdk.cli.Main;
 import io.tapdata.pdk.core.connector.TapConnectorManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -14,7 +13,8 @@ public class PDKRunner {
     public static final String BASE_CONF_PATH = "tapdata-cli/src/main/resources/run/";
 
     private enum TddPath {
-        Lark("lark-connector-v1.0-SNAPSHOT.jar", "lark.json"),
+//        Lark("lark-connector-v1.0-SNAPSHOT.jar", "lark.json"),
+        LarkTask("lark-im-connector-v1.0-SNAPSHOT.jar", "lark-im.json"),
 //        ZoHoCRM("zoho-crm-connector-v1.0-SNAPSHOT.jar", "zoho-crm-js.json"),
 //        CodingDemo("coding-demo-connector-v1.0-SNAPSHOT.jar", "coding-js.json"),
         ;
@@ -46,8 +46,8 @@ public class PDKRunner {
     public static void main(String[] args) {
         CommonUtils.setProperty("pdk_external_jar_path", "./connectors/dist");
         CommonUtils.setProperty("TDD_AUTO_EXIT", "0");
-        //CommonUtils.setProperty("show_api_invoker_result", "0");
-        //CommonUtils.setProperty("pdk_run_log_show", "true");
+        CommonUtils.setProperty("show_api_invoker_result", "0");
+        CommonUtils.setProperty("pdk_run_log_show", "true");
 
         //ConfigurationCenter.processId = "sam_flow_engine";
         for (PDKRunner.TddPath tddJarPath : PDKRunner.TddPath.values()) {

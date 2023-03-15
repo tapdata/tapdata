@@ -1,6 +1,7 @@
 package io.tapdata.script.factory.script;
 
 import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.pdk.apis.error.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -13,6 +14,8 @@ import javax.script.*;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.Reader;
+import java.net.URLClassLoader;
+import java.util.Arrays;
 import java.util.List;
 
 public class TapRunScriptEngine implements ScriptEngine, Invocable, Closeable {
@@ -34,6 +37,13 @@ public class TapRunScriptEngine implements ScriptEngine, Invocable, Closeable {
         EngineType jsEngineEnum = EngineType.getByEngineName(jsEngineName);
         ScriptEngine scriptEngine;
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        while (classLoader != null) {
+            TapLogger.debug("TapRunScriptEngine","class loader: {}", classLoader);
+            if (classLoader instanceof URLClassLoader) {
+                TapLogger.debug("TapRunScriptEngine", "url:  {}", Arrays.asList(((URLClassLoader) classLoader).getURLs()));
+            }
+            classLoader = classLoader.getParent();
+        }
         try {
             if (jsEngineEnum == EngineType.GRAALVM_JS) {
                 scriptEngine = GraalJSScriptEngine

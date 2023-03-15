@@ -7,6 +7,7 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.extra.cglib.CglibUtil;
+import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.service.SettingsService;
@@ -27,8 +28,11 @@ import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.Operation;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.*;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.commons.task.dto.migrate.MigrateTableDto;
 import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
 import com.tapdata.tm.commons.util.CapitalizedEnum;
@@ -42,6 +46,7 @@ import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.inspect.constant.InspectResultEnum;
 import com.tapdata.tm.inspect.dto.InspectDto;
@@ -64,10 +69,7 @@ import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.bean.*;
-import com.tapdata.tm.task.constant.SyncType;
-import com.tapdata.tm.task.constant.TaskEnum;
-import com.tapdata.tm.task.constant.TaskOpStatusEnum;
-import com.tapdata.tm.task.constant.TaskStatusEnum;
+import com.tapdata.tm.task.constant.*;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.param.LogSettingParam;
@@ -109,11 +111,11 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
+import java.text.MessageFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
@@ -178,6 +180,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public final static String LOG_COLLECTOR_SAVE_ID = "log_collector_save_id";
 
     private CustomNodeService customNodeService;
+
+    private ExternalStorageService externalStorageService;
 
     public TaskService(@NonNull TaskRepository repository) {
         super(repository, TaskDto.class, TaskEntity.class);
@@ -820,9 +824,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //add message
         if (SyncType.MIGRATE.getValue().equals(taskDto.getSyncType())) {
-            messageService.addMigration(taskDto.getName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, Level.WARN, user);
+            messageService.addMigration(taskDto.getDeleteName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, Level.WARN, user);
         } else if (SyncType.SYNC.getValue().equals(taskDto.getSyncType())) {
-            messageService.addSync(taskDto.getName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, "", Level.WARN, user);
+            messageService.addSync(taskDto.getDeleteName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, "", Level.WARN, user);
         }
 
         try {
@@ -1276,9 +1280,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
     public Page<TaskDto> find(Filter filter, UserDetail userDetail) {
         if (isAgentReq()) {
-            return super.find(filter, userDetail);
+            Page<TaskDto>  page = super.find(filter, userDetail);
+            deleteNotifyEnumData(page.getItems());
+            log.debug("page{}",JSONObject.toJSONString(page));
+            return page;
         }
-
         Where where = filter.getWhere();
         if (where == null) {
             where = new Where();
@@ -1383,6 +1389,40 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
 
+    public void deleteNotifyEnumData(List<TaskDto> taskDtoList) {
+        log.info("deleteNotifyEnumData");
+        if (CollectionUtils.isEmpty(taskDtoList)) {
+            return;
+        }
+        for (TaskDto taskDto : taskDtoList) {
+            List<AlarmSettingVO> alarmSettings = taskDto.getAlarmSettings();
+            if (CollectionUtils.isNotEmpty(alarmSettings)) {
+                for (AlarmSettingVO alarmSettingDto : alarmSettings) {
+                    log.info("alarmSettingDto{}", JSONObject.toJSONString(alarmSettingDto));
+                    alarmSettingDto.getNotify().remove(NotifyEnum.SMS);
+                    alarmSettingDto.getNotify().remove(NotifyEnum.WECHAT);
+                    log.info("alarmSettingDto after{}", JSONObject.toJSONString(alarmSettingDto));
+
+                }
+            }
+            if (taskDto.getDag().getNodes() != null) {
+                for (Node node : taskDto.getDag().getNodes()) {
+                    if (CollectionUtils.isNotEmpty(node.getAlarmSettings())) {
+                        List<AlarmSettingVO> alarmSetting = node.getAlarmSettings();
+                        for (AlarmSettingVO alarmSettingVO : alarmSetting) {
+                            log.info("alarmSettingDto Node{}", JSONObject.toJSONString(alarmSettingVO));
+                            if (CollectionUtils.isNotEmpty(alarmSettingVO.getNotify())) {
+                                alarmSettingVO.getNotify().remove(NotifyEnum.SMS);
+                                alarmSettingVO.getNotify().remove(NotifyEnum.WECHAT);
+                                log.info("alarmSettingDto  Node after{}", JSONObject.toJSONString(alarmSettingVO));
+
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     /**
      * 查询数据复制任务，直接用status查
      * 列表的筛选需要增加一个逻辑
@@ -1611,24 +1651,21 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         shareCacheVo.setFields((List<String>) sourceNode.getAttrs().get("fields"));
                     }
 
-//                    MeasurementEntity measurementEntity = measurementService.findByTaskIdAndNodeId(taskDto.getId().toString(), sourceNode.getId());
-//                    if (null != measurementEntity && null != measurementEntity.getStatistics() && null != measurementEntity.getStatistics().get("cdcTime")) {
-//                        Map<String, Number> statistics = measurementEntity.getStatistics();
-//                        //cdc 值为integer or long 需要处理，cdcTime   也可能为0 需要处理
-//                        Number cdcTime = statistics.get("cdcTime");
-//                        Date cdcTimeDate = null;
-//                        if (cdcTime instanceof Integer) {
-//                            cdcTimeDate = new Date(cdcTime.longValue());
-//                        } else if (cdcTime instanceof Long) {
-//                            cdcTimeDate = new Date((Long) cdcTime);
-//                        }
-//                        shareCacheVo.setCacheTimeAt(cdcTimeDate);
-//                    }
+                    if (taskDto.getCurrentEventTimestamp() != null) {
+                        shareCacheVo.setCacheTimeAt(new Date(taskDto.getCurrentEventTimestamp()));
+                    }
                 }
 
                 CacheNode cacheNode = (CacheNode) getTargetNode(taskDto);
                 if (null != cacheNode) {
                     BeanUtil.copyProperties(cacheNode, shareCacheVo);
+                    String externalStorageId = cacheNode.getExternalStorageId();
+                    if (StringUtils.isNotEmpty(externalStorageId)) {
+                        ExternalStorageDto externalStorageDto = externalStorageService.findById(MongoUtils.toObjectId(externalStorageId));
+                        if (externalStorageDto != null) {
+                            shareCacheVo.setExternalStorageName(externalStorageDto.getName());
+                        }
+                    }
                 }
 
                 shareCacheVo.setName(taskDto.getName());
@@ -1664,6 +1701,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         shareCacheDetailVo.setMaxRows(targetNode.getMaxRows());
         shareCacheDetailVo.setMaxMemory(targetNode.getMaxMemory());
         shareCacheDetailVo.setTtl(TimeUtil.parseSecondsToDay(targetNode.getTtl()));
+        shareCacheDetailVo.setExternalStorageId(targetNode.getExternalStorageId());
 
         return shareCacheDetailVo;
     }
@@ -1703,6 +1741,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             tableNode.setType("table");
             tableNode.setDatabaseType((String) sourceNodeMap.get("databaseType"));
             tableNode.setConnectionId((String) sourceNodeMap.get("connectionId"));
+            tableNode.setName(tableNode.getConnectionId() + "-" + tableNode.getTableName());
 
             Map<String, Object> attrs = new HashMap();
             if (null != sourceNodeMap.get("attrs")) {
@@ -1729,6 +1768,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             cacheNode.setId(targetId);
             cacheNode.setFields((List<String>) attrs.get("fields"));
             cacheNode.setCacheName(saveShareCacheParam.getName());
+            cacheNode.setName(cacheNode.getCacheName());
 
             List<Node> nodes = new ArrayList<>();
             nodes.add(tableNode);
@@ -2067,11 +2107,23 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public TransformerWsMessageDto findTransformParam(String taskId, UserDetail user) {
         TaskDto taskDto = checkExistById(MongoUtils.toObjectId(taskId), user);
+        if (isAgentReq()) {
+            List<TaskDto> list = new ArrayList<>();
+            list.add(taskDto);
+            deleteNotifyEnumData(list);
+
+        }
         return transformSchemaService.getTransformParam(taskDto, user);
     }
 
     public TransformerWsMessageDto findTransformAllParam(String taskId, UserDetail user) {
         TaskDto taskDto = checkExistById(MongoUtils.toObjectId(taskId), user);
+        if (isAgentReq()) {
+            List<TaskDto> list = new ArrayList<>();
+            list.add(taskDto);
+            deleteNotifyEnumData(list);
+
+       }
         return transformSchemaService.getTransformParam(taskDto, user, true);
     }
 
@@ -2135,7 +2187,81 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return taskTypeStats;
     }
 
+    private DataFlowInsightStatisticsDto mergerStatistics(List<LocalDate> localDates, DataFlowInsightStatisticsDto oldStatistics, DataFlowInsightStatisticsDto newStatistics) {
+        Map<String, DataFlowInsightStatisticsDto.DataStatisticInfo> oldMap = new HashMap<>();
+        if (oldStatistics != null && CollectionUtils.isNotEmpty(oldStatistics.getInputDataStatistics())) {
+            oldMap = oldStatistics.getInputDataStatistics().stream().collect(Collectors.toMap(DataFlowInsightStatisticsDto.DataStatisticInfo::getTime, v -> v, (k1, k2) -> k2));
+        }
+
+        Map<String, DataFlowInsightStatisticsDto.DataStatisticInfo> newMap = new HashMap<>();
+        if (newStatistics != null && CollectionUtils.isNotEmpty(newStatistics.getInputDataStatistics())) {
+            newMap = newStatistics.getInputDataStatistics().stream().collect(Collectors.toMap(DataFlowInsightStatisticsDto.DataStatisticInfo::getTime, v -> v, (k1, k2) -> k2));
+        }
+
+        List<DataFlowInsightStatisticsDto.DataStatisticInfo> inputDataStatistics = new ArrayList<>();
+        
+        final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
+        for (LocalDate localDate : localDates) {
+            String time = localDate.format(format);
+            if (newMap.get(time) != null) {
+                inputDataStatistics.add(newMap.get(time));
+            } else if (oldMap.get(time) != null) {
+                inputDataStatistics.add(oldMap.get(time));
+            }
+        }
+
+        inputDataStatistics.sort(Comparator.comparing(DataFlowInsightStatisticsDto.DataStatisticInfo::getTime));
+        DataFlowInsightStatisticsDto dataFlowInsightStatisticsDto = new DataFlowInsightStatisticsDto();
+        dataFlowInsightStatisticsDto.setInputDataStatistics(inputDataStatistics);
+        Long count = inputDataStatistics.stream().map(DataFlowInsightStatisticsDto.DataStatisticInfo::getCount).reduce(0L, Long::sum);
+        dataFlowInsightStatisticsDto.setTotalInputDataCount(count);
+        dataFlowInsightStatisticsDto.setGranularity("month");
+        return dataFlowInsightStatisticsDto;
+    }
+
+    private List<LocalDate> getNewLocalDate(List<LocalDate> localDates, DataFlowInsightStatisticsDto oldStatistics) {
+        List<DataFlowInsightStatisticsDto.DataStatisticInfo> inputDataStatistics = oldStatistics.getInputDataStatistics();
+        if (CollectionUtils.isEmpty(inputDataStatistics)) {
+            return localDates;
+        }
+        final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
+        List<LocalDate> newLocalDates = new ArrayList<>();
+        inputDataStatistics.remove(inputDataStatistics.size()-1);
+        List<LocalDate> oldLocalDate = inputDataStatistics.stream().map(s -> LocalDate.parse(s.getTime(), format)).collect(Collectors.toList());
+        for (LocalDate localDate : localDates) {
+            if (!oldLocalDate.contains(localDate)) {
+                newLocalDates.add(localDate);
+            }
+        }
+
+        return newLocalDates;
+    }
+
     public DataFlowInsightStatisticsDto statsTransport(UserDetail userDetail) {
+        List<LocalDate> localDates = new ArrayList<>();
+        LocalDate now = LocalDate.now();
+        LocalDate lastMonthDay = now.minusMonths(1);
+        while (!now.equals(lastMonthDay)) {
+            localDates.add(now);
+            now = now.minusDays(1);
+        }
+
+        DataFlowInsightStatisticsDto oldStatistics = InputNumCache.USER_INPUT_NUM_CACHE.get(userDetail.getUserId());
+        if (oldStatistics == null) {
+            DataFlowInsightStatisticsDto dataFlowInsightStatisticsDto = statsTransport(userDetail, localDates);
+            InputNumCache.USER_INPUT_NUM_CACHE.put(userDetail.getUserId(), dataFlowInsightStatisticsDto);
+            return dataFlowInsightStatisticsDto;
+        }
+        List<LocalDate> newLocalDates = getNewLocalDate(localDates, oldStatistics);
+        DataFlowInsightStatisticsDto newStatistics = statsTransport(userDetail, newLocalDates);
+        DataFlowInsightStatisticsDto dataFlowInsightStatisticsDto = mergerStatistics(localDates, oldStatistics, newStatistics);
+        InputNumCache.USER_INPUT_NUM_CACHE.put(userDetail.getUserId(), dataFlowInsightStatisticsDto);
+        return dataFlowInsightStatisticsDto;
+    }
+
+
+
+    public DataFlowInsightStatisticsDto statsTransport(UserDetail userDetail, List<LocalDate> localDates) {
 
         Criteria criteria = Criteria.where("is_deleted").ne(true);
         Query query = new Query(criteria);
@@ -2143,14 +2269,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         List<TaskDto> allDto = findAllDto(query, userDetail);
         List<String> ids = allDto.stream().map(a->a.getId().toHexString()).collect(Collectors.toList());
 
-        List<LocalDate> localDates = new ArrayList<>();
-        LocalDate now = LocalDate.now();
-        LocalDate lastMonthDay = now.minusMonths(1);
         Map<LocalDate, Long> allInputNumMap = new HashMap<>();
-        while (!now.equals(lastMonthDay)) {
-            localDates.add(now);
-            allInputNumMap.put(now, 0L);
-            now = now.minusDays(1);
+        for (LocalDate date : localDates) {
+            allInputNumMap.put(date, 0L);
         }
         List<Date> localDateTimes = new ArrayList<>();
         for (LocalDate localDate : localDates) {
@@ -2190,11 +2311,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (max.isPresent()) {
                     Sample sample = max.get();
                     Map<String, Number> vs = sample.getVs();
-                    value += Long.parseLong(String.valueOf(vs.get("inputInsertTotal")));
-                    value += Long.parseLong(String.valueOf(vs.get("inputOthersTotal")));
-                    value += Long.parseLong(String.valueOf(vs.get("inputDdlTotal")));
-                    value += Long.parseLong(String.valueOf(vs.get("inputUpdateTotal")));
-                    value += Long.parseLong(String.valueOf(vs.get("inputDeleteTotal")));
+                    value += parseDataTotal(vs.get("inputInsertTotal"));
+                    value += parseDataTotal(vs.get("inputOthersTotal"));
+                    value += parseDataTotal(vs.get("inputDdlTotal"));
+                    value += parseDataTotal(vs.get("inputUpdateTotal"));
+                    value += parseDataTotal(vs.get("inputDeleteTotal"));
                 }
                 LocalDate localDate = k.minusDays(1L);
                 Long lastNum = inputNumMap.get(localDate);
@@ -2230,6 +2351,69 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         dataFlowInsightStatisticsDto.setGranularity("month");
         return dataFlowInsightStatisticsDto;
     }
+
+    /**
+     * 根据连接目标节点的连接id获取任务
+     * @param connectionIds
+     * @param user
+     */
+    public Map<String, List<TaskDto>> getByConIdOfTargetNode(List<String> connectionIds, String status, String position, UserDetail user, int page, int pageSize) {
+
+
+        Map<String, List<TaskDto>> taskMap = new HashMap<>();
+        for (String connectionId : connectionIds) {
+            Criteria criteria = Criteria.where("dag.nodes.connectionId").is(connectionId)
+                    .and("is_deleted").ne(true);
+            if (StringUtils.isNotBlank(status)) {
+                criteria.and("status").is(status);
+            }
+            Query query = new Query(criteria);
+            query.fields().include("dag");
+            List<TaskDto> allTasks = findAllDto(query, user);
+
+            List<ObjectId> containsTaskIds = new ArrayList<>();
+
+            be:
+            for (TaskDto task : allTasks) {
+                DAG dag = task.getDag();
+                if (position.equals("source")) {
+                    List<Node> sources = dag.getSources();
+                    if (CollectionUtils.isNotEmpty(sources)) {
+                        for (Node source : sources) {
+                            if (source instanceof DataParentNode) {
+                                String connectionId1 = ((DataParentNode<?>) source).getConnectionId();
+                                if (connectionId.equals(connectionId1)) {
+                                    containsTaskIds.add(task.getId());
+                                    continue be;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    List<Node> targets = dag.getTargets();
+                    if (CollectionUtils.isNotEmpty(targets)) {
+                        for (Node target : targets) {
+                            if (target instanceof DataParentNode) {
+                                String connectionId1 = ((DataParentNode<?>) target).getConnectionId();
+                                if (connectionId.equals(connectionId1)) {
+                                    containsTaskIds.add(task.getId());
+                                    continue be;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Criteria criteria1 = Criteria.where("_id").in(containsTaskIds);
+            List<TaskDto> taskDtos = findAllDto(new Query(criteria1), user);
+            taskMap.put(connectionId, taskDtos);
+        }
+        return taskMap;
+
+
+    }
+
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
@@ -2756,6 +2940,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
             if (DataSyncMq.OP_TYPE_DELETE.equals(opType)) {
                 update.set("name", taskDto.getName() + "_" + nameSuffix);
+                update.set("deleteName", taskDto.getName());
             }
             this.update(new Query(Criteria.where("id").is(taskDto.getId())), update);
 
@@ -3434,8 +3619,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 .and("crontabExpression").exists(true)
                 .and("is_deleted").is(false)
                 .andOperator(Criteria.where("status").nin(TaskDto.STATUS_EDIT,TaskDto.STATUS_STOPPING,
-                        TaskDto.STATUS_RUNNING,TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING,TaskDto.STATUS_SCHEDULING,
-                        TaskDto.STATUS_DELETE_FAILED));
+                        TaskDto.STATUS_RUNNING,TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING,
+                        TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_DELETE_FAILED));
         Query taskQuery = new Query(migrateCriteria);
         List<TaskDto> taskList = findAll(taskQuery);
         if (CollectionUtils.isNotEmpty(taskList)) {

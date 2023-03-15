@@ -135,7 +135,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         return updateResult.getModifiedCount();
     }
 
-    public Integer addMonitor(ClusterStateMonitorRequest addMonitorRequest){
+    public Integer addMonitor(ClusterStateMonitorRequest addMonitorRequest,UserDetail userDetail){
 
         ClusterStateDto clusterStateDto = findOne(Query.query(Criteria.where("systemInfo.uuid").is(addMonitorRequest.getUuid())));
         if (clusterStateDto == null){
@@ -160,7 +160,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         messageDto.setServerName(clusterStateDto.getSystemInfo() != null ? clusterStateDto.getSystemInfo().getIp() : "");
         messageDto.setSourceId(addMonitorRequest.getUuid());
         messageDto.setMonitorName(addMonitorRequest.getName());
-        messageService.add(messageDto);
+        messageService.add(messageDto,userDetail);
         return 1;
     }
 
@@ -198,7 +198,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         return 1;
     }
 
-    public Integer removeMonitor(ClusterStateMonitorRequest removeMonitorRequest){
+    public Integer removeMonitor(ClusterStateMonitorRequest removeMonitorRequest,UserDetail userDetail){
 
         ClusterStateDto clusterStateDto = findOne(Query.query(Criteria.where("systemInfo.uuid").is(removeMonitorRequest.getUuid())));
         if (clusterStateDto == null){
@@ -225,7 +225,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         messageDto.setServerName(clusterStateDto.getSystemInfo() != null ? clusterStateDto.getSystemInfo().getIp() : "");
         messageDto.setSourceId(removeMonitorRequest.getUuid());
         messageDto.setMonitorName(monitorName);
-        messageService.add(messageDto);
+        messageService.add(messageDto,userDetail);
 
         return 1;
     }

@@ -21,4 +21,5 @@ public class ExternalStorageEntity extends BaseEntity {
 	private boolean canEdit = false;
 	private boolean canDelete = true;
     private boolean defaultStorage = false;
+	private boolean init = false;
 }

@@ -5,6 +5,7 @@ import com.hazelcast.map.IMap;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
+import org.bson.Document;
 
 /**
  * use bytes storage
@@ -13,6 +14,7 @@ import io.tapdata.entity.utils.ObjectSerializable;
  * @version v1.0 2022/10/28 11:35 Create
  */
 public class BytesIMap<T> extends ConstructIMap<T> {
+	private static final String DATA_KEY = BytesIMap.class.getSimpleName() + "-DATA";
 
     public BytesIMap(HazelcastInstance hazelcastInstance, String name, ExternalStorageDto externalStorageDto) {
         super(hazelcastInstance, name, externalStorageDto);
@@ -28,7 +30,7 @@ public class BytesIMap<T> extends ConstructIMap<T> {
 
     @Override
     public int insert(String key, T data) throws Exception {
-        iMap.put(key, serialized(data));
+		iMap.put(key, new Document(DATA_KEY, serialized(data)));
         return 1;
     }
 
@@ -55,6 +57,9 @@ public class BytesIMap<T> extends ConstructIMap<T> {
     @Override
     public T find(String key) throws Exception {
         Object o = iMap.get(key);
+		if(o instanceof Document && ((Document) o).containsKey(DATA_KEY)){
+			o = ((Document) o).get(DATA_KEY);
+		}
         if (o instanceof byte[]) {
             return deserialized((byte[]) o);
         } else {

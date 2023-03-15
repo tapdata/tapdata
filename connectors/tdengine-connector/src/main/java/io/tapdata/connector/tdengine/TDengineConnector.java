@@ -138,6 +138,7 @@ public class TDengineConnector extends ConnectorBase {
             return formatTapDateTime(tapYearValue.getValue(), "yyyy");
         });
 
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportCreateTableV2(this::createTable);
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportClearTable(this::clearTable);

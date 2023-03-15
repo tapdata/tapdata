@@ -1,10 +1,15 @@
 package io.tapdata.common.support.core;
 
+import io.tapdata.base.ConnectorBase;
+import io.tapdata.common.postman.util.ApiMapUtil;
 import io.tapdata.entity.logger.TapLogger;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+import static io.tapdata.entity.simplify.TapSimplify.fromJson;
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 public class ConnectorLog {
@@ -47,15 +52,37 @@ public class ConnectorLog {
         TapLogger.memory(TAG, msg, this.args(params));
     }
 
-    private Object args(Object... params) {
+    protected Object args(Object... params) {
         if (Objects.nonNull(params) && params.length > 0) {
             String[] args = new String[params.length];
             for (int index = 0; index < params.length; index++) {
                 Object param = Optional.ofNullable(params[index]).orElse("null");
-                args[index] = param instanceof String ? (String) param : toJson(param);
+                args[index] = param instanceof String ? (String) param : this.covertData(param);
             }
             return args;
         }
         return new String[0];
+    }
+
+    protected String covertData(Object apply) {
+        if (Objects.isNull(apply)) {
+            return null;
+        } else if (apply instanceof Map) {
+            return ConnectorBase.toJson(apply);
+        } else if (apply instanceof Collection) {
+            try {
+                return ConnectorBase.toJson(apply);
+            } catch (Exception e) {
+                String toString = apply.toString();
+                if (toString.matches("\\(([0-9]+)\\)\\[.*]")) {
+                    toString = toString.replaceFirst("\\(([0-9]+)\\)", "");
+                }
+                return toString;
+            }
+        } else if(apply.getClass().isArray()){
+            return ConnectorBase.toJson(apply);
+        }else {
+            return String.valueOf(apply);
+        }
     }
 }

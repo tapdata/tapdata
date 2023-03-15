@@ -113,7 +113,7 @@ public class ScriptExecutorsManager {
 
       Map<String, Object> connectionConfig = connections.getConfig();
       DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
-      PdkStateMap pdkStateMap = new PdkStateMap(TAG, hazelcastInstance, PdkStateMap.StateMapMode.HTTP_TM);
+      PdkStateMap pdkStateMap = new PdkStateMap(TAG, hazelcastInstance);
       PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
       TapTableMap<String, TapTable> tapTableMap = TapTableMap.create("ScriptExecutor", TAG);
       PdkTableMap pdkTableMap = new PdkTableMap(tapTableMap);
@@ -174,6 +174,12 @@ public class ScriptExecutorsManager {
     public long count(Map<String, Object> executeObj) throws Throwable {
       ExecuteResult<Long> executeResult = new ExecuteResult<>();
       pdkExecute("count", executeObj, executeResult);
+      return executeResult.getResult();
+    }
+
+    public List<? extends Map<String, Object>> aggregate(Map<String, Object> executeObj) throws Throwable {
+      ExecuteResult<List<? extends Map<String, Object>>> executeResult = new ExecuteResult<>();
+      pdkExecute("aggregate", executeObj, executeResult);
       return executeResult.getResult();
     }
 

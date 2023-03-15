@@ -1,5 +1,6 @@
 package io.tapdata.common.cdc;
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import io.tapdata.common.ddl.DDLFactory;
 import io.tapdata.common.ddl.ccj.CCJBaseDDLWrapper;
 import io.tapdata.common.ddl.type.DDLParserType;
@@ -8,6 +9,7 @@ import io.tapdata.constant.TapLog;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
@@ -44,7 +46,10 @@ public abstract class LogMiner implements ILogMiner {
 
     protected final LinkedBlockingQueue<RedoLogContent> logQueue = new LinkedBlockingQueue<>(LOG_QUEUE_SIZE); //queue for logContent
     private int fullQueueWarn = 0;
-    protected final LinkedHashMap<String, LogTransaction> transactionBucket = new LinkedHashMap<>(); //transaction cache
+    private long largeTransactionUpperLimit = 10000L;
+    protected final ConcurrentLinkedHashMap<String, LogTransaction> transactionBucket = new ConcurrentLinkedHashMap.Builder<String, LogTransaction>()
+            .initialCapacity(16).maximumWeightedCapacity(1024000).build();
+    ; //transaction cache
     protected RedoLogContent csfLogContent = null; //when redo or undo is too long, append them
     protected final Map<Long, Long> instanceThreadMindedSCNMap = new HashMap<>(); //Map<Thread#, SCN>
     protected final Map<Long, Long> instanceThreadSCNMap = new HashMap<>(); //Map<Thread#, SCN>
@@ -56,6 +61,7 @@ public abstract class LogMiner implements ILogMiner {
     protected Map<String, TapTable> lobTables; //table those have lob type
     protected int recordSize;
     protected StreamReadConsumer consumer;
+    protected AtomicReference<Throwable> threadException = new AtomicReference<>();
 
     //init with pdk params
     @Override
@@ -65,6 +71,10 @@ public abstract class LogMiner implements ILogMiner {
         this.recordSize = recordSize;
         this.consumer = consumer;
         makeLobTables();
+    }
+
+    public void setLargeTransactionUpperLimit(long largeTransactionUpperLimit) {
+        this.largeTransactionUpperLimit = largeTransactionUpperLimit;
     }
 
     /**
@@ -141,6 +151,7 @@ public abstract class LogMiner implements ILogMiner {
                     redoLogContents.put(rsId, new ArrayList<>(4));
                     redoLogContents.get(rsId).add(redoLogContent);
                     LogTransaction orclTransaction = new LogTransaction(rsId, scn, xid, redoLogContents, redoLogContent.getTimestamp().getTime());
+                    orclTransaction.setLargeTransactionUpperLimit(largeTransactionUpperLimit);
                     orclTransaction.setConnectorId(connectorId);
                     setRacMinimalScn(orclTransaction);
                     orclTransaction.incrementSize(1);
@@ -153,7 +164,7 @@ public abstract class LogMiner implements ILogMiner {
                             logTransaction.addRedoLogContent(redoLogContent);
                             logTransaction.incrementSize(1);
                             long txLogContentsSize = logTransaction.getSize();
-                            if (txLogContentsSize % LogTransaction.LARGE_TRANSACTION_UPPER_LIMIT == 0) {
+                            if (txLogContentsSize % logTransaction.getLargeTransactionUpperLimit() == 0) {
                                 TapLogger.info(TAG, TapLog.CON_LOG_0008.getMsg(), xid, txLogContentsSize);
                             }
                         }
@@ -178,6 +189,7 @@ public abstract class LogMiner implements ILogMiner {
                     redoLogContents.put(rsId, new ArrayList<>(4));
                     redoLogContents.get(rsId).add(redoLogContent);
                     LogTransaction orclTransaction = new LogTransaction(rsId, scn, xid, redoLogContents);
+                    orclTransaction.setLargeTransactionUpperLimit(largeTransactionUpperLimit);
                     orclTransaction.setConnectorId(connectorId);
                     setRacMinimalScn(orclTransaction);
                     orclTransaction.setTransactionType(LogTransaction.TX_TYPE_COMMIT);
@@ -193,6 +205,7 @@ public abstract class LogMiner implements ILogMiner {
                 redoLogContents.put(rsId, new ArrayList<>(4));
                 redoLogContents.get(rsId).add(redoLogContent);
                 LogTransaction orclTransaction = new LogTransaction(rsId, scn, xid, redoLogContents);
+                orclTransaction.setLargeTransactionUpperLimit(largeTransactionUpperLimit);
                 orclTransaction.setConnectorId(connectorId);
                 setRacMinimalScn(orclTransaction);
                 orclTransaction.setTransactionType(LogTransaction.TX_TYPE_DDL);
@@ -204,7 +217,7 @@ public abstract class LogMiner implements ILogMiner {
                 if (transactionBucket.containsKey(xid)) {
                     LogTransaction logTransaction = transactionBucket.get(xid);
                     if (logTransaction.isLarge()) {
-                        TapLogger.info(TAG, "Found large transaction be rolled back: {}", logTransaction);
+                        TapLogger.debug(TAG, "Found large transaction be rolled back: {}", logTransaction);
                     }
                     hasRollbackTemp = true;
                     logTransaction.setRollbackTemp(1);
@@ -245,55 +258,63 @@ public abstract class LogMiner implements ILogMiner {
     private void batchCreateEvents(List<RedoLogContent> redoLogContentList, AtomicReference<List<TapEvent>> eventList, AtomicReference<RedoLogContent> lastRedoLogContent) {
         for (RedoLogContent redoLogContent : redoLogContentList) {
             lastRedoLogContent.set(redoLogContent);
-            if (EmptyKit.isNull(Objects.requireNonNull(redoLogContent).getRedoRecord()) && !"DDL".equals(Objects.requireNonNull(redoLogContent).getOperation())) {
-                continue;
-            }
-            switch (Objects.requireNonNull(redoLogContent).getOperation()) {
-                case "INSERT":
-                    eventList.get().add(new TapInsertRecordEvent().init()
-                            .table(redoLogContent.getTableName())
-                            .after(redoLogContent.getRedoRecord())
-                            .referenceTime(redoLogContent.getTimestamp().getTime()));
-                    break;
-                case "UPDATE":
-                    eventList.get().add(new TapUpdateRecordEvent().init()
-                            .table(redoLogContent.getTableName())
-                            .after(redoLogContent.getRedoRecord())
-                            .before(redoLogContent.getUndoRecord())
-                            .referenceTime(redoLogContent.getTimestamp().getTime()));
-                    break;
-                case "DELETE":
-                    eventList.get().add(new TapDeleteRecordEvent().init()
-                            .table(redoLogContent.getTableName())
-                            .before(redoLogContent.getRedoRecord())
-                            .referenceTime(redoLogContent.getTimestamp().getTime()));
-                    break;
-                case "DDL":
-                    try {
-                        ddlStop.set(true);
-                        TapSimplify.sleep(5000);
-                        ddlFlush();
-                        ddlStop.set(false);
-                    } catch (Throwable e) {
-                        throw new RuntimeException(e);
+            if ("DDL".equals(Objects.requireNonNull(redoLogContent).getOperation())) {
+                try {
+                    ddlStop.set(true);
+                    TapSimplify.sleep(5000);
+                    ddlFlush();
+                    ddlStop.set(false);
+                } catch (Throwable e) {
+                    throw new RuntimeException(e);
+                }
+                try {
+                    long referenceTime = redoLogContent.getTimestamp().getTime();
+                    TapLogger.warn(TAG, "DDL [{}] is synchronizing...", redoLogContent.getSqlRedo());
+                    DDLFactory.ddlToTapDDLEvent(ddlParserType, redoLogContent.getSqlRedo(),
+                            DDL_WRAPPER_CONFIG,
+                            tableMap,
+                            tapDDLEvent -> {
+                                tapDDLEvent.setTime(System.currentTimeMillis());
+                                tapDDLEvent.setReferenceTime(referenceTime);
+                                eventList.get().add(tapDDLEvent);
+                            });
+                } catch (Throwable e) {
+                    throw new RuntimeException(e);
+                }
+            } else {
+                if (EmptyKit.isNull(Objects.requireNonNull(redoLogContent).getRedoRecord())) {
+                    continue;
+                }
+                Map<String, Object> streamOffset = new HashMap<>();
+                streamOffset.put("scn", redoLogContent.getScn());
+                streamOffset.put("commitTime", redoLogContent.getTimestamp().toString());
+                TapRecordEvent recordEvent;
+                switch (Objects.requireNonNull(redoLogContent).getOperation()) {
+                    case "INSERT": {
+                        recordEvent = new TapInsertRecordEvent().init()
+                                .table(redoLogContent.getTableName())
+                                .after(redoLogContent.getRedoRecord());
+                        break;
                     }
-                    try {
-                        long referenceTime = redoLogContent.getTimestamp().getTime();
-                        TapLogger.warn(TAG, "DDL [{}] is synchronizing...", redoLogContent.getSqlRedo());
-                        DDLFactory.ddlToTapDDLEvent(ddlParserType, redoLogContent.getSqlRedo(),
-                                DDL_WRAPPER_CONFIG,
-                                tableMap,
-                                tapDDLEvent -> {
-                                    tapDDLEvent.setTime(System.currentTimeMillis());
-                                    tapDDLEvent.setReferenceTime(referenceTime);
-                                    eventList.get().add(tapDDLEvent);
-                                });
-                    } catch (Throwable e) {
-                        throw new RuntimeException(e);
+                    case "UPDATE": {
+                        recordEvent = new TapUpdateRecordEvent().init()
+                                .table(redoLogContent.getTableName())
+                                .after(redoLogContent.getRedoRecord())
+                                .before(redoLogContent.getUndoRecord());
+                        break;
                     }
-                    break;
-                default:
-                    break;
+                    case "DELETE": {
+                        recordEvent = new TapDeleteRecordEvent().init()
+                                .table(redoLogContent.getTableName())
+                                .before(redoLogContent.getRedoRecord());
+                        break;
+                    }
+                    default:
+                        continue;
+                }
+                recordEvent.setReferenceTime(redoLogContent.getTimestamp().getTime());
+                recordEvent.addInfo("streamOffset", streamOffset);
+                eventList.get().add(recordEvent);
             }
         }
     }
@@ -302,7 +323,7 @@ public abstract class LogMiner implements ILogMiner {
 
     protected abstract void submitEvent(RedoLogContent redoLogContent, List<TapEvent> list);
 
-    private void rollbackTempHandle(LinkedHashMap<String, LogTransaction> transactionBucket) {
+    private void rollbackTempHandle(ConcurrentLinkedHashMap<String, LogTransaction> transactionBucket) {
         if (EmptyKit.isEmpty(transactionBucket)) {
             return;
         }
@@ -324,12 +345,13 @@ public abstract class LogMiner implements ILogMiner {
             } else {
                 TapLogger.info(TAG, "It was found that the transaction[first scn: {}, xid: {}] that was rolled back did not commit after {} events, " +
                         "and the modification of this transaction was truly discarded", bucketTransaction.getScn(), bucketXid, ROLLBACK_TEMP_LIMIT);
+                bucketTransaction.clearRedoLogContents();
                 iterator.remove();
             }
         }
     }
 
-    private List<String> commitTempHandle(LinkedHashMap<String, LogTransaction> transactionBucket, RedoLogContent redoLogContent) {
+    private List<String> commitTempHandle(ConcurrentLinkedHashMap<String, LogTransaction> transactionBucket, RedoLogContent redoLogContent) {
         List<String> need2CommitTxs = new ArrayList<>();
         if (EmptyKit.isNotEmpty(transactionBucket)) {
             transactionBucket.values().forEach(logTransaction -> {
@@ -353,7 +375,7 @@ public abstract class LogMiner implements ILogMiner {
         if (orclTransaction.isHasRollback()) {
             TapLogger.info(TAG, "Found commit that had a rollback before it, first scn: {}, xid: {}, log content size: {}", orclTransaction.getScn(), xid, txLogContentsSize);
         }
-        if (txLogContentsSize >= LogTransaction.LARGE_TRANSACTION_UPPER_LIMIT) {
+        if (txLogContentsSize >= orclTransaction.getLargeTransactionUpperLimit()) {
             TapLogger.info(TAG, TapLog.D_CONN_LOG_0002.getMsg(), xid, txLogContentsSize);
         } else {
             TapLogger.debug(TAG, TapLog.D_CONN_LOG_0002.getMsg(), xid, txLogContentsSize);

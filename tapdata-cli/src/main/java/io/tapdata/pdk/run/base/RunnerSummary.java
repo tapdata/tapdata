@@ -483,7 +483,7 @@ public class RunnerSummary {
     }
 
     public static String format(String key, Object... formatValue) {
-        String tapLang = CommonUtils.getProperty("tap_lang","zh_CN");
+        String tapLang = CommonUtils.getProperty("tap_lang", "zh_CN");
         String langArr[] = tapLang.split("_");
         if (langArr.length < 1) langArr = new String[]{"zh", "CN"};
         ResourceBundle lang = ResourceBundle.getBundle(LANG_PATH, new Locale(langArr[0], langArr.length > 1 ? langArr[1] : ""));

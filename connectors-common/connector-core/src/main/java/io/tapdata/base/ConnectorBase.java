@@ -18,6 +18,8 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.utils.TypeConverter;
 
 import java.io.PrintWriter;
@@ -26,7 +28,10 @@ import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -351,37 +356,53 @@ public abstract class ConnectorBase implements TapConnector {
         return matched;
     }
 
-    protected void multiThreadDiscoverSchema(List<DataMap> tables, int tableSize, Consumer<List<TapTable>> consumer) {
-        Set<List<DataMap>> tableLists = new HashSet<>(DbKit.splitToPieces(tables, tableSize));
-        ExecutorService executorService = Executors.newFixedThreadPool(5);
-        AtomicReference<Throwable> throwable = new AtomicReference<>();
-        CountDownLatch countDownLatch = new CountDownLatch(5);
-        for (int i = 0; i < 5; i++) {
-            executorService.submit(() -> {
-                try {
-                    List<DataMap> subList;
-                    while ((subList = getOutTableList(tableLists)) != null) {
-                        singleThreadDiscoverSchema(subList, consumer);
-                    }
-                } catch (Exception e) {
-                    throwable.set(e);
-                } finally {
-                    countDownLatch.countDown();
-                }
-            });
-        }
-        try {
-            countDownLatch.await();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        if (EmptyKit.isNotNull(throwable.get())) {
-            throw new RuntimeException(throwable.get());
-        }
-        executorService.shutdown();
+    protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+        RetryOptions retryOptions = RetryOptions.create();
+        retryOptions.setNeedRetry(true);
+        retryOptions.beforeRetryMethod(() -> {
+            try {
+                this.onStop(tapConnectionContext);
+                this.onStart(tapConnectionContext);
+            } catch (Throwable ignore) {
+            }
+        });
+        return retryOptions;
     }
 
-    private synchronized List<DataMap> getOutTableList(Set<List<DataMap>> tableLists) {
+    protected void multiThreadDiscoverSchema(List<DataMap> tables, int tableSize, Consumer<List<TapTable>> consumer) {
+        CopyOnWriteArraySet<List<DataMap>> tableLists = new CopyOnWriteArraySet<>(DbKit.splitToPieces(tables, tableSize));
+        AtomicReference<Throwable> throwable = new AtomicReference<>();
+        CountDownLatch countDownLatch = new CountDownLatch(5);
+        ExecutorService executorService = Executors.newFixedThreadPool(5);
+        try {
+            for (int i = 0; i < 5; i++) {
+                executorService.submit(() -> {
+                    try {
+                        List<DataMap> subList;
+                        while ((subList = getOutTableList(tableLists)) != null) {
+                            singleThreadDiscoverSchema(subList, consumer);
+                        }
+                    } catch (Exception e) {
+                        throwable.set(e);
+                    } finally {
+                        countDownLatch.countDown();
+                    }
+                });
+            }
+            try {
+                countDownLatch.await();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            if (EmptyKit.isNotNull(throwable.get())) {
+                throw new RuntimeException(throwable.get());
+            }
+        } finally {
+            executorService.shutdown();
+        }
+    }
+
+    private synchronized List<DataMap> getOutTableList(CopyOnWriteArraySet<List<DataMap>> tableLists) {
         if (EmptyKit.isNotEmpty(tableLists)) {
             List<DataMap> list = tableLists.stream().findFirst().orElseGet(ArrayList::new);
             tableLists.remove(list);
@@ -392,6 +413,10 @@ public abstract class ConnectorBase implements TapConnector {
 
     protected void singleThreadDiscoverSchema(List<DataMap> subList, Consumer<List<TapTable>> consumer) {
         throw new UnsupportedOperationException("This type of datasource is not supported");
+    }
+
+    protected synchronized void syncSchemaSubmit(List<TapTable> tapTables, Consumer<List<TapTable>> consumer) {
+        consumer.accept(tapTables);
     }
 
 }

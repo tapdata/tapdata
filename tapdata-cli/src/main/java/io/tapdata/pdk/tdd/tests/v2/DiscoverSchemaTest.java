@@ -8,13 +8,13 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
-import io.tapdata.pdk.cli.commands.TapSummary;
+import io.tapdata.pdk.tdd.core.base.TddConfigKey;
+import io.tapdata.pdk.tdd.core.base.TestNode;
+import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
+import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
-import io.tapdata.pdk.tdd.tests.support.TapAssert;
-import io.tapdata.pdk.tdd.tests.support.TapGo;
-import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,8 +28,13 @@ import java.util.stream.Collectors;
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
 @DisplayName("discoverSchema.test")//discoverSchema发现表， 必测方法
-@TapGo(sort = 99,goTest = true,subTest = {DiscoverSchemaTestV2.class})//6
-public class DiscoverSchemaTest extends PDKTestBase{
+@TapGo(tag = "V2", sort = 9999, goTest = true, subTest = {DiscoverSchemaTestV2.class})//6
+public class DiscoverSchemaTest extends PDKTestBase {
+    {
+        if (PDKTestBase.testRunning) {
+            System.out.println(LangUtil.format("discoverSchema.test.wait"));
+        }
+    }
     @DisplayName("discoverSchema.discover")//用例1， 发现表
     @Test
     @TapTestCase(sort = 1)
@@ -38,9 +43,10 @@ public class DiscoverSchemaTest extends PDKTestBase{
      * 表里没有字段描述时， 报警告
      * 表里有字段， 但是字段的name或者dataType为空时， 报警告， 具体哪些字段有问题
      * */
-    void discover(){
+    void discover() {
+        System.out.println(LangUtil.format("discoverSchema.discover.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            TestNode prepare = this.prepare(nodeInfo);
             try {
                 super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("discover");
@@ -49,64 +55,66 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 TapConnector connector = connectorNode.getConnector();
                 TapConnectorContext connectorContext = connectorNode.getConnectorContext();
                 List<TapTable> tables = new ArrayList<>();
-                connector.discoverSchema(connectorContext,new ArrayList<>(),1000,consumer->{if(null!=consumer) tables.addAll(consumer);});
+                connector.discoverSchema(connectorContext, new ArrayList<>(), 1000, consumer -> {
+                    if (null != consumer) tables.addAll(consumer);
+                });
                 //执行discoverSchema之后， 至少返回一张表
-                TapAssert.asserts(()->
-                    Assertions.assertFalse(tables.isEmpty(), TapSummary.format("discover.notAnyTable"))
+                TapAssert.asserts(() ->
+                        Assertions.assertFalse(tables.isEmpty(), LangUtil.format("discover.notAnyTable"))
                 ).acceptAsWarn(
-                    testCase,
-                    TapSummary.format("discover.succeed",tables.size())
+                        testCase,
+                        LangUtil.format("discover.succeed", tables.size())
                 );
-                Map<String,Map<String,String>> warnFieldMap = new HashMap<>();
-                tables.stream().forEach(table->{
-                    if (null == table){
-                        TapAssert.asserts(()->
-                            Assertions.fail(TapSummary.format("discover.nullTable"))
+                Map<String, Map<String, String>> warnFieldMap = new HashMap<>();
+                tables.stream().forEach(table -> {
+                    if (null == table) {
+                        TapAssert.asserts(() ->
+                                Assertions.fail(LangUtil.format("discover.nullTable"))
                         ).error(testCase);
                         return;
                     }
                     //表里有表名即为成功
                     String tableName = table.getId();
-                    if (null == tableName || "".equals(tableName)){
-                        TapAssert.asserts(()->
-                            Assertions.fail(TapSummary.format("discover.emptyTableName"))
+                    if (null == tableName || "".equals(tableName)) {
+                        TapAssert.asserts(() ->
+                                Assertions.fail(LangUtil.format("discover.emptyTableName"))
                         ).error(testCase);
                         return;
                     }
                     //表里没有字段描述时，报警告
                     LinkedHashMap<String, TapField> nameFieldMap = table.getNameFieldMap();
-                    TapAssert.asserts(()->
-                        Assertions.assertTrue(
-                            null != nameFieldMap && !nameFieldMap.isEmpty(),
-                            TapSummary.format("discover.emptyTFields",tableName))
+                    TapAssert.asserts(() ->
+                            Assertions.assertTrue(
+                                    null != nameFieldMap && !nameFieldMap.isEmpty(),
+                                    LangUtil.format("discover.emptyTFields", tableName))
                     ).warn(testCase);
                     //表里有字段， 但是字段的name或者dataType为空时， 报警告， 具体哪些字段有问题
-                    if (null != nameFieldMap && !nameFieldMap.isEmpty()){
+                    if (null != nameFieldMap && !nameFieldMap.isEmpty()) {
                         for (Map.Entry<String, TapField> field : nameFieldMap.entrySet()) {
                             TapField value = field.getValue();
                             String name = value.getName();
                             String type = value.getDataType();
-                            if ( null == name || "".equals(name) || null == type || "".equals(type) ){
+                            if (null == name || "".equals(name) || null == type || "".equals(type)) {
                                 Map<String, String> stringStringMap = warnFieldMap.computeIfAbsent(tableName, ts -> null == warnFieldMap.get(ts) ? new HashMap<>() : warnFieldMap.get(ts));
-                                stringStringMap.put(name,type);
+                                stringStringMap.put(name, type);
                             }
                         }
                     }
                 });
                 StringBuilder warn = new StringBuilder();
                 final String starLine = "\n\t\t\t\t\t";
-                warnFieldMap.forEach((table,value)->{
+                warnFieldMap.forEach((table, value) -> {
                     warn.append(starLine).append(table).append(": ");
-                    value.forEach((name,type)->warn.append(starLine).append("\t").append(name).append(":\t").append(type));
+                    value.forEach((name, type) -> warn.append(starLine).append("\t").append(name).append(":\t").append(type));
                 });
-                TapAssert.asserts(()->
-                    Assertions.assertTrue(
-                        warnFieldMap.isEmpty(),
-                        TapSummary.format("discover.hasWarnFields",warn.toString()))
-                ).acceptAsWarn(testCase,TapSummary.format("discover.notWarnFields"));
-            }catch (Throwable e) {
+                TapAssert.asserts(() ->
+                        Assertions.assertTrue(
+                                warnFieldMap.isEmpty(),
+                                LangUtil.format("discover.hasWarnFields", warn.toString()))
+                ).acceptAsWarn(testCase, LangUtil.format("discover.notWarnFields"));
+            } catch (Throwable e) {
                 throw new RuntimeException(e);
-            }finally {
+            } finally {
                 super.connectorOnStop(prepare);
             }
         });
@@ -114,7 +122,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
 
     @DisplayName("discoverSchema.discoverAfterCreate")//用例2， 建表之后能发现表（依赖CreateTableFunction）
     @Test
-    @TapTestCase(sort = 2,dump = true)
+    @TapTestCase(sort = 2, dump = true)
     /**
      * 通过CreateTableFunction创建一张表， 表名随机，
      * 表里的字段属性是通过TapType的全类型11个字段推演得来，
@@ -123,9 +131,10 @@ public class DiscoverSchemaTest extends PDKTestBase{
      * 且所有字段的name和dataType一致即为成功。
      * 验证结束之后需要删掉随机建的表（依赖DropTableFunction）
      * */
-    void discoverAfterCreate(){
+    void discoverAfterCreate() {
+        System.out.println(LangUtil.format("discoverSchema.discoverAfterCreate.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             boolean hasCreateTable = false;
             try {
@@ -134,7 +143,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 execute.testCase(testCase);
                 //通过CreateTableFunction创建一张表， 表名随机，
                 //表里的字段属性是通过TapType的全类型11个字段推演得来，
-                if (! ( hasCreateTable =this.createTable(prepare,false) ) ) return;
+                if (!(hasCreateTable = this.createTable(prepare, false))) return;
                 String tableIdTarget = targetTable.getId();
                 //建表之后执行discoverySchema获得表列表，
                 ConnectorNode connectorNode = prepare.connectorNode();
@@ -142,68 +151,69 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 TapConnectorContext connectorContext = connectorNode.getConnectorContext();
                 ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
                 //List<TapTable> consumer = new ArrayList<>();
-                Map<String ,TapTable> consumer = new HashMap<>();
+                Map<String, TapTable> consumer = new HashMap<>();
                 long discoverStart = System.currentTimeMillis();
-                connector.discoverSchema(connectorContext,list(tableIdTarget),100, con->{
-                    if (null!=con)
-                        consumer.putAll(con.stream().filter(Objects::nonNull).collect(  Collectors.toMap(TapTable::getId, c->c,(c1, c2)->c1)));
+                connector.discoverSchema(connectorContext, list(tableIdTarget), 100, con -> {
+                    if (null != con)
+                        consumer.putAll(con.stream().filter(Objects::nonNull).collect(Collectors.toMap(TapTable::getId, c -> c, (c1, c2) -> c1)));
                 });
                 String tableId = targetTable.getId();
                 TapTable consumerTable = consumer.get(tableId);
                 long discoverEnd = System.currentTimeMillis();
                 boolean hasTargetTable = !consumer.isEmpty() && null != consumerTable;
                 //表列表里包含随机创建的表，
-                TapAssert.asserts(()->
-                    Assertions.assertTrue(
-                            hasTargetTable,
-                        TapSummary.format("discoverAfterCreate.notFindTargetTable",tableId,discoverEnd-discoverStart))
+                TapAssert.asserts(() ->
+                        Assertions.assertTrue(
+                                hasTargetTable,
+                                LangUtil.format("discoverAfterCreate.notFindTargetTable", tableId, discoverEnd - discoverStart))
                 ).acceptAsError(
-                    testCase,
-                    TapSummary.format("discoverAfterCreate.fundTargetTable",tableId,discoverEnd-discoverStart)
+                        testCase,
+                        LangUtil.format("discoverAfterCreate.fundTargetTable", tableId, discoverEnd - discoverStart)
                 );
-                if (hasTargetTable){
+                if (hasTargetTable) {
                     //且所有字段的name和dataType一致即为成功。
                     LinkedHashMap<String, TapField> tapTableFieldMap = consumerTable.getNameFieldMap();
                     LinkedHashMap<String, TapField> targetTableFieldMap = super.modelDeduction(connectorNode);//targetTable.getNameFieldMap();
-                    if ( null == tapTableFieldMap || null == targetTableFieldMap){
-                        TapAssert.asserts(()->Assertions.fail(TapSummary.format("discoverAfterCreate.exitsNullFiledMap",tableId))).error(testCase);
+                    if (null == tapTableFieldMap || null == targetTableFieldMap) {
+                        TapAssert.asserts(() -> Assertions.fail(LangUtil.format("discoverAfterCreate.exitsNullFiledMap", tableId))).error(testCase);
                         return;
                     }
                     int tapTableSize = tapTableFieldMap.size();
                     int targetTableSize = targetTableFieldMap.size();
                     try {
-                        TapAssert.asserts(()->{
+                        TapAssert.asserts(() -> {
                             Assertions.assertTrue(
-                                    tapTableSize>targetTableSize,
-                                    TapSummary.format("discoverAfterCreate.fieldsNotEqualsCount",
-                                    tapTableSize,
-                                    targetTableSize
-                                )
+                                    tapTableSize > targetTableSize,
+                                    LangUtil.format("discoverAfterCreate.fieldsNotEqualsCount",
+                                            tapTableSize,
+                                            targetTableSize
+                                    )
                             );
                         }).acceptAsWarn(
-                            testCase,
-                            TapSummary.format(
-                                "discoverAfterCreate.fieldsEqualsCount",
-                                tapTableSize,
-                                targetTableSize
-                            )
+                                testCase,
+                                LangUtil.format(
+                                        "discoverAfterCreate.fieldsEqualsCount",
+                                        tapTableSize,
+                                        targetTableSize
+                                )
                         );
-                    }catch (Exception ignored){ }
+                    } catch (Exception ignored) {
+                    }
 
                     boolean hasSuchField = true;
                     Iterator<Map.Entry<String, TapField>> iterator = targetTableFieldMap.entrySet().stream().iterator();
                     String targetFieldItem = "";
                     String tapFieldItem = "";
-                    while (iterator.hasNext()){
+                    while (iterator.hasNext()) {
                         Map.Entry<String, TapField> next = iterator.next();
                         TapField field = next.getValue();
                         String name = field.getName();
                         String dataType = field.getDataType();
 
                         TapField tapField = tapTableFieldMap.get(name);
-                        if (null == tapField){
+                        if (null == tapField) {
                             hasSuchField = false;
-                            targetFieldItem = "("+name+":"+dataType+")";
+                            targetFieldItem = "(" + name + ":" + dataType + ")";
                             tapFieldItem = "null";
                             break;
                         }
@@ -213,26 +223,26 @@ public class DiscoverSchemaTest extends PDKTestBase{
                         }
                         if ((null == dataType && tapDataType != null) || !dataType.equals(tapDataType)) {
                             hasSuchField = false;
-                            targetFieldItem = "("+name+":"+dataType+")";
-                            tapFieldItem = "("+name+":"+tapDataType+")";
+                            targetFieldItem = "(" + name + ":" + dataType + ")";
+                            tapFieldItem = "(" + name + ":" + tapDataType + ")";
                             break;
                         }
                     }
                     final boolean hasSuchFieldFinal = hasSuchField;
                     final String tapFieldItemFinal = tapFieldItem;
                     final String targetFieldItemFinal = targetFieldItem;
-                    TapAssert.asserts(()->{
+                    TapAssert.asserts(() -> {
                         Assertions.assertTrue(
-                            hasSuchFieldFinal,
-                            TapSummary.format("discoverAfterCreate.allFieldNotEquals",tableId,targetFieldItemFinal,tapFieldItemFinal));
+                                hasSuchFieldFinal,
+                                LangUtil.format("discoverAfterCreate.allFieldNotEquals", tableId, targetFieldItemFinal, tapFieldItemFinal));
                     }).acceptAsWarn(
-                        testCase,
-                        TapSummary.format("discoverAfterCreate.allFieldEquals",tableId)
+                            testCase,
+                            LangUtil.format("discoverAfterCreate.allFieldEquals", tableId)
                     );
                 }
-            }catch (Throwable e) {
+            } catch (Throwable e) {
                 throw new RuntimeException(e);
-            }finally {
+            } finally {
                 //验证结束之后需要删掉随机建的表（依赖DropTableFunction）
                 if (hasCreateTable) execute.dropTable();
                 super.connectorOnStop(prepare);
@@ -251,9 +261,10 @@ public class DiscoverSchemaTest extends PDKTestBase{
      * 通过Consumer<List<TapTable>> consumer返回了这一张且仅此一张表为成功。
      * 如果只有一张表， 直接通过此测试。
      * */
-    void discoverByTableName1(){
+    void discoverByTableName1() {
+        System.out.println(LangUtil.format("discoverSchema.discoverByTableName1.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            TestNode prepare = this.prepare(nodeInfo);
             try {
                 super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("discoverByTableName1");
@@ -270,19 +281,19 @@ public class DiscoverSchemaTest extends PDKTestBase{
 
                 long discoverStart = System.currentTimeMillis();
                 List<TapTable> consumer = new ArrayList<>();
-                connector.discoverSchema(connectorContext,new ArrayList<>(),1000, consumer::addAll);
+                connector.discoverSchema(connectorContext, new ArrayList<>(), 1000, consumer::addAll);
 
                 long discoverEndTemp = System.currentTimeMillis();
                 //执行discoverSchema之后， 至少返回一张表
-                TapAssert.asserts(()->{
+                TapAssert.asserts(() -> {
                     Assertions.assertTrue(
-                            !consumer.isEmpty() && consumer.size()>1,
-                            TapSummary.format("discoverByTableName1.notAnyTable",discoverEndTemp-discoverStart));
+                            !consumer.isEmpty() && consumer.size() > 1,
+                            LangUtil.format("discoverByTableName1.notAnyTable", discoverEndTemp - discoverStart));
                 }).acceptAsWarn(
                         testCase,
-                        TapSummary.format("discoverByTableName1.succeed",consumer.size(),discoverEndTemp-discoverStart)
+                        LangUtil.format("discoverByTableName1.succeed", consumer.size(), discoverEndTemp - discoverStart)
                 );
-                if (!consumer.isEmpty() && consumer.size()>1) {
+                if (!consumer.isEmpty() && consumer.size() > 1) {
                     tableCount.set(consumer.size());
                     //通过指定第一张表之后的任意一张表名，
                     nextTable.set(((new Random()).nextInt(tableCount.get() - 1) + 1));
@@ -300,18 +311,18 @@ public class DiscoverSchemaTest extends PDKTestBase{
                             TapAssert.asserts(() -> {
                                 Assertions.assertTrue(
                                         null != c && c.size() == 1,
-                                        TapSummary.format("discoverByTableName1.notAnyTableAfter", tableCount, tapTable.getId(), discoverEnd - discoverStart2));
+                                        LangUtil.format("discoverByTableName1.notAnyTableAfter", tableCount, tapTable.getId(), discoverEnd - discoverStart2));
                             }).acceptAsWarn(
                                     testCase,
-                                    TapSummary.format("discoverByTableName1.succeedAfter", tableCount, tapTable.getId(), c.size(), discoverEnd - discoverStart2)
+                                    LangUtil.format("discoverByTableName1.succeedAfter", tableCount, tapTable.getId(), c.size(), discoverEnd - discoverStart2)
                             );
                         });
                     } catch (Throwable e) {
                     }
                 }
-            }catch (Throwable e) {
+            } catch (Throwable e) {
                 throw new RuntimeException(e);
-            }finally {
+            } finally {
                 super.connectorOnStop(prepare);
             }
         });
@@ -320,16 +331,17 @@ public class DiscoverSchemaTest extends PDKTestBase{
 
     @DisplayName("discoverSchema.discoverByTableName2")//用例4， 通过指定表名加载特定表（依赖CreateTableFunction）
     @Test
-    @TapTestCase(sort = 4,dump = true)
+    @TapTestCase(sort = 4, dump = true)
     /**
      * 通过CreateTableFunction另外创建一张表，
      * 通过List<String> tables参数指定新创建的那张表，
      * 通过Consumer<List<TapTable>> consumer返回了这一张且仅此一张表为成功。
      * 验证结束之后需要删掉随机建的表（依赖DropTableFunction）
      * */
-    void discoverByTableName2(){
+    void discoverByTableName2() {
+        System.out.println(LangUtil.format("discoverSchema.discoverByTableName2.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             boolean hasCreatedTable = false;
             try {
@@ -338,42 +350,45 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 execute.testCase(testCase);
 
                 //通过CreateTableFunction另外创建一张表，
-                if (! ( hasCreatedTable = this.createTable(prepare) )) return;
+                Boolean deleteRecordAfterCreateTable = prepare.recordEventExecute().findTddConfig(TddConfigKey.DELETE_RECORD_AFTER_CREATE_TABLE.KeyName(), Boolean.class);
+                if (!(hasCreatedTable = this.createTable(prepare, Optional.ofNullable(deleteRecordAfterCreateTable).orElse((Boolean) TddConfigKey.DELETE_RECORD_AFTER_CREATE_TABLE.defaultValue())))) {
+                    return;
+                }
                 String tableIdTarget = targetTable.getId();
 
                 //通过List<String> tables参数指定新创建的那张表，
                 ConnectorNode connectorNode = prepare.connectorNode();
                 TapConnector connector = connectorNode.getConnector();
                 TapConnectorContext connectorContext = connectorNode.getConnectorContext();
-                Map<String,TapTable> tabMap = new HashMap<>();
+                Map<String, TapTable> tabMap = new HashMap<>();
                 //通过Consumer<List<TapTable>> consumer返回了这一张且仅此一张表为成功。
                 long discoverStart = System.currentTimeMillis();
-                connector.discoverSchema(connectorContext,list(tableIdTarget),1000, con->{
-                    if (null!=con){
+                connector.discoverSchema(connectorContext, list(tableIdTarget), 1000, con -> {
+                    if (null != con) {
                         tabMap.putAll(con.stream()
-                            .filter(Objects::nonNull)
-                            .collect(Collectors.toMap(TapTable::getId,tab->tab,(t1,t2)->t2)));
+                                .filter(Objects::nonNull)
+                                .collect(Collectors.toMap(TapTable::getId, tab -> tab, (t1, t2) -> t2)));
                     }
                 });
                 long discoverEnd = System.currentTimeMillis();
-                TapAssert.asserts(()->{
-                    Assertions.assertFalse(tabMap.isEmpty(), TapSummary.format("discoverByTableName2.notAnyTable", tableIdTarget, tabMap.size(), discoverEnd - discoverStart));
+                TapAssert.asserts(() -> {
+                    Assertions.assertFalse(tabMap.isEmpty(), LangUtil.format("discoverByTableName2.notAnyTable", tableIdTarget, tableIdTarget, tabMap.size(), discoverEnd - discoverStart));
                 }).acceptAsError(
-                    testCase,
-                    TapSummary.format("discoverByTableName2.succeed",tableIdTarget,tabMap.size(),discoverEnd-discoverStart)
+                        testCase,
+                        LangUtil.format("discoverByTableName2.succeed", tableIdTarget, tableIdTarget, tabMap.size(), discoverEnd - discoverStart)
                 );
                 TapTable tapTable = tabMap.get(tableIdTarget);
-                TapAssert.asserts(()->{
-                    Assertions.assertNotNull(tapTable, TapSummary.format("discoverByTableName2.notEqualsTable", tableIdTarget, tapTable.getId(), discoverEnd - discoverStart));
+                TapAssert.asserts(() -> {
+                    Assertions.assertNotNull(tapTable, LangUtil.format("discoverByTableName2.notEqualsTable", tableIdTarget, tableIdTarget, tapTable.getId(), discoverEnd - discoverStart));
                 }).acceptAsError(
-                    testCase,
-                    TapSummary.format("discoverByTableName2.equalsTable",tableIdTarget,tapTable.getId(),discoverEnd-discoverStart)
+                        testCase,
+                        LangUtil.format("discoverByTableName2.equalsTable", tableIdTarget, tableIdTarget, tapTable.getId(), discoverEnd - discoverStart)
                 );
-            }catch (Throwable e) {
+            } catch (Throwable e) {
                 throw new RuntimeException(e);
-            }finally {
+            } finally {
                 //验证结束之后需要删掉随机建的表（依赖DropTableFunction）
-                if(hasCreatedTable) execute.dropTable();
+                if (hasCreatedTable) execute.dropTable();
                 super.connectorOnStop(prepare);
             }
         });
@@ -390,9 +405,10 @@ public class DiscoverSchemaTest extends PDKTestBase{
      * 通过Consumer<List<TapTable>> consumer返回了一张表为成功。
      * 如果只有一张表， 直接通过此测试。
      * */
-    void discoverByTableCount1(){
+    void discoverByTableCount1() {
+        System.out.println(LangUtil.format("discoverSchema.discoverByTableCount1.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            TestNode prepare = this.prepare(nodeInfo);
             try {
                 super.connectorOnStart(prepare);
                 Method testCase = super.getMethod("discoverByTableCount1");
@@ -403,16 +419,18 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 TapConnectorContext connectorContext = connectorNode.getConnectorContext();
                 List<TapTable> consumer = new ArrayList<>();
                 long discoverStart = System.currentTimeMillis();
-                connector.discoverSchema(connectorContext,new ArrayList<>(),1000,con->{if(con != null) consumer.addAll(con);});
+                connector.discoverSchema(connectorContext, new ArrayList<>(), 1000, con -> {
+                    if (con != null) consumer.addAll(con);
+                });
                 long discoverEnd = System.currentTimeMillis();
                 //执行discoverSchema之后， 发现有大于1张表的返回，
-                TapAssert.asserts(()->{
+                TapAssert.asserts(() -> {
                     Assertions.assertTrue(
-                        !consumer.isEmpty() && consumer.size()>1,
-                        TapSummary.format("discoverByTableCount1.notAnyTable",discoverEnd-discoverStart));
+                            !consumer.isEmpty() && consumer.size() > 1,
+                            LangUtil.format("discoverByTableCount1.notAnyTable", discoverEnd - discoverStart));
                 }).acceptAsWarn(
-                    testCase,
-                    TapSummary.format("discoverByTableCount1.succeed",consumer.size(),discoverEnd-discoverStart)
+                        testCase,
+                        LangUtil.format("discoverByTableCount1.succeed", consumer.size(), discoverEnd - discoverStart)
                 );
 
                 //通过int tableSize参数指定为1，
@@ -421,7 +439,9 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 List<List<TapTable>> consumer2 = new ArrayList<>();
                 long discoverStart2 = System.currentTimeMillis();
                 // @TODO tableSize = tableCount
-                connector.discoverSchema(connectorContext,list(),tableCount,con->{if (null!=con) consumer2.add(con);});
+                connector.discoverSchema(connectorContext, list(), tableCount, con -> {
+                    if (null != con) consumer2.add(con);
+                });
                 long discoverEnd2 = System.currentTimeMillis();
                 //如果只有一张表，直接通过此测试。
                 boolean consumerFlag = true;
@@ -435,38 +455,38 @@ public class DiscoverSchemaTest extends PDKTestBase{
                             consumerFlag = false;
                         }
                     }
-                    totalCount += null==tables?0:tables.size();
+                    totalCount += null == tables ? 0 : tables.size();
                 }
                 boolean finalConsumerFlag = consumerFlag;
                 int finalConsumerErrorIndex = consumerErrorIndex;
 
                 int finalTotalCount = totalCount;
-                TapAssert.asserts(()->
-                    Assertions.assertTrue(
-                            finalConsumerFlag ,
-                        TapSummary.format(
-                            "discoverByTableCount1.consumer.error",
-                                finalTotalCount,
-                            tableCount,
-                            tableCount,
-                            tableCount,
-                            finalConsumerErrorIndex+1,
-                            consumer2.size()<finalConsumerErrorIndex+1 || null== consumer2.get(finalConsumerErrorIndex)?0:consumer2.get(finalConsumerErrorIndex).size(),
-                            discoverEnd2 - discoverStart2
+                TapAssert.asserts(() ->
+                        Assertions.assertTrue(
+                                finalConsumerFlag,
+                                LangUtil.format(
+                                        "discoverByTableCount1.consumer.error",
+                                        finalTotalCount,
+                                        tableCount,
+                                        tableCount,
+                                        tableCount,
+                                        finalConsumerErrorIndex + 1,
+                                        consumer2.size() < finalConsumerErrorIndex + 1 || null == consumer2.get(finalConsumerErrorIndex) ? 0 : consumer2.get(finalConsumerErrorIndex).size(),
+                                        discoverEnd2 - discoverStart2
+                                )
                         )
-                    )
-                ).acceptAsError(testCase,TapSummary.format("discoverByTableCount1.consumer.succeed",
-                    finalTotalCount,
-                    tableCount,
-                    tableCount,
-                    tableCount,
-                    consumer2.size(),
-                    tableCount,
-                    discoverEnd2 - discoverStart2
+                ).acceptAsError(testCase, LangUtil.format("discoverByTableCount1.consumer.succeed",
+                        finalTotalCount,
+                        tableCount,
+                        tableCount,
+                        tableCount,
+                        consumer2.size(),
+                        tableCount,
+                        discoverEnd2 - discoverStart2
                 ));
-            }catch (Throwable e) {
+            } catch (Throwable e) {
                 throw new RuntimeException(e);
-            }finally {
+            } finally {
                 super.connectorOnStop(prepare);
             }
         });
@@ -475,16 +495,17 @@ public class DiscoverSchemaTest extends PDKTestBase{
 
     @DisplayName("discoverSchema.discoverByTableCount2")//用例6， 通过指定表数量加载固定数量的表（依赖CreateTableFunction）
     @Test
-    @TapTestCase(sort = 6,dump = true)
+    @TapTestCase(sort = 6, dump = true)
     /**
      * 通过CreateTableFunction另外创建一张表，
      * 通过int tableSize参数指定为1，
      * 通过Consumer<List<TapTable>> consumer返回了一张表为成功。
      * 验证结束之后需要删掉随机建的表（依赖DropTableFunction）
      * */
-    void discoverByTableCount2(){
+    void discoverByTableCount2() {
+        System.out.println(LangUtil.format("discoverSchema.discoverByTableCount2.wait"));
         super.consumeQualifiedTapNodeInfo(nodeInfo -> {
-            PDKTestBase.TestNode prepare = this.prepare(nodeInfo);
+            TestNode prepare = this.prepare(nodeInfo);
             RecordEventExecute execute = prepare.recordEventExecute();
             boolean hasCreateTable = false;
             try {
@@ -497,7 +518,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
                 TapConnectorContext connectorContext = connectorNode.getConnectorContext();
 
                 //通过CreateTableFunction另外创建一张表，
-                if (! ( hasCreateTable =this.createTable(prepare) )) return;
+                if (!(hasCreateTable = this.createTable(prepare))) return;
                 final String targetTableId = targetTable.getId();
 
                 //通过int tableSize参数指定为1，
@@ -507,7 +528,7 @@ public class DiscoverSchemaTest extends PDKTestBase{
 
                 long discoverStart = System.currentTimeMillis();
                 //@TODO tableSize = tableCount
-                connector.discoverSchema(connectorContext,new ArrayList<>(),tableCount,c->{
+                connector.discoverSchema(connectorContext, new ArrayList<>(), tableCount, c -> {
                     if (null != c) consumer.add(c);
                 });
                 long discoverEnd = System.currentTimeMillis();
@@ -523,41 +544,41 @@ public class DiscoverSchemaTest extends PDKTestBase{
                             consumerFlag = false;
                         }
                     }
-                    totalCount += null==tables?0:tables.size();
+                    totalCount += null == tables ? 0 : tables.size();
                 }
                 boolean finalConsumerFlag = consumerFlag;
                 int finalConsumerErrorIndex = consumerErrorIndex;
                 int finalTotalCount = totalCount;
                 //通过Consumer<List<TapTable>> consumer返回了一张表为成功。
                 //如果只有一张表， 直接通过此测试。
-                TapAssert.asserts(()->
-                    Assertions.assertTrue(
-                        finalConsumerFlag,
-                        TapSummary.format(
-                            "discoverByTableCount2.consumer.error",
-                            1,
-                            targetTableId,
-                            tableCount,
-                            tableCount,
-                            finalTotalCount,
-                            finalConsumerErrorIndex+1,
-                            null== consumer.get(finalConsumerErrorIndex)?0:consumer.get(finalConsumerErrorIndex).size(),
-                            discoverEnd - discoverStart
+                TapAssert.asserts(() ->
+                        Assertions.assertTrue(
+                                finalConsumerFlag,
+                                LangUtil.format(
+                                        "discoverByTableCount2.consumer.error",
+                                        1,
+                                        targetTableId,
+                                        tableCount,
+                                        tableCount,
+                                        finalTotalCount,
+                                        finalConsumerErrorIndex + 1,
+                                        null == consumer.get(finalConsumerErrorIndex) ? 0 : consumer.get(finalConsumerErrorIndex).size(),
+                                        discoverEnd - discoverStart
+                                )
                         )
-                    )
-                ).acceptAsError(testCase,TapSummary.format("discoverByTableCount2.consumer.succeed",
-                    1,
-                    targetTableId,
-                    tableCount,
-                    tableCount,
-                    consumer.size(),
-                    tableCount,
-                    discoverEnd - discoverStart
+                ).acceptAsError(testCase, LangUtil.format("discoverByTableCount2.consumer.succeed",
+                        1,
+                        targetTableId,
+                        tableCount,
+                        tableCount,
+                        consumer.size(),
+                        tableCount,
+                        discoverEnd - discoverStart
                 ));
-            }catch (Throwable e) {
+            } catch (Throwable e) {
                 throw new RuntimeException(e);
-            }finally {
-                if(hasCreateTable) execute.dropTable();
+            } finally {
+                if (hasCreateTable) execute.dropTable();
                 super.connectorOnStop(prepare);
             }
         });
@@ -565,9 +586,9 @@ public class DiscoverSchemaTest extends PDKTestBase{
 
     public static List<SupportFunction> testFunctions() {
         return list(
-            supportAny(list(
-                WriteRecordFunction.class, CreateTableFunction.class, CreateTableV2Function.class
-            ), TapSummary.format(anyOneFunFormat,"WriteRecordFunction,CreateTableFunction,CreateTableV2Function"))
+                supportAny(list(
+                        WriteRecordFunction.class, CreateTableFunction.class, CreateTableV2Function.class
+                ), LangUtil.format(anyOneFunFormat, "WriteRecordFunction,CreateTableFunction,CreateTableV2Function"))
         );
     }
 }

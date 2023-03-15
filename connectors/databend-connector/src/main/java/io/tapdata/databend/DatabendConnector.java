@@ -109,8 +109,6 @@ public class DatabendConnector extends ConnectorBase {
                                 }
                                 TapField field = TapSimplify.field(columnName, columnType);
                                 field.nullable(nullable);
-                                int ordinalPosition = Integer.parseInt(col.getString("position"));
-                                field.pos(ordinalPosition);
                                 tapTable.add(field);
                             });
                     tapTableList.add(tapTable);
@@ -161,6 +159,7 @@ public class DatabendConnector extends ConnectorBase {
             return datetime.toSqlDate();
         });
 
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         //target
         connectorFunctions.supportCreateTable(this::createTable);
         connectorFunctions.supportDropTable(this::dropTable);
@@ -181,6 +180,7 @@ public class DatabendConnector extends ConnectorBase {
         sql.append(TapTableWriter.sqlQuota(".", databendConfig.getDatabase(), tapTable.getId()));
         sql.append("(").append(DatabendDDLSqlMaker.buildColumnDefinition(tapTable, true));
         sql.setLength(sql.length() - 1);
+        sql.append(")");
 
         try {
             List<String> sqls = TapSimplify.list();

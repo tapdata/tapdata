@@ -11,6 +11,16 @@ public class Url {
     List<String> path;
     List<Map<String,Object>> query;
     List<Map<String,Object>> variable;
+    public Url copyOne(){
+        Url url = new Url();
+        url.raw(this.raw);
+        url.host(this.host);
+        url.path(this.path);
+        url.query(this.query);
+        url.variable(this.variable);
+        return url;
+    }
+
     public static Url create(){
         return new Url();
     }
