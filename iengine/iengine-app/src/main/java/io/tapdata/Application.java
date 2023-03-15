@@ -247,7 +247,7 @@ public class Application {
 			logsPath.append(outPutLogPath);
 		} else {
 			if (StringUtils.isNotBlank(tapdataWorkDir)) {
-				logsPath.append(tapdataWorkDir).append(LOG_PATH);
+				logsPath.append(tapdataWorkDir).append(File.separator).append(LOG_PATH);
 			} else {
 				logsPath.append(LOG_PATH);
 			}
