@@ -122,6 +122,33 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		ddlEventHandlers.register(TapAlterFieldAttributesEvent.class, this::executeAlterFieldAttrFunction);
 		ddlEventHandlers.register(TapDropFieldEvent.class, this::executeDropFieldFunction);
 		ddlEventHandlers.register(TapCreateTableEvent.class, this::executeCreateTableFunction);
+		ddlEventHandlers.register(TapCreateIndexEvent.class, tapCreateIndexEvent -> {
+			TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+			CreateIndexFunction createIndexFunction = getConnectorNode().getConnectorFunctions().getCreateIndexFunction();
+			if (null == createIndexFunction) {
+				return null;
+			}
+			for (String tableId : tapTableMap.keySet()) {
+				if (!isRunning()) {
+					return null;
+				}
+				TapTable tapTable = tapTableMap.get(tableId);
+				if (null == tapTable) {
+					NodeException e = new NodeException("Init target node failed, table \"" + tableId + "\"'s schema is null").context(getDataProcessorContext());
+					throw e;
+				}
+
+				executeDataFuncAspect(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
+								.table(tapTable)
+								.connectorContext(getConnectorNode().getConnectorContext())
+								.dataProcessorContext(dataProcessorContext)
+								.createIndexEvent(tapCreateIndexEvent)
+								.start(), createIndexFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(),
+								PDKMethod.TARGET_CREATE_INDEX,
+								() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), tapTable, tapCreateIndexEvent), TAG));
+			}
+			return null;
+		});
 		ddlEventHandlers.register(TapDropTableEvent.class, tapDropTableEvent -> {
 			// only execute start function aspect so that it would be cheated as input
 			AspectUtils.executeAspect(new DropTableFuncAspect()
