@@ -3,8 +3,14 @@ package com.tapdata.tm.task.utils;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.tapdata.tm.utils.Lists;
+import lombok.SneakyThrows;
 import org.jetbrains.annotations.NotNull;
 
+import javax.swing.*;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 public class CacheUtils {
@@ -16,7 +22,7 @@ public class CacheUtils {
             // 缓存池大小，在缓存项接近该大小时， Guava开始回收旧的缓存项
             .maximumSize(16)
             // 设置缓存在写入之后在设定时间后失效
-            .expireAfterWrite(30, TimeUnit.SECONDS)
+            .expireAfterWrite(12, TimeUnit.HOURS)
             .build(new CacheLoader<Object, Object>() {
                 @Override
                 public Object load(@NotNull Object key) {
@@ -33,6 +39,17 @@ public class CacheUtils {
      */
     public static void put(Object key, Object value) {
         CACHE.put(key, value);
+    }
+
+    @SneakyThrows
+    public static void push(Object key, Object value) {
+        if (isExist(key)) {
+            List<Object> data = (List<Object>) CACHE.get(key);
+            data.add(value);
+            CACHE.put(key, data);
+        } else {
+            CACHE.put(key, Lists.newArrayList(value));
+        }
     }
 
     /**
@@ -55,13 +72,7 @@ public class CacheUtils {
      * @return 是否存在key
      */
     public static boolean isExist(Object key) {
-        boolean isExist;
-        try {
-            isExist = CACHE.get(key) != null;
-        } catch (Exception e) {
-            isExist = false;
-        }
-        return isExist;
+        return CACHE.asMap().containsKey(key);
     }
 
     public static Object invalidate(Object key) {

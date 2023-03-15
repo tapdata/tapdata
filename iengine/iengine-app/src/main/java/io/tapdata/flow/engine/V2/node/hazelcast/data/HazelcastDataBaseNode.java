@@ -30,11 +30,8 @@ import java.util.Map;
 public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 
 	private Logger logger = LoggerFactory.getLogger(HazelcastDataBaseNode.class);
-
 	protected SyncTypeEnum syncType;
-
 	protected DataProcessorContext dataProcessorContext;
-
 	protected Throwable offsetFromTimeError;
 
 	public HazelcastDataBaseNode(DataProcessorContext dataProcessorContext) {

@@ -1,5 +1,7 @@
 package io.tapdata.entity.script;
 
+import io.tapdata.entity.logger.Log;
+
 import javax.script.ScriptEngine;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -7,6 +9,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ScriptOptions {
 	private volatile Map<String, Class<? extends ScriptEngine>> engineCustomClassMap;
 	private boolean includeExternalFunctions = true;
+	private Log log;
+	public ScriptOptions log(Log log) {
+		this.log = log;
+		return this;
+	}
 	private String engineName;
 
 	public ScriptOptions customEngine(String engineName, Class<? extends ScriptEngine> engineClass) {
@@ -43,4 +50,9 @@ public class ScriptOptions {
 	public Class<? extends ScriptEngine> getEngineCustomClass(String engineName) {
 		return engineCustomClassMap != null ? engineCustomClassMap.get(engineName) : null;
 	}
+
+	public Log getLog() {
+		return log;
+	}
+
 }

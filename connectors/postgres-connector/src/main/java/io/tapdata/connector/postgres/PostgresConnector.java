@@ -157,6 +157,7 @@ public class PostgresConnector extends ConnectorBase {
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
         //test
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportConnectionCheckFunction(this::checkConnection);
         //need to clear resource outer
         connectorFunctions.supportReleaseExternalFunction(this::onDestroy);
@@ -236,6 +237,7 @@ public class PostgresConnector extends ConnectorBase {
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
+        codecRegistry.registerFromTapValue(TapYearValue.class, "character(4)", tapYearValue -> formatTapDateTime(tapYearValue.getValue(), "yyyy"));
     }
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {

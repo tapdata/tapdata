@@ -1,10 +1,10 @@
 {
   "connection": {
-	"host": "192.168.1.183",
-	"port": 33063,
+	"host": "127.0.0.1",
+	"port": 3306,
 	"username": "root",
-	"password": "Gotapd8",
-	"database": "gavin"
+	"password": "root",
+	"database": "TEST"
   },
   "node": {
   }

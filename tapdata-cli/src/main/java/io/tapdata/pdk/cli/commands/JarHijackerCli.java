@@ -1,27 +1,13 @@
 package io.tapdata.pdk.cli.commands;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
-import io.tapdata.entity.codec.TapCodecsRegistry;
-import io.tapdata.pdk.apis.annotations.TapConnectorClass;
-import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.cli.CommonCli;
-import io.tapdata.pdk.cli.services.UploadFileService;
 import io.tapdata.pdk.cli.utils.ZipUtils;
-import io.tapdata.pdk.core.connector.TapConnector;
-import io.tapdata.pdk.core.connector.TapConnectorManager;
-import io.tapdata.pdk.core.tapnode.TapNodeContainer;
-import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import io.tapdata.pdk.core.utils.IOUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.lang3.StringUtils;
 import picocli.CommandLine;
 
 import java.io.File;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.*;
 

@@ -2,7 +2,6 @@ package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.process.FieldAddDelProcessorNode;
-import com.tapdata.tm.commons.dag.process.FieldCalcProcessorNode;
 import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
@@ -14,10 +13,10 @@ import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MessageUtil;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -34,7 +33,7 @@ public class FieldAddDelStrategyImpl implements DagLogStrategy {
     private MetadataInstancesService metadataInstancesService;
 
     @Override
-    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
+    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail, Locale locale) {
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
             return null;
         }
@@ -58,7 +57,7 @@ public class FieldAddDelStrategyImpl implements DagLogStrategy {
                     if (StringUtils.isEmpty(name)) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log("$date【$taskName】【增删字段节点检测】：增删字段节点节点名称为空。")
+                                .log(MessageUtil.getDagCheckMsg(locale, "FIELD_ADD_NAME_EMPTY"))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -84,7 +83,7 @@ public class FieldAddDelStrategyImpl implements DagLogStrategy {
                     if (fieldEmpty) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.ERROR).nodeId(nodeId)
-                                .log(MessageFormat.format("$date【$taskName】【增删字段节点检测】：增删字段节点{0}字段被全部删除。", name))
+                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "FIELD_ADD_ALL_DELETE"), name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
@@ -95,7 +94,7 @@ public class FieldAddDelStrategyImpl implements DagLogStrategy {
                     if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                                 .grade(Level.INFO).nodeId(nodeId)
-                                .log(MessageFormat.format("$date【$taskName】【增删字段节点检测】：增删字段节点{0}检测通过。", name))
+                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "FIELD_ADD_ALL_PASS"), name))
                                 .build();
                         log.setCreateAt(now);
                         log.setCreateUser(userId);

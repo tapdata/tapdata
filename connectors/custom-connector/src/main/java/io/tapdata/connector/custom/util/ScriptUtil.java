@@ -1,7 +1,7 @@
 package io.tapdata.connector.custom.util;
 
-import io.tapdata.exception.StopException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.exception.StopException;
 import io.tapdata.kit.EmptyKit;
 
 import javax.script.Invocable;
@@ -89,8 +89,10 @@ public class ScriptUtil {
                 invocable.invokeFunction(function, data);
             } catch (StopException e) {
                 TapLogger.info(TAG, "Get data and stop script.");
+                throw new RuntimeException(e);
             } catch (ScriptException | NoSuchMethodException | RuntimeException e) {
                 TapLogger.error(TAG, "Run script error, message: {}", e.getMessage(), e);
+                throw new RuntimeException(e);
             }
         }
     }

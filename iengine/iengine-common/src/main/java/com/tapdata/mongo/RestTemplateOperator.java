@@ -3,7 +3,6 @@ package com.tapdata.mongo;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.ImmutableList;
 import com.tapdata.constant.JSONUtil;
-import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.BaseEntity;
 import com.tapdata.entity.ResponseBody;
 import com.tapdata.entity.TapLog;
@@ -17,12 +16,12 @@ import io.tapdata.exception.RestAuthException;
 import io.tapdata.exception.RestDoNotRetryException;
 import io.tapdata.exception.RestException;
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpEntityEnclosingRequest;
 import org.apache.http.HttpRequestInterceptor;
 import org.apache.http.HttpResponseInterceptor;
+import org.apache.http.NoHttpResponseException;
 import org.apache.http.client.config.CookieSpecs;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.entity.GzipCompressingEntity;
@@ -49,9 +48,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -180,66 +177,18 @@ public class RestTemplateOperator {
 	}
 
 	public boolean postOne(Object obj, String resource) {
-		String baseURL = this.baseURL;
-		int baseURLChangeTime = 0;
-		Exception exception = null;
+		return retryWrap((retryInfo) -> {
+            String url = retryInfo.getURL(resource);
+            ResponseEntity<ResponseBody> responseEntity = restTemplate.postForEntity(url, obj, ResponseBody.class);
+            if (successResp(responseEntity)) {
+                return true;
+            }
 
-		setRetryTime();
-		String url = null;
-		ResponseBody responseBody = null;
-		while (baseURLChangeTime < size) {
-			int retry = 0;
-			while (retry <= retryTime) {
-				try {
-					url = url(baseURL, resource);
-					ResponseEntity<ResponseBody> responseEntity = restTemplate.postForEntity(url, obj, ResponseBody.class);
-					responseBody = responseEntity.hasBody() ? responseEntity.getBody() : null;
-					if (successResp(responseEntity)) {
-						return true;
-					} else {
-						handleRequestFailed(url, HttpMethod.POST.name(), obj,
-								responseEntity != null && responseEntity.hasBody() ? responseEntity.getBody() : null
-						);
-						return true;
-					}
-				} catch (RestDoNotRetryException e) {
-					throw e;
-				} catch (Exception e) {
-					retry++;
-					exception = retryExceptionHandle(e, url, HttpMethod.POST.name(), obj, responseBody, retry);
-				}
-			}
-			baseURL = changeBaseURLToNext(baseURL);
-			baseURLChangeTime++;
-		}
-
-		if (exception != null) {
-			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), exception.getMessage()), exception);
-		} else {
-			return false;
-		}
-	}
-
-	public Exception retryExceptionHandle(Exception e, String uri, String method, Object param, ResponseBody responseBody, int retryCount) {
-		if (e instanceof HttpClientErrorException) {
-			// If the parameter is incorrect, no retry will be performed
-			if (404 == ((HttpClientErrorException) e).getRawStatusCode()) {
-				throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "not found url: " + uri), e);
-			}
-			if (405 == ((HttpClientErrorException) e).getRawStatusCode()) {
-				throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "Please upgrade engine"), e);
-			}
-		}
-		if (retryCount <= 1) {
-			logger.warn(
-					"Request {} server failed {}, uri {}, method {}, param {}, response body {}, stack {}, will retry after {}.", baseURL, e.getMessage(), uri, param, responseBody, method, Log4jUtil.getStackString(e), retryInterval
-			);
-		}
-		try {
-			Thread.sleep(retryInterval);
-		} catch (InterruptedException ignore) {
-		}
-		return e;
+            handleRequestFailed(url, HttpMethod.POST.name(), obj,
+                    responseEntity != null && responseEntity.hasBody() ? responseEntity.getBody() : null
+            );
+            return false;
+        }, null);
 	}
 
 	public boolean post(Object request, String resource, Map<String, Object> params) {
@@ -247,147 +196,56 @@ public class RestTemplateOperator {
 	}
 
 	public boolean post(Object request, String resource, Map<String, Object> params, Predicate<?> stop) {
-		String baseURL = this.baseURL;
-		int baseURLChangeTime = 0;
-		Exception exception = null;
-
-		setRetryTime();
-
-		URI url = null;
-		ResponseBody responseBody = null;
-		while (baseURLChangeTime < size) {
-			int retry = 0;
-			while (retry <= retryTime) {
-				if (null != stop && stop.test(null)) {
-					break;
-				}
-				try {
-					url = queryString(url(baseURL, resource), params);
-					ResponseEntity<ResponseBody> responseEntity = restTemplate.postForEntity(url, request, ResponseBody.class);
-					if (successResp(responseEntity)) {
-						responseBody = responseEntity.getBody();
-						Map body = getBody(responseBody, Map.class);
-						if (body != null) {
-							Object id = body.get("id");
-							if (id != null) {
-								if (request instanceof Map) {
-									((Map) request).put("id", id);
-								} else if (request instanceof BaseEntity) {
-									((BaseEntity) request).setId(id.toString());
-								}
-							}
+		return retryWrap(retryInfo -> {
+			URI uri = retryInfo.getURI(resource, params);
+			ResponseEntity<ResponseBody> responseEntity = restTemplate.postForEntity(uri, request, ResponseBody.class);
+			if (successResp(responseEntity)) {
+				ResponseBody responseBody = responseEntity.getBody();
+				Map body = getBody(responseBody, Map.class);
+				if (body != null) {
+					Object id = body.get("id");
+					if (id != null) {
+						if (request instanceof Map) {
+							((Map) request).put("id", id);
+						} else if (request instanceof BaseEntity) {
+							((BaseEntity) request).setId(id.toString());
 						}
-						return true;
-					} else {
-						handleRequestFailed(url.toString(), HttpMethod.POST.name(), request,
-								responseEntity != null && responseEntity.hasBody() ? responseEntity.getBody() : null
-						);
 					}
-
-					break;
-				} catch (RestDoNotRetryException e) {
-					throw e;
-				} catch (Exception e) {
-					retry++;
-					exception = retryExceptionHandle(e, url != null ? url.toString() : null, HttpMethod.POST.name(), request, responseBody, retry);
 				}
+				return true;
 			}
-			baseURL = changeBaseURLToNext(baseURL);
-			baseURLChangeTime++;
-		}
-		if (exception != null) {
-			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), exception.getMessage()), exception);
-		} else {
+
+			handleRequestFailed(retryInfo.reqURL, HttpMethod.POST.name(), request,
+					responseEntity != null && responseEntity.hasBody() ? responseEntity.getBody() : null
+			);
 			return false;
-		}
+		}, stop);
 	}
 
 	public void deleteById(String resource, Object... uriVariables) {
-		String baseURL = this.baseURL;
-		int baseURLChangeTime = 0;
-		Exception exception = null;
-
-		setRetryTime();
-		String url = null;
-		while (baseURLChangeTime < size) {
-			int retry = 0;
-			while (retry <= retryTime) {
-				try {
-					url = url(baseURL, resource);
-					restTemplate.delete(url, uriVariables);
-					return;
-				} catch (Exception e) {
-					retry++;
-					exception = retryExceptionHandle(e, url, HttpMethod.DELETE.name(), uriVariables, null, retry);
-				}
-			}
-			baseURL = changeBaseURLToNext(baseURL);
-			baseURLChangeTime++;
-		}
-
-		if (exception != null) {
-			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), exception.getMessage()), exception);
-		}
+		retryWrap(retryInfo -> {
+			String url = retryInfo.getURL(resource);
+			restTemplate.delete(url, uriVariables);
+			return null;
+		}, null);
 	}
 
 	public void delete(String resource, Map<String, Object> params) {
-		String baseURL = this.baseURL;
-		int baseURLChangeTime = 0;
-		Exception exception = null;
-
-		setRetryTime();
-		String url = null;
-		while (baseURLChangeTime < size) {
-			int retry = 0;
-			while (retry <= retryTime) {
-				try {
-					url = url(baseURL, resource);
-					url = queryString(url, params).toString();
-					restTemplate.delete(url, params);
-					return;
-				} catch (Exception e) {
-					retry++;
-					exception = retryExceptionHandle(e, url, HttpMethod.DELETE.name(), params, null, retry);
-				}
-			}
-			baseURL = changeBaseURLToNext(baseURL);
-			baseURLChangeTime++;
-		}
-
-		if (exception != null) {
-			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), exception.getMessage()), exception);
-		}
+		retryWrap(retryInfo -> {
+			URI uri = retryInfo.getURI(resource, params);
+			String url = uri.toString();
+			restTemplate.delete(url, params);
+			return null;
+		}, null);
 	}
 
 	public void deleteAll(String resource, String operation, Map<String, Object> params) {
-		String baseURL = this.baseURL;
-		int baseURLChangeTime = 0;
-		Exception exception = null;
-
-		setRetryTime();
-
-		String url = null;
-		ResponseBody responseBody = null;
-		while (baseURLChangeTime < size) {
-			int retry = 0;
-			while (retry <= retryTime) {
-				try {
-					url = url(baseURL, resource) + operation;
-					HttpEntity httpEntity = new HttpEntity(params);
-					ResponseEntity<ResponseBody> responseEntity = restTemplate.exchange(url, HttpMethod.POST, httpEntity, ResponseBody.class);
-					return;
-				} catch (Exception e) {
-					retry++;
-					exception = retryExceptionHandle(e, url, HttpMethod.POST.name(), params, responseBody, retry);
-				}
-			}
-			baseURL = changeBaseURLToNext(baseURL);
-			baseURLChangeTime++;
-		}
-
-		if (exception != null) {
-			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), exception.getMessage()), exception);
-		}
+		retryWrap(retryInfo -> {
+			String url = retryInfo.getURL(resource + operation);
+			HttpEntity httpEntity = new HttpEntity(params);
+			ResponseEntity<ResponseBody> responseEntity = restTemplate.exchange(url, HttpMethod.POST, httpEntity, ResponseBody.class);
+			return null;
+		}, null);
 	}
 
 	public <T> T postOne(Object obj, String resource, Class<T> className) {
@@ -428,56 +286,29 @@ public class RestTemplateOperator {
 	}
 
 	public <T> T postOne(Object obj, String resource, Class<T> className, String cookies) {
-		String baseURL = this.baseURL;
-		int baseURLChangeTime = 0;
-		Exception exception = null;
-		setRetryTime();
-
-		String url = null;
-		ResponseBody responseBody = null;
-		while (baseURLChangeTime < size) {
-			int retry = 0;
-			while (retry <= retryTime) {
-				try {
-					url = url(baseURL, resource);
-					ResponseEntity<ResponseBody> responseEntity;
-					if (StringUtils.isEmpty(cookies)) {
-						responseEntity = restTemplate.postForEntity(url, obj, ResponseBody.class);
-					} else {
-						HttpHeaders headers = new HttpHeaders();
-						headers.add("Cookie", cookies);
-						HttpEntity<Object> httpEntity = new HttpEntity<>(obj, headers);
-						responseEntity = restTemplate.exchange(url, HttpMethod.POST, httpEntity, ResponseBody.class);
-					}
-
-					T result = null;
-					if (successResp(responseEntity)) {
-						responseBody = responseEntity.getBody();
-						result = getBody(responseBody, className);
-					} else {
-						handleRequestFailed(url, HttpMethod.POST.name(), obj,
-								responseEntity != null && responseEntity.hasBody() ? responseEntity.getBody() : null
-						);
-					}
-
-					return result;
-				} catch (RestDoNotRetryException e) {
-					throw e;
-				} catch (Exception e) {
-					retry++;
-					exception = retryExceptionHandle(e, url, HttpMethod.POST.name(), obj, responseBody, retry);
-				}
+		return retryWrap(retryInfo -> {
+			String url = retryInfo.getURL(resource);
+			ResponseEntity<ResponseBody> responseEntity;
+			if (StringUtils.isEmpty(cookies)) {
+				responseEntity = restTemplate.postForEntity(url, obj, ResponseBody.class);
+			} else {
+				HttpHeaders headers = new HttpHeaders();
+				headers.add("Cookie", cookies);
+				HttpEntity<Object> httpEntity = new HttpEntity<>(obj, headers);
+				responseEntity = restTemplate.exchange(url, HttpMethod.POST, httpEntity, ResponseBody.class);
 			}
-			baseURL = changeBaseURLToNext(baseURL);
-			baseURLChangeTime++;
-		}
 
-		if (exception != null) {
-			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg() + "data size: " + (obj.toString().getBytes().length / 1024 / 1024), exception.getMessage()
-			), exception);
-		} else {
+			if (successResp(responseEntity)) {
+				ResponseBody responseBody = responseEntity.getBody();
+				return getBody(responseBody, className);
+			} else {
+			}
+
+			handleRequestFailed(url, HttpMethod.POST.name(), obj,
+					responseEntity != null && responseEntity.hasBody() ? responseEntity.getBody() : null
+			);
 			return null;
-		}
+		}, null);
 	}
 
 //    public  <T> T  postOne(Map<String, String> body, Class<T> className, String resource) {
@@ -494,89 +325,30 @@ public class RestTemplateOperator {
 //    }
 
 	public <T> T post(Map<String, Object> params, Object obj, String resource, Class<T> className) {
+		return retryWrap(retryInfo -> {
+			URI uri = retryInfo.getURI(resource + "/update", params);
+			ResponseBody responseBody = restTemplate.postForObject(uri, obj, ResponseBody.class);
 
-		String baseURL = this.baseURL;
-		int baseURLChangeTime = 0;
-		Exception exception = null;
-
-		setRetryTime();
-		URI url = null;
-		ResponseBody responseBody = null;
-		while (baseURLChangeTime < size) {
-			int retry = 0;
-			while (retry <= retryTime) {
-				try {
-					url = queryString(url(baseURL, resource + "/update"), params);
-					responseBody = restTemplate.postForObject(url, obj, ResponseBody.class);
-					T result = null;
-
-					if (ResponseCode.SUCCESS.getCode().equals(responseBody.getCode())) {
-						result = getBody(responseBody, className);
-					} else {
-						handleRequestFailed(url.toString(), HttpMethod.POST.name(), obj, responseBody);
-					}
-
-					return result;
-				} catch (RestDoNotRetryException e) {
-					throw e;
-				} catch (Exception e) {
-					retry++;
-					exception = retryExceptionHandle(e, url != null ? url.toString() : null, HttpMethod.POST.name(), params, responseBody, retry);
-				}
+			if (ResponseCode.SUCCESS.getCode().equals(responseBody.getCode())) {
+				return getBody(responseBody, className);
 			}
-			baseURL = changeBaseURLToNext(baseURL);
-			baseURLChangeTime++;
-		}
 
-		if (exception != null) {
-			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg() + "data size: " + (obj.toString().getBytes().length / 1024 / 1024), exception.getMessage()
-			), exception);
-		} else {
+			handleRequestFailed(retryInfo.reqURL, HttpMethod.POST.name(), obj, responseBody);
 			return null;
-		}
+		}, null);
 	}
 
 	public <T> T upsert(Map<String, Object> params, Object obj, String resource, Class<T> className) {
-
-		String baseURL = this.baseURL;
-		int baseURLChangeTime = 0;
-		Exception exception = null;
-
-		setRetryTime();
-		URI url = null;
-		ResponseBody responseBody = null;
-		while (baseURLChangeTime < size) {
-			int retry = 0;
-			while (retry <= retryTime) {
-				try {
-					url = queryString(url(baseURL, resource + "/upsertWithWhere"), params);
-
-					responseBody = restTemplate.postForObject(url, obj, ResponseBody.class);
-					T result = null;
-
-					if (ResponseCode.SUCCESS.getCode().equals(responseBody.getCode())) {
-						result = getBody(responseBody, className);
-					} else {
-						handleRequestFailed(url.toString(), HttpMethod.POST.name(), obj, responseBody);
-					}
-
-					return result;
-				} catch (RestDoNotRetryException e) {
-					throw e;
-				} catch (Exception e) {
-					retry++;
-					exception = retryExceptionHandle(e, url != null ? url.toString() : null, HttpMethod.POST.name(), params, responseBody, retry);
-				}
+		return retryWrap(retryInfo -> {
+			URI uri = retryInfo.getURI(resource + "/upsertWithWhere", params);
+			ResponseBody responseBody = restTemplate.postForObject(uri, obj, ResponseBody.class);
+			if (ResponseCode.SUCCESS.getCode().equals(responseBody.getCode())) {
+				return getBody(responseBody, className);
 			}
-			baseURL = changeBaseURLToNext(baseURL);
-			baseURLChangeTime++;
-		}
 
-		if (exception != null) {
-			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), exception.getMessage()), exception);
-		} else {
+			handleRequestFailed(retryInfo.reqURL, HttpMethod.POST.name(), obj, responseBody);
 			return null;
-		}
+		}, null);
 	}
 
 	public <T> List<T> getBatch(Map<String, Object> params, String resource, Class<T> className, String cookies) {
@@ -588,77 +360,39 @@ public class RestTemplateOperator {
 	}
 
 	public <T> List<T> getBatch(Map<String, Object> params, String resource, Class<T> className, String cookies, String region, Predicate<?> stop) {
-
-		String baseURL = this.baseURL;
-		int baseURLChangeTime = 0;
-		Exception exception = null;
-
-		setRetryTime();
-
-		String url = null;
-		ResponseBody responseBody = null;
-		while (baseURLChangeTime < size) {
-			int retry = 0;
-			while (retry <= retryTime) {
-				if (null != stop && stop.test(null)) {
-					break;
+		return retryWrap(retryInfo -> {
+			URI uri = retryInfo.getURI(resource, params);
+			HttpEntity<String> httpEntity = null;
+			if (StringUtils.isNotBlank(cookies)) {
+				HttpHeaders headers = new HttpHeaders();
+				if (StringUtils.isNotBlank(cookies)) {
+					headers.add("Cookie", cookies);
 				}
-				try {
-					url = url(baseURL, resource);
-
-					List<T> list = null;
-
-					URI queryString = queryString(url, params);
-
-					HttpEntity<String> httpEntity = null;
-
-					if (StringUtils.isNotBlank(cookies)) {
-						HttpHeaders headers = new HttpHeaders();
-						if (StringUtils.isNotBlank(cookies)) {
-							headers.add("Cookie", cookies);
-						}
-						if (StringUtils.isNotBlank(region)) {
-							headers.add("jobTags", region);
-						}
-						httpEntity = new HttpEntity<>(headers);
-					}
-
-					ResponseEntity<ResponseBody> responseEntity = restTemplate.exchange(queryString, HttpMethod.GET, httpEntity, ResponseBody.class);
-
-					if (successResp(responseEntity)) {
-						responseBody = responseEntity.getBody();
-						list = getListBody(responseBody, className);
-					} else {
-						// add patch, return empty list if the api does not exist
-						if (responseEntity.hasBody() && "110400".equals(responseEntity.getBody().getCode())) {
-							return new ArrayList<>();
-						}
-						handleRequestFailed(url, HttpMethod.GET.name(), httpEntity,
-								responseEntity != null && responseEntity.hasBody() ? responseEntity.getBody() : null
-						);
-					}
-
-					return list;
-				} catch (RestDoNotRetryException e) {
-					throw e;
-				} catch (Exception e) {
-					retry++;
-					exception = retryExceptionHandle(e, url, HttpMethod.GET.name(), params, responseBody, retry);
+				if (StringUtils.isNotBlank(region)) {
+					headers.add("jobTags", region);
 				}
+				httpEntity = new HttpEntity<>(headers);
 			}
-			baseURL = changeBaseURLToNext(baseURL);
-			baseURLChangeTime++;
-		}
+			ResponseEntity<ResponseBody> responseEntity = restTemplate.exchange(uri, HttpMethod.GET, httpEntity, ResponseBody.class);
 
-		if (exception != null) {
-			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), exception.getMessage()), exception);
-		} else {
+			if (successResp(responseEntity)) {
+				ResponseBody responseBody = responseEntity.getBody();
+				return getListBody(responseBody, className);
+			}
+
+			// add patch, return empty list if the api does not exist
+			if (responseEntity.hasBody() && "110400".equals(responseEntity.getBody().getCode())) {
+				return new ArrayList<>();
+			}
+
+			handleRequestFailed(retryInfo.reqURL, HttpMethod.GET.name(), httpEntity,
+					responseEntity != null && responseEntity.hasBody() ? responseEntity.getBody() : null
+			);
 			return null;
-		}
+		}, stop);
 	}
 
 	public <T> T getOne(Map<String, Object> params, String resource, Class<T> className, String cookies) {
-
 		return getOne(params, resource, className, cookies, null);
 	}
 
@@ -667,196 +401,111 @@ public class RestTemplateOperator {
 	}
 
 	public <T> T getOne(Map<String, Object> params, String resource, Class<T> className, String cookies, String region, Predicate<?> stop) {
+		return retryWrap(retryInfo -> {
 
-		String baseURL = this.baseURL;
-		int baseURLChangeTime = 0;
-		Exception exception = null;
-
-		setRetryTime();
-		String url = null;
-		ResponseBody responseBody = null;
-		while (baseURLChangeTime < size) {
-			int retry = 0;
-			while (retry <= retryTime) {
-				if (null != stop && stop.test(null)) {
-					break;
-				}
-				T result = null;
-				url = url(baseURL, resource);
-				URI queryString = queryString(url, params);
-				try {
-					HttpEntity<String> httpEntity = null;
-
+			try {
+				HttpEntity<String> httpEntity = null;
+				if (StringUtils.isNotBlank(cookies)) {
+					HttpHeaders headers = new HttpHeaders();
 					if (StringUtils.isNotBlank(cookies)) {
-						HttpHeaders headers = new HttpHeaders();
-						if (StringUtils.isNotBlank(cookies)) {
-							headers.add("Cookie", cookies);
-						}
-						if (StringUtils.isNotBlank(region)) {
-							headers.add("jobTags", region);
-						}
-						httpEntity = new HttpEntity<>(headers);
+						headers.add("Cookie", cookies);
 					}
-
-					ResponseEntity<ResponseBody> responseEntity = restTemplate.exchange(queryString, HttpMethod.GET, httpEntity, ResponseBody.class);
-
-					if (successResp(responseEntity)) {
-						responseBody = responseEntity.getBody();
-						Object data = responseBody.getData();
-						if (null == data) {
-							return null;
-						}
-						if (data instanceof Map && ((Map) data).containsKey("items")) {
-							Object items = ((Map) data).get("items");
-							if (items instanceof List) {
-								data = items;
-							}
-						}
-						if (data instanceof List) {
-							if (CollectionUtils.isNotEmpty((List) data)) {
-								responseBody.setData(((List) data).get(0));
-								result = getBody(responseBody, className);
-							}
-						} else {
-							result = getBody(responseEntity.getBody(), className);
-						}
-					} else {
-						handleRequestFailed(url, HttpMethod.GET.name(), httpEntity,
-								responseEntity != null && responseEntity.hasBody() ? responseEntity.getBody() : null
-						);
+					if (StringUtils.isNotBlank(region)) {
+						headers.add("jobTags", region);
 					}
-
-					return result;
-				} catch (RestDoNotRetryException e) {
-					throw new RuntimeException("Query url: " + queryString, e);
-				} catch (Exception e) {
-					// 4xx 异常不进行重试
-					if (e instanceof HttpClientErrorException) {
-						if (String.valueOf(((HttpClientErrorException) e).getStatusCode().value()).startsWith("4")) {
-							throw new RuntimeException("Query url: " + queryString, e);
-						}
-					}
-					retry++;
-					exception = retryExceptionHandle(e, url, HttpMethod.GET.name(), params, responseBody, retry);
+					httpEntity = new HttpEntity<>(headers);
 				}
-			}
-			baseURL = changeBaseURLToNext(baseURL);
-			baseURLChangeTime++;
-		}
 
-		if (exception != null) {
-			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), exception.getMessage()), exception);
-		} else {
-			return null;
-		}
+				URI uri = retryInfo.getURI(resource, params);
+				ResponseEntity<ResponseBody> responseEntity = restTemplate.exchange(uri, HttpMethod.GET, httpEntity, ResponseBody.class);
+
+				if (successResp(responseEntity)) {
+					ResponseBody responseBody = responseEntity.getBody();
+					Object data = responseBody.getData();
+					if (null == data) {
+						return null;
+					}
+
+					if (data instanceof Map && ((Map) data).containsKey("items")) {
+						Object items = ((Map) data).get("items");
+						if (items instanceof List) {
+							data = items;
+						}
+					}
+					if (data instanceof List) {
+						if (CollectionUtils.isNotEmpty((List) data)) {
+							responseBody.setData(((List) data).get(0));
+							return getBody(responseBody, className);
+						}
+					}
+					return getBody(responseEntity.getBody(), className);
+				}
+
+				handleRequestFailed(retryInfo.reqURL, HttpMethod.GET.name(), httpEntity,
+						responseEntity != null && responseEntity.hasBody() ? responseEntity.getBody() : null
+				);
+				return null;
+			} catch (HttpClientErrorException e) {
+				// 4xx 异常不进行重试
+				if (String.valueOf(e.getStatusCode().value()).startsWith("4")) {
+					throw new InterruptedException("Request cancel with response code: " + e.getStatusCode());
+				}
+				throw e;
+			}
+		}, stop);
 	}
 
 	public File downloadFile(Map<String, Object> params, String resource, String path, String cookies, String region) {
-
-		String baseURL = this.baseURL;
-		int baseURLChangeTime = 0;
-		Exception exception = null;
-
-		setRetryTime();
-
-		String url = null;
-		ResponseBody responseBody = null;
-		while (baseURLChangeTime < size) {
-			int retry = 0;
-			while (retry <= retryTime) {
-				try {
-					url = url(baseURL, resource);
-
-					URI queryString = queryString(url, params);
-
-					HttpEntity<String> httpEntity = null;
-
-					if (StringUtils.isNotBlank(cookies)) {
-						HttpHeaders headers = new HttpHeaders();
-						if (StringUtils.isNotBlank(cookies)) {
-							headers.add("Cookie", cookies);
-						}
-						if (StringUtils.isNotBlank(region)) {
-							headers.add("jobTags", region);
-						}
-						headers.setAccept(
-								ImmutableList.of(
-										MediaType.APPLICATION_OCTET_STREAM,
-										new MediaType("application", "*+json")
-								)
-						);
-						httpEntity = new HttpEntity<>(headers);
-					}
-
-					ResponseEntity<Resource> responseEntity = restTemplate.exchange(queryString, HttpMethod.GET, httpEntity, Resource.class);
-					if (MediaType.APPLICATION_OCTET_STREAM.includes(responseEntity.getHeaders().getContentType())) {
-						File file = new File(path + ".bak");
-						if(file.exists()) {
-							FileUtils.deleteQuietly(file);
-						}
-						if(responseEntity.getBody() == null) {
-							return null;
-						}
-						FileUtils.copyInputStreamToFile(responseEntity.getBody().getInputStream(), file);
-						File realFile = new File(path);
-						if(realFile.exists()) {
-							FileUtils.deleteQuietly(realFile);
-						}
-						FileUtils.moveFile(file, realFile);
-//						StreamUtils.copy(responseEntity.getBody().getInputStream(), new FileOutputStream(file));
-						return file;
-					} else {
-						final Object body = responseEntity.getBody();
-						responseBody = JSONUtil.json2POJO((String) body, ResponseBody.class);
-						handleRequestFailed(url, HttpMethod.GET.name(), httpEntity,
-								responseEntity != null && responseEntity.hasBody() ? responseBody : null
-						);
-						return null;
-					}
-				} catch (RestDoNotRetryException e) {
-					throw e;
-				} catch (HttpMessageConversionException e){
-				    throw e;
-				} catch (Exception e) {
-					retry++;
-					exception = retryExceptionHandle(e, url, HttpMethod.GET.name(), params, responseBody, retry);
+		return retryWrap(retryInfo -> {
+			HttpEntity<String> httpEntity = null;
+			if (StringUtils.isNotBlank(cookies)) {
+				HttpHeaders headers = new HttpHeaders();
+				if (StringUtils.isNotBlank(cookies)) {
+					headers.add("Cookie", cookies);
 				}
+				if (StringUtils.isNotBlank(region)) {
+					headers.add("jobTags", region);
+				}
+				headers.setAccept(
+						ImmutableList.of(
+								MediaType.APPLICATION_OCTET_STREAM,
+								new MediaType("application", "*+json")
+						)
+				);
+				httpEntity = new HttpEntity<>(headers);
 			}
-			baseURL = changeBaseURLToNext(baseURL);
-			baseURLChangeTime++;
-		}
 
-		if (exception != null) {
-			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), exception.getMessage()), exception);
-		} else {
+			URI uri = retryInfo.getURI(resource, params);
+			ResponseEntity<Resource> responseEntity = restTemplate.exchange(uri, HttpMethod.GET, httpEntity, Resource.class);
+			if (MediaType.APPLICATION_OCTET_STREAM.includes(responseEntity.getHeaders().getContentType())) {
+				File file = new File(path + ".bak");
+				if(file.exists()) {
+					FileUtils.deleteQuietly(file);
+				}
+				if(responseEntity.getBody() == null) {
+					return null;
+				}
+				FileUtils.copyInputStreamToFile(responseEntity.getBody().getInputStream(), file);
+				File realFile = new File(path);
+				if(realFile.exists()) {
+					FileUtils.deleteQuietly(realFile);
+				}
+				FileUtils.moveFile(file, realFile);
+//						StreamUtils.copy(responseEntity.getBody().getInputStream(), new FileOutputStream(file));
+				return file;
+			}
+
+			final Object body = responseEntity.getBody();
+			ResponseBody responseBody = JSONUtil.json2POJO((String) body, ResponseBody.class);
+			handleRequestFailed(retryInfo.reqURL, HttpMethod.GET.name(), httpEntity,
+					responseEntity != null && responseEntity.hasBody() ? responseBody : null
+			);
 			return null;
-		}
-	}
-
-	public int getRetryTime() {
-		return retryTime;
+		}, null);
 	}
 
 	public List<String> getBaseURLs() {
 		return baseURLs;
-	}
-
-	private String url(String baseURL, String resource) {
-
-		StringBuilder sb = new StringBuilder(baseURL);
-		return sb.append(resource).toString();
-	}
-
-	private URI queryString(String url, Map<String, ?> params) {
-		UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(url);
-
-		if (MapUtils.isNotEmpty(params)) {
-			for (Map.Entry<String, ?> entry : params.entrySet()) {
-				builder.queryParam(entry.getKey(), UriUtils.encode(String.valueOf(entry.getValue()), StandardCharsets.UTF_8));
-			}
-		}
-
-		return builder.build(true).toUri();
 	}
 
 	private synchronized String changeBaseURLToNext(String baseURL) {
@@ -868,8 +517,6 @@ public class RestTemplateOperator {
 				break;
 			}
 		}
-
-		this.baseURL = baseURLs.get(index);
 		return baseURLs.get(index);
 	}
 
@@ -939,12 +586,125 @@ public class RestTemplateOperator {
 		return null;
 	}
 
-	private void setRetryTime() {
-		if (this.getRetryTimeout != null) {
-			Long retryTimeout = getRetryTimeout.get();
-			long avgRetryTimeout = retryTimeout % size != 0 ? (retryTimeout / size) + 1 : (retryTimeout / size);
-			this.retryTime = (int) (avgRetryTimeout % retryInterval != 0 ? (avgRetryTimeout / retryInterval) + 1 : (avgRetryTimeout / retryInterval));
+	static class RetryInfo {
+		private final String reqId;
+		private final long begin;
+		private final long timeout;
+		private long retries;
+		private String baseURL;
+		private String reqURL;
+		private Object reqParams;
+		private Exception lastError;
+
+		public RetryInfo(String baseURL, long timeout) {
+			this.baseURL = baseURL;
+			this.timeout = timeout;
+			this.begin = System.currentTimeMillis();
+			this.reqId = UUID.randomUUID().toString();
 		}
+
+		void showParams(Object reqParams) {
+			this.reqParams = reqParams;
+		}
+
+		String getURL(String resource) {
+			this.reqURL = this.baseURL + resource;
+			return this.reqURL;
+		}
+
+		URI getURI(String resource, Map<String, ?> params) {
+			UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(getURL(resource));
+
+			for (Map.Entry<String, ?> entry : params.entrySet()) {
+				builder.queryParam(entry.getKey(), UriUtils.encode(entry.getValue().toString(), StandardCharsets.UTF_8));
+			}
+
+			URI uri = builder.build(true).toUri();
+			this.reqURL = uri.toString();
+			return uri;
+		}
+	}
+
+	private <T> T retryWrap(TryFunc<T> func, Predicate<?> stop) {
+		RetryInfo retryInfo = new RetryInfo(baseURL, Optional.ofNullable(getRetryTimeout).map(Supplier::get).orElse(retryTime * retryInterval));
+		do {
+			try {
+				T result = func.tryFunc(retryInfo);
+				if (null != retryInfo.lastError) {
+					logger.info("RestApi '{}' completed, use {}ms, retries {}"
+							, retryInfo.reqId, System.currentTimeMillis() - retryInfo.begin, retryInfo.retries);
+					baseURL = retryInfo.baseURL; // Change it to an available URL
+				}
+				return result;
+			} catch (RestDoNotRetryException e) {
+				throw e;
+			} catch (HttpMessageConversionException | InterruptedException ignored) {
+				break;
+			} catch (Exception e) {
+				boolean changeURL = true;
+				if (e instanceof HttpClientErrorException) {
+					// If the parameter is incorrect, no retry will be performed
+					if (404 == ((HttpClientErrorException) e).getRawStatusCode()) {
+						throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "not found url: " + retryInfo.reqURL), e);
+					}
+					if (405 == ((HttpClientErrorException) e).getRawStatusCode()) {
+						throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "Please upgrade engine"), e);
+					}
+					if (405 == ((HttpClientErrorException) e).getRawStatusCode()) {
+						throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "Please upgrade engine"), e);
+					}
+					if (405 == ((HttpClientErrorException) e).getRawStatusCode()) {
+						throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "Please upgrade engine"), e);
+					}
+				} else {
+					// 'NoHttpResponseException' may occur with multithreaded requests, There is no need to switch services
+					Throwable ex = e;
+					while (null != ex) {
+						if ( ex instanceof NoHttpResponseException) {
+							changeURL = false;
+							break;
+						}
+						ex = ex.getCause();
+					}
+				}
+
+				// Print the first exception message
+				if (null == retryInfo.lastError) {
+					logger.warn("RestApi '{}' failed, use {}ms, retryTime {}ms, retryInterval {}ms, reqURL: {}, reqParams: {}, error message: {}"
+							, retryInfo.reqId, System.currentTimeMillis()- retryInfo.begin, retryInfo.timeout, retryInterval, retryInfo.reqURL, retryInfo.reqParams, e.getMessage(), e);
+				}
+
+				try {
+					Thread.sleep(retryInterval);
+				} catch (InterruptedException ignored) {
+					break;
+				}
+
+				// Record retry information
+				retryInfo.retries++;
+				if (changeURL) {
+					retryInfo.lastError = e;
+					retryInfo.baseURL = changeBaseURLToNext(retryInfo.baseURL);
+				}
+			}
+		} while (
+				System.currentTimeMillis() < retryInfo.begin + retryInfo.timeout
+				&& (null == stop || !stop.test(null))
+		);
+
+		if (null == retryInfo.lastError) {
+			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "no exception"));
+		} else if (null != retryInfo.reqParams) {
+			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(),
+					" data size " + (retryInfo.reqParams.toString().getBytes().length / 1024 / 1024) + "M,"
+					+ " " + retryInfo.lastError.getMessage()), retryInfo.lastError);
+		} else {
+			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), retryInfo.lastError.getMessage()), retryInfo.lastError);
+		}
+	}
+
+	interface TryFunc<T> {
+		T tryFunc(RetryInfo retryInfo) throws Exception;
 	}
 
 	enum ResponseCode {

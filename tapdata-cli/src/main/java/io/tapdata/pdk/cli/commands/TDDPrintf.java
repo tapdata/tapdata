@@ -15,6 +15,7 @@ import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.tests.support.CapabilitiesExecutionMsg;
 import io.tapdata.pdk.tdd.tests.support.Case;
 import io.tapdata.pdk.tdd.tests.support.History;
+import io.tapdata.pdk.tdd.tests.support.TapSummary;
 import org.junit.jupiter.api.DisplayName;
 
 import java.lang.annotation.Annotation;
@@ -59,21 +60,21 @@ public class TDDPrintf {
         System.out.println("*****************************************************TDD Results*****************************************************");
         for(TapSummary testSummary : summarys) {
             StringBuilder builder = new StringBuilder();
-            builder.append("-------------PDK id '").append(testSummary.tapNodeInfo.getTapNodeSpecification().getId()).append("' class '").append(testSummary.tapNodeInfo.getNodeClass().getName()).append("'-------------").append("\n");
-            builder.append("\t\tNode class ").append(testSummary.tapNodeInfo.getNodeClass()).append(" run ");
+            builder.append("-------------PDK id '").append(testSummary.tapNodeInfo().getTapNodeSpecification().getId()).append("' class '").append(testSummary.tapNodeInfo().getNodeClass().getName()).append("'-------------").append("\n");
+            builder.append("\t\tNode class ").append(testSummary.tapNodeInfo().getNodeClass()).append(" run ");
 
-            builder.append(testSummary.testClasses.size()).append(" test classes").append("\n");
-            for(Class<?> testClass : testSummary.testClasses) {
+            builder.append(testSummary.testClasses().size()).append(" test classes").append("\n");
+            for(Class<?> testClass : testSummary.testClasses()) {
                 builder.append("\t\t").append(testClass.getName()).append("\n");
             }
             builder.append("\n");
-            builder.append("\t\t" + "Test run finished after ").append(testSummary.summary.getTimeFinished() - testSummary.summary.getTimeStarted()).append("\n");
-            builder.append("\t\t").append(testSummary.summary.getTestsFoundCount()).append(" test(s) found").append("\n");
-            builder.append("\t\t").append(testSummary.summary.getTestsSkippedCount()).append(" test(s) skipped").append("\n");
-            builder.append("\t\t").append(testSummary.summary.getTestsStartedCount()).append(" test(s) started").append("\n");
-            builder.append("\t\t").append(testSummary.summary.getTestsSucceededCount()).append(" test(s) successful").append("\n");
-            builder.append("\t\t").append(testSummary.summary.getTestsFailedCount()).append(" test(s) failed").append("\n");
-            builder.append("-------------PDK id '").append(testSummary.tapNodeInfo.getTapNodeSpecification().getId()).append("' class '").append(testSummary.tapNodeInfo.getNodeClass().getName()).append("'-------------").append("\n");
+            builder.append("\t\t" + "Test run finished after ").append(testSummary.summary().getTimeFinished() - testSummary.summary().getTimeStarted()).append("\n");
+            builder.append("\t\t").append(testSummary.summary().getTestsFoundCount()).append(" test(s) found").append("\n");
+            builder.append("\t\t").append(testSummary.summary().getTestsSkippedCount()).append(" test(s) skipped").append("\n");
+            builder.append("\t\t").append(testSummary.summary().getTestsStartedCount()).append(" test(s) started").append("\n");
+            builder.append("\t\t").append(testSummary.summary().getTestsSucceededCount()).append(" test(s) successful").append("\n");
+            builder.append("\t\t").append(testSummary.summary().getTestsFailedCount()).append(" test(s) failed").append("\n");
+            builder.append("-------------PDK id '").append(testSummary.tapNodeInfo().getTapNodeSpecification().getId()).append("' class '").append(testSummary.tapNodeInfo().getNodeClass().getName()).append("'-------------").append("\n");
             System.out.print(builder.toString());
         }
         System.out.println("*****************************************************TDD Results*****************************************************");
@@ -90,19 +91,19 @@ public class TDDPrintf {
     public void showCapabilities(TapSummary summary,TapNodeInfo nodeInfo){
         StringBuilder builder = new StringBuilder(AREA_SPLIT);
         builder.append("\n------------PDK id '")
-                .append(summary.tapNodeInfo.getTapNodeSpecification().getId())
+                .append(summary.tapNodeInfo().getTapNodeSpecification().getId())
                 .append("' class '")
-                .append(summary.tapNodeInfo.getNodeClass().getName())
+                .append(summary.tapNodeInfo().getNodeClass().getName())
                 .append("'------------\n");
         System.out.println(showCapabilities(nodeInfo,builder));
     }
     private void showTest(TapSummary summary){
-        Map<Class<? extends PDKTestBase>,Integer> resultExecution = summary.resultExecution;
+        Map<Class<? extends PDKTestBase>,Integer> resultExecution = summary.resultExecution();
         Map<Class, CapabilitiesExecutionMsg> result = summary.capabilitiesResult;
         StringBuilder builder = new StringBuilder(AREA_SPLIT);
         builder.append("\n");
-        if (null != summary.doNotSupportFunTest && !summary.doNotSupportFunTest.isEmpty()){
-            summary.doNotSupportFunTest.forEach(((aClass, s) -> {
+        if (null != summary.doNotSupportFunTest() && !summary.doNotSupportFunTest().isEmpty()){
+            summary.doNotSupportFunTest().forEach(((aClass, s) -> {
                 builder.append("☆ ")
                         .append(aClass.getSimpleName()).append("\n")
                         .append("\t").append(s).append("\n");

@@ -13,9 +13,9 @@ import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.flow.engine.V2.common.HazelcastStatusMappingEnum;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
-import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
+import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
 import io.tapdata.flow.engine.V2.util.SupplierImpl;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
@@ -49,7 +49,6 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private ClientMongoOperator clientMongoOperator;
 	private HazelcastInstance hazelcastInstance;
 	private MonitorManager monitorManager;
-	private SnapshotProgressManager snapshotProgressManager;
 	private String cacheName;
 	private Throwable error;
 	private TerminalMode terminalMode;
