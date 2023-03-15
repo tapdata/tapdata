@@ -53,7 +53,6 @@ public class TargetTypesGeneratorImpl implements TargetTypesGenerator {
                     List<ResultItem> resultItems = result.getResultItems();
                     if(resultItems != null) {
                         for(ResultItem resultItem : resultItems) {
-                            resultItem.setItem(resultItem.getItem() + "@" + field.getName());
                             finalResult.addItem(resultItem);
                         }
                     }
@@ -117,6 +116,8 @@ public class TargetTypesGeneratorImpl implements TargetTypesGenerator {
         List<ResultItem> resultItems = result.getResultItems();
         if(resultItems != null && !resultItems.isEmpty()) {
             for(ResultItem resultItem : resultItems) {
+                resultItem.setInformation(resultItem.getItem() + ": " + resultItem.getInformation());
+                resultItem.setItem(field.getName());
                 TapLogger.debug(TAG, "findLargestStringMapping " + resultItem.getItem() + ": " + resultItem.getInformation());
             }
         }
@@ -202,13 +203,31 @@ public class TargetTypesGeneratorImpl implements TargetTypesGenerator {
 //                noneQualifiedList.stream().map(Container::getP).collect(Collectors.toList()));
         HitTapMapping bestOne = bestTapMapping.getBestOne();
         if(bestOne != null && bestOne.tapMapping != null && bestOne.hitExpression != null) {
-            return bestOne.tapMapping.fromTapType(bestOne.hitExpression, field.getTapType());
+            TapResult<String> tapResult = bestOne.tapMapping.fromTapType(bestOne.hitExpression, field.getTapType());
+            if(tapResult != null) {
+                List<ResultItem> resultItems = tapResult.getResultItems();
+                if(resultItems != null) {
+                    for(ResultItem resultItem : resultItems) {
+                        resultItem.setInformation(resultItem.getItem() + ": " + resultItem.getInformation());
+                        resultItem.setItem(field.getName());
+                    }
+                }
+            }
+            return tapResult;
         }
         HitTapMapping notHitBestOne = bestNotHitTapMapping.getBestOne();
         if(notHitBestOne != null && notHitBestOne.tapMapping != null && notHitBestOne.hitExpression != null) {
             TapResult<String> tapResult = notHitBestOne.tapMapping.fromTapType(notHitBestOne.hitExpression, field.getTapType());
-            if(tapResult != null)
-                tapResult.addItem(new ResultItem("BEST_IN_UNMATCHED", TapResult.RESULT_SUCCESSFULLY_WITH_WARN, "Select best in unmatched TapMapping, " + notHitBestOne.hitExpression));
+            if(tapResult != null) {
+                List<ResultItem> resultItems = tapResult.getResultItems();
+                if(resultItems != null) {
+                    for(ResultItem resultItem : resultItems) {
+                        resultItem.setInformation(resultItem.getItem() + ": " + resultItem.getInformation());
+                        resultItem.setItem(field.getName());
+                    }
+                }
+                tapResult.addItem(new ResultItem(field.getName(), TapResult.RESULT_SUCCESSFULLY_WITH_WARN, "BEST_IN_UNMATCHED: " + "Select best in unmatched TapMapping, " + notHitBestOne.hitExpression));
+            }
             return tapResult;
         }
         return null;

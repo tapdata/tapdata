@@ -85,7 +85,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
 	private AtomicBoolean firstBatchEvent = new AtomicBoolean();
 	private AtomicBoolean firstStreamEvent = new AtomicBoolean();
-	protected List<String> updateConditionFields;
+	protected Map<String, List<String>> updateConditionFieldsMap;
 	protected String writeStrategy = "updateOrInsert";
 	private AtomicBoolean flushOffset = new AtomicBoolean(false);
 	protected AtomicBoolean uploadDagService;
@@ -551,6 +551,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	protected void handleTapTablePrimaryKeys(TapTable tapTable) {
 		if (writeStrategy.equals(com.tapdata.tm.commons.task.dto.MergeTableProperties.MergeType.updateOrInsert.name())) {
+			List<String> updateConditionFields = updateConditionFieldsMap.get(tapTable.getId());
 			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
 				Collection<String> pks = tapTable.primaryKeys();
 				if (!usePkAsUpdateConditions(updateConditionFields, pks)) {
