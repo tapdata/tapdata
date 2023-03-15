@@ -448,7 +448,9 @@ public class MongodbConnector extends ConnectorBase {
 				executeResult = new ExecuteResult<List<Map<String, Object>>>().result(mongodbExecuteCommandFunction.executeQuery(executeObj, mongoClient));
 			} else if ("count".equals(command)) {
 				executeResult = new ExecuteResult<Long>().result(mongodbExecuteCommandFunction.count(executeObj, mongoClient));
-			} else {
+			} else if ("aggregate".equals(command)) {
+				executeResult = new ExecuteResult<>().result(mongodbExecuteCommandFunction.aggregate(executeObj, mongoClient));
+			} else  {
 				throw new NotSupportedException();
 			}
 		} catch (Exception e) {
