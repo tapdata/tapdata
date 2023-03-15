@@ -1,4 +1,4 @@
-package io.tapdata.pdk.core.supervisor.entity;
+package io.tapdata.supervisor.entity;
 
 import java.util.ArrayList;
 import java.util.List;

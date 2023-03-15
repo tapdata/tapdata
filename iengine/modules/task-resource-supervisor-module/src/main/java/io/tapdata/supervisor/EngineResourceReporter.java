@@ -1,4 +1,4 @@
-package io.tapdata.pdk.core.supervisor;
+package io.tapdata.supervisor;
 
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;

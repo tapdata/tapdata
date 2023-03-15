@@ -1,4 +1,4 @@
-package io.tapdata.pdk.core.supervisor.report;
+package io.tapdata.supervisor.report;
 
 import java.util.List;
 import java.util.Map;

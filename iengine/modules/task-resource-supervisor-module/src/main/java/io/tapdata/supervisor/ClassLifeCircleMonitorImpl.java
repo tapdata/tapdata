@@ -1,7 +1,7 @@
-package io.tapdata.pdk.core.supervisor;
+package io.tapdata.supervisor;
 
 import io.tapdata.entity.annotations.Implementation;
-import io.tapdata.pdk.core.supervisor.entity.ClassOnThread;
+import io.tapdata.supervisor.entity.ClassOnThread;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,6 +37,6 @@ public class ClassLifeCircleMonitorImpl implements ClassLifeCircleMonitor {
 
     @Override
     public Map<Object, ClassOnThread> summary() {
-        return null;
+        return this.classOnThreadMap;
     }
 }

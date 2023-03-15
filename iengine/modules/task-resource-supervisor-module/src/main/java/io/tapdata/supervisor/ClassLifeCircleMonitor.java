@@ -1,7 +1,7 @@
-package io.tapdata.pdk.core.supervisor;
+package io.tapdata.supervisor;
 
 
-import io.tapdata.pdk.core.supervisor.entity.ClassOnThread;
+import io.tapdata.supervisor.entity.ClassOnThread;
 
 import java.util.Map;
 

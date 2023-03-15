@@ -15,6 +15,7 @@ import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.modules.api.net.data.IncomingData;
 import io.tapdata.modules.api.net.data.Result;
