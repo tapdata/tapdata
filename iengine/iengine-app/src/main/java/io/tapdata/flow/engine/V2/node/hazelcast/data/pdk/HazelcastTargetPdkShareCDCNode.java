@@ -77,7 +77,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
 		this.targetBatch = 10000;
-		this.targetBatchIntervalMs = 10000L;
+		this.targetBatchIntervalMs = 1000;
 		Integer shareCdcTtlDay = getShareCdcTtlDay();
 		externalStorageDto.setTtlDay(shareCdcTtlDay);
 		this.constructMap = new LRUMap();
