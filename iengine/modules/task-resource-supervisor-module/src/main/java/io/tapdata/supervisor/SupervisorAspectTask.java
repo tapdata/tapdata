@@ -23,7 +23,7 @@ import java.util.Map;
 public class SupervisorAspectTask extends AbstractAspectTask {
     private static final String TAG = SupervisorAspectTask.class.getSimpleName();
     @Bean
-    TapConnectorSupervisorManager tapConnectorSupervisorManager;
+    TaskResourceSupervisorManager taskResourceSupervisorManager;
     StreamReadConsumer streamReadConsumer;
     private boolean isStarted;
     Long taskStartTime;
@@ -53,7 +53,7 @@ public class SupervisorAspectTask extends AbstractAspectTask {
         if(taskDto != null && taskDto.getId() != null && taskDto.getDag() != null) {
             taskNodeInfo.taskId = taskDto.getId().toString();
             taskNodeInfo.supervisorAspectTask = this;
-            tapConnectorSupervisorManager.addTaskSubscribeInfo(taskNodeInfo);
+            taskResourceSupervisorManager.addTaskSubscribeInfo(taskNodeInfo);
         }
     }
 
@@ -63,7 +63,8 @@ public class SupervisorAspectTask extends AbstractAspectTask {
         ClassLifeCircleMonitor circleMonitor = InstanceFactory.instance(ClassLifeCircleMonitor.class);
         Map<Object, ClassOnThread> summary = circleMonitor.summary();
         isStarted = false;
-        tapConnectorSupervisorManager.removeTaskSubscribeInfo(taskNodeInfo);
+        taskResourceSupervisorManager.removeTaskSubscribeInfo(taskNodeInfo);
+        taskNodeInfo.supervisorAspectTask = null;
         if(streamReadFuncAspect != null)
             streamReadFuncAspect.noMoreWaitRawData();
     }

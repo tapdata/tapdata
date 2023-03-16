@@ -23,7 +23,7 @@ public class ThreadFactory implements java.util.concurrent.ThreadFactory {
         this(prefix, false, threadGroup);
     }
     public ThreadFactory(String prefix, boolean daemon, ThreadGroup threadGroup){
-        this.prefix = (prefix != null ? prefix : "Deva_Thread") + "-" + poolNum.incrementAndGet() + "-thread-";
+        this.prefix = (prefix != null ? prefix : "Thread") + "-" + poolNum.incrementAndGet() + "-thread-";
         daemonThread = daemon;
         this.threadGroup = (threadGroup == null) ? Thread.currentThread().getThreadGroup() : threadGroup;
     }

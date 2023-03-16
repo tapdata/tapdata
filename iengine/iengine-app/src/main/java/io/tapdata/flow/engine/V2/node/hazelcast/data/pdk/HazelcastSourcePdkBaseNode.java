@@ -63,8 +63,10 @@ import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
 import io.tapdata.pdk.core.api.PDKIntegration;
+import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -176,12 +178,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				TransformerWsMessageDto.class);
 		this.sourceRunnerFirstTime = new AtomicBoolean(true);
 		databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, dataProcessorContext.getConnections().getPdkHash());
-		this.sourceRunner = new ThreadPoolExecutor(2, 2, 0L, TimeUnit.SECONDS, new SynchronousQueue<>(),
-				r -> {
-					Thread thread = new Thread(r);
-					thread.setName(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()));
-					return thread;
-				});
+//		this.sourceRunner = new ThreadPoolExecutor(2, 2, 0L, TimeUnit.SECONDS, new SynchronousQueue<>(),
+//				r -> {
+//					Thread thread = new Thread(r);
+//					thread.setName(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()));
+//					return thread;
+//				});
+		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 2, new ConnectorOnTaskThreadGroup(dataProcessorContext), TAG);
 		sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunner);
 		initTableMonitor();
 	}

@@ -14,8 +14,8 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Bean
-public class TapConnectorSupervisorManager implements MemoryFetcher {
-    private static final String TAG = TapConnectorSupervisorManager.class.getSimpleName();
+public class TaskResourceSupervisorManager implements MemoryFetcher {
+    private static final String TAG = TaskResourceSupervisorManager.class.getSimpleName();
 
     private final ConcurrentHashSet<TaskNodeInfo> taskNodeInfos = new ConcurrentHashSet<>();
     private ConcurrentHashMap<String, List<TaskNodeInfo>> typeConnectionIdSubscribeInfosMap = new ConcurrentHashMap<>();
@@ -27,7 +27,7 @@ public class TapConnectorSupervisorManager implements MemoryFetcher {
     @Bean
     private SkeletonService skeletonService;
 
-    public TapConnectorSupervisorManager() {
+    public TaskResourceSupervisorManager() {
 
     }
 
@@ -87,7 +87,7 @@ public class TapConnectorSupervisorManager implements MemoryFetcher {
 
     @Override
     public DataMap memory(String keyRegex, String memoryLevel) {
-        DataMap dataMap = DataMap.create().keyRegex(keyRegex)
+        return DataMap.create().keyRegex(keyRegex)
                 .kv("aliveTaskCount", 0)
                 .kv("leakedTaskCount", 0)
                 .kv("aliveConnectorCount", 0)
@@ -96,7 +96,6 @@ public class TapConnectorSupervisorManager implements MemoryFetcher {
                 .kv("leakedTasks", new ArrayList<>())
                 .kv("aliveConnectors", new ArrayList<>())
                 .kv("leakedConnectors", new ArrayList<>());
-        return dataMap;
     }
 
     public String getUserId() {
