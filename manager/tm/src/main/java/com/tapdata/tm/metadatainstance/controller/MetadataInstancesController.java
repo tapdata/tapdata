@@ -483,11 +483,6 @@ public class MetadataInstancesController extends BaseController {
         return success(metadataInstancesService.pageTables(connectionId, sourceType, regex, skip, limit));
     }
 
-    @GetMapping("tablesValue")
-    public ResponseMessage<List<Map<String, String>>> tablesValue(String connectionId, @RequestParam(value = "sourceType", defaultValue = "SOURCE") String sourceType) {
-        return success(metadataInstancesService.tableValues(connectionId, sourceType));
-    }
-
     @DeleteMapping("logic/schema/{taskId}")
     public ResponseMessage<Void> deleteLogicModel(@PathVariable("taskId") String taskId, @RequestParam("nodeId") String nodeId) {
         metadataInstancesService.deleteLogicModel(taskId, nodeId);
