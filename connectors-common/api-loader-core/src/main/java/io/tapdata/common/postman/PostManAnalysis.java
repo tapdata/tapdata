@@ -131,11 +131,12 @@ public class PostManAnalysis {
         if (Objects.isNull(item1) || item1.isEmpty() || Objects.isNull(item2) || item2.isEmpty()) return null;
         StringJoiner joiner = new StringJoiner(", ");
         item1.forEach((key,value)->{
-            if (Objects.nonNull(item2.get(key))){
+            if (item2.containsKey(key)){
                 joiner.add(key);
             }
         });
-        return joiner.toString();
+        String result = joiner.toString().trim();
+        return "".equals(result) ? null : result;
     }
 
     public Request httpPrepare(String uriOrName, String method, Map<String, Object> params) {
