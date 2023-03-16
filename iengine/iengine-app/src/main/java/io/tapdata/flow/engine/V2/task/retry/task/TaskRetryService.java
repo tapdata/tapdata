@@ -116,7 +116,7 @@ public class TaskRetryService extends RetryService implements Serializable {
 						if (null == syncStage) {
 							return new TaskRetryResult(false, String.format("Sync stage is null, key: %s, progress: %s", key, progress));
 						}
-						if (!SyncStage.CDC.name().equals(syncStage) && StringUtils.isBlank(streamOffset)) {
+						if (!SyncStage.CDC.name().equals(syncStage) || StringUtils.isBlank(streamOffset)) {
 							return new TaskRetryResult(false, String.format("Sync stage is not CDC and stream offset is empty, key: %s, progress: %s", key, progress));
 						}
 					} catch (IOException e) {
