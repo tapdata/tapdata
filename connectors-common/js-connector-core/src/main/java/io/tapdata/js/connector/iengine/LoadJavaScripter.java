@@ -277,7 +277,7 @@ public class LoadJavaScripter {
         try {
             Invocable invocable = (Invocable) this.scriptEngine;
             Object apply = invocable.invokeFunction(functionName, params);
-            return LoadJavaScripter.covertData(apply);//Collector.convertObj(apply);
+            return LoadJavaScripter.covertData(apply);
         } catch (Exception e) {
             throw new CoreException(String.format("JavaScript Method execution failed, method name -[%s], params are -[%s], message: %s, %s", functionName, toJson(params), e.getMessage(), InstanceFactory.instance(TapUtils.class).getStackTrace(e)));
         }

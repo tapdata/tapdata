@@ -39,10 +39,11 @@ public class PostManAnalysis {
     public void setConnectorConfig(Map<String, Object> connectorConfig) {
         this.connectorConfig = connectorConfig;
     }
+
     public void addConnectorConfig(Map<String, Object> connectorConfig) {
-       if (Objects.isNull(this.connectorConfig)){
-           this.connectorConfig = new HashMap<>();
-       }
+        if (Objects.isNull(this.connectorConfig)) {
+            this.connectorConfig = new HashMap<>();
+        }
         this.connectorConfig.putAll(connectorConfig);
     }
 
@@ -127,11 +128,12 @@ public class PostManAnalysis {
         }
         return false;
     }
-    private String comp(Map<String,Object> item1,Map<String,Object> item2){
+
+    private String comp(Map<String, Object> item1, Map<String, Object> item2) {
         if (Objects.isNull(item1) || item1.isEmpty() || Objects.isNull(item2) || item2.isEmpty()) return null;
         StringJoiner joiner = new StringJoiner(", ");
-        item1.forEach((key,value)->{
-            if (item2.containsKey(key)){
+        item1.forEach((key, value) -> {
+            if (item2.containsKey(key)) {
                 joiner.add(key);
             }
         });
@@ -140,24 +142,24 @@ public class PostManAnalysis {
     }
 
     public Request httpPrepare(String uriOrName, String method, Map<String, Object> params) {
-        String com = this.comp(this.connectorConfig,params);
-        Optional.ofNullable(com).ifPresent(str->{
-            TapLogger.warn(TAG," Some of the keys in connectionConfig or nodeConfig have the same name as the interface parameters." +
-                    " At this time, the values in connectionConfig or nodeConfig will be used as the HTTP request data by default, which will lead to errors in the HTTP call parameters. Please confirm. If it is correct, it can be ignored.  Conflicting Key: " + com);
-        });
-
+//        String com = this.comp(this.connectorConfig,params);
+//        Optional.ofNullable(com).ifPresent(str->{
+//            "{} may be overwrite by incoming params, please be caution that it is your intention";
+//            TapLogger.warn(TAG," Some of the keys in connectionConfig or nodeConfig have the same name as the api parameters." +
+//                    " At this time, the values in api parameters will be used as the HTTP request data by default, which will lead to errors in the HTTP call parameters. Please confirm. If it is correct, it can be ignored.  Conflicting Key: " + com);
+//        });
         ApiMap.ApiEntity api = this.apiContext.apis().quickGet(uriOrName, method);
         if (Objects.isNull(api)) {
             throw new CoreException(String.format("No such api name or url is [%s],method is [%s]", uriOrName, method));
         }
 
         ApiVariable variable = ApiVariable.create();
+        if (Objects.nonNull(this.connectorConfig) && !this.connectorConfig.isEmpty()) {
+            variable.putAll(this.connectorConfig);
+        }
         variable.putAll(this.apiContext.variable());
         if (Objects.nonNull(params) && !params.isEmpty()) {
             variable.putAll(params);
-        }
-        if (Objects.nonNull(this.connectorConfig) && !this.connectorConfig.isEmpty()) {
-            variable.putAll(this.connectorConfig);
         }
         Map<String, Object> tempParam = new HashMap<>();
         tempParam.putAll(variable);
@@ -174,7 +176,10 @@ public class PostManAnalysis {
         List<Header> apiHeader = apiRequest.header();
         Map<String, String> headMap = new HashMap<>();
         if (Objects.nonNull(apiHeader) && !apiHeader.isEmpty()) {
-            apiHeader.stream().filter(ent->{ if (Objects.isNull(ent)) return false; return !ent.disabled(); }).forEach(head -> headMap.put(head.key(), head.value()));
+            apiHeader.stream().filter(ent -> {
+                if (Objects.isNull(ent)) return false;
+                return !ent.disabled();
+            }).forEach(head -> headMap.put(head.key(), head.value()));
         }
         String url = apiUrl.raw();
         Body<?> apiBody = apiRequest.body();
@@ -223,13 +228,13 @@ public class PostManAnalysis {
         return builder.build();
     }
 
-    public APIResponse http(Request request) throws IOException{
+    public APIResponse http(Request request) throws IOException {
         String property = System.getProperty("show_api_invoker_result", "1");
         if (!"1".equals(property)) {
             Buffer sink = new Buffer();
             RequestBody body = request.body();
             String bodyStr = "{}";
-            if (Objects.nonNull(body)){
+            if (Objects.nonNull(body)) {
                 body.writeTo(sink);
                 bodyStr = ScriptUtil.fileToString(sink.inputStream());
             }
@@ -245,9 +250,9 @@ public class PostManAnalysis {
         int code = Objects.nonNull(response) ? response.code() : -1;
         Headers headers = Objects.nonNull(response) ? response.headers() : Headers.of();
         ResponseBody body = response.body();
-        if(body != null) {
+        if (body != null) {
             String bodyStr = body.string();
-            if (Objects.isNull(bodyStr)){
+            if (Objects.isNull(bodyStr)) {
                 result.put(Api.PAGE_RESULT_PATH_DEFAULT_PATH, new HashMap<>());
             } else {
                 try {
@@ -261,7 +266,7 @@ public class PostManAnalysis {
                 }
             }
         }
-        result.computeIfAbsent(Api.PAGE_RESULT_PATH_DEFAULT_PATH, key -> new HashMap<String,Object>());
+        result.computeIfAbsent(Api.PAGE_RESULT_PATH_DEFAULT_PATH, key -> new HashMap<String, Object>());
         return APIResponse.create()
                 .httpCode(code)
                 .result(result)
