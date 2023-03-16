@@ -10,283 +10,719 @@ var clientInfo = {
 }
 
 function discoverSchema(connectionConfig) {
-    return [{
-        "name": 'contact',
-        "fields": {
-            'Id':{
-                'type':'String',
-                'comment':'',
-                'nullable':false,
-                'isPrimaryKey':true,
-                'primaryKeyPos':1
-            },
-            'AccountId':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'AssistantName':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'AssistantPhone':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'Birthdate':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'CleanStatus':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'Department':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'Description':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'Email':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'EmailBouncedDate':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'EmailBouncedReason':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'Fax':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'FirstName':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'HomePhone':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'IndividualId':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'IsDeleted':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'IsEmailBounced':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'Jigsaw':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'Languages__c':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'LastActivityDate':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'LastName':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'LastReferencedDate':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'LastViewedDate':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'LeadSource':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'MailingCity':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'MailingCountry':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'MailingGeocodeAccuracy':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'MailingLatitude':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'MailingLongitude':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'MailingPostalCode':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'MailingState':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'MailingStreet':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'MasterRecordId':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'MobilePhone':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'Name':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'OtherCity':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'OtherCountry':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'OtherGeocodeAccuracy':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'OtherLatitude':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'OtherLongitude':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'OtherPhone':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'OtherPostalCode':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'OtherState':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'OtherStreet':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'OwnerId':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'Phone':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'PhotoUrl':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'RecordTypeId':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'ReportsToId':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'Salutation':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'Title':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'LastModifiedById':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'LastModifiedDate':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
-            },
-            'CreatedDate':{
-                'type':'String',
-                'comment':'',
-                'nullable':false
+    return [
+        {
+            "name": 'Contact',
+            "fields": {
+                'Id': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': false,
+                    'isPrimaryKey': true,
+                    'primaryKeyPos': 1
+                },
+                'AccountId': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': false
+                },
+                'AssistantName': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'AssistantPhone': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Birthdate': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'CleanStatus': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Department': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Description': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Email': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'EmailBouncedDate': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'EmailBouncedReason': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Fax': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'FirstName': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'HomePhone': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'IndividualId': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'IsDeleted': {
+                    'type': 'Boolean',
+                    'comment': '',
+                    'nullable': true
+                },
+                'IsEmailBounced': {
+                    'type': 'Boolean',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Jigsaw': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Languages__c': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LastActivityDate': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LastName': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': false
+                },
+                'LastReferencedDate': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LastViewedDate': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LeadSource': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'MailingCity': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'MailingCountry': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'MailingGeocodeAccuracy': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'MailingLatitude': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'MailingLongitude': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'MailingPostalCode': {
+                    'type': 'Number',
+                    'comment': '',
+                    'nullable': true
+                },
+                'MailingState': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'MailingStreet': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'MasterRecordId': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'MobilePhone': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Name': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'OtherCity': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'OtherCountry': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'OtherGeocodeAccuracy': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'OtherLatitude': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'OtherLongitude': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'OtherPhone': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'OtherPostalCode': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'OtherState': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'OtherStreet': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'OwnerId': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Phone': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'PhotoUrl': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'RecordTypeId': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'ReportsToId': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Salutation': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': false
+                },
+                'Title': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LastModifiedById': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LastModifiedDate': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'CreatedDate': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                }
+            }
+        },
+        {
+            "name": 'Opportunity',
+            "fields": {
+                'Id': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': false,
+                    'isPrimaryKey': true,
+                    'primaryKeyPos': 1
+                },
+                'AccountId': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': false
+                },
+                'Amount': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'CampaignId': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'CloseDate': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': false
+                },
+                'ContactId': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Description': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'ExpectedRevenue': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Fiscal': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'FiscalQuarter': {
+                    'type': 'Number',
+                    'comment': '',
+                    'nullable': true
+                },
+                'FiscalYear': {
+                    'type': 'Number',
+                    'comment': '',
+                    'nullable': true
+                },
+                'ForecastCategory': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'ForecastCategoryName': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'HasOpenActivity': {
+                    'type': 'Boolean',
+                    'comment': '',
+                    'nullable': true
+                },
+                'HasOpportunityLineItem': {
+                    'type': 'Boolean',
+                    'comment': '',
+                    'nullable': true
+                },
+                'HasOverdueTask': {
+                    'type': 'Boolean',
+                    'comment': '',
+                    'nullable': true
+                },
+                'IsClosed': {
+                    'type': 'Boolean',
+                    'comment': '',
+                    'nullable': true
+                },
+                'IsDeleted': {
+                    'type': 'Boolean',
+                    'comment': '',
+                    'nullable': true
+                },
+                'IsWon': {
+                    'type': 'Boolean',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LastActivityDate': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LastAmountChangedHistoryId': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LastCloseDateChangedHistoryId': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LastReferencedDate': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LastStageChangeDate': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LastViewedDate': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LeadSource': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Name': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': false
+                },
+                'NextStep': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'OwnerId': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Pricebook2Id': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'PushCount': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'RecordTypeId': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'StageName': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': false
+                },
+                'TotalOpportunityQuantity': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Type': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LastModifiedById': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LastModifiedDate': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'CreatedDate': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                }
+            }
+        },
+        {
+            "name": 'Lead',
+            "fields": {
+                'Id': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': false,
+                    'isPrimaryKey': true,
+                    'primaryKeyPos': 1
+                },
+                'AnnualRevenue': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': false
+                },
+                'City': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'CleanStatus': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Company': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': false
+                },
+                'CompanyDunsNumber': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'ConvertedAccountId': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'ConvertedContactId': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'ConvertedDate': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'ConvertedOpportunityId': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Country': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Description': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Email': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'EmailBouncedDate': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'EmailBouncedReason': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Fax': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'FirstName': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'GeocodeAccuracy': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'IndividualId': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Industry': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'IsConverted': {
+                    'type': 'Boolean',
+                    'comment': '',
+                    'nullable': true
+                },
+                'IsDeleted': {
+                    'type': 'Boolean',
+                    'comment': '',
+                    'nullable': true
+                },
+                'IsUnreadByOwner': {
+                    'type': 'Boolean',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Jigsaw': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LastActivityDate': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LastName': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LastReferencedDate': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Latitude': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Longitude': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LeadSource': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'MasterRecordId': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'MobilePhone': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Name': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': false
+                },
+                'NumberOfEmployees': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'PhotoUrl': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'PostalCode': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'RecordTypeId': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Salutation': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': false
+                },
+                'State': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Status': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': false
+                },
+                'Street': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Title': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'Website': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LastModifiedById': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'LastModifiedDate': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                },
+                'CreatedDate': {
+                    'type': 'String',
+                    'comment': '',
+                    'nullable': true
+                }
             }
         }
-    }];
+    ];
 }
 
 function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
@@ -296,47 +732,35 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
     let pageInfo = {"hasNextPage": true};
     do {
         let uiApi;
-        if (isFirst) {
+        try {
+            if (isFirst) {
             clientInfo.Authorization = connectionConfig.access_token;
-            invoke = invoker.invoke(getApiName(tableName), clientInfo);
-            if (!invoke.result.data || !invoke.result.data.uiapi) {
-                return;
-            }
-            uiApi = invoke.result.data.uiapi;
-            if (!(uiApi.query[tableName + ""] && uiApi.query[tableName + ""].edges[0])) return;
-            pageInfo = uiApi.query[tableName + ""].pageInfo;
-            afterData = pageInfo.endCursor;
+                invoke = invoker.invoke(tableName, clientInfo);
         } else {
             clientInfo.after = afterData;
-            invoke = invoker.invoke(getApiName(tableName) + " by after", clientInfo);
-            if (!invoke.result.data || !invoke.result.data.uiapi) {
-                return;
+                invoke = invoker.invoke(tableName + " by after", clientInfo);
             }
-            uiApi = invoke.result.data.uiapi;
-            if (!(uiApi.query[tableName + ""] && uiApi.query[tableName + ""].edges[0])) return;
-            pageInfo = uiApi.query[tableName + ""].pageInfo;
-            afterData = pageInfo.endCursor;
+        } catch (e) {
+            throw ("Failed to query the data. Please check the connection." + JSON.stringify(invoke));
         }
+        if (!invoke.result.data || !invoke.result.data.uiapi) {
+            return;
+        }
+        uiApi = invoke.result.data.uiapi;
+        if (!(uiApi.query[tableName + ""] && uiApi.query[tableName + ""].edges[0])) return;
+        pageInfo = uiApi.query[tableName + ""].pageInfo;
+        afterData = pageInfo.endCursor;
         let resultData = uiApi.query[tableName + ""].edges;
-        for (let j = 0; j < resultData.length; j++) {
-            if (!isAlive()) break;
-            let resultItem = resultData[j];
-            let nod = resultItem.node;
-            let keys = Object.keys(nod);
-            for (let index = 0; index < keys.length; index++) {
-                if (!isAlive()) break;
-                let key = keys[index];
-                if (typeof (nod[key].value) == "boolean" || nod[key].value) nod[key] = nod[key].value;
-            }
-            result.push(nod);
-        }
+        disassemblyData(resultData, result);
         isFirst = false;
         batchReadSender.send(result, tableName, {}, false);
+        result = [];
         batchStart = Date.parse(new Date());
     } while (pageInfo.hasNextPage && isAlive());
 }
 
 function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
+    log.warn("streamRead")
     if (!checkParam(tableNameList)) return;
     for (let index = 0; index < tableNameList.length; index++) {
         if (!isAlive()) break;
@@ -346,11 +770,16 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
         let first = true;
         do {
             if (!isAlive()) break;
-            if (first) {
-                invoke = invoker.invoke(getApiName(tableNameList[index]) + " stream read", clientInfo);
-            } else {
-                clientInfo.after = afterData;
-                invoke = invoker.invoke(getApiName(tableNameList[index]) + " stream read by after", clientInfo);
+            try {
+                if (first) {
+                    invoke = invoker.invoke(tableNameList[index] + " stream read", clientInfo);
+                } else {
+                    clientInfo.after = afterData;
+                    invoke = invoker.invoke(tableNameList[index] + " stream read by after", clientInfo);
+                }
+            } catch (e) {
+                throw ("Failed to query the data. Please check the connection." + JSON.stringify(invoke));
+                break;
             }
             if (!invoke.result.data || !invoke.result.data.uiapi) {
                 break;
@@ -364,33 +793,37 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
                     if (!isAlive()) break;
                     let resultItem = resultData[j];
                     let nod = resultItem.node;
-                    if (!(Number(new Date(nod.LastModifiedDate.value)) > Number(new Date(batchStart)))) continue;
-                    if (nod.LastModifiedDate.value === nod.CreatedDate.value) {
-                        arr[j] = {
-                            "eventType": "i",
-                            "tableName": tableNameList[index],
-                            "afterData": sendData(nod)
-                        };
+                    if (Number(new Date(nod.LastModifiedDate.value)) > Number(new Date(batchStart))) {
+                        if (nod.LastModifiedDate.value === nod.CreatedDate.value) {
+                            arr[j] = {
+                                "eventType": "i",
+                                "tableName": tableNameList[index],
+                                "afterData": sendData(nod)
+                            };
+                        } else {
+                            arr[j] = {
+                                "eventType": "u",
+                                "tableName": tableNameList[index],
+                                "afterData": sendData(nod)
+                            };
+                        }
+                        batchStart = Date.parse(new Date());
                     } else {
-                        arr[j] = {
-                            "eventType": "u",
-                            "tableName": tableNameList[index],
-                            "afterData": sendData(nod)
-                        };
+                        batchStart = Date.parse(new Date());
+                        break;
                     }
                 }
                 streamReadSender.send(arr, tableNameList[index], {});
-                arr=[];
+                arr = [];
                 first = false;
             }
-            batchStart = Date.parse(new Date());
-        } while(pageInfo.hasNextPage && isAlive())
+        } while (pageInfo.hasNextPage && isAlive())
     }
 }
 
 function commandCallback(connectionConfig, nodeConfig, commandInfo) {
     if (commandInfo.command === 'OAuth') {
-        clientInfo.code = connectionConfig.code;
+        //clientInfo.code1 = connectionConfig.code1;
         let getToken = invoker.invokeWithoutIntercept("get access token", clientInfo);
         if (getToken.result) {
             connectionConfig.access_token = getToken.result.access_token;
@@ -401,11 +834,11 @@ function commandCallback(connectionConfig, nodeConfig, commandInfo) {
 }
 
 function updateToken(connectionConfig, nodeConfig, apiResponse) {
-    if (apiResponse.httpCode === 503 || apiResponse.result.length > 0 && apiResponse.result[0].errorCode && apiResponse.result[0].errorCode === "REQUEST_LIMIT_EXCEEDED"){
+    if (apiResponse.httpCode === 503 || apiResponse.result.length > 0 && apiResponse.result[0].errorCode && apiResponse.result[0].errorCode === "REQUEST_LIMIT_EXCEEDED") {
         throw (apiResponse.result[0].message)
     }
     if (apiResponse.httpCode === 401 || (apiResponse.result && apiResponse.result.length > 0 && apiResponse.result[0].errorCode && apiResponse.result[0].errorCode === 'INVALID_SESSION_ID')) {
-        clientInfo.refresh_token1 = connectionConfig.refresh_token1;
+        // clientInfo.refresh_token1 = connectionConfig.refresh_token1;
         try {
             let getToken = invoker.invokeWithoutIntercept("refresh token", clientInfo);
             if (getToken && getToken.result && getToken.result.access_token) {
@@ -421,8 +854,19 @@ function updateToken(connectionConfig, nodeConfig, apiResponse) {
 }
 
 function connectionTest(connectionConfig) {
+    let invoke;
     clientInfo.Authorization = connectionConfig.access_token;
-    let invoke = invoker.invoke('query opportunity', clientInfo);
+    try {
+        invoke = invoker.invoke('Opportunity', clientInfo);
+    } catch (e) {
+        return [
+            {
+                "test": "Authorization failed",
+                "code": -1,
+                "result": "Api exec fail, api name or url is [Opportunity], method is [POST]"
+            }
+        ];
+    }
     if (invoke.result.data) {
         return [
             {
@@ -443,6 +887,5 @@ function connectionTest(connectionConfig) {
             "result": "Not pass"
         }];
     }
-
 }
 
