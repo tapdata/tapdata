@@ -31,4 +31,8 @@ public @interface TapExCode {
 	TapExType type() default TapExType.RUNTIME;
 
 	Class<? extends Exception> relateException() default RuntimeException.class;
+
+	String howToReproduce() default "";
+
+	String[] seeAlso() default {};
 }

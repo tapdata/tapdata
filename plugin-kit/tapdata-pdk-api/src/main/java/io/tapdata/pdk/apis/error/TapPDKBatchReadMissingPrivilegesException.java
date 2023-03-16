@@ -1,6 +1,4 @@
-package io.tapdata.exception.pdk;
-
-import io.tapdata.entity.simplify.TapSimplify;
+package io.tapdata.pdk.apis.error;
 
 import java.util.List;
 

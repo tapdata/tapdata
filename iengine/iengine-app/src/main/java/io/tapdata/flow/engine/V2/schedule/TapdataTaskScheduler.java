@@ -5,7 +5,6 @@ import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.AppType;
-import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -312,15 +311,16 @@ public class TapdataTaskScheduler {
 
 	private void startTask(TaskDto taskDto) {
 		final String taskId = taskDto.getId().toHexString();
+		ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
 		if (taskClientMap.containsKey(taskId)) {
 			TaskClient<TaskDto> taskClient = taskClientMap.get(taskId);
 			if (null != taskClient) {
-				logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, taskClient.getStatus());
+				obsLogger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, taskClient.getStatus());
 				if (TaskDto.STATUS_RUNNING.equals(taskClient.getStatus())) {
 					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
 				}
 			} else {
-				logger.info("The [task {}, id {}] is being executed, ignore the scheduling", taskDto.getName(), taskId);
+				obsLogger.info("The [task {}, id {}] is being executed, ignore the scheduling", taskDto.getName(), taskId);
 			}
 			return;
 		}
@@ -331,14 +331,13 @@ public class TapdataTaskScheduler {
 //				logger.warn(checkTaskCanStart);
 //				return;
 //			}
-			Log4jUtil.setThreadContext(taskDto);
-			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
+			obsLogger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
 			TmStatusService.addNewTask(taskId);
 			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
 			final TaskClient<TaskDto> subTaskDtoTaskClient = hazelcastTaskService.startTask(taskDto);
 			taskClientMap.put(subTaskDtoTaskClient.getTask().getId().toHexString(), subTaskDtoTaskClient);
 		} catch (Exception e) {
-			logger.error("Start task {} failed {}", taskDto.getName(), e.getMessage(), e);
+			ObsLoggerFactory.getInstance().getObsLogger(taskDto).error(e.getMessage(), e);
 			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
 		} finally {
 			ThreadContext.clearAll();
