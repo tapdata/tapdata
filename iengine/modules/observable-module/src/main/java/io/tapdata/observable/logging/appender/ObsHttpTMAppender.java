@@ -69,9 +69,10 @@ public class ObsHttpTMAppender implements Appender<MonitoringLogsDto>, Serializa
 				rootLogger.warn("Serialize monitor log to json failed, will ignored it\nEntity: {}\nError: {}", log, e.getMessage());
 				continue;
 			}
-			if (obsHttpTMLog4jAppender.isStarted()) {
-				this.logger.info(logJson);
+			if (!obsHttpTMLog4jAppender.isStarted()) {
+				return;
 			}
+			this.logger.info(logJson);
 		}
 	}
 }
