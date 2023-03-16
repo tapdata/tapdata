@@ -23,7 +23,6 @@ public class CommonDbConfig implements Serializable {
     protected static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
 
     private String __connectionType;
-    private String customSql;
     private String dbType;
     private String host;
     private int port;
@@ -90,14 +89,6 @@ public class CommonDbConfig implements Serializable {
 
     public void set__connectionType(String __connectionType) {
         this.__connectionType = __connectionType;
-    }
-
-    public String getCustomSql() {
-        return customSql;
-    }
-
-    public void setCustomSql(String customSql) {
-        this.customSql = customSql;
     }
 
     public String getDbType() {

@@ -3,19 +3,17 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.Log4jUtil;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataCompleteSnapshotEvent;
-import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.TapdataHeartbeatEvent;
-import com.tapdata.entity.TapdataStartCdcEvent;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
-import io.tapdata.aspect.TaskMilestoneFuncAspect;
+import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
@@ -37,8 +35,6 @@ import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
-import io.tapdata.milestone.MilestoneStage;
-import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.entity.FilterResults;
 import io.tapdata.pdk.apis.entity.QueryOperator;
@@ -46,10 +42,7 @@ import io.tapdata.pdk.apis.entity.SortOn;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
-import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunction;
-import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunctionV2;
-import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.*;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
@@ -70,13 +63,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -90,7 +77,7 @@ import java.util.stream.Collectors;
  **/
 public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	private static final String TAG = HazelcastSourcePdkDataNode.class.getSimpleName();
-//	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkDataNode.class);
+	//	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkDataNode.class);
 	private final Logger logger = LogManager.getRootLogger();
 	private static final int CDC_POLLING_MIN_INTERVAL_MS = 500;
 	private static final int CDC_POLLING_MIN_BATCH_SIZE = 1000;
@@ -109,11 +96,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		try {
 			super.doInit(context);
 			checkPollingCDCIfNeed();
-			// MILESTONE-INIT_CONNECTOR-FINISH
-			TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.FINISH);
 		} catch (Throwable e) {
-			// MILESTONE-INIT_CONNECTOR-ERROR
-			TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.ERROR, logger);
 			//Notify error for task.
 			throw errorHandle(e, "init failed");
 		}
@@ -134,18 +117,20 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					doSnapshot(newTables);
 				}
 			} catch (Throwable e) {
-				TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.READ_SNAPSHOT, MilestoneStatus.ERROR, logger);
+				executeAspect(new SnapshotReadErrorAspect().dataProcessorContext(dataProcessorContext).error(e));
 				throw e;
 			} finally {
 				Optional.ofNullable(snapshotProgressManager).ifPresent(SnapshotProgressManager::close);
 			}
+			Snapshot2CDCAspect.execute(dataProcessorContext);
 			if (need2CDC()) {
 				try {
+					executeAspect(new CDCReadBeginAspect().dataProcessorContext(dataProcessorContext));
 					AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_CDC_START));
 					doCdc();
+					executeAspect(new CDCReadEndAspect().dataProcessorContext(dataProcessorContext));
 				} catch (Throwable e) {
-					// MILESTONE-READ_CDC_EVENT-ERROR
-					TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.ERROR);
+					executeAspect(new CDCReadErrorAspect().dataProcessorContext(dataProcessorContext).error(e));
 					throw e;
 				} finally {
 					AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_CDC_COMPLETED));
@@ -160,6 +145,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 	@SneakyThrows
 	private void doSnapshot(List<String> tableList) {
+		executeAspect(new SnapshotReadBeginAspect().dataProcessorContext(dataProcessorContext).tables(tableList));
 		syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
 
 		// count the data size of the tables;
@@ -167,12 +153,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 		BatchReadFunction batchReadFunction = getConnectorNode().getConnectorFunctions().getBatchReadFunction();
 		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
+		RunRawCommandFunction runRawCommandFunction = getConnectorNode().getConnectorFunctions().getRunRawCommandFunction();
 
 		if (batchReadFunction != null) {
 			// MILESTONE-READ_SNAPSHOT-RUNNING
 			if (sourceRunnerFirstTime.get()) {
-				AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_START));
-				TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.READ_SNAPSHOT, MilestoneStatus.RUNNING);
+				executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_START));
 			}
 			try {
 				while (isRunning()) {
@@ -185,6 +171,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							}
 						}
 						try {
+							executeAspect(new SnapshotReadTableBeginAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
 							while (isRunning()) {
 								try {
 									if (sourceRunnerLock.tryLock(1L, TimeUnit.SECONDS)) {
@@ -262,6 +249,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																		tempList.clear();
 																	}
 																});
+															} else if (tableNode.getIsCustomCommand() != null && tableNode.getIsCustomCommand() && runRawCommandFunction != null) {
+																runRawCommandFunction.run(getConnectorNode().getConnectorContext(), tableNode.getCustomCommand(), tapTable, readBatchSize, events -> consumer.accept(events, null));
 															} else {
 																batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
 															}
@@ -271,7 +260,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 													}
 											)
 									));
+							executeAspect(new SnapshotReadTableEndAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
 						} catch (Throwable throwable) {
+							executeAspect(new SnapshotReadTableErrorAspect().dataProcessorContext(dataProcessorContext).tableName(tableName).error(throwable));
 							Throwable throwableWrapper = throwable;
 							if (!(throwableWrapper instanceof NodeException)) {
 								throwableWrapper = new NodeException(throwableWrapper).context(getProcessorBaseContext());
@@ -312,8 +303,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				}
 			} finally {
 				if (isRunning()) {
-					// MILESTONE-READ_SNAPSHOT-FINISH
-					TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.READ_SNAPSHOT, MilestoneStatus.FINISH);
 					enqueue(new TapdataCompleteSnapshotEvent());
 					AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
 				}
@@ -322,6 +311,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			throw new NodeException("PDK node does not support batch read: " + dataProcessorContext.getDatabaseType())
 					.context(getProcessorBaseContext());
 		}
+		executeAspect(new SnapshotReadEndAspect().dataProcessorContext(dataProcessorContext));
 	}
 
 	private static boolean isTableFilter(TableNode tableNode) {
@@ -333,17 +323,16 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (!isRunning()) {
 			return;
 		}
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		this.endSnapshotLoop.set(true);
 		if (null == syncProgress.getStreamOffsetObj()) {
 			throw new NodeException("Starting stream read failed, errors: start point offset is null").context(getProcessorBaseContext());
 		} else {
-			TapdataStartCdcEvent tapdataStartCdcEvent = new TapdataStartCdcEvent();
-			tapdataStartCdcEvent.setSyncStage(SyncStage.CDC);
-			tapdataStartCdcEvent.setStreamOffset(syncProgress.getStreamOffsetObj());
-			enqueue(tapdataStartCdcEvent);
+			TapdataStartingCdcEvent tapdataStartingCdcEvent = new TapdataStartingCdcEvent();
+			tapdataStartingCdcEvent.setSyncStage(SyncStage.CDC);
+			tapdataStartingCdcEvent.setStreamOffset(syncProgress.getStreamOffsetObj());
+			enqueue(tapdataStartingCdcEvent);
 		}
-		// MILESTONE-READ_CDC_EVENT-RUNNING
-		TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.RUNNING);
 		syncProgress.setSyncStage(SyncStage.CDC.name());
 		Node<?> node = dataProcessorContext.getNode();
 		if (isPollingCDC(node)) {
@@ -353,19 +342,23 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				// Mining tasks force traditional increments
 				doNormalCDC();
 			} else {
-				try {
-					// Try to start with share cdc
-					doShareCdc();
-				} catch (ShareCdcUnsupportedException e) {
-					if (e.isContinueWithNormalCdc()) {
-						// If share cdc is unavailable, and continue with normal cdc is true
-						obsLogger.info("Share cdc unusable, will use normal cdc mode, reason: " + e.getMessage());
-						doNormalCDC();
-					} else {
+				if (taskDto.getShareCdcEnable()) {
+					try {
+						// Try to start with share cdc
+						doShareCdc();
+					} catch (ShareCdcUnsupportedException e) {
+						if (e.isContinueWithNormalCdc() && !taskDto.getEnforceShareCdc()) {
+							// If share cdc is unavailable, and continue with normal cdc is true
+							obsLogger.info("Share cdc unusable, will use normal cdc mode, reason: " + e.getMessage());
+							doNormalCDC();
+						} else {
+							throw new NodeException("Read share cdc log failed: " + e.getMessage(), e).context(getProcessorBaseContext());
+						}
+					} catch (Exception e) {
 						throw new NodeException("Read share cdc log failed: " + e.getMessage(), e).context(getProcessorBaseContext());
 					}
-				} catch (Exception e) {
-					throw new NodeException("Read share cdc log failed: " + e.getMessage(), e).context(getProcessorBaseContext());
+				} else {
+					doNormalCDC();
 				}
 			}
 		}
@@ -403,14 +396,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			String finalStreamReadFunctionName = streamReadFunctionName;
 			PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 			executeDataFuncAspect(StreamReadFuncAspect.class, () -> new StreamReadFuncAspect()
-							.connectorContext(getConnectorNode().getConnectorContext())
+							.connectorContext(connectorNode.getConnectorContext())
 							.dataProcessorContext(getDataProcessorContext())
 							.streamReadFunction(finalStreamReadFunctionName)
 							.tables(tables)
 							.eventBatchSize(batchSize)
 							.offsetState(syncProgress.getStreamOffsetObj())
 							.start(),
-					streamReadFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_STREAM_READ,
+					streamReadFuncAspect -> PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_STREAM_READ,
 							pdkMethodInvoker.runnable(
 									() -> {
 										this.streamReadFuncAspect = streamReadFuncAspect;
@@ -463,10 +456,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											}
 										}).stateListener((oldState, newState) -> {
 											if (null != newState && StreamReadConsumer.STATE_STREAM_READ_STARTED == newState) {
+												executeAspect(new CDCReadStartedAspect().dataProcessorContext(dataProcessorContext));
 												// MILESTONE-READ_CDC_EVENT-FINISH
 												if (streamReadFuncAspect != null)
 													executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAM_STARTED).streamStartedTime(System.currentTimeMillis()));
-												TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.FINISH);
+												PDKInvocationMonitor.invokerRetrySetter(pdkMethodInvoker);
+												sendCdcStartedEvent();
 												obsLogger.info("Connector start stream read succeed: {}", connectorNode);
 											}
 										});
@@ -493,6 +488,20 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		} else {
 			throw new NodeException("PDK node does not support stream read: " + dataProcessorContext.getDatabaseType()).context(getProcessorBaseContext());
 		}
+	}
+
+	private void sendCdcStartedEvent() {
+		TapdataStartedCdcEvent tapdataStartedCdcEvent = TapdataStartedCdcEvent.create();
+		tapdataStartedCdcEvent.setCdcStartTime(System.currentTimeMillis());
+		tapdataStartedCdcEvent.setSyncStage(SyncStage.CDC);
+		Node<?> node = getNode();
+		if (node.isLogCollectorNode()) {
+			LogCollectorNode logCollectorNode = (LogCollectorNode) node;
+			tapdataStartedCdcEvent.setType(SyncProgress.Type.LOG_COLLECTOR);
+			tapdataStartedCdcEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, dataProcessorContext.getConnections().getId());
+			tapdataStartedCdcEvent.addInfo(TapdataEvent.TABLE_NAMES_INFO_KEY, logCollectorNode.getTableNames());
+		}
+		enqueue(tapdataStartedCdcEvent);
 	}
 
 	private void doShareCdc() throws Exception {

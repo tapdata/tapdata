@@ -409,6 +409,7 @@ public class DAGService implements DAGDataService {
                 dataSource.setDefinitionVersion(definitionDto.getVersion());
                 dataSource.setDefinitionPdkId(definitionDto.getPdkId());
                 dataSource.setDefinitionBuildNumber(String.valueOf(definitionDto.getBuildNumber()));
+                dataSource.setDefinitionTags(definitionDto.getTags());
             }
         }
 
@@ -975,6 +976,7 @@ public class DAGService implements DAGDataService {
         dto.setDefinitionVersion(definitionDto.getVersion());
         dto.setDefinitionGroup(definitionDto.getGroup());
         dto.setDefinitionBuildNumber(String.valueOf(definitionDto.getBuildNumber()));
+        dto.setDefinitionTags(definitionDto.getTags());
         DataSourceConnectionDto dataSourceDto = new DataSourceConnectionDto();
         BeanUtils.copyProperties(dto, dataSourceDto);
         return dataSourceDto;

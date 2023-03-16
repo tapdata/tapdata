@@ -9,6 +9,7 @@ public class RelationTaskRequest {
     public final static String type_logCollector = NodeEnum.logCollector.name();
     public final static String type_shareCache = NodeEnum.mem_cache.name();
     public final static String type_inspect = "inspect";
+    public final static String type_task_by_collector = "task_by_collector";
 
     @Schema(description = "任务类型 logCollector mem_cache inspect")
     private String type;

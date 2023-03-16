@@ -1,20 +1,29 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.hazelcast.ringbuffer.Ringbuffer;
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MapUtil;
+import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TapdataShareLogEvent;
 import com.tapdata.entity.sharecdc.LogContent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
+import io.tapdata.aspect.WriteRecordFuncAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.construct.HazelcastConstruct;
 import io.tapdata.construct.constructImpl.ConstructRingBuffer;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -26,10 +35,17 @@ import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author samuel
@@ -40,11 +56,18 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 
 	public static final int DEFAULT_SHARE_CDC_TTL_DAY = 3;
 	private static final int INSERT_BATCH_SIZE = 1000;
+	private static final long MIN_FLUSH_METRICS_INTERVAL_MS = 5000L;
+	private static final int FLUSH_METRICS_BATCH_SIZE = 10;
+	public static final String TAG = HazelcastTargetPdkShareCDCNode.class.getSimpleName();
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkShareCDCNode.class);
 	private LRUMap constructMap;
 	private List<String> tableNames;
 	private Map<String, List<Document>> batchCacheData;
-	private AtomicBoolean running = new AtomicBoolean(true);
+	private LinkedBlockingQueue<ShareCdcTableMetricsDto> tableMetricsQueue = new LinkedBlockingQueue<>(1024);
+	private ExecutorService flushShareCdcTableMetricsThreadPool;
+	private List<ShareCdcTableMetricsDto> cacheMetricsList = new ArrayList<>();
+	private final AtomicLong lastFlushMetricsTimeMs = new AtomicLong();
+	private Map<String, ShareCdcTableMetricsDto> shareCdcTableMetricsDtoMap;
 
 	public HazelcastTargetPdkShareCDCNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -54,7 +77,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
 		this.targetBatch = 10000;
-		this.targetBatchIntervalMs = 10000L;
+		this.targetBatchIntervalMs = 1000;
 		Integer shareCdcTtlDay = getShareCdcTtlDay();
 		externalStorageDto.setTtlDay(shareCdcTtlDay);
 		this.constructMap = new LRUMap();
@@ -67,7 +90,40 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 			}
 		}
 		this.batchCacheData = new HashMap<>();
+		this.flushShareCdcTableMetricsThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>(),
+				r -> new Thread(r, "Flush-Share-Cdc-Table-Metrics-Consumer-"
+						+ dataProcessorContext.getTaskDto().getId().toHexString() + "-" + getNode().getId()));
+		this.flushShareCdcTableMetricsThreadPool.submit(this::consumeAndFlushTableMetrics);
+		this.shareCdcTableMetricsDtoMap = new ConcurrentHashMap<>();
 		obsLogger.info("Init log data storage finished, config: " + externalStorageDto);
+	}
+
+	private void consumeAndFlushTableMetrics() {
+		while (isRunning()) {
+			ShareCdcTableMetricsDto shareCdcTableMetricsDto;
+			try {
+				shareCdcTableMetricsDto = tableMetricsQueue.poll(1L, TimeUnit.SECONDS);
+			} catch (InterruptedException e) {
+				break;
+			}
+			if (null != shareCdcTableMetricsDto) {
+				cacheMetricsList.add(shareCdcTableMetricsDto);
+			}
+			if (System.currentTimeMillis() - lastFlushMetricsTimeMs.get() > MIN_FLUSH_METRICS_INTERVAL_MS
+					|| cacheMetricsList.size() >= FLUSH_METRICS_BATCH_SIZE) {
+				flushShareCdcTableMetrics(cacheMetricsList);
+				cacheMetricsList.clear();
+				lastFlushMetricsTimeMs.set(System.currentTimeMillis());
+			}
+		}
+	}
+
+	private void flushShareCdcTableMetrics(List<ShareCdcTableMetricsDto> shareCdcTableMetricsDtoList) {
+		if (CollectionUtils.isEmpty(shareCdcTableMetricsDtoList)) {
+			return;
+		}
+		clientMongoOperator.insertMany(shareCdcTableMetricsDtoList, ConnectorConstant.SHARE_CDC_TABLE_METRICS_COLLECTION + "/saveOrUpdateDaily",
+				unused -> !isRunning());
 	}
 
 	@NotNull
@@ -106,61 +162,146 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	@SneakyThrows
 	void processShareLog(List<TapdataShareLogEvent> tapdataShareLogEvents) {
 		if (CollectionUtils.isEmpty(tapdataShareLogEvents)) return;
+
+		List<TapRecordEvent> tapRecordEvents = new ArrayList<>();
 		for (TapdataShareLogEvent tapdataShareLogEvent : tapdataShareLogEvents) {
 			TapEvent tapEvent = tapdataShareLogEvent.getTapEvent();
 			if (!(tapEvent instanceof TapRecordEvent)) {
 				throw new RuntimeException("Share cdc target expected " + TapRecordEvent.class.getName() + ", actual: " + tapEvent.getClass().getName());
 			}
-			String tableId = TapEventUtil.getTableId(tapEvent);
-			String op = TapEventUtil.getOp(tapEvent);
-			Long timestamp = TapEventUtil.getTimestamp(tapEvent);
-			Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
-			handleData(before);
-			Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
-			handleData(after);
-			Object streamOffset = tapdataShareLogEvent.getStreamOffset();
-			String offsetStr = "";
-			if (null != streamOffset) {
-				offsetStr = PdkUtil.encodeOffset(streamOffset);
-			}
-			verify(tableId, op, before, after, timestamp, offsetStr);
-			LogContent logContent = new LogContent(
-					tableId,
-					timestamp,
-					before,
-					after,
-					op,
-					offsetStr
-			);
-			Document document;
-			try {
-				document = MapUtil.obj2Document(logContent);
-			} catch (Exception e) {
-				throw new RuntimeException("Convert map to document failed; Map data: " + logContent + ". Error: " + e.getMessage(), e);
-			}
-			if (!batchCacheData.containsKey(tableId)) {
-				batchCacheData.put(tableId, new ArrayList<>());
-			}
-			batchCacheData.get(tableId).add(document);
-			if (batchCacheData.get(tableId).size() >= INSERT_BATCH_SIZE) {
-				insertMany(tableId);
-				batchCacheData.get(tableId).clear();
-			}
+			tapRecordEvents.add((TapRecordEvent) tapEvent);
 		}
-		for (Map.Entry<String, List<Document>> entry : batchCacheData.entrySet()) {
-			String tableName = entry.getKey();
-			List<Document> list = entry.getValue();
-			if (CollectionUtils.isNotEmpty(list)) {
-				insertMany(tableName);
-			}
-		}
+
+		WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>();
+
+		executeDataFuncAspect(
+				WriteRecordFuncAspect.class,
+				() -> new WriteRecordFuncAspect()
+						.recordEvents(tapRecordEvents)
+						.table(new TapTable(externalStorageDto.getName()))
+						.dataProcessorContext(dataProcessorContext)
+						.start(),
+				writeRecordFuncAspect -> {
+					for (TapdataShareLogEvent tapdataShareLogEvent : tapdataShareLogEvents) {
+						TapEvent tapEvent = tapdataShareLogEvent.getTapEvent();
+						String tableId = TapEventUtil.getTableId(tapEvent);
+						String op = TapEventUtil.getOp(tapEvent);
+						Long timestamp = TapEventUtil.getTimestamp(tapEvent);
+						Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
+						handleData(before);
+						Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
+						handleData(after);
+						Object streamOffset = tapdataShareLogEvent.getStreamOffset();
+						String offsetStr = "";
+						if (null != streamOffset) {
+							offsetStr = PdkUtil.encodeOffset(streamOffset);
+						}
+						verify(tableId, op, before, after, timestamp, offsetStr);
+						LogContent logContent = new LogContent(
+								tableId,
+								timestamp,
+								before,
+								after,
+								op,
+								offsetStr
+						);
+						Document document;
+						try {
+							document = MapUtil.obj2Document(logContent);
+						} catch (Exception e) {
+							throw new RuntimeException("Convert map to document failed; Map data: " + logContent + ". Error: " + e.getMessage(), e);
+						}
+						if (!batchCacheData.containsKey(tableId)) {
+							batchCacheData.put(tableId, new ArrayList<>());
+						}
+						batchCacheData.get(tableId).add(document);
+						if (batchCacheData.get(tableId).size() >= INSERT_BATCH_SIZE) {
+							insertMany(tableId);
+							writeListResult.incrementInserted(batchCacheData.get(tableId).size());
+							batchCacheData.get(tableId).clear();
+						}
+						incrementTableMetrics(tapdataShareLogEvent);
+					}
+					for (Map.Entry<String, List<Document>> entry : batchCacheData.entrySet()) {
+						String tableName = entry.getKey();
+						List<Document> list = entry.getValue();
+						if (CollectionUtils.isNotEmpty(list)) {
+							insertMany(tableName);
+							writeListResult.incrementInserted(list.size());
+						}
+					}
+					AspectUtils.accept(writeRecordFuncAspect.state(WriteRecordFuncAspect.STATE_WRITING).getConsumers(), tapRecordEvents, writeListResult);
+				}
+		);
+		metricsEnqueue();
 		batchCacheData.clear();
+	}
+
+	private void incrementTableMetrics(TapdataShareLogEvent tapdataShareLogEvent) {
+		String connectionId = "";
+		String nodeId = "";
+		Object connIdObj = tapdataShareLogEvent.getInfo(TapdataEvent.CONNECTION_ID_INFO_KEY);
+		if (connIdObj instanceof String) {
+			connectionId = (String) connIdObj;
+		}
+		List<String> nodeIds = tapdataShareLogEvent.getNodeIds();
+		if (CollectionUtils.isNotEmpty(nodeIds)) {
+			nodeId = nodeIds.get(0);
+		}
+		TapEvent tapEvent = tapdataShareLogEvent.getTapEvent();
+		String tableId = TapEventUtil.getTableId(tapEvent);
+		if (StringUtils.isBlank(connectionId)
+				|| StringUtils.isBlank(nodeId)
+				|| StringUtils.isBlank(tableId)) {
+			return;
+		}
+		String key = getTableMetricsKey(connectionId, nodeId, tableId);
+		ShareCdcTableMetricsDto shareCdcTableMetricsDto;
+		if (!shareCdcTableMetricsDtoMap.containsKey(key)) {
+			shareCdcTableMetricsDto = new ShareCdcTableMetricsDto();
+			shareCdcTableMetricsDto.setTaskId(dataProcessorContext.getTaskDto().getId().toHexString());
+			shareCdcTableMetricsDto.setConnectionId(connectionId);
+			shareCdcTableMetricsDto.setNodeId(nodeId);
+			shareCdcTableMetricsDto.setTableName(tableId);
+			shareCdcTableMetricsDto.setCount(1L);
+			shareCdcTableMetricsDtoMap.put(key, shareCdcTableMetricsDto);
+		} else {
+			shareCdcTableMetricsDto = shareCdcTableMetricsDtoMap.get(key);
+			shareCdcTableMetricsDto.setCount(shareCdcTableMetricsDto.getCount() + 1L);
+		}
+		shareCdcTableMetricsDto.setFirstEventTime(tapdataShareLogEvent.getSourceTime());
+		shareCdcTableMetricsDto.setCurrentEventTime(tapdataShareLogEvent.getSourceTime());
+	}
+
+	private String getTableMetricsKey(String connectionId, String nodeId, String tableId) {
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
+		String taskId = taskDto.getId().toHexString();
+		return String.join("-", taskId, connectionId, nodeId, tableId);
+	}
+
+	private void metricsEnqueue() {
+		if (MapUtils.isEmpty(shareCdcTableMetricsDtoMap)) {
+			return;
+		}
+		Collection<ShareCdcTableMetricsDto> shareCdcTableMetricsDtoList = shareCdcTableMetricsDtoMap.values();
+		for (ShareCdcTableMetricsDto shareCdcTableMetricsDto : shareCdcTableMetricsDtoList) {
+			while (isRunning()) {
+				try {
+					if (tableMetricsQueue.offer(shareCdcTableMetricsDto, 1L, TimeUnit.SECONDS)) {
+						break;
+					}
+				} catch (InterruptedException e) {
+					break;
+				}
+			}
+		}
+		shareCdcTableMetricsDtoMap.clear();
 	}
 
 	private void insertMany(String tableId) {
 		try {
 			HazelcastConstruct<Document> construct = getConstruct(tableId);
-			construct.insertMany(batchCacheData.get(tableId), unused -> !running.get());
+			construct.insertMany(batchCacheData.get(tableId), unused -> !isRunning());
 			if (logger.isDebugEnabled()) {
 				Ringbuffer ringbuffer = ((ConstructRingBuffer) construct).getRingbuffer();
 				logger.debug("Write ring buffer, head sequence: {}, tail sequence: {}, last data: {}", ringbuffer.headSequence(), ringbuffer.tailSequence(), ringbuffer.readOne(ringbuffer.tailSequence()));
@@ -208,7 +349,25 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 
 	@Override
 	public void doClose() throws Exception {
-		this.running.compareAndSet(true, false);
+		if (null != flushShareCdcTableMetricsThreadPool) {
+			flushShareCdcTableMetricsThreadPool.shutdownNow();
+		}
+		if (CollectionUtils.isNotEmpty(cacheMetricsList)) {
+			CommonUtils.ignoreAnyError(() -> {
+				flushShareCdcTableMetrics(cacheMetricsList);
+				cacheMetricsList.clear();
+			}, TAG);
+		}
+		if (!tableMetricsQueue.isEmpty()) {
+			CommonUtils.ignoreAnyError(() -> {
+				cacheMetricsList.addAll(tableMetricsQueue);
+				flushShareCdcTableMetrics(cacheMetricsList);
+				cacheMetricsList.clear();
+				tableMetricsQueue.clear();
+				tableMetricsQueue = null;
+				cacheMetricsList = null;
+			}, TAG);
+		}
 		super.doClose();
 	}
 }
