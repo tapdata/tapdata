@@ -305,20 +305,26 @@ public class AlarmServiceImpl implements AlarmService {
                     log.info("Current user ({}, {}) can't open system notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
                     return true;
                 }
+                ExpressionParser parser = new SpelExpressionParser();
+                TemplateParserContext parserContext = new TemplateParserContext();
+
+                messageEntity.setTemplate(info.getSummary());
+                String template = MessageUtil.getAlarmMsg(Locale.US, info.getSummary());
+                String content = parser.parseExpression(template, parserContext).getValue(info.getParam(), String.class);
+
                 String taskId = taskDto.getId().toHexString();
                 messageEntity.setLevel(info.getLevel().name());
                 messageEntity.setAgentId(taskDto.getAgentId());
                 messageEntity.setServerName(taskDto.getAgentId());
                 messageEntity.setMsg(MsgTypeEnum.ALARM.getValue());
-                String summary = info.getSummary();
-                summary = summary + ", 通知时间：" + DateUtil.now();
-                String title = StringUtils.replace(summary, "$taskName", info.getName());
-                messageEntity.setTitle(title);
+
+                messageEntity.setTitle(content);
                 MessageMetadata metadata = new MessageMetadata(taskDto.getName(), taskId);
                 messageEntity.setMessageMetadata(metadata);
                 messageEntity.setSystem(SystemEnum.MIGRATION.getValue());
                 messageEntity.setUserId(taskDto.getUserId());
                 messageEntity.setRead(false);
+                messageEntity.setParam(info.getParam());
             } else {
                 String msgType = messageDto.getMsg();
                 AlarmKeyEnum alarmKeyEnum;
@@ -351,7 +357,7 @@ public class AlarmServiceImpl implements AlarmService {
                         content = "您在Tapdata Cloud 上创建的任务:" + metadataName + " 出错，请及时处理";
                     }
                 }
-                String summary = content + ", 通知时间：" + DateUtil.now();
+                String summary = content;
                 messageEntity.setTitle(summary);
                 messageEntity.setMessageMetadata(messageDto.getMessageMetadataObject());
                 messageEntity.setSystem(SystemEnum.AGENT.getValue());
@@ -378,7 +384,7 @@ public class AlarmServiceImpl implements AlarmService {
                     log.error("Current user ({}, {}) can't bind email, cancel send message.", userDetail.getUsername(), userDetail.getUserId());
                     return true;
                 }
-                Map<String, String> map = getTaskTitleAndContent(info, taskDto);
+                Map<String, String> map = getTaskTitleAndContent(info);
                 content = map.get("content");
                 title = map.get("title");
             } else {
@@ -431,11 +437,11 @@ public class AlarmServiceImpl implements AlarmService {
     }
 
 
-    public Map<String, String> getTaskTitleAndContent(AlarmInfo info, TaskDto taskDto) {
-        String title = null;
-        String content = null;
+    public Map<String, String> getTaskTitleAndContent(AlarmInfo info) {
+        String title;
+        String content;
         String dateTime = DateUtil.formatDateTime(info.getLastOccurrenceTime());
-        String SmsEvent="";
+        String SmsEvent;
         switch (info.getMetric()) {
             case TASK_STATUS_STOP:
                 boolean manual = info.getSummary().contains("已被用户");
@@ -525,7 +531,7 @@ public class AlarmServiceImpl implements AlarmService {
                     log.info("Current user ({}, {}) can't open sms notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
                     return true;
                 }
-                Map<String, String> map = getTaskTitleAndContent(info, taskDto);
+                Map<String, String> map = getTaskTitleAndContent(info);
                 String smsEvent = map.get("smsEvent");
                 if (info.getMetric().equals(AlarmKeyEnum.TASK_FULL_COMPLETE) || info.getMetric().equals(AlarmKeyEnum.TASK_INCREMENT_START)) {
                     smsTemplateCode = SmsService.TASK_NOTICE;
@@ -600,7 +606,7 @@ public class AlarmServiceImpl implements AlarmService {
                     return true;
                 }
                 log.info("sendWeChat");
-                Map<String, String> map = getTaskTitleAndContent(info, taskDto);
+                Map<String, String> map = getTaskTitleAndContent(info);
                 content = map.get("content");
                 title = map.get("title");
             } else {
