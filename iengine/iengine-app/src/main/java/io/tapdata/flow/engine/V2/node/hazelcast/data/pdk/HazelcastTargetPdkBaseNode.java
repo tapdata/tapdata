@@ -6,14 +6,7 @@ import com.hazelcast.jet.core.Inbox;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataCompleteSnapshotEvent;
-import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.TapdataHeartbeatEvent;
-import com.tapdata.entity.TapdataShareLogEvent;
-import com.tapdata.entity.TapdataStartedCdcEvent;
-import com.tapdata.entity.TapdataStartingCdcEvent;
-import com.tapdata.entity.TapdataTaskErrorEvent;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -25,7 +18,10 @@ import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
-import io.tapdata.aspect.TaskMilestoneFuncAspect;
+import io.tapdata.aspect.taskmilestones.CDCWriteBeginAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotWriteBeginAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotWriteEndAspect;
+import io.tapdata.aspect.taskmilestones.WriteErrorAspect;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -42,8 +38,6 @@ import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.flow.engine.V2.util.TargetTapEventFilter;
-import io.tapdata.milestone.MilestoneStage;
-import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -52,22 +46,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -112,7 +92,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.RUNNING);
 	}
 
 	@Override
@@ -123,7 +102,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
 				connectorNodeInit(dataProcessorContext);
 			} catch (Throwable e) {
-				TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, logger);
 				throw new NodeException(e).context(getProcessorBaseContext());
 			}
 		}
@@ -289,6 +267,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		} catch (InterruptedException ignored) {
 		} catch (Throwable e) {
+			executeAspect(WriteErrorAspect.class, () -> new WriteErrorAspect().dataProcessorContext(dataProcessorContext).error(e));
 			errorHandle(e, "Target process failed " + e.getMessage());
 		} finally {
 			ThreadContext.clearAll();
@@ -332,11 +311,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					SyncStage syncStage = tapdataEvent.getSyncStage();
 					if (null != syncStage) {
 						if (syncStage == SyncStage.INITIAL_SYNC && firstBatchEvent.compareAndSet(false, true)) {
-							// MILESTONE-WRITE_SNAPSHOT-RUNNING
-							TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.RUNNING);
+							executeAspect(new SnapshotWriteBeginAspect().dataProcessorContext(dataProcessorContext));
 						} else if (syncStage == SyncStage.CDC && firstStreamEvent.compareAndSet(false, true)) {
-							// MILESTONE-WRITE_CDC_EVENT-FINISH
-							TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.FINISH);
+							executeAspect(new CDCWriteBeginAspect().dataProcessorContext(dataProcessorContext));
 						}
 					}
 					if (tapdataEvent instanceof TapdataHeartbeatEvent) {
@@ -432,8 +409,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private void handleTapdataStartCdcEvent(TapdataEvent tapdataEvent) {
-		// MILESTONE-WRITE_CDC_EVENT-RUNNING
-		TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.RUNNING);
 		flushSyncProgressMap(tapdataEvent);
 		saveToSnapshot();
 	}
@@ -447,8 +422,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				putInGlobalMap(getCompletedInitialKey(), sourceSnapshotNum);
 			}
 		}
-		// MILESTONE-WRITE_SNAPSHOT-FINISH
-		TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.FINISH);
+		executeAspect(new SnapshotWriteEndAspect().dataProcessorContext(dataProcessorContext));
 	}
 
 	private void handleTapdataHeartbeatEvent(TapdataEvent tapdataEvent) {
