@@ -96,6 +96,7 @@ public class TablestoreConnector extends ConnectorBase {
         connectorFunctions.supportWriteRecord(this::writeRecord);
         connectorFunctions.supportCreateTableV2(this::createTableV2);
         connectorFunctions.supportDropTable(this::dropTable);
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
 
         codecRegistry.registerFromTapValue(TapRawValue.class, ColumnType.STRING.name(), tapRawValue -> {
             if (tapRawValue != null && tapRawValue.getValue() != null) return tapRawValue.getValue().toString();

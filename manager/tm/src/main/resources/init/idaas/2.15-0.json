@@ -1,0 +1,31 @@
+[
+  {
+    "insert": "JavascriptFunctions",
+    "documents": [
+		{
+			"type": "system",
+			"category" : "enhanced",
+			"className": "ScriptExecutor",
+			"methodName": "aggregate",
+			"desc" : "内置目标节点数据库聚合操作,仅支持MongoDB类型",
+			"example": "返回值：数组类型，表示聚合的结果集\n\n参数说明\n● MongoDB \n  ○ database: 操作的数据库名称\n  ○ collection: 操作的集合名称\n  ○ pipeline: 聚合管道参数\nvar aa = ScriptExecutor.getScriptExecutor('mongo-test');\nvar users = aa.aggregate({\n    database: \"test\",\n    collection: \"user\",\n    pipeline: [{'$match':{'CUSTOMER_ID':'C000026278'}}]\n});"
+		},
+		{
+			"type": "system",
+			"category" : "enhanced",
+			"className": "source",
+			"methodName": "aggregate",
+			"desc" : "内置目标节点数据库聚合操作,仅支持MongoDB类型",
+			"example": "返回值：数组类型，表示聚合的结果集\n\n参数说明\n● MongoDB \n  ○ database: 操作的数据库名称\n  ○ collection: 操作的集合名称\n  ○ pipeline: 聚合管道参数\nvar users = source.aggregate({\n    database: \"test\",\n    collection: \"user\",\n    pipeline: [{'$match':{'CUSTOMER_ID':'C000026278'}}]\n});"
+		},
+		{
+			"type": "system",
+			"category" : "enhanced",
+			"className": "target",
+			"methodName": "aggregate",
+			"desc" : "内置目标节点数据库聚合操作,仅支持MongoDB类型",
+			"example": "返回值：数组类型，表示聚合的结果集\n\n参数说明\n● MongoDB \n  ○ database: 操作的数据库名称\n  ○ collection: 操作的集合名称\n  ○ pipeline: 聚合管道参数\nvar users = target.aggregate({\n    database: \"test\",\n    collection: \"user\",\n    pipeline: [{'$match':{'CUSTOMER_ID':'C000026278'}}]\n});"
+		}
+	]
+  }
+]

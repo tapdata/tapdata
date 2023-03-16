@@ -177,6 +177,12 @@ public class ScriptExecutorsManager {
       return executeResult.getResult();
     }
 
+    public List<? extends Map<String, Object>> aggregate(Map<String, Object> executeObj) throws Throwable {
+      ExecuteResult<List<? extends Map<String, Object>>> executeResult = new ExecuteResult<>();
+      pdkExecute("aggregate", executeObj, executeResult);
+      return executeResult.getResult();
+    }
+
     public Object call(String funcName, List<Map<String, Object>> params) throws Throwable {
       ExecuteResult<Long> executeResult = new ExecuteResult<>();
       Map<String, Object> executeObj = new HashMap<>();

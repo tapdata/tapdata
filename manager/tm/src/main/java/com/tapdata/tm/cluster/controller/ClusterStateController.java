@@ -260,7 +260,7 @@ public class ClusterStateController extends BaseController {
     @Operation(summary = "add monitor")
     @PostMapping("/addMonitor")
     public ResponseMessage<Map<String, Integer>> addMonitor(@RequestBody @Validated(ClusterStateMonitorRequest.ValidationType.AddMonitor.class) ClusterStateMonitorRequest editMonitorRequest) {
-        Integer result = clusterStateService.addMonitor(editMonitorRequest);
+        Integer result = clusterStateService.addMonitor(editMonitorRequest,getLoginUser());
         return success(new HashMap<String, Integer>(){{put("status", result);}});
     }
 
@@ -274,7 +274,7 @@ public class ClusterStateController extends BaseController {
     @Operation(summary = "remove monitor")
     @PostMapping("/removeMonitor")
     public ResponseMessage<Map<String, Integer>> removeMonitor(@RequestBody @Validated(ClusterStateMonitorRequest.ValidationType.RemoveMonitor.class) ClusterStateMonitorRequest editMonitorRequest) {
-        Integer result = clusterStateService.removeMonitor(editMonitorRequest);
+        Integer result = clusterStateService.removeMonitor(editMonitorRequest,getLoginUser());
         return success(new HashMap<String, Integer>(){{put("status", result);}});
     }
 

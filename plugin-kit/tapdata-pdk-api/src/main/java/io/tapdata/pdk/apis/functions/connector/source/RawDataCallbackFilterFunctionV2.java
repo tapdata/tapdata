@@ -2,12 +2,13 @@ package io.tapdata.pdk.apis.functions.connector.source;
 
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.functions.connector.TapConnectorFunction;
 import io.tapdata.pdk.apis.functions.connector.TapFunction;
 
 import java.util.List;
 import java.util.Map;
 
-public interface RawDataCallbackFilterFunctionV2 extends TapFunction {
+public interface RawDataCallbackFilterFunctionV2 extends TapConnectorFunction {
 	/**
 	 * Tapdata provided rawData queue, this method will receive external rawData and
 	 * also receive the offline rawData which offset is managed inside of Engine.

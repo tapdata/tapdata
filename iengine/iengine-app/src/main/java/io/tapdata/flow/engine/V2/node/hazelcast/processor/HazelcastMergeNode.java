@@ -12,6 +12,7 @@ import com.tapdata.entity.OperationType;
 import com.tapdata.entity.RelateDataBaseTable;
 import com.tapdata.entity.RelateDatabaseField;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -20,7 +21,10 @@ import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import io.tapdata.construct.constructImpl.ConstructIMap;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapIndex;
+import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.exception.HazelcastNotExistsException;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
@@ -78,6 +82,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	private Map<String, List<String>> sourcePkOrUniqueFieldMap;
 	// 存储所有需要反查的节点id，提高判断事件是否需要缓存的效率
 	private List<String> needCacheIdList;
+	// Create index events for target
+	private TapdataEvent createIndexEvent;
 
 	public HazelcastMergeNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -92,6 +98,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 		initSourceNodeMap(null);
 		initSourceConnectionMap(null);
 		initSourcePkOrUniqueFieldMap(null);
+
+		TapCreateIndexEvent mergeConfigCreateIndexEvent = generateCreateIndexEventsForTarget();
+		this.createIndexEvent = new TapdataEvent();
+		this.createIndexEvent.setTapEvent(mergeConfigCreateIndexEvent);
 	}
 
 	@Override
@@ -107,6 +117,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 
 	@Override
 	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
+		if (this.createIndexEvent != null) {
+			consumer.accept(this.createIndexEvent, null);
+			this.createIndexEvent = null;
+		}
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		if (!tapdataEvent.isDML()) {
 			consumer.accept(tapdataEvent, null);
@@ -170,7 +184,6 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 				}
 				ConstructIMap<Document> hazelcastConstruct = new ConstructIMap<>(jetContext.hazelcastInstance(), cacheName, externalStorageDto);
 				this.mergeCacheMap.put(mergeProperty.getId(), hazelcastConstruct);
-				logger.info("Create imap name: {}, external storage: {}", cacheName, externalStorageDto);
 				obsLogger.info("Create imap name: {}, external storage: {}", cacheName, externalStorageDto);
 			}
 		}
@@ -491,7 +504,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			}
 			Object value = MapUtilV2.getValueByKey(data, joinKey);
 			if (value instanceof NotExistsNode) {
-				throw new RuntimeException("Cannot found value in data by join key: " + joinKey + ", data: " + data);
+//				throw new RuntimeException("Cannot found value in data by join key: " + joinKey + ", data: " + data);
+				return null;
 			}
 			values.add(String.valueOf(value));
 		}
@@ -587,6 +601,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			MergeTableProperties.MergeType mergeType = childMergeProperty.getMergeType();
 			ConstructIMap<Document> hazelcastConstruct = getHazelcastConstruct(childMergeProperty.getId());
 			String joinValueKey = getJoinValueKeyByTarget(data, childMergeProperty, mergeTableProperties);
+			if (joinValueKey == null) {
+				continue;
+			}
 			Document findData;
 			try {
 				findData = hazelcastConstruct.find(joinValueKey);
@@ -670,6 +687,48 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			}
 			recursiveClearCache(externalStorageDto, mergeTableProperty.getChildren(), hazelcastInstance);
 		}
+	}
+
+	private TapCreateIndexEvent generateCreateIndexEventsForTarget(){
+		if (MapUtils.isNotEmpty(mergeTablePropertiesMap)) {
+			List<TapIndex> indexList = new ArrayList<>(mergeTablePropertiesMap.size());
+			for (MergeTableProperties mergeTableProperties : mergeTablePropertiesMap.values()) {
+				final List<Map<String, String>> joinKeys = mergeTableProperties.getJoinKeys();
+				if (CollectionUtils.isNotEmpty(joinKeys)) {
+					TapIndex tapIndex = new TapIndex();
+					for (Map<String, String> joinKey : joinKeys) {
+						if (MapUtils.isNotEmpty(joinKey)) {
+							tapIndex.indexField(new TapIndexField().name(joinKey.get("target")).fieldAsc(true));
+						}
+					}
+					if (CollectionUtils.isNotEmpty(tapIndex.getIndexFields())) {
+						indexList.add(tapIndex);
+					}
+				}
+
+				if (CollectionUtils.isNotEmpty(mergeTableProperties.getArrayKeys())) {
+					TapIndex tapIndex = new TapIndex();
+					for (String arrayKey : mergeTableProperties.getArrayKeys()) {
+						StringBuilder sb = new StringBuilder();
+						if (StringUtils.isNotBlank(mergeTableProperties.getTargetPath())) {
+							sb.append(mergeTableProperties.getTargetPath()).append(".");
+						}
+						sb.append(arrayKey);
+						tapIndex.indexField(new TapIndexField().name(sb.toString()).fieldAsc(true));
+					}
+
+					if (CollectionUtils.isNotEmpty(tapIndex.getIndexFields())) {
+						indexList.add(tapIndex);
+					}
+				}
+			}
+			if (CollectionUtils.isNotEmpty(indexList)) {
+				final TapCreateIndexEvent tapCreateIndexEvent = new TapCreateIndexEvent();
+				tapCreateIndexEvent.setTableId(this.getNode().getId());
+				return tapCreateIndexEvent.indexList(indexList);
+			}
+		}
+		return null;
 	}
 
 	@Override

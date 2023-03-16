@@ -11,6 +11,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
@@ -26,6 +27,24 @@ public abstract class CommonDbConnector extends ConnectorBase {
     protected CommonDbConfig commonDbConfig;
 
     protected void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+        if (EmptyKit.isNotBlank(commonDbConfig.getCustomSql())) {
+            jdbcContext.query(commonDbConfig.getCustomSql(), resultSet -> {
+                List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
+                List<TapEvent> tapEvents = list();
+                while (isAlive() && resultSet.next()) {
+                    DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
+                    tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
+                    if (tapEvents.size() == eventBatchSize) {
+                        eventsOffsetConsumer.accept(tapEvents, new HashMap<>());
+                        tapEvents = list();
+                    }
+                }
+                if (EmptyKit.isNotEmpty(tapEvents)) {
+                    eventsOffsetConsumer.accept(tapEvents, new HashMap<>());
+                }
+            });
+            return;
+        }
         List<String> primaryKeys = new ArrayList<>(tapTable.primaryKeys());
         String selectClause = String.format(selectPattern, String.join("\",\"", tapTable.getNameFieldMap().keySet()), commonDbConfig.getSchema(), tapTable.getId());
         CommonDbOffset offset = (CommonDbOffset) offsetState;
@@ -140,7 +159,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
         }
     }
 
-    private static final String FIND_KEY_FROM_OFFSET = "select * from (select \"%s\", row_number() over (order by \"%s\") as rowno from \"%s\".\"%s\" ) where rowno=%s";
+    private static final String FIND_KEY_FROM_OFFSET = "select * from (select \"%s\", row_number() over (order by \"%s\") as rowno from \"%s\".\"%s\" ) a where rowno=%s";
 
     protected DataMap findPrimaryKeyValue(TapTable tapTable, Long offsetSize) throws Throwable {
         String primaryKeyString = String.join("\",\"", tapTable.primaryKeys());

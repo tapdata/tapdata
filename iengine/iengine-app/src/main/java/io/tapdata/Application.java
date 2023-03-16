@@ -49,6 +49,7 @@ import org.springframework.stereotype.Component;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -81,6 +82,8 @@ import java.util.stream.Collectors;
 public class Application {
 
 	private static final String TAG = Application.class.getSimpleName();
+	public static final String LOG_PATH = "logs" + File.separator + "agent";
+	public static final String ROLLING_FILE_APPENDER = "rollingFileAppender";
 	private static Logger logger = LogManager.getLogger(Application.class);
 	private static Logger pdkLogger = LogManager.getLogger("PDK");
 
@@ -244,14 +247,14 @@ public class Application {
 			logsPath.append(outPutLogPath);
 		} else {
 			if (StringUtils.isNotBlank(tapdataWorkDir)) {
-				logsPath.append(tapdataWorkDir).append("/logs");
+				logsPath.append(tapdataWorkDir).append(LOG_PATH);
 			} else {
-				logsPath.append("logs");
+				logsPath.append(LOG_PATH);
 			}
 		}
 
-		final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
-		final org.apache.logging.log4j.core.config.Configuration config = ctx.getConfiguration();
+		LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+		org.apache.logging.log4j.core.config.Configuration config = ctx.getConfiguration();
 		PatternLayout patternLayout = PatternLayout.newBuilder()
 				.withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} %X{taskId} [%t] %c{1} - %msg%n")
 				.build();
@@ -265,7 +268,7 @@ public class Application {
 
 		JetExceptionFilter jetExceptionFilter = new JetExceptionFilter.TapLogBuilder().build();
 		RollingFileAppender rollingFileAppender = RollingFileAppender.newBuilder()
-				.setName("rollingFileAppender")
+				.setName(ROLLING_FILE_APPENDER)
 				.withFileName(logsPath + "/tapdata-agent.log")
 				.withFilePattern(logsPath + "/tapdata-agent.log.%d{yyyyMMdd}.gz")
 				.setLayout(patternLayout)

@@ -4,6 +4,7 @@ import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.dataflow.SyncProgress;
+import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.DmlPolicy;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
@@ -24,6 +25,8 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
+import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
+import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.node.pdk.ConnectorNodeService;
@@ -104,11 +107,25 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	}
 
 	public PDKMethodInvoker createPdkMethodInvoker() {
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
+		TaskConfig taskConfig = dataProcessorContext.getTaskConfig();
+		Long retryIntervalSecond = taskConfig.getTaskRetryConfig().getRetryIntervalSecond();
+		long retryIntervalMs = TimeUnit.SECONDS.toMillis(retryIntervalSecond);
+		Long maxRetryTimeSecond = taskConfig.getTaskRetryConfig().getMaxRetryTime(TimeUnit.SECONDS);
+		long retryDurationMs = TimeUnit.SECONDS.toMillis(maxRetryTimeSecond);
+		TaskRetryService taskRetryService = TaskRetryFactory.getInstance().getTaskRetryService(taskDto, retryDurationMs);
+		if (maxRetryTimeSecond > 0) {
+			long methodRetryDurationMs = taskRetryService.getMethodRetryDurationMs(retryIntervalMs);
+			maxRetryTimeSecond = Math.max(TimeUnit.MILLISECONDS.toMinutes(methodRetryDurationMs), 1L);
+		} else {
+			maxRetryTimeSecond = 0L;
+		}
 		PDKMethodInvoker pdkMethodInvoker = PDKMethodInvoker.create()
 				.logTag(TAG)
-				.retryPeriodSeconds(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getRetryIntervalSecond())
-				.maxRetryTimeMinute(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getMaxRetryTime(TimeUnit.MINUTES))
-				.logListener(logListener);
+				.retryPeriodSeconds(retryIntervalSecond)
+				.maxRetryTimeMinute(maxRetryTimeSecond)
+				.logListener(logListener)
+				.startRetry(taskRetryService::start);
 		this.pdkMethodInvokerList.add(pdkMethodInvoker);
 		return pdkMethodInvoker;
 	}
@@ -217,19 +234,15 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 							PDKInvocationMonitor.stop(getConnectorNode());
 							PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG);
 						});
-				logger.info("PDK connector node stopped: " + associateId);
 				obsLogger.info("PDK connector node stopped: " + associateId);
 			}, err -> {
-				logger.warn(String.format("Stop PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
 				obsLogger.warn(String.format("Stop PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
 			});
 			CommonUtils.handleAnyError(() -> {
 				Optional.ofNullable(getConnectorNode()).ifPresent(node -> PDKIntegration.releaseAssociateId(associateId));
 				ConnectorNodeService.getInstance().removeConnectorNode(associateId);
-				logger.info("PDK connector node released: " + associateId);
 				obsLogger.info("PDK connector node released: " + associateId);
 			}, err -> {
-				logger.warn(String.format("Release PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
 				obsLogger.warn(String.format("Release PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
 			});
 		} finally {

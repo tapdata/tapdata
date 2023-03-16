@@ -255,9 +255,18 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 			final SchemaList relateDataBaseTables = (SchemaList) dataProcessorContext.getTargetConn().getSchema().get("tables");
 			final String targetTableName = sourceTargetTableMap.get(fromTable);
 			mapping.setTo_table(targetTableName);
+			List<String> updateConditionFields = ((DatabaseNode) node).getUpdateConditionFieldMap().get(targetTableName);
 			List<RelateDatabaseField> fields = relateDataBaseTables.getFields(targetTableName);
-			if (CollectionUtils.isNotEmpty(fields)) {
 
+			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
+				List<Map<String, String>> joinConditions = new ArrayList<>();
+				for (String updateConditionField : updateConditionFields) {
+					joinConditions.add(new HashMap<String, String>() {{
+						put(updateConditionField, updateConditionField);
+					}});
+				}
+				mapping.setJoin_condition(joinConditions);
+			} else if (CollectionUtils.isNotEmpty(fields)) {
 				List<RelateDatabaseField> pkFields = fields.stream().filter(field -> field.getPrimary_key_position() > 0)
 						.sorted(Comparator.comparing(RelateDatabaseField::getPrimary_key_position))
 						.collect(Collectors.toList());

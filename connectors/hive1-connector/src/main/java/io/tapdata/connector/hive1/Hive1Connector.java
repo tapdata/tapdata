@@ -170,6 +170,7 @@ public class Hive1Connector extends ConnectorBase {
             return formatTapDateTime(tapTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSS");
         });
 
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         //target
         connectorFunctions.supportCreateTable(this::createTable);
         connectorFunctions.supportDropTable(this::dropTable);

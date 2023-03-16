@@ -1,9 +1,9 @@
 package com.tapdata.tm.task.service.impl;
 
 import cn.hutool.extra.cglib.CglibUtil;
+import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
-import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -11,8 +11,7 @@ import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -82,16 +81,49 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
             nodeCheckData(sourceNode.successors(), sourceNode.getTableNames(), null);
 
+            if (CollectionUtils.isNotEmpty(dag.getTargets())) {
+                dag.getTargets().forEach(target -> {
+                    DatabaseNode databaseNode = (DatabaseNode) target;
+
+                    String nodeId = databaseNode.getId();
+                    long updateExNum = metadataInstancesService.countUpdateExNum(nodeId);
+                    if (updateExNum > 0) {
+                        if (Objects.isNull(databaseNode.getUpdateConditionFieldMap())) {
+                            databaseNode.setUpdateConditionFieldMap(Maps.newHashMap());
+                        }
+
+                        List<MetadataInstancesDto> metaList = metadataInstancesService.findByNodeId(nodeId, userDetail);
+                        Optional.ofNullable(metaList).ifPresent(list -> {
+                            list.forEach(schema -> {
+                                List<String> fields = schema.getFields().stream().filter(Field::getPrimaryKey).map(Field::getFieldName).collect(Collectors.toList());
+                                if (CollectionUtils.isNotEmpty(fields)) {
+                                    databaseNode.getUpdateConditionFieldMap().put(schema.getName(), fields);
+                                } else {
+                                    List<String> columnList = schema.getIndices().stream().filter(TableIndex::isUnique)
+                                            .flatMap(idc -> idc.getColumns().stream())
+                                            .map(TableIndexColumn::getColumnName)
+                                            .collect(Collectors.toList());
+                                    if (CollectionUtils.isNotEmpty(columnList)) {
+                                        databaseNode.getUpdateConditionFieldMap().put(schema.getName(), columnList);
+                                    }
+                                }
+                            });
+                        });
+                    }
+                });
+            }
+
             Dag temp = new Dag(dag.getEdges(), dag.getNodes());
             DAG.build(temp);
         }
+
 
     }
 
     @Override
     public void supplementAlarm(TaskDto taskDto, UserDetail userDetail) {
-        List<AlarmSettingDto> settingDtos = alarmSettingService.findAll(userDetail);
-        List<AlarmRuleDto> ruleDtos = alarmRuleService.findAll(userDetail);
+        List<AlarmSettingDto> settingDtos = alarmSettingService.findAllAlarmSetting(userDetail);
+        List<AlarmRuleDto> ruleDtos = alarmRuleService.findAllAlarm(userDetail);
 
         Map<AlarmKeyEnum, AlarmSettingDto> settingDtoMap = settingDtos.stream().collect(Collectors.toMap(AlarmSettingDto::getKey, Function.identity(), (e1, e2) -> e1));
         Map<AlarmKeyEnum, AlarmRuleDto> ruleDtoMap = ruleDtos.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
@@ -100,7 +132,7 @@ public class TaskSaveServiceImpl implements TaskSaveService {
         List<AlarmRuleDto> alarmRuleDtos = Lists.newArrayList();
         if (CollectionUtils.isEmpty(taskDto.getAlarmSettings())) {
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_ERROR));
-            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INSPECT_ERROR));
+            //alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INSPECT_ERROR));
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_FULL_COMPLETE));
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_START));
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_STOP));

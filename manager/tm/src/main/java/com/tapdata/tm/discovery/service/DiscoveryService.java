@@ -37,9 +37,7 @@ public interface DiscoveryService {
 
     Page<DataDirectoryDto> findDataDirectory(DirectoryQueryParam param, UserDetail user);
 
-    void updateListTags(List<TagBindingParam> tagBindingParams, List<String> tagIds, UserDetail user);
-
-    void addListTags(List<TagBindingParam> tagBindingParams, List<String> tagIds, UserDetail user, boolean add);
+    void addListTags(List<TagBindingParam> tagBindingParams, List<String> tagIds, List<String> oldTagIds, UserDetail user, boolean add);
 
     void addObjCount(List<MetadataDefinitionDto> tagDtos, UserDetail user);
 }

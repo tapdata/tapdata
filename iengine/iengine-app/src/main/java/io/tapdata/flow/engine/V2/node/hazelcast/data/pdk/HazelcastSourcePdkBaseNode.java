@@ -7,7 +7,7 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
-import com.tapdata.constant.MilestoneUtil;
+import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
@@ -157,12 +157,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			connectorNodeInit(dataProcessorContext);
 		} catch (Throwable e) {
 			TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.ERROR, logger);
-			MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 			throw new NodeException(e).context(getProcessorBaseContext());
 		}
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		syncProgress = initSyncProgress(taskDto.getAttrs());
-		logger.info("Found sync progress: " + syncProgress);
 		obsLogger.info("Found sync progress: " + syncProgress);
 		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(),
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
@@ -373,8 +371,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					timeToStreamOffsetResult.set(timestampToStreamOffsetFunction.timestampToStreamOffset(getConnectorNode().getConnectorContext(), offsetStartTimeMs));
 				} catch (Throwable e) {
 					if (need2InitialSync(syncProgress)) {
-						logger.warn("Call timestamp to stream offset function failed, will stop task after snapshot, type: " + dataProcessorContext.getDatabaseType()
-								+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 						obsLogger.warn("Call timestamp to stream offset function failed, will stop task after snapshot, type: " + dataProcessorContext.getDatabaseType()
 								+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 						this.offsetFromTimeError = e;
@@ -386,7 +382,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				syncProgress.setStreamOffsetObj(timeToStreamOffsetResult.get());
 			}, TAG);
 		} else {
-			logger.warn("Pdk connector does not support timestamp to stream offset function, will stop task after snapshot: " + dataProcessorContext.getDatabaseType());
 			obsLogger.warn("Pdk connector does not support timestamp to stream offset function, will stop task after snapshot: " + dataProcessorContext.getDatabaseType());
 		}
 	}
@@ -448,7 +443,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}*/
 		} catch (Exception e) {
 			String errorMsg = String.format("Source sync failed: %s", e.getMessage());
-			logger.error(errorMsg, e);
 			obsLogger.error(errorMsg, e);
 //			throw new RuntimeException(errorMsg, e);
 			errorHandle(e, errorMsg);
@@ -482,14 +476,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 							}
 							// Handle new table(s)
 							if (CollectionUtils.isNotEmpty(addList)) {
-								logger.info("Found new table(s): " + addList);
 								obsLogger.info("Found new table(s): " + addList);
 								addList.forEach(a -> removeTables.remove(a));
 								List<TapTable> addTapTables = new ArrayList<>();
 								List<TapdataEvent> tapdataEvents = new ArrayList<>();
 								// Load schema
 								LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), addList, addTapTables::add);
-								logger.info("Load new table's schema finished");
 								obsLogger.info("Load new table's schema finished");
 								if (CollectionUtils.isEmpty(addTapTables)) {
 									String error = "Load new table schema failed, expect table count: " + addList.size() + ", actual: 0";
@@ -525,7 +517,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 										.tables(addList)
 										.tapdataEvents(tapdataEvents));
 								if (this.endSnapshotLoop.get()) {
-									logger.info("It is detected that the snapshot reading has ended, and the reading thread will be restarted");
 									obsLogger.info("It is detected that the snapshot reading has ended, and the reading thread will be restarted");
 									// Restart source runner
 									if (null != sourceRunner) {
@@ -645,6 +636,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					break;
 				case LOG_COLLECTOR:
 					tapdataEvent = new TapdataShareLogEvent();
+					Connections connections = dataProcessorContext.getConnections();
+					if (null != connections) {
+						tapdataEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connections.getId());
+					}
 					break;
 			}
 			tapdataEvent.setTapEvent(tapRecordEvent);
@@ -671,14 +666,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		} else if (tapEvent instanceof HeartbeatEvent) {
 			tapdataEvent = TapdataHeartbeatEvent.create(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
 		} else if (tapEvent instanceof TapDDLEvent) {
-			logger.info("Source node received an ddl event: " + tapEvent);
 			obsLogger.info("Source node received an ddl event: " + tapEvent);
 
-			obsLogger.info("ddlFilter enable data: " + JSON.toJSONString(ddlFilter));
-
 			if (null != ddlFilter && !ddlFilter.test((TapDDLEvent) tapEvent)) {
-				logger.warn("DDL events are filtered: " + tapEvent);
-				obsLogger.warn("DDL events are filtered: " + tapEvent);
+				obsLogger.warn("DDL events are filtered\n - Event: " + tapEvent + "\n - Filter: " + JSON.toJSONString(ddlFilter));
 				return null;
 			}
 
@@ -736,7 +727,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				Map<String, List<Message>> errorMessage;
 				if (tapEvent instanceof TapCreateTableEvent) {
 					qualifiedName = dagDataService.createNewTable(dataProcessorContext.getSourceConn().getId(), tapTable, processorBaseContext.getTaskDto().getId().toHexString());
-					logger.info("Create new table in memory, qualified name: " + qualifiedName);
 					obsLogger.info("Create new table in memory, qualified name: " + qualifiedName);
 					dataProcessorContext.getTapTableMap().putNew(tapTable.getId(), tapTable, qualifiedName);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
@@ -747,20 +737,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						metadata.setId(new ObjectId());
 					}
 					insertMetadata.add(metadata);
-					logger.info("Create new table schema transform finished: " + tapTable);
 					obsLogger.info("Create new table schema transform finished: " + tapTable);
 				} else if (tapEvent instanceof TapDropTableEvent) {
 					qualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(((TapDropTableEvent) tapEvent).getTableId());
-					logger.info("Drop table in memory qualified name: " + qualifiedName);
 					obsLogger.info("Drop table in memory qualified name: " + qualifiedName);
 					dagDataService.dropTable(qualifiedName);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
 					removeMetadata.add(qualifiedName);
-					logger.info("Drop table schema transform finished");
 					obsLogger.info("Drop table schema transform finished");
 				} else {
 					qualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(tableId);
-					logger.info("Alter table in memory, qualified name: " + qualifiedName);
 					obsLogger.info("Alter table in memory, qualified name: " + qualifiedName);
 					dagDataService.coverMetaDataByTapTable(qualifiedName, tapTable);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
@@ -769,7 +755,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						metadata.setId(metadata.getOldId());
 					}
 					updateMetadata.put(metadata.getId().toHexString(), metadata);
-					logger.info("Alter table schema transform finished");
 					obsLogger.info("Alter table schema transform finished");
 				}
 				tapEvent.addInfo(INSERT_METADATA_INFO_KEY, insertMetadata);
@@ -828,7 +813,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		BatchCountFunction batchCountFunction = getConnectorNode().getConnectorFunctions().getBatchCountFunction();
 		if (null == batchCountFunction) {
 			setDefaultRowSizeMap();
-			logger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
 			obsLogger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
 			return;
 		}
@@ -848,10 +832,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					}, snapshotRowSizeThreadPool)
 					.whenComplete((v, e) -> {
 						if (null != e) {
-							logger.warn("Query snapshot row size failed: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 							obsLogger.warn("Query snapshot row size failed: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 						} else {
-							logger.info("Query snapshot row size completed: " + node.get().getName() + "(" + node.get().getId() + ")");
 							obsLogger.info("Query snapshot row size completed: " + node.get().getName() + "(" + node.get().getId() + ")");
 						}
 						ExecutorUtil.shutdown(this.snapshotRowSizeThreadPool, 10L, TimeUnit.SECONDS);
@@ -874,7 +856,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected void doCountSynchronously(BatchCountFunction batchCountFunction, List<String> tableList) {
 		if (null == batchCountFunction) {
 			setDefaultRowSizeMap();
-			logger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
 			obsLogger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
 			return;
 		}

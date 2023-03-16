@@ -71,6 +71,7 @@ public class DummyConnector extends ConnectorBase {
 
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         // support initial sync
         connectorFunctions.supportBatchCount(this::supportBatchCount);
         connectorFunctions.supportBatchRead(this::supportBatchRead);
