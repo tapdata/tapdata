@@ -43,6 +43,7 @@ public class DataSourceConnectionDto extends BaseDto {
         private String definitionGroup;
         private String definitionPdkId;
         private String definitionBuildNumber;
+        private List<String> definitionTags;
 
         /**
          * 用户区分是不是pdk数据源类型
@@ -319,6 +320,8 @@ public class DataSourceConnectionDto extends BaseDto {
                         ", status='" + status + '\'' +
                         ", tableCount=" + tableCount +
                         ", loadAllTables=" + loadAllTables +
+                        ", loadFieldsStatus=" + loadFieldsStatus +
+                        ", loadFieldErrMsg=" + loadFieldErrMsg +
                         '}';
         }
 }

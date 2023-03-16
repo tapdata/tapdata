@@ -1,11 +1,13 @@
 package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
+import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Sets;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
@@ -18,6 +20,7 @@ import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
+import io.tapdata.entity.result.ResultItem;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -26,6 +29,7 @@ import org.springframework.stereotype.Component;
 
 import java.text.MessageFormat;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Component("sourceSettingStrategy")
 @Setter(onMethod_ = {@Autowired})
@@ -128,6 +132,22 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
             Optional.ofNullable(connectionDto).ifPresent(dto -> {
                 List<String> tables = metadataInstancesService.tables(connectionId, SourceTypeEnum.SOURCE.name());
 
+                if (CollectionUtils.isNotEmpty(dto.getCapabilities())) {
+                    boolean streamReadMatch = dto.getCapabilities().stream().anyMatch(cap -> "stream_read_function".equals(cap.getId()));
+                    boolean batchReadMatch = dto.getCapabilities().stream().anyMatch(cap -> "batch_read_function".equals(cap.getId()));
+                    if ((taskDto.getType().contains("cdc") && !streamReadMatch) || (taskDto.getType().contains("initial_sync") && !batchReadMatch)) {
+                        TaskDagCheckLog log = TaskDagCheckLog.builder()
+                                .taskId(taskId)
+                                .checkType(templateEnum.name())
+                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_TYPE"), name, taskDto.getType()))
+                                .grade(Level.ERROR)
+                                .nodeId(nodeId).build();
+                        log.setCreateAt(now);
+                        log.setCreateUser(userId);
+                        result.add(log);
+                    }
+                }
+
                 if (CollectionUtils.isEmpty(tables)) {
                     TaskDagCheckLog log = TaskDagCheckLog.builder()
                             .taskId(taskId)
@@ -149,6 +169,25 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                         log.setCreateAt(now);
                         log.setCreateUser(userId);
                         result.add(log);
+                    }
+
+                    List<MetadataInstancesDto> schemaList = metadataInstancesService.findSourceSchemaBySourceId(nodeId, tableNames, userDetail);
+                    if (CollectionUtils.isNotEmpty(schemaList)) {
+                        List<String> list = schemaList.stream().map(MetadataInstancesDto::getName).collect(Collectors.toList());
+                        List<String> temp = new ArrayList<>(tableNames);
+                        temp.removeAll(list);
+                        if (CollectionUtils.isNotEmpty(temp)) {
+                            TaskDagCheckLog log = TaskDagCheckLog.builder()
+                                    .taskId(taskId)
+                                    .checkType(templateEnum.name())
+                                    .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_SCHAME"), node.getName(), JSON.toJSONString(temp)))
+                                    .grade(Level.ERROR)
+                                    .nodeId(node.getId()).build();
+                            log.setCreateAt(now);
+                            log.setCreateUser(userId);
+
+                            result.add(log);
+                        }
                     }
                 }
             });
