@@ -22,6 +22,9 @@ public class ErrorCodeService {
 	public Map<String, Object> getErrorCode(String code,String language) {
 		ErrorCodeEntity errorCode = errorHandler.getErrorCode(code);
 		Map<String, Object> res = new HashMap<>();
+		if (null == errorCode) {
+			return res;
+		}
 		language = StringUtils.isBlank(language) ? "en" : language;
 		Language languageEnum = Language.fromValue(language);
 		languageEnum = null == languageEnum ? Language.EN : languageEnum;

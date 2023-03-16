@@ -65,6 +65,9 @@ public class ErrorHandler {
 	}
 
 	public ErrorCodeEntity getErrorCode(String code) {
+		if (null == code) {
+			return null;
+		}
 		return errorCodeEntityMap.get(code);
 	}
 }

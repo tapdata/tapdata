@@ -1,14 +1,15 @@
 package io.tapdata.pdk.core.utils;
 
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.ErrorHandleFunction;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
-import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
+import io.tapdata.pdk.core.error.TapPdkRunnerExCode_13;
+import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 
 import java.io.IOException;
@@ -69,10 +70,7 @@ public class RetryUtils extends CommonUtils {
 					case WHEN_NEED:
 						if (null == errorHandleFunction) {
 							TapLogger.debug(logTag, "This PDK data source not support retry. ");
-							if (errThrowable instanceof CoreException) {
-								throw (CoreException) errThrowable;
-							}
-							throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, message + " execute failed, " + errThrowable.getMessage(), errThrowable);
+							errorHandle(errThrowable);
 						}
 						break;
 					case ALWAYS:
@@ -107,13 +105,18 @@ public class RetryUtils extends CommonUtils {
 						invoker.getStartRetry().run();
 					}
 				} else {
-					if (errThrowable instanceof CoreException) {
-						throw (CoreException) errThrowable;
-					}
-					throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, message + " execute failed, " + getLastCause(errThrowable).getMessage(), errThrowable);
+					errorHandle(errThrowable);
 				}
 			}
 		}
+	}
+
+	private static void errorHandle(Throwable errThrowable) {
+		Throwable matchThrowable = CommonUtils.matchThrowable(errThrowable, TapCodeException.class);
+		if (null != matchThrowable) {
+			throw (TapCodeException) matchThrowable;
+		}
+		throw new TapPdkRunnerUnknownException(errThrowable);
 	}
 
 	private static Throwable getLastCause(Throwable e) {
@@ -132,7 +135,7 @@ public class RetryUtils extends CommonUtils {
 		try {
 			retryOptions = function.needRetry(tapConnectionContext, method, errThrowable);
 		} catch (Throwable e) {
-			throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, message + " execute need retry function failed, " + e.getMessage(), e);
+			throw new TapCodeException(TapPdkRunnerExCode_13.CALL_ERROR_HANDLE_API_ERROR, "Call error handle function failed", e);
 		}
 		return retryOptions;
 	}
@@ -146,10 +149,7 @@ public class RetryUtils extends CommonUtils {
 				throw errThrowable;
 			}
 		} catch (Throwable e) {
-			if (errThrowable instanceof CoreException) {
-				throw (CoreException) errThrowable;
-			}
-			throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, message + " execute failed, " + errThrowable.getMessage(), errThrowable);
+			errorHandle(e);
 		}
 	}
 
