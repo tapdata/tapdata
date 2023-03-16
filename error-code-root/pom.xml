@@ -24,4 +24,12 @@
         <java.version>8</java.version>
     </properties>
 
+    <distributionManagement>
+        <repository>
+            <id>tapdata-tapdata-maven</id>
+            <name>Tapdata Maven Repository</name>
+            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
+        </repository>
+    </distributionManagement>
+
 </project>
