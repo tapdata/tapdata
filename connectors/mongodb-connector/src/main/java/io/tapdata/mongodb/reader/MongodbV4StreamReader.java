@@ -202,7 +202,7 @@ public class MongodbV4StreamReader implements MongodbStreamReader {
 				if (throwable instanceof MongoCommandException) {
 					MongoCommandException mongoCommandException = (MongoCommandException) throwable;
 					if (mongoCommandException.getErrorCode() == 286) {
-						throw new TapPDKOffsetOutOfLogException(offset, throwable);
+						throw new TapPDKOffsetOutOfLogException(connectorContext.getId(), offset, throwable);
 					}
 
 					if (mongoCommandException.getErrorCode() == 10334) {

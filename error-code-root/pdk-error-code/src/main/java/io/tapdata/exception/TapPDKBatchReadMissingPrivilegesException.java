@@ -10,19 +10,14 @@ import java.util.List;
  * @create 2023-02-23 14:48
  **/
 public class TapPDKBatchReadMissingPrivilegesException extends TapPDKException {
+
+	private static final long serialVersionUID = 1431155464041853524L;
 	private final String database;
 	private final Object operation;
 	private final List<String> privileges;
 
-	public TapPDKBatchReadMissingPrivilegesException(String database, Object operation, List<String> privileges) {
-		super(PDKExCode_10.BATCH_READ_MISSING_PRIVILEGES);
-		this.database = database;
-		this.operation = operation;
-		this.privileges = privileges;
-	}
-
-	public TapPDKBatchReadMissingPrivilegesException(String database, Object operation, List<String> privileges, Throwable throwable) {
-		super(PDKExCode_10.BATCH_READ_MISSING_PRIVILEGES);
+	public TapPDKBatchReadMissingPrivilegesException(String database, Object operation, List<String> privileges, Throwable cause) {
+		super(PDKExCode_10.BATCH_READ_MISSING_PRIVILEGES, cause);
 		this.database = database;
 		this.operation = operation;
 		this.privileges = privileges;

@@ -5,6 +5,7 @@ package io.tapdata.exception;
  * @version v1.0 2022/12/13 15:11 Create
  */
 public class TapCodeException extends TapRuntimeException {
+    private static final long serialVersionUID = -5987893032913832596L;
     /**
      * Error code
      */

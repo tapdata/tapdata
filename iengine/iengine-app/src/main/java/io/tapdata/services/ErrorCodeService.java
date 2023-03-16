@@ -19,7 +19,7 @@ public class ErrorCodeService {
 	@Bean
 	private ErrorHandler errorHandler;
 
-	public Map<String, Object> getErrorCode(String code,String language) {
+	public Map<String, Object> getErrorCode(String code, String language) {
 		ErrorCodeEntity errorCode = errorHandler.getErrorCode(code);
 		Map<String, Object> res = new HashMap<>();
 		if (null == errorCode) {
@@ -38,16 +38,15 @@ public class ErrorCodeService {
 					solution = "\n\n解决方案\n" + solution;
 				}
 				break;
+			default:
+				describe = errorCode.getDescribe();
+				solution = errorCode.getSolution();
+				if (StringUtils.isNotBlank(solution)) {
+					solution = "\n\nSolution\n" + solution;
+				}
+				break;
 		}
-
-		if (StringUtils.isBlank(describe)) {
-			describe = errorCode.getDescribe();
-		}
-		if (StringUtils.isBlank(solution)) {
-			solution = errorCode.getSolution();
-		}
-		if (StringUtils.isNotBlank(solution)) {
-			solution = "\n\nSolution\n" + solution;
+		if (StringUtils.isNotBlank(describe) && StringUtils.isNotBlank(solution)) {
 			describe = describe + solution;
 		}
 		res.put("describe", describe);

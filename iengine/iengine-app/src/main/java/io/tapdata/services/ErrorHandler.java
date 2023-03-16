@@ -3,8 +3,11 @@ package io.tapdata.services;
 import io.tapdata.ErrorCodeEntity;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.MainMethod;
+import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.exception.TapExClass;
 import io.tapdata.exception.TapExCode;
+import org.apache.commons.lang3.StringUtils;
 import org.reflections.Reflections;
 import org.reflections.scanners.TypeAnnotationsScanner;
 import org.reflections.util.ConfigurationBuilder;
@@ -21,7 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
  **/
 @Bean
 @MainMethod("main")
-public class ErrorHandler {
+public class ErrorHandler implements MemoryFetcher {
 
 	private final Map<String, ErrorCodeEntity> errorCodeEntityMap = new ConcurrentHashMap<>();
 
@@ -69,5 +72,27 @@ public class ErrorHandler {
 			return null;
 		}
 		return errorCodeEntityMap.get(code);
+	}
+
+	@Override
+	public DataMap memory(String keyRegex, String memoryLevel) {
+		DataMap dataMap = new DataMap();
+		if (StringUtils.isNotBlank(keyRegex)) {
+			ErrorCodeEntity errorCodeEntity = errorCodeEntityMap.get(keyRegex);
+			if (null != errorCodeEntity) {
+				dataMap.put(keyRegex, errorCodeEntity);
+			}
+		} else {
+			if (memoryLevel.equals(MemoryFetcher.MEMORY_LEVEL_SUMMARY)) {
+				for (Map.Entry<String, ErrorCodeEntity> entityEntry : errorCodeEntityMap.entrySet()) {
+					String code = entityEntry.getKey();
+					ErrorCodeEntity errorCodeEntity = entityEntry.getValue();
+					dataMap.put(code, errorCodeEntity.getDescribe());
+				}
+			} else if (memoryLevel.equals(MEMORY_LEVEL_IN_DETAIL)) {
+				dataMap.putAll(errorCodeEntityMap);
+			}
+		}
+		return dataMap;
 	}
 }

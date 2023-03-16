@@ -8,6 +8,9 @@ import io.tapdata.exception.TapCodeException;
  * @create 2023-03-16 19:20
  **/
 public class TapUnknownException extends TapCodeException {
+
+	private static final long serialVersionUID = 6264341460648929466L;
+
 	public TapUnknownException(Throwable cause) {
 		super(TapIEngineExCode_11.UNKNOWN_ERROR, cause);
 	}

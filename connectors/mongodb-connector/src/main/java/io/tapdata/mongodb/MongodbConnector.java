@@ -594,7 +594,6 @@ public class MongodbConnector extends ConnectorBase {
 				|| null != matchThrowable(throwable, MongoSocketException.class)
 				|| null != matchThrowable(throwable, MongoConnectionPoolClearedException.class)
 				|| null != matchThrowable(throwable, MongoSecurityException.class)
-				|| null != matchThrowable(throwable, MongoServerException.class)
 				|| null != matchThrowable(throwable, MongoConfigurationException.class)
 				|| null != matchThrowable(throwable, MongoTimeoutException.class)
 				|| null != matchThrowable(throwable, MongoSocketReadException.class)

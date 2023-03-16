@@ -5,7 +5,10 @@ package io.tapdata.flow.engine.V2.exception;
  * @Description
  * @create 2023-02-23 11:18
  **/
-public class TapReadRecordException extends TapRecordException{
+public class TapReadRecordException extends TapRecordException {
+
+
+	private static final long serialVersionUID = -5686200216975570086L;
 
 	public TapReadRecordException(String code) {
 		super(code);

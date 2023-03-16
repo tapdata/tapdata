@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.exception;
 
 import io.tapdata.exception.TapCodeException;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 
@@ -11,6 +12,9 @@ import java.util.Map;
  * @create 2023-02-23 11:15
  **/
 public class TapRecordException extends TapCodeException {
+
+	private static final long serialVersionUID = 4981529659601020760L;
+
 	public TapRecordException(String code) {
 		super(code);
 	}

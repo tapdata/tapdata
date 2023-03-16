@@ -58,7 +58,7 @@ public class ObsHttpTMAppender implements Appender<MonitoringLogsDto>, Serializa
 		if (CollectionUtils.isEmpty(logs)) {
 			return;
 		}
-		if (obsHttpTMLog4jAppender.isStarted()) {
+		if (!obsHttpTMLog4jAppender.isStarted()) {
 			return;
 		}
 		for (MonitoringLogsDto log : logs) {

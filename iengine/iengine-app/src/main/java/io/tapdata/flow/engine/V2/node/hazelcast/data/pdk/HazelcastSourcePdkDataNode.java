@@ -460,7 +460,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 												// MILESTONE-READ_CDC_EVENT-FINISH
 												if (streamReadFuncAspect != null)
 													executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAM_STARTED).streamStartedTime(System.currentTimeMillis()));
-												PDKInvocationMonitor.invokerRetrySetter(pdkMethodInvoker);
 												sendCdcStartedEvent();
 												obsLogger.info("Connector start stream read succeed: {}", connectorNode);
 											}

@@ -7,6 +7,8 @@ import java.util.Optional;
  * @version v1.0 2022/11/29 14:16 Create
  */
 public abstract class TapRuntimeException extends RuntimeException {
+    private static final long serialVersionUID = 8393742410956400472L;
+
     public TapRuntimeException() {
     }
 

@@ -7,6 +7,9 @@ package io.tapdata.flow.engine.V2.exception;
  **/
 public class TapWriteRecordException extends TapRecordException {
 
+
+	private static final long serialVersionUID = -2877158392382191283L;
+
 	public TapWriteRecordException(String code) {
 		super(code);
 	}
