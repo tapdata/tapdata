@@ -311,7 +311,7 @@ public class ConnectorManager {
 
 		warningMaker = new WarningMaker(clientMongoOperator);
 
-		addHTTPAppender();
+//		addHTTPAppender();
 
 		loadBalancing = new LoadBalancing(mode, instanceNo, ConnectorConstant.WORKER_TYPE_CONNECTOR, clientMongoOperator);
 

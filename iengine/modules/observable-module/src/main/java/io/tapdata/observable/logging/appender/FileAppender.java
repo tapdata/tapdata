@@ -9,6 +9,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.RollingFileAppender;
 import org.apache.logging.log4j.core.appender.rolling.CompositeTriggeringPolicy;
 import org.apache.logging.log4j.core.appender.rolling.DefaultRolloverStrategy;
+import org.apache.logging.log4j.core.appender.rolling.SizeBasedTriggeringPolicy;
 import org.apache.logging.log4j.core.appender.rolling.TimeBasedTriggeringPolicy;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.Configurator;
@@ -27,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class FileAppender implements Appender<MonitoringLogsDto>, Serializable {
 	private final static String LOGGER_NAME_PREFIX = "observe-logger-name";
 	public static final String LOG_PATH = "logs" + File.separator + "jobs";
+	public static final String ONE_GB = "1G";
 
 	private Logger logger;
 	private String workDir;
@@ -58,7 +60,6 @@ public class FileAppender implements Appender<MonitoringLogsDto>, Serializable {
 				case "FATAL":
 					logger.fatal(log.formatMonitoringLogMessage());
 					break;
-
 			}
 		}
 	}
@@ -79,22 +80,23 @@ public class FileAppender implements Appender<MonitoringLogsDto>, Serializable {
 				.build();
 
 		TimeBasedTriggeringPolicy timeBasedTriggeringPolicy = TimeBasedTriggeringPolicy.newBuilder().withInterval(1).withModulate(true).build();
-		CompositeTriggeringPolicy compositeTriggeringPolicy = CompositeTriggeringPolicy.createPolicy(timeBasedTriggeringPolicy);
+		SizeBasedTriggeringPolicy sizeBasedTriggeringPolicy = SizeBasedTriggeringPolicy.createPolicy(ONE_GB);
+		CompositeTriggeringPolicy compositeTriggeringPolicy = CompositeTriggeringPolicy.createPolicy(timeBasedTriggeringPolicy, sizeBasedTriggeringPolicy);
 		DefaultRolloverStrategy strategy = DefaultRolloverStrategy.newBuilder()
 				.withConfig(config).build();
 
 		RollingFileAppender rollingFileAppender = RollingFileAppender.newBuilder()
-				.withName("rollingFileAppender-" + taskId)
+				.setName("rollingFileAppender-" + taskId)
 				.withFileName(logsPath + "/observe-log-" + taskId + ".log")
 				.withFilePattern(logsPath + "/observe-log-" + taskId + ".log.%d{yyyyMMdd}-%i.gz")
-				.withLayout(patternLayout)
+				.setLayout(patternLayout)
 				.withPolicy(compositeTriggeringPolicy)
 				.withStrategy(strategy)
 				.build();
 		rollingFileAppender.start();
 		org.apache.logging.log4j.core.Logger coreLogger = (org.apache.logging.log4j.core.Logger) logger;
 		coreLogger.addAppender(rollingFileAppender);
-		coreLogger.setAdditive(false);
+//		coreLogger.setAdditive(false);
 
 		if (null == rollingFileAppenderMap) {
 			rollingFileAppenderMap = new ConcurrentHashMap<>();

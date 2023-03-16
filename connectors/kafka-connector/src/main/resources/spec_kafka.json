@@ -3,6 +3,7 @@
     "name": "Kafka",
     "icon": "icons/kafka.png",
     "doc": "${doc}",
+    "tags" : ["schema-free"],
     "id": "kafka"
   },
   "configOptions": {

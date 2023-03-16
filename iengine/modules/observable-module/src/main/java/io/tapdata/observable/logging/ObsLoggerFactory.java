@@ -31,7 +31,8 @@ public final class ObsLoggerFactory {
 	private final Logger logger = LogManager.getLogger(ObsLoggerFactory.class);
 
 	private volatile static ObsLoggerFactory INSTANCE;
-	public static ObsLoggerFactory getInstance(){
+
+	public static ObsLoggerFactory getInstance() {
 		if (INSTANCE == null) {
 			synchronized (ObsLoggerFactory.class) {
 				if (INSTANCE == null) {
@@ -92,6 +93,7 @@ public final class ObsLoggerFactory {
 			TaskLogger taskLogger = new TaskLogger(this::closeDebugForTask).withTask(taskId, task.getName(), task.getTaskRecordId()).withTaskLogSetting(
 					getLogSettingLogLevel(task), getLogSettingRecordCeiling(task), getLogSettingIntervalCeiling(task));
 			taskLogger.registerTaskFileAppender(taskId);
+			taskLogger.registerTaskTmAppender(taskId);
 			return taskLogger;
 		});
 
@@ -136,6 +138,7 @@ public final class ObsLoggerFactory {
 				taskLoggerNodeProxyMap.remove(taskId);
 				taskLoggersMap.computeIfPresent(taskId, (key, taskLogger) -> {
 					taskLogger.unregisterTaskFileAppender(taskId);
+					taskLogger.unregisterTaskTmAppender();
 
 					return null;
 				});

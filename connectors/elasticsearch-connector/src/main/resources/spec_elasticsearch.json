@@ -3,6 +3,7 @@
     "name": "Elasticsearch",
     "icon": "icons/elasticsearch.png",
     "doc" : "${doc}",
+    "tags" : ["schema-free"],
     "id": "elasticsearch"
   },
   "configOptions": {
