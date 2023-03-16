@@ -49,7 +49,11 @@ import io.tapdata.pdk.apis.entity.SortOn;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.source.*;
+import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunction;
+import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunctionV2;
+import io.tapdata.pdk.apis.functions.connector.source.RunRawCommandFunction;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
@@ -357,19 +361,23 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				// Mining tasks force traditional increments
 				doNormalCDC();
 			} else {
-				try {
-					// Try to start with share cdc
-					doShareCdc();
-				} catch (ShareCdcUnsupportedException e) {
-					if (e.isContinueWithNormalCdc() && !taskDto.getEnforceShareCdc()) {
-						// If share cdc is unavailable, and continue with normal cdc is true
-						obsLogger.info("Share cdc unusable, will use normal cdc mode, reason: " + e.getMessage());
-						doNormalCDC();
-					} else {
+				if (taskDto.getShareCdcEnable()) {
+					try {
+						// Try to start with share cdc
+						doShareCdc();
+					} catch (ShareCdcUnsupportedException e) {
+						if (e.isContinueWithNormalCdc() && !taskDto.getEnforceShareCdc()) {
+							// If share cdc is unavailable, and continue with normal cdc is true
+							obsLogger.info("Share cdc unusable, will use normal cdc mode, reason: " + e.getMessage());
+							doNormalCDC();
+						} else {
+							throw new NodeException("Read share cdc log failed: " + e.getMessage(), e).context(getProcessorBaseContext());
+						}
+					} catch (Exception e) {
 						throw new NodeException("Read share cdc log failed: " + e.getMessage(), e).context(getProcessorBaseContext());
 					}
-				} catch (Exception e) {
-					throw new NodeException("Read share cdc log failed: " + e.getMessage(), e).context(getProcessorBaseContext());
+				} else {
+					doNormalCDC();
 				}
 			}
 		}
