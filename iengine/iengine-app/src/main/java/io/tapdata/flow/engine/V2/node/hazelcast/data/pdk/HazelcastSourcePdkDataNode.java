@@ -261,7 +261,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																		tempList.clear();
 																	}
 																});
-															} else if (tableNode.isCustomCommand() && runRawCommandFunction != null) {
+															} else if (tableNode.getIsCustomCommand() != null && tableNode.getIsCustomCommand() && runRawCommandFunction != null) {
 																runRawCommandFunction.run(getConnectorNode().getConnectorContext(), tableNode.getCustomCommand(), tapTable, readBatchSize, events -> consumer.accept(events, null));
 															} else {
 																batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
