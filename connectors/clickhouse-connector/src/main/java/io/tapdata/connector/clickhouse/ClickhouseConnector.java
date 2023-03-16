@@ -59,7 +59,7 @@ public class ClickhouseConnector extends ConnectorBase {
 
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
 
-    private String connectionTimezone;
+//    private String connectionTimezone;
 
     private DDLSqlMaker ddlSqlMaker;
 
@@ -86,10 +86,10 @@ public class ClickhouseConnector extends ConnectorBase {
             clickhouseJdbcContext = (ClickhouseJdbcContext) DataSourcePool.getJdbcContext(clickhouseConfig, ClickhouseJdbcContext.class, connectionContext.getId());
         }
 //        clickhouseVersion = clickhouseJdbcContext.queryVersion();
-        this.connectionTimezone = connectionContext.getConnectionConfig().getString("timezone");
-        if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
-            this.connectionTimezone = clickhouseJdbcContext.timezone();
-        }
+//        this.connectionTimezone = connectionContext.getConnectionConfig().getString("timezone");
+//        if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
+//            this.connectionTimezone = clickhouseJdbcContext.timezone();
+//        }
     }
 
     @Override
