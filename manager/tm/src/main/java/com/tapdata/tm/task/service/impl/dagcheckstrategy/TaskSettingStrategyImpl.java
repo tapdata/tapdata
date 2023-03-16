@@ -74,23 +74,24 @@ public class TaskSettingStrategyImpl implements DagLogStrategy {
         all.addAll(targetList);
 
         List<DataSourceConnectionDto> connectionDtos = dataSourceService.findAllByIds(all);
-        Map<String, TimeZone> timeZoneMap = connectionDtos.stream()
-                .filter(dto -> Objects.nonNull(dto.getTimeZone()))
-                .collect(Collectors
-                .toMap(con -> con.getId().toHexString(), DataSourceConnectionDto::getTimeZone, (pre, after) -> pre));
+        Map<String, Object> timeZoneMap = connectionDtos.stream()
+                .filter(dto -> Objects.nonNull(dto.getConfig().get("timezone")))
+                .collect(Collectors.toMap(con -> con.getId().toHexString(), dto -> dto.getConfig().get("timezone"), (pre, after) -> pre));
         if (!timeZoneMap.isEmpty()) {
-            List<TimeZone> sourceTimeZoneList = sourceList.stream().map(timeZoneMap::get).distinct().collect(Collectors.toList());
-            List<TimeZone> targetTimeZoneList = sourceList.stream().map(timeZoneMap::get).distinct().collect(Collectors.toList());
+            List<Object> sourceTimeZoneList = sourceList.stream().map(timeZoneMap::get).distinct().collect(Collectors.toList());
+            List<Object> targetTimeZoneList = sourceList.stream().map(timeZoneMap::get).distinct().collect(Collectors.toList());
 
-            sourceTimeZoneList.removeAll(targetTimeZoneList);
             if (CollectionUtils.isNotEmpty(sourceTimeZoneList)) {
-                TaskDagCheckLog checkLog = TaskDagCheckLog.builder().taskId(taskId.toHexString()).checkType(templateEnum.name())
-                        .grade(Level.WARN)
-                        .log(MessageUtil.getDagCheckMsg(locale, "TASK_SETTING_TIMEZONE_CHECK"))
-                        .build();
-                checkLog.setCreateAt(now);
-                checkLog.setCreateUser(userDetail.getUserId());
-                result.add(checkLog);
+                sourceTimeZoneList.removeAll(targetTimeZoneList);
+                if (CollectionUtils.isNotEmpty(sourceTimeZoneList)) {
+                    TaskDagCheckLog checkLog = TaskDagCheckLog.builder().taskId(taskId.toHexString()).checkType(templateEnum.name())
+                            .grade(Level.WARN)
+                            .log(MessageUtil.getDagCheckMsg(locale, "TASK_SETTING_TIMEZONE_CHECK"))
+                            .build();
+                    checkLog.setCreateAt(now);
+                    checkLog.setCreateUser(userDetail.getUserId());
+                    result.add(checkLog);
+                }
             }
         }
 

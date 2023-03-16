@@ -21,6 +21,7 @@ import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import io.tapdata.entity.result.ResultItem;
+import io.tapdata.pdk.apis.entity.Capability;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -133,13 +134,17 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                 List<String> tables = metadataInstancesService.tables(connectionId, SourceTypeEnum.SOURCE.name());
 
                 if (CollectionUtils.isNotEmpty(dto.getCapabilities())) {
-                    boolean streamReadMatch = dto.getCapabilities().stream().anyMatch(cap -> "stream_read_function".equals(cap.getId()));
-                    boolean batchReadMatch = dto.getCapabilities().stream().anyMatch(cap -> "batch_read_function".equals(cap.getId()));
-                    if ((taskDto.getType().contains("cdc") && !streamReadMatch) || (taskDto.getType().contains("initial_sync") && !batchReadMatch)) {
+                    List<String> capList = dto.getCapabilities().stream().map(Capability::getId)
+                            .filter(id -> Lists.of("stream_read_function", "batch_read_function").contains(id)).collect(Collectors.toList());
+
+                    boolean streamReadNotMatch = taskDto.getType().contains("cdc") && !capList.contains("stream_read_function");
+                    boolean batchReadNotMatch = taskDto.getType().contains("initial_sync") && !capList.contains("batch_read_function");
+
+                    if (streamReadNotMatch || batchReadNotMatch) {
                         TaskDagCheckLog log = TaskDagCheckLog.builder()
                                 .taskId(taskId)
                                 .checkType(templateEnum.name())
-                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_TYPE"), name, taskDto.getType()))
+                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_TYPE"), name, JSON.toJSONString(capList), taskDto.getType()))
                                 .grade(Level.ERROR)
                                 .nodeId(nodeId).build();
                         log.setCreateAt(now);
@@ -171,7 +176,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                         result.add(log);
                     }
 
-                    List<MetadataInstancesDto> schemaList = metadataInstancesService.findSourceSchemaBySourceId(nodeId, tableNames, userDetail);
+                    List<MetadataInstancesDto> schemaList = metadataInstancesService.findSourceSchemaBySourceId(connectionId, tableNames, userDetail);
                     if (CollectionUtils.isNotEmpty(schemaList)) {
                         List<String> list = schemaList.stream().map(MetadataInstancesDto::getName).collect(Collectors.toList());
                         List<String> temp = new ArrayList<>(tableNames);
@@ -188,6 +193,17 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 
                             result.add(log);
                         }
+                    } else {
+                        TaskDagCheckLog log = TaskDagCheckLog.builder()
+                                .taskId(taskId)
+                                .checkType(templateEnum.name())
+                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_SCHAME"), node.getName(), JSON.toJSONString(tableNames)))
+                                .grade(Level.ERROR)
+                                .nodeId(node.getId()).build();
+                        log.setCreateAt(now);
+                        log.setCreateUser(userId);
+
+                        result.add(log);
                     }
                 }
             });

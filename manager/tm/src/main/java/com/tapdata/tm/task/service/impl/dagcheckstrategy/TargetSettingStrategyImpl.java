@@ -81,16 +81,17 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
 
             boolean keepTargetSchema = false;
             AtomicReference<List<String>> tableNames = new AtomicReference<>();
+            List<String> existDataModeList = Lists.newArrayList("keepData", "removeData");
             if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
                 DatabaseNode databaseNode = (DatabaseNode) node;
                 Optional.ofNullable(databaseNode.getSyncObjects()).ifPresent(list -> tableNames.set(list.get(0).getObjectNames()));
 
-                if (Lists.newArrayList("keepData").contains(databaseNode.getExistDataProcessMode())) {
+                if (existDataModeList.contains(databaseNode.getExistDataProcessMode())) {
                     keepTargetSchema = true;
                 }
             } else {
                 TableNode tableNode = (TableNode) node;
-                if (Lists.newArrayList("keepData", "removeData").contains(tableNode.getExistDataProcessMode())) {
+                if (existDataModeList.contains(tableNode.getExistDataProcessMode())) {
                     keepTargetSchema = true;
                 }
 
@@ -140,6 +141,17 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
 
                         result.add(log);
                     }
+                } else {
+                    TaskDagCheckLog log = TaskDagCheckLog.builder()
+                            .taskId(taskId)
+                            .checkType(templateEnum.name())
+                            .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_SCHAME"), node.getName(), JSON.toJSONString(tableNames.get())))
+                            .grade(Level.ERROR)
+                            .nodeId(node.getId()).build();
+                    log.setCreateAt(now);
+                    log.setCreateUser(userId);
+
+                    result.add(log);
                 }
             }
 
