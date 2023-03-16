@@ -288,6 +288,33 @@ public class LdpServiceImpl implements LdpService {
         }
     }
 
+    @Override
+    public Map<String, TaskDto> queryFdmTaskByTags(List<String> tagIds, UserDetail user) {
+        Map<String, TaskDto> result = new HashMap<>();
+        if (CollectionUtils.isEmpty(tagIds)) {
+
+            return result;
+        }
+
+        List<ObjectId> tagObjIds = tagIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+        Criteria criteria = Criteria.where("_id").in(tagObjIds);
+        Query query = new Query(criteria);
+        query.fields().include("linkId");
+        List<MetadataDefinitionDto> tags = metadataDefinitionService.findAll(query);
+        Map<String, String> tagMap = tags.stream().collect(Collectors.toMap(MetadataDefinitionDto::getLinkId, v -> v.getId().toHexString(), (v1, v2) -> v1));
+
+        Criteria criteriaTask = Criteria.where("dag.nodes.connectionId").in(tagMap.keySet()).and("ldpType").is(TaskDto.LDP_TYPE_FDM);
+        Query queryTask = new Query(criteriaTask);
+        List<TaskDto> taskDtos = taskService.findAllDto(queryTask, user);
+        for (TaskDto taskDto : taskDtos) {
+            DAG dag = taskDto.getDag();
+            Node node = dag.getSources().get(0);
+            String connectionId = ((DatabaseNode) node).getConnectionId();
+            result.put(tagMap.get(connectionId), taskDto);
+        }
+        return result;
+    }
+
     private Tag getMdmTag() {
         Criteria mdmCriteria = Criteria.where("value").is("MDM").and("parent_id").exists(false);
         Query query = new Query(mdmCriteria);

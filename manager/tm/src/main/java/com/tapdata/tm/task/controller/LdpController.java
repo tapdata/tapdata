@@ -9,10 +9,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
 
 
 @Tag(name = "LDP", description = "Task相关接口")
@@ -48,6 +48,19 @@ public class LdpController extends BaseController {
     @PostMapping("mdm/task")
     public ResponseMessage<TaskDto> createMdmTask(@RequestBody TaskDto task) {
         return success(ldpService.createMdmTask(task, getLoginUser()));
+    }
+
+
+    /**
+     * Query fdm task by tags
+     *
+     * @param tags tags
+     * @return TaskDto
+     */
+    @Operation(summary = "Query fdm task by tags")
+    @PostMapping("fdm/task/byTags")
+    public ResponseMessage<Map<String, TaskDto>> queryFdmTaskByTags(@RequestParam("tags") List<String> tags) {
+        return success(ldpService.queryFdmTaskByTags(tags, getLoginUser()));
     }
 
 }
