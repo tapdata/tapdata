@@ -56,17 +56,18 @@ public class SourceConnectStrategyImpl implements DagLogStrategy {
             }
             if (DataSourceEntity.STATUS_READY.equals(connectionDto.getStatus())) {
                 grade = Level.INFO;
-                template = MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "SOURCE_CONNECT_INFO"), connectionDto.getName());
+                template = MessageUtil.getDagCheckMsg(locale, "SOURCE_CONNECT_INFO");
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, userId, grade, templateEnum, template, true, true, connectionDto.getName());
+                result.add(log);
             } else {
                 grade = Level.ERROR;
                 Map<String, Object> errorInfo = Maps.newHashMap();
                 errorInfo.put("loadFieldsStatus", connectionDto.getLoadFieldsStatus());
                 errorInfo.put("loadFieldErrMsg", connectionDto.getLoadFieldErrMsg());
-                template = MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "SOURCE_CONNECT_ERROR"), connectionDto.getName(), JSON.toJSONString(errorInfo));
+                template = MessageUtil.getDagCheckMsg(locale, "SOURCE_CONNECT_ERROR");
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, userId, grade, templateEnum, template, true, true, connectionDto.getName(), connectionDto.getAlarmInfo());
+                result.add(log);
             }
-
-            TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, userId, grade, templateEnum, template, true, true, DateUtil.now(), connectionDto.getAlarmInfo());
-            result.add(log);
         }
         return result;
     }

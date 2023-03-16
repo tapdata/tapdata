@@ -3,7 +3,9 @@
     "name": "vika",
     "icon": "icons/vika.png",
     "doc" : "${doc}",
-    "id": "vika"
+    "id": "vika",
+    "authentication": "beta",
+    "tags": ["SaaS"]
   },
   "configOptions": {
     "connection": {

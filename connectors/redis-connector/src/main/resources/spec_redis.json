@@ -3,7 +3,9 @@
     "name": "Redis",
     "icon": "icons/redis.svg",
     "doc": "${doc}",
-    "id": "redis"
+    "id": "redis",
+    "authentication": "beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "connection": {
