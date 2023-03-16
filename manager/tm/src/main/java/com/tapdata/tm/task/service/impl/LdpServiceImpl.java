@@ -6,6 +6,9 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Tag;
@@ -27,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -62,18 +66,95 @@ public class LdpServiceImpl implements LdpService {
     public TaskDto createFdmTask(TaskDto task, UserDetail user) {
         //check fdm task
         checkFdmTask(task, user);
-
-        task = mergeSameSourceTask(task, user);
-
-        //add fmd type
         task.setLdpType(TaskDto.LDP_TYPE_FDM);
 
-        //create migrate task
+        DAG dag = task.getDag();
+        DatabaseNode databaseNode = (DatabaseNode) dag.getSources().get(0);
+        String connectionId = databaseNode.getConnectionId();
+
+        Criteria criteria = Criteria.where("ldpType").is(TaskDto.LDP_TYPE_FDM)
+                .and("dag.nodes.connectionId").is(connectionId)
+                .and("is_deleted").ne(true);
+        Query query = new Query(criteria);
+        TaskDto oldTask = taskService.findOne(query, user);
+        if (oldTask != null) {
+
+            DatabaseNode oldSourceNode = (DatabaseNode) oldTask.getDag().getSources().get(0);
+            if (StringUtils.isNotBlank(oldSourceNode.getTableExpression())) {
+                mergeAllTable(user, connectionId, oldTask);
+                task = oldTask;
+            } else if ((StringUtils.isNotBlank(databaseNode.getTableExpression()))) {
+                mergeAllTable(user, connectionId, task);
+                oldTask.setDag(task.getDag());
+                task = oldTask;
+            } else {
+                task = createNew(task, dag, oldTask);
+            }
+        } else if (StringUtils.isNotBlank(databaseNode.getTableExpression())) {
+            mergeAllTable(user, connectionId, task);
+        } else {
+            task = createNew(task, dag, oldTask);
+        }
+
+        List<String> tableNames = databaseNode.getTableNames();
+        repeatTable(tableNames, task.getId().toHexString(), connectionId, user);
+
         TaskDto taskDto = taskService.confirmById(task, user, true);
         //创建fdm的分类
         createFdmTags(taskDto, user);
 
         return taskDto;
+    }
+
+    @NotNull
+    private TaskDto createNew(TaskDto task, DAG dag, TaskDto oldTask) {
+        task = mergeSameSourceTask(task, oldTask);
+        //add fmd type
+
+
+        boolean needRename = false;
+        String sourceNodeId = null;
+
+
+        List<Node> nodes = dag.getNodes();
+        for (Node node : nodes) {
+            if (node instanceof TableRenameProcessNode) {
+                LinkedHashSet<TableRenameTableInfo> tableNames1 = ((TableRenameProcessNode) node).getTableNames();
+                if (CollectionUtils.isEmpty(tableNames1)) {
+                    needRename = true;
+                }
+            }
+        }
+
+        if (needRename) {
+
+            List<String> tableNames = new ArrayList<>();
+            if (dag != null) {
+                List<Node> sources = dag.getSources();
+                if (CollectionUtils.isNotEmpty(sources)) {
+                    Node node = sources.get(0);
+                    if (node != null) {
+                        sourceNodeId = node.getId();
+                        tableNames = ((DatabaseNode) node).getTableNames();
+                    }
+                }
+            }
+            mergeTable(task.getDag(), sourceNodeId, tableNames);
+        }
+        return task;
+    }
+
+    private void mergeAllTable(UserDetail user, String connectionId, TaskDto oldTask) {
+        Criteria criteria1 = Criteria.where("source._id").is(connectionId)
+                .and("taskId").exists(false)
+                .and("is_deleted").ne(true)
+                .and("sourceType").is(com.tapdata.tm.metadatainstance.vo.SourceTypeEnum.SOURCE);
+        Query query1 = new Query(criteria1);
+        query1.fields().include("original_name");
+        List<MetadataInstancesDto> metadataInstancesServiceAllDto = metadataInstancesService.findAllDto(query1, user);
+        List<String> tableNames = metadataInstancesServiceAllDto.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList());
+        String sourceNodeId = oldTask.getDag().getSources().get(0).getId();
+        mergeTable(oldTask.getDag(), sourceNodeId, tableNames);
     }
 
     private void createFdmTags(TaskDto taskDto, UserDetail user) {
@@ -119,36 +200,40 @@ public class LdpServiceImpl implements LdpService {
         metadataDefinitionService.save(metadataDefinitionDto, user);
     }
 
-    private TaskDto mergeSameSourceTask(TaskDto task, UserDetail user) {
+    private TaskDto mergeSameSourceTask(TaskDto task, TaskDto oldTask) {
         //查询是否存在同源的fdm任务
         DAG dag = task.getDag();
         List<Node> sources = dag.getSources();
         Node node = sources.get(0);
-        String connectionId = ((DatabaseNode) node).getConnectionId();
 
-        Criteria criteria = Criteria.where("ldpType").is(TaskDto.LDP_TYPE_FDM)
-                .and("dag.nodes.connectionId").is(connectionId)
-                .and("is_deleted").ne(true);
-        Query query = new Query(criteria);
-        TaskDto oldTask = taskService.findOne(query, user);
+
+
+
         if (oldTask == null) {
-            return task;
+            oldTask =  task;
         }
 
         DAG dag1 = oldTask.getDag();
         Node node1 = dag1.getSources().get(0);
+
         List<String> tableNames = ((DatabaseNode) node).getTableNames();
-        for (String tableName : tableNames) {
-            TapCreateTableEvent tapCreateTableEvent = new TapCreateTableEvent();
-            tapCreateTableEvent.setTableId(tableName);
-            try {
-                dag1.filedDdlEvent(node1.getId(), tapCreateTableEvent);
-            } catch (Exception e) {
-                throw new BizException("");
-            }
-        }
+        mergeTable(dag1, node1.getId(), tableNames);
 
         return oldTask;
+    }
+
+    private static void mergeTable(DAG dag1, String nodeId, List<String> tableNames) {
+        if (CollectionUtils.isNotEmpty(tableNames)) {
+            for (String tableName : tableNames) {
+                TapCreateTableEvent tapCreateTableEvent = new TapCreateTableEvent();
+                tapCreateTableEvent.setTableId(tableName);
+                try {
+                    dag1.filedDdlEvent(nodeId, tapCreateTableEvent);
+                } catch (Exception e) {
+                    throw new BizException("");
+                }
+            }
+        }
     }
 
     private void checkFdmTask(TaskDto task, UserDetail user) {
@@ -384,7 +469,7 @@ public class LdpServiceImpl implements LdpService {
             throw new BizException("");
         }
         Node node = targets.get(0);
-        String targetConId = ((DatabaseNode) node).getConnectionId();
+        String targetConId = ((TableNode) node).getConnectionId();
 
         if (!mdmConnectionId.equals(targetConId)) {
             throw new BizException("");
@@ -395,10 +480,27 @@ public class LdpServiceImpl implements LdpService {
         if (CollectionUtils.isEmpty(sources)) {
             throw new BizException("");
         }
-        Node sourceNode = sources.get(0);
-        String sourceConId = ((DatabaseNode) sourceNode).getConnectionId();
+        TableNode sourceNode =  (TableNode) sources.get(0);
+        String sourceConId = sourceNode.getConnectionId();
+
+        String tableName = sourceNode.getTableName();
+
+        repeatTable(Lists.newArrayList(tableName), null, sourceConId, user);
 
         if (!fdmConnectionId.equals(sourceConId)) {
+            throw new BizException("");
+        }
+    }
+
+
+    void repeatTable(List<String> tableNames, String taskId, String connectionId, UserDetail user) {
+        Criteria nin = Criteria.where("source._id").is(connectionId)
+                .and("original_name").nin(tableNames);
+        if (StringUtils.isNotBlank(taskId)) {
+            nin.and("taskId").ne(taskId);
+        }
+        long count = metadataInstancesService.count(new Query(nin), user);
+        if (count > 0) {
             throw new BizException("");
         }
     }
