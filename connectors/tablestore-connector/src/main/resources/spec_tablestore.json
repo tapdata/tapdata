@@ -3,7 +3,9 @@
     "name": "Tablestore",
     "icon": "icons/tablestore.png",
     "doc" : "${doc}",
-    "id": "tablestore"
+    "id": "tablestore",
+    "authentication": "beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "connection": {

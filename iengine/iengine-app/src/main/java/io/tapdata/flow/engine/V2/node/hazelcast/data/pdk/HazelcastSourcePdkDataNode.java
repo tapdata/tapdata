@@ -49,10 +49,7 @@ import io.tapdata.pdk.apis.entity.SortOn;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
-import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunction;
-import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunctionV2;
-import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.*;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
@@ -170,6 +167,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 		BatchReadFunction batchReadFunction = getConnectorNode().getConnectorFunctions().getBatchReadFunction();
 		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
+		RunRawCommandFunction runRawCommandFunction = getConnectorNode().getConnectorFunctions().getRunRawCommandFunction();
 
 		if (batchReadFunction != null) {
 			// MILESTONE-READ_SNAPSHOT-RUNNING
@@ -265,6 +263,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																		tempList.clear();
 																	}
 																});
+															} else if (tableNode.getIsCustomCommand() != null && tableNode.getIsCustomCommand() && runRawCommandFunction != null) {
+																runRawCommandFunction.run(getConnectorNode().getConnectorContext(), tableNode.getCustomCommand(), tapTable, readBatchSize, events -> consumer.accept(events, null));
 															} else {
 																batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
 															}

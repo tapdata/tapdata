@@ -100,4 +100,6 @@ public class DataSourceDefinitionEntity extends BaseEntity {
     private Boolean beta;
     private String pdkAPIVersion;
     private Integer pdkAPIBuildNumber;
+    private String authentication;
+    private List<String> tags;
 }
