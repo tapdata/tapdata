@@ -315,6 +315,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		messageEntity.setTableName(dataEvent.getTableId());
 		messageEntity.setTimestamp(dataEvent.getReferenceTime());
 		messageEntity.setTime(dataEvent.getTime());
+		messageEntity.setInfo(dataEvent.getInfo());
 		return messageEntity;
 	}
 
@@ -347,6 +348,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			tapRecordEvent.setTableId(messageEntity.getTableName());
 			tapRecordEvent.setReferenceTime(messageEntity.getTimestamp());
 			tapRecordEvent.setTime(messageEntity.getTime());
+			tapRecordEvent.setInfo(messageEntity.getInfo());
 		}
 		return tapRecordEvent;
 	}
