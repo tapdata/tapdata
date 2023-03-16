@@ -502,20 +502,16 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected void doClose() throws Exception {
 		CommonUtils.handleAnyError(() -> {
 			Optional.ofNullable(processorBaseContext.getTapTableMap()).ifPresent(TapTableMap::reset);
-			logger.info(String.format("Node %s[%s] schema data cleaned", getNode().getName(), getNode().getId()));
 			obsLogger.info(String.format("Node %s[%s] schema data cleaned", getNode().getName(), getNode().getId()));
 		}, err -> {
-			logger.warn(String.format("Clean node %s[%s] schema data failed: %s", getNode().getName(), getNode().getId(), err.getMessage()));
 			obsLogger.warn(String.format("Clean node %s[%s] schema data failed: %s", getNode().getName(), getNode().getId(), err.getMessage()));
 		});
 		CommonUtils.handleAnyError(() -> {
 			if (this.monitorManager != null) {
 				this.monitorManager.close();
-				logger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
 				obsLogger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
 			}
 		}, err -> {
-			logger.warn("Close monitor failed: " + err.getMessage());
 			obsLogger.warn("Close monitor failed: " + err.getMessage());
 		});
 	}
@@ -685,8 +681,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				} else {
 					this.errorMessage = currentEx.getMessage();
 				}
-				logger.error(errorMessage, currentEx);
-				Optional.ofNullable(obsLogger).ifPresent(log -> log.error(errorMessage, currentEx));
+				obsLogger.error(errorMessage, currentEx);
 				this.running.set(false);
 
 				// jetContext async injection, Attempt 5 times to get the instance every 500ms
@@ -707,8 +702,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				if (hazelcastJob != null) {
 					JobStatus status = hazelcastJob.getStatus();
 					if (JobStatus.RUNNING == status) {
-						logger.info("Job suspend in error handle");
-						Optional.ofNullable(obsLogger).ifPresent(log -> log.info("Job suspend in error handle"));
+						obsLogger.info("Job suspend in error handle");
 						TaskClient<TaskDto> taskDtoTaskClient = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(taskDto.getId().toHexString());
 						if (null != taskDtoTaskClient) {
 							taskDtoTaskClient.terminalMode(TerminalMode.ERROR);
@@ -723,8 +717,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		} catch (NodeException e) {
 			throw e;
 		} catch (Exception e) {
-			logger.warn("Error handler failed: " + e.getMessage(), e);
-			Optional.ofNullable(obsLogger).ifPresent(log -> log.warn("Error handler failed: " + e.getMessage()));
+			obsLogger.warn("Error handler failed: " + e.getMessage(), e);
 		}
 
 		return currentEx;

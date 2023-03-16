@@ -201,14 +201,14 @@ public class RestTemplateOperator {
 			ResponseEntity<ResponseBody> responseEntity = restTemplate.postForEntity(uri, request, ResponseBody.class);
 			if (successResp(responseEntity)) {
 				ResponseBody responseBody = responseEntity.getBody();
-				Map body = getBody(responseBody, Map.class);
-				if (body != null) {
-					Object id = body.get("id");
-					if (id != null) {
-						if (request instanceof Map) {
-							((Map) request).put("id", id);
-						} else if (request instanceof BaseEntity) {
-							((BaseEntity) request).setId(id.toString());
+						Object bodyMapOrList = getBodyMapOrList(responseBody);
+						if (bodyMapOrList instanceof Map) {
+							setId(request, (Map<?, ?>) bodyMapOrList);
+						} else if (bodyMapOrList instanceof List) {
+							List<?> list = (List<?>) bodyMapOrList;
+							for (Object o : list) {
+								if (o instanceof Map) {
+									setId(request, (Map<?, ?>) o);
 						}
 					}
 				}
@@ -220,6 +220,17 @@ public class RestTemplateOperator {
 			);
 			return false;
 		}, stop);
+	}
+
+	private static void setId(Object request, Map<?, ?> map) {
+		Object id = map.get("id");
+		if (id != null) {
+			if (request instanceof Map) {
+				((Map) request).put("id", id);
+			} else if (request instanceof BaseEntity) {
+				((BaseEntity) request).setId(id.toString());
+			}
+		}
 	}
 
 	public void deleteById(String resource, Object... uriVariables) {
@@ -565,6 +576,18 @@ public class RestTemplateOperator {
 		Object data = responseBody.getData();
 		if (data != null) {
 			return JSONUtil.json2POJO(JSONUtil.obj2Json(data), className);
+		}
+
+		return null;
+	}
+
+	private Object getBodyMapOrList(ResponseBody responseBody) throws IOException {
+
+		Object data = responseBody.getData();
+		if (data instanceof Map) {
+			return JSONUtil.json2POJO(JSONUtil.obj2Json(data), Map.class);
+		} else if (data instanceof List) {
+			return JSONUtil.json2POJO(JSONUtil.obj2Json(data), List.class);
 		}
 
 		return null;

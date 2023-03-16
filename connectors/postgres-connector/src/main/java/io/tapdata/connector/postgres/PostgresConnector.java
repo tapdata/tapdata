@@ -1,7 +1,7 @@
 package io.tapdata.connector.postgres;
 
 import com.google.common.collect.Lists;
-import io.tapdata.base.ConnectorBase;
+import io.tapdata.common.CommonDbConnector;
 import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
@@ -58,7 +58,7 @@ import static io.tapdata.entity.simplify.TapSimplify.indexField;
  * @date 2022/4/18
  */
 @TapConnectorClass("spec_postgres.json")
-public class PostgresConnector extends ConnectorBase {
+public class PostgresConnector extends CommonDbConnector {
     private PostgresConfig postgresConfig;
     private PostgresJdbcContext postgresJdbcContext;
     private PostgresTest postgresTest;
@@ -182,6 +182,7 @@ public class PostgresConnector extends ConnectorBase {
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> postgresJdbcContext.getConnection(), c));
+        connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
 
         codecRegistry.registerFromTapValue(TapRawValue.class, "text", tapRawValue -> {
             if (tapRawValue != null && tapRawValue.getValue() != null) return toJson(tapRawValue.getValue());
@@ -337,6 +338,8 @@ public class PostgresConnector extends ConnectorBase {
         if (EmptyKit.isNull(postgresJdbcContext) || postgresJdbcContext.isFinish()) {
             postgresJdbcContext = (PostgresJdbcContext) DataSourcePool.getJdbcContext(postgresConfig, PostgresJdbcContext.class, connectorContext.getId());
         }
+        commonDbConfig = postgresConfig;
+        jdbcContext = postgresJdbcContext;
         isConnectorStarted(connectorContext, tapConnectorContext -> slotName = tapConnectorContext.getStateMap().get("tapdata_pg_slot"));
         postgresVersion = postgresJdbcContext.queryVersion();
         ddlSqlGenerator = new PostgresDDLSqlGenerator();
@@ -512,7 +515,7 @@ public class PostgresConnector extends ConnectorBase {
         return count.get();
     }
 
-    private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+    protected void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
         //test streamRead log plugin
         boolean canCdc = EmptyKit.isNotNull(postgresTest.testStreamRead()) && postgresTest.testStreamRead();
         if (canCdc && EmptyKit.isNull(slotName)) {

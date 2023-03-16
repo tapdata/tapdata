@@ -16,7 +16,7 @@
         <hikari.version>4.0.3</hikari.version>
         <debezium.version>1.5.4.Final</debezium.version>
         <jsqlparser.version>4.4</jsqlparser.version>
-        <tapdata.pdk.api.version>1.2.1</tapdata.pdk.api.version>
+        <tapdata.pdk.api.version>1.2.2-SNAPSHOT</tapdata.pdk.api.version>
     </properties>
 
     <dependencies>

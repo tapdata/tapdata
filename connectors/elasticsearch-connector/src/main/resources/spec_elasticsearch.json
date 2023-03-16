@@ -3,9 +3,8 @@
     "name": "Elasticsearch",
     "icon": "icons/elasticsearch.png",
     "doc" : "${doc}",
-    "id": "elasticsearch",
-    "authentication": "beta",
-    "tags": ["Database"]
+    "tags" : ["schema-free"],
+    "id": "elasticsearch"
   },
   "configOptions": {
     "connection": {

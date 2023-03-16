@@ -7,7 +7,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -21,34 +26,17 @@ public class ExecutorUtil {
 	public static final int DEFAULT_LIST_SIZE = 1000;
 
 	public static void shutdown(ExecutorService executorService, long await, TimeUnit timeUnit) {
-		if (executorService != null) {
-			await = await < 0 ? 0 : await;
-			executorService.shutdown();
-			try {
-				if (executorService != null && !executorService.awaitTermination(await, timeUnit)) {
-					executorService.shutdownNow();
-				}
-			} catch (InterruptedException e) {
-				if (executorService != null) {
-					executorService.shutdownNow();
-				}
-			}
+		if (null == executorService) {
+			return;
 		}
-	}
-
-	public static void shutdownEx(ExecutorService executorService, long await, TimeUnit timeUnit) {
-		if (executorService != null) {
-			await = await < 0 ? 0 : await;
-			executorService.shutdown();
-			try {
-				if (executorService != null && !executorService.awaitTermination(await, timeUnit)) {
-					executorService.shutdownNow();
-				}
-			} catch (InterruptedException e) {
-				if (executorService != null) {
-					executorService.shutdownNow();
-				}
+		await = await < 0 ? 0 : await;
+		executorService.shutdown();
+		try {
+			if (!executorService.awaitTermination(await, timeUnit)) {
+				executorService.shutdownNow();
 			}
+		} catch (InterruptedException e) {
+			executorService.shutdownNow();
 		}
 	}
 
@@ -57,13 +45,11 @@ public class ExecutorUtil {
 			await = await < 0 ? 0 : await;
 			executorService.shutdown();
 			try {
-				if (executorService != null && !executorService.awaitTermination(await, timeUnit)) {
+				if (!executorService.awaitTermination(await, timeUnit)) {
 					shutdownNow.get();
 				}
 			} catch (InterruptedException e) {
-				if (executorService != null) {
-					shutdownNow.get();
-				}
+				shutdownNow.get();
 			}
 		}
 	}

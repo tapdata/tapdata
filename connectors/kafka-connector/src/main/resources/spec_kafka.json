@@ -3,9 +3,8 @@
     "name": "Kafka",
     "icon": "icons/kafka.png",
     "doc": "${doc}",
-    "id": "kafka",
-    "authentication": "beta",
-    "tags": ["Database"]
+    "tags" : ["schema-free"],
+    "id": "kafka"
   },
   "configOptions": {
     "connection": {
