@@ -760,7 +760,6 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
 }
 
 function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
-    log.warn("streamRead")
     if (!checkParam(tableNameList)) return;
     for (let index = 0; index < tableNameList.length; index++) {
         if (!isAlive()) break;
@@ -798,13 +797,15 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
                             arr[j] = {
                                 "eventType": "i",
                                 "tableName": tableNameList[index],
-                                "afterData": sendData(nod)
+                                "afterData": sendData(nod),
+                                "referenceTime":  Number(new Date())
                             };
                         } else {
                             arr[j] = {
                                 "eventType": "u",
                                 "tableName": tableNameList[index],
-                                "afterData": sendData(nod)
+                                "afterData": sendData(nod),
+                                "referenceTime":  Number(new Date())
                             };
                         }
                         batchStart = Date.parse(new Date());
