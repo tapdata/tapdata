@@ -1,4 +1,6 @@
-package io.tapdata.pdk.apis.error;
+package io.tapdata.exception;
+
+import io.tapdata.PDKExCode_10;
 
 import java.util.List;
 

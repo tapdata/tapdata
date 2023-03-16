@@ -1,7 +1,15 @@
 package io.tapdata.mongodb.reader;
 
-import com.mongodb.*;
-import com.mongodb.client.*;
+import com.mongodb.ConnectionString;
+import com.mongodb.MongoCommandException;
+import com.mongodb.MongoInterruptedException;
+import com.mongodb.MongoNamespace;
+import com.mongodb.MongoQueryException;
+import com.mongodb.client.ChangeStreamIterable;
+import com.mongodb.client.MongoChangeStreamCursor;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Aggregates;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
@@ -14,6 +22,7 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.cache.KVMap;
+import io.tapdata.exception.TapPDKOffsetOutOfLogException;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.mongodb.MongodbUtil;
 import io.tapdata.mongodb.entity.MongodbConfig;
@@ -33,7 +42,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static io.tapdata.base.ConnectorBase.*;
+import static io.tapdata.base.ConnectorBase.deleteDMLEvent;
+import static io.tapdata.base.ConnectorBase.insertRecordEvent;
+import static io.tapdata.base.ConnectorBase.list;
+import static io.tapdata.base.ConnectorBase.updateDMLEvent;
 import static java.util.Collections.singletonList;
 
 /**
@@ -141,7 +153,7 @@ public class MongodbV4StreamReader implements MongodbStreamReader {
 						if (MapUtils.isEmpty(fullDocument)) {
 							if (fullDocumentOption == FullDocument.DEFAULT) {
 								final Document documentKey = new DocumentCodec().decode(new BsonDocumentReader(event.getDocumentKey()), DecoderContext.builder().build());
-								try (final MongoCursor<Document> mongoCursor = mongoDatabase.getCollection(collectionName).find(documentKey).iterator();){
+								try (final MongoCursor<Document> mongoCursor = mongoDatabase.getCollection(collectionName).find(documentKey).iterator();) {
 									if (mongoCursor.hasNext()) {
 										fullDocument = mongoCursor.next();
 									}
@@ -190,7 +202,7 @@ public class MongodbV4StreamReader implements MongodbStreamReader {
 				if (throwable instanceof MongoCommandException) {
 					MongoCommandException mongoCommandException = (MongoCommandException) throwable;
 					if (mongoCommandException.getErrorCode() == 286) {
-						TapLogger.error(TAG, "offset " + offset + " is too old, will stop, error " + getStackString(throwable));
+						throw new TapPDKOffsetOutOfLogException(offset, throwable);
 					}
 
 					if (mongoCommandException.getErrorCode() == 10334) {

@@ -23,7 +23,7 @@ public class PDKMethodInvoker {
     private CommonUtils.AnyError runnable;
     private String message;
     private String logTag;
-    private Consumer<CoreException> errorConsumer;
+    private Consumer<Exception> errorConsumer;
     private boolean async;
     private ClassLoader contextClassLoader;
     private long retryTimes;
@@ -62,7 +62,7 @@ public class PDKMethodInvoker {
         return this;
     }
 
-    public PDKMethodInvoker errorConsumer(Consumer<CoreException> errorConsumer) {
+    public PDKMethodInvoker errorConsumer(Consumer<Exception> errorConsumer) {
         this.errorConsumer = errorConsumer;
         return this;
     }
@@ -96,7 +96,7 @@ public class PDKMethodInvoker {
         return message;
     }
 
-    public Consumer<CoreException> getErrorConsumer() {
+    public Consumer<Exception> getErrorConsumer() {
         return errorConsumer;
     }
 
@@ -132,7 +132,7 @@ public class PDKMethodInvoker {
         this.logTag = logTag;
     }
 
-    public void setErrorConsumer(Consumer<CoreException> errorConsumer) {
+    public void setErrorConsumer(Consumer<Exception> errorConsumer) {
         this.errorConsumer = errorConsumer;
     }
 

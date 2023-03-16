@@ -16,6 +16,7 @@
         <module>connectors</module>
         <module>connectors-javascript</module>
         <module>tapdata-cli</module>
+        <module>error-code-root</module>
     </modules>
 
     <build>

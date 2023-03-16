@@ -4,6 +4,7 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
@@ -69,7 +70,7 @@ public class PDKInvocationMonitor implements MemoryFetcher {
         return instance;
     }
 
-    public static void invoke(Node node, PDKMethod method, CommonUtils.AnyError r, String logTag, Consumer<CoreException> errorConsumer) {
+    public static void invoke(Node node, PDKMethod method, CommonUtils.AnyError r, String logTag, Consumer<Exception> errorConsumer) {
         instance.invokePDKMethod(node, method, r, null, logTag, errorConsumer, false, 0, 0);
     }
     public static void invoke(Node node, PDKMethod method, CommonUtils.AnyError r, String logTag) {
@@ -78,13 +79,13 @@ public class PDKInvocationMonitor implements MemoryFetcher {
     public static void invoke(Node node, PDKMethod method, CommonUtils.AnyError r, String message, String logTag) {
         instance.invokePDKMethod(node, method, r, message, logTag, null, false, 0, 0);
     }
-    public static void invoke(Node node, PDKMethod method, CommonUtils.AnyError r, String message, String logTag, Consumer<CoreException> errorConsumer) {
+    public static void invoke(Node node, PDKMethod method, CommonUtils.AnyError r, String message, String logTag, Consumer<Exception> errorConsumer) {
         instance.invokePDKMethod(node, method, r, message, logTag, errorConsumer, false, 0, 0);
     }
-    public static void invoke(Node node, PDKMethod method, CommonUtils.AnyError r, String message, final String logTag, Consumer<CoreException> errorConsumer, boolean async, long retryTimes, long retryPeriodSeconds) {
+    public static void invoke(Node node, PDKMethod method, CommonUtils.AnyError r, String message, final String logTag, Consumer<Exception> errorConsumer, boolean async, long retryTimes, long retryPeriodSeconds) {
         instance.invokePDKMethod(node, method, r, message, logTag, errorConsumer, async, null, retryTimes, retryPeriodSeconds);
     }
-    public static void invoke(Node node, PDKMethod method, CommonUtils.AnyError r, String message, final String logTag, Consumer<CoreException> errorConsumer, boolean async, ClassLoader contextClassLoader, long retryTimes, long retryPeriodSeconds) {
+    public static void invoke(Node node, PDKMethod method, CommonUtils.AnyError r, String message, final String logTag, Consumer<Exception> errorConsumer, boolean async, ClassLoader contextClassLoader, long retryTimes, long retryPeriodSeconds) {
         instance.invokePDKMethod(node, method, r, message, logTag, errorConsumer, async, contextClassLoader, retryTimes, retryPeriodSeconds);
     }
 
@@ -98,13 +99,13 @@ public class PDKInvocationMonitor implements MemoryFetcher {
     public void invokePDKMethod(Node node, PDKMethod method, CommonUtils.AnyError r, String message, String logTag) {
         invokePDKMethod(node, method, r, message, logTag, null, false, 0, 0);
     }
-    public void invokePDKMethod(Node node, PDKMethod method, CommonUtils.AnyError r, String message, String logTag, Consumer<CoreException> errorConsumer) {
+    public void invokePDKMethod(Node node, PDKMethod method, CommonUtils.AnyError r, String message, String logTag, Consumer<Exception> errorConsumer) {
         invokePDKMethod(node, method, r, message, logTag, errorConsumer, false, 0, 0);
     }
-    public void invokePDKMethod(Node node, PDKMethod method, CommonUtils.AnyError r, String message, final String logTag, Consumer<CoreException> errorConsumer, boolean async, long retryTimes, long retryPeriodSeconds) {
+    public void invokePDKMethod(Node node, PDKMethod method, CommonUtils.AnyError r, String message, final String logTag, Consumer<Exception> errorConsumer, boolean async, long retryTimes, long retryPeriodSeconds) {
         invokePDKMethod(node, method, r, message, logTag, errorConsumer, async, null, retryTimes, retryPeriodSeconds);
     }
-    public void invokePDKMethod(Node node, PDKMethod method, CommonUtils.AnyError r, String message, final String logTag, Consumer<CoreException> errorConsumer, boolean async, ClassLoader contextClassLoader, long retryTimes, long retryPeriodSeconds) {
+    public void invokePDKMethod(Node node, PDKMethod method, CommonUtils.AnyError r, String message, final String logTag, Consumer<Exception> errorConsumer, boolean async, ClassLoader contextClassLoader, long retryTimes, long retryPeriodSeconds) {
         if(async) {
             ExecutorsManager.getInstance().getExecutorService().execute(() -> {
                 if(contextClassLoader != null)
@@ -126,7 +127,7 @@ public class PDKInvocationMonitor implements MemoryFetcher {
         final String message = invoker.getMessage();
         final String logTag = invoker.getLogTag();
         final boolean async = invoker.isAsync();
-        Consumer<CoreException> errorConsumer = invoker.getErrorConsumer();
+        Consumer<Exception> errorConsumer = invoker.getErrorConsumer();
         ClassLoader contextClassLoader = invoker.getContextClassLoader();
         invokerRetrySetter(invoker);
         final long retryTimes = invoker.getRetryTimes();
@@ -154,7 +155,7 @@ public class PDKInvocationMonitor implements MemoryFetcher {
             PDKInvocationMonitor.release(node,invoker);
         }
     }
-    private void invokePDKMethodPrivate(PDKMethod method, CommonUtils.AnyError r, String message, String logTag, Consumer<CoreException> errorConsumer) {
+    private void invokePDKMethodPrivate(PDKMethod method, CommonUtils.AnyError r, String message, String logTag, Consumer<Exception> errorConsumer) {
         String invokeId = methodStart(method, logTag);
         Throwable theError = null;
         try {
@@ -171,14 +172,18 @@ public class PDKInvocationMonitor implements MemoryFetcher {
             }
         } catch(Throwable throwable) {
             theError = throwable;
-
-            CoreException coreException = new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, throwable, throwable.getMessage());
+            RuntimeException ex;
+            if (throwable instanceof TapCodeException) {
+                ex = (RuntimeException) throwable;
+            } else {
+                ex = new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, throwable, throwable.getMessage());
+            }
             if(errorConsumer != null) {
-                errorConsumer.accept(coreException);
+                errorConsumer.accept(ex);
             } else {
                 if(errorListener != null)
                     errorListener.accept(describeError(method, throwable, message, logTag));
-                throw coreException;
+                throw ex;
             }
         } finally {
             methodEnd(method, invokeId, theError, message, logTag);

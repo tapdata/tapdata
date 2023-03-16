@@ -34,5 +34,5 @@ public @interface TapExCode {
 
 	String howToReproduce() default "";
 
-	String[] seeAlso() default {};
+	String[] seeAlso() default {"https://docs.tapdata.io/"};
 }

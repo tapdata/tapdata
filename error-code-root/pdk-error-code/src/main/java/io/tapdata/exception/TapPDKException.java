@@ -1,4 +1,4 @@
-package io.tapdata.pdk.apis.error;
+package io.tapdata.exception;
 
 import io.tapdata.exception.TapCodeException;
 
