@@ -136,12 +136,13 @@ public class LdpServiceImpl implements LdpService {
         }
 
         DAG dag1 = oldTask.getDag();
+        Node node1 = dag1.getSources().get(0);
         List<String> tableNames = ((DatabaseNode) node).getTableNames();
         for (String tableName : tableNames) {
             TapCreateTableEvent tapCreateTableEvent = new TapCreateTableEvent();
             tapCreateTableEvent.setTableId(tableName);
             try {
-                dag1.filedDdlEvent(node.getId(), tapCreateTableEvent);
+                dag1.filedDdlEvent(node1.getId(), tapCreateTableEvent);
             } catch (Exception e) {
                 throw new BizException("");
             }
@@ -196,7 +197,7 @@ public class LdpServiceImpl implements LdpService {
         }
         DAG dag = task.getDag();
         List<Node> targets = dag.getTargets();
-        if (CollectionUtils.isNotEmpty(targets)) {
+        if (CollectionUtils.isEmpty(targets)) {
             return;
         }
 

@@ -336,6 +336,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                 dataSource.setDefinitionVersion(definitionDto.getVersion());
                 dataSource.setDefinitionPdkId(definitionDto.getPdkId());
                 dataSource.setDefinitionBuildNumber(String.valueOf(definitionDto.getBuildNumber()));
+                dataSource.setDefinitionTags(definitionDto.getTags());
             }
         }
 
@@ -627,6 +628,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         dto.setDefinitionVersion(definitionDto.getVersion());
         dto.setDefinitionGroup(definitionDto.getGroup());
         dto.setDefinitionBuildNumber(String.valueOf(definitionDto.getBuildNumber()));
+        dto.setDefinitionTags(definitionDto.getTags());
         return dto;
     }
 

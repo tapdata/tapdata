@@ -480,6 +480,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				item.setDefinitionVersion(definitionDto.getVersion());
 				item.setDefinitionScope(definitionDto.getScope());
 				item.setDefinitionBuildNumber(String.valueOf(definitionDto.getBuildNumber()));
+				item.setDefinitionTags(definitionDto.getTags());
             }
 
 			desensitizeMongoConnection(item);
@@ -1008,6 +1009,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		connection.setDefinitionGroup(definitionDto.getGroup());
 		connection.setDefinitionScope(definitionDto.getScope());
 		connection.setDefinitionPdkId(definitionDto.getPdkId());
+		connection.setDefinitionTags(definitionDto.getTags());
 		connection.setCapabilities(definitionDto.getCapabilities());
 
 		//检查是否存在名称相同的数据源连接，存在的话，则不允许。（还可以检验一下关键字）
