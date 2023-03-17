@@ -45,20 +45,6 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
         String alarmDate = DateUtil.now();
         Map<String, Object> param = Maps.newHashMap();
         switch (data.getTaskStatus()) {
-            case TaskDto.STATUS_STOP:
-                param.put("updatorName", data.getUpdatorName());
-                param.put("alarmDate", alarmDate);
-                param.put("taskName", taskName);
-                AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
-                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(taskId)
-                        .name(data.getTaskName()).summary("TASK_STATUS_STOP_MANUAL").metric(AlarmKeyEnum.TASK_STATUS_STOP)
-                        .param(param)
-                        .build();
-
-                alarmInfo.setUserId(data.getUserId());
-                alarmService.save(alarmInfo);
-
-                break;
             case TaskDto.STATUS_RUNNING:
                 alarmService.closeWhenTaskRunning(taskId);
 

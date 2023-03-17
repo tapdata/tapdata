@@ -3,7 +3,9 @@
     "name": "XML",
     "icon": "icons/xml.png",
     "doc": "${doc}",
-    "id": "xml"
+    "id": "xml",
+    "authentication": "beta",
+    "tags": ["File"]
   },
   "configOptions": {
     "connection": {

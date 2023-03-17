@@ -140,7 +140,8 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
                     new Criteria("message").regex(search),
                     new Criteria("dataJson").regex(search),
                     new Criteria("errorStack").regex(search),
-                    new Criteria("logTags").elemMatch(new Criteria("$regex").is(search))
+                    new Criteria("logTags").elemMatch(new Criteria("$regex").is(search)),
+                    new Criteria("errorCode").regex(search)
             );
         }
 

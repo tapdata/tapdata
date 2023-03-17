@@ -4,6 +4,8 @@ import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
+import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.observable.logging.appender.AppenderFactory;
 import io.tapdata.observable.logging.appender.FileAppender;
@@ -213,7 +215,12 @@ class TaskLogger extends ObsLogger implements Serializable {
 		MonitoringLogsDto.MonitoringLogsDtoBuilder builder = call(callable);
 		builder.level(Level.ERROR.toString());
 		builder.message(parameterizedMessage.getFormattedMessage());
-		builder.errorStack(getErrorStack(throwable));
+		if (throwable instanceof TapCodeException) {
+			builder.errorCode(((TapCodeException) throwable).getCode());
+			builder.errorStack(((TapCodeException) throwable).stackTrace2String() + "\n" + TapSimplify.getStackString(throwable));
+		}else{
+			builder.errorStack(getErrorStack(throwable));
+		}
 
 		logAppendFactory.appendLog(builder.build());
 	}
@@ -233,7 +240,12 @@ class TaskLogger extends ObsLogger implements Serializable {
 		MonitoringLogsDto.MonitoringLogsDtoBuilder builder = call(callable);
 		builder.level(Level.FATAL.toString());
 		builder.message(parameterizedMessage.getFormattedMessage());
-		builder.errorStack(getErrorStack(throwable));
+		if (throwable instanceof TapCodeException) {
+			builder.errorCode(((TapCodeException) throwable).getCode());
+			builder.errorStack(((TapCodeException) throwable).stackTrace2String() + "\n" + TapSimplify.getStackString(throwable));
+		}else{
+			builder.errorStack(getErrorStack(throwable));
+		}
 
 		logAppendFactory.appendLog(builder.build());
 	}

@@ -3,8 +3,9 @@
     "name": "Aliyun MongoDB",
     "icon": "icons/aliyun-mongodb.png",
     "doc" : "${doc}",
-    "tags" : ["schema-free"],
-    "id": "aliyun-db-mongodb"
+    "tags" : ["schema-free","Database"],
+    "id": "aliyun-db-mongodb",
+    "authentication": "beta"
   },
   "configOptions": {
     "capabilities": [

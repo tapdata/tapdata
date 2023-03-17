@@ -35,6 +35,7 @@ import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.user.entity.Notification;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MailUtils;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SendStatus;
 import lombok.NonNull;
@@ -50,6 +51,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.expression.ExpressionParser;
+import org.springframework.expression.common.TemplateParserContext;
+import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -101,7 +105,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
      * @param userDetail
      * @return
      */
-    public Page<MessageListVo> findMessage(Filter filter, UserDetail userDetail) {
+    public Page<MessageListVo> findMessage(Locale locale, Filter filter, UserDetail userDetail) {
         TmPageable tmPageable = new TmPageable();
 
         //page由limit 和skip计算的来
@@ -112,7 +116,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
         Query query = parseWhereCondition(filter.getWhere(), userDetail);
         List<String> collect = Arrays.stream(MsgTypeEnum.values()).filter(t -> t != MsgTypeEnum.ALARM).map(MsgTypeEnum::getValue).collect(Collectors.toList());
         query.addCriteria(Criteria.where("msg").in(collect));
-        return getMessageListVoPage(query, tmPageable);
+        return getMessageListVoPage(locale, query, tmPageable);
     }
 
     @Override
@@ -121,23 +125,30 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
     }
 
     @NotNull
-    private Page<MessageListVo> getMessageListVoPage(Query query, TmPageable tmPageable) {
+    private Page<MessageListVo> getMessageListVoPage(Locale locale, Query query, TmPageable tmPageable) {
         long total = messageRepository.getMongoOperations().count(query, MessageEntity.class);
         query.with(Sort.by("createTime").descending());
         query.with(tmPageable);
         List<MessageEntity> messageEntityList = messageRepository.getMongoOperations().find(query, MessageEntity.class);
 
+        ExpressionParser parser = new SpelExpressionParser();
+        TemplateParserContext parserContext = new TemplateParserContext();
         List<MessageListVo> messageListVoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(messageEntityList, MessageListVo.class);
         messageListVoList.forEach(messageListVo -> {
             if (StringUtils.isEmpty(messageListVo.getServerName())) {
                 messageListVo.setServerName(messageListVo.getAgentName());
+            }
+            if (MsgTypeEnum.ALARM.getValue().equals(messageListVo.getMsg()) && Objects.nonNull(messageListVo.getParam())) {
+                String template = MessageUtil.getAlarmMsg(locale, messageListVo.getTemplate());
+                String content = parser.parseExpression(template, parserContext).getValue(messageListVo.getParam(), String.class);
+                messageListVo.setTitle(content);
             }
         });
 
         return new Page<>(total, messageListVoList);
     }
 
-    public Page<MessageListVo> list(MsgTypeEnum type, String level, Boolean read, Integer page, Integer size, UserDetail userDetail) {
+    public Page<MessageListVo> list(Locale locale, MsgTypeEnum type, String level, Boolean read, Integer page, Integer size, UserDetail userDetail) {
         Query query = new Query(Criteria.where("user_id").is(userDetail.getUserId()).and("msg").is(type.getValue()));
         if (StringUtils.isNotBlank(level)) {
             query.addCriteria(Criteria.where("level").is(level));
@@ -150,7 +161,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
         tmPageable.setPage(page);
         tmPageable.setSize(size);
 
-        return getMessageListVoPage(query, tmPageable);
+        return getMessageListVoPage(locale, query, tmPageable);
     }
 
     /**

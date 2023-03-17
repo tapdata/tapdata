@@ -16,13 +16,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
-import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
-import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
-import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
-import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
-import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
+import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
@@ -31,22 +25,10 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
-import io.tapdata.milestone.MilestoneStage;
-import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
 import io.tapdata.pdk.apis.entity.merge.MergeTableProperties;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.target.AlterFieldAttributesFunction;
-import io.tapdata.pdk.apis.functions.connector.target.AlterFieldNameFunction;
-import io.tapdata.pdk.apis.functions.connector.target.ClearTableFunction;
-import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
-import io.tapdata.pdk.apis.functions.connector.target.DropFieldFunction;
-import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
-import io.tapdata.pdk.apis.functions.connector.target.NewFieldFunction;
-import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
+import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -60,21 +42,12 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-import static io.tapdata.entity.simplify.TapSimplify.clearTableEvent;
-import static io.tapdata.entity.simplify.TapSimplify.createIndexEvent;
-import static io.tapdata.entity.simplify.TapSimplify.createTableEvent;
-import static io.tapdata.entity.simplify.TapSimplify.dropTableEvent;
+import static io.tapdata.entity.simplify.TapSimplify.*;
 
 /**
  * @author jackin
@@ -103,14 +76,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				writeStrategy = tableNode.getWriteStrategy();
 			} else if (node instanceof DatabaseNode) {
 				DatabaseNode dbNode = (DatabaseNode) node;
-				updateConditionFieldsMap = dbNode.getUpdateConditionFieldMap();
+				updateConditionFieldsMap = Optional.ofNullable(dbNode.getUpdateConditionFieldMap()).orElse(new HashMap<>());
 			}
 			initTargetDB();
-			// MILESTONE-INIT_TRANSFORMER-FINISH
-			TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.FINISH);
 		} catch (Exception e) {
-			// MILESTONE-INIT_TRANSFORMER-ERROR
-			TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, logger);
 			throw e;
 		}
 		ddlEventHandlers = new ClassHandlers();

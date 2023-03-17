@@ -14,7 +14,7 @@ import com.tapdata.processor.constant.JSEngineEnum;
 import io.tapdata.Application;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.script.ScriptOptions;
-import io.tapdata.pdk.apis.error.NotSupportedException;
+import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.logging.log4j.Level;
 import org.graalvm.polyglot.Context;

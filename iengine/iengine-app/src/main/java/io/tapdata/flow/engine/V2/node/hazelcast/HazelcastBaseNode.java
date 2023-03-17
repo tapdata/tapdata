@@ -5,9 +5,24 @@ import com.hazelcast.jet.core.AbstractProcessor;
 import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
 import com.hazelcast.jet.core.Processor;
-import com.tapdata.constant.*;
-import com.tapdata.entity.*;
-import com.tapdata.entity.dataflow.*;
+import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.DataFlowStageUtil;
+import com.tapdata.constant.DataFlowUtil;
+import com.tapdata.constant.HazelcastUtil;
+import com.tapdata.constant.Log4jUtil;
+import com.tapdata.entity.Job;
+import com.tapdata.entity.JoinTable;
+import com.tapdata.entity.MessageEntity;
+import com.tapdata.entity.OperationType;
+import com.tapdata.entity.RuntimeInfo;
+import com.tapdata.entity.Stats;
+import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.dataflow.DataFlow;
+import com.tapdata.entity.dataflow.DataFlowSetting;
+import com.tapdata.entity.dataflow.RuntimeThroughput;
+import com.tapdata.entity.dataflow.Stage;
+import com.tapdata.entity.dataflow.StageRuntimeStats;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -22,7 +37,11 @@ import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.*;
+import io.tapdata.aspect.DataFunctionAspect;
+import io.tapdata.aspect.DataNodeCloseAspect;
+import io.tapdata.aspect.DataNodeInitAspect;
+import io.tapdata.aspect.ProcessorNodeCloseAspect;
+import io.tapdata.aspect.ProcessorNodeInitAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.OnData;
@@ -39,6 +58,8 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapValue;
+import io.tapdata.error.TapUnknownException;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
@@ -49,7 +70,11 @@ import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastM
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
-import io.tapdata.flow.engine.V2.util.*;
+import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
+import io.tapdata.flow.engine.V2.util.GraphUtil;
+import io.tapdata.flow.engine.V2.util.NodeUtil;
+import io.tapdata.flow.engine.V2.util.TapCodecUtil;
+import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
@@ -66,7 +91,13 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -98,7 +129,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected SettingService settingService;
 
 	protected Map<String, String> tags;
-	protected NodeException error;
+	protected TapCodeException error;
 	protected String errorMessage;
 	protected ProcessorBaseContext processorBaseContext;
 	protected String threadName;
@@ -661,12 +692,13 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		HttpClientMongoOperator httpClientMongoOperator = (HttpClientMongoOperator) clientMongoOperator;
 	}
 
-	public synchronized NodeException errorHandle(Throwable throwable, String errorMessage) {
-		NodeException currentEx;
-		if (throwable instanceof NodeException) {
-			currentEx = (NodeException) throwable;
+	public synchronized TapCodeException errorHandle(Throwable throwable, String errorMessage) {
+		TapCodeException currentEx;
+		Throwable matchThrowable = CommonUtils.matchThrowable(throwable, TapCodeException.class);
+		if (null != matchThrowable) {
+			currentEx = (TapCodeException) matchThrowable;
 		} else {
-			currentEx = new NodeException(errorMessage, throwable).context(getProcessorBaseContext());
+			currentEx = new TapUnknownException(throwable);
 		}
 		TaskDto taskDto = processorBaseContext.getTaskDto();
 		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(), TaskDto.SYNC_TYPE_TEST_RUN)) {

@@ -84,14 +84,13 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             if (CollectionUtils.isNotEmpty(dag.getTargets())) {
                 dag.getTargets().forEach(target -> {
                     DatabaseNode databaseNode = (DatabaseNode) target;
+                    if (Objects.isNull(databaseNode.getUpdateConditionFieldMap())) {
+                        databaseNode.setUpdateConditionFieldMap(Maps.newHashMap());
+                    }
 
                     String nodeId = databaseNode.getId();
                     long updateExNum = metadataInstancesService.countUpdateExNum(nodeId);
                     if (updateExNum > 0) {
-                        if (Objects.isNull(databaseNode.getUpdateConditionFieldMap())) {
-                            databaseNode.setUpdateConditionFieldMap(Maps.newHashMap());
-                        }
-
                         List<MetadataInstancesDto> metaList = metadataInstancesService.findByNodeId(nodeId, userDetail);
                         Optional.ofNullable(metaList).ifPresent(list -> {
                             list.forEach(schema -> {
