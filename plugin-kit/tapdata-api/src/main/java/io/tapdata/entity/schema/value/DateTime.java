@@ -284,7 +284,10 @@ public class DateTime implements Serializable, JavaCustomSerializer, Comparable<
     }
 
     public ZonedDateTime toZonedDateTime() {
-        return ZonedDateTime.ofInstant(toInstant(), timeZone.toZoneId());
+        TimeZone theTimeZone = timeZone;
+        if(theTimeZone == null)
+            theTimeZone = TimeZone.getDefault();
+        return ZonedDateTime.ofInstant(toInstant(), theTimeZone.toZoneId());
     }
 
     public Date toDate() {

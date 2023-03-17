@@ -3,7 +3,9 @@
     "name": "EXCEL",
     "icon": "icons/excel.png",
     "doc": "${doc}",
-    "id": "excel"
+    "id": "excel",
+    "authentication": "beta",
+    "tags": ["File"]
   },
   "configOptions": {
     "connection": {

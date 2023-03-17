@@ -18,6 +18,8 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.utils.TypeConverter;
 
 import java.io.PrintWriter;
@@ -345,13 +347,26 @@ public abstract class ConnectorBase implements TapConnector {
             if (throwables.contains(cause)) {
                 break;
             }
-            if (cause.getClass().getName().equals(match.getName())) {
+            if (match.isInstance(cause)) {
                 matched = cause;
                 break;
             }
             throwables.add(cause);
         }
         return matched;
+    }
+
+    protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+        RetryOptions retryOptions = RetryOptions.create();
+        retryOptions.setNeedRetry(true);
+        retryOptions.beforeRetryMethod(() -> {
+            try {
+                this.onStop(tapConnectionContext);
+                this.onStart(tapConnectionContext);
+            } catch (Throwable ignore) {
+            }
+        });
+        return retryOptions;
     }
 
     protected void multiThreadDiscoverSchema(List<DataMap> tables, int tableSize, Consumer<List<TapTable>> consumer) {

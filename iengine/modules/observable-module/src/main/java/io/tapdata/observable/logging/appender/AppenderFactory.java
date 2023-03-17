@@ -1,18 +1,16 @@
 package io.tapdata.observable.logging.appender;
 
 import com.alibaba.fastjson.JSON;
-import com.tapdata.constant.FileUtil;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import lombok.SneakyThrows;
 import net.openhft.chronicle.core.threads.InterruptedRuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptTailer;
-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
-import net.openhft.chronicle.wire.UnrecoverableTimeoutException;
+import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.wire.ValueIn;
 import net.openhft.chronicle.wire.ValueOut;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,8 +18,18 @@ import org.apache.logging.log4j.Logger;
 import java.io.File;
 import java.io.Serializable;
 import java.text.SimpleDateFormat;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -29,9 +37,10 @@ import java.util.function.Supplier;
  * @date 2022/6/20 11:55
  **/
 public class AppenderFactory implements Serializable {
+	public static final String OBS_LOGGER_TAILER_ID = "OBS-LOGGER-TAILER";
 	private volatile static AppenderFactory INSTANCE;
 
-	public static AppenderFactory getInstance(){
+	public static AppenderFactory getInstance() {
 		if (INSTANCE == null) {
 			synchronized (AppenderFactory.class) {
 				if (INSTANCE == null) {
@@ -43,9 +52,9 @@ public class AppenderFactory implements Serializable {
 	}
 
 	private final Logger logger = LogManager.getLogger(AppenderFactory.class);
-	private final static int BATCH_SIZE = 100;
+	public final static int BATCH_SIZE = 100;
 	private final static int BATCH_INTERVAL = 500;
-	private final static String APPEND_LOG_THREAD_NAME = "append-observe-logs-thread";
+	private final static String APPEND_LOG_THREAD_NAME = "Observe-Logs-Appender";
 	private final static String CACHE_QUEUE_DIR = "CacheObserveLogs";
 
 	private Long lastFlushAt;
@@ -56,19 +65,21 @@ public class AppenderFactory implements Serializable {
 	private final Semaphore emptyWaiting = new Semaphore(1);
 
 	private final ExecutorService executorService = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>(1),
-		r -> new Thread(r, APPEND_LOG_THREAD_NAME)
+			r -> new Thread(r, APPEND_LOG_THREAD_NAME)
 	);
 
 	private AppenderFactory() {
 
 		String cacheLogsDir = "." + File.separator + CACHE_QUEUE_DIR;
-
-		FileUtil.deleteAll(new File(cacheLogsDir));
-		cacheLogsQueue = SingleChronicleQueueBuilder.binary(cacheLogsDir)
-			.build();
+		cacheLogsQueue = ChronicleQueue.singleBuilder(cacheLogsDir)
+				.rollCycle(RollCycles.HUGE_DAILY)
+				.storeFileListener((cycle, file) -> {
+					logger.info("Delete chronic released store file: {}, cycle: {}", file, cycle);
+					FileUtils.deleteQuietly(file);
+				}).build();
 
 		executorService.submit(() -> {
-			final ExcerptTailer tailer = cacheLogsQueue.createTailer();
+			ExcerptTailer tailer = cacheLogsQueue.createTailer(OBS_LOGGER_TAILER_ID);
 			List<MonitoringLogsDto> logsDtos = new ArrayList<>();
 			if (null == lastFlushAt) {
 				lastFlushAt = System.currentTimeMillis();
@@ -76,10 +87,8 @@ public class AppenderFactory implements Serializable {
 			while (true) {
 				try {
 					final MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
-					boolean success = tailer.readDocument(r -> {
-						decodeFromWireIn(r.getValueIn(), builder);
 
-					});
+					boolean success = tailer.readDocument(r -> decodeFromWireIn(r.getValueIn(), builder));
 					if (success) {
 						logsDtos.add(builder.build());
 					} else {
@@ -107,7 +116,7 @@ public class AppenderFactory implements Serializable {
 		});
 	}
 
-	public void register(Appender logAppender){
+	public void register(Appender logAppender) {
 		appenders.add(logAppender);
 	}
 
@@ -127,6 +136,7 @@ public class AppenderFactory implements Serializable {
 				valueOut.writeString(logsDto.getTaskName());
 				valueOut.writeString(logsDto.getNodeId());
 				valueOut.writeString(logsDto.getNodeName());
+				valueOut.writeString(logsDto.getErrorCode());
 				final String logTagsJoinStr = String.join(",", CollectionUtils.isNotEmpty(logsDto.getLogTags()) ? logsDto.getLogTags() : new ArrayList<>(0));
 				valueOut.writeString(logTagsJoinStr);
 				if (null != logsDto.getData()) {
@@ -163,6 +173,8 @@ public class AppenderFactory implements Serializable {
 		builder.nodeId(nodeId);
 		final String nodeName = valueIn.readString();
 		builder.nodeName(nodeName);
+		final String errorCode = valueIn.readString();
+		builder.errorCode(errorCode);
 		final String logTaskStr = valueIn.readString();
 		if (StringUtils.isNotBlank(logTaskStr)) {
 			builder.logTags(Arrays.asList(logTaskStr.split(",")));
@@ -170,9 +182,9 @@ public class AppenderFactory implements Serializable {
 		final String dataStr = valueIn.readString();
 		if (StringUtils.isNotBlank(dataStr)) {
 			try {
-				builder.data((Collection<? extends Map<String, Object>>) JSON.parseArray(dataStr,  (new HashMap<String, Object>()).getClass()));
+				builder.data((Collection<? extends Map<String, Object>>) JSON.parseArray(dataStr, (new HashMap<String, Object>()).getClass()));
 			} catch (Exception e) {
-				System.out.printf("");
+				logger.error("Read log from file cache queue failed, parse dataStr json failed: {}", dataStr, e);
 			}
 
 		}
@@ -180,15 +192,5 @@ public class AppenderFactory implements Serializable {
 
 	private <T> T nullStringProcess(String inputString, Supplier<T> nullSupplier, Supplier<T> getResult) {
 		return "null".equals(inputString) || null == inputString ? nullSupplier.get() : getResult.get();
-	}
-
-	public static void main(String[] args) {
-		SingleChronicleQueue singleChronicleQueue = SingleChronicleQueueBuilder.binary("./"+CACHE_QUEUE_DIR).build();
-		ExcerptTailer tailer = singleChronicleQueue.createTailer();
-		while (true) {
-			tailer.readDocument(r->{
-				System.out.println(r.asText());
-			});
-		}
 	}
 }

@@ -135,14 +135,12 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
                 ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
         if (connections != null) {
           if (nodes.size() > 1) {
-            logger.warn("Use the first node as the default script executor, please use it with caution.");
             obsLogger.warn("Use the first node as the default script executor, please use it with caution.");
           }
           return new ScriptExecutorsManager.ScriptExecutor(connections, clientMongoOperator, jetContext.hazelcastInstance(), new ObsScriptLogger(obsLogger), TAG + "_" + node.getId());
         }
       }
     }
-    logger.warn("The " + flag + " could not build the executor, please check");
     obsLogger.warn("The " + flag + " could not build the executor, please check");
     return null;
   }
@@ -188,6 +186,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
     Map<String, Object> contextMap = MapUtil.obj2Map(processContext);
     contextMap.put("event", eventMap);
     contextMap.put("before", before);
+    contextMap.put("info", tapEvent.getInfo());
     Map<String, Object> context = this.processContextThreadLocal.get();
     context.putAll(contextMap);
     ((ScriptEngine) this.engine).put("context", context);

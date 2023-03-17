@@ -238,6 +238,7 @@ public class LoggingAspectTask extends AspectTask {
 
 		if (null == events || events.isEmpty()) {
 			debug(logEventType, cost, tag, context);
+			return;
 		}
 
 		Node<?> node = context.getNode();
@@ -246,17 +247,20 @@ public class LoggingAspectTask extends AspectTask {
 			if (null == event) {
 				continue;
 			}
-			TapBaseEvent baseEvent = (TapBaseEvent) event;
-			Collection<String> pkFields = getPkFields(context, baseEvent.getTableId());
-			data.add(LogEventData.builder()
+
+			LogEventData.LogEventDataBuilder logEventDataBuilder = LogEventData.builder()
 					.eventType(logEventType)
 					.status(LogEventData.LOG_EVENT_STATUS_OK)
 					.time(System.currentTimeMillis())
 					.cost(cost)
-					.withNode(node)
-					.withTapEvent(event, pkFields)
-					.build().toMap());
+					.withNode(node);
 
+			if (event instanceof TapBaseEvent) {
+				TapBaseEvent baseEvent = (TapBaseEvent) event;
+				Collection<String> pkFields = getPkFields(context, baseEvent.getTableId());
+				logEventDataBuilder.withTapEvent(baseEvent, pkFields);
+			}
+			data.add(logEventDataBuilder.build().toMap());
 		}
 
 		ObsLogger obsLogger = getObsLogger(node);
@@ -270,23 +274,27 @@ public class LoggingAspectTask extends AspectTask {
 
 		if (null == event || null == event.getTapEvent()) {
 			debug(logEventType, cost, tag, context);
+			return;
 		}
 
 		Node<?> node = context.getNode();
 		List<Map<String, Object>> data = new ArrayList<>();
-		TapBaseEvent baseEvent = (TapBaseEvent) event.getTapEvent();
-		if (null == baseEvent) {
-			return;
-		}
-		Collection<String> pkFields = getPkFields(context, baseEvent.getTableId());
-		data.add(LogEventData.builder()
+		LogEventData.LogEventDataBuilder logEventDataBuilder = LogEventData.builder()
 				.eventType(logEventType)
 				.status(LogEventData.LOG_EVENT_STATUS_OK)
 				.time(System.currentTimeMillis())
 				.cost(cost)
-				.withNode(node)
-				.withTapEvent(baseEvent, pkFields)
-				.build().toMap());
+				.withNode(node);
+		TapEvent tapEvent = event.getTapEvent();
+		if (tapEvent instanceof TapBaseEvent) {
+			TapBaseEvent baseEvent = (TapBaseEvent) event.getTapEvent();
+			if (null == baseEvent) {
+				return;
+			}
+			Collection<String> pkFields = getPkFields(context, baseEvent.getTableId());
+			logEventDataBuilder.withTapEvent(baseEvent, pkFields);
+		}
+		data.add(logEventDataBuilder.build().toMap());
 
 		ObsLogger obsLogger = getObsLogger(node);
 		obsLogger.debug(() -> obsLogger.logBaseBuilderWithLogTag(tag).data(data), logEventType);

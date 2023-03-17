@@ -2,7 +2,7 @@ package io.tapdata.connector.tidb;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import io.tapdata.base.ConnectorBase;
+import io.tapdata.common.CommonDbConnector;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.kafka.config.KafkaConfig;
@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
 
 
 @TapConnectorClass("spec_tidb.json")
-public class TidbConnector extends ConnectorBase {
+public class TidbConnector extends CommonDbConnector {
     private static final String TAG = TidbConnector.class.getSimpleName();
     private TidbConfig tidbConfig;
     private TidbContext tidbContext;
@@ -76,6 +76,8 @@ public class TidbConnector extends ConnectorBase {
         if (EmptyKit.isNull(tidbContext) || tidbContext.isFinish()) {
             tidbContext = (TidbContext) DataSourcePool.getJdbcContext(tidbConfig, TidbContext.class, tapConnectionContext.getId());
         }
+        commonDbConfig = tidbConfig;
+        jdbcContext = tidbContext;
         this.tidbReader = new TidbReader(tidbContext);
         this.version = tidbContext.queryVersion();
         this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
@@ -93,6 +95,7 @@ public class TidbConnector extends ConnectorBase {
 
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportConnectionCheckFunction(this::checkConnection);
         connectorFunctions.supportReleaseExternalFunction(this::onDestroy);
         // target functions
@@ -109,7 +112,7 @@ public class TidbConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> tidbContext.getConnection(), c));
-
+        connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
         // source functions
         connectorFunctions.supportBatchCount(this::batchCount);
         connectorFunctions.supportBatchRead(this::batchRead);
@@ -183,7 +186,7 @@ public class TidbConnector extends ConnectorBase {
 
     }
 
-    private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+    protected void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
         SnapshotOffset snapshotOffset;
         // completely blank task
         if (null == offsetState) {

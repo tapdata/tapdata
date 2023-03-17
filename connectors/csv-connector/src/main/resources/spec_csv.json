@@ -3,7 +3,9 @@
     "name": "CSV",
     "icon": "icons/csv.png",
     "doc": "${doc}",
-    "id": "csv"
+    "id": "csv",
+    "authentication": "beta",
+    "tags": ["File"]
   },
   "configOptions": {
     "connection": {

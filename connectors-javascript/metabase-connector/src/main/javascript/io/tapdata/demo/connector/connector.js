@@ -16,11 +16,8 @@ function discoverSchema(connectionConfig) {
         for (let index = 0; index < invoke.result.length; index++) {
             let nameItem = invoke.result[index].name;
             let idItem = invoke.result[index].id;
-            if (nameItem === 'undefined'
-                || nameItem === null
-                || idItem === 'undefined'
-                || idItem === null) {
-                log.warn("");
+            if (nameItem === 'undefined' || nameItem === null || idItem === 'undefined' || idItem === null) {
+                log.warn("This table is empty");
                 continue;
             }
             tableList.push("Card_" + idItem + "_" + clearSpecial(nameItem) + "" );

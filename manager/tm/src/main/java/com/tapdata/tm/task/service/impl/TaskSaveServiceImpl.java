@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.service.impl;
 
 import cn.hutool.extra.cglib.CglibUtil;
+import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
 import com.tapdata.tm.commons.dag.DAG;
@@ -10,8 +11,7 @@ import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -81,9 +81,41 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
             nodeCheckData(sourceNode.successors(), sourceNode.getTableNames(), null);
 
+            if (CollectionUtils.isNotEmpty(dag.getTargets())) {
+                dag.getTargets().forEach(target -> {
+                    DatabaseNode databaseNode = (DatabaseNode) target;
+                    if (Objects.isNull(databaseNode.getUpdateConditionFieldMap())) {
+                        databaseNode.setUpdateConditionFieldMap(Maps.newHashMap());
+                    }
+
+                    String nodeId = databaseNode.getId();
+                    long updateExNum = metadataInstancesService.countUpdateExNum(nodeId);
+                    if (updateExNum > 0) {
+                        List<MetadataInstancesDto> metaList = metadataInstancesService.findByNodeId(nodeId, userDetail);
+                        Optional.ofNullable(metaList).ifPresent(list -> {
+                            list.forEach(schema -> {
+                                List<String> fields = schema.getFields().stream().filter(Field::getPrimaryKey).map(Field::getFieldName).collect(Collectors.toList());
+                                if (CollectionUtils.isNotEmpty(fields)) {
+                                    databaseNode.getUpdateConditionFieldMap().put(schema.getName(), fields);
+                                } else {
+                                    List<String> columnList = schema.getIndices().stream().filter(TableIndex::isUnique)
+                                            .flatMap(idc -> idc.getColumns().stream())
+                                            .map(TableIndexColumn::getColumnName)
+                                            .collect(Collectors.toList());
+                                    if (CollectionUtils.isNotEmpty(columnList)) {
+                                        databaseNode.getUpdateConditionFieldMap().put(schema.getName(), columnList);
+                                    }
+                                }
+                            });
+                        });
+                    }
+                });
+            }
+
             Dag temp = new Dag(dag.getEdges(), dag.getNodes());
             DAG.build(temp);
         }
+
 
     }
 

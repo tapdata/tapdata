@@ -702,6 +702,18 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return findOne(Query.query(criteria), userDetail);
     }
 
+    public List<MetadataInstancesDto> findSourceSchemaBySourceId(String sourceId, List<String> tableNames, UserDetail userDetail) {
+        Criteria criteria = Criteria
+                .where("meta_type").in(Lists.of("table", "collection", "view"))
+                .and("is_deleted").ne(true)
+                .and("source._id").is(sourceId)
+                .and("sourceType").is(SourceTypeEnum.SOURCE.name())
+                .and("original_name").in(tableNames)
+                .and("taskId").exists(false);
+
+        return findAllDto(Query.query(criteria), userDetail);
+    }
+
     public List<MetadataInstancesDto> findBySourceIdAndTableNameList(String sourceId, List<String> tableNames, UserDetail userDetail, String taskId) {
         Criteria criteria = Criteria
                 .where("meta_type").in(Lists.of("table", "collection", "view"))
@@ -1477,11 +1489,11 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     }
 
     public List<MetadataInstancesDto> findByNodeId(String nodeId, List<String> fields, UserDetail user, TaskDto taskDto) {
-        Page<MetadataInstancesDto> page = findByNodeId(nodeId, fields, user, taskDto, null, 1, 0);
+        Page<MetadataInstancesDto> page = findByNodeId(nodeId, fields, user, taskDto, null, null, 1, 0);
         return page.getItems();
     }
 
-    public Page<MetadataInstancesDto> findByNodeId(String nodeId, List<String> fields, UserDetail user, TaskDto taskDto, String tableFilter, int page, int pageSize) {
+    public Page<MetadataInstancesDto> findByNodeId(String nodeId, List<String> fields, UserDetail user, TaskDto taskDto, String tableFilter, String filterType, int page, int pageSize) {
         if (taskDto == null || taskDto.getDag() == null) {
             Criteria criteria = Criteria.where("dag.nodes.id").is(nodeId);
             Query query = new Query(criteria);
@@ -1576,6 +1588,16 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
                     if (StringUtils.isNotBlank(tableFilter)) {
                         tableNames = tableNames.stream().filter(s -> s.contains(tableFilter)).collect(Collectors.toList());
+                    }
+
+                    if (StringUtils.isNotBlank(filterType)) {
+                        if ("updateEx".equals(filterType)) {
+                            criteriaTable.and("hasPrimaryKey").is(false)
+                                    .and("hasUnionIndex").is(false)
+                                    .and("hasUpdateField").is(false);
+                        } else if ("transformEx".equals(filterType)) {
+                            criteriaTable.and("resultItems").ne(null);
+                        }
                     }
 
                     if (CollectionUtils.isEmpty(tableNames)) {
@@ -2090,6 +2112,34 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         Criteria criteria = Criteria.where("taskId").is(taskId).and("nodeId").is(nodeId);
         Query query = new Query(criteria);
         deleteAll(query);
+    }
+
+    public long countUpdateExNum(String nodeId) {
+        Criteria criteria = Criteria
+                .where("is_deleted").ne(true)
+                .and("nodeId").is(nodeId)
+                .and("sourceType").is(SourceTypeEnum.VIRTUAL)
+                .and("hasPrimaryKey").is(false)
+                .and("hasUnionIndex").is(false)
+                .and("hasUpdateField").is(false);
+        return count(Query.query(criteria));
+    }
+
+    public long countTransformExNum(String nodeId) {
+        Criteria criteria = Criteria
+                .where("is_deleted").ne(true)
+                .and("nodeId").is(nodeId)
+                .and("sourceType").is(SourceTypeEnum.VIRTUAL)
+                .and("resultItems").ne(null);
+        return count(Query.query(criteria));
+    }
+
+    public long countTotalNum(String nodeId) {
+        Criteria criteria = Criteria
+                .where("is_deleted").ne(true)
+                .and("nodeId").is(nodeId)
+                .and("sourceType").is(SourceTypeEnum.VIRTUAL);
+        return count(Query.query(criteria));
     }
 
     public MetadataInstancesDto importEntity(MetadataInstancesDto metadataInstancesDto, UserDetail userDetail) {

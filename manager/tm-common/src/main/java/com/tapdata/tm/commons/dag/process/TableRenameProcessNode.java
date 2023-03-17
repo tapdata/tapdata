@@ -157,6 +157,10 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
                 lastTableName = tableInfo.getCurrentTableName();
             }
 
+            if (CollectionUtils.isEmpty(tableNames))  {
+                tableNames = new LinkedHashSet<>();
+            }
+
             boolean already = tableNames.stream().anyMatch(t -> t.getOriginTableName().equals(tableName));
             if (!already) {
                 String currentTableName = convertTableName(lastTableName);

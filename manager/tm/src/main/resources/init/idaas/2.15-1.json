@@ -1,0 +1,25 @@
+[
+  {
+	"createIndexes": "ShareCdcTableMetrics",
+	"indexes": [
+	  {
+		"key": {
+		  "taskId": 1,
+		  "nodeId": 1,
+		  "connectionId": 1,
+		  "tableName": 1
+		},
+		"name": "taskId_1_nodeId_1_connectionId_1_tableName_1",
+		"background": true
+	  },
+	  {
+		"key": {
+		  "createTime": 1
+		},
+		"name": "createTime_1",
+		"expireAfterSeconds": 604800,
+		"background": true
+	  }
+	]
+  }
+]

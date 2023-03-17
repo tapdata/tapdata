@@ -110,7 +110,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				throw new IllegalArgumentException("Expected: " + ShareCdcTaskPdkContext.class.getName() + ", actual: " + this.shareCdcContext.getClass().getName());
 			}
 			int step = 0;
-			logger.info(logWrapper("Initializing share cdc reader..."));
 			shareCdcContext.getObsLogger().info(logWrapper("Initializing share cdc reader..."));
 			this.running = new AtomicBoolean(true);
 			this.hazelcastInstance = HazelcastUtil.getInstance(this.shareCdcContext.getConfigurationCenter());
@@ -170,7 +169,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 
 		// Do not start ttl here
 		logCollectorExternalStorage.setTtlDay(0);
-		logger.info(logWrapper("Will use external storage: " + logCollectorExternalStorage));
 		shareCdcContext.getObsLogger().info(logWrapper("Will use external storage: " + logCollectorExternalStorage));
 
 		// Check start point valid of each table
@@ -315,7 +313,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			} catch (Exception e) {
 				throw new RuntimeException(String.format("Find ringbuffer by sequence '%s' failed", sequence), e);
 			}
-			logger.info("Start read old version log data, name: {}, sequence: {}", ringBuffer.getName(), sequence);
 			shareCdcContext.getObsLogger().info("Start read old version log data, name: {}, sequence: {}", ringBuffer.getName(), sequence);
 			while (this.running.get()) {
 				Document document = iterator.tryNext();
@@ -370,7 +367,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 
 		public void read() {
 			Thread.currentThread().setName(THREAD_NAME_PREFIX + "-" + taskDto.getName() + "-" + index);
-			logger.info(logWrapper("Starting read log from hazelcast construct, tables: " + tableNames));
 			shareCdcContext.getObsLogger().info(logWrapper("Starting read log from hazelcast construct, tables: " + tableNames));
 			while (running.get()) {
 				if (null == future || future.isDone()) {
@@ -395,7 +391,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 								long sequenceFindByTs = construct.findSequence(this.shareCdcContext.getCdcStartTs());
 								readerResourceMap.get(tableName).sequence(sequenceFindByTs);
 								sequenceMap.put(tableName, sequenceFindByTs);
-								logger.info(logWrapper("Find sequence in construct(" + tableName + ") by timestamp(" + Instant.ofEpochMilli(this.shareCdcContext.getCdcStartTs()) + "): " + sequenceFindByTs));
 								shareCdcContext.getObsLogger().info(logWrapper("Find sequence in construct(" + tableName + ") by timestamp(" + Instant.ofEpochMilli(this.shareCdcContext.getCdcStartTs()) + "): " + sequenceFindByTs));
 							} catch (Exception e) {
 								String err = "Find sequence by timestamp failed, timestamp: " + this.shareCdcContext.getCdcStartTs() + "; Error: " + e.getMessage();
@@ -405,7 +400,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 						}
 						if (readerResourceMap.get(tableName).firstTime) {
 							readerResourceMap.get(tableName).firstTime = false;
-							logger.info(logWrapper("Starting read '{}' log, sequence: {}"), tableName, readerResourceMap.get(tableName).sequence);
 							shareCdcContext.getObsLogger().info(logWrapper("Starting read '{}' log, sequence: {}"), tableName, readerResourceMap.get(tableName).sequence);
 						}
 						// Find hazelcast construct iterator
@@ -457,7 +451,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 						sequenceMap.put(tableName, iterator.getSequence());
 						documents.forEach(doc -> enqueue(tapEventWrapper(doc)));
 						if (readerResourceMap.get(tableName).firstData) {
-							logger.info(logWrapper("Successfully read " + tableName + "'s first log data, will continue to read the log"));
 							shareCdcContext.getObsLogger().info(logWrapper("Successfully read " + tableName + "'s first log data, will continue to read the log"));
 							readerResourceMap.get(tableName).firstData = false;
 						}
