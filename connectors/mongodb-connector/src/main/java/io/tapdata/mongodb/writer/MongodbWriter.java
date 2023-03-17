@@ -90,9 +90,9 @@ public class MongodbWriter {
 		final Collection<String> pks = (Collection<String>)pksCache;
 
 		// daas  data will cache local
-		if(!is_cloud) {
-			MongodbLookupUtil.lookUpAndSaveDeleteMessage(tapRecordEvents, this.globalStateMap, this.connectionString, pks, collection);
-		}
+//		if (!is_cloud) {
+//			MongodbLookupUtil.lookUpAndSaveDeleteMessage(tapRecordEvents, this.globalStateMap, this.connectionString, pks, collection);
+//		}
 		for (TapRecordEvent recordEvent : tapRecordEvents) {
 			UpdateOptions options = new UpdateOptions().upsert(true);
 
