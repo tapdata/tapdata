@@ -69,7 +69,10 @@ public class DorisContext implements AutoCloseable {
         try (
                 ResultSet rs = statement.executeQuery(String.format(SELECT_COUNT, database, tableName))
         ) {
-            return rs.getInt(1);
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+            return 0;
         }
     }
 
