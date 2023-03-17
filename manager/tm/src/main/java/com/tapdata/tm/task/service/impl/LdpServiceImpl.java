@@ -69,7 +69,7 @@ public class LdpServiceImpl implements LdpService {
     @Override
     public TaskDto createFdmTask(TaskDto task, UserDetail user) {
         //check fdm task
-        checkFdmTask(task, user);
+        String fdmConnId = checkFdmTask(task, user);
         task.setLdpType(TaskDto.LDP_TYPE_FDM);
 
         DAG dag = task.getDag();
@@ -101,14 +101,21 @@ public class LdpServiceImpl implements LdpService {
         }
 
         List<String> tableNames = databaseNode.getTableNames();
-        repeatTable(tableNames, task.getId().toHexString(), connectionId, user);
+        repeatTable(tableNames, task.getId() == null ? null : task.getId().toHexString(), fdmConnId, user);
 
-        TaskDto taskDto = taskService.confirmById(task, user, true);
+        TaskDto taskDto = null;
+        if (oldTask != null) {
+            taskDto = taskService.updateById(task, user);
+        } else {
+            taskDto = taskService.confirmById(task, user, true);
+        }
         //创建fdm的分类
         createFdmTags(taskDto, user);
 
         if (oldTask != null) {
             taskService.pause(taskDto, user, false, true);
+        } else {
+            taskService.start(taskDto, user, "00");
         }
 
         return taskDto;
@@ -244,7 +251,7 @@ public class LdpServiceImpl implements LdpService {
         }
     }
 
-    private void checkFdmTask(TaskDto task, UserDetail user) {
+    private String checkFdmTask(TaskDto task, UserDetail user) {
         //syncType is migrate
         if (!TaskDto.SYNC_TYPE_MIGRATE.equals(task.getSyncType())) {
             log.warn("Create fdm task, but the sync type not is migrate, sync type = {}", task.getSyncType());
@@ -270,6 +277,8 @@ public class LdpServiceImpl implements LdpService {
         if (!fdmConnectionId.equals(targetConId)) {
             throw new BizException("");
         }
+
+        return targetConId;
     }
 
     @Override
@@ -478,6 +487,11 @@ public class LdpServiceImpl implements LdpService {
 
     private void checkMdmTask(TaskDto task, UserDetail user) {
         //syncType is sync
+
+        if (StringUtils.isBlank(task.getSyncType())) {
+            task.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+        }
+
         if (!TaskDto.SYNC_TYPE_SYNC.equals(task.getSyncType())) {
             log.warn("Create mdm task, but the sync type not is sync, sync type = {}", task.getSyncType());
             throw new BizException("");
@@ -485,7 +499,7 @@ public class LdpServiceImpl implements LdpService {
 
         //target need fdm connection
         LiveDataPlatformDto platformDto = liveDataPlatformService.findOne(new Query(), user);
-        String fdmConnectionId = platformDto.getFdmStorageConnectionId();
+        //String fdmConnectionId = platformDto.getFdmStorageConnectionId();
         String mdmConnectionId = platformDto.getMdmStorageConnectionId();
 
         DAG dag = task.getDag();
@@ -514,17 +528,18 @@ public class LdpServiceImpl implements LdpService {
 
         String tableName = sourceNode.getTableName();
 
-        repeatTable(Lists.newArrayList(tableName), null, sourceConId, user);
+        repeatTable(Lists.newArrayList(tableName), null, targetConId, user);
 
-        if (!fdmConnectionId.equals(sourceConId)) {
-            throw new BizException("");
-        }
+//        if (!fdmConnectionId.equals(sourceConId)) {
+//            throw new BizException("");
+//        }
     }
 
 
     void repeatTable(List<String> tableNames, String taskId, String connectionId, UserDetail user) {
         Criteria nin = Criteria.where("source._id").is(connectionId)
-                .and("original_name").nin(tableNames);
+                .and("original_name").in(tableNames)
+                .and("meta_type").is("table");
         if (StringUtils.isNotBlank(taskId)) {
             nin.and("taskId").ne(taskId);
         }
