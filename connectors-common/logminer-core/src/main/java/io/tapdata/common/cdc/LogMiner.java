@@ -287,7 +287,7 @@ public abstract class LogMiner implements ILogMiner {
                 }
                 Map<String, Object> streamOffset = new HashMap<>();
                 streamOffset.put("scn", redoLogContent.getScn());
-                streamOffset.put("commitTime", redoLogContent.getTimestamp().toString());
+                streamOffset.put("commitTime", redoLogContent.getTimestamp().getTime());
                 TapRecordEvent recordEvent;
                 switch (Objects.requireNonNull(redoLogContent).getOperation()) {
                     case "INSERT": {
