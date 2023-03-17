@@ -27,10 +27,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -200,7 +197,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 					updateLoadSchemaFieldStatus(connection, ConnectorConstant.LOAD_FIELD_STATUS_FINISHED, schema, schemaVersion);
 				}
 			} catch (Exception e) {
-				event.computeIfPresent("config", null);
+				Optional.of(event).ifPresent(map -> map.remove("config"));
 				String errMsg = String.format("Test connection %s failed, data: %s, err: %s", connName, event, e.getMessage());
 				logger.error(errMsg, e);
 				try {
