@@ -294,7 +294,24 @@ public class CustomConnector extends ConnectorBase {
 
         private final Log logger;
 
-        private final List<LogRecord> logRecords = new LinkedList<>();
+        private final List<LogRecord> logRecords = new LinkedList<CollectLog.LogRecord>() {
+
+            private static final int MAX_SIZE = 200;
+            private boolean overflow = false;
+
+            @Override
+            public boolean add(CollectLog.LogRecord o) {
+                if (overflow) {
+                    return true;
+                }
+                if (size() > MAX_SIZE) {
+                    this.overflow = true;
+                    return super.add(new CollectLog.LogRecord("ERROR",
+                            "The log exceeds the maximum limit, ignore the following logs.", System.currentTimeMillis()));
+                }
+                return super.add(o);
+            }
+        };
 
         public CollectLog(Log log) {
             this.logger = log;
