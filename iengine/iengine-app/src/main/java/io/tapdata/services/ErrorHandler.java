@@ -25,13 +25,12 @@ import java.util.concurrent.ConcurrentHashMap;
 @Bean
 @MainMethod("main")
 public class ErrorHandler implements MemoryFetcher {
-
 	private final Map<String, ErrorCodeEntity> errorCodeEntityMap = new ConcurrentHashMap<>();
 
 	public void main() {
 		ConfigurationBuilder builder = new ConfigurationBuilder()
 				.addScanners(new TypeAnnotationsScanner())
-				.addClassLoader(Thread.currentThread().getContextClassLoader())
+				.addClassLoader(this.getClass().getClassLoader())
 				.forPackages("io.tapdata", "com.tapdata");
 
 		Reflections reflections = new Reflections(builder);
@@ -50,6 +49,9 @@ public class ErrorHandler implements MemoryFetcher {
 						.solution(annotation.solution())
 						.solutionCN(annotation.solutionCN())
 						.howToReproduce(annotation.howToReproduce())
+						.level(annotation.level())
+						.recoverable(annotation.recoverable())
+						.sourceExClass(exCodeClass.getName())
 						.seeAlso(annotation.seeAlso());
 				Object fieldValue;
 				String code;

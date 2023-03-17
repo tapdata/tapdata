@@ -25,6 +25,7 @@ public class ErrorCodeEntity implements Serializable {
 	private Class<? extends Exception> relateException= RuntimeException.class;
 	private String howToReproduce;
 	private String[] seeAlso = {"https://docs.tapdata.io/"};
+	private String sourceExClass;
 
 	private ErrorCodeEntity() {
 	}
@@ -83,6 +84,11 @@ public class ErrorCodeEntity implements Serializable {
 		return this;
 	}
 
+	public ErrorCodeEntity sourceExClass(String sourceExClass) {
+		this.sourceExClass = sourceExClass;
+		return this;
+	}
+
 	public String getDescribe() {
 		return describe;
 	}
@@ -123,6 +129,10 @@ public class ErrorCodeEntity implements Serializable {
 		return seeAlso;
 	}
 
+	public String getSourceExClass() {
+		return sourceExClass;
+	}
+
 	@Override
 	public String toString() {
 		return new StringJoiner(", ", ErrorCodeEntity.class.getSimpleName() + "[", "]")
@@ -136,6 +146,7 @@ public class ErrorCodeEntity implements Serializable {
 				.add("relateException=" + relateException)
 				.add("howToReproduce='" + howToReproduce + "'")
 				.add("seeAlso=" + Arrays.toString(seeAlso))
+				.add("sourceExClass='" + sourceExClass + "'")
 				.toString();
 	}
 }

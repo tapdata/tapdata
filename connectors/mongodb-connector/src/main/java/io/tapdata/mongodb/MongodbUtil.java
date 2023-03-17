@@ -426,11 +426,12 @@ public class MongodbUtil {
 	 */
 	public static Map<String, String> parseCommand(String commandStr) {
 		try {
+			commandStr = commandStr.replaceAll(" ", "").replaceAll("\n", "").replaceAll("\t", "");
 			Map<String, String> map = new HashMap<>();
 
-			commandStr = commandStr.replaceFirst("db.", "");
+			commandStr = commandStr.replaceFirst("db", "").replaceFirst("\\.", "");
 			String[] split = commandStr.split("\\.", 2);
-			String collection = split[0].trim();
+			String collection = split[0];
 			if (collection.startsWith("getCollection(")) {
 				collection = collection.replaceFirst("getCollection\\(", "");
 				collection = collection.substring(0, collection.length() - 1);
@@ -440,8 +441,8 @@ public class MongodbUtil {
 			map.put("collection", collection);
 			//find({}).limit(1)
 			String command = split[1].substring(0, split[1].indexOf("("));
-			map.put("command", command);
 			String others = split[1].substring(command.length());
+			map.put("command", command);
 			if ("find".equals(command)) {
 				Map<String, String> filterMap = splitFilter(others);
 				if (filterMap != null) {
@@ -468,10 +469,13 @@ public class MongodbUtil {
 		Map<String, String> filterMap = new HashMap<>();
 		int filterIndex = filterStr.indexOf("({");
 		int filterLastIndex = filterStr.indexOf("})");
-		if (filterIndex > 0 && filterLastIndex > 0) {
+		if (filterIndex >= 0 && filterLastIndex > 0) {
 			String str = filterStr.substring(filterIndex + 1, filterLastIndex + 1);
-			String[] split = str.replaceAll(" ", "").split("},");
-			String filter = split[0] + "}";
+			String[] split = str.split("},");
+			String filter = split[0];
+			if (split.length > 1) {
+				filter = filter + "}";
+			}
 			filterMap.put("filter", filter);
 			if (split.length > 1) {
 				String projection = split[1];
