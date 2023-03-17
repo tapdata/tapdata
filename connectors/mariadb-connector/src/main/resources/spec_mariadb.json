@@ -1,7 +1,7 @@
 {
   "properties": {
 	"name": "Mariadb",
-	"icon": "icons/mariadb.svg",
+	"icon": "icons/mariadb.png",
 	"id": "mariadb",
 	"doc": "${doc}"
   },
