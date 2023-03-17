@@ -10,14 +10,16 @@
     <packaging>pom</packaging>
 
     <modules>
-        <module>error-code-core</module>
-        <module>pdk-error-code</module>
         <module>error-code-bom</module>
         <module>error-code-parent</module>
+        <module>error-code-core</module>
+        <module>pdk-error-code</module>
     </modules>
 
     <properties>
-        <java.version>8</java.version>
+        <maven.compiler.source>8</maven.compiler.source>
+        <maven.compiler.target>8</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
     <distributionManagement>

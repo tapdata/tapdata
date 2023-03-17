@@ -15,7 +15,6 @@
 
     <properties>
         <java.version>8</java.version>
-        <error-code-core.version>1.0-SNAPSHOT</error-code-core.version>
     </properties>
     <!--<dependencyManagement>-->
     <dependencies>
@@ -94,7 +93,6 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>error-code-core</artifactId>
-            <version>${error-code-core.version}</version>
         </dependency>
     </dependencies>
     <build>
