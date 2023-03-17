@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.dag;
 
+import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -16,6 +17,7 @@ import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.conversion.PossibleDataTypes;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
@@ -587,10 +589,12 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         if (nameFieldMap != null && nameFieldMap.size() != 0) {
 
             TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create().withTapTypeDataTypeMap(tapMap));
+            Map<String, PossibleDataTypes> findPossibleDataTypes = Maps.newHashMap();
             TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.getTargetTypesGenerator().convert(nameFieldMap
-                    , DefaultExpressionMatchingMap.map(expression), codecsFilterManager);
+                    , DefaultExpressionMatchingMap.map(expression), codecsFilterManager, findPossibleDataTypes);
             LinkedHashMap<String, TapField> data = convert.getData();
-            metadataInstancesDto.setResultItems(convert.getResultItems());
+            schema.setResultItems(convert.getResultItems());
+            schema.setFindPossibleDataTypes(findPossibleDataTypes);
 
             data.forEach((k, v) -> {
                 TapField tapField = nameFieldMap.get(k);
@@ -606,6 +610,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         metadataInstancesDto.setOldId(oldId);
         metadataInstancesDto.setAncestorsName(schema.getAncestorsName());
         metadataInstancesDto.setNodeId(schema.getNodeId());
+        metadataInstancesDto.setResultItems(schema.getResultItems());
+        metadataInstancesDto.setFindPossibleDataTypes(schema.getFindPossibleDataTypes());
 
         AtomicBoolean hasPrimayKey = new AtomicBoolean(false);
         metadataInstancesDto.getFields().forEach(field -> {
@@ -931,6 +937,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                 update2.setHasPrimaryKey(metadataInstancesDto.isHasPrimaryKey());
                 update2.setHasUnionIndex(metadataInstancesDto.isHasUnionIndex());
                 update2.setResultItems(metadataInstancesDto.getResultItems());
+                update2.setFindPossibleDataTypes(metadataInstancesDto.getFindPossibleDataTypes());
                 update2.setHasUpdateField(metadataInstancesDto.isHasUpdateField());
                 if (existsMetadataInstance != null && existsMetadataInstance.getId() != null) {
                     metadataInstancesDto.setId(existsMetadataInstance.getId());

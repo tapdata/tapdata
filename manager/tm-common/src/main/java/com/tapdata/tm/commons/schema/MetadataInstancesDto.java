@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.schema.bean.*;
+import io.tapdata.entity.conversion.PossibleDataTypes;
 import io.tapdata.entity.result.ResultItem;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -110,6 +111,7 @@ public class MetadataInstancesDto extends BaseDto {
 
     private ObjectId oldId;
     private List<ResultItem> resultItems;
+    private Map<String, PossibleDataTypes> findPossibleDataTypes;
     private boolean hasUpdateField;
 
     public String getDatabaseId() {

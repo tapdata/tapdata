@@ -57,7 +57,7 @@ public class SourceConnectStrategyImpl implements DagLogStrategy {
             if (DataSourceEntity.STATUS_READY.equals(connectionDto.getStatus())) {
                 grade = Level.INFO;
                 template = MessageUtil.getDagCheckMsg(locale, "SOURCE_CONNECT_INFO");
-                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, userId, grade, templateEnum, template, true, true, connectionDto.getName());
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, node.getId(), userId, grade, templateEnum, template, connectionDto.getName());
                 result.add(log);
             } else {
                 grade = Level.ERROR;
@@ -65,7 +65,7 @@ public class SourceConnectStrategyImpl implements DagLogStrategy {
                 errorInfo.put("loadFieldsStatus", connectionDto.getLoadFieldsStatus());
                 errorInfo.put("loadFieldErrMsg", connectionDto.getLoadFieldErrMsg());
                 template = MessageUtil.getDagCheckMsg(locale, "SOURCE_CONNECT_ERROR");
-                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, userId, grade, templateEnum, template, true, true, connectionDto.getName(), connectionDto.getAlarmInfo());
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, node.getId(), userId, grade, templateEnum, template, connectionDto.getName(), connectionDto.getAlarmInfo());
                 result.add(log);
             }
         }
