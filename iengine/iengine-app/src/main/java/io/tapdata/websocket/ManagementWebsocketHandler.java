@@ -255,10 +255,10 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 			currentWsUrl = UriComponentsBuilder.fromUriString(currentWsUrl)
 					.buildAndExpand(agentId, configCenter.getConfig(ConfigurationCenter.TOKEN)).encode().toUri().toString();
 
+			currentWsUrl = WorkerSingletonLock.addTag2WsUrl(currentWsUrl);
 			if (CloudSignUtil.isNeedSign()) {
 				currentWsUrl = CloudSignUtil.getQueryStr("", currentWsUrl);
 			}
-			currentWsUrl = WorkerSingletonLock.addTag2WsUrl(currentWsUrl);
 
 			String version = Version.get();
 			if (org.apache.commons.lang3.StringUtils.isNotEmpty(version)) {
