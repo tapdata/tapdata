@@ -3,9 +3,12 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <groupId>io.tapdata</groupId>
+    <parent>
+        <groupId>io.tapdata</groupId>
+        <artifactId>daas</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
     <artifactId>error-code-root</artifactId>
-    <version>1.0-SNAPSHOT</version>
     <name>Error Code Root</name>
     <packaging>pom</packaging>
 
@@ -17,9 +20,7 @@
     </modules>
 
     <properties>
-        <maven.compiler.source>8</maven.compiler.source>
-        <maven.compiler.target>8</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <java.version>8</java.version>
     </properties>
 
     <distributionManagement>
