@@ -1,9 +1,7 @@
 package com.tapdata.tm.Settings.controller;
 
-import com.tapdata.tm.Settings.dto.TestMailDto;
-import com.tapdata.tm.commons.util.JsonUtil;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.Settings.dto.SettingsDto;
+import com.tapdata.tm.Settings.dto.TestMailDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.param.EnterpriseUpdateParam;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
@@ -13,6 +11,8 @@ import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.Setter;
 import org.bson.Document;
@@ -91,14 +91,14 @@ public class SettingsController extends BaseController {
     @Operation(summary = "alarm save")
     @PostMapping("/alarm_save")
     public ResponseMessage<Void> alarmSave(@RequestBody List<AlarmSettingDto> alarms) {
-        alarmSettingService.save(alarms, getLoginUser());
+        alarmSettingService.saveAlarmSetting(alarms, getLoginUser());
         return success();
     }
 
     @Operation(summary = "find all alarms")
     @GetMapping("/alarm_find")
     public ResponseMessage<List<AlarmSettingDto>> findAllAlarmList() {
-        return success(alarmSettingService.findAll(getLoginUser()));
+        return success(alarmSettingService.findAllAlarmSetting(getLoginUser()));
     }
 
     @Operation(summary = "update rule by key")

@@ -229,6 +229,12 @@ public class RestTemplateOperator {
 			if (405 == ((HttpClientErrorException) e).getRawStatusCode()) {
 				throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "Please upgrade engine"), e);
 			}
+			if (405 == ((HttpClientErrorException) e).getRawStatusCode()) {
+				throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "Please upgrade engine"), e);
+			}
+			if (405 == ((HttpClientErrorException) e).getRawStatusCode()) {
+				throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "Please upgrade engine"), e);
+			}
 		}
 		if (retryCount <= 1) {
 			logger.warn(
