@@ -103,6 +103,10 @@ public class LdpServiceImpl implements LdpService {
         //创建fdm的分类
         createFdmTags(taskDto, user);
 
+        if (oldTask != null) {
+            taskService.pause(taskDto, user, false, true);
+        }
+
         return taskDto;
     }
 
@@ -271,7 +275,7 @@ public class LdpServiceImpl implements LdpService {
         //add mmd type
         task.setLdpType(TaskDto.LDP_TYPE_MDM);
         //create sync task
-        return taskService.confirmById(task, user, true);
+        return taskService.confirmStart(task, user, true);
     }
 
     @Override
