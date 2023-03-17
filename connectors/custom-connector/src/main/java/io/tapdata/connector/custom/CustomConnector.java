@@ -23,6 +23,7 @@ import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.FormatUtils;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
@@ -167,7 +168,7 @@ public class CustomConnector extends ConnectorBase {
                     if (tapRecordEvents.size() == 0) {
                         logger.warn("The input is empty and cannot be processed");
                     } else {
-                        logger.info("Processing data, input: {}", toTapEventStr(tapRecordEvents, null, true));
+                        logger.info("Processing data, input: \n{}", toTapEventStr(tapRecordEvents, null, true));
                         writeRecord(tapConnectorContext, tapRecordEvents, tapTable, writeListResult -> {
                             logger.info("Processing data, output: {}", toWriteListResultStr(writeListResult));
                         });
@@ -219,72 +220,58 @@ public class CustomConnector extends ConnectorBase {
                 .append("d=").append(writeListResult.getRemovedCount()).append("\n");
         Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
         if (errorMap != null && errorMap.size() != 0) {
-            sb.append("\tError Record: \n");
+            Map<String, Object> map = new HashMap<>();
             for (Map.Entry<TapRecordEvent, Throwable> entry : errorMap.entrySet()) {
-                sb.append("\t\t").append("Record: ").append(toTapEventStr(Collections.singletonList(entry.getKey()), null, false))
-                        .append("\t\t").append("Error: ").append(entry.getValue()).append("\n");
+                map.put("Record", entry.getKey());
+                map.put("Error", entry.getValue());
             }
+            sb.append("\tError Record: \n").append(toJson(map, JsonParser.ToJsonFeature.PrettyFormat));
         }
         return sb.toString();
     }
 
 
     private String toTapEventStr(List<? extends TapEvent> events, Object offsetObject, boolean printNum) {
-        StringBuilder sb = new StringBuilder("\n");
-
-        if (events != null) {
-            for (int i = 0; i < events.size(); i++) {
-                TapEvent event = events.get(i);
-                if (printNum) {
-                    sb.append("\t\t  event ").append(i + 1).append(":").append("\n");
-                }
-                if (event instanceof TapInsertRecordEvent) {
-                    sb.append("\t\t\t").append("from: ").append(((TapInsertRecordEvent) event).getTableId()).append("\n")
-                            .append("\t\t\t").append("op: i").append("\n")
-                            .append("\t\t\t").append("data: ").append(((TapInsertRecordEvent) event).getAfter()).append("\n");
-
-                } else if (event instanceof TapUpdateRecordEvent) {
-                    sb.append("\t\t\t").append("from: ").append(((TapUpdateRecordEvent) event).getTableId()).append("\n")
-                            .append("\t\t\t").append("op: u").append("\n")
-                            .append("\t\t\t").append("data: ").append("\n")
-                            .append("\t\t\t ").append("before: ").append(((TapUpdateRecordEvent) event).getBefore()).append("\n")
-                            .append("\t\t\t ").append("after: ").append(((TapUpdateRecordEvent) event).getAfter()).append("\n");
-
-                } else if (event instanceof TapDeleteRecordEvent) {
-                    sb.append("\t\t\t").append("from: ").append(((TapDeleteRecordEvent) event).getTableId()).append("\n")
-                            .append("\t\t\t").append("op: d").append("\n")
-                            .append("\t\t\t").append("data: ").append("\n")
-                            .append("\t\t\t ").append("before: ").append(((TapDeleteRecordEvent) event).getBefore()).append("\n");
-                } else {
-                    sb.append("\t\t\t").append(i).append(".").append(event).append("\n");
-                }
-                sb.append("\n");
-            }
-        }
-
-        if (offsetObject != null) {
-            sb.append("\t").append("offset: ").append(offsetObject).append("\n");
-        }
-        return sb.toString();
+        Map<String, Object> map = new HashMap<>();
+        map.put("events", events);
+        map.put("offset", offsetObject);
+        return toJson(map, JsonParser.ToJsonFeature.PrettyFormat);
     }
 
     private List<TapRecordEvent> getTapRecordEvents(List<Map<String, Object>> maps) {
         List<TapRecordEvent> tapRecordEvents = new ArrayList<>();
         for (Map<String, Object> map : maps) {
             String op = (String) map.get("op");
-            switch (op) {
-                case "i":
-                    tapRecordEvents.add(TapInsertRecordEvent.create().init().table((String) map.get("table")).after((Map<String, Object>) map.get("after")));
-                    break;
-                case "u":
-                    tapRecordEvents.add(TapUpdateRecordEvent.create().init().table((String) map.get("table"))
-                            .after((Map<String, Object>) map.get("after")).before((Map<String, Object>) map.get("before")));
-                    break;
-                case "d":
-                    tapRecordEvents.add(TapDeleteRecordEvent.create().init().table((String) map.get("table")).before((Map<String, Object>) map.get("before")));
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unsupported op: " + op);
+            Integer type = (Integer) map.get("type");
+            if (StringUtils.isNotEmpty(op)) {
+                switch (op) {
+                    case "i":
+                        tapRecordEvents.add(TapInsertRecordEvent.create().init().table((String) map.get("table")).after((Map<String, Object>) map.get("after")));
+                        break;
+                    case "u":
+                        tapRecordEvents.add(TapUpdateRecordEvent.create().init().table((String) map.get("table"))
+                                .after((Map<String, Object>) map.get("after")).before((Map<String, Object>) map.get("before")));
+                        break;
+                    case "d":
+                        tapRecordEvents.add(TapDeleteRecordEvent.create().init().table((String) map.get("table")).before((Map<String, Object>) map.get("before")));
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unsupported op: " + op);
+                }
+            } else if (type != null) {
+                switch (type) {
+                    case 300:
+                        tapRecordEvents.add(fromJson(toJson(map), TapInsertRecordEvent.class));
+                        break;
+                    case 301:
+                        tapRecordEvents.add(fromJson(toJson(map), TapDeleteRecordEvent.class));
+                        break;
+                    case 302:
+                        tapRecordEvents.add(fromJson(toJson(map), TapUpdateRecordEvent.class));
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unsupported type: " + type);
+                }
             }
         }
         return tapRecordEvents;
