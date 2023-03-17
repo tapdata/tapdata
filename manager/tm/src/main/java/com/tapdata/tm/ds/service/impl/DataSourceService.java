@@ -227,7 +227,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 			if (((updateDto.getShareCdcEnable() != null && updateDto.getShareCdcEnable())
 					|| (oldConnection.getShareCdcEnable() != null && oldConnection.getShareCdcEnable()))
-					&& updateDto.getShareCDCExternalStorageId() != null && !oldConnection.getShareCDCExternalStorageId().equals(updateDto.getShareCDCExternalStorageId())) {
+					&& updateDto.getShareCDCExternalStorageId() != null && !updateDto.getShareCDCExternalStorageId().equals(oldConnection.getShareCDCExternalStorageId())) {
 				//查询当前数据源存在的运行中的任务，存在则不允许修改，给出报错。
 				Boolean canUpdate = logCollectorService.checkUpdateConfig(updateDto.getId().toHexString(), user);
 				if (!canUpdate) {
