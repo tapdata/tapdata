@@ -425,36 +425,40 @@ public class MongodbUtil {
 	 * @return
 	 */
 	public static Map<String, String> parseCommand(String commandStr) {
-		Map<String, String> map = new HashMap<>();
+		try {
+			Map<String, String> map = new HashMap<>();
 
-		commandStr = commandStr.replaceFirst("db.", "");
-		String[] split = commandStr.split("\\.", 2);
-		String collection = split[0];
-		if (collection.startsWith("getCollection(")) {
-			collection = collection.replaceFirst("getCollection\\(", "");
-			collection = collection.substring(0, collection.length() - 1);
-			collection = collection.replaceAll("\"", "");
-			collection = collection.replaceAll("'", "");
-		}
-		map.put("collection", collection);
-		//find({}).limit(1)
-		String command = split[1].substring(0, split[1].indexOf("("));
-		map.put("command", command);
-		String others = split[1].substring(command.length());
-		if ("find".equals(command)) {
-			Map<String, String> filterMap = splitFilter(others);
-			if (filterMap != null) {
-				map.putAll(filterMap);
+			commandStr = commandStr.replaceFirst("db.", "");
+			String[] split = commandStr.split("\\.", 2);
+			String collection = split[0].trim();
+			if (collection.startsWith("getCollection(")) {
+				collection = collection.replaceFirst("getCollection\\(", "");
+				collection = collection.substring(0, collection.length() - 1);
+				collection = collection.replaceAll("\"", "");
+				collection = collection.replaceAll("'", "");
 			}
-		} else if ("aggregate".equals(command)) {
-			//
-			String pipeline = others.substring(1, others.indexOf(")"));
-			map.put("pipeline", pipeline);
-		} else {
-			throw new IllegalArgumentException("Unsupported command: " + command);
-		}
+			map.put("collection", collection);
+			//find({}).limit(1)
+			String command = split[1].substring(0, split[1].indexOf("("));
+			map.put("command", command);
+			String others = split[1].substring(command.length());
+			if ("find".equals(command)) {
+				Map<String, String> filterMap = splitFilter(others);
+				if (filterMap != null) {
+					map.putAll(filterMap);
+				}
+			} else if ("aggregate".equals(command)) {
+				//
+				String pipeline = others.substring(1, others.indexOf(")"));
+				map.put("pipeline", pipeline);
+			} else {
+				throw new IllegalArgumentException("Unsupported command: " + command);
+			}
 
-		return map;
+			return map;
+		} catch (Throwable e) {
+			throw new IllegalArgumentException("syntax command error: " + commandStr, e);
+		}
 	}
 
 	public static Map<String, String> splitFilter(String filterStr) {

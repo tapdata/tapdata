@@ -3,7 +3,6 @@ package io.tapdata.flow.engine.V2.schedule;
 import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.AppType;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -311,15 +310,16 @@ public class TapdataTaskScheduler {
 
 	private void startTask(TaskDto taskDto) {
 		final String taskId = taskDto.getId().toHexString();
+		ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
 		if (taskClientMap.containsKey(taskId)) {
 			TaskClient<TaskDto> taskClient = taskClientMap.get(taskId);
 			if (null != taskClient) {
-				logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, taskClient.getStatus());
+				obsLogger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, taskClient.getStatus());
 				if (TaskDto.STATUS_RUNNING.equals(taskClient.getStatus())) {
 					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
 				}
 			} else {
-				logger.info("The [task {}, id {}] is being executed, ignore the scheduling", taskDto.getName(), taskId);
+				obsLogger.info("The [task {}, id {}] is being executed, ignore the scheduling", taskDto.getName(), taskId);
 			}
 			return;
 		}
@@ -330,14 +330,13 @@ public class TapdataTaskScheduler {
 //				logger.warn(checkTaskCanStart);
 //				return;
 //			}
-			Log4jUtil.setThreadContext(taskDto);
-			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
+			obsLogger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
 			TmStatusService.addNewTask(taskId);
 			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
 			final TaskClient<TaskDto> subTaskDtoTaskClient = hazelcastTaskService.startTask(taskDto);
 			taskClientMap.put(subTaskDtoTaskClient.getTask().getId().toHexString(), subTaskDtoTaskClient);
 		} catch (Exception e) {
-			logger.error("Start task {} failed {}", taskDto.getName(), e.getMessage(), e);
+			ObsLoggerFactory.getInstance().getObsLogger(taskDto).error(e.getMessage(), e);
 			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
 		} finally {
 			ThreadContext.clearAll();
@@ -427,9 +426,11 @@ public class TapdataTaskScheduler {
 					}
 					if (null != stopTaskResource) {
 						taskClient.getTask().setSnapShotInterrupt(true);
-						stopTaskCallAssignApi(taskClient, stopTaskResource);
-						clearTaskCacheAfterStopped(taskClient);
-						clearTaskRetryCache(taskId);
+						if (taskClient.stop()) {
+							stopTaskCallAssignApi(taskClient, stopTaskResource);
+							clearTaskCacheAfterStopped(taskClient);
+							clearTaskRetryCache(taskId);
+						}
 					}
 				}
 			}
@@ -528,27 +529,24 @@ public class TapdataTaskScheduler {
 		if (taskClient == null || taskClient.getTask() == null || StringUtils.isBlank(taskClient.getTask().getId().toHexString())) {
 			return;
 		}
-		final boolean stop = taskClient.stop();
-		if (stop) {
-			final String taskId = taskClient.getTask().getId().toHexString();
-			String resource = ConnectorConstant.TASK_COLLECTION + "/" + stopTaskResource.getResource();
+		final String taskId = taskClient.getTask().getId().toHexString();
+		String resource = ConnectorConstant.TASK_COLLECTION + "/" + stopTaskResource.getResource();
+		try {
 			try {
-				try {
-					logger.info("Call {} api to modify task [{}] status", resource, taskClient.getTask().getName());
-					clientMongoOperator.updateById(new Update(), resource, taskId, TaskDto.class);
-				} catch (Exception e) {
-					if (StringUtils.isNotBlank(e.getMessage()) && e.getMessage().contains("Transition.Not.Supported")) {
-						// 违反TM状态机，不再进行修改任务状态的重试
-						logger.warn("Call api to stop task status to " + resource + " failed, will set task to error, message: " + e.getMessage(), e);
-						clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/" + StopTaskResource.RUN_ERROR, taskId, TaskDto.class);
-					} else {
-						throw new RuntimeException(String.format("Call stop task api failed, api uri: %s, task: %s[%s]",
-								resource, taskClient.getTask().getName(), taskClient.getTask().getId()), e);
-					}
-				}
+				logger.info("Call {} api to modify task [{}] status", resource, taskClient.getTask().getName());
+				clientMongoOperator.updateById(new Update(), resource, taskId, TaskDto.class);
 			} catch (Exception e) {
-				logger.warn(e.getMessage(), e);
+				if (StringUtils.isNotBlank(e.getMessage()) && e.getMessage().contains("Transition.Not.Supported")) {
+					// 违反TM状态机，不再进行修改任务状态的重试
+					logger.warn("Call api to stop task status to " + resource + " failed, will set task to error, message: " + e.getMessage(), e);
+					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/" + StopTaskResource.RUN_ERROR.getResource(), taskId, TaskDto.class);
+				} else {
+					throw new RuntimeException(String.format("Call stop task api failed, api uri: %s, task: %s[%s]",
+							resource, taskClient.getTask().getName(), taskClient.getTask().getId()), e);
+				}
 			}
+		} catch (Exception e) {
+			logger.warn(e.getMessage(), e);
 		}
 	}
 

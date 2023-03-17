@@ -32,7 +32,7 @@ import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
-import io.tapdata.pdk.apis.error.NotSupportedException;
+import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
@@ -594,7 +594,6 @@ public class MongodbConnector extends ConnectorBase {
 				|| null != matchThrowable(throwable, MongoSocketException.class)
 				|| null != matchThrowable(throwable, MongoConnectionPoolClearedException.class)
 				|| null != matchThrowable(throwable, MongoSecurityException.class)
-				|| null != matchThrowable(throwable, MongoServerException.class)
 				|| null != matchThrowable(throwable, MongoConfigurationException.class)
 				|| null != matchThrowable(throwable, MongoTimeoutException.class)
 				|| null != matchThrowable(throwable, MongoSocketReadException.class)
@@ -942,39 +941,43 @@ public class MongodbConnector extends ConnectorBase {
 		MongoCollection<Document> mongoCollection = getMongoCollection(collection);
 		String command = comandMap.get("command");
 		MongoIterable<Document> iterable;
-		if ("find".equals(command)) {
-			if (comandMap.containsKey("filter")) {
-				Document filter = Document.parse(comandMap.get("filter"));
-				iterable = mongoCollection.find(filter);
-			} else {
-				iterable = mongoCollection.find();
-			}
-			if (comandMap.containsKey("projection")) {
-				((FindIterable<Document>) iterable).projection(Document.parse(comandMap.get("projection")));
-			}
-			if (comandMap.containsKey("sort")) {
-				((FindIterable<Document>) iterable).sort(Document.parse(comandMap.get("sort")));
-			}
-			if (comandMap.containsKey("limit")) {
-				((FindIterable<Document>) iterable).limit(Integer.parseInt(comandMap.get("limit")));
-			}
-			if (comandMap.containsKey("sort")) {
-				((FindIterable<Document>) iterable).skip(Integer.parseInt(comandMap.get("sort")));
-			}
-		} else if ("aggregate".equals(command)) {
-			String pipelineStr = comandMap.get("pipeline");
-			List<?> jsons = fromJsonArray(pipelineStr);
-			List<Document> pipelines = new ArrayList<>();
-			for (Object o : jsons) {
-				if (o instanceof String) {
-					pipelines.add(Document.parse((String) o));
-				} else if (o instanceof Map) {
-					pipelines.add(new Document((Map<String, Object>) o));
+		try {
+			if ("find".equals(command)) {
+				if (comandMap.containsKey("filter")) {
+					Document filter = Document.parse(comandMap.get("filter"));
+					iterable = mongoCollection.find(filter);
+				} else {
+					iterable = mongoCollection.find();
 				}
+				if (comandMap.containsKey("projection")) {
+					((FindIterable<Document>) iterable).projection(Document.parse(comandMap.get("projection")));
+				}
+				if (comandMap.containsKey("sort")) {
+					((FindIterable<Document>) iterable).sort(Document.parse(comandMap.get("sort")));
+				}
+				if (comandMap.containsKey("limit")) {
+					((FindIterable<Document>) iterable).limit(Integer.parseInt(comandMap.get("limit")));
+				}
+				if (comandMap.containsKey("sort")) {
+					((FindIterable<Document>) iterable).skip(Integer.parseInt(comandMap.get("sort")));
+				}
+			} else if ("aggregate".equals(command)) {
+				String pipelineStr = comandMap.get("pipeline");
+				List<?> jsons = fromJsonArray(pipelineStr);
+				List<Document> pipelines = new ArrayList<>();
+				for (Object o : jsons) {
+					if (o instanceof String) {
+						pipelines.add(Document.parse((String) o));
+					} else if (o instanceof Map) {
+						pipelines.add(new Document((Map<String, Object>) o));
+					}
+				}
+				iterable = mongoCollection.aggregate(pipelines);
+			} else {
+				throw new IllegalArgumentException("Unsupported command: " + commandStr);
 			}
-			iterable = mongoCollection.aggregate(pipelines);
-		} else {
-			throw new IllegalArgumentException("Unsupported command: " + commandStr);
+		} catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException("Parse error", e);
 		}
 		final int batchSize = eventBatchSize > 0 ? eventBatchSize : 5000;
 		try (MongoCursor<Document> iterator = iterable.batchSize(batchSize).iterator()) {
