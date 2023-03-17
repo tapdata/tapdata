@@ -25,6 +25,8 @@ public class MessageEntity implements Serializable, Cloneable {
 
 	private Map<String, Object> after;
 
+	private Map<String, Object> info;
+
 	private List<Map<String, Object>> targetBefore;
 
 	private String tableName;
@@ -167,6 +169,14 @@ public class MessageEntity implements Serializable, Cloneable {
 
 	public Map<String, Object> getBefore() {
 		return before;
+	}
+
+	public Map<String, Object> getInfo() {
+		return info;
+	}
+
+	public void setInfo(Map<String, Object> info) {
+		this.info = info;
 	}
 
 	public List<Map<String, Object>> getTargetBefore() {
