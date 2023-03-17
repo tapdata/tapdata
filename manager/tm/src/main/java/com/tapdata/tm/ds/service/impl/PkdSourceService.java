@@ -198,16 +198,18 @@ public class PkdSourceService {
             case JAR:
                 query.fields().include("jarRid");
                 criteria.and("pdkAPIBuildNumber").lte(pdkBuildNumber);
+                query.with(Sort.by("pdkAPIBuildNumber").descending());
                 break;
             case IMAGE:
-            query.fields().include("icon");
+                query.fields().include("icon");
+                query.with(Sort.by("createTime").descending());
                 break;
             case MARKDOWN:
-            query.fields().include("messages");
+                query.fields().include("messages");
+                query.with(Sort.by("createTime").descending());
                 break;
             default:
         }
-        query.with(Sort.by("createTime").descending());
 
         DataSourceDefinitionDto one = dataSourceDefinitionService.findOne(query);
 

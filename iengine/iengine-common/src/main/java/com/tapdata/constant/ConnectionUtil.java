@@ -1,14 +1,18 @@
 package com.tapdata.constant;
 
+import com.google.common.collect.Maps;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @author samuel
@@ -55,8 +59,10 @@ public class ConnectionUtil {
 	}
 
 	public static DatabaseTypeEnum.DatabaseType getDatabaseType(ClientMongoOperator clientMongoOperator, String pdkHash) {
+		Map<String, Object> param = Maps.newHashMap();
+		param.put("pdkBuildNumber", CommonUtils.getPdkBuildNumer());
 		return clientMongoOperator.findOne(
-				new Query(),
+				param,
 				ConnectorConstant.DATABASE_TYPE_COLLECTION + "/pdkHash/" + pdkHash,
 				DatabaseTypeEnum.DatabaseType.class
 		);
