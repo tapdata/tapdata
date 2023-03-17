@@ -1,17 +1,11 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
-import com.tapdata.constant.CollectionUtil;
-import com.tapdata.constant.ExecutorUtil;
-import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataCompleteSnapshotEvent;
 import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
-import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
@@ -26,24 +20,18 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.*;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
-import io.tapdata.flow.engine.V2.sharecdc.ReaderType;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcReader;
-import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
-import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
-import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
-import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.source.*;
+import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
+import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionsFunction;
 import io.tapdata.pdk.apis.partition.ReadPartition;
 import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import io.tapdata.schema.TapTableMap;
-import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
@@ -52,9 +40,9 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static io.tapdata.entity.simplify.TapSimplify.sleep;
@@ -184,6 +172,9 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 				}));
 				return null;
 			});
+			//Go to CDC stage after all tables finished initial sync.
+			tableParallelWorker.finished(super::enterCDCStage);
+
 //			tableParallelWorker.setParallelWorkerStateListener((id, fromState, toState) -> {
 //				if(toState == ParallelWorkerStateListener.STATE_LONG_IDLE) {
 //					//All tables should finish initial sync now.
@@ -202,7 +193,9 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 		executeAspect(new SnapshotReadEndAspect().dataProcessorContext(dataProcessorContext));
 		return null;
 	}
-
+	protected void enterCDCStage() {
+		//Don't change to CDC stage for partition read.
+	}
 	private void handleReadPartitionsForTable(PDKSourceContext pdkSourceContext, GetReadPartitionsFunction getReadPartitionsFunction, ReadPartitionOptions finalReadPartitionOptions, String tableId, AsyncJobCompleted jobCompleted) {
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableId);
 		tablePartitionReaderMap.computeIfAbsent(tapTable.getId(), table -> asyncMaster.createAsyncParallelWorker("PartitionsReader_" + table, partitionReaderThreadCount));

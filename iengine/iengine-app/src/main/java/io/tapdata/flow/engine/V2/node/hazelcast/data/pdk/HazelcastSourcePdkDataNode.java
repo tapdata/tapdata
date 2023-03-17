@@ -323,17 +323,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (!isRunning()) {
 			return;
 		}
-		TaskDto taskDto = dataProcessorContext.getTaskDto();
-		this.endSnapshotLoop.set(true);
-		if (null == syncProgress.getStreamOffsetObj()) {
-			throw new NodeException("Starting stream read failed, errors: start point offset is null").context(getProcessorBaseContext());
-		} else {
-			TapdataStartingCdcEvent tapdataStartingCdcEvent = new TapdataStartingCdcEvent();
-			tapdataStartingCdcEvent.setSyncStage(SyncStage.CDC);
-			tapdataStartingCdcEvent.setStreamOffset(syncProgress.getStreamOffsetObj());
-			enqueue(tapdataStartingCdcEvent);
-		}
-		syncProgress.setSyncStage(SyncStage.CDC.name());
+		enterCDCStage();
+
 		Node<?> node = dataProcessorContext.getNode();
 		if (isPollingCDC(node)) {
 			doPollingCDC();
@@ -362,6 +353,21 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				}
 			}
 		}
+	}
+
+	protected void enterCDCStage() {
+		this.endSnapshotLoop.set(true);
+		if (null == syncProgress.getStreamOffsetObj()) {
+			throw new NodeException("Starting stream read failed, errors: start point offset is null").context(getProcessorBaseContext());
+		} else {
+			TapdataStartCdcEvent tapdataStartCdcEvent = new TapdataStartCdcEvent();
+			tapdataStartCdcEvent.setSyncStage(SyncStage.CDC);
+			tapdataStartCdcEvent.setStreamOffset(syncProgress.getStreamOffsetObj());
+			enqueue(tapdataStartCdcEvent);
+		}
+		// MILESTONE-READ_CDC_EVENT-RUNNING
+		TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.RUNNING);
+		syncProgress.setSyncStage(SyncStage.CDC.name());
 	}
 
 	@SneakyThrows
