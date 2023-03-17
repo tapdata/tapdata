@@ -15,14 +15,16 @@ import java.util.StringJoiner;
 public class ErrorCodeEntity implements Serializable {
 
 	private static final long serialVersionUID = -6576112658078083088L;
+	private String code;
+	private String name;
 	private String describe;
 	private String describeCN;
 	private String solution;
 	private String solutionCN;
-	private boolean recoverable= false;
-	private TapExLevel level= TapExLevel.NORMAL;
-	private TapExType type= TapExType.RUNTIME;
-	private Class<? extends Exception> relateException= RuntimeException.class;
+	private boolean recoverable = false;
+	private TapExLevel level = TapExLevel.NORMAL;
+	private TapExType type = TapExType.RUNTIME;
+	private Class<? extends Exception> relateException = RuntimeException.class;
 	private String howToReproduce;
 	private String[] seeAlso = {"https://docs.tapdata.io/"};
 	private String sourceExClass;
@@ -32,6 +34,16 @@ public class ErrorCodeEntity implements Serializable {
 
 	public static ErrorCodeEntity create() {
 		return new ErrorCodeEntity();
+	}
+
+	public ErrorCodeEntity code(String code) {
+		this.code = code;
+		return this;
+	}
+
+	public ErrorCodeEntity name(String name) {
+		this.name = name;
+		return this;
 	}
 
 	public ErrorCodeEntity describe(String describe) {
@@ -133,9 +145,19 @@ public class ErrorCodeEntity implements Serializable {
 		return sourceExClass;
 	}
 
+	public String getCode() {
+		return code;
+	}
+
+	public String getName() {
+		return name;
+	}
+
 	@Override
 	public String toString() {
 		return new StringJoiner(", ", ErrorCodeEntity.class.getSimpleName() + "[", "]")
+				.add("code='" + code + "'")
+				.add("name='" + name + "'")
 				.add("describe='" + describe + "'")
 				.add("describeCN='" + describeCN + "'")
 				.add("solution='" + solution + "'")
