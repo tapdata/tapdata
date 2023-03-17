@@ -4,7 +4,9 @@
     "icon": "icons/tencent-db-mongodb.png",
     "doc" : "${doc}",
     "tags" : ["schema-free"],
-    "id": "tencent-db-mongodb"
+    "id": "tencent-db-mongodb",
+    "authentication": "beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "capabilities": [

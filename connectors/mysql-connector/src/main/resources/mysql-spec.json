@@ -3,7 +3,9 @@
     "name": "Mysql",
     "icon": "icons/mysql.png",
     "id": "mysql",
-    "doc": "${doc}"
+    "doc": "${doc}",
+    "authentication": "Alpha",
+    "tags": ["Database"]
   },
   "configOptions": {
     "capabilities": [

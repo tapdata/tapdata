@@ -195,6 +195,9 @@ public class CustomConnector extends ConnectorBase {
             if (timeout == null || timeout <= 0) {
                 timeout = 10;
             }
+            if (timeout > 60) {
+                timeout = 60;
+            }
             boolean threadFinished = countDownLatch.await(timeout, TimeUnit.SECONDS);
             if (!threadFinished) {
                 logger.error("Execution has timed out and will terminate.");

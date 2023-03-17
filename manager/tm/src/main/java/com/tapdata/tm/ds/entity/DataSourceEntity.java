@@ -63,6 +63,7 @@ public class DataSourceEntity extends BaseEntity {
     private String definitionGroup;
     private String definitionPdkId;
     private String definitionBuildNumber;
+    private List<String> definitionTags;
 
     private String pdkType;
     /**

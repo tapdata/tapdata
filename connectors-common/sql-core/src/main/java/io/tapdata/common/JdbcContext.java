@@ -96,7 +96,7 @@ public abstract class JdbcContext {
                 }
             }
         } catch (SQLException e) {
-            throw new SQLException("Execute query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
+            throw new SQLException("Execute query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + ")", e);
         }
     }
 

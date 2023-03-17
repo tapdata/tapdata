@@ -1,4 +1,4 @@
-package io.tapdata.pdk.apis.error;
+package io.tapdata.pdk.apis.exception;
 
 public class NotSupportedException extends RuntimeException {
   public NotSupportedException() {

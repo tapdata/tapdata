@@ -1,6 +1,5 @@
 package io.tapdata.pdk.core.entity.params;
 
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
@@ -21,9 +20,10 @@ public class PDKMethodInvoker {
         }
     }
     private CommonUtils.AnyError runnable;
+    @Deprecated
     private String message;
     private String logTag;
-    private Consumer<CoreException> errorConsumer;
+    private Consumer<RuntimeException> errorConsumer;
     private boolean async;
     private ClassLoader contextClassLoader;
     private long retryTimes;
@@ -62,7 +62,7 @@ public class PDKMethodInvoker {
         return this;
     }
 
-    public PDKMethodInvoker errorConsumer(Consumer<CoreException> errorConsumer) {
+    public PDKMethodInvoker errorConsumer(Consumer<RuntimeException> errorConsumer) {
         this.errorConsumer = errorConsumer;
         return this;
     }
@@ -96,7 +96,7 @@ public class PDKMethodInvoker {
         return message;
     }
 
-    public Consumer<CoreException> getErrorConsumer() {
+    public Consumer<RuntimeException> getErrorConsumer() {
         return errorConsumer;
     }
 
@@ -132,7 +132,7 @@ public class PDKMethodInvoker {
         this.logTag = logTag;
     }
 
-    public void setErrorConsumer(Consumer<CoreException> errorConsumer) {
+    public void setErrorConsumer(Consumer<RuntimeException> errorConsumer) {
         this.errorConsumer = errorConsumer;
     }
 

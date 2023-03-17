@@ -4,9 +4,33 @@ import com.mongodb.MongoClient;
 import com.mongodb.MongoClientOptions;
 import com.mongodb.MongoClientURI;
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.constant.AgentUtil;
+import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.ConfigurationCenter;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.DateUtil;
 import com.tapdata.constant.JSONUtil;
-import com.tapdata.constant.*;
-import com.tapdata.entity.*;
+import com.tapdata.constant.Log4jUtil;
+import com.tapdata.constant.MapUtil;
+import com.tapdata.constant.MongodbUtil;
+import com.tapdata.constant.SSLUtil;
+import com.tapdata.constant.SystemUtil;
+import com.tapdata.constant.UUIDGenerator;
+import com.tapdata.constant.VersionCheck;
+import com.tapdata.entity.AppType;
+import com.tapdata.entity.Connections;
+import com.tapdata.entity.DatabaseTypeEnum;
+import com.tapdata.entity.Job;
+import com.tapdata.entity.JobConnection;
+import com.tapdata.entity.LoginResp;
+import com.tapdata.entity.ProgressRateStatsMap;
+import com.tapdata.entity.RelateDataBaseTable;
+import com.tapdata.entity.Schema;
+import com.tapdata.entity.Setting;
+import com.tapdata.entity.Stats;
+import com.tapdata.entity.TapLog;
+import com.tapdata.entity.User;
+import com.tapdata.entity.Worker;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
@@ -23,9 +47,24 @@ import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.TapInterface;
 import io.tapdata.aspect.LoginSuccessfullyAspect;
 import io.tapdata.aspect.utils.AspectUtils;
-import io.tapdata.common.*;
+import io.tapdata.common.ClassScanner;
+import io.tapdata.common.Connector;
+import io.tapdata.common.ConverterUtil;
+import io.tapdata.common.JetExceptionFilter;
+import io.tapdata.common.LoadBalancing;
+import io.tapdata.common.LogUtil;
+import io.tapdata.common.SettingService;
+import io.tapdata.common.SupportUtil;
+import io.tapdata.common.TapInterfaceUtil;
+import io.tapdata.common.TapdataLog4jFilter;
+import io.tapdata.common.WarningMaker;
 import io.tapdata.dao.MessageDao;
-import io.tapdata.entity.*;
+import io.tapdata.entity.BaseConnectionValidateResult;
+import io.tapdata.entity.BaseConnectionValidateResultDetail;
+import io.tapdata.entity.ConnectionsType;
+import io.tapdata.entity.Converter;
+import io.tapdata.entity.Lib;
+import io.tapdata.entity.LibSupported;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.metric.MetricManager;
 import io.tapdata.schema.SchemaProxy;
@@ -61,8 +100,27 @@ import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.time.LocalTime;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -253,7 +311,7 @@ public class ConnectorManager {
 
 		warningMaker = new WarningMaker(clientMongoOperator);
 
-		addHTTPAppender();
+//		addHTTPAppender();
 
 		loadBalancing = new LoadBalancing(mode, instanceNo, ConnectorConstant.WORKER_TYPE_CONNECTOR, clientMongoOperator);
 
@@ -289,8 +347,9 @@ public class ConnectorManager {
 		configCenter.putConfig(ConfigurationCenter.BASR_URLS, baseURLs);
 		configCenter.putConfig(ConfigurationCenter.RETRY_TIME, restRetryTime);
 		configCenter.putConfig(ConfigurationCenter.AGENT_ID, instanceNo);
+		configCenter.putConfig(ConfigurationCenter.APPTYPE, null == appType ? AppType.DAAS : appType);
 		configCenter.putConfig(ConfigurationCenter.IS_CLOUD, appType.isCloud());
-		configCenter.putConfig(ConfigurationCenter.APPTYPE, appType);
+		configCenter.putConfig(ConfigurationCenter.WORK_DIR, null == tapdataWorkDir ? "" : tapdataWorkDir);
 		Optional.ofNullable(jobTags).ifPresent(j -> configCenter.putConfig(ConfigurationCenter.JOB_TAGS, jobTags));
 		Optional.ofNullable(region).ifPresent(j -> configCenter.putConfig(ConfigurationCenter.REGION, region));
 		Optional.ofNullable(zone).ifPresent(j -> configCenter.putConfig(ConfigurationCenter.ZONE, zone));
@@ -447,10 +506,7 @@ public class ConnectorManager {
 
 	@Bean("restTemplateOperator")
 	public RestTemplateOperator initRestTemplate() {
-
-		String tapdataWorkDir = System.getenv("TAPDATA_WORK_DIR");
 		initVariable();
-
 		restTemplateOperator = new RestTemplateOperator(
 				baseURLs,
 				restRetryTime,

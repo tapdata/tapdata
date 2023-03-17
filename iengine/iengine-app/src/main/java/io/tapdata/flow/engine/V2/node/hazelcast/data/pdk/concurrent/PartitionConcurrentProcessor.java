@@ -351,7 +351,7 @@ public class PartitionConcurrentProcessor {
 	public void stop(){
 		waitingForProcessToCurrent();
 		currentRunning.compareAndSet(true, false);
-		ExecutorUtil.shutdownEx(this.executorService, 60L, TimeUnit.SECONDS);
+		ExecutorUtil.shutdown(this.executorService, 60L, TimeUnit.SECONDS);
 	}
 
 

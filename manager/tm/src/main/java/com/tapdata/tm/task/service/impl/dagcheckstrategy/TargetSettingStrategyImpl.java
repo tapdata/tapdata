@@ -18,6 +18,7 @@ import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MessageUtil;
+import io.tapdata.entity.result.ResultItem;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -56,6 +57,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
             String nodeId = node.getId();
 
             DataParentNode dataParentNode = (DataParentNode) node;
+            String connectionId = dataParentNode.getConnectionId();
 
             if (StringUtils.isEmpty(name)) {
                 TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
@@ -67,7 +69,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                 result.add(log);
             }
 
-            if (StringUtils.isEmpty(dataParentNode.getConnectionId())) {
+            if (StringUtils.isEmpty(connectionId)) {
                 TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                         .grade(Level.ERROR).nodeId(nodeId)
                         .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_NOT_SELECT_DB"), name))
@@ -77,12 +79,22 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                 result.add(log);
             }
 
+            boolean keepTargetSchema = false;
             AtomicReference<List<String>> tableNames = new AtomicReference<>();
+            List<String> existDataModeList = Lists.newArrayList("keepData", "removeData");
             if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
                 DatabaseNode databaseNode = (DatabaseNode) node;
                 Optional.ofNullable(databaseNode.getSyncObjects()).ifPresent(list -> tableNames.set(list.get(0).getObjectNames()));
+
+                if (existDataModeList.contains(databaseNode.getExistDataProcessMode())) {
+                    keepTargetSchema = true;
+                }
             } else {
                 TableNode tableNode = (TableNode) node;
+                if (existDataModeList.contains(tableNode.getExistDataProcessMode())) {
+                    keepTargetSchema = true;
+                }
+
                 tableNames.set(Lists.newArrayList(tableNode.getTableName()));
                 List<String> updateConditionFields = tableNode.getUpdateConditionFields();
                 if (CollectionUtils.isEmpty(updateConditionFields)) {
@@ -95,22 +107,51 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                     result.add(log);
                 } else {
                     List<MetadataInstancesDto> nodeSchemas = metadataInstancesService.findByNodeId(nodeId, userDetail);
-                    Optional.ofNullable(nodeSchemas).ifPresent(list -> {
-                        list.stream().filter(i -> tableNode.getTableName().equals(i.getName())).findFirst()
-                                .ifPresent(schema -> {
-                                    List<String> fields = schema.getFields().stream().map(Field::getFieldName).collect(Collectors.toList());
-                                    List<String> noExistsFields = updateConditionFields.stream().filter(d -> !fields.contains(d)).collect(Collectors.toList());
-                                    if (CollectionUtils.isNotEmpty(noExistsFields)) {
-                                        TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                                                .grade(Level.ERROR).nodeId(nodeId)
-                                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_UPDATE_NOT_EXISTS"), name, JSON.toJSON(noExistsFields)))
-                                                .build();
-                                        log.setCreateAt(now);
-                                        log.setCreateUser(userId);
-                                        result.add(log);
-                                    }
-                                });
+                    Optional.ofNullable(nodeSchemas).flatMap(list -> list.stream().filter(i -> tableNode.getTableName().equals(i.getName())).findFirst()).ifPresent(schema -> {
+                        List<String> fields = schema.getFields().stream().map(Field::getFieldName).collect(Collectors.toList());
+                        List<String> noExistsFields = updateConditionFields.stream().filter(d -> !fields.contains(d)).collect(Collectors.toList());
+                        if (CollectionUtils.isNotEmpty(noExistsFields)) {
+                            TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
+                                    .grade(Level.ERROR).nodeId(nodeId)
+                                    .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_UPDATE_NOT_EXISTS"), name, JSON.toJSON(noExistsFields)))
+                                    .build();
+                            log.setCreateAt(now);
+                            log.setCreateUser(userId);
+                            result.add(log);
+                        }
                     });
+                }
+            }
+
+            if (keepTargetSchema) {
+                List<MetadataInstancesDto> schemaList = metadataInstancesService.findSourceSchemaBySourceId(connectionId, tableNames.get(), userDetail);
+                List<String> collect = schemaList.stream().map(MetadataInstancesDto::getName).collect(Collectors.toList());
+                if (CollectionUtils.isNotEmpty(collect)) {
+                    List<String> list = new ArrayList<>(tableNames.get());
+                    list.removeAll(collect);
+                    if (CollectionUtils.isNotEmpty(list)) {
+                        TaskDagCheckLog log = TaskDagCheckLog.builder()
+                                .taskId(taskId)
+                                .checkType(templateEnum.name())
+                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_SCHAME"), node.getName(), JSON.toJSONString(list)))
+                                .grade(Level.ERROR)
+                                .nodeId(node.getId()).build();
+                        log.setCreateAt(now);
+                        log.setCreateUser(userId);
+
+                        result.add(log);
+                    }
+                } else {
+                    TaskDagCheckLog log = TaskDagCheckLog.builder()
+                            .taskId(taskId)
+                            .checkType(templateEnum.name())
+                            .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_SCHAME"), node.getName(), JSON.toJSONString(tableNames.get())))
+                            .grade(Level.ERROR)
+                            .nodeId(node.getId()).build();
+                    log.setCreateAt(now);
+                    log.setCreateUser(userId);
+
+                    result.add(log);
                 }
             }
 
@@ -127,7 +168,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
             String databaseType = dataParentNode.getDatabaseType();
             if (Lists.newArrayList("Oracle", "Clickhouse").contains(databaseType)) {
                 List<MetadataInstancesDto> schemaList = metadataInstancesService.findByNodeId(nodeId, userDetail);
-                Optional.ofNullable(schemaList).ifPresent(list -> {
+                Optional.of(schemaList).ifPresent(list -> {
                     for (MetadataInstancesDto metadata : list) {
                         for (Field field : metadata.getFields()) {
                             switch (databaseType) {

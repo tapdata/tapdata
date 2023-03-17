@@ -47,7 +47,6 @@ import io.tapdata.common.SettingService;
 import io.tapdata.entity.OnData;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
-import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -58,8 +57,9 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.schema.value.TapValue;
+import io.tapdata.error.TapUnknownException;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
@@ -73,6 +73,7 @@ import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
+import io.tapdata.flow.engine.V2.util.TapCodecUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.observable.logging.ObsLogger;
@@ -128,7 +129,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected SettingService settingService;
 
 	protected Map<String, String> tags;
-	protected NodeException error;
+	protected TapCodeException error;
 	protected String errorMessage;
 	protected ProcessorBaseContext processorBaseContext;
 	protected String threadName;
@@ -532,20 +533,16 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected void doClose() throws Exception {
 		CommonUtils.handleAnyError(() -> {
 			Optional.ofNullable(processorBaseContext.getTapTableMap()).ifPresent(TapTableMap::reset);
-			logger.info(String.format("Node %s[%s] schema data cleaned", getNode().getName(), getNode().getId()));
 			obsLogger.info(String.format("Node %s[%s] schema data cleaned", getNode().getName(), getNode().getId()));
 		}, err -> {
-			logger.warn(String.format("Clean node %s[%s] schema data failed: %s", getNode().getName(), getNode().getId(), err.getMessage()));
 			obsLogger.warn(String.format("Clean node %s[%s] schema data failed: %s", getNode().getName(), getNode().getId(), err.getMessage()));
 		});
 		CommonUtils.handleAnyError(() -> {
 			if (this.monitorManager != null) {
 				this.monitorManager.close();
-				logger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
 				obsLogger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
 			}
 		}, err -> {
-			logger.warn("Close monitor failed: " + err.getMessage());
 			obsLogger.warn("Close monitor failed: " + err.getMessage());
 		});
 	}
@@ -695,12 +692,13 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		HttpClientMongoOperator httpClientMongoOperator = (HttpClientMongoOperator) clientMongoOperator;
 	}
 
-	public synchronized NodeException errorHandle(Throwable throwable, String errorMessage) {
-		NodeException currentEx;
-		if (throwable instanceof NodeException) {
-			currentEx = (NodeException) throwable;
+	public synchronized TapCodeException errorHandle(Throwable throwable, String errorMessage) {
+		TapCodeException currentEx;
+		Throwable matchThrowable = CommonUtils.matchThrowable(throwable, TapCodeException.class);
+		if (null != matchThrowable) {
+			currentEx = (TapCodeException) matchThrowable;
 		} else {
-			currentEx = new NodeException(errorMessage, throwable).context(getProcessorBaseContext());
+			currentEx = new TapUnknownException(throwable);
 		}
 		TaskDto taskDto = processorBaseContext.getTaskDto();
 		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(), TaskDto.SYNC_TYPE_TEST_RUN)) {
@@ -715,8 +713,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				} else {
 					this.errorMessage = currentEx.getMessage();
 				}
-				logger.error(errorMessage, currentEx);
-				Optional.ofNullable(obsLogger).ifPresent(log -> log.error(errorMessage, currentEx));
+				obsLogger.error(errorMessage, currentEx);
 				this.running.set(false);
 
 				// jetContext async injection, Attempt 5 times to get the instance every 500ms
@@ -737,8 +734,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				if (hazelcastJob != null) {
 					JobStatus status = hazelcastJob.getStatus();
 					if (JobStatus.RUNNING == status) {
-						logger.info("Job suspend in error handle");
-						Optional.ofNullable(obsLogger).ifPresent(log -> log.info("Job suspend in error handle"));
+						obsLogger.info("Job suspend in error handle");
 						TaskClient<TaskDto> taskDtoTaskClient = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(taskDto.getId().toHexString());
 						if (null != taskDtoTaskClient) {
 							taskDtoTaskClient.terminalMode(TerminalMode.ERROR);
@@ -753,8 +749,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		} catch (NodeException e) {
 			throw e;
 		} catch (Exception e) {
-			logger.warn("Error handler failed: " + e.getMessage(), e);
-			Optional.ofNullable(obsLogger).ifPresent(log -> log.warn("Error handler failed: " + e.getMessage()));
+			obsLogger.warn("Error handler failed: " + e.getMessage(), e);
 		}
 
 		return currentEx;

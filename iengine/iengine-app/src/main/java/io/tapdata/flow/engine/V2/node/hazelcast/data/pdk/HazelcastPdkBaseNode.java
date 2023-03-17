@@ -234,19 +234,15 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 							PDKInvocationMonitor.stop(getConnectorNode());
 							PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG);
 						});
-				logger.info("PDK connector node stopped: " + associateId);
 				obsLogger.info("PDK connector node stopped: " + associateId);
 			}, err -> {
-				logger.warn(String.format("Stop PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
 				obsLogger.warn(String.format("Stop PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
 			});
 			CommonUtils.handleAnyError(() -> {
 				Optional.ofNullable(getConnectorNode()).ifPresent(node -> PDKIntegration.releaseAssociateId(associateId));
 				ConnectorNodeService.getInstance().removeConnectorNode(associateId);
-				logger.info("PDK connector node released: " + associateId);
 				obsLogger.info("PDK connector node released: " + associateId);
 			}, err -> {
-				logger.warn(String.format("Release PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
 				obsLogger.warn(String.format("Release PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
 			});
 		} finally {

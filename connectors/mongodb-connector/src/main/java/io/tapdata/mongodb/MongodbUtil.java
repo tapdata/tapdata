@@ -15,7 +15,6 @@ import org.bson.BsonDocument;
 import org.bson.BsonString;
 import org.bson.BsonTimestamp;
 import org.bson.Document;
-import org.bson.codecs.BigDecimalCodec;
 import org.bson.codecs.configuration.CodecRegistries;
 import org.bson.codecs.configuration.CodecRegistry;
 
@@ -419,5 +418,120 @@ public class MongodbUtil {
 			}
 		}
 		return containId;
+	}
+
+	/**
+	 * @param commandStr: db.test.find({}), db.getCollection('test').find({})
+	 * @return
+	 */
+	public static Map<String, String> parseCommand(String commandStr) {
+		try {
+			Map<String, String> map = new HashMap<>();
+
+			commandStr = commandStr.replaceFirst("db.", "");
+			String[] split = commandStr.split("\\.", 2);
+			String collection = split[0].trim();
+			if (collection.startsWith("getCollection(")) {
+				collection = collection.replaceFirst("getCollection\\(", "");
+				collection = collection.substring(0, collection.length() - 1);
+				collection = collection.replaceAll("\"", "");
+				collection = collection.replaceAll("'", "");
+			}
+			map.put("collection", collection);
+			//find({}).limit(1)
+			String command = split[1].substring(0, split[1].indexOf("("));
+			map.put("command", command);
+			String others = split[1].substring(command.length());
+			if ("find".equals(command)) {
+				Map<String, String> filterMap = splitFilter(others);
+				if (filterMap != null) {
+					map.putAll(filterMap);
+				}
+			} else if ("aggregate".equals(command)) {
+				//
+				String pipeline = others.substring(1, others.indexOf(")"));
+				map.put("pipeline", pipeline);
+			} else {
+				throw new IllegalArgumentException("Unsupported command: " + command);
+			}
+
+			return map;
+		} catch (Throwable e) {
+			throw new IllegalArgumentException("syntax command error: " + commandStr, e);
+		}
+	}
+
+	public static Map<String, String> splitFilter(String filterStr) {
+		if (EmptyKit.isEmpty(filterStr)) {
+			return null;
+		}
+		Map<String, String> filterMap = new HashMap<>();
+		int filterIndex = filterStr.indexOf("({");
+		int filterLastIndex = filterStr.indexOf("})");
+		if (filterIndex > 0 && filterLastIndex > 0) {
+			String str = filterStr.substring(filterIndex + 1, filterLastIndex + 1);
+			String[] split = str.replaceAll(" ", "").split("},");
+			String filter = split[0] + "}";
+			filterMap.put("filter", filter);
+			if (split.length > 1) {
+				String projection = split[1];
+				filterMap.put("projection", projection);
+			}
+		}
+		int sortIndex = filterStr.indexOf(".sort(");
+		if (sortIndex > 0) {
+			String sortStr = filterStr.substring(sortIndex + 6);
+			int sortLastIndex = sortStr.indexOf(")");
+			if (sortLastIndex > 0) {
+				filterMap.put("sort", sortStr.substring(0, sortLastIndex));
+			}
+		}
+		int limitIndex = filterStr.indexOf(".limit(");
+		if (limitIndex > 0) {
+			String limitStr = filterStr.substring(limitIndex + 7);
+			int limitLastIndex = limitStr.indexOf(")");
+			if (limitLastIndex > 0) {
+				filterMap.put("limit", limitStr.substring(0, limitLastIndex));
+			}
+		}
+		int skipIndex = filterStr.indexOf(".skip(");
+		if (skipIndex > 0) {
+			String skipStr = filterStr.substring(skipIndex + 6);
+			int skipLastIndex = skipStr.indexOf(")");
+			if (skipLastIndex > 0) {
+				filterMap.put("skip", skipStr.substring(0, skipLastIndex));
+			}
+		}
+
+		return filterMap;
+
+	}
+
+	public static void main(String[] args) {
+		String command = "db.test.find({'aa':1}).limit(1)";
+		Map<String, String> map = splitFilter(command);
+		System.out.println(map);
+
+//		System.out.println(getCollection("db.test.find({'aa':1}).limit(1)"));
+//		System.out.println(getCollection("db.getCollection('test').find({})"));
+//		System.out.println(getCollection("db.getCollection(\"test\").find({})"));
+
+		System.out.println();
+		String[] split = "getCollection('test').find({}).limit(1)".split("\\.", 2);
+		for (String s : split) {
+			System.out.println(s);
+		}
+
+		//find({}).limit(1)
+		String substring = split[1].substring(0, split[1].indexOf("("));
+		System.out.println(substring);
+		System.out.println(split[1].substring(substring.length()));
+
+		System.out.println(split[1].substring(substring.length() + 1, split[1].indexOf(")")));
+
+		System.out.println(parseCommand("db.test.find({'aa':1}).limit(1)"));
+		System.out.println(parseCommand("db.test.aggregate([{'aa':1}])"));
+
+
 	}
 }

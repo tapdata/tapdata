@@ -3,6 +3,8 @@ package io.tapdata.milestone.entity;
 import io.tapdata.milestone.constants.MilestoneStatus;
 
 import java.io.Serializable;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -73,11 +75,33 @@ public class MilestoneEntity implements Serializable {
         this.progress = progress;
     }
 
+    public synchronized void addProgress(int size) {
+        this.progress += size;
+    }
+
     public Long getTotals() {
         return totals;
     }
 
     public void setTotals(Long totals) {
         this.totals = totals;
+    }
+
+    public static MilestoneEntity valueOf(Object o) {
+        if (o instanceof Map) {
+            MilestoneEntity entity = new MilestoneEntity();
+            entity.setOfMap((Map<String, Object>) o);
+            return entity;
+        }
+        return null;
+    }
+
+    public void setOfMap(Map<String, Object> map) {
+        Optional.ofNullable(map.get("status")).ifPresent(v -> setStatus(MilestoneStatus.valueOf(v.toString())));
+        Optional.ofNullable(map.get("begin")).ifPresent(v -> setBegin(Long.parseLong(v.toString())));
+        Optional.ofNullable(map.get("end")).ifPresent(v -> setEnd(Long.parseLong(v.toString())));
+        Optional.ofNullable(map.get("progress")).ifPresent(v -> setProgress(Long.parseLong(v.toString())));
+        Optional.ofNullable(map.get("totals")).ifPresent(v -> setTotals(Long.parseLong(v.toString())));
+        Optional.ofNullable(map.get("errorMessage")).ifPresent(v -> setErrorMessage(v.toString()));
     }
 }

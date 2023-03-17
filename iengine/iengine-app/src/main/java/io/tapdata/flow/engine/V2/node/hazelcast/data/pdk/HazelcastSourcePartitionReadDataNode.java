@@ -13,6 +13,7 @@ import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
+import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.async.master.*;
 import io.tapdata.entity.aspect.AspectManager;
@@ -31,8 +32,6 @@ import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
-import io.tapdata.milestone.MilestoneStage;
-import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.*;
@@ -58,7 +57,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static io.tapdata.entity.simplify.TapSimplify.list;
 import static io.tapdata.entity.simplify.TapSimplify.sleep;
 
 /**
@@ -116,6 +114,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 			}
 			super.doInit(context);
 		} catch (Throwable e) {
+			//Notify error for task.
 			throw errorHandle(e, "init failed");
 		}
 	}
@@ -136,6 +135,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 
 		PDKSourceContext pdkSourceContext = jobContext.getContext(PDKSourceContext.class);
 		obsLogger.info("Start initial sync for tables {} with readPartitionOptions {}", pdkSourceContext.getPendingInitialSyncTables(), readPartitionOptions);
+		executeAspect(new SnapshotReadBeginAspect().dataProcessorContext(dataProcessorContext).tables(pdkSourceContext.getPendingInitialSyncTables()));
 
 		if(getConnectorNode().getConnectorFunctions().getCountByPartitionFilterFunction() == null) {
 			readPartitionOptions.setSplitType(ReadPartitionOptions.SPLIT_TYPE_BY_MINMAX);
@@ -146,8 +146,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 		GetReadPartitionsFunction getReadPartitionsFunction = getConnectorNode().getConnectorFunctions().getGetReadPartitionsFunction();
 		if (getReadPartitionsFunction != null) {
 			if (sourceRunnerFirstTime.get()) {
-				AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_START));
-				TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.READ_SNAPSHOT, MilestoneStatus.RUNNING);
+				executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_START));
 			}
 //			MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_SNAPSHOT, MilestoneStatus.RUNNING);
 
@@ -200,6 +199,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 		} else {
 			doSnapshot(pdkSourceContext.getPendingInitialSyncTables());
 		}
+		executeAspect(new SnapshotReadEndAspect().dataProcessorContext(dataProcessorContext));
 		return null;
 	}
 
@@ -378,12 +378,16 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 					.job("batchRead", this::handleBatchReadForTables).finished().start(JobContext.create(null).context(sourceContext));
 		}
 
+		Snapshot2CDCAspect.execute(dataProcessorContext);
+
 		if(sourceContext.isNeedCDC()) {
+			executeAspect(new CDCReadBeginAspect().dataProcessorContext(dataProcessorContext));
 			streamReadWorker = asyncMaster.createAsyncQueueWorker("StreamRead_tableSize_" + sourceContext.getPendingInitialSyncTables().size())
 					.setAsyncJobErrorListener(this::handleWorkerError)
 					.job(this::handleStreamRead).finished()
 					.start(JobContext.create().context(
 							StreamReadContext.create().streamStage(false).tables(sourceContext.getPendingInitialSyncTables())), true);
+			executeAspect(new CDCReadEndAspect().dataProcessorContext(dataProcessorContext));
 		}
 
 //		partitionsReader = asyncMaster.createAsyncParallelWorker("PartitionReader " + getNode().getId(), 8);
