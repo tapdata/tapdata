@@ -7,12 +7,16 @@ import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.exception.TapExClass;
 import io.tapdata.exception.TapExCode;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import org.apache.commons.lang3.StringUtils;
 import org.reflections.Reflections;
 import org.reflections.scanners.TypeAnnotationsScanner;
 import org.reflections.util.ConfigurationBuilder;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,6 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @MainMethod("main")
 public class ErrorHandler implements MemoryFetcher {
 	private final Map<String, ErrorCodeEntity> errorCodeEntityMap = new ConcurrentHashMap<>();
+	private final Map<String, List<ErrorCodeEntity>> errorClassMap = new ConcurrentHashMap<>();
 
 	public void main() {
 		ConfigurationBuilder builder = new ConfigurationBuilder()
@@ -36,6 +41,7 @@ public class ErrorHandler implements MemoryFetcher {
 		Reflections reflections = new Reflections(builder);
 		Set<Class<?>> exCodeClasses = reflections.getTypesAnnotatedWith(TapExClass.class);
 		for (Class<?> exCodeClass : exCodeClasses) {
+			String exCodeClassName = exCodeClass.getName();
 			Field[] declaredFields = exCodeClass.getDeclaredFields();
 			for (Field field : declaredFields) {
 				field.setAccessible(true);
@@ -43,16 +49,6 @@ public class ErrorHandler implements MemoryFetcher {
 				if (null == annotation) {
 					continue;
 				}
-				ErrorCodeEntity errorCodeEntity = ErrorCodeEntity.create()
-						.describe(annotation.describe())
-						.describeCN(annotation.describeCN())
-						.solution(annotation.solution())
-						.solutionCN(annotation.solutionCN())
-						.howToReproduce(annotation.howToReproduce())
-						.level(annotation.level())
-						.recoverable(annotation.recoverable())
-						.sourceExClass(exCodeClass.getName())
-						.seeAlso(annotation.seeAlso());
 				Object fieldValue;
 				String code;
 				try {
@@ -64,9 +60,26 @@ public class ErrorHandler implements MemoryFetcher {
 					continue;
 				}
 				code = fieldValue.toString();
+				ErrorCodeEntity errorCodeEntity = ErrorCodeEntity.create()
+						.name(field.getName())
+						.code(code)
+						.describe(annotation.describe())
+						.describeCN(annotation.describeCN())
+						.solution(annotation.solution())
+						.solutionCN(annotation.solutionCN())
+						.howToReproduce(annotation.howToReproduce())
+						.level(annotation.level())
+						.recoverable(annotation.recoverable())
+						.sourceExClass(exCodeClass.getName())
+						.seeAlso(annotation.seeAlso());
 				errorCodeEntityMap.put(code, errorCodeEntity);
+
+				errorClassMap.computeIfAbsent(exCodeClassName, key -> new ArrayList<>())
+						.add(errorCodeEntity);
 			}
 		}
+
+		PDKIntegration.registerMemoryFetcher("Error Code", this);
 	}
 
 	public ErrorCodeEntity getErrorCode(String code) {
@@ -86,13 +99,20 @@ public class ErrorHandler implements MemoryFetcher {
 			}
 		} else {
 			if (memoryLevel.equals(MemoryFetcher.MEMORY_LEVEL_SUMMARY)) {
-				for (Map.Entry<String, ErrorCodeEntity> entityEntry : errorCodeEntityMap.entrySet()) {
-					String code = entityEntry.getKey();
-					ErrorCodeEntity errorCodeEntity = entityEntry.getValue();
-					dataMap.put(code, errorCodeEntity.getDescribe());
+				for (Map.Entry<String, List<ErrorCodeEntity>> entry : errorClassMap.entrySet()) {
+					String exCodeClzName = entry.getKey();
+					List<ErrorCodeEntity> errorCodes = entry.getValue();
+					Map<String, Object> errorCodeMap = new HashMap<>();
+					for (ErrorCodeEntity errorCode : errorCodes) {
+						errorCodeMap.put(
+								String.format("[%s]%s", errorCode.getCode(), errorCode.getName()),
+								StringUtils.isNotBlank(errorCode.getDescribeCN()) ? errorCode.getDescribeCN() : errorCode.getDescribe()
+						);
+					}
+					dataMap.put(exCodeClzName, errorCodeMap);
 				}
 			} else if (memoryLevel.equals(MEMORY_LEVEL_IN_DETAIL)) {
-				dataMap.putAll(errorCodeEntityMap);
+				dataMap.putAll(errorClassMap);
 			}
 		}
 		return dataMap;
