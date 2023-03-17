@@ -28,7 +28,6 @@ import com.tapdata.tm.dataflow.service.DataFlowService;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.scheduleTasks.dto.ScheduleTasksDto;
 import com.tapdata.tm.scheduleTasks.service.ScheduleTasksService;
-import com.tapdata.tm.sdk.util.AppType;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
@@ -90,7 +89,6 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
     private final MultiTaggedCounter workerPing;
 
-    private final static AppType appType = AppType.init();
 
 
     public WorkerService(@NonNull WorkerRepository repository) {
@@ -552,9 +550,10 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         }
 
         worker.setPingTime(System.currentTimeMillis());
-
+        Object buildProfile = settingsService.getByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE).getValue();
+        boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
         Criteria where = Criteria.where("process_id").is(worker.getProcessId()).and("worker_type").is(worker.getWorkerType());
-        if (!WorkerSingletonLock.checkDBTag(worker.getSingletonLock(), worker.getWorkerType(), appType.isCloud(), () -> Optional
+        if (!WorkerSingletonLock.checkDBTag(worker.getSingletonLock(), worker.getWorkerType(), isCloud, () -> Optional
                 .of(Query.query(where))
                 .map(query -> {
                     query.fields().include("singletonLock", "ping_time");
