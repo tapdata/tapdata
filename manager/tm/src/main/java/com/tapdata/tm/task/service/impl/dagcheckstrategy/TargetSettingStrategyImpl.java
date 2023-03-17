@@ -175,10 +175,11 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                                     result.add(log);
                                 } else {
                                     Map<String, String> dataTypeMap = metadata.getFields().stream().collect(Collectors.toMap(Field::getFieldName, Field::getDataType, (pre, aft) -> pre));
+                                    Map<String, String> selectTypeMap = metadata.getFields().stream().collect(Collectors.toMap(Field::getFieldName, Field::getSelectDataType, (pre, aft) -> pre));
                                     int passingGrade = v.getDataTypes().indexOf(v.getLastMatchedDataType());
                                     int currentGrade = v.getDataTypes().indexOf(dataTypeMap.get(k));
 
-                                    if (!v.getDataTypes().contains(dataTypeMap.get(k)) || currentGrade < passingGrade) {
+                                    if ((!v.getDataTypes().contains(dataTypeMap.get(k)) && Objects.isNull(selectTypeMap.get(k))) || currentGrade < passingGrade) {
                                         TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_SELECT_FIELD"), node.getName(), metadata.getName(), k);
                                         result.add(log);
                                     }
