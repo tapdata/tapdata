@@ -18,7 +18,6 @@ import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MessageUtil;
-import io.tapdata.entity.result.ResultItem;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -79,21 +78,21 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                 result.add(log);
             }
 
-            boolean keepTargetSchema = false;
+//            boolean keepTargetSchema = false;
             AtomicReference<List<String>> tableNames = new AtomicReference<>();
             List<String> existDataModeList = Lists.newArrayList("keepData", "removeData");
             if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
                 DatabaseNode databaseNode = (DatabaseNode) node;
                 Optional.ofNullable(databaseNode.getSyncObjects()).ifPresent(list -> tableNames.set(list.get(0).getObjectNames()));
 
-                if (existDataModeList.contains(databaseNode.getExistDataProcessMode())) {
-                    keepTargetSchema = true;
-                }
+//                if (existDataModeList.contains(databaseNode.getExistDataProcessMode())) {
+//                    keepTargetSchema = true;
+//                }
             } else {
                 TableNode tableNode = (TableNode) node;
-                if (existDataModeList.contains(tableNode.getExistDataProcessMode())) {
-                    keepTargetSchema = true;
-                }
+//                if (existDataModeList.contains(tableNode.getExistDataProcessMode())) {
+//                    keepTargetSchema = true;
+//                }
 
                 tableNames.set(Lists.newArrayList(tableNode.getTableName()));
                 List<String> updateConditionFields = tableNode.getUpdateConditionFields();
@@ -123,37 +122,37 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                 }
             }
 
-            if (keepTargetSchema) {
-                List<MetadataInstancesDto> schemaList = metadataInstancesService.findSourceSchemaBySourceId(connectionId, tableNames.get(), userDetail);
-                List<String> collect = schemaList.stream().map(MetadataInstancesDto::getName).collect(Collectors.toList());
-                if (CollectionUtils.isNotEmpty(collect)) {
-                    List<String> list = new ArrayList<>(tableNames.get());
-                    list.removeAll(collect);
-                    if (CollectionUtils.isNotEmpty(list)) {
-                        TaskDagCheckLog log = TaskDagCheckLog.builder()
-                                .taskId(taskId)
-                                .checkType(templateEnum.name())
-                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_SCHAME"), node.getName(), JSON.toJSONString(list)))
-                                .grade(Level.ERROR)
-                                .nodeId(node.getId()).build();
-                        log.setCreateAt(now);
-                        log.setCreateUser(userId);
-
-                        result.add(log);
-                    }
-                } else {
-                    TaskDagCheckLog log = TaskDagCheckLog.builder()
-                            .taskId(taskId)
-                            .checkType(templateEnum.name())
-                            .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_SCHAME"), node.getName(), JSON.toJSONString(tableNames.get())))
-                            .grade(Level.ERROR)
-                            .nodeId(node.getId()).build();
-                    log.setCreateAt(now);
-                    log.setCreateUser(userId);
-
-                    result.add(log);
-                }
-            }
+//            if (keepTargetSchema) {
+//                List<MetadataInstancesDto> schemaList = metadataInstancesService.findSourceSchemaBySourceId(connectionId, tableNames.get(), userDetail);
+//                List<String> collect = schemaList.stream().map(MetadataInstancesDto::getName).collect(Collectors.toList());
+//                if (CollectionUtils.isNotEmpty(collect)) {
+//                    List<String> list = new ArrayList<>(tableNames.get());
+//                    list.removeAll(collect);
+//                    if (CollectionUtils.isNotEmpty(list)) {
+//                        TaskDagCheckLog log = TaskDagCheckLog.builder()
+//                                .taskId(taskId)
+//                                .checkType(templateEnum.name())
+//                                .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_SCHAME"), node.getName(), JSON.toJSONString(list)))
+//                                .grade(Level.ERROR)
+//                                .nodeId(node.getId()).build();
+//                        log.setCreateAt(now);
+//                        log.setCreateUser(userId);
+//
+//                        result.add(log);
+//                    }
+//                } else {
+//                    TaskDagCheckLog log = TaskDagCheckLog.builder()
+//                            .taskId(taskId)
+//                            .checkType(templateEnum.name())
+//                            .log(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_SCHAME"), node.getName(), JSON.toJSONString(tableNames.get())))
+//                            .grade(Level.ERROR)
+//                            .nodeId(node.getId()).build();
+//                    log.setCreateAt(now);
+//                    log.setCreateUser(userId);
+//
+//                    result.add(log);
+//                }
+//            }
 
             if (CollectionUtils.isEmpty(tableNames.get())) {
                 TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
