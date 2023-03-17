@@ -806,7 +806,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				log.debug("Reset WebHook URL error, datasource name = {}, message : PdkHash must be not null or not empty.", entity.getName());
 				return;
 			}
-			DataSourceDefinitionDto dataSource = dataSourceDefinitionService.findByPdkHash(pdkHash, user);
+			DataSourceDefinitionDto dataSource = dataSourceDefinitionService.findByPdkHash(pdkHash, Integer.MAX_VALUE, user);
 			LinkedHashMap<String, Object> properties = dataSource.getProperties();
 			//获取connection配置
 			if (null == properties || properties.isEmpty()) {
@@ -999,7 +999,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		checkName(connection.getName());
 
 		//根据dataSourceType查询数据源定义是否存在，如果不存在则返回数据源定义不存在的错误
-		DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.findByPdkHash(connection.getPdkHash(), user);
+		DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.findByPdkHash(connection.getPdkHash(), Integer.MAX_VALUE, user);
 		if (definitionDto == null) {
 			throw new BizException("Data source definition not found");
 		}

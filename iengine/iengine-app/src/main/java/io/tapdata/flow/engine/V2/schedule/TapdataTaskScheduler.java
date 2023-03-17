@@ -592,7 +592,8 @@ public class TapdataTaskScheduler {
 		}
 		taskDtoTaskClient.terminalMode(TerminalMode.STOP_GRACEFUL);
 		taskDtoTaskClient.getTask().setSnapShotInterrupt(true);
-		stopTaskCallAssignApi(taskDtoTaskClient, StopTaskResource.STOPPED);
+		taskDtoTaskClient.stop();
+//		stopTaskCallAssignApi(taskDtoTaskClient, StopTaskResource.STOPPED);
 	}
 
 	public TaskClient<TaskDto> getTaskClient(String taskId) {
