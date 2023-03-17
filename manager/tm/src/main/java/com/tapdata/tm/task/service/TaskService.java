@@ -7,6 +7,7 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.extra.cglib.CglibUtil;
+import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.service.SettingsService;
@@ -29,7 +30,9 @@ import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.*;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.commons.task.dto.migrate.MigrateTableDto;
 import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
 import com.tapdata.tm.commons.util.CapitalizedEnum;
@@ -1280,7 +1283,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
     public Page<TaskDto> find(Filter filter, UserDetail userDetail) {
         if (isAgentReq()) {
-            return super.find(filter, userDetail);
+            Page<TaskDto>  page = super.find(filter, userDetail);
+            deleteNotifyEnumData(page.getItems());
+            log.debug("page{}",JSONObject.toJSONString(page));
+            return page;
         }
 
         Where where = filter.getWhere();
@@ -1387,6 +1393,40 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
 
+    public void deleteNotifyEnumData(List<TaskDto> taskDtoList) {
+        log.info("deleteNotifyEnumData");
+        if (CollectionUtils.isEmpty(taskDtoList)) {
+            return;
+        }
+        for (TaskDto taskDto : taskDtoList) {
+            List<AlarmSettingVO> alarmSettings = taskDto.getAlarmSettings();
+            if (CollectionUtils.isNotEmpty(alarmSettings)) {
+                for (AlarmSettingVO alarmSettingDto : alarmSettings) {
+                    log.info("alarmSettingDto{}", JSONObject.toJSONString(alarmSettingDto));
+                    alarmSettingDto.getNotify().remove(NotifyEnum.SMS);
+                    alarmSettingDto.getNotify().remove(NotifyEnum.WECHAT);
+                    log.info("alarmSettingDto after{}", JSONObject.toJSONString(alarmSettingDto));
+
+                }
+            }
+            if (taskDto.getDag().getNodes() != null) {
+                for (Node node : taskDto.getDag().getNodes()) {
+                    if (CollectionUtils.isNotEmpty(node.getAlarmSettings())) {
+                        List<AlarmSettingVO> alarmSetting = node.getAlarmSettings();
+                        for (AlarmSettingVO alarmSettingVO : alarmSetting) {
+                            log.info("alarmSettingDto Node{}", JSONObject.toJSONString(alarmSettingVO));
+                            if (CollectionUtils.isNotEmpty(alarmSettingVO.getNotify())) {
+                                alarmSettingVO.getNotify().remove(NotifyEnum.SMS);
+                                alarmSettingVO.getNotify().remove(NotifyEnum.WECHAT);
+                                log.info("alarmSettingDto  Node after{}", JSONObject.toJSONString(alarmSettingVO));
+
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     /**
      * 查询数据复制任务，直接用status查
      * 列表的筛选需要增加一个逻辑
@@ -2071,11 +2111,23 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public TransformerWsMessageDto findTransformParam(String taskId, UserDetail user) {
         TaskDto taskDto = checkExistById(MongoUtils.toObjectId(taskId), user);
+        if (isAgentReq()) {
+            List<TaskDto> list = new ArrayList<>();
+            list.add(taskDto);
+            deleteNotifyEnumData(list);
+
+        }
         return transformSchemaService.getTransformParam(taskDto, user);
     }
 
     public TransformerWsMessageDto findTransformAllParam(String taskId, UserDetail user) {
         TaskDto taskDto = checkExistById(MongoUtils.toObjectId(taskId), user);
+        if (isAgentReq()) {
+            List<TaskDto> list = new ArrayList<>();
+            list.add(taskDto);
+            deleteNotifyEnumData(list);
+
+        }
         return transformSchemaService.getTransformParam(taskDto, user, true);
     }
 
