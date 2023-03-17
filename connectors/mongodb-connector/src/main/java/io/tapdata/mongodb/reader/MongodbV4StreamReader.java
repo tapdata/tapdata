@@ -22,7 +22,7 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.cache.KVMap;
-import io.tapdata.exception.TapPDKOffsetOutOfLogException;
+import io.tapdata.exception.TapPdkOffsetOutOfLogEx;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.mongodb.MongodbUtil;
 import io.tapdata.mongodb.entity.MongodbConfig;
@@ -202,7 +202,7 @@ public class MongodbV4StreamReader implements MongodbStreamReader {
 				if (throwable instanceof MongoCommandException) {
 					MongoCommandException mongoCommandException = (MongoCommandException) throwable;
 					if (mongoCommandException.getErrorCode() == 286) {
-						throw new TapPDKOffsetOutOfLogException(connectorContext.getSpecification().getId(), offset, throwable);
+						throw new TapPdkOffsetOutOfLogEx(connectorContext.getSpecification().getId(), offset, throwable);
 					}
 
 					if (mongoCommandException.getErrorCode() == 10334) {
