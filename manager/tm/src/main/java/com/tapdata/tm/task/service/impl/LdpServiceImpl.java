@@ -25,6 +25,7 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.ThreadLocalUtils;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -62,6 +63,9 @@ public class LdpServiceImpl implements LdpService {
 
     @Autowired
     private MetadataInstancesService metadataInstancesService;
+
+    private static ThreadLocal<String> tagCache = new ThreadLocal<>();
+
     @Override
     public TaskDto createFdmTask(TaskDto task, UserDetail user) {
         //check fdm task
@@ -269,13 +273,25 @@ public class LdpServiceImpl implements LdpService {
     }
 
     @Override
-    public TaskDto createMdmTask(TaskDto task, UserDetail user) {
-        //check mdm task
-        checkMdmTask(task, user);
-        //add mmd type
-        task.setLdpType(TaskDto.LDP_TYPE_MDM);
-        //create sync task
-        return taskService.confirmStart(task, user, true);
+    public TaskDto createMdmTask(TaskDto task, String tagId, UserDetail user) {
+
+        try {
+            //check mdm task
+            checkMdmTask(task, user);
+            //add mmd type
+            task.setLdpType(TaskDto.LDP_TYPE_MDM);
+
+
+            if (StringUtils.isNotBlank(tagId)) {
+                tagCache.set(tagId);
+            }
+            //create sync task
+            task = taskService.confirmStart(task, user, true);
+        } finally {
+            tagCache.remove();
+        }
+
+        return task;
     }
 
     @Override
@@ -341,6 +357,15 @@ public class LdpServiceImpl implements LdpService {
             Tag mdmTag = getMdmTag();
             Map<String, Boolean> mdmMap = queryTagBelongMdm(tagIds, user, mdmTag.getId());
 
+            Tag setTag = mdmTag;
+            String tagId = tagCache.get();
+            if (StringUtils.isNotBlank(tagId)) {
+                MetadataDefinitionDto tag = metadataDefinitionService.findById(MongoUtils.toObjectId(tagId), user);
+                if (tag != null) {
+                    setTag = new Tag(tag.getId().toHexString(), tag.getValue());
+                }
+
+            }
 
 
             m :
@@ -359,7 +384,7 @@ public class LdpServiceImpl implements LdpService {
                                 }
                             }
 
-                            listtags.add(mdmTag);
+                            listtags.add(setTag);
                             update.set("listtags", listtags);
                         } else {
                             update.set("listtags", listtags);
@@ -368,7 +393,7 @@ public class LdpServiceImpl implements LdpService {
 
                     }
 
-                    buildSourceMeta(mdmTag, metaData);
+                    buildSourceMeta(setTag, metaData);
                     metadataInstancesService.save(metaData, user);
 
                 }
