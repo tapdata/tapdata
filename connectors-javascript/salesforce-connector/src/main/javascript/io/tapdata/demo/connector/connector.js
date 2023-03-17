@@ -755,7 +755,7 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
         isFirst = false;
         batchReadSender.send(result, tableName, {}, false);
         result = [];
-        batchStart = Date.parse(new Date());
+        batchStart = Number(Date.parse(new Date()));
     } while (pageInfo.hasNextPage && isAlive());
 }
 
