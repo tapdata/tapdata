@@ -1,12 +1,13 @@
 package com.tapdata.tm.alarmrule.service.impl;
 
 import cn.hutool.extra.cglib.CglibUtil;
-import com.tapdata.tm.Settings.entity.AlarmSetting;
 import com.tapdata.tm.alarmrule.entity.AlarmRule;
+import com.tapdata.tm.alarmrule.repository.AlarmRuleRepository;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
+import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.config.security.UserDetail;
-import io.tapdata.pdk.apis.functions.connector.common.ReleaseExternalFunction;
+import lombok.NonNull;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
@@ -30,29 +31,29 @@ import static java.util.stream.Collectors.toCollection;
  */
 @Service
 @Setter(onMethod_ = {@Autowired})
-public class AlarmRuleServiceImpl implements AlarmRuleService {
+public class AlarmRuleServiceImpl extends BaseService<AlarmRuleDto, AlarmRule, ObjectId, AlarmRuleRepository> implements AlarmRuleService {
 
     private MongoTemplate mongoTemplate;
 
-    @Override
-    public void save(List<AlarmRuleDto> rules, UserDetail userDetail) {
-        List<AlarmRule> data = CglibUtil.copyList(rules, AlarmRule::new);
-
-        data.forEach(info -> mongoTemplate.save(info));
+    public AlarmRuleServiceImpl(@NonNull AlarmRuleRepository repository) {
+        super(repository, AlarmRuleDto.class, AlarmRule.class);
     }
 
     @Override
-    public List<AlarmRuleDto> findAll(UserDetail userDetail) {
-        Query query = Query.query(Criteria.where("userId").is(userDetail.getUserId()));
-        List<AlarmRule> alarmRules = mongoTemplate.find(query, AlarmRule.class);
+    public void saveAlarm(List<AlarmRuleDto> rules, UserDetail userDetail) {
+        List<AlarmRule> data = CglibUtil.copyList(rules, AlarmRule::new);
+        data.forEach(info -> repository.save(info,userDetail));
+    }
 
+    @Override
+    public List<AlarmRuleDto> findAllAlarm(UserDetail userDetail) {
+        List<AlarmRule> alarmRules = repository.findAll(userDetail);
         if (CollectionUtils.isEmpty(alarmRules)) {
-            query = Query.query(Criteria.where("userId").exists(false));
+           Query query = Query.query(Criteria.where("userId").exists(false));
             alarmRules = mongoTemplate.find(query, AlarmRule.class);
             if (CollectionUtils.isNotEmpty(alarmRules)) {
                 alarmRules.forEach(rule -> {
-                    rule.setId(new ObjectId());
-                    rule.setUserId(userDetail.getUserId());
+                    rule.setId(null);
                 });
             }
         }
@@ -62,5 +63,10 @@ public class AlarmRuleServiceImpl implements AlarmRuleService {
                         toCollection(() -> new TreeSet<>(Comparator.comparing(AlarmRule::getKey))), ArrayList::new));
 
         return CglibUtil.copyList(list, AlarmRuleDto::new);
+    }
+
+    @Override
+    protected void beforeSave(AlarmRuleDto dto, UserDetail userDetail) {
+
     }
 }

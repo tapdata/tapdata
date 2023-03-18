@@ -5,14 +5,13 @@ import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSON;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.message.constant.Level;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.dto.MessageDto;
@@ -61,7 +60,7 @@ public class MessageController extends BaseController {
     @GetMapping
     public ResponseMessage<Page<MessageListVo>> find(@RequestParam(value = "filter", required = false) String filterJson) {
         Filter filter = parseFilter(filterJson);
-        return success(messageService.find(filter, getLoginUser()));
+        return success(messageService.findMessage(filter, getLoginUser()));
     }
 
     @Operation(summary = "get notify list")
@@ -140,7 +139,9 @@ public class MessageController extends BaseController {
     @PatchMapping
     public ResponseMessage read(@RequestBody MessageDto messageDto) {
         List<String> ids=new ArrayList<>();
-        ids.add(messageDto.getId());
+        if(messageDto.getId() !=null) {
+            ids.add(messageDto.getId().toHexString());
+        }
         Boolean result = messageService.read(ids,getLoginUser());
         return success(result);
     }
@@ -222,7 +223,7 @@ public class MessageController extends BaseController {
             messageDtoRet = messageService.addTrustAgentMessage(messageDto.getAgentName(), messageDto.getSourceId(), msgTypeEnum, messageDto.getTitle(), getLoginUser());
         } else {
             //agent启动或者停止在这里添加通知
-            messageDtoRet = messageService.add(messageDto);
+            messageDtoRet = messageService.add(messageDto,getLoginUser());
         }
         return success(messageDtoRet);
     }

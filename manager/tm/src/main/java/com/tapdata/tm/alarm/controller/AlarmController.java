@@ -1,5 +1,7 @@
 package com.tapdata.tm.alarm.controller;
 
+import com.alibaba.fastjson.JSON;
+import com.tapdata.tm.alarm.dto.AlarmChannelDto;
 import com.tapdata.tm.alarm.dto.AlarmListInfoVo;
 import com.tapdata.tm.alarm.dto.AlarmListReqDto;
 import com.tapdata.tm.alarm.dto.TaskAlarmInfoVo;
@@ -7,10 +9,14 @@ import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.message.dto.MessageDto;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * @author jiuyetx
@@ -19,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/alarm")
 @Setter(onMethod_ = {@Autowired})
+@Slf4j
 public class AlarmController extends BaseController {
     private AlarmService alarmService;
 
@@ -44,5 +51,24 @@ public class AlarmController extends BaseController {
     public ResponseMessage<Void> close(@RequestParam String[] ids) {
         alarmService.close(ids, getLoginUser());
         return success();
+    }
+
+    /**
+     * 目前只有agent的状态变动的时候，tcm调用该方法
+     * @param messageDto
+     * @return
+     */
+    @Operation(summary = "新增消息")
+    @PostMapping("addMsg")
+    public ResponseMessage<MessageDto> addMsg(@RequestBody MessageDto messageDto) {
+        log.info("接收到新增信息请求  ,  messageDto:{}", JSON.toJSONString(messageDto));
+        MessageDto messageDtoRet = alarmService.add(messageDto,getLoginUser());
+        return success(messageDtoRet);
+    }
+
+    @Operation(summary = "Get available notification channels")
+    @GetMapping("channels")
+    public ResponseMessage<List<AlarmChannelDto>> alarmChannel (){
+        return success(alarmService.getAvailableChannels());
     }
 }

@@ -29,6 +29,7 @@ import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.service.*;
 import com.tapdata.tm.task.vo.*;
+import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -83,6 +84,8 @@ public class TaskController extends BaseController {
     private AlarmService alarmService;
 
     private TaskResetLogService taskResetLogService;
+
+    private UserService userService;
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -246,7 +249,7 @@ public class TaskController extends BaseController {
                                                  @RequestBody TaskDto task) {
         task.setId(MongoUtils.toObjectId(id));
         UserDetail user = getLoginUser();
-
+        taskSaveService.supplementAlarm(task, user);
         boolean noPass = taskStartService.taskStartCheckLog(task, user);
         TaskDto taskDto = task;
         if (!noPass) {
@@ -1048,6 +1051,13 @@ public class TaskController extends BaseController {
     }
 
 
+//    @Operation(summary = "任务数据量统计")
+//    @GetMapping("/stats/transport1")
+//    public ResponseMessage<DataFlowInsightStatisticsDto> statsTransport1(@RequestParam("userId") String userId) {
+//        return success(taskService.statsTransport(userService.loadUserById(new ObjectId(userId))));
+//    }
+
+
 
     @PatchMapping("rename/{taskId}")
     public ResponseMessage<Void> rename(@PathVariable("taskId") String taskId, @RequestParam("newName") String newName) {
@@ -1060,4 +1070,15 @@ public class TaskController extends BaseController {
         taskService.stopTaskIfNeedByAgentId(agentId, getLoginUser());
         return success();
     }
+
+    @GetMapping("/targetNode/connectionIds")
+    public ResponseMessage<Map<String, List<TaskDto>>> getByConIdOfTargetNode(@RequestParam("connectionIds") List<String> connectionIds
+            , @RequestParam(value = "status", required = false) String status
+            , @RequestParam(value = "position", required = false, defaultValue = "target") String position
+            , @RequestParam(value = "page", defaultValue = "1") Integer page
+            , @RequestParam(value = "pageSize", defaultValue = "10") Integer pageSize) {
+        Map<String, List<TaskDto>> taskMap = taskService.getByConIdOfTargetNode(connectionIds, status, position, getLoginUser(), page, pageSize);
+        return success(taskMap);
+    }
+
 }
