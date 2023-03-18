@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.base.convert.ObjectIdSerialize;
 import com.tapdata.tm.commons.schema.bean.Relation;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
+import io.tapdata.entity.conversion.PossibleDataTypes;
 import io.tapdata.entity.result.ResultItem;
 import lombok.Getter;
 import lombok.Setter;
@@ -109,6 +110,7 @@ public class Schema implements Cloneable, Serializable {
     private boolean hasPrimaryKey;
     private boolean hasUnionIndex;
     private List<ResultItem> resultItems;
+    private Map<String, PossibleDataTypes> findPossibleDataTypes;
     private boolean hasUpdateField;
 
     /**

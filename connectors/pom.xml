@@ -70,6 +70,7 @@
 		<guava.version>31.0.1-jre</guava.version>
 		<maven.compiler.encoding>UTF-8</maven.compiler.encoding>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<pdk-error-code.version>1.0-SNAPSHOT</pdk-error-code.version>
 	</properties>
 
 	<dependencyManagement>
@@ -144,6 +145,12 @@
 				<groupId>com.google.guava</groupId>
 				<artifactId>guava</artifactId>
 				<version>${guava.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.tapdata</groupId>
+				<artifactId>pdk-error-code</artifactId>
+				<version>${pdk-error-code.version}</version>
+				<scope>provided</scope>
 			</dependency>
 
 		</dependencies>

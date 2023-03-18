@@ -1,8 +1,5 @@
 package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
-import cn.hutool.core.date.DateUtil;
-import com.alibaba.fastjson.JSON;
-import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -24,10 +21,8 @@ import org.apache.commons.collections.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.text.MessageFormat;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 
 @Component("targetConnectStrategy")
@@ -59,12 +54,12 @@ public class TargetConnectStrategyImpl implements DagLogStrategy {
             if (DataSourceEntity.STATUS_READY.equals(connectionDto.getStatus())) {
                 grade = Level.INFO;
                 template = MessageUtil.getDagCheckMsg(locale, "TARGET_CONNECT_INFO");
-                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, userId, grade, templateEnum, template, true, true, connectionDto.getName());
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, node.getId(), userId, grade, templateEnum, template, connectionDto.getName());
                 result.add(log);
             } else {
                 grade = Level.ERROR;
                 template = MessageUtil.getDagCheckMsg(locale, "TARGET_CONNECT_ERROR");
-                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, userId, grade, templateEnum, template, true, true, connectionDto.getName(), connectionDto.getAlarmInfo());
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, node.getId(), userId, grade, templateEnum, template, connectionDto.getName(), connectionDto.getAlarmInfo());
                 result.add(log);
             }
 

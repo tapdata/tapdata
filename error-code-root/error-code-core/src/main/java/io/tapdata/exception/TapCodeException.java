@@ -9,7 +9,7 @@ public class TapCodeException extends TapRuntimeException {
     /**
      * Error code
      */
-    private final String code;
+    private String code;
 
     public TapCodeException(String code) {
         this.code = code;
@@ -37,6 +37,15 @@ public class TapCodeException extends TapRuntimeException {
      */
     public String getCode() {
         return code;
+    }
+
+    @Override
+    protected void clone(TapRuntimeException tapRuntimeException) {
+        if (tapRuntimeException instanceof TapCodeException) {
+            TapCodeException tapCodeException = (TapCodeException) tapRuntimeException;
+            tapCodeException.code = this.code;
+        }
+        super.clone(tapRuntimeException);
     }
 
     @Override

@@ -11,6 +11,7 @@ import io.tapdata.observable.logging.appender.AppenderFactory;
 import io.tapdata.observable.logging.appender.FileAppender;
 import io.tapdata.observable.logging.appender.ObsHttpTMAppender;
 import lombok.Getter;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.jetbrains.annotations.NotNull;
@@ -204,9 +205,7 @@ class TaskLogger extends ObsLogger implements Serializable {
 		if (noNeedLog(LogLevel.ERROR.getLevel())) {
 			return;
 		}
-		if (null == throwable) {
-			throwable = findThrowable(params);
-		}
+		throwable = getThrowable(throwable, params);
 		if (null == message && throwable != null) {
 			message = throwable.getMessage();
 		}
@@ -214,24 +213,24 @@ class TaskLogger extends ObsLogger implements Serializable {
 
 		MonitoringLogsDto.MonitoringLogsDtoBuilder builder = call(callable);
 		builder.level(Level.ERROR.toString());
-		builder.message(parameterizedMessage.getFormattedMessage());
-		if (throwable instanceof TapCodeException) {
-			builder.errorCode(((TapCodeException) throwable).getCode());
-			builder.errorStack(((TapCodeException) throwable).stackTrace2String() + "\n" + TapSimplify.getStackString(throwable));
-		}else{
-			builder.errorStack(getErrorStack(throwable));
-		}
+		buildErrorMessage(throwable, parameterizedMessage, builder);
 
 		logAppendFactory.appendLog(builder.build());
+	}
+
+	@Nullable
+	private static Throwable getThrowable(Throwable throwable, Object[] params) {
+		if (null == throwable) {
+			throwable = findThrowable(params);
+		}
+		return throwable;
 	}
 
 	public void fatal(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params) {
 		if (noNeedLog(LogLevel.FATAL.getLevel())) {
 			return;
 		}
-		if (null == throwable) {
-			throwable = findThrowable(params);
-		}
+		throwable = getThrowable(throwable, params);
 		if (null == message && throwable != null) {
 			message = throwable.getMessage();
 		}
@@ -239,13 +238,7 @@ class TaskLogger extends ObsLogger implements Serializable {
 
 		MonitoringLogsDto.MonitoringLogsDtoBuilder builder = call(callable);
 		builder.level(Level.FATAL.toString());
-		builder.message(parameterizedMessage.getFormattedMessage());
-		if (throwable instanceof TapCodeException) {
-			builder.errorCode(((TapCodeException) throwable).getCode());
-			builder.errorStack(((TapCodeException) throwable).stackTrace2String() + "\n" + TapSimplify.getStackString(throwable));
-		}else{
-			builder.errorStack(getErrorStack(throwable));
-		}
+		buildErrorMessage(throwable, parameterizedMessage, builder);
 
 		logAppendFactory.appendLog(builder.build());
 	}
@@ -273,6 +266,21 @@ class TaskLogger extends ObsLogger implements Serializable {
 			throwable = throwable.getCause();
 		}
 		return errorStackSB.toString();
+	}
+
+	private static void buildErrorMessage(Throwable throwable, ParameterizedMessage parameterizedMessage, MonitoringLogsDto.MonitoringLogsDtoBuilder builder) {
+		builder.message(parameterizedMessage.getFormattedMessage());
+		if (throwable instanceof TapCodeException) {
+			builder.errorCode(((TapCodeException) throwable).getCode());
+			String simpleStack = ((TapCodeException) throwable).simpleStack();
+			String stackString = "<-- Full Stack Trace -->\n" + TapSimplify.getStackString(throwable);
+			if (StringUtils.isNotBlank(simpleStack)) {
+				stackString = "<-- Simple Stack Trace -->\n" + simpleStack + "\n\n" + stackString;
+			}
+			builder.errorStack(stackString);
+		} else {
+			builder.errorStack(getErrorStack(throwable));
+		}
 	}
 
 	@NotNull

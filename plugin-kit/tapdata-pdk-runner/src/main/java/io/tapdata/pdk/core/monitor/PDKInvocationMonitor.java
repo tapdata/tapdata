@@ -177,13 +177,13 @@ public class PDKInvocationMonitor implements MemoryFetcher {
             TapCodeException tapCodeException;
             Throwable matchThrowable = CommonUtils.matchThrowable(throwable, TapCodeException.class);
             if (null != matchThrowable) {
-                ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
-                byte[] bytes = objectSerializable.fromObject(matchThrowable);
-                Object object = objectSerializable.toObject(bytes, new ObjectSerializable.ToObjectOptions().classLoader(TapCodeException.class.getClassLoader()));
-                if (object instanceof TapCodeException) {
-                    tapCodeException = (TapCodeException) object;
+                if (matchThrowable.getClass().getClassLoader().equals(TapCodeException.class.getClassLoader())) {
+                    tapCodeException = (TapCodeException) matchThrowable;
                 } else {
-                    tapCodeException = new TapPdkRunnerUnknownException(throwable);
+                    ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
+                    byte[] bytes = objectSerializable.fromObject(matchThrowable);
+                    Object object = objectSerializable.toObject(bytes, new ObjectSerializable.ToObjectOptions().classLoader(TapCodeException.class.getClassLoader()));
+                    tapCodeException = (TapCodeException) object;
                 }
             } else {
                 tapCodeException = new TapPdkRunnerUnknownException(throwable);
