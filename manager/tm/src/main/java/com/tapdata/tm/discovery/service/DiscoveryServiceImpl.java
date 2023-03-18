@@ -1014,7 +1014,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             MetadataDefinitionDto definitionDto = metadataDefinitionService.findById(MongoUtils.toObjectId(param.getTagId()));
             if (definitionDto != null) {
                 List<String> itemTypes = definitionDto.getItemType();
-                boolean isDefault = itemTypes!= null && itemTypes.contains("default");
+                boolean isDefault = itemTypes.contains("default");
                 List<MetadataDefinitionDto> andChild = new ArrayList<>();
                 if ("currentAndChild".equals(param.getRange())) {
                     andChild = metadataDefinitionService.findAndChild(Lists.newArrayList(MongoUtils.toObjectId(param.getTagId())));
@@ -1197,16 +1197,6 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         page.setItems(items);
         page.setTotal(total);
         return page;
-    }
-
-
-
-    public Page<DataDirectoryDto> getSource(DirectoryQueryParam param, UserDetail userDetail) {
-        return null;
-    }
-
-    public Page<DataDirectoryDto> getTarget(DirectoryQueryParam param, UserDetail userDetail) {
-        return null;
     }
 
     //@Override

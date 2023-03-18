@@ -75,6 +75,7 @@ public class RedisConnector extends ConnectorBase {
      */
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportWriteRecord(this::writeRecord);
 //        connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);

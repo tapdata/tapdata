@@ -32,7 +32,7 @@ import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
-import io.tapdata.pdk.apis.error.NotSupportedException;
+import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
@@ -430,6 +430,7 @@ public class MongodbConnector extends ConnectorBase {
 		connectorFunctions.supportQueryFieldMinMaxValueFunction(this::queryFieldMinMaxValue);
 //        connectorFunctions.supportStreamOffset((connectorContext, tableList, offsetStartTime, offsetOffsetTimeConsumer) -> streamOffset(connectorContext, tableList, offsetStartTime, offsetOffsetTimeConsumer));
 		connectorFunctions.supportExecuteCommandFunction(this::executeCommand);
+		connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
 		connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
 	}
 
@@ -444,7 +445,9 @@ public class MongodbConnector extends ConnectorBase {
 				executeResult = new ExecuteResult<List<Map<String, Object>>>().result(mongodbExecuteCommandFunction.executeQuery(executeObj, mongoClient));
 			} else if ("count".equals(command)) {
 				executeResult = new ExecuteResult<Long>().result(mongodbExecuteCommandFunction.count(executeObj, mongoClient));
-			} else {
+			} else if ("aggregate".equals(command)) {
+				executeResult = new ExecuteResult<>().result(mongodbExecuteCommandFunction.aggregate(executeObj, mongoClient));
+			} else  {
 				throw new NotSupportedException();
 			}
 		} catch (Exception e) {
@@ -587,13 +590,12 @@ public class MongodbConnector extends ConnectorBase {
 				.startSplitting();
 	}
 
-	private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+	protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
 		RetryOptions retryOptions = RetryOptions.create();
 		if ( null != matchThrowable(throwable, MongoClientException.class)
 				|| null != matchThrowable(throwable, MongoSocketException.class)
 				|| null != matchThrowable(throwable, MongoConnectionPoolClearedException.class)
 				|| null != matchThrowable(throwable, MongoSecurityException.class)
-				|| null != matchThrowable(throwable, MongoServerException.class)
 				|| null != matchThrowable(throwable, MongoConfigurationException.class)
 				|| null != matchThrowable(throwable, MongoTimeoutException.class)
 				|| null != matchThrowable(throwable, MongoSocketReadException.class)
@@ -932,6 +934,71 @@ public class MongodbConnector extends ConnectorBase {
 		}
 		if (!tapEvents.isEmpty()) {
 			tapReadOffsetConsumer.accept(tapEvents, null);
+		}
+	}
+
+	private void runRawCommand(TapConnectorContext tapConnectorContext, String commandStr, TapTable tapTable, int eventBatchSize, Consumer<List<TapEvent>> listConsumer) throws Throwable {
+		Map<String, String> comandMap = MongodbUtil.parseCommand(commandStr);
+		String collection = comandMap.get("collection");
+		MongoCollection<Document> mongoCollection = getMongoCollection(collection);
+		String command = comandMap.get("command");
+		MongoIterable<Document> iterable;
+		try {
+			if ("find".equals(command)) {
+				if (comandMap.containsKey("filter")) {
+					Document filter = Document.parse(comandMap.get("filter"));
+					iterable = mongoCollection.find(filter);
+				} else {
+					iterable = mongoCollection.find();
+				}
+				if (comandMap.containsKey("projection")) {
+					((FindIterable<Document>) iterable).projection(Document.parse(comandMap.get("projection")));
+				}
+				if (comandMap.containsKey("sort")) {
+					((FindIterable<Document>) iterable).sort(Document.parse(comandMap.get("sort")));
+				}
+				if (comandMap.containsKey("limit")) {
+					((FindIterable<Document>) iterable).limit(Integer.parseInt(comandMap.get("limit")));
+				}
+				if (comandMap.containsKey("sort")) {
+					((FindIterable<Document>) iterable).skip(Integer.parseInt(comandMap.get("sort")));
+				}
+			} else if ("aggregate".equals(command)) {
+				String pipelineStr = comandMap.get("pipeline");
+				List<?> jsons = fromJsonArray(pipelineStr);
+				List<Document> pipelines = new ArrayList<>();
+				for (Object o : jsons) {
+					if (o instanceof String) {
+						pipelines.add(Document.parse((String) o));
+					} else if (o instanceof Map) {
+						pipelines.add(new Document((Map<String, Object>) o));
+					}
+				}
+				iterable = mongoCollection.aggregate(pipelines);
+			} else {
+				throw new IllegalArgumentException("Unsupported command: " + commandStr);
+			}
+		} catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException("Parse error", e);
+		}
+		final int batchSize = eventBatchSize > 0 ? eventBatchSize : 5000;
+		try (MongoCursor<Document> iterator = iterable.batchSize(batchSize).iterator()) {
+			List<TapEvent> tapEvents = list();
+			while (iterator.hasNext()) {
+				if (!isAlive()) {
+					return;
+				}
+				Document document = iterator.next();
+				tapEvents.add(insertRecordEvent(document, collection));
+
+				if (tapEvents.size() == eventBatchSize) {
+					listConsumer.accept(tapEvents);
+					tapEvents = list();
+				}
+			}
+			if (!tapEvents.isEmpty()) {
+				listConsumer.accept(tapEvents);
+			}
 		}
 	}
 

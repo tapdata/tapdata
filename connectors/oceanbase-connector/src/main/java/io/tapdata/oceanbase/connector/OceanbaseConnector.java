@@ -1,6 +1,6 @@
 package io.tapdata.oceanbase.connector;
 
-import io.tapdata.base.ConnectorBase;
+import io.tapdata.common.CommonDbConnector;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.entity.codec.TapCodecsRegistry;
@@ -19,7 +19,6 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.List;
@@ -31,7 +30,7 @@ import java.util.function.Consumer;
  * @date 2022/6/23 15:56
  */
 @TapConnectorClass("oceanbase-spec.json")
-public class OceanbaseConnector extends ConnectorBase {
+public class OceanbaseConnector extends CommonDbConnector {
     public static final String TAG = OceanbaseConnector.class.getSimpleName();
 
     private OceanbaseJdbcContext oceanbaseJdbcContext;
@@ -124,6 +123,7 @@ public class OceanbaseConnector extends ConnectorBase {
      */
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportWriteRecord(this::writeRecord);
         connectorFunctions.supportQueryByFilter(this::queryByFilter);
 
@@ -168,8 +168,7 @@ public class OceanbaseConnector extends ConnectorBase {
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> oceanbaseJdbcContext.getConnection(), c));
-        connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
-
+        connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
     }
 
     /**
@@ -241,7 +240,8 @@ public class OceanbaseConnector extends ConnectorBase {
             oceanbaseJdbcContext = (OceanbaseJdbcContext) DataSourcePool.getJdbcContext(oceanbaseConfig, OceanbaseJdbcContext.class, tapConnectionContext.getId());
             oceanbaseJdbcContext.setTapConnectionContext(tapConnectionContext);
         }
-
+        commonDbConfig = oceanbaseConfig;
+        jdbcContext = oceanbaseJdbcContext;
         if (tapConnectionContext instanceof TapConnectorContext) {
             this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
             if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {

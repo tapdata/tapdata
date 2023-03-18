@@ -2,6 +2,7 @@ package io.tapdata.connector.clickhouse;
 
 import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
+import io.tapdata.common.CommonDbConnector;
 import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
@@ -43,7 +44,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 @TapConnectorClass("spec_clickhouse.json")
-public class ClickhouseConnector extends ConnectorBase {
+public class ClickhouseConnector extends CommonDbConnector {
 
 
     public static final String TAG = ClickhouseConnector.class.getSimpleName();
@@ -56,7 +57,7 @@ public class ClickhouseConnector extends ConnectorBase {
 
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
 
-    private String connectionTimezone;
+//    private String connectionTimezone;
 
     private  ClickhouseDDLSqlMaker ddlSqlMaker;
 
@@ -114,11 +115,13 @@ public class ClickhouseConnector extends ConnectorBase {
         if (EmptyKit.isNull(clickhouseJdbcContext) || clickhouseJdbcContext.isFinish()) {
             clickhouseJdbcContext = (ClickhouseJdbcContext) DataSourcePool.getJdbcContext(clickhouseConfig, ClickhouseJdbcContext.class, connectionContext.getId());
         }
+        commonDbConfig = clickhouseConfig;
+        jdbcContext = clickhouseJdbcContext;
 //        clickhouseVersion = clickhouseJdbcContext.queryVersion();
-        this.connectionTimezone = connectionContext.getConnectionConfig().getString("timezone");
-        if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
-            this.connectionTimezone = clickhouseJdbcContext.timezone();
-        }
+//        this.connectionTimezone = connectionContext.getConnectionConfig().getString("timezone");
+//        if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
+//            this.connectionTimezone = clickhouseJdbcContext.timezone();
+//        }
     }
 
     @Override
@@ -223,6 +226,7 @@ public class ClickhouseConnector extends ConnectorBase {
             return datetime.toSqlDate();
         });
 
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         //target
         connectorFunctions.supportCreateTable(this::createTable);
         connectorFunctions.supportDropTable(this::dropTable);
@@ -247,6 +251,7 @@ public class ClickhouseConnector extends ConnectorBase {
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
 
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> clickhouseJdbcContext.getConnection(), c));
+        connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
         connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
 
     }
@@ -368,7 +373,7 @@ public class ClickhouseConnector extends ConnectorBase {
 
 
     // 不支持偏移量
-    private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+    protected void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
         String sql = "SELECT * FROM " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapTable.getId());
         clickhouseJdbcContext.query(sql, resultSet -> {
             List<TapEvent> tapEvents = list();

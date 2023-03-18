@@ -232,6 +232,7 @@ public class TaskEntity extends BaseEntity {
     private String testTaskId;
     private String transformTaskId;
     private int stopRetryTimes;
+    private Boolean enforceShareCdc = true;
 
     /** ldp 类型， fdm, mdm   为空或者其他为其他任务*/
     private String ldpType;

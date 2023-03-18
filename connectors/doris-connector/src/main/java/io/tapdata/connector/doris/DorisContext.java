@@ -7,11 +7,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 
 /**
  * @Author dayun
@@ -25,6 +21,8 @@ public class DorisContext implements AutoCloseable {
     private DorisConfig dorisConfig;
     private Connection connection;
     private Statement statement;
+
+    private static final String SELECT_COUNT = "SELECT count(*) FROM `%s`.`%s` t";
 
     public DorisContext(final TapConnectionContext tapConnectionContext) {
         this.tapConnectionContext = tapConnectionContext;
@@ -65,16 +63,29 @@ public class DorisContext implements AutoCloseable {
         }
     }
 
+    public int count(String tableName) throws Throwable {
+        DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
+        String database = connectionConfig.getString("database");
+        try (
+                ResultSet rs = statement.executeQuery(String.format(SELECT_COUNT, database, tableName))
+        ) {
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+            return 0;
+        }
+    }
+
     public TapConnectionContext getTapConnectionContext() {
         return tapConnectionContext;
     }
 
     public WriteFormat getWriteFormat() {
-        if(null == tapConnectionContext) return WriteFormat.json;
+        if (null == tapConnectionContext) return WriteFormat.json;
         DataMap nodeConfig = tapConnectionContext.getNodeConfig();
-        if(null == nodeConfig) return WriteFormat.json;
+        if (null == nodeConfig) return WriteFormat.json;
         String writeFormat = nodeConfig.getString("writeFormat");
-        if(null == writeFormat || "".equals(writeFormat.trim())) return WriteFormat.json;
+        if (null == writeFormat || "".equals(writeFormat.trim())) return WriteFormat.json;
         try {
             return WriteFormat.valueOf(writeFormat);
         } catch (IllegalArgumentException e) {
@@ -95,7 +106,7 @@ public class DorisContext implements AutoCloseable {
         }
     }
 
-    public enum WriteFormat{
+    public enum WriteFormat {
         json,
         csv,
     }

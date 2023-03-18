@@ -320,6 +320,8 @@ public class DataSourceConnectionDto extends BaseDto {
                         ", status='" + status + '\'' +
                         ", tableCount=" + tableCount +
                         ", loadAllTables=" + loadAllTables +
+                        ", loadFieldsStatus=" + loadFieldsStatus +
+                        ", loadFieldErrMsg=" + loadFieldErrMsg +
                         '}';
         }
 }

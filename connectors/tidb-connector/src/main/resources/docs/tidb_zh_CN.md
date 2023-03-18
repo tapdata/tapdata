@@ -1,7 +1,7 @@
 ## **连接配置帮助**
 ### **1. TiDB 安装说明**
 
-请遵循以下说明以确保在 Tapdata 中成功添加和使用 TiDB 数据库以及成功部署TiCDC。
+请遵循以下说明以确保在 Tapdata 中成功添加和使用 TiDB 数据库以及成功部署TiCDC,建议TIDB与TICDC版本一致。
 
 ### **2. 支持版本**
 TiDB 5.4+ , TiCDC6.3+
@@ -11,18 +11,18 @@ TiDB 5.4+ , TiCDC6.3+
 
 3.1.1未开启增量配置
 ```
-PdServer 地址：192.168.1.179:2379
-数据库地址：192.168.1.179
-端口：4000
-数据库名称：kiki
-账号：root
-密码：root
+PdServer 地址：xxxx:xxxx
+数据库地址：xxxx
+端口：xxxx
+数据库名称：xxxx
+账号：xxxx
+密码：xxxx
 ```
 3.1.2开启增量只需要追加以下配置
 ```
-kafka地址：139.198.127.226:32761
-kafka主题：tidb-cdc
-ticdc地址：192.168.1.179:8300
+kafka地址：xxxx:xxxx
+kafka主题：xxxx
+ticdc地址：xxxxx:xxxx
 
 ```
 

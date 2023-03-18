@@ -22,6 +22,5 @@ public interface TaskDagCheckLogService {
 
     void removeAllByTaskId(String taskId);
 
-    TaskDagCheckLog createLog(String taskId, String userId, Level grade, DagOutputTemplateEnum templateEnum, String template,
-                   boolean delOther, boolean needSave, Object ... param);
+    TaskDagCheckLog createLog(String taskId, String nodeId, String userId, Level grade, DagOutputTemplateEnum templateEnum, String template, Object ... param);
 }

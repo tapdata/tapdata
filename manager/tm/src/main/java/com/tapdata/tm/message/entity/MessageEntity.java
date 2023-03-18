@@ -8,6 +8,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.util.Date;
+import java.util.Map;
 
 /**
  * message表的userId是不带下划线的，所以需要做特别兼容
@@ -50,4 +51,7 @@ public class MessageEntity extends BaseEntity {
     private String oldUserId;
 
     private String monitorName;
+
+    private String template;
+    private Map<String, Object> param;
 }

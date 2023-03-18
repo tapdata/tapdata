@@ -943,7 +943,7 @@ public class TransformerManager {
 			}
 		}
 
-		udpateLogFilter();
+//		udpateLogFilter();
 	}
 
 	private void udpateLogFilter() {
@@ -953,6 +953,9 @@ public class TransformerManager {
 		LogUtil logUtil = new LogUtil(settingService);
 		org.apache.logging.log4j.core.Logger rootLogger = (org.apache.logging.log4j.core.Logger) LogManager.getRootLogger();
 		CustomHttpAppender httpAppender = rootLogger.getContext().getConfiguration().getAppender("httpAppender");
+		if (null == httpAppender) {
+			return;
+		}
 		CompositeFilter compositeFilter = (CompositeFilter) httpAppender.getFilter();
 		Filter[] filtersArray = compositeFilter.getFiltersArray();
 		for (Filter filter : filtersArray) {
