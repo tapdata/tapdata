@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.dag;
 
+import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -16,6 +17,7 @@ import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.conversion.PossibleDataTypes;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
@@ -29,6 +31,7 @@ import org.springframework.beans.BeanUtils;
 
 import java.io.Serializable;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 
@@ -232,7 +235,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         boolean appendNodeTableName = node instanceof TableRenameProcessNode || node instanceof MigrateFieldRenameProcessorNode || node instanceof MigrateJsProcessorNode;
 
         if (node.isDataNode()) {
-            return createOrUpdateSchemaForDataNode(dataSourceId, schemas, options);
+            return createOrUpdateSchemaForDataNode(dataSourceId, schemas, options, node);
         } else {
             return createOrUpdateSchemaForProcessNode(schemas, options, node.getId(), appendNodeTableName);
         }
@@ -320,7 +323,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
      * @param options 配置项
      * @return
      */
-    private List<Schema> createOrUpdateSchemaForDataNode(ObjectId dataSourceId, List<Schema> schemas, DAG.Options options) {
+    private List<Schema> createOrUpdateSchemaForDataNode(ObjectId dataSourceId, List<Schema> schemas, DAG.Options options, Node node) {
         DataSourceConnectionDto dataSource = dataSourceMap.get(dataSourceId.toHexString());
 
         if (dataSource == null) {
@@ -340,7 +343,6 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             }
         }
 
-
         String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", dataSource, null);
         MetadataInstancesDto dataSourceMetadataInstance = metadataMap.get(databaseQualifiedName);
 
@@ -357,6 +359,13 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         String metaType = "table";
         if ("mongodb".equals(dataSource.getDatabase_type())) {
             metaType = "collection";
+        }
+
+        Map<String, List<String>> updateConditionFieldMap;
+        if (node instanceof DatabaseNode) {
+            updateConditionFieldMap = ((DatabaseNode) node).getUpdateConditionFieldMap();
+        } else {
+            updateConditionFieldMap = null;
         }
 
         final String _metaType = metaType;
@@ -391,6 +400,12 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                     metadataInstancesDto, null, dataSourceMetadataInstance.getId().toHexString(), taskId);
 
             metadataInstancesDto.setSourceType(SourceTypeEnum.VIRTUAL.name());
+
+            if (node instanceof DatabaseNode && Objects.nonNull(updateConditionFieldMap) && !updateConditionFieldMap.isEmpty()) {
+                if (updateConditionFieldMap.containsKey(schema.getOriginalName())) {
+                    metadataInstancesDto.setHasUpdateField(true);
+                }
+            }
 
             /*MetadataInstancesDto result = metadataInstancesService.upsertByWhere(
                     Where.where("qualified_name", metadataInstancesDto.getQualifiedName()), metadataInstancesDto, userDetail);*/
@@ -574,9 +589,12 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         if (nameFieldMap != null && nameFieldMap.size() != 0) {
 
             TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create().withTapTypeDataTypeMap(tapMap));
+            Map<String, PossibleDataTypes> findPossibleDataTypes = Maps.newHashMap();
             TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.getTargetTypesGenerator().convert(nameFieldMap
-                    , DefaultExpressionMatchingMap.map(expression), codecsFilterManager);
+                    , DefaultExpressionMatchingMap.map(expression), codecsFilterManager, findPossibleDataTypes);
             LinkedHashMap<String, TapField> data = convert.getData();
+            schema.setResultItems(convert.getResultItems());
+            schema.setFindPossibleDataTypes(findPossibleDataTypes);
 
             data.forEach((k, v) -> {
                 TapField tapField = nameFieldMap.get(k);
@@ -587,13 +605,15 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
         tapTable.setNameFieldMap(nameFieldMap);
 
-
         ObjectId oldId = metadataInstancesDto.getOldId();
         metadataInstancesDto = PdkSchemaConvert.fromPdk(tapTable);
         metadataInstancesDto.setOldId(oldId);
         metadataInstancesDto.setAncestorsName(schema.getAncestorsName());
         metadataInstancesDto.setNodeId(schema.getNodeId());
+        metadataInstancesDto.setResultItems(schema.getResultItems());
+        metadataInstancesDto.setFindPossibleDataTypes(schema.getFindPossibleDataTypes());
 
+        AtomicBoolean hasPrimayKey = new AtomicBoolean(false);
         metadataInstancesDto.getFields().forEach(field -> {
             if (field.getId() == null) {
                 field.setId(new ObjectId().toHexString());
@@ -604,13 +624,24 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                     field.setDataType(originalField.getDataTypeTemp());
                 }
             }
+
+            if (Objects.nonNull(field.getPrimaryKey()) && field.getPrimaryKey()) {
+                hasPrimayKey.set(true);
+            }
         });
+        metadataInstancesDto.setHasPrimaryKey(hasPrimayKey.get());
 
         Map<String, Field> result = metadataInstancesDto.getFields()
                 .stream().collect(Collectors.toMap(Field::getFieldName, m -> m, (m1, m2) -> m2));
         if (result.size() != metadataInstancesDto.getFields().size()) {
             metadataInstancesDto.setFields(new ArrayList<>(result.values()));
         }
+
+        AtomicBoolean hasUnionIndex = new AtomicBoolean(false);
+        Optional.ofNullable(metadataInstancesDto.getIndices()).ifPresent(indexList -> {
+            hasUnionIndex.set(indexList.stream().anyMatch(TableIndex::isUnique));
+        });
+        metadataInstancesDto.setHasUnionIndex(hasUnionIndex.get());
 
         return metadataInstancesDto;
     }
@@ -903,6 +934,11 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                 update2.setVersion(newVersion);
                 update2.setSourceType(metadataInstancesDto.getSourceType());
                 update2.setQualifiedName(metadataInstancesDto.getQualifiedName());
+                update2.setHasPrimaryKey(metadataInstancesDto.isHasPrimaryKey());
+                update2.setHasUnionIndex(metadataInstancesDto.isHasUnionIndex());
+                update2.setResultItems(metadataInstancesDto.getResultItems());
+                update2.setFindPossibleDataTypes(metadataInstancesDto.getFindPossibleDataTypes());
+                update2.setHasUpdateField(metadataInstancesDto.isHasUpdateField());
                 if (existsMetadataInstance != null && existsMetadataInstance.getId() != null) {
                     metadataInstancesDto.setId(existsMetadataInstance.getId());
                     metadataUpdateMap.put(existsMetadataInstance.getId().toHexString(), update2);

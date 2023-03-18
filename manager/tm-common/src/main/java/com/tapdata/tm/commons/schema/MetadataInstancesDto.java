@@ -7,6 +7,9 @@ import com.tapdata.tm.commons.schema.bean.DataRules;
 import com.tapdata.tm.commons.schema.bean.Relation;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
+import com.tapdata.tm.commons.schema.bean.*;
+import io.tapdata.entity.conversion.PossibleDataTypes;
+import io.tapdata.entity.result.ResultItem;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.collections4.CollectionUtils;
@@ -44,6 +47,7 @@ public class MetadataInstancesDto extends BaseDto {
     @JsonProperty("fields_lienage")
     private String fieldsLienage;
     private List<Field> fields;
+    private boolean hasPrimaryKey;
     private Object indexes;
     private SourceDto source;
     private String createSource;
@@ -52,6 +56,7 @@ public class MetadataInstancesDto extends BaseDto {
     @JsonProperty("last_user_name")
     private String lastUserName;
     private List<TableIndex> indices;
+    private boolean hasUnionIndex;
     private Set<Integer> partitionSet;
     private FileProperty fileProperty;
     private List<String> fromFile;
@@ -111,6 +116,9 @@ public class MetadataInstancesDto extends BaseDto {
     private String sourceType= SourceTypeEnum.SOURCE.name();
 
     private ObjectId oldId;
+    private List<ResultItem> resultItems;
+    private Map<String, PossibleDataTypes> findPossibleDataTypes;
+    private boolean hasUpdateField;
 
     public String getDatabaseId() {
         return databaseId;

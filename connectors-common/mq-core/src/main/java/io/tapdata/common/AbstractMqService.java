@@ -2,6 +2,7 @@ package io.tapdata.common;
 
 import com.google.common.collect.Lists;
 import io.tapdata.constant.MqTestItem;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.kit.EmptyKit;
@@ -145,11 +146,17 @@ public abstract class AbstractMqService implements MqService {
                 countDownLatch.await();
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
+            } finally {
+                executorService.shutdown();
             }
-            executorService.shutdown();
             consumer.accept(tableList);
         });
     }
 
     protected abstract <T> Map<String, Object> analyzeTable(Object object, T topic, TapTable tapTable) throws Exception;
+
+    @Override
+    public void produce(TapFieldBaseEvent tapFieldBaseEvent) throws Throwable {
+        throw new UnsupportedOperationException("DDL unsupported");
+    }
 }

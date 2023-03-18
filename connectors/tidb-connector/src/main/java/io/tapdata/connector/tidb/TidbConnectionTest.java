@@ -49,10 +49,7 @@ public class TidbConnectionTest extends CommonDbTest {
     protected static final String CHECK_DATABASE_BINLOG_ROW_IMAGE_SQL = "SHOW VARIABLES LIKE '%binlog_row_image%'";
     protected static final String CHECK_CREATE_TABLE_PRIVILEGES_SQL = "SELECT count(1)\n" +
             "FROM INFORMATION_SCHEMA.USER_PRIVILEGES\n" +
-            "WHERE GRANTEE LIKE '%%%s%%' and PRIVILEGE_TYPE = 'CREATE'";
-    protected static final  String CHECK_LOW_CREATE_TABLE_PRIVILEGES_SQL="SELECT count(1)\n" +
-            "FROM INFORMATION_SCHEMA.USER_PRIVILEGES\n" +
-            "WHERE GRANTEE LIKE '%%%s%%' and PRIVILEGE_TYPE = 'Create'";
+            "WHERE GRANTEE LIKE '%%%s%%' and PRIVILEGE_TYPE = 'CREATE' or PRIVILEGE_TYPE = 'CREATE' = 'Create' ";
     protected static String CHECK_TIDB_VERSION ="SELECT VERSION()";
     private boolean cdcCapability;
     private final ConnectionOptions connectionOptions;
@@ -402,16 +399,7 @@ public class TidbConnectionTest extends CommonDbTest {
     protected boolean checkMySqlCreateTablePrivilege(String username) throws Throwable {
            String sql = null;
           AtomicBoolean result = new AtomicBoolean(true);
-          String versionMsg[]=array[2].split("v");
-          String version[]=versionMsg[1].split("\\.");
-          if (Integer.parseInt(version[0])==5){
-              if (Integer.parseInt(version[2])<4){
-                  sql=CHECK_LOW_CREATE_TABLE_PRIVILEGES_SQL; 
-              }
-          }else {
-              sql=CHECK_CREATE_TABLE_PRIVILEGES_SQL;
-          }
-            jdbcContext.query(String.format(sql, username), resultSet -> {
+            jdbcContext.query(String.format(CHECK_CREATE_TABLE_PRIVILEGES_SQL, username), resultSet -> {
                 while (resultSet.next()) {
                     if (resultSet.getInt(1) > 0) {
                         result.set(false);

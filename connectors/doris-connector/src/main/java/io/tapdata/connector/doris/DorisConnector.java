@@ -13,7 +13,6 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
-import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -165,9 +164,13 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
 
     }
 
-    private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+    private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
+        return dorisContext.count(tapTable.getName());
+    }
+
+    protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
         RetryOptions retryOptions = RetryOptions.create();
-        if ( null != matchThrowable(throwable, DorisRetryableException.class)
+        if (null != matchThrowable(throwable, DorisRetryableException.class)
                 || null != matchThrowable(throwable, IOException.class)) {
             retryOptions.needRetry(true);
             return retryOptions;
@@ -183,7 +186,6 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
             dorisStreamLoaderMap.put(threadName, dorisStreamLoader);
         }
         return dorisStreamLoaderMap.get(threadName);
-
     }
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {

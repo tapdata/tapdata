@@ -1,18 +1,13 @@
 package io.tapdata.mongodb;
 
-import com.mongodb.client.FindIterable;
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoCursor;
+import com.mongodb.client.*;
 import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
 import org.apache.commons.collections4.MapUtils;
 import org.bson.Document;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class MongodbExecuteCommandFunction {
 
@@ -128,17 +123,7 @@ public class MongodbExecuteCommandFunction {
       findIterable.limit(limit);
     }
 
-    try (MongoCursor<Document> mongoCursor = findIterable.iterator()) {
-
-      List<Map<String, Object>> resultList = new ArrayList<>();
-      while (mongoCursor.hasNext()) {
-        resultList.add(mongoCursor.next());
-      }
-
-      return resultList;
-    } catch (Exception e) {
-      throw new RuntimeException(String.format("Mapping javascript process execute %s for connection %s failed %s", executeObject, "connections.getName()", e.getMessage()), e);
-    }
+    return getResultList(findIterable);
   }
 
   public long count(Map<String, Object> parameters, MongoClient mongoClient) {
@@ -152,5 +137,39 @@ public class MongodbExecuteCommandFunction {
     Document filterDocument = filter == null ? new Document() : new Document(filter);
 
     return mongoClient.getDatabase(database).getCollection(collection).countDocuments(filterDocument);
+  }
+
+  public Object aggregate(Map<String, Object> executeObj, MongoClient mongoClient) {
+    ExecuteObject executeObject = new ExecuteObject(executeObj);
+    String database = executeObject.getDatabase();
+    String collection = executeObject.getCollection();
+    if (collection == null || "".equals(collection)) {
+      throw new RuntimeException(String.format("Mapping javascript process execute %s failed, collection Name cannot be blank", executeObject));
+    }
+    List<Map<String, Object>> pipeline = executeObject.getPipeline();
+    List<Document> pipelines = new LinkedList<>();
+    for (Map<String, Object> map : pipeline) {
+      pipelines.add(new Document(map));
+    }
+    if (pipelines.size() == 0) {
+      throw new RuntimeException(String.format("Mapping javascript process execute %s failed, pipeline cannot be blank", executeObject));
+    }
+
+    AggregateIterable<Document> aggregateIterable = mongoClient.getDatabase(database).getCollection(collection).aggregate(pipelines);
+    return getResultList(aggregateIterable);
+  }
+
+  private List<Map<String, Object>> getResultList(MongoIterable<Document> mongoIterable) {
+    try (MongoCursor<Document> mongoCursor = mongoIterable.iterator()) {
+
+      List<Map<String, Object>> resultList = new ArrayList<>();
+      while (mongoCursor.hasNext()) {
+        resultList.add(mongoCursor.next());
+      }
+
+      return resultList;
+    } catch (Exception e) {
+      throw new RuntimeException(String.format("process execute %s for connection failed %s", "iterable", e.getMessage()), e);
+    }
   }
 }

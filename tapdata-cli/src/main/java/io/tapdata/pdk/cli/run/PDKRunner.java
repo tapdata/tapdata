@@ -46,8 +46,8 @@ public class PDKRunner {
     public static void main(String[] args) {
         CommonUtils.setProperty("pdk_external_jar_path", "./connectors/dist");
         CommonUtils.setProperty("TDD_AUTO_EXIT", "0");
-        //CommonUtils.setProperty("show_api_invoker_result", "0");
-        //CommonUtils.setProperty("pdk_run_log_show", "true");
+        CommonUtils.setProperty("show_api_invoker_result", "0");
+        CommonUtils.setProperty("pdk_run_log_show", "true");
 
         //ConfigurationCenter.processId = "sam_flow_engine";
         for (PDKRunner.TddPath tddJarPath : PDKRunner.TddPath.values()) {

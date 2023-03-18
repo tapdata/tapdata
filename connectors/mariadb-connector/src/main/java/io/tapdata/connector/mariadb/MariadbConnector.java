@@ -5,7 +5,10 @@ import io.tapdata.common.CommonDbConfig;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.common.ddl.type.DDLParserType;
-import io.tapdata.connector.mysql.*;
+import io.tapdata.connector.mysql.MysqlMaker;
+import io.tapdata.connector.mysql.MysqlReader;
+import io.tapdata.connector.mysql.MysqlSchemaLoader;
+import io.tapdata.connector.mysql.SqlMaker;
 import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
@@ -23,12 +26,14 @@ import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.kit.DbKit;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
-import io.tapdata.pdk.apis.error.NotSupportedException;
+import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -99,6 +104,7 @@ public class MariadbConnector extends ConnectorBase {
 
         codecRegistry.registerFromTapValue(TapBooleanValue.class, "tinyint(1)", TapValue::getValue);
 
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportCreateTable(this::createTable);
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportClearTable(this::clearTable);
@@ -115,6 +121,26 @@ public class MariadbConnector extends ConnectorBase {
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> mysqlJdbcContext.getConnection(), c));
+        connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
+    }
+
+    private void runRawCommand(TapConnectorContext connectorContext, String command, TapTable tapTable, int eventBatchSize, Consumer<List<TapEvent>> eventsOffsetConsumer) throws Throwable {
+        mysqlJdbcContext.query(command, resultSet -> {
+            List<TapEvent> tapEvents = list();
+            List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
+            while (isAlive() && resultSet.next()) {
+                DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
+                assert dataMap != null;
+                tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
+                if (tapEvents.size() == eventBatchSize) {
+                    eventsOffsetConsumer.accept(tapEvents);
+                    tapEvents = list();
+                }
+            }
+            if (EmptyKit.isNotEmpty(tapEvents)) {
+                eventsOffsetConsumer.accept(tapEvents);
+            }
+        });
     }
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {

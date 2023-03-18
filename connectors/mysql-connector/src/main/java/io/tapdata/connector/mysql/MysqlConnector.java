@@ -23,6 +23,7 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.partition.DatabaseReadPartitionSplitter;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
@@ -33,6 +34,7 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
+import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
 import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
@@ -135,6 +137,26 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
         connectorFunctions.supportQueryFieldMinMaxValueFunction(this::minMaxValue);
         connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
+        connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
+    }
+
+    private void runRawCommand(TapConnectorContext connectorContext, String command, TapTable tapTable, int eventBatchSize, Consumer<List<TapEvent>> eventsOffsetConsumer) throws Throwable {
+        mysqlJdbcContext.query(command, resultSet -> {
+            List<TapEvent> tapEvents = list();
+            List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
+            while (isAlive() && resultSet.next()) {
+                DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
+                assert dataMap != null;
+                tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
+                if (tapEvents.size() == eventBatchSize) {
+                    eventsOffsetConsumer.accept(tapEvents);
+                    tapEvents = list();
+                }
+            }
+            if (EmptyKit.isNotEmpty(tapEvents)) {
+                eventsOffsetConsumer.accept(tapEvents);
+            }
+        });
     }
 
     private void getReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions options) {
@@ -147,7 +169,6 @@ public class MysqlConnector extends ConnectorBase {
     private void partitionRead(TapConnectorContext connectorContext, TapTable table, ReadPartition readPartition, int eventBatchSize, Consumer<List<TapEvent>> consumer) {
 
     }
-
 
     private FieldMinMaxValue minMaxValue(TapConnectorContext tapConnectorContext, TapTable tapTable, TapAdvanceFilter tapPartitionFilter, String fieldName) {
         SqlMaker sqlMaker = new MysqlMaker();
@@ -187,12 +208,15 @@ public class MysqlConnector extends ConnectorBase {
         return fieldMinMaxValue;
     }
 
-    private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+    protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
         RetryOptions retryOptions = RetryOptions.create();
         retryOptions.setNeedRetry(true);
         retryOptions.beforeRetryMethod(()->{
             try {
-                this.onStart(tapConnectionContext);
+                this.onStop(tapConnectionContext);
+                if (isAlive()) {
+                    this.onStart(tapConnectionContext);
+                }
             } catch (Throwable ignore) {
             }
         });
@@ -394,9 +418,14 @@ public class MysqlConnector extends ConnectorBase {
         FilterResults filterResults = new FilterResults();
         filterResults.setFilter(tapAdvanceFilter);
         try {
+            int batchSize = MAX_FILTER_RESULT_SIZE;
+            if(tapAdvanceFilter.getBatchSize() != null && tapAdvanceFilter.getBatchSize() > 0) {
+                batchSize = tapAdvanceFilter.getBatchSize();
+            }
+            int finalBatchSize = batchSize;
             this.mysqlReader.readWithFilter(tapConnectorContext, tapTable, tapAdvanceFilter, n -> !isAlive(), data -> {
                 filterResults.add(data);
-                if (filterResults.getResults().size() == MAX_FILTER_RESULT_SIZE) {
+                if (filterResults.getResults().size() == finalBatchSize) {
                     consumer.accept(filterResults);
                     filterResults.getResults().clear();
                 }
