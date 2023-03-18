@@ -303,5 +303,249 @@ public class LdpServiceImpl implements LdpService {
         return task;
     }
 
+    @Override
+    public void createLdpMetaByTask(String taskId, UserDetail user) {
+        TaskDto task = taskService.findByTaskId(MongoUtils.toObjectId(taskId), "dag", "ldpType");
+        if (!TaskDto.LDP_TYPE_FDM.equals(task.getLdpType()) && !TaskDto.LDP_TYPE_MDM.equals(task.getLdpType())) {
+            return;
+        }
+        DAG dag = task.getDag();
+        List<Node> targets = dag.getTargets();
+        if (CollectionUtils.isEmpty(targets)) {
+            return;
+        }
 
+
+        Node node = targets.get(0);
+        String connectionId = ((DataParentNode) node).getConnectionId();
+
+        Criteria metaCriteria = Criteria.where("taskId").is(taskId).and("source._id").is(connectionId);
+        Query query = new Query(metaCriteria);
+        List<MetadataInstancesDto> metaDatas = metadataInstancesService.findAllDto(query, user);
+        if (CollectionUtils.isEmpty(metaDatas)) {
+            return;
+        }
+
+        if (TaskDto.LDP_TYPE_FDM.equals(task.getLdpType())) {
+
+            List<Node> sources = dag.getSources();
+            Node sourceNode = sources.get(0);
+            String sourceCon = ((DataParentNode) sourceNode).getConnectionId();
+
+            Criteria criteria = Criteria.where("linkId").is(sourceCon).and("item_type").is(MetadataDefinitionDto.LDP_ITEM_FDM);
+            MetadataDefinitionDto tag = metadataDefinitionService.findOne(new Query(criteria), user);
+
+            for (MetadataInstancesDto metaData : metaDatas) {
+                buildSourceMeta(new Tag(tag.getId().toHexString(), tag.getValue()), metaData);
+            }
+            metadataInstancesService.bulkUpsetByWhere(metaDatas, user);
+        } else {
+            List<String> qualifiedNames = new ArrayList<>();
+            Map<String, String> qualifiedMap = new HashMap<>();
+            for (MetadataInstancesDto metaData : metaDatas) {
+                String qualifiedName = metaData.getQualifiedName();
+                int i = qualifiedName.lastIndexOf("_");
+                String old = qualifiedName.substring(0, i);
+                qualifiedNames.add(old);
+                qualifiedMap.put(qualifiedName, old);
+            }
+
+            Criteria criteria = Criteria.where("qualified_name").in(qualifiedNames);
+            Query query1 = new Query(criteria);
+            query1.fields().include("listtags", "qualified_name");
+            List<MetadataInstancesDto> oldMetas = metadataInstancesService.findAllDto(query1, user);
+            Map<String, MetadataInstancesDto> oldMap = oldMetas.stream()
+                    .collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, v -> v, (v1, v2) -> v1));
+
+            List<String> tagIds = oldMetas.stream()
+                    .flatMap(o -> o.getListtags() == null ? Stream.empty() : o.getListtags().stream())
+                    .map(Tag::getId)
+                    .collect(Collectors.toList());
+
+
+            Tag mdmTag = getMdmTag();
+            Map<String, Boolean> mdmMap = queryTagBelongMdm(tagIds, user, mdmTag.getId());
+
+            Tag setTag = mdmTag;
+            String tagId = tagCache.get();
+            if (StringUtils.isNotBlank(tagId)) {
+                MetadataDefinitionDto tag = metadataDefinitionService.findById(MongoUtils.toObjectId(tagId), user);
+                if (tag != null) {
+                    setTag = new Tag(tag.getId().toHexString(), tag.getValue());
+                }
+
+            }
+
+
+            m :
+            for (MetadataInstancesDto metaData : metaDatas) {
+                String old = qualifiedMap.get(metaData.getQualifiedName());
+                if (StringUtils.isNotBlank(old)) {
+                    MetadataInstancesDto metadataInstancesDto = oldMap.get(old);
+                    if (metadataInstancesDto != null) {
+                        List<Tag> listtags = metadataInstancesDto.getListtags();
+                        Update update = new Update();
+                        if (CollectionUtils.isNotEmpty(listtags)) {
+                            for (Tag tag : listtags) {
+                                Boolean belongMdm = mdmMap.get(tag.getId());
+                                if (belongMdm != null && belongMdm) {
+                                    break m;
+                                }
+                            }
+
+                            listtags.add(setTag);
+                            update.set("listtags", listtags);
+                        } else {
+                            update.set("listtags", listtags);
+                        }
+                        metadataInstancesService.updateById(metaData.getId(), update, user);
+
+                    }
+
+                    buildSourceMeta(setTag, metaData);
+                    metadataInstancesService.save(metaData, user);
+
+                }
+            }
+
+        }
+    }
+
+    @Override
+    public Map<String, TaskDto> queryFdmTaskByTags(List<String> tagIds, UserDetail user) {
+        Map<String, TaskDto> result = new HashMap<>();
+        if (CollectionUtils.isEmpty(tagIds)) {
+
+            return result;
+        }
+
+        List<ObjectId> tagObjIds = tagIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+        Criteria criteria = Criteria.where("_id").in(tagObjIds);
+        Query query = new Query(criteria);
+        query.fields().include("linkId");
+        List<MetadataDefinitionDto> tags = metadataDefinitionService.findAll(query);
+        Map<String, String> tagMap = tags.stream().collect(Collectors.toMap(MetadataDefinitionDto::getLinkId, v -> v.getId().toHexString(), (v1, v2) -> v1));
+
+        Criteria criteriaTask = Criteria.where("dag.nodes.connectionId").in(tagMap.keySet()).and("ldpType").is(TaskDto.LDP_TYPE_FDM);
+        Query queryTask = new Query(criteriaTask);
+        List<TaskDto> taskDtos = taskService.findAllDto(queryTask, user);
+        for (TaskDto taskDto : taskDtos) {
+            DAG dag = taskDto.getDag();
+            Node node = dag.getSources().get(0);
+            String connectionId = ((DatabaseNode) node).getConnectionId();
+            result.put(tagMap.get(connectionId), taskDto);
+        }
+        return result;
+    }
+
+    private Tag getMdmTag() {
+        Criteria mdmCriteria = Criteria.where("value").is("MDM").and("parent_id").exists(false);
+        Query query = new Query(mdmCriteria);
+        MetadataDefinitionDto mdmTag = metadataDefinitionService.findOne(query);
+        return new Tag(mdmTag.getId().toHexString(), mdmTag.getValue());
+    }
+
+    private Map<String, Boolean> queryTagBelongMdm(List<String> tagIds, UserDetail user, String mdmTags) {
+        Map<String, Boolean> mdmMap = new HashMap<>();
+
+        if (CollectionUtils.isEmpty(tagIds)) {
+            return mdmMap;
+        }
+
+        List<MetadataDefinitionDto> child = metadataDefinitionService.findAndChild(Lists.newArrayList(MongoUtils.toObjectId(mdmTags)), user, "_id");
+        Set<String> set = child.stream().map(c -> c.getId().toHexString()).collect(Collectors.toSet());
+        for (String tagId : tagIds) {
+            mdmMap.put(tagId, set.contains(tagId));
+        }
+
+        return mdmMap;
+    }
+
+    private static void buildSourceMeta(Tag tag, MetadataInstancesDto metaData) {
+        metaData.setSourceType(SourceTypeEnum.SOURCE.name());
+        metaData.setTaskId(null);
+        String qualifiedName = metaData.getQualifiedName();
+        int i = qualifiedName.lastIndexOf("_");
+        String oldQualifiedName = qualifiedName.substring(0, i);
+        metaData.setQualifiedName(oldQualifiedName);
+        metaData.setNodeId(null);
+
+        SourceDto source = metaData.getSource();
+        if (source != null) {
+            String id = source.get_id();
+            if (StringUtils.isNotBlank(id)) {
+                List<Tag> listtags = metaData.getListtags();
+                if (listtags == null) {
+                    listtags = new ArrayList<>();
+                    metaData.setListtags(listtags);
+                }
+                listtags.add(tag);
+            }
+        }
+        metaData.setId(null);
+    }
+
+    private void checkMdmTask(TaskDto task, UserDetail user) {
+        //syncType is sync
+
+        if (StringUtils.isBlank(task.getSyncType())) {
+            task.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+        }
+
+        if (!TaskDto.SYNC_TYPE_SYNC.equals(task.getSyncType())) {
+            log.warn("Create mdm task, but the sync type not is sync, sync type = {}", task.getSyncType());
+            throw new BizException("");
+        }
+
+        //target need fdm connection
+        LiveDataPlatformDto platformDto = liveDataPlatformService.findOne(new Query(), user);
+        //String fdmConnectionId = platformDto.getFdmStorageConnectionId();
+        String mdmConnectionId = platformDto.getMdmStorageConnectionId();
+
+        DAG dag = task.getDag();
+        if (dag == null) {
+            throw new BizException("");
+        }
+
+        List<Node> targets = dag.getTargets();
+        if (CollectionUtils.isEmpty(targets)) {
+            throw new BizException("");
+        }
+        Node node = targets.get(0);
+        String targetConId = ((TableNode) node).getConnectionId();
+
+        if (!mdmConnectionId.equals(targetConId)) {
+            throw new BizException("");
+        }
+
+
+        List<Node> sources = dag.getSources();
+        if (CollectionUtils.isEmpty(sources)) {
+            throw new BizException("");
+        }
+        TableNode sourceNode =  (TableNode) sources.get(0);
+        String sourceConId = sourceNode.getConnectionId();
+
+        String tableName = sourceNode.getTableName();
+
+        repeatTable(Lists.newArrayList(tableName), null, targetConId, user);
+
+//        if (!fdmConnectionId.equals(sourceConId)) {
+//            throw new BizException("");
+//        }
+    }
+
+
+    void repeatTable(List<String> tableNames, String taskId, String connectionId, UserDetail user) {
+        Criteria nin = Criteria.where("source._id").is(connectionId)
+                .and("original_name").in(tableNames)
+                .and("meta_type").is("table");
+        if (StringUtils.isNotBlank(taskId)) {
+            nin.and("taskId").ne(taskId);
+        }
+        long count = metadataInstancesService.count(new Query(nin), user);
+        if (count > 0) {
+            throw new BizException("");
+        }
+    }
 }
