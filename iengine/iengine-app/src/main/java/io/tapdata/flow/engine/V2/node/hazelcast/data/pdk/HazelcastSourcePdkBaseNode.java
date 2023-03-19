@@ -332,7 +332,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	private void initStreamOffsetFromTime(Long offsetStartTimeMs) {
+	protected void initStreamOffsetFromTime(Long offsetStartTimeMs) {
 		AtomicReference<Object> timeToStreamOffsetResult = new AtomicReference<>();
 		TimestampToStreamOffsetFunction timestampToStreamOffsetFunction = getConnectorNode().getConnectorFunctions().getTimestampToStreamOffsetFunction();
 		if (null != timestampToStreamOffsetFunction) {

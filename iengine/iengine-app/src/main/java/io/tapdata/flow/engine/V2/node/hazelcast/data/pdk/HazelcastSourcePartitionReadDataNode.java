@@ -21,6 +21,8 @@ import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.*;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcReader;
+import io.tapdata.milestone.MilestoneStage;
+import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
@@ -300,6 +302,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 		//noinspection ThrowableNotThrown
 		errorHandle(throwableWrapper, throwable.getMessage());
 	}
+
 	public void startAsyncJobs() {
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		PDKSourceContext sourceContext = PDKSourceContext.create()
@@ -466,6 +469,10 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 	}
 
 	private void handleStreamEventsReceivedDuringPartition(List<TapEvent> events, Object offset) {
+		if(syncProgress.getSyncStage().equals(SyncStage.CDC.name())) {
+			handleStreamEventsReceived(events, offset);
+			return;
+		}
 		Map<String, List<TapEvent>> tableEvents = new LinkedHashMap<>();
 		List<TapEvent> otherEvents = new ArrayList<>();
 		for(TapEvent event : events) {

@@ -3,8 +3,7 @@
     "name": "Zoho-Desk",
     "icon": "icons/zoho.png",
     "doc" : "${doc}",
-    "id": "zoho-desk"
-    "id": "zoho",
+    "id": "zoho-desk",
     "authentication": "beta",
     "tags": ["SaaS"]
   },

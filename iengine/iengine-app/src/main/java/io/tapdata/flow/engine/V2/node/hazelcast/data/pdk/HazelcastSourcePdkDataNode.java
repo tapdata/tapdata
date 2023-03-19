@@ -13,6 +13,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
+import io.tapdata.aspect.TaskMilestoneFuncAspect;
 import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -35,6 +36,8 @@ import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
+import io.tapdata.milestone.MilestoneStage;
+import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.entity.FilterResults;
 import io.tapdata.pdk.apis.entity.QueryOperator;
@@ -325,6 +328,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 		enterCDCStage();
 
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		Node<?> node = dataProcessorContext.getNode();
 		if (isPollingCDC(node)) {
 			doPollingCDC();
@@ -360,7 +364,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (null == syncProgress.getStreamOffsetObj()) {
 			throw new NodeException("Starting stream read failed, errors: start point offset is null").context(getProcessorBaseContext());
 		} else {
-			TapdataStartCdcEvent tapdataStartCdcEvent = new TapdataStartCdcEvent();
+			TapdataStartingCdcEvent tapdataStartCdcEvent = new TapdataStartingCdcEvent();
 			tapdataStartCdcEvent.setSyncStage(SyncStage.CDC);
 			tapdataStartCdcEvent.setStreamOffset(syncProgress.getStreamOffsetObj());
 			enqueue(tapdataStartCdcEvent);

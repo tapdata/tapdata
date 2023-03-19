@@ -78,6 +78,13 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 			partitionCDCStorage.put(key, map(entry(DELETED, true)));
 	}
 
+	public void justDeleteFromKVStorage(Map<String, Object> key) {
+		if(kvStorageDuringSending != null)
+			kvStorageDuringSending.remove(key);
+		else
+			partitionCDCStorage.remove(key);
+	}
+
 	public JobContext handleStartCachingStreamData(JobContext jobContext1) {
 		if(partitionCDCStorage == null) {
 			synchronized (this) {
