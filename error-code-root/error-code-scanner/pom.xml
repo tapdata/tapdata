@@ -10,18 +10,24 @@
         <relativePath>../error-code-parent/pom.xml</relativePath>
     </parent>
 
-    <artifactId>error-code-core</artifactId>
-    <name>Error Code Core</name>
-    <packaging>jar</packaging>
+    <artifactId>error-code-scanner</artifactId>
 
     <properties>
         <java.version>8</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <reflections.version>0.9.10</reflections.version>
     </properties>
 
     <dependencies>
         <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
+            <groupId>org.reflections</groupId>
+            <artifactId>reflections</artifactId>
+            <version>${reflections.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>error-code-core</artifactId>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 

@@ -16,6 +16,7 @@
         <module>error-code-bom</module>
         <module>error-code-parent</module>
         <module>error-code-core</module>
+        <module>error-code-scanner</module>
         <module>pdk-error-code</module>
     </modules>
 
