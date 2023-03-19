@@ -49,6 +49,7 @@ import org.apache.kafka.connect.storage.OffsetUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.URLDecoder;
 import java.nio.ByteBuffer;
 import java.sql.ResultSetMetaData;
 import java.time.Instant;
@@ -440,7 +441,7 @@ public class MysqlReader implements Closeable {
 		Long eventTime = source.getInt64("ts_ms");
 		String table = Optional.of(record.topic().split("\\.")).map(arr -> {
 			if (arr.length > 0) {
-				return arr[arr.length - 1];
+				return URLDecoder.decode(arr[arr.length - 1]);
 			}
 			return null;
 		}).orElse(source.getString("table"));
