@@ -17,11 +17,9 @@ class larkSendMsg {
     sendMsg(connectionConfig, nodeConfig, event) {
         let data = this.convertEventAndSend(event, this.dataConvertConfig);
         if (null != data) {
-            let r = this.sendHttp(data, event.afterData);
-            if (!this.checkParam(r)) {
-                throw("Error send message")
-            }
+            return this.sendHttp(data, event.afterData);
         }
+        return false;
     }
 
     convertEventAndSend(eventData, convertConfig) {
@@ -37,16 +35,21 @@ class larkSendMsg {
             contentType = 'text';
         }
         if (!this.checkParam(receiveType)) {
-            log.error('Receive type is user or email or phone or chat,it cannot be empty.please make sure param [receiveType] is useful.');
+            log.warn('Receive type is user or email or phone or chat,it cannot be empty.please make sure param [receiveType] is useful.');
+            return null;
         }
         if (!this.checkParam(receivedUser)) {
-            log.error('Receive id is chat_id or user\'s phone or email or open_id,it cannot be empty.please make sure param [receiveId] is useful.');
+            log.warn('Receive id is chat_id or user\'s phone or email or open_id,it cannot be empty.please make sure param [receiveId] is useful.');
+            return null;
         }
         let receiveId = this.getUserId(receiveType, receivedUser);
         if (!this.checkParam(receiveId)) {
             return null;
         }
-        if (!this.checkParam(content)) log.error('Receive message cannot be empty. please make sure param [connect] is useful.');
+        if (!this.checkParam(content)) {
+            log.warn('Receive message cannot be empty. please make sure param [connect] is useful.');
+            return null;
+        }
         return {
             "content": content,
             "receive_id": receiveId,
@@ -100,31 +103,26 @@ class larkSendMsg {
         let writeResult = invoker.invoke("flyBookSendMessage", sendData);
         if (writeResult.httpCode < 200 || writeResult.httpCode >= 300) {
             let line = apiError.checkAsLine(writeResult.result.code);
-            throw("A message failed to be sent " +
-                sendData + ". The following data was not sent successfully: " +
-                JSON.stringify(historyData) + ", " +
-                JSON.stringify(writeResult) + ",\r\n" +
-                (line == null ? "" : line));
+            log.warn("A message failed to be sent. The following data was not sent successfully: {}, {}, {}",
+                JSON.stringify(historyData),
+                JSON.stringify(writeResult.result),
+                 (line == null ? '' : line));
+            return false;
         }
         if (!this.checkParam(writeResult.result.code)) {
             let line = apiError.checkAsLine(writeResult.result.code);
-            throw("A message failed to be sent" +
-                sendData + ". The following data was not sent successfully: " +
-                JSON.stringify(historyData) +  ",\r\n" +
-                (line == null ? "" : line)
-            );
+            log.warn("A message failed to be sent. The following data was not sent successfully: {}, {}", JSON.stringify(historyData), (line == null ? '' : line));
+            return false;
         }
         if (writeResult.result.code === 0) {
             return true;
         } else {
             let line = apiError.checkAsLine(writeResult.result.code);
-            log.warn("A message failed to be sent {}. The following data was not sent successfully: {}, and error message is : {}, http code is: {}\r\n {}",
-                sendData,
+            log.warn("A message failed to be sent. The following data was not sent successfully: {}, and error message is : {}, http code is: {}, {}",
                 JSON.stringify(historyData),
                 JSON.stringify(writeResult.result),
-                writeResult.httpCode ,
-                (line == null ? "" : line));
-
+                writeResult.httpCode,
+                (line == null ? '' : line));
         }
         return false;
     }
@@ -138,7 +136,7 @@ class larkSendMsgV2 extends larkSendMsg {
     sendMsg(connectionConfig, nodeConfig, eventDataMap) {
         let argument = arguments[3];
         if ('undefined' === argument || null == argument || argument === 'V1') {
-            super.sendMsg(connectionConfig, nodeConfig, eventDataMap);
+            new larkSendMsg().sendMsg(connectionConfig, nodeConfig, eventDataMap);
         }
         let sendType = nodeConfig.sendType;
         switch (sendType) {
@@ -152,13 +150,14 @@ class larkSendMsgV2 extends larkSendMsg {
     }
 
     defaultSendType(connectionConfig, nodeConfig, event) {
-        return super.sendMsg(connectionConfig, nodeConfig, event);
+        return new larkSendMsg().sendMsg(connectionConfig, nodeConfig, event);
     }
 
     appointSend(connectionConfig, nodeConfig, event) {
         if (!this.appointSendWithData(connectionConfig, nodeConfig, event)) {
             throw("Error send message")
         }
+        return true;
     }
 
     appointSendWithData(connectionConfig, nodeConfig, event) {
@@ -194,11 +193,10 @@ class larkSendMsgV2 extends larkSendMsg {
 
             let sendMsgDataMap = this.convertEventAndSend(eData, dataConvertMap);
             if (!super.sendHttp(sendMsgDataMap, eData.afterData)) {
-                //backArr.push(eData);
-                throw("Error send message, data: " + JSON.stringify(eData.afterData));
+                return false;
             }
         }
-
+        return true;
     }
 
     convertEventAndSend(eventData, convertConfig) {
@@ -214,16 +212,21 @@ class larkSendMsgV2 extends larkSendMsg {
             contentType = 'text';
         }
         if (!this.checkParam(receiveType)) {
-            log.error('Receive type is user or email or phone or chat,it cannot be empty.please make sure param [receiveType] is useful.');
+            log.warn('Receive type is user or email or phone or chat,it cannot be empty.please make sure param [receiveType] is useful.');
+            return null;
         }
         if (!this.checkParam(receivedUser)) {
-            log.error('Receive id is chat_id or user\'s phone or email or open_id,it cannot be empty.please make sure param [receiveId] is useful.');
+            log.warn('Receive id is chat_id or user\'s phone or email or open_id,it cannot be empty.please make sure param [receiveId] is useful.');
+            return null;
         }
         let receiveId = this.getUserId(receiveType, receivedUser);
         if (!this.checkParam(receiveId)) {
             return null;
         }
-        if (!this.checkParam(content)) log.error('Receive message cannot be empty. please make sure param [connect] is useful.');
+        if (!this.checkParam(content)){
+            log.warn('The message field {} does not meet the format requirements for message body type {}, https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json#7215e4f6 ', convertConfig.content, contentType);
+            return null;
+        }
         return {
             "content": typeof (content) == 'string' ? content.replaceAll('"', "\"") : ("" + JSON.stringify(content).replaceAll('"', '\"')),
             "receive_id": receiveId,

@@ -15,12 +15,12 @@ var apiError = {
         if (undefined === element || null === element) {
             return stringUtils.format("Lark error from: error code is {}, the HTTP request is incorrect. Please check the {} and self-inspect the defect.", [code, "https://open.feishu.cn/document/ukTMukTMukTM/ugjM14COyUjL4ITN"]);
         } else {
-            return stringUtils.format("Lark error from: error code is {}, the HTTP request is incorrect. And the error message is: {}, {}, please ensure.",[ code, element.msg, element.zh]);
+            return stringUtils.format("Lark error from: error code is {}, the HTTP request is incorrect. And the error message is: {}, {}.",[ code, element.msg, element.zh]);
         }
     },
     config: {
         "230001": {
-            "msg": "Your request contains an invalid request parameter.Please refer to:\r\n https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json \r\n",
+            "msg": "Your request contains an invalid request parameter.Please refer to: https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json ",
             "zh": "参数错误，请根据接口返回的错误信息并参考文档检查输入参数"
         },
         "230002": {
