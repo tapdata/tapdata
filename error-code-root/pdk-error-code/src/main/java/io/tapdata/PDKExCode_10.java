@@ -13,7 +13,8 @@ public interface PDKExCode_10 {
 
 	@TapExCode(
 			describe = "",
-			describeCN = "客户端进程被服务端关闭\n原因：\n1. ",
+			describeCN = "客户端进程被服务端关闭\n" +
+					"原因：\n1. 服务端手动关闭了连接，有时候在",
 			solution = "",
 			solutionCN = "",
 			seeAlso = {"https://docs.tapdata.io/enterprise/user-guide/connect-database/"}

@@ -175,7 +175,9 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                                     result.add(log);
                                 } else {
                                     Map<String, String> dataTypeMap = metadata.getFields().stream().collect(Collectors.toMap(Field::getFieldName, Field::getDataType, (pre, aft) -> pre));
-                                    Map<String, String> selectTypeMap = metadata.getFields().stream().collect(Collectors.toMap(Field::getFieldName, Field::getSelectDataType, (pre, aft) -> pre));
+                                    Map<String, String> selectTypeMap = metadata.getFields().stream()
+                                            .filter(field -> StringUtils.isNotBlank(field.getSelectDataType()))
+                                            .collect(Collectors.toMap(Field::getFieldName, Field::getSelectDataType, (pre, aft) -> pre));
                                     int passingGrade = v.getDataTypes().indexOf(v.getLastMatchedDataType());
                                     int currentGrade = v.getDataTypes().indexOf(dataTypeMap.get(k));
 

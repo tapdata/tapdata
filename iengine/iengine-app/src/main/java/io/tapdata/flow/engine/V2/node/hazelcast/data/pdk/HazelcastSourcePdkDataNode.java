@@ -869,10 +869,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				tapAdvanceFilter.setOperators(queryOperators);
 			}
 			Integer limit = tableNode.getLimit();
-			if (null == limit) {
-				limit = readBatchSize;
+			if (null != limit) {
+				tapAdvanceFilter.setLimit(limit);
 			}
-			tapAdvanceFilter.setLimit(limit);
 		}
 
 		if (isPollingCDC(tableNode)) {

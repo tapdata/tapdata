@@ -108,7 +108,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				.start(), (funcAspect -> {
 			Node<?> node = dataProcessorContext.getNode();
 			ExistsDataProcessEnum existsDataProcessEnum = getExistsDataProcess(node);
-			SyncProgress syncProgress = initSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
+			SyncProgress syncProgress = foundSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
 			if (null == syncProgress) {
 				for (String tableId : tapTableMap.keySet()) {
 					if (!isRunning()) {
@@ -163,7 +163,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
 				boolean usePkAsUpdateConditions = usePkAsUpdateConditions(updateConditionFields, tapTable.primaryKeys());
 				if (usePkAsUpdateConditions && createdTable) {
-					obsLogger.info("Table " + tableId + "use the primary key as the update condition, which is created when the table is create, and ignored");
+					obsLogger.info("Table " + tableId + " use the primary key as the update condition, which is created when the table is create, and ignored");
 					return;
 				}
 
