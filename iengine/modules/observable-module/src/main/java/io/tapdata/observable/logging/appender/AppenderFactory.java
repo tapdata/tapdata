@@ -137,6 +137,7 @@ public class AppenderFactory implements Serializable {
 				valueOut.writeString(logsDto.getNodeId());
 				valueOut.writeString(logsDto.getNodeName());
 				valueOut.writeString(logsDto.getErrorCode());
+				valueOut.writeString(logsDto.getFullErrorCode());
 				final String logTagsJoinStr = String.join(",", CollectionUtils.isNotEmpty(logsDto.getLogTags()) ? logsDto.getLogTags() : new ArrayList<>(0));
 				valueOut.writeString(logTagsJoinStr);
 				if (null != logsDto.getData()) {
@@ -175,6 +176,8 @@ public class AppenderFactory implements Serializable {
 		builder.nodeName(nodeName);
 		final String errorCode = valueIn.readString();
 		builder.errorCode(errorCode);
+		final String fullErrorCode = valueIn.readString();
+		builder.fullErrorCode(fullErrorCode);
 		final String logTaskStr = valueIn.readString();
 		if (StringUtils.isNotBlank(logTaskStr)) {
 			builder.logTags(Arrays.asList(logTaskStr.split(",")));

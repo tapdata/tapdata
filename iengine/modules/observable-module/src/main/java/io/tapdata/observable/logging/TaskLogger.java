@@ -4,6 +4,8 @@ import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
+import io.tapdata.ErrorCodeConfig;
+import io.tapdata.ErrorCodeEntity;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
@@ -255,31 +257,27 @@ class TaskLogger extends ObsLogger implements Serializable {
 		return throwable;
 	}
 
-	@NotNull
-	private static String getErrorStack(Throwable throwable) {
-		StringBuilder errorStackSB = new StringBuilder();
-		while (throwable != null) {
-			errorStackSB.append(throwable.getMessage()).append('\n');
-			for (StackTraceElement stackTraceElement : throwable.getStackTrace()) {
-				errorStackSB.append("  ").append(stackTraceElement.toString()).append('\n');
-			}
-			throwable = throwable.getCause();
-		}
-		return errorStackSB.toString();
-	}
-
-	private static void buildErrorMessage(Throwable throwable, ParameterizedMessage parameterizedMessage, MonitoringLogsDto.MonitoringLogsDtoBuilder builder) {
+	private static void buildErrorMessage(
+			Throwable throwable,
+			ParameterizedMessage parameterizedMessage,
+			MonitoringLogsDto.MonitoringLogsDtoBuilder builder
+	) {
 		builder.message(parameterizedMessage.getFormattedMessage());
+		String stackString = "<-- Full Stack Trace -->\n" + TapSimplify.getStackString(throwable);
 		if (throwable instanceof TapCodeException) {
-			builder.errorCode(((TapCodeException) throwable).getCode());
+			String errorCode = ((TapCodeException) throwable).getCode();
+			builder.errorCode(errorCode);
+			ErrorCodeEntity errorCodeEntity = ErrorCodeConfig.getInstance().getErrorCode(errorCode);
+			if (null != errorCodeEntity) {
+				builder.fullErrorCode(errorCodeEntity.fullErrorCode());
+			}
 			String simpleStack = ((TapCodeException) throwable).simpleStack();
-			String stackString = "<-- Full Stack Trace -->\n" + TapSimplify.getStackString(throwable);
 			if (StringUtils.isNotBlank(simpleStack)) {
-				stackString = "<-- Simple Stack Trace -->\n" + simpleStack + "\n\n" + stackString;
+				stackString = "\n<-- Simple Stack Trace -->\n" + simpleStack + "\n\n" + stackString;
 			}
 			builder.errorStack(stackString);
 		} else {
-			builder.errorStack(getErrorStack(throwable));
+			builder.errorStack(stackString);
 		}
 	}
 

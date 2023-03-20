@@ -12,6 +12,6 @@ public class TapUnknownException extends TapCodeException {
 	private static final long serialVersionUID = 6264341460648929466L;
 
 	public TapUnknownException(Throwable cause) {
-		super(TapIEngineExCode_11.UNKNOWN_ERROR, cause);
+		super(TaskProcessorExCode_11.UNKNOWN_ERROR, cause);
 	}
 }
