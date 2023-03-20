@@ -125,7 +125,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						newTables = new CopyOnWriteArrayList<>();
 					}
 					newTables.addAll(taskDto.getLdpNewTables());
-					doSnapshot(taskDto.getLdpNewTables());
+					doSnapshot(newTables);
 				}
 			} catch (Throwable e) {
 				executeAspect(new SnapshotReadErrorAspect().dataProcessorContext(dataProcessorContext).error(e));
