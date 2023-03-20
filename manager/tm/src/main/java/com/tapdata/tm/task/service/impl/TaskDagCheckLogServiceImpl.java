@@ -3,16 +3,22 @@ package com.tapdata.tm.task.service.impl;
 import cn.hutool.core.date.DatePattern;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.spring.SpringUtil;
+import com.alibaba.fastjson.JSON;
 import com.google.common.base.Splitter;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeEnum;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
+import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.dto.TaskLogDto;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
@@ -50,6 +56,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
     private MongoTemplate mongoTemplate;
     private TaskService taskService;
     private MonitoringLogsService monitoringLogsService;
+    private MetadataInstancesService metadataInstancesService;
 
     @Override
     public TaskDagCheckLog save(TaskDagCheckLog log) {
@@ -69,7 +76,9 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         }
 
         List<TaskDagCheckLog> result = Lists.newArrayList();
-
+        if (!Lists.newArrayList(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC).contains(taskDto.getSyncType())) {
+            return result;
+        }
         LinkedList<DagOutputTemplateEnum> checkList = startTask ? DagOutputTemplateEnum.getStartCheck() : DagOutputTemplateEnum.getSaveCheck();
         checkList.forEach(c -> {
             DagLogStrategy dagLogStrategy = SpringUtil.getBean(c.getBeanName(), DagLogStrategy.class);
@@ -78,8 +87,6 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                 result.addAll(logs);
             }
         });
-
-
         return result;
     }
 
@@ -101,7 +108,8 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         }
 
         // check task nodes has js node
-        Optional<Node> jsNode = taskDto.getDag().getNodes().stream()
+        DAG dag = taskDto.getDag();
+        Optional<Node> jsNode = dag.getNodes().stream()
                 .filter(n -> (n instanceof MigrateJsProcessorNode || n instanceof JsProcessorNode) && !(n instanceof CustomProcessorNode))
                 .findFirst();
         if (jsNode.isPresent()) {
@@ -114,24 +122,65 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         }
 
         if (transformed) {
-            String template = MessageUtil.getDagCheckMsg(locale, "MODEL_PROCESS_INFO");
+            // check each node schema
+            List<String> tableNames = dag.getTargets().stream()
+                    .filter(node -> node instanceof DatabaseNode || node instanceof TableNode)
+                    .flatMap(node -> {
+                        if (node instanceof DatabaseNode) {
+                            return ((DatabaseNode) node).getSyncObjects().get(0).getObjectNames().stream();
+                        } else {
+                            return Lists.newArrayList(((TableNode) node).getTableName()).stream();
+                        }
+                    }).collect(Collectors.toList());
 
-            int number;
-            if (TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
-                number = 1;
-            } else {
-                number = taskDto.getDag().getSourceNode().getFirst().getTableNames().size();
+            List<MetadataInstancesDto> allSchemaList = metadataInstancesService.findByTaskId(taskId, userDetail);
+            HashMap<String, List<String>> nodeSchemaMap = allSchemaList.stream()
+                    .collect(Collectors.groupingBy(MetadataInstancesDto::getNodeId, HashMap::new,
+                            Collectors.mapping(MetadataInstancesDto::getName, Collectors.toList())));
+            boolean schemaPass = true;
+            for (Node node : dag.getNodes()) {
+                if (dag.getSourceNodes().contains(node)) {
+                    continue;
+                }
+                List<String> nodeList = nodeSchemaMap.get(node.getId());
+                if (CollectionUtils.isEmpty(nodeList)) {
+                    String template = MessageUtil.getDagCheckMsg(locale, "MODEL_PROCESS_FAIL");
+                    TaskDagCheckLog modelLog = this.createLog(taskId, nodeId, userDetail.getUserId(), Level.ERROR, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, template, JSON.toJSONString(tableNames));
+                    checkLogs.add(modelLog);
+
+                    schemaPass = false;
+                    break;
+                } else if (nodeList.size() < tableNames.size()) {
+                    List temp = new ArrayList(tableNames);
+                    temp.removeAll(nodeList);
+
+                    String template = MessageUtil.getDagCheckMsg(locale, "MODEL_PROCESS_FAIL");
+                    TaskDagCheckLog modelLog = this.createLog(taskId, nodeId, userDetail.getUserId(), Level.ERROR, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, template, JSON.toJSONString(temp));
+                    checkLogs.add(modelLog);
+
+                    schemaPass = false;
+                    break;
+                }
             }
-            TaskDagCheckLog modelLog = this.createLog(taskId, null, Level.INFO, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, template,
-                    false, true, DateUtil.now(), number, number);
-            checkLogs.add(modelLog);
 
+            if (schemaPass) {
+                String template = MessageUtil.getDagCheckMsg(locale, "MODEL_PROCESS_INFO");
+
+                int number;
+                if (TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
+                    number = 1;
+                } else {
+                    number = dag.getSourceNode().getFirst().getTableNames().size();
+                }
+                TaskDagCheckLog modelLog = this.createLog(taskId, null, userDetail.getUserId(), Level.INFO, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, template, number, number);
+                assert checkLogs != null;
+                checkLogs.add(modelLog);
+            }
             // remove cache
             CacheUtils.invalidate(cacheKey);
         }
 
-
-        LinkedHashMap<String, String> nodeMap = taskDto.getDag().getNodes().stream()
+        LinkedHashMap<String, String> nodeMap = dag.getNodes().stream()
                 .collect(Collectors.toMap(Node::getId, Node::getName,(x, y) -> y, LinkedHashMap::new));
 
         List<TaskDagCheckLog> checkLogList;
@@ -213,25 +262,16 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
     }
 
     @Override
-    public TaskDagCheckLog createLog(String taskId, String userId, Level grade, DagOutputTemplateEnum templateEnum, String template,
-                          boolean delOther, boolean needSave, Object ... param) {
+    public TaskDagCheckLog createLog(String taskId, String nodeId, String userId, Level grade, DagOutputTemplateEnum templateEnum, String template, Object ... param) {
         Date now = new Date();
-        if (delOther) {
-            mongoTemplate.remove(Query.query(Criteria.where("taskId").is(taskId)
-                    .and("checkType").is(templateEnum.name())
-            ), TaskDagCheckLog.class);
-        }
+        String content = MessageFormat.format(template, param);
 
-        TaskDagCheckLog log = new TaskDagCheckLog();
-        log.setTaskId(taskId);
-        log.setCheckType(templateEnum.name());
+        TaskDagCheckLog log = TaskDagCheckLog.builder()
+                .taskId(taskId).nodeId(nodeId)
+                .checkType(templateEnum.name())
+                .grade(grade).log(content).build();
         log.setCreateAt(now);
         log.setCreateUser(userId);
-        log.setGrade(grade);
-
-        String content = MessageFormat.format(template, param);
-        log.setLog(content);
-
         return log;
     }
 }

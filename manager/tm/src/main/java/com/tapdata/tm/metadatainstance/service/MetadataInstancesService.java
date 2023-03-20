@@ -702,6 +702,18 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return findOne(Query.query(criteria), userDetail);
     }
 
+    public List<MetadataInstancesDto> findSourceSchemaBySourceId(String sourceId, List<String> tableNames, UserDetail userDetail) {
+        Criteria criteria = Criteria
+                .where("meta_type").in(Lists.of("table", "collection", "view"))
+                .and("is_deleted").ne(true)
+                .and("source._id").is(sourceId)
+                .and("sourceType").is(SourceTypeEnum.SOURCE.name())
+                .and("original_name").in(tableNames)
+                .and("taskId").exists(false);
+
+        return findAllDto(Query.query(criteria), userDetail);
+    }
+
     public List<MetadataInstancesDto> findBySourceIdAndTableNameList(String sourceId, List<String> tableNames, UserDetail userDetail, String taskId) {
         Criteria criteria = Criteria
                 .where("meta_type").in(Lists.of("table", "collection", "view"))

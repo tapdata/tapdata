@@ -9,7 +9,6 @@ import com.tapdata.tm.role.dto.RoleDto;
 import com.tapdata.tm.role.entity.RoleEntity;
 import com.tapdata.tm.role.repository.RoleRepository;
 import com.tapdata.tm.roleMapping.service.RoleMappingService;
-import io.tapdata.pdk.apis.error.NotSupportedException;
 import lombok.NonNull;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;

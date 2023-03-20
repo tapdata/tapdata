@@ -11,10 +11,10 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public abstract class CommonDbConnector extends ConnectorBase {
@@ -27,24 +27,6 @@ public abstract class CommonDbConnector extends ConnectorBase {
     protected CommonDbConfig commonDbConfig;
 
     protected void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
-        if (EmptyKit.isNotBlank(commonDbConfig.getCustomSql())) {
-            jdbcContext.query(commonDbConfig.getCustomSql(), resultSet -> {
-                List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
-                List<TapEvent> tapEvents = list();
-                while (isAlive() && resultSet.next()) {
-                    DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
-                    tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
-                    if (tapEvents.size() == eventBatchSize) {
-                        eventsOffsetConsumer.accept(tapEvents, new HashMap<>());
-                        tapEvents = list();
-                    }
-                }
-                if (EmptyKit.isNotEmpty(tapEvents)) {
-                    eventsOffsetConsumer.accept(tapEvents, new HashMap<>());
-                }
-            });
-            return;
-        }
         List<String> primaryKeys = new ArrayList<>(tapTable.primaryKeys());
         String selectClause = String.format(selectPattern, String.join("\",\"", tapTable.getNameFieldMap().keySet()), commonDbConfig.getSchema(), tapTable.getId());
         CommonDbOffset offset = (CommonDbOffset) offsetState;
@@ -170,5 +152,24 @@ public abstract class CommonDbConnector extends ConnectorBase {
             }
         });
         return dataMap;
+    }
+
+    protected void runRawCommand(TapConnectorContext connectorContext, String command, TapTable tapTable, int eventBatchSize, Consumer<List<TapEvent>> eventsOffsetConsumer) throws Throwable {
+        jdbcContext.query(command, resultSet -> {
+            List<TapEvent> tapEvents = list();
+            List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
+            while (isAlive() && resultSet.next()) {
+                DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
+                assert dataMap != null;
+                tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
+                if (tapEvents.size() == eventBatchSize) {
+                    eventsOffsetConsumer.accept(tapEvents);
+                    tapEvents = list();
+                }
+            }
+            if (EmptyKit.isNotEmpty(tapEvents)) {
+                eventsOffsetConsumer.accept(tapEvents);
+            }
+        });
     }
 }

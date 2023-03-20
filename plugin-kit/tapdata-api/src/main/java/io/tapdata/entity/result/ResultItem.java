@@ -1,6 +1,7 @@
 package io.tapdata.entity.result;
 
 public class ResultItem {
+    public ResultItem() {}
 
     public ResultItem(String item, int result, String information) {
         this.item = item;

@@ -289,7 +289,7 @@ public class MongodbTest extends CommonDbTest {
 
             Map<String, Set<String>> resourcePrivilegesMap = adaptResourcePrivilegesMap(authUserPrivileges);
             if (!resourcePrivilegesMap.containsKey(LOCAL_DATABASE) && !resourcePrivilegesMap.containsKey(LOCAL_DATABASEOPLOG_COLLECTION)) {
-                consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_FAILED,
+                consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
                         "Missing local.oplog.rs collection's read privileges, will not be able to use the incremental sync feature."));
                 return false;
             }

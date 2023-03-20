@@ -29,6 +29,7 @@ public class Field implements Serializable {
     @JsonProperty("data_type")
     @org.springframework.data.mongodb.core.mapping.Field("data_type")
     private String dataType;
+    private String selectDataType;
     private String dataTypeTemp;
 
     @JsonProperty("default_value")

@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import cn.hutool.core.util.ReUtil;
 import com.alibaba.fastjson.JSON;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.ExecutorUtil;
@@ -33,7 +34,6 @@ import io.tapdata.aspect.SourceCDCDelayAspect;
 import io.tapdata.aspect.SourceDynamicTableAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
-import io.tapdata.aspect.TaskMilestoneFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
@@ -55,8 +55,6 @@ import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
-import io.tapdata.milestone.MilestoneStage;
-import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
@@ -114,12 +112,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected ExecutorService sourceRunner;
 	protected ScheduledExecutorService tableMonitorResultHandler;
 	protected SnapshotProgressManager snapshotProgressManager;
-
+	protected int sourceQueueCapacity;
 	/**
 	 * This is added as an async control center because pdk and jet have two different thread model. pdk thread is
 	 * blocked when reading data from data source while jet using async when passing the event to next node.
 	 */
-	protected LinkedBlockingQueue<TapdataEvent> eventQueue = new LinkedBlockingQueue<>(1024);
+	protected LinkedBlockingQueue<TapdataEvent> eventQueue;
 	protected StreamReadFuncAspect streamReadFuncAspect;
 	private TapdataEvent pendingEvent;
 	protected SourceMode sourceMode = SourceMode.NORMAL;
@@ -145,8 +143,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		this.cdcDelayCalculation = new CdcDelayDisable();
-		// MILESTONE-INIT_CONNECTOR-RUNNING
-		TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.RUNNING);
 	}
 
 	@Override
@@ -156,35 +152,68 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
 			connectorNodeInit(dataProcessorContext);
 		} catch (Throwable e) {
-			TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.ERROR, logger);
 			throw new NodeException(e).context(getProcessorBaseContext());
 		}
+
+		initSourceReadBatchSize();
+		initSourceEventQueue();
+		initSyncProgress();
+		initDDLFilter();
+		initTableMonitor();
+		initAndStartSourceRunner();
+	}
+
+	private void initSyncProgress() throws JsonProcessingException {
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
-		syncProgress = initSyncProgress(taskDto.getAttrs());
-		obsLogger.info("Found sync progress: " + syncProgress);
+		Node node = getNode();
+		this.syncProgress = foundSyncProgress(taskDto.getAttrs());
+		if (null == this.syncProgress) {
+			obsLogger.info("On the first run, the breakpoint will be initialized", node.getName());
+		} else {
+			obsLogger.info("Found exists breakpoint, will decode batch/stream offset", node.getName());
+		}
 		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(),
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			initBatchAndStreamOffset(taskDto);
-			obsLogger.info(String.format("Node %s[%s] batch offset: %s", getNode().getName(), getNode().getId(), JSONUtil.obj2Json(syncProgress.getBatchOffsetObj())));
-			obsLogger.info(String.format("Node %s[%s] stream offset: %s", getNode().getName(), getNode().getId(), JSONUtil.obj2Json(syncProgress.getStreamOffsetObj())));
+			if (null != syncProgress.getBatchOffsetObj()) {
+				obsLogger.info("Decoded batch offset: {}", JSONUtil.obj2Json(syncProgress.getBatchOffsetObj()));
+			}
+			if (null != syncProgress.getStreamOffsetObj()) {
+				obsLogger.info("Decoded stream offset: {}", JSONUtil.obj2Json(syncProgress.getStreamOffsetObj()));
+			}
 		}
-		initDDLFilter();
+	}
+
+	private void initAndStartSourceRunner() {
 		this.sourceRunnerLock = new ReentrantLock(true);
 		this.endSnapshotLoop = new AtomicBoolean(false);
 		this.transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
 				ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
 				TransformerWsMessageDto.class);
 		this.sourceRunnerFirstTime = new AtomicBoolean(true);
-		databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, dataProcessorContext.getConnections().getPdkHash());
-//		this.sourceRunner = new ThreadPoolExecutor(2, 2, 0L, TimeUnit.SECONDS, new SynchronousQueue<>(),
-//				r -> {
-//					Thread thread = new Thread(r);
-//					thread.setName(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()));
-//					return thread;
-//				});
+		this.databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, dataProcessorContext.getConnections().getPdkHash());
+		// this.sourceRunner = new ThreadPoolExecutor(2, 2, 0L, TimeUnit.SECONDS, new SynchronousQueue<>(),
+		// 		r -> {
+		// 			Thread thread = new Thread(r);
+		// 			thread.setName(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()));
+		// 			return thread;
+		// 		});
 		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 2, new ConnectorOnTaskThreadGroup(dataProcessorContext), TAG);
-		sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunner);
-		initTableMonitor();
+		this.sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunner);
+	}
+
+	private void initSourceEventQueue() {
+		this.sourceQueueCapacity = readBatchSize * 2;
+		this.eventQueue = new LinkedBlockingQueue<>(sourceQueueCapacity);
+		obsLogger.info("Source node \"{}\" event queue capacity: {}", getNode().getName(), sourceQueueCapacity);
+	}
+
+	private void initSourceReadBatchSize() {
+		this.readBatchSize = DEFAULT_READ_BATCH_SIZE;
+		if (getNode() instanceof DataParentNode) {
+			this.readBatchSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getReadBatchSize()).orElse(DEFAULT_READ_BATCH_SIZE);
+		}
+		obsLogger.info("Source node \"{}\" read batch size: {}", getNode().getName(), readBatchSize);
 	}
 
 	private void initDDLFilter() {
@@ -295,6 +324,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}
 			if (null != syncProgress.getStreamOffsetObj()) {
 				TapdataEvent tapdataEvent = TapdataHeartbeatEvent.create(offsetStartTimeMs, syncProgress.getStreamOffsetObj());
+				if (!SyncTypeEnum.CDC.equals(syncType)) {
+					tapdataEvent.setSyncStage(SyncStage.INITIAL_SYNC);
+				}
 				enqueue(tapdataEvent);
 			}
 		} else {

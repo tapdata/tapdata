@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 import java.util.Date;
+import java.util.Map;
 
 @Data
 public class MessageListVo {
@@ -34,5 +35,8 @@ public class MessageListVo {
     @JsonProperty("createTime")
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")
     private Date createAt;
+
+    private String template;
+    private Map<String, Object> param;
 
 }

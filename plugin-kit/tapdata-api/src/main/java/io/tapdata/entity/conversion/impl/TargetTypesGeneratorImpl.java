@@ -2,6 +2,7 @@ package io.tapdata.entity.conversion.impl;
 
 import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.conversion.PossibleDataTypes;
 import io.tapdata.entity.conversion.TargetTypesGenerator;
 import io.tapdata.entity.conversion.UnsupportedTypeFallbackHandler;
 import io.tapdata.entity.error.CoreException;
@@ -13,6 +14,7 @@ import io.tapdata.entity.result.ResultItem;
 import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.type.TapString;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 
 import java.math.BigDecimal;
@@ -24,6 +26,9 @@ public class TargetTypesGeneratorImpl implements TargetTypesGenerator {
     private static final String TAG = TargetTypesGeneratorImpl.class.getSimpleName();
 
     public TapResult<LinkedHashMap<String, TapField>> convert(LinkedHashMap<String, TapField> sourceFields, DefaultExpressionMatchingMap targetMatchingMap, TapCodecsFilterManager targetCodecFilterManager) {
+        return convert(sourceFields, targetMatchingMap, targetCodecFilterManager, null);
+    }
+    public TapResult<LinkedHashMap<String, TapField>> convert(LinkedHashMap<String, TapField> sourceFields, DefaultExpressionMatchingMap targetMatchingMap, TapCodecsFilterManager targetCodecFilterManager, Map<String, PossibleDataTypes> findPossibleDataTypes) {
         if(sourceFields == null || targetMatchingMap == null)
             return null;
         TapResult<LinkedHashMap<String, TapField>> finalResult = TapResult.successfully();
@@ -47,7 +52,7 @@ public class TargetTypesGeneratorImpl implements TargetTypesGenerator {
 
             //Find best codec
             if(dataType == null) {
-                TapResult<String> result = calculateBestTypeMapping(field, targetMatchingMap);
+                TapResult<String> result = calculateBestTypeMapping(field, targetMatchingMap, findPossibleDataTypes);
                 if(result != null) {
                     dataType = result.getData();
                     List<ResultItem> resultItems = result.getResultItems();
@@ -140,15 +145,18 @@ public class TargetTypesGeneratorImpl implements TargetTypesGenerator {
     static class HitTapMappingContainer {
         TreeMap<Integer, HitTapMapping> sortedMap = new TreeMap<>();
         HitTapMapping bestOne = null;
+        TreeMap<BigDecimal, HitTapMapping> justSortedMap = new TreeMap<>();
 
         void input(String hitExpression, TapMapping tapMapping, BigDecimal score) {
+            HitTapMapping hitTapMapping = new HitTapMapping(hitExpression, tapMapping, score);
             if(bestOne == null || score.compareTo(bestOne.score) > 0) {
                 sortedMap.clear();
-                bestOne = new HitTapMapping(hitExpression, tapMapping, score);
+                bestOne = hitTapMapping;
                 sortedMap.put(tapMapping.getPriority(), bestOne);
             } else if(score.equals(bestOne.score)) {
-                sortedMap.put(tapMapping.getPriority(), new HitTapMapping(hitExpression, tapMapping, score));
+                sortedMap.put(tapMapping.getPriority(), hitTapMapping);
             }
+            justSortedMap.put(score, hitTapMapping);
         }
 
         HitTapMapping getBestOne() {
@@ -159,14 +167,19 @@ public class TargetTypesGeneratorImpl implements TargetTypesGenerator {
         }
     }
 
-    TapResult<String> calculateBestTypeMapping(TapField field, DefaultExpressionMatchingMap matchingMap) {
+    TapResult<String> calculateBestTypeMapping(TapField field, DefaultExpressionMatchingMap matchingMap, Map<String, PossibleDataTypes> findPossibleDataTypes) {
         HitTapMappingContainer bestTapMapping = new HitTapMappingContainer();
         HitTapMappingContainer bestNotHitTapMapping = new HitTapMappingContainer();
+
+        TreeMap<BigDecimal, Map.Entry<String, DataMap>> sortedTypes = null;
+        if(findPossibleDataTypes != null)
+            sortedTypes = new TreeMap<>();
 //        AtomicReference<String> hitExpression = new AtomicReference<>();
 //        AtomicReference<TapMapping> tapMappingReference = new AtomicReference<>();
 //        AtomicLong bestScore = new AtomicLong(-1);
 //        List<Container<BigDecimal, String>> qualifiedList = new ArrayList<>();
 //        List<Container<BigDecimal, String>> noneQualifiedList = new ArrayList<>();
+        TreeMap<BigDecimal, Map.Entry<String, DataMap>> finalSortedTypes = sortedTypes;
         matchingMap.iterate(expressionValueEntry -> {
             TapMapping tapMapping = (TapMapping) expressionValueEntry.getValue().get(TapMapping.FIELD_TYPE_MAPPING);
             if(tapMapping != null) {
@@ -175,6 +188,8 @@ public class TargetTypesGeneratorImpl implements TargetTypesGenerator {
                 }
 
                 BigDecimal score = tapMapping.matchingScore(field);
+                if(finalSortedTypes != null && TapMapping.MIN_SCORE.compareTo(score) < 0)
+                    finalSortedTypes.put(score, expressionValueEntry);
                 if(score.compareTo(BigDecimal.ZERO) >= 0) {
 //                    qualifiedList.add(new Container<>(score, expressionValueEntry.getKey()));
                     bestTapMapping.input(expressionValueEntry.getKey(), tapMapping, score);
@@ -201,6 +216,24 @@ public class TargetTypesGeneratorImpl implements TargetTypesGenerator {
 //        TapLogger.info(TAG, "Field {} qualified data types {}, not qualified data types {}", field.getDataType(),
 //                qualifiedList.stream().map(Container::getP).collect(Collectors.toList()),
 //                noneQualifiedList.stream().map(Container::getP).collect(Collectors.toList()));
+        if(findPossibleDataTypes != null) {
+            PossibleDataTypes possibleDataTypes = findPossibleDataTypes.get(field.getName());
+            if(possibleDataTypes == null)
+                findPossibleDataTypes.computeIfAbsent(field.getName(), name -> new PossibleDataTypes());
+            possibleDataTypes = findPossibleDataTypes.get(field.getName());
+            for(Map.Entry<BigDecimal, Map.Entry<String, DataMap>> entry : sortedTypes.entrySet()) {
+                TapMapping tapMapping = (TapMapping) entry.getValue().getValue().get(TapMapping.FIELD_TYPE_MAPPING);
+                if(tapMapping != null) {
+                    TapResult<String> result = tapMapping.fromTapType(entry.getValue().getKey(), field.getTapType());
+                    if(result != null && result.isSuccessfully() && result.getData() != null) {
+                        possibleDataTypes.dataType(result.getData());
+                        if(possibleDataTypes.getLastMatchedDataType() == null && entry.getKey().compareTo(BigDecimal.ZERO) >= 0) {
+                            possibleDataTypes.setLastMatchedDataType(result.getData());
+                        }
+                    }
+                }
+            }
+        }
         HitTapMapping bestOne = bestTapMapping.getBestOne();
         if(bestOne != null && bestOne.tapMapping != null && bestOne.hitExpression != null) {
             TapResult<String> tapResult = bestOne.tapMapping.fromTapType(bestOne.hitExpression, field.getTapType());

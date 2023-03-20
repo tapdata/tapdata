@@ -155,10 +155,10 @@ public class SyncProgress implements Serializable, Comparable<SyncProgress> {
 	@Override
 	public String toString() {
 		return "SyncProgress{" +
-				", eventSerialNo=" + eventSerialNo +
+				"eventSerialNo=" + eventSerialNo +
 				", syncStage='" + syncStage + '\'' +
-				", batchOffset='" + batchOffset + '\'' +
-				", streamOffset='" + streamOffset + '\'' +
+				", batchOffset='" + batchOffsetObj + '\'' +
+				", streamOffset='" + streamOffsetObj + '\'' +
 				'}';
 	}
 }

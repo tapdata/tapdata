@@ -3,7 +3,9 @@
     "name": "PolarDB PostgreSQL",
     "icon": "icons/polar_db_postgres.png",
     "doc" : "${doc}",
-    "id": "polar-db-postgres"
+    "id": "polar-db-postgres",
+    "authentication": "beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "capabilities":[

@@ -3,7 +3,9 @@
     "name": "RocketMQ",
     "icon": "icons/rocketmq.png",
     "doc": "${doc}",
-    "id": "rocketmq"
+    "id": "rocketmq",
+    "authentication": "beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "connection": {

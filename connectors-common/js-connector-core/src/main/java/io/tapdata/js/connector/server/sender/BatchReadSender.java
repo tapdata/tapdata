@@ -5,6 +5,7 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.js.connector.base.EventType;
 import io.tapdata.js.connector.base.ScriptCore;
+import io.tapdata.js.utils.Collector;
 
 import java.util.*;
 
@@ -19,7 +20,7 @@ public class BatchReadSender implements APISender {
     }
 
     @Override
-    public void send(Object offset){
+    public void send(Object offset) {
         core.updateOffset(offset);
     }
 
@@ -34,11 +35,11 @@ public class BatchReadSender implements APISender {
             TapLogger.warn(TAG, "ScriptCore can not be null or not be empty.");
             return;
         }
-        if (Objects.isNull(data)){
-            if(offset != null)
+        if (Objects.isNull(data)) {
+            if (offset != null)
                 core.updateOffset(offset);
-        }else {
-            core.push(this.covertList(data, tableName), eventType, Optional.ofNullable(offset).orElse(new HashMap<>()));
+        } else {
+            core.push(this.covertList(Collector.convertObj(data), tableName), eventType, Optional.ofNullable(offset).orElse(new HashMap<>()));
         }
     }
 

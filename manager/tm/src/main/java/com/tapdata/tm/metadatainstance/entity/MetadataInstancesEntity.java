@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.schema.bean.Relation;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
+import io.tapdata.entity.conversion.PossibleDataTypes;
 import io.tapdata.entity.result.ResultItem;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -112,5 +113,6 @@ public class MetadataInstancesEntity extends BaseEntity {
 
     private String nodeId;
     private List<ResultItem> resultItems;
+    private Map<String, PossibleDataTypes> findPossibleDataTypes;
     private boolean hasUpdateField;
 }

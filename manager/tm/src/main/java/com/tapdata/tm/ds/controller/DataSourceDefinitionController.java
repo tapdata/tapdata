@@ -84,8 +84,9 @@ public class DataSourceDefinitionController extends BaseController {
      */
     @Operation(summary = "根据id查询数据源定义")
     @GetMapping("/pdkHash/{pdkHash}")
-    public ResponseMessage<DataSourceDefinitionDto> getByPdkId(@PathVariable("pdkHash") String pdkHash) {
-        return success(dataSourceDefinitionService.findByPdkHash(pdkHash, getLoginUser()));
+    public ResponseMessage<DataSourceDefinitionDto> getByPdkId(@PathVariable("pdkHash") String pdkHash,
+                                                               @RequestParam(value = "pdkBuildNumber", defaultValue = "0x7fffffff", required = false) Integer pdkBuildNumber) {
+        return success(dataSourceDefinitionService.findByPdkHash(pdkHash, pdkBuildNumber, getLoginUser()));
     }
 
     /**
