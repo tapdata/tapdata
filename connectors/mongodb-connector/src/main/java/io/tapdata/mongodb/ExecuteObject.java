@@ -37,6 +37,8 @@ public class ExecuteObject {
 
 	private Map<String, Object> projection;
 
+	private int batchSize;
+
 	public ExecuteObject(Map<String, Object> executeObj) {
 		this.op = executeObj.get("op") == null ? null : executeObj.get("op").toString();
 		this.sql = executeObj.get("sql") == null ? null : executeObj.get("sql").toString();
@@ -51,6 +53,7 @@ public class ExecuteObject {
 		this.skip = executeObj.get("skip") == null ? 0 : (int) executeObj.get("skip");
 		this.projection = executeObj.get("projection") == null ? null : (Map<String, Object>) executeObj.get("projection");
 		this.pipeline = executeObj.get("pipeline") == null ? null : (List<Map<String, Object>>) executeObj.get("pipeline");
+		this.batchSize = executeObj.get("batchSize") == null ? 1000 : (int) executeObj.get("batchSize");
 	}
 
 	public String getOp() {
@@ -157,6 +160,14 @@ public class ExecuteObject {
 		this.pipeline = pipeline;
 	}
 
+	public int getBatchSize() {
+		return batchSize;
+	}
+
+	public void setBatchSize(int batchSize) {
+		this.batchSize = batchSize;
+	}
+
 	@Override
 	public String toString() {
 		return "ExecuteObject{" +
@@ -173,6 +184,7 @@ public class ExecuteObject {
 						", upsert=" + upsert +
 						", multi=" + multi +
 						", projection=" + projection +
+						", batchSize=" + batchSize +
 						'}';
 	}
 }

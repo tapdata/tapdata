@@ -433,26 +433,23 @@ public class MongodbConnector extends ConnectorBase {
 	}
 
 	private void executeCommand(TapConnectorContext tapConnectorContext, TapExecuteCommand tapExecuteCommand, Consumer<ExecuteResult> executeResultConsumer) {
-		ExecuteResult<?> executeResult;
 		try {
 			Map<String, Object> executeObj = tapExecuteCommand.getParams();
 			String command = tapExecuteCommand.getCommand();
 			if ("execute".equals(command)) {
-				executeResult = new ExecuteResult<Long>().result(mongodbExecuteCommandFunction.execute(executeObj, mongoClient));
+				executeResultConsumer.accept(new ExecuteResult<Long>().result(mongodbExecuteCommandFunction.execute(executeObj, mongoClient)));
 			} else if ("executeQuery".equals(command)) {
-				executeResult = new ExecuteResult<List<Map<String, Object>>>().result(mongodbExecuteCommandFunction.executeQuery(executeObj, mongoClient));
+				mongodbExecuteCommandFunction.executeQuery(executeObj, mongoClient, list -> executeResultConsumer.accept(new ExecuteResult<List<Map<String, Object>>>().result(list)), this::isAlive);
 			} else if ("count".equals(command)) {
-				executeResult = new ExecuteResult<Long>().result(mongodbExecuteCommandFunction.count(executeObj, mongoClient));
+				executeResultConsumer.accept(new ExecuteResult<Long>().result(mongodbExecuteCommandFunction.count(executeObj, mongoClient)));
 			} else if ("aggregate".equals(command)) {
-				executeResult = new ExecuteResult<>().result(mongodbExecuteCommandFunction.aggregate(executeObj, mongoClient));
+				mongodbExecuteCommandFunction.aggregate(executeObj, mongoClient, list -> executeResultConsumer.accept(new ExecuteResult<List<Map<String, Object>>>().result(list)), this::isAlive);
 			} else  {
-				throw new NotSupportedException();
+				throw new NotSupportedException(command);
 			}
 		} catch (Exception e) {
-			executeResult = new ExecuteResult<>().error(e);
+			executeResultConsumer.accept(new ExecuteResult<>().error(e));
 		}
-
-		executeResultConsumer.accept(executeResult);
 	}
 
 	private FieldMinMaxValue queryFieldMinMaxValue(TapConnectorContext connectorContext, TapTable table, TapAdvanceFilter partitionFilter, String fieldName) {
