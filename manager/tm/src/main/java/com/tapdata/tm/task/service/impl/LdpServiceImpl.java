@@ -184,7 +184,7 @@ public class LdpServiceImpl implements LdpService {
         Query query = new Query(fdmCriteria);
         MetadataDefinitionDto fdmTag = metadataDefinitionService.findOne(query);
         if (fdmTag == null) {
-            throw new BizException("");
+            throw new BizException("SystemError");
         }
         Criteria conCriteria = Criteria.where("linkId").is(connectionId)
                 .and("parent_id").is(fdmTag.getId().toHexString())
@@ -201,7 +201,7 @@ public class LdpServiceImpl implements LdpService {
         conQuery.fields().include("name");
         DataSourceConnectionDto connection = dataSourceService.findOne(conQuery);
         if (connection == null) {
-            throw new BizException("");
+            throw new BizException("Ldp.SourceConNotFound");
         }
 
         //生成当前分类下面的fdm的模型跟打上标签。
@@ -245,7 +245,7 @@ public class LdpServiceImpl implements LdpService {
                 try {
                     dag1.filedDdlEvent(nodeId, tapCreateTableEvent);
                 } catch (Exception e) {
-                    throw new BizException("");
+                    throw new BizException("SystemError");
                 }
             }
         }
@@ -255,7 +255,7 @@ public class LdpServiceImpl implements LdpService {
         //syncType is migrate
         if (!TaskDto.SYNC_TYPE_MIGRATE.equals(task.getSyncType())) {
             log.warn("Create fdm task, but the sync type not is migrate, sync type = {}", task.getSyncType());
-            throw new BizException("");
+            throw new BizException("Ldp.FdmSyncTypeError");
         }
 
         //target need fdm connection
@@ -264,18 +264,18 @@ public class LdpServiceImpl implements LdpService {
 
         DAG dag = task.getDag();
         if (dag == null) {
-            throw new BizException("");
+            throw new BizException("Ldp.NewTaskDagNotFound");
         }
 
         List<Node> targets = dag.getTargets();
         if (CollectionUtils.isEmpty(targets)) {
-            throw new BizException("");
+            throw new BizException("Ldp.TargetNotFound");
         }
         Node node = targets.get(0);
         String targetConId = ((DatabaseNode) node).getConnectionId();
 
         if (!fdmConnectionId.equals(targetConId)) {
-            throw new BizException("");
+            throw new BizException("Ldp.TargetConNotFound");
         }
 
         return targetConId;
@@ -494,7 +494,7 @@ public class LdpServiceImpl implements LdpService {
 
         if (!TaskDto.SYNC_TYPE_SYNC.equals(task.getSyncType())) {
             log.warn("Create mdm task, but the sync type not is sync, sync type = {}", task.getSyncType());
-            throw new BizException("");
+            throw new BizException("Ldp.MdmSyncTypeError");
         }
 
         //target need fdm connection
@@ -504,29 +504,27 @@ public class LdpServiceImpl implements LdpService {
 
         DAG dag = task.getDag();
         if (dag == null) {
-            throw new BizException("");
+            throw new BizException("Ldp.NewTaskDagNotFound");
         }
 
         List<Node> targets = dag.getTargets();
         if (CollectionUtils.isEmpty(targets)) {
-            throw new BizException("");
+            throw new BizException("Ldp.TargetNotFound");
         }
-        Node node = targets.get(0);
-        String targetConId = ((TableNode) node).getConnectionId();
+        TableNode target = (TableNode)targets.get(0);
+        String targetConId = target.getConnectionId();
 
         if (!mdmConnectionId.equals(targetConId)) {
-            throw new BizException("");
+            throw new BizException("Ldp.MdmTaskTargetNotMdm");
         }
 
 
         List<Node> sources = dag.getSources();
         if (CollectionUtils.isEmpty(sources)) {
-            throw new BizException("");
+            throw new BizException("Ldp.TaskNotSource");
         }
-        TableNode sourceNode =  (TableNode) sources.get(0);
-        String sourceConId = sourceNode.getConnectionId();
 
-        String tableName = sourceNode.getTableName();
+        String tableName = target.getTableName();
 
         repeatTable(Lists.newArrayList(tableName), null, targetConId, user);
 
@@ -545,7 +543,7 @@ public class LdpServiceImpl implements LdpService {
         }
         long count = metadataInstancesService.count(new Query(nin), user);
         if (count > 0) {
-            throw new BizException("");
+            throw new BizException("Ldp.RepeatTableName");
         }
     }
 }

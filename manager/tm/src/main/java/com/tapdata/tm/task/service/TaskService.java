@@ -1886,7 +1886,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Map<String, Object> dataCopyPreview = new HashMap();
 
 
-        Map<String, List<TaskDto>> statusToDataCopyTaskMap = migrateList.stream().collect(Collectors.groupingBy(TaskDto::getStatus));
+        Map<String, List<TaskDto>> statusToDataCopyTaskMap = migrateList.stream().filter(t -> t.getStatus() != null).collect(Collectors.groupingBy(TaskDto::getStatus));
         //和数据复制列表保持一致   pause归为停止，  schduler_fail 归为 error  调度中schdulering  归为启动中
         List<TaskDto> pauseTaskList = statusToDataCopyTaskMap.remove(TaskStatusEnum.STATUS_PAUSED.getValue());
         List<TaskDto> schdulingTaskList = statusToDataCopyTaskMap.remove(TaskStatusEnum.STATUS_SCHEDULING.getValue());
