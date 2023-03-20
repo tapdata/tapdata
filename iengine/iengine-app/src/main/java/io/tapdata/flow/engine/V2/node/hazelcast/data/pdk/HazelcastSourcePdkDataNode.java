@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
+import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.constant.Log4jUtil;
@@ -13,7 +14,11 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.*;
+import io.tapdata.aspect.BatchReadFuncAspect;
+import io.tapdata.aspect.SourceStateAspect;
+import io.tapdata.aspect.StreamReadFuncAspect;
+import io.tapdata.aspect.TableCountFuncAspect;
+import io.tapdata.aspect.TaskMilestoneFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
@@ -21,19 +26,26 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
+import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.sharecdc.ReaderType;
+import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcReader;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
+import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.source.*;
+import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
+import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunction;
+import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunctionV2;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
@@ -47,8 +59,18 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
@@ -125,6 +147,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				} finally {
 					AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_CDC_COMPLETED));
 				}
+			} else {
+				BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClient(dataProcessorContext.getTaskDto().getId().toHexString()).terminalMode(TerminalMode.COMPLETE);
 			}
 		} catch (Throwable throwable) {
 			errorHandle(throwable, throwable.getMessage());
@@ -394,6 +418,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		} else {
 			TapdataStartCdcEvent tapdataStartCdcEvent = new TapdataStartCdcEvent();
 			tapdataStartCdcEvent.setSyncStage(SyncStage.CDC);
+			tapdataStartCdcEvent.setStreamOffset(syncProgress.getStreamOffsetObj());
 			enqueue(tapdataStartCdcEvent);
 		}
 		// MILESTONE-READ_CDC_EVENT-RUNNING
@@ -561,7 +586,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		List<String> tables = new ArrayList<>(tapTableMap.keySet());
 		// Init share cdc reader, if unavailable, will throw ShareCdcUnsupportedException
-		this.shareCdcReader = ShareCdcFactory.shareCdcReader(ReaderType.PDK_TASK_HAZELCAST, shareCdcTaskContext);
+		this.shareCdcReader = ShareCdcFactory.shareCdcReader(ReaderType.PDK_TASK_HAZELCAST, shareCdcTaskContext, syncProgress.getStreamOffsetObj());
 		logger.info("Starting incremental sync, read from share log storage...");
 		obsLogger.info("Starting incremental sync, read from share log storage...");
 		// Start listen message entity from share storage log
@@ -591,12 +616,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	}
 
 	private Long getCdcStartTs() {
-		Long cdcStartTs;
+		Long cdcStartTs = null;
 		try {
 			if (null != this.syncProgress && null != this.syncProgress.getEventTime() && this.syncProgress.getEventTime().compareTo(0L) > 0) {
 				cdcStartTs = this.syncProgress.getEventTime();
-			} else {
-				cdcStartTs = initialFirstStartTime;
 			}
 		} catch (Exception e) {
 			throw new NodeException("Get cdc start ts failed; Error: " + e.getMessage(), e).context(getProcessorBaseContext());

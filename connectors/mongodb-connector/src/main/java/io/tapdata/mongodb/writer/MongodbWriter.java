@@ -90,14 +90,27 @@ public class MongodbWriter {
 		final Collection<String> pks = (Collection<String>)pksCache;
 
 		// daas  data will cache local
-		if(!is_cloud) {
-			MongodbLookupUtil.lookUpAndSaveDeleteMessage(tapRecordEvents, this.globalStateMap, this.connectionString, pks, collection);
-		}
-		for (TapRecordEvent recordEvent : tapRecordEvents) {
-			UpdateOptions options = new UpdateOptions().upsert(true);
+//		if (!is_cloud) {
+//			MongodbLookupUtil.lookUpAndSaveDeleteMessage(tapRecordEvents, this.globalStateMap, this.connectionString, pks, collection);
+//		}
+		// 1. 如果全部为 insert 操作, 可能是全量阶段行为, 先通过 no order + bulk insert 做尝试, 尽可能提高性能
+		Boolean isBulkInsert = true;
+		List<WriteModel<Document>> bulkWriteModels = new ArrayList<>();
 
+		for (TapRecordEvent recordEvent : tapRecordEvents) {
+			if (!(recordEvent instanceof TapInsertRecordEvent)) {
+				isBulkInsert = false;
+				bulkWriteModels.clear();
+			}
+			if (isBulkInsert) {
+				bulkWriteModels.add(new InsertOneModel<>(new Document(((TapInsertRecordEvent) recordEvent).getAfter())));
+			}
+
+			UpdateOptions options = new UpdateOptions().upsert(true);
 			final Map<String, Object> info = recordEvent.getInfo();
 			if (MapUtils.isNotEmpty(info) && info.containsKey(MergeInfo.EVENT_INFO_KEY)) {
+				isBulkInsert = false;
+				bulkWriteModels.clear();
 				final List<WriteModel<Document>> mergeWriteModels = MongodbMergeOperate.merge(inserted, updated, deleted, recordEvent, table);
 				if (CollectionUtils.isNotEmpty(mergeWriteModels)) {
 					writeModels.addAll(mergeWriteModels);
@@ -112,7 +125,17 @@ public class MongodbWriter {
 
 		if (CollectionUtils.isNotEmpty(writeModels)) {
 			final MongoCollection<Document> mongoCollection = getMongoCollection(table.getId());
-			mongoCollection.bulkWrite(writeModels, new BulkWriteOptions().ordered(true));
+			if (isBulkInsert) {
+				try {
+					// 2. 先尝试批量写入
+					mongoCollection.bulkWrite(bulkWriteModels, new BulkWriteOptions().ordered(false));
+				} catch (Exception e) {
+					// 3. 失败用正常模式
+					mongoCollection.bulkWrite(writeModels, new BulkWriteOptions().ordered(true));
+				}
+			} else {
+				mongoCollection.bulkWrite(writeModels, new BulkWriteOptions().ordered(true));
+			}
 		}
 		//Need to tell incremental engine the write result
 		writeListResultConsumer.accept(writeListResult

@@ -239,6 +239,7 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
                 }
             }
             Update update = Update.update(key, value);
+            update.set("last_updated", new Date());
             Query query = new Query(Criteria.where("id").is(id));
             UpdateResult updateResult = repository.getMongoOperations().updateMulti(query, update, User.class);
         }

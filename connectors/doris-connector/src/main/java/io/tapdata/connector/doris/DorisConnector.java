@@ -2,6 +2,9 @@ package io.tapdata.connector.doris;
 
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.SqlExecuteCommandFunction;
+import io.tapdata.connector.doris.streamload.DorisStreamLoader;
+import io.tapdata.connector.doris.streamload.HttpUtil;
+import io.tapdata.connector.doris.streamload.exception.DorisRetryableException;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -27,12 +30,16 @@ import io.tapdata.pdk.apis.entity.TapFilter;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.RetryOptions;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
 import org.apache.commons.lang3.StringUtils;
-import io.tapdata.connector.doris.streamload.DorisStreamLoader;
-import io.tapdata.connector.doris.streamload.HttpUtil;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
@@ -42,12 +49,11 @@ import java.util.function.Consumer;
 @TapConnectorClass("spec.json")
 public class DorisConnector extends ConnectorBase implements TapConnector {
     public static final String TAG = DorisConnector.class.getSimpleName();
-
     private DorisContext dorisContext;
     private DorisReader dorisReader;
     private DorisSchemaLoader dorisSchemaLoader;
-    private DorisStreamLoader dorisStreamLoader;
-
+    private TapConnectionContext connectionContext;
+    private Map<String, DorisStreamLoader> dorisStreamLoaderMap = new ConcurrentHashMap<>();
 
     /**
      * The method invocation life circle is below,
@@ -119,7 +125,7 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
 
         connectorFunctions.supportWriteRecord(this::writeRecord);
-        connectorFunctions.supportCreateTable(this::createTable);
+        connectorFunctions.supportCreateTableV2(this::createTableV2);
 //        connectorFunctions.supportAlterTable(this::alterTable);
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
@@ -165,13 +171,34 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
+    }
+
+    private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+        RetryOptions retryOptions = RetryOptions.create();
+        if ( null != matchThrowable(throwable, DorisRetryableException.class)
+                || null != matchThrowable(throwable, IOException.class)) {
+            retryOptions.needRetry(true);
+            return retryOptions;
+        }
+        return retryOptions;
+    }
+
+    private DorisStreamLoader getDorisStreamLoader() {
+        String threadName = Thread.currentThread().getName();
+        if (!dorisStreamLoaderMap.containsKey(threadName)) {
+            DorisContext context = new DorisContext(connectionContext);
+            DorisStreamLoader dorisStreamLoader = new DorisStreamLoader(context, new HttpUtil().getHttpClient());
+            dorisStreamLoaderMap.put(threadName, dorisStreamLoader);
+        }
+        return dorisStreamLoaderMap.get(threadName);
     }
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
         if (!useStreamLoad()) {
-            throw new UnsupportedOperationException("doris httpUrl is required for write operation");
+            throw new UnsupportedOperationException("Doris httpUrl is required for write operation");
         }
-        dorisStreamLoader.writeRecord(tapRecordEvents, tapTable, writeListResultConsumer);
+        getDorisStreamLoader().writeRecord(tapRecordEvents, tapTable, writeListResultConsumer);
     }
 
     private void queryByFilter(TapConnectionContext connectionContext, List<TapFilter> filters, TapTable tapTable, Consumer<List<FilterResult>> listConsumer) {
@@ -179,8 +206,8 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
         listConsumer.accept(filterResults);
     }
 
-    private void createTable(TapConnectionContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
-        dorisSchemaLoader.createTable(tapCreateTableEvent.getTable());
+    public CreateTableOptions createTableV2(TapConnectionContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws Throwable {
+        return dorisSchemaLoader.createTableV2(tapConnectorContext, tapCreateTableEvent);
     }
 
 //FIXME DOIRS异步执行alter命令，无回调接口，没次对同一个table同时执行一个alter命令；不能保证某个时刻是否存在alter命令正在执行
@@ -236,17 +263,21 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
      */
     @Override
     public void onStart(TapConnectionContext connectionContext) {
+        this.connectionContext = connectionContext;
         this.dorisContext = new DorisContext(connectionContext);
         this.dorisReader = new DorisReader(dorisContext);
         this.dorisSchemaLoader = new DorisSchemaLoader(dorisContext);
-        this.dorisStreamLoader = new DorisStreamLoader(dorisContext, new HttpUtil().getHttpClient());
         TapLogger.info(TAG, "Doris connector started");
     }
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
         try {
-            this.dorisStreamLoader.shutdown();
+            for (DorisStreamLoader dorisStreamLoader : dorisStreamLoaderMap.values()) {
+                if (null != dorisStreamLoader) {
+                    dorisStreamLoader.shutdown();
+                }
+            }
             this.dorisContext.close();
         } catch (Exception e) {
             TapLogger.error(TAG, "Release connector failed, error: " + e.getMessage() + "\n" + getStackString(e));

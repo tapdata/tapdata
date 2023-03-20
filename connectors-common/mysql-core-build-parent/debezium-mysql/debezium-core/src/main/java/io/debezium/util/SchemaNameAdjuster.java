@@ -5,6 +5,7 @@
  */
 package io.debezium.util;
 
+import java.net.URLEncoder;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -186,7 +187,7 @@ public interface SchemaNameAdjuster {
      */
     public static SchemaNameAdjuster create(char replacement, ReplacementOccurred uponReplacement) {
         String replacementStr = "" + replacement;
-        return (original) -> validFullname(original, c -> replacementStr, uponReplacement);
+        return (original) -> validFullname(original, c -> URLEncoder.encode(String.valueOf(c)), uponReplacement);
     }
 
     /**
@@ -198,7 +199,7 @@ public interface SchemaNameAdjuster {
      * @return the adjuster; never null
      */
     public static SchemaNameAdjuster create(String replacement, ReplacementOccurred uponReplacement) {
-        return (original) -> validFullname(original, c -> replacement, uponReplacement);
+        return (original) -> validFullname(original, c -> URLEncoder.encode(String.valueOf(c)), uponReplacement);
     }
 
     /**
@@ -276,7 +277,7 @@ public interface SchemaNameAdjuster {
      * @return the valid fullname for Avro; never null
      */
     public static String validFullname(String proposedName, String replacement) {
-        return validFullname(proposedName, c -> replacement);
+        return validFullname(proposedName, c -> URLEncoder.encode(String.valueOf(c)));
     }
 
     /**

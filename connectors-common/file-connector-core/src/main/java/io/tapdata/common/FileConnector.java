@@ -30,15 +30,23 @@ public abstract class FileConnector extends ConnectorBase {
 
     protected FileConfig fileConfig;
     protected TapFileStorage storage;
+    protected String firstConnectorId;
     private static final String TAG = FileConnector.class.getSimpleName();
 
-    protected void initConnection(TapConnectionContext connectorContext) throws Exception {
-        fileConfig.load(connectorContext.getConnectionConfig());
-        fileConfig.load(connectorContext.getNodeConfig());
+    protected void initConnection(TapConnectionContext connectionContext) throws Exception {
+        isConnectorStarted(connectionContext, connectorContext -> {
+            firstConnectorId = (String) connectorContext.getStateMap().get("firstConnectorId");
+            if (EmptyKit.isNull(firstConnectorId)) {
+                firstConnectorId = connectionContext.getId();
+                connectorContext.getStateMap().put("firstConnectorId", firstConnectorId);
+            }
+        });
+        fileConfig.load(connectionContext.getConnectionConfig());
+        fileConfig.load(connectionContext.getNodeConfig());
         String clazz = FileProtocolEnum.fromValue(fileConfig.getProtocol()).getStorage();
         storage = new TapFileStorageBuilder()
                 .withClassLoader(Class.forName(clazz).getClassLoader())
-                .withParams(connectorContext.getConnectionConfig())
+                .withParams(connectionContext.getConnectionConfig())
                 .withStorageClassName(clazz)
                 .build();
     }
