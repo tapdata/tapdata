@@ -1,7 +1,9 @@
 package io.tapdata;
 
+import io.tapdata.exception.TapExClass;
 import io.tapdata.exception.TapExLevel;
 import io.tapdata.exception.TapExType;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.Serializable;
 import java.util.Arrays;
@@ -13,25 +15,37 @@ import java.util.StringJoiner;
  * @create 2023-03-16 17:47
  **/
 public class ErrorCodeEntity implements Serializable {
-
 	private static final long serialVersionUID = -6576112658078083088L;
+	public static final String DEFAULT_ERROR_CODE_PREFIX = "TAP";
+	private String code;
+	private String name;
 	private String describe;
 	private String describeCN;
 	private String solution;
 	private String solutionCN;
-	private boolean recoverable= false;
-	private TapExLevel level= TapExLevel.NORMAL;
-	private TapExType type= TapExType.RUNTIME;
-	private Class<? extends Exception> relateException= RuntimeException.class;
+	private boolean recoverable = false;
+	private TapExLevel level = TapExLevel.NORMAL;
+	private TapExType type = TapExType.RUNTIME;
+	private Class<? extends Exception> relateException = RuntimeException.class;
 	private String howToReproduce;
 	private String[] seeAlso = {"https://docs.tapdata.io/"};
-	private String sourceExClass;
+	private Class<?> sourceExClass;
 
 	private ErrorCodeEntity() {
 	}
 
 	public static ErrorCodeEntity create() {
 		return new ErrorCodeEntity();
+	}
+
+	public ErrorCodeEntity code(String code) {
+		this.code = code;
+		return this;
+	}
+
+	public ErrorCodeEntity name(String name) {
+		this.name = name;
+		return this;
 	}
 
 	public ErrorCodeEntity describe(String describe) {
@@ -84,7 +98,7 @@ public class ErrorCodeEntity implements Serializable {
 		return this;
 	}
 
-	public ErrorCodeEntity sourceExClass(String sourceExClass) {
+	public ErrorCodeEntity sourceExClass(Class<?> sourceExClass) {
 		this.sourceExClass = sourceExClass;
 		return this;
 	}
@@ -129,13 +143,23 @@ public class ErrorCodeEntity implements Serializable {
 		return seeAlso;
 	}
 
-	public String getSourceExClass() {
+	public Class<?> getSourceExClass() {
 		return sourceExClass;
+	}
+
+	public String getCode() {
+		return code;
+	}
+
+	public String getName() {
+		return name;
 	}
 
 	@Override
 	public String toString() {
 		return new StringJoiner(", ", ErrorCodeEntity.class.getSimpleName() + "[", "]")
+				.add("code='" + code + "'")
+				.add("name='" + name + "'")
 				.add("describe='" + describe + "'")
 				.add("describeCN='" + describeCN + "'")
 				.add("solution='" + solution + "'")
@@ -148,5 +172,29 @@ public class ErrorCodeEntity implements Serializable {
 				.add("seeAlso=" + Arrays.toString(seeAlso))
 				.add("sourceExClass='" + sourceExClass + "'")
 				.toString();
+	}
+
+	public String fullErrorCode() {
+		String code = this.code;
+		String sourceExClass = this.sourceExClass.getName();
+		String prefix = DEFAULT_ERROR_CODE_PREFIX;
+		if (StringUtils.isBlank(code)) {
+			return "";
+		}
+		if (StringUtils.isNotBlank(sourceExClass)) {
+			Class<?> sourceExClz;
+			try {
+				sourceExClz = Class.forName(sourceExClass);
+			} catch (ClassNotFoundException e) {
+				throw new RuntimeException(e);
+			}
+			TapExClass tapExClass = sourceExClz.getAnnotation(TapExClass.class);
+			String codePrefix = tapExClass.prefix();
+			if (StringUtils.isNotBlank(codePrefix)) {
+				prefix = codePrefix;
+			}
+		}
+		prefix = prefix.toUpperCase();
+		return prefix + code;
 	}
 }

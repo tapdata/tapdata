@@ -262,6 +262,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}
 			if (null != syncProgress.getStreamOffsetObj()) {
 				TapdataEvent tapdataEvent = TapdataHeartbeatEvent.create(offsetStartTimeMs, syncProgress.getStreamOffsetObj());
+				if (!SyncTypeEnum.CDC.equals(syncType)) {
+					tapdataEvent.setSyncStage(SyncStage.INITIAL_SYNC);
+				}
 				enqueue(tapdataEvent);
 			}
 		} else {

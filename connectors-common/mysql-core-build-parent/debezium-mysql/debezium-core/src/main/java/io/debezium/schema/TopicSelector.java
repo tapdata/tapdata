@@ -13,6 +13,8 @@ import io.debezium.config.CommonConnectorConfig;
 import io.debezium.util.BoundedConcurrentHashMap;
 import io.debezium.util.BoundedConcurrentHashMap.Eviction;
 
+import java.net.URLEncoder;
+
 /**
  * Implementations return names for Kafka topics (data and meta-data).
  *
@@ -120,7 +122,7 @@ public class TopicSelector<I extends DataCollectionId> {
                     sanitizedNameBuilder.append(c);
                 }
                 else {
-                    sanitizedNameBuilder.append(REPLACEMENT_CHAR);
+                    sanitizedNameBuilder.append(URLEncoder.encode(String.valueOf(c)));
                     changed = true;
                 }
             }

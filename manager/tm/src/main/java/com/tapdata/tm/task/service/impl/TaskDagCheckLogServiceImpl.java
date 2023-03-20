@@ -145,8 +145,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                 List<String> nodeList = nodeSchemaMap.get(node.getId());
                 if (CollectionUtils.isEmpty(nodeList)) {
                     String template = MessageUtil.getDagCheckMsg(locale, "MODEL_PROCESS_FAIL");
-                    TaskDagCheckLog modelLog = this.createLog(taskId, null, Level.ERROR, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, template,
-                            false, true, JSON.toJSONString(tableNames));
+                    TaskDagCheckLog modelLog = this.createLog(taskId, nodeId, userDetail.getUserId(), Level.ERROR, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, template, JSON.toJSONString(tableNames));
                     checkLogs.add(modelLog);
 
                     schemaPass = false;
@@ -156,8 +155,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                     temp.removeAll(nodeList);
 
                     String template = MessageUtil.getDagCheckMsg(locale, "MODEL_PROCESS_FAIL");
-                    TaskDagCheckLog modelLog = this.createLog(taskId, null, Level.ERROR, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, template,
-                            false, true, JSON.toJSONString(temp));
+                    TaskDagCheckLog modelLog = this.createLog(taskId, nodeId, userDetail.getUserId(), Level.ERROR, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, template, JSON.toJSONString(temp));
                     checkLogs.add(modelLog);
 
                     schemaPass = false;
@@ -174,15 +172,13 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                 } else {
                     number = dag.getSourceNode().getFirst().getTableNames().size();
                 }
-                TaskDagCheckLog modelLog = this.createLog(taskId, null, Level.INFO, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, template,
-                        false, true, DateUtil.now(), number, number);
+                TaskDagCheckLog modelLog = this.createLog(taskId, null, userDetail.getUserId(), Level.INFO, DagOutputTemplateEnum.MODEL_PROCESS_CHECK, template, number, number);
                 assert checkLogs != null;
                 checkLogs.add(modelLog);
             }
             // remove cache
             CacheUtils.invalidate(cacheKey);
         }
-
 
         LinkedHashMap<String, String> nodeMap = dag.getNodes().stream()
                 .collect(Collectors.toMap(Node::getId, Node::getName,(x, y) -> y, LinkedHashMap::new));
@@ -266,25 +262,16 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
     }
 
     @Override
-    public TaskDagCheckLog createLog(String taskId, String userId, Level grade, DagOutputTemplateEnum templateEnum, String template,
-                          boolean delOther, boolean needSave, Object ... param) {
+    public TaskDagCheckLog createLog(String taskId, String nodeId, String userId, Level grade, DagOutputTemplateEnum templateEnum, String template, Object ... param) {
         Date now = new Date();
-        if (delOther) {
-            mongoTemplate.remove(Query.query(Criteria.where("taskId").is(taskId)
-                    .and("checkType").is(templateEnum.name())
-            ), TaskDagCheckLog.class);
-        }
+        String content = MessageFormat.format(template, param);
 
-        TaskDagCheckLog log = new TaskDagCheckLog();
-        log.setTaskId(taskId);
-        log.setCheckType(templateEnum.name());
+        TaskDagCheckLog log = TaskDagCheckLog.builder()
+                .taskId(taskId).nodeId(nodeId)
+                .checkType(templateEnum.name())
+                .grade(grade).log(content).build();
         log.setCreateAt(now);
         log.setCreateUser(userId);
-        log.setGrade(grade);
-
-        String content = MessageFormat.format(template, param);
-        log.setLog(content);
-
         return log;
     }
 }
