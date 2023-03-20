@@ -71,7 +71,7 @@ function cases() {
               *)
                 for ca in $cases_data; do
                   echo $ca
-                  python runner.py --case $ca.py --source qa_$2 --smart_cdc
+                  python runner.py --case $ca.py --source qa_$2 --smart_cdc --bench 123
                 done;;
             esac;;
       *)
@@ -84,7 +84,7 @@ function cases() {
                               python runner.py --case $1.py --bench 123
                               break;;
                     *)
-                      python runner.py --case $1.py --source qa_$2 --smart_cdc
+                      python runner.py --case $1.py --source qa_$2 --smart_cdc --bench 123
                       break;;
                   esac;;
             *)
