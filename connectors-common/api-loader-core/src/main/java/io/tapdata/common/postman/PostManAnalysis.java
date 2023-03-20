@@ -154,10 +154,10 @@ public class PostManAnalysis {
         }
 
         ApiVariable variable = ApiVariable.create();
+        variable.putAll(this.apiContext.variable());
         if (Objects.nonNull(this.connectorConfig) && !this.connectorConfig.isEmpty()) {
             variable.putAll(this.connectorConfig);
         }
-        variable.putAll(this.apiContext.variable());
         if (Objects.nonNull(params) && !params.isEmpty()) {
             variable.putAll(params);
         }
