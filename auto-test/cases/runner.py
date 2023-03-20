@@ -111,7 +111,7 @@ def run_jobs(test_case, run_params_template):
         if p.wait_status("running"):
             logger.info("wait job start running cost: {} seconds", int(time.time() - s))
         else:
-            logger.error("wait job running timeout: {}, will skip it", )
+            logger.error("wait job running timeout: {} seconds, will skip it", int(time.time() - s))
             return False
 
         if not wait_job_initial(p, timeout):
@@ -135,7 +135,10 @@ def run_jobs(test_case, run_params_template):
             if type(i) == type({}):
                 sink_table = i["ns"]
                 if "_sink" in i["ns"]:
-                    sink_table = "%s_%s_%d" % (i["ns"], test_case.__name__, index)
+                    sink_table_suffix = i["ns"].split('.')[1].split('_')[-3::2]
+                    sink_table_prefix = i["ns"].split('.')[0]
+                    sink_table = "%s.%s_%s_%s_%d" % (sink_table_prefix, sink_table_suffix[0], sink_table_suffix[1],
+                                                     test_case.__name__, index)
                 run_param.append(sink_table)
                 if "cdc" in i.get("__type", []):
                     p.include_cdc()
@@ -170,7 +173,7 @@ def run_jobs(test_case, run_params_template):
         for param in run_param:
             if type(param) != type(""):
                 continue
-            if "_sink" in param:
+            if "sink_" in param:
                 continue
             if param in cdc_sources:
                 logger.info("find cdc source {} not support direct write, will use it's parent job as cdc source: {}",
@@ -283,6 +286,7 @@ def run_jobs(test_case, run_params_template):
                 "result": False,
             })
     return result
+
 
 def clean_smart_cdc():
     if args.nowait:
