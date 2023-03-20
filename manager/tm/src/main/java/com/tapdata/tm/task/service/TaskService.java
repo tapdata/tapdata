@@ -2413,6 +2413,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             }
 
             Criteria criteria1 = Criteria.where("_id").in(containsTaskIds);
+            Query query1 = new Query(criteria1);
+            query1.with(Sort.by("createTime").descending());
             List<TaskDto> taskDtos = findAllDto(new Query(criteria1), user);
             taskMap.put(connectionId, taskDtos);
         }
@@ -3244,6 +3246,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         Update stopUpdate = Update.update("stopedDate", System.currentTimeMillis());
+        if (CollectionUtils.isNotEmpty(taskDto.getLdpNewTables())) {
+            stopUpdate.set("ldpNewTables", taskDto.getLdpNewTables());
+        }
         updateById(taskDto.getId(), stopUpdate, user);
 
         StateMachineResult stateMachineResult;

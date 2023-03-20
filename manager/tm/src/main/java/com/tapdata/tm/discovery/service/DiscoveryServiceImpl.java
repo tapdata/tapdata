@@ -1771,6 +1771,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dataDirectoryDto.setName(unionQueryResult.getOriginal_name());
             dataDirectoryDto.setDesc(unionQueryResult.getComment());
             dataDirectoryDto.setCategory(DataObjCategoryEnum.storage);
+            dataDirectoryDto.setSourceConId(unionQueryResult.getSource() == null ? null : unionQueryResult.getSource().get_id());
             dataDirectoryDto.setListtags(unionQueryResult.getListtags());
         } else if (StringUtils.isNotBlank(unionQueryResult.getSyncType())) {
             dataDirectoryDto.setType(unionQueryResult.getSyncType());

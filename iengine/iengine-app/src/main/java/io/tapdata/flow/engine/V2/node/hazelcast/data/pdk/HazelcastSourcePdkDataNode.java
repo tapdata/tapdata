@@ -64,6 +64,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -113,8 +114,18 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						doSnapshot(new ArrayList<>(tapTableMap.keySet()));
 					}
 				}
+
 				if (!sourceRunnerFirstTime.get() && CollectionUtils.isNotEmpty(newTables)) {
 					doSnapshot(newTables);
+				}
+
+				TaskDto taskDto = dataProcessorContext.getTaskDto();
+				if (!sourceRunnerFirstTime.get() && CollectionUtils.isNotEmpty(taskDto.getLdpNewTables())) {
+					if (newTables == null) {
+						newTables = new CopyOnWriteArrayList<>();
+					}
+					newTables.addAll(taskDto.getLdpNewTables());
+					doSnapshot(taskDto.getLdpNewTables());
 				}
 			} catch (Throwable e) {
 				executeAspect(new SnapshotReadErrorAspect().dataProcessorContext(dataProcessorContext).error(e));

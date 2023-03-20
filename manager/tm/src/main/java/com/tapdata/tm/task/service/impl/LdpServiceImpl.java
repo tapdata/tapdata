@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
@@ -81,12 +82,17 @@ public class LdpServiceImpl implements LdpService {
                 .and("is_deleted").ne(true);
         Query query = new Query(criteria);
         TaskDto oldTask = taskService.findOne(query, user);
+
+        List<String> oldTableNames = new ArrayList<>();
         if (oldTask != null) {
 
             DatabaseNode oldSourceNode = (DatabaseNode) oldTask.getDag().getSources().get(0);
+            List<String> tableNames = oldSourceNode.getTableNames();
+            oldTableNames.addAll(tableNames);
             if (StringUtils.isNotBlank(oldSourceNode.getTableExpression())) {
                 mergeAllTable(user, connectionId, oldTask);
                 task = oldTask;
+                databaseNode = (DatabaseNode) task.getDag().getSources().get(0);
             } else if ((StringUtils.isNotBlank(databaseNode.getTableExpression()))) {
                 mergeAllTable(user, connectionId, task);
                 oldTask.setDag(task.getDag());
@@ -100,10 +106,20 @@ public class LdpServiceImpl implements LdpService {
             task = createNew(task, dag, oldTask);
         }
 
-        List<String> tableNames = databaseNode.getTableNames();
-        repeatTable(tableNames, task.getId() == null ? null : task.getId().toHexString(), fdmConnId, user);
+        databaseNode = (DatabaseNode) task.getDag().getSources().get(0);
+        List<String> sourceTableNames = new ArrayList<>(databaseNode.getTableNames());
+        DatabaseNode target = (DatabaseNode)task.getDag().getTargets().get(0);
 
-        TaskDto taskDto = null;
+        List<String> targetTableNames = new ArrayList<>();
+        List<SyncObjects> syncObjects = target.getSyncObjects();
+        if (CollectionUtils.isNotEmpty(syncObjects)) {
+            SyncObjects syncObjects1 = syncObjects.get(0);
+            targetTableNames = syncObjects1.getObjectNames();
+        }
+
+        repeatTable(targetTableNames, task.getId() == null ? null : task.getId().toHexString(), fdmConnId, user);
+
+        TaskDto taskDto;
         if (oldTask != null) {
             taskDto = taskService.updateById(task, user);
         } else {
@@ -113,7 +129,15 @@ public class LdpServiceImpl implements LdpService {
         createFdmTags(taskDto, user);
 
         if (oldTask != null) {
-            taskService.pause(taskDto, user, false, true);
+            sourceTableNames.removeAll(oldTableNames);
+            if (CollectionUtils.isNotEmpty(sourceTableNames)) {
+                taskDto.setLdpNewTables(sourceTableNames);
+            }
+            if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
+                taskService.pause(taskDto, user, false, true);
+            } else {
+                taskService.start(taskDto, user, "00");
+            }
         } else {
             taskService.start(taskDto, user, "00");
         }
@@ -163,6 +187,7 @@ public class LdpServiceImpl implements LdpService {
         Criteria criteria1 = Criteria.where("source._id").is(connectionId)
                 .and("taskId").exists(false)
                 .and("is_deleted").ne(true)
+                .and("meta_type").is("table")
                 .and("sourceType").is(com.tapdata.tm.metadatainstance.vo.SourceTypeEnum.SOURCE);
         Query query1 = new Query(criteria1);
         query1.fields().include("original_name");
@@ -537,7 +562,8 @@ public class LdpServiceImpl implements LdpService {
     void repeatTable(List<String> tableNames, String taskId, String connectionId, UserDetail user) {
         Criteria nin = Criteria.where("source._id").is(connectionId)
                 .and("original_name").in(tableNames)
-                .and("meta_type").is("table");
+                .and("meta_type").is("table")
+                .and("sourceType").is(com.tapdata.tm.metadatainstance.vo.SourceTypeEnum.VIRTUAL);
         if (StringUtils.isNotBlank(taskId)) {
             nin.and("taskId").ne(taskId);
         }

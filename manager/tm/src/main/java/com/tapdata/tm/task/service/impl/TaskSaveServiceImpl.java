@@ -98,7 +98,7 @@ public class TaskSaveServiceImpl implements TaskSaveService {
                                 if (CollectionUtils.isNotEmpty(fields)) {
                                     databaseNode.getUpdateConditionFieldMap().put(schema.getName(), fields);
                                 } else {
-                                    List<String> columnList = schema.getIndices().stream().filter(TableIndex::isUnique)
+                                    List<String> columnList = schema.getIndices() == null ? null : schema.getIndices().stream().filter(TableIndex::isUnique)
                                             .flatMap(idc -> idc.getColumns().stream())
                                             .map(TableIndexColumn::getColumnName)
                                             .collect(Collectors.toList());
