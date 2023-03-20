@@ -511,8 +511,8 @@ public class LdpServiceImpl implements LdpService {
         if (CollectionUtils.isEmpty(targets)) {
             throw new BizException("Ldp.TargetNotFound");
         }
-        Node node = targets.get(0);
-        String targetConId = ((TableNode) node).getConnectionId();
+        TableNode target = (TableNode)targets.get(0);
+        String targetConId = target.getConnectionId();
 
         if (!mdmConnectionId.equals(targetConId)) {
             throw new BizException("Ldp.MdmTaskTargetNotMdm");
@@ -523,10 +523,8 @@ public class LdpServiceImpl implements LdpService {
         if (CollectionUtils.isEmpty(sources)) {
             throw new BizException("Ldp.TaskNotSource");
         }
-        TableNode sourceNode =  (TableNode) sources.get(0);
-        String sourceConId = sourceNode.getConnectionId();
 
-        String tableName = sourceNode.getTableName();
+        String tableName = target.getTableName();
 
         repeatTable(Lists.newArrayList(tableName), null, targetConId, user);
 
