@@ -93,7 +93,7 @@ function connectionTest(connectionConfig) {
         }];
     } catch (e) {
         return [{
-            "test": " Please check whether the account or secret or HTTP address is correct",
+            "test": " Check the account, password, and HTTP address",
             "code": -1,
             "result": "Please check whether the HTTP connection is correct. "
         }];
