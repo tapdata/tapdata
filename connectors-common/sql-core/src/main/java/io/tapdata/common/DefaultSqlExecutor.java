@@ -1,7 +1,9 @@
 package io.tapdata.common;
 
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.entity.ExecuteResult;
 import io.tapdata.pdk.apis.error.NotSupportedException;
 import io.tapdata.pdk.apis.functions.TapSupplier;
@@ -16,6 +18,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 public class DefaultSqlExecutor {
@@ -29,6 +33,36 @@ public class DefaultSqlExecutor {
   private static final String MODE_OUT = "out";
   private static final String MODE_IN_OUT = "in/out";
   private static final String MODE_RETURN = "return";
+
+  public void execute(String sql, TapSupplier<Connection> connectionSupplier, Consumer<Object> consumer, Supplier<Boolean> aliveSupplier, int batchSize) {
+    try (Connection connection = connectionSupplier.get();
+         Statement sqlStatement = connection.createStatement()) {
+      boolean isQuery = sqlStatement.execute(sql);
+      if (isQuery) {
+        List<Map<String, Object>> list = TapSimplify.list();
+        try (ResultSet resultSet = sqlStatement.getResultSet()) {
+          List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
+          while (aliveSupplier.get() && resultSet.next()) {
+            DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
+            list.add(dataMap);
+            if (list.size() == batchSize) {
+              consumer.accept(list);
+              list = TapSimplify.list();
+            }
+          }
+          if (EmptyKit.isNotEmpty(list)) {
+            consumer.accept(list);
+          }
+        }
+      } else {
+        consumer.accept((long) sqlStatement.getUpdateCount());
+      }
+      connection.commit();
+
+    } catch (Throwable e) {
+      consumer.accept(new ExecuteResult<>().error(e));
+    }
+  }
 
   public ExecuteResult<?> execute(String sql, TapSupplier<Connection> connectionSupplier) {
     ExecuteResult<?> executeResult;

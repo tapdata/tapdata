@@ -4,6 +4,7 @@ import com.mongodb.client.*;
 import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
+import io.tapdata.entity.simplify.TapSimplify;
 import org.apache.commons.collections4.MapUtils;
 import org.bson.Document;
 
@@ -201,7 +202,7 @@ public class MongodbExecuteCommandFunction {
   private void consumer(MongoIterable<Document> mongoIterable, Consumer<List<Map<String, Object>>> consumer, int batchSize, Supplier<Boolean> aliveSupplier) {
     try (MongoCursor<Document> mongoCursor = mongoIterable.iterator()) {
 
-      List<Map<String, Object>> resultList = new ArrayList<>();
+      List<Map<String, Object>> resultList = TapSimplify.list();
       while (mongoCursor.hasNext()) {
         if (!aliveSupplier.get()) {
           return;
@@ -209,7 +210,7 @@ public class MongodbExecuteCommandFunction {
         resultList.add(mongoCursor.next());
         if (resultList.size() >= batchSize) {
           consumer.accept(resultList);
-          resultList.clear();
+          resultList = TapSimplify.list();
         }
       }
       if (resultList.size() > 0) {

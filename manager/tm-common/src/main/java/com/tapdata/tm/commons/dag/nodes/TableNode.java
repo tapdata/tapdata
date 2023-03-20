@@ -166,7 +166,7 @@ public class TableNode extends DataNode {
     private int cdcPollingBatchSize;
 
 
-    private boolean isCustomCommand;
+    private boolean enableCustomCommand;
     private Map<String, Object> customCommand;
 
 
