@@ -331,16 +331,16 @@ public class LoggingAspectTask extends AspectTask {
 
 		switch (aspect.getState()) {
 			case SourceStateAspect.STATE_INITIAL_SYNC_START:
-				getObsLogger(node).info("Initial sync started...");
+				getObsLogger(node).info("Initial sync started");
 				break;
 			case SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED:
-				getObsLogger(node).info("Initial sync completed...");
+				getObsLogger(node).info("Initial sync completed");
 				break;
 			case SourceStateAspect.STATE_CDC_START:
-				getObsLogger(node).info("Incremental sync started...");
+				getObsLogger(node).info("Incremental sync starting...");
 				break;
 			case SourceStateAspect.STATE_CDC_COMPLETED:
-				getObsLogger(node).info("Incremental sync completed...");
+				getObsLogger(node).info("Incremental sync completed");
 				break;
 			default:
 				break;
