@@ -31,3 +31,6 @@ function commandAndConvertData(apiName, params, call){
     let invokerData = invoker.invoke(apiName, params);
     return call(invokerData.result);
 }
+ function checkParam(param) {
+    return 'undefined' !== param && null != param;
+}

@@ -1,6 +1,6 @@
 var batchStart = dateUtils.nowDate();
 function discoverSchema(connectionConfig) {
-    try{
+    try {
         let sessionToken = invoker.invoke('TAP_GET_TOKEN session api');
         if ('undefined' === sessionToken.result || sessionToken.result === null) {
             log.error("Please check whether the account or secret or HTTP address is correct. ");
@@ -8,7 +8,7 @@ function discoverSchema(connectionConfig) {
         }
         let invoke = invoker.invoke('TAP_TABLE[allCard](PAGE_NONE)allCard',
             {"sessionToken": sessionToken.result.id});
-        if ('undefined' === invoke.result || invoke.result === null || invoke.result.length === 0 ) {
+        if ('undefined' === invoke.result || invoke.result === null || invoke.result.length === 0) {
             log.error("Please check whether the account or secret or HTTP address is correct ");
             return [];
         }
@@ -20,10 +20,10 @@ function discoverSchema(connectionConfig) {
                 log.warn("This table is empty");
                 continue;
             }
-            tableList.push("Card_" + idItem + "_" + clearSpecial(nameItem) + "" );
+            tableList.push("Card_" + idItem + "_" + clearSpecial(nameItem) + "");
         }
         return tableList;
-    }catch (e){
+    } catch (e) {
         log.error(e.message);
     }
 }
@@ -48,17 +48,23 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
         let invoke = invoker.invoke(
             'TAP_TABLE[queryExportFormat](PAGE_NONE:data)queryExportFormat',
             {"card-id": parseInt(id), "sessionToken": sessionToken.result.id});
-        let resut = [];
+        let result = [];
         let temp = invoke.result;
-        for (let index = 0; index < temp.length; index++) {
-            temp[index]['Question_Name'] = thisCard.name;
-            temp[index]['Question_ID'] = thisCard.id;
-            temp[index]['Current_Date'] = dateUtils.nowDate();
-            resut.push(temp[index]);
+        if (checkParam(temp[0])) {
+            for (let index = 0; index < temp.length; index++) {
+                temp[index]['Question_Name'] = thisCard.name;
+                temp[index]['Question_ID'] = thisCard.id;
+                temp[index]['Current_Date'] = dateUtils.nowDate();
+                result.push(temp[index]);
+            }
+            batchReadSender.send(result, tableName, offset);
+        } else {
+            log.warn("{} read {} :{}", thisCard.name,  temp.status, temp.error);
+            return;
         }
-        batchReadSender.send(resut, tableName, offset);
     } catch (e) {
-        log.error(e.message);
+        throw ("Failed to query data. Please check whether the data can be queried properly. " + e.message)
+        return;
     }
 }
 
