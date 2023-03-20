@@ -3,7 +3,12 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.Log4jUtil;
-import com.tapdata.entity.*;
+import com.tapdata.entity.SyncStage;
+import com.tapdata.entity.TapdataCompleteSnapshotEvent;
+import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TapdataHeartbeatEvent;
+import com.tapdata.entity.TapdataStartedCdcEvent;
+import com.tapdata.entity.TapdataStartingCdcEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -14,7 +19,17 @@ import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TaskMilestoneFuncAspect;
-import io.tapdata.aspect.taskmilestones.*;
+import io.tapdata.aspect.taskmilestones.CDCReadBeginAspect;
+import io.tapdata.aspect.taskmilestones.CDCReadEndAspect;
+import io.tapdata.aspect.taskmilestones.CDCReadErrorAspect;
+import io.tapdata.aspect.taskmilestones.CDCReadStartedAspect;
+import io.tapdata.aspect.taskmilestones.Snapshot2CDCAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadBeginAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadEndAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadErrorAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadTableBeginAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadTableEndAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadTableErrorAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
@@ -45,7 +60,11 @@ import io.tapdata.pdk.apis.entity.SortOn;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.source.*;
+import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunction;
+import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunctionV2;
+import io.tapdata.pdk.apis.functions.connector.source.RunRawCommandFunction;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
@@ -66,7 +85,13 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -90,6 +115,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	private List<String> conditionFields;
 	private StreamReadConsumer streamReadConsumer;
 	private PDKMethodInvoker streamReadMethodInvoker;
+	private SyncProgress.Type syncProgressType = SyncProgress.Type.NORMAL;
 
 	public HazelcastSourcePdkDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -197,7 +223,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableName);
 							Object tableOffset = ((Map<String, Object>) syncProgress.getBatchOffsetObj()).get(tapTable.getId());
 							obsLogger.info("Starting batch read, table name: " + tapTable.getId() + ", offset: " + tableOffset);
-							int eventBatchSize = 512;
 
 							executeDataFuncAspect(
 									BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
@@ -388,6 +413,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (!isRunning()) {
 			return;
 		}
+		syncProgressType = SyncProgress.Type.NORMAL;
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		ConnectorNode connectorNode = getConnectorNode();
 		if (connectorNode == null) {
@@ -476,6 +502,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					}
 
 					List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj);
+					handleSyncProgressType(tapdataEvents);
 					if (logger.isDebugEnabled()) {
 						logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
 					}
@@ -511,6 +538,16 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		});
 	}
 
+	private void handleSyncProgressType(List<TapdataEvent> tapdataEvents) {
+		for (TapdataEvent tapdataEvent : tapdataEvents) {
+			if (sourceMode == SourceMode.NORMAL) {
+				tapdataEvent.setType(syncProgressType);
+			} else if (sourceMode == SourceMode.LOG_COLLECTOR) {
+				tapdataEvent.setType(SyncProgress.Type.LOG_COLLECTOR);
+			}
+		}
+	}
+
 	private void sendCdcStartedEvent() {
 		TapdataStartedCdcEvent tapdataStartedCdcEvent = TapdataStartedCdcEvent.create();
 		tapdataStartedCdcEvent.setCdcStartTime(System.currentTimeMillis());
@@ -538,6 +575,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		// Init share cdc reader, if unavailable, will throw ShareCdcUnsupportedException
 		this.shareCdcReader = ShareCdcFactory.shareCdcReader(ReaderType.PDK_TASK_HAZELCAST, shareCdcTaskContext, syncProgress.getStreamOffsetObj());
 		obsLogger.info("Starting incremental sync, read from share log storage...");
+		this.syncProgressType = SyncProgress.Type.SHARE_CDC;
 		// Start listen message entity from share storage log
 		executeDataFuncAspect(StreamReadFuncAspect.class,
 				() -> new StreamReadFuncAspect()
@@ -546,22 +584,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						.eventBatchSize(1)
 						.offsetState(syncProgress.getStreamOffsetObj())
 						.start(),
-				streamReadFuncAspect -> this.shareCdcReader.listen((event, offsetObj) -> {
-					if (streamReadFuncAspect != null) {
-						AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), Collections.singletonList(event));
-					}
-					TapdataEvent tapdataEvent = wrapTapdataEvent(event, SyncStage.CDC, offsetObj, true);
-					if (null == tapdataEvent) {
-						return;
-					}
-					List<TapdataEvent> tapdataEvents = Collections.singletonList(tapdataEvent);
-					if (streamReadFuncAspect != null)
-						AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
-					tapdataEvent.setType(SyncProgress.Type.SHARE_CDC);
-					enqueue(tapdataEvent);
-					if (streamReadFuncAspect != null)
-						AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
-				}));
+				streamReadFuncAspect -> this.shareCdcReader.listen(streamReadConsumer));
 	}
 
 	private void checkPollingCDCIfNeed() {
@@ -583,6 +606,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (!isRunning()) {
 			return;
 		}
+		syncProgressType = SyncProgress.Type.POLLING_CDC;
 		Node node = getNode();
 		AtomicLong loopTime = new AtomicLong(1L);
 		TableNode tableNode = (TableNode) node;
@@ -682,7 +706,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											List<TapdataEvent> tapdataEvents = Collections.singletonList(tapdataEvent);
 											if (streamReadFuncAspect != null)
 												AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
-											tapdataEvent.setType(SyncProgress.Type.POLLING_CDC);
+											tapdataEvent.setType(syncProgressType);
 											enqueue(tapdataEvent);
 											if (streamReadFuncAspect != null)
 												AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);

@@ -32,6 +32,7 @@ import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
+import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.collections4.CollectionUtils;
@@ -52,6 +53,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
@@ -59,7 +61,6 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -85,6 +86,8 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 	private Map<String, Long> sequenceMap;
 	private ExternalStorageDto logCollectorExternalStorage;
 	private Future<?> future;
+	private StreamReadConsumer streamReadConsumer;
+	private CountDownLatch readCountDown;
 
 	ShareCdcPDKTaskReader(Object offset) {
 		super();
@@ -254,14 +257,16 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 	}
 
 	@Override
-	public void listen(BiConsumer<TapEvent, Object> logContentConsumer) throws Exception {
+	public void listen(StreamReadConsumer streamReadConsumer) throws Exception {
 		logger.info(logWrapper("Starting listen share log storage..."));
+		this.streamReadConsumer = streamReadConsumer;
 		int size = Math.max(1, tableNames.size() / threadNum);
 		List<List<String>> partitionTableNames = ListUtils.partition(tableNames, size);
 		threadNum = partitionTableNames.size();
 		this.readThreadPool = new ThreadPoolExecutor(threadNum + 1, threadNum + 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
 		int index = 1;
 		future = this.readThreadPool.submit(this::readPreVersionData);
+		this.readCountDown = new CountDownLatch(partitionTableNames.size());
 		for (List<String> partitionTableName : partitionTableNames) {
 			ReadRunner readRunner = new ReadRunner(
 					index++,
@@ -275,7 +280,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			}
 		}
 		try {
-			poll(logContentConsumer);
+			poll(streamReadConsumer);
 		} catch (Exception e) {
 			String err = "An internal error occurred, will close; Error: " + e.getMessage();
 			this.close();
@@ -400,6 +405,10 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 						}
 						if (readerResourceMap.get(tableName).firstTime) {
 							readerResourceMap.get(tableName).firstTime = false;
+							readCountDown.countDown();
+							if (readCountDown.getCount() <= 0 && null != streamReadConsumer) {
+								streamReadConsumer.streamReadStarted();
+							}
 							shareCdcContext.getObsLogger().info(logWrapper("Starting read '{}' log, sequence: {}"), tableName, readerResourceMap.get(tableName).sequence);
 						}
 						// Find hazelcast construct iterator
