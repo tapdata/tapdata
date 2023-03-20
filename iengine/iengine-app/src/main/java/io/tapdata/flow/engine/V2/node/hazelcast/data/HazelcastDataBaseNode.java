@@ -4,18 +4,14 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataTaskErrorEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
-import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
-import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,7 +67,7 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 		return true;
 	}
 
-	protected SyncProgress initSyncProgress(Map<String, Object> attrs) {
+	protected SyncProgress foundSyncProgress(Map<String, Object> attrs) {
 		SyncProgress syncProgress = null;
 		try {
 			if (MapUtils.isEmpty(attrs)) {

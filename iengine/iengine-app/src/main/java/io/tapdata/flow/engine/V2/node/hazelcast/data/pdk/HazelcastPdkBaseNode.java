@@ -56,7 +56,7 @@ import java.util.concurrent.TimeUnit;
  * @create 2022-05-10 16:57
  **/
 public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
-	public static final int DEFAULT_READ_BATCH_SIZE = 100;
+	public static final int DEFAULT_READ_BATCH_SIZE = 2000;
 	private final Logger logger = LogManager.getLogger(HazelcastPdkBaseNode.class);
 	private static final String TAG = HazelcastPdkBaseNode.class.getSimpleName();
 	protected static final String COMPLETED_INITIAL_SYNC_KEY_PREFIX = "COMPLETED-INITIAL-SYNC-";
@@ -69,10 +69,6 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	public HazelcastPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		this.readBatchSize = DEFAULT_READ_BATCH_SIZE;
-		if (getNode() instanceof DataParentNode) {
-			this.readBatchSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getReadBatchSize()).orElse(DEFAULT_READ_BATCH_SIZE);
-		}
 		logListener = new TapLogger.LogListener() {
 			@Override
 			public void debug(String log) {

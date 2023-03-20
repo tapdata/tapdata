@@ -14,7 +14,6 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.exception.SourceException;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
-import io.tapdata.websocket.handler.TestConnectionHandler;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -122,7 +121,7 @@ public class HazelcastTaskSource extends HazelcastDataBaseNode {
 	private void initJobOffset() {
 		try {
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
-			this.syncProgress = initSyncProgress(taskDto.getAttrs());
+			this.syncProgress = foundSyncProgress(taskDto.getAttrs());
 
 			if (this.syncProgress == null || StringUtils.isBlank(this.syncProgress.getOffset()) || this.sourceContext == null || this.sourceContext.getJob() == null) {
 				return;
