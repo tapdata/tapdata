@@ -314,7 +314,6 @@ public class MilestoneAspectTask extends AbstractAspectTask {
                 m.setProgress(progress);
             });
 
-            logger.info("Milestones: {}", new JSONObject().fluentPut("milestone", milestones).fluentPut("nodeMilestones", nodeMilestones).toJSONString());
             clientMongoOperator.update(
                     Query.query(Criteria.where("_id").is(task.getId()))
                     , Update.update("attrs.milestone", milestones).set("attrs.nodeMilestones", nodeMilestones)
