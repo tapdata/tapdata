@@ -103,7 +103,7 @@ public class TapEventPartitionDispatcher extends PartitionFieldParentHandler {
 		}
 		if(!checkKeyChanged(before, after)) {
 			obsLogger.info("Partition key has changed in UpdateRecordEvent {} for table {}, will remove the old key from partition. ", updateRecordEvent, table);
-			deleteFromPartition(before);
+			deleteFromPartition(deleteDMLEvent(before, table));
 		}
 		return null;
 	}
@@ -132,7 +132,8 @@ public class TapEventPartitionDispatcher extends PartitionFieldParentHandler {
 		return null;
 	}
 
-	private void deleteFromPartition(Map<String, Object> before) {
+	private void deleteFromPartition(TapDeleteRecordEvent deleteRecordEvent) {
+		Map<String, Object> before = deleteRecordEvent.getBefore();
 		Map<String, Object> key = getKeyFromData(before);
 		ReadPartition readPartition = readPartitionConsumerMap.ceilingKey(ReadPartition.create().partitionFilter(TapPartitionFilter.create().match(key)));
 		if(readPartition == null) {
@@ -140,13 +141,15 @@ public class TapEventPartitionDispatcher extends PartitionFieldParentHandler {
 			obsLogger.warn("Partition not found for value {}, deleteFromPartition will be ignored {}, readPartitionConsumerMap size {}", key, before, readPartitionConsumerMap.size());
 			return;
 		}
-		obsLogger.info("Table {} DeleteRecord key {} assigned into partition {}", table, key, readPartition);
+		obsLogger.info("Table {} deleteFromPartition key {} assigned into partition {}", table, key, readPartition);
 		ReadPartitionHandler readPartitionHandler = readPartitionConsumerMap.get(readPartition);
 		if(readPartitionHandler == null) {
 			throw new CoreException(PartitionErrorCodes.PARTITION_NOT_FOUND_FOR_VALUE, "ReadPartition {} failed to find readPartitionHandler for key {} while delete", readPartition, key);
 		}
 		synchronized (readPartitionHandler) {
-			if(!readPartitionHandler.isFinished()) {
+			if(readPartitionHandler.isFinished()) {
+				readPartitionHandler.passThrough(deleteRecordEvent);
+			} else {
 				readPartitionHandler.justDeleteFromKVStorage(key);
 			}
 		}

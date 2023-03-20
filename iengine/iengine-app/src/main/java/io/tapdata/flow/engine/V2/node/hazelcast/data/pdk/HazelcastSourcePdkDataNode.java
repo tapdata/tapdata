@@ -88,6 +88,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	private ShareCdcReader shareCdcReader;
 	private final SourceStateAspect sourceStateAspect;
 	private List<String> conditionFields;
+	private StreamReadConsumer streamReadConsumer;
+	private PDKMethodInvoker streamReadMethodInvoker;
 
 	public HazelcastSourcePdkDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -327,6 +329,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			return;
 		}
 		enterCDCStage();
+		ConnectorNode connectorNode = getConnectorNode();
+		if (connectorNode == null) {
+			logger.warn("Failed to get source node");
+			return;
+		}
+		streamReadMethodInvoker = createPdkMethodInvoker();
+		streamReadConsumer = generateStreamReadConsumer(connectorNode, streamReadMethodInvoker, streamReadFuncAspect);
 
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		Node<?> node = dataProcessorContext.getNode();
@@ -404,7 +413,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			if (streamReadFunctionName == null)
 				streamReadFunctionName = streamReadFunction.getClass().getSimpleName();
 			String finalStreamReadFunctionName = streamReadFunctionName;
-			PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
+
 			executeDataFuncAspect(StreamReadFuncAspect.class, () -> new StreamReadFuncAspect()
 							.connectorContext(connectorNode.getConnectorContext())
 							.dataProcessorContext(getDataProcessorContext())
@@ -414,10 +423,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							.offsetState(syncProgress.getStreamOffsetObj())
 							.start(),
 					streamReadFuncAspect -> PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_STREAM_READ,
-							pdkMethodInvoker.runnable(
+							streamReadMethodInvoker.runnable(
 									() -> {
 										this.streamReadFuncAspect = streamReadFuncAspect;
-										StreamReadConsumer streamReadConsumer = generateStreamReadConsumer(connectorNode, pdkMethodInvoker, streamReadFuncAspect);
 
 										if ((rawDataCallbackFilterFunction != null || rawDataCallbackFilterFunctionV2 != null) && streamReadFuncAspect != null) {
 											executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_CALLBACK_RAW_DATA).streamReadConsumer(streamReadConsumer));
