@@ -2065,7 +2065,7 @@ class BaseNode:
             "connectionId": self.connectionId,
             "databaseType": self.databaseType,
             "id": self.id,
-            "name": self.connection.c["name"],
+            "name": self.tableName,
             "attrs": {
                 "connectionType": self.connection.c["connection_type"],
                 "position": [0, 0],
@@ -2650,7 +2650,7 @@ class Job:
                     ],
                     "tags": {
                         "taskId": self.id,
-                        "taskRecordId": data["taskRecordId"],
+                        "taskRecordId": data.get("taskRecordId", None),
                         "type": "task"
                     },
                     "type": "instant",
@@ -2666,8 +2666,8 @@ class Job:
         job_stats = JobStats()
         if len(res["data"]["samples"]["totalData"]) > 0:
             stats = res["data"]["samples"]["totalData"][0]
-            job_stats.qps = stats["outputQps"]
-            job_stats.total = stats["tableTotal"]
+            job_stats.qps = stats.get("outputQps", None)
+            job_stats.total = stats.get("tableTotal", None)
             job_stats.input_insert = stats.get("inputInsertTotal", 0)
             job_stats.input_update = stats.get("inputUpdateTotal", 0)
             job_stats.input_delete = stats.get("inputDeleteTotal", 0)

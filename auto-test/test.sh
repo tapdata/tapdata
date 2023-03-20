@@ -1,9 +1,9 @@
 rm -rf /tmp/fail
 mkdir -p /tmp
 
-if [[ "x"$CASE_CONFIG != "x" ]]; then
-    echo $CASE_CONFIG|base64 -d > config.yaml
-fi
+#if [[ "x"$CASE_CONFIG != "x" ]]; then
+#    echo $CASE_CONFIG|base64 -d > config.yaml
+#fi
 
 server=`head -3 config.yaml |grep server|awk -F '"' '{print $2}'`
 
@@ -27,12 +27,12 @@ if [[ $? -ne 0 ]]; then
     echo "tapdata server UI may not work ok, will skip it"
 fi
 
-python3 init/prepare_data.py
-python3 init/create_datasource.py
-python3 init/create_datasource.py
-
+python init/prepare_data.py
+python init/create_datasource.py
+python init/create_datasource.py
 cd cases || exit
-python3 runner.py --case test_dev_sync.py --bench 123
+bash ../runner.sh
+
 
 if [[ -f /tmp/fail ]]; then
     echo "TEST FAIL !"
