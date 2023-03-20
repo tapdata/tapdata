@@ -130,12 +130,12 @@
           "x-index": 22
         },
         "ownerArrayManual": {
-            "type": "String",
-            "title": "${owner_array_manual}",
-            "x-decorator": "FormItem",
-            "x-component": "Input",
-            "x-index": 20,
-            "required": true,
+          "type": "String",
+          "title": "${owner_array_manual}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 20,
+          "required": true,
           "x-decorator-props": {
             "tooltip": "${phone_and_email_prompts}"
           },

@@ -6,6 +6,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.js.connector.base.EventType;
 import io.tapdata.js.connector.base.ScriptCore;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
+import io.tapdata.js.utils.Collector;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,7 +25,7 @@ public class StreamReadSender implements APISender {
     }
 
     @Override
-    public void send(Object offset){
+    public void send(Object offset) {
         core.updateOffset(offset);
     }
 
@@ -39,20 +40,20 @@ public class StreamReadSender implements APISender {
             TapLogger.warn(TAG, "ScriptCore can not be null or not be empty.");
             return;
         }
-        if (Objects.isNull(data)){
-            if(offset != null)
+        if (Objects.isNull(data)) {
+            if (offset != null)
                 core.updateOffset(offset);
             return;
         }
         data = LoadJavaScripter.covertData(data);
-        core.push(this.covertList(data, tableName), eventType, Optional.ofNullable(offset).orElse(new HashMap<>()));
+        core.push(this.covertList(Collector.convertObj(data), tableName), eventType, Optional.ofNullable(offset).orElse(new HashMap<>()));
     }
 
     Map<Integer, Object> cacheAgoData = new ConcurrentHashMap<>();
 
     @Override
     public void send(Object data, String tableName, Object offset, boolean cacheAgoRecord) {
-        if (!cacheAgoRecord) this.send(data, tableName,offset);
+        if (!cacheAgoRecord) this.send(data, tableName, offset);
         Collection<Object> listData;
         if (data instanceof Collection) {
             listData = (Collection<Object>) data;
@@ -67,14 +68,14 @@ public class StreamReadSender implements APISender {
         ).collect(Collectors.toList());
         cacheAgoData = new ConcurrentHashMap<>();
         newData.stream().filter(Objects::nonNull).forEach(item -> cacheAgoData.put(this.hashCode(item), item));
-        this.send(data, tableName,offset);
+        this.send(data, tableName, offset);
     }
 
     private Integer hashCode(Object obj) {
         if (Objects.isNull(obj)) return -1;
         return toJson(obj).hashCode();
     }
-    
+
     @Override
     public List<Object> covertList(Object obj, String tableName) {
         List<Object> list = new ArrayList<>();
