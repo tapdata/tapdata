@@ -33,29 +33,33 @@ function clearSpecial(str) {
 }
 
 function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
-    let sessionToken = invoker.invoke('TAP_GET_TOKEN session api', {});
-    let data = invoker.invoke('TAP_TABLE[allCard](PAGE_NONE)allCard',
-        {"sessionToken": sessionToken.result.id});
-    let id = tableName.split("_")[1];
-    let thisCard = {};
-    for (let index = 0; index < data.result.length; index++) {
-        if (data.result[index].id == id) {
-            thisCard = data.result[index];
-            break;
+    try {
+        let sessionToken = invoker.invoke('TAP_GET_TOKEN session api', {});
+        let data = invoker.invoke('TAP_TABLE[allCard](PAGE_NONE)allCard',
+            {"sessionToken": sessionToken.result.id});
+        let id = tableName.split("_")[1];
+        let thisCard = {};
+        for (let index = 0; index < data.result.length; index++) {
+            if (data.result[index].id == id) {
+                thisCard = data.result[index];
+                break;
+            }
         }
+        let invoke = invoker.invoke(
+            'TAP_TABLE[queryExportFormat](PAGE_NONE:data)queryExportFormat',
+            {"card-id": parseInt(id), "sessionToken": sessionToken.result.id});
+        let resut = [];
+        let temp = invoke.result;
+        for (let index = 0; index < temp.length; index++) {
+            temp[index]['Question_Name'] = thisCard.name;
+            temp[index]['Question_ID'] = thisCard.id;
+            temp[index]['Current_Date'] = dateUtils.nowDate();
+            resut.push(temp[index]);
+        }
+        batchReadSender.send(resut, tableName, offset);
+    } catch (e) {
+        log.error(e.message);
     }
-    let invoke = invoker.invoke(
-        'TAP_TABLE[queryExportFormat](PAGE_NONE:data)queryExportFormat',
-        {"card-id": parseInt(id),"sessionToken": sessionToken.result.id});
-    let resut = [];
-    let temp = invoke.result;
-    for (let index = 0; index < temp.length; index++) {
-        temp[index]['Question_Name'] = thisCard.name;
-        temp[index]['Question_ID'] = thisCard.id;
-        temp[index]['Current_Date'] = dateUtils.nowDate();
-        resut.push(temp[index]);
-    }
-    batchReadSender.send(resut, tableName, offset);
 }
 
 function connectionTest(connectionConfig) {
