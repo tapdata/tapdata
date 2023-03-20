@@ -61,7 +61,8 @@ function updateToken(connectionConfig, nodeConfig, apiResponse) {
     if (sendMsg.checkParam(apiResponse.result.code) && result.result.code === 0) {
         return {"token": result.result.tenant_access_token};
     } else {
-        log.error('Cannot get tenant access token, please check your app_id or app_secret or check api named GetAppToken. ');
+        log.warn('Cannot get tenant access token, please check your app_id or app_secret or check api named GetAppToken. ');
+        return null;
     }
 }
 
