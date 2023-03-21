@@ -5,6 +5,7 @@ import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.cglib.CglibUtil;
+import cn.hutool.extra.spring.SpringUtil;
 import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Maps;
@@ -19,6 +20,7 @@ import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.dto.*;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
+import com.tapdata.tm.base.aop.MeasureAOP;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.commons.dag.Node;
@@ -110,7 +112,7 @@ public class AlarmServiceImpl implements AlarmService {
             info.setId(one.getId());
             info.setTally(one.getTally() + 1);
             info.setLastUpdAt(date);
-            FunctionUtils.isTureOrFalse(AlarmStatusEnum.CLOESE.equals(one.getStatus())).trueOrFalseHandle(
+            FunctionUtils.isTureOrFalse(Lists.of(AlarmStatusEnum.CLOESE, AlarmStatusEnum.RECOVER).contains(one.getStatus())).trueOrFalseHandle(
                     () -> info.setFirstOccurrenceTime(date),
                     () -> info.setFirstOccurrenceTime(one.getFirstOccurrenceTime())
             );
@@ -659,6 +661,29 @@ public class AlarmServiceImpl implements AlarmService {
         List<ObjectId> collect = Arrays.stream(ids).map(MongoUtils::toObjectId).collect(Collectors.toList());
 
         Query query = new Query(Criteria.where("_id").in(collect));
+        List<AlarmInfo> alarmInfos = mongoTemplate.find(query, AlarmInfo.class);
+        alarmInfos.forEach(info -> {
+            String taskId = info.getTaskId();
+            String nodeId = info.getNodeId();
+            String key = "";
+            if (AlarmKeyEnum.TASK_INCREMENT_DELAY.equals(info.getMetric())) {
+                key = taskId + "-" + "replicateLag";
+            } else if (AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME.equals(info.getMetric())) {
+                if (info.getSummary().contains("TARGET_")) {
+                    key = nodeId + "-targetWriteTimeCostAvg";
+                } else {
+                    key = nodeId + "-snapshotSourceReadTimeCostAvg";
+                }
+
+            } else if (AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME.equals(info.getMetric())) {
+                key = nodeId + "-timeCostAvg";
+            }
+            if (StringUtils.isNotBlank(key)) {
+                SpringUtil.getBean(MeasureAOP.class).removeObsInfoByTaskIdAndKey(taskId, key);
+            }
+        });
+
+
         Update update = new Update().set("status", AlarmStatusEnum.CLOESE.name())
                 .set("closeTime", DateUtil.date())
                 .set("closeBy", userDetail.getUserId());

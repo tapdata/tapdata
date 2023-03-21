@@ -164,7 +164,7 @@ public class MeasureAOP {
         Map<String, AtomicInteger> infoMap = obsMap.get(taskId);
         if (Objects.nonNull(infoMap) && Objects.nonNull(infoMap.get(key))) {
             taskReplicateLagCount.set(infoMap.get(key).intValue());
-        } else {
+        } else if (Objects.isNull(infoMap)){
             infoMap = Maps.newHashMap();
         }
 
@@ -199,28 +199,26 @@ public class MeasureAOP {
             String summary;
             Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus())).findFirst();
             alarmInfo.setStatus(AlarmStatusEnum.ING);
+            param.put("flag", flag);
+            param.put("alarmDate", alarmDate);
+            param.put("taskName", task.getName());
+            param.put("threshold", alarmRuleDto.getMs());
+            param.put("currentValue", replicateLag);
             if (first.isPresent()) {
                 AlarmInfo data = first.get();
                 alarmInfo.setId(data.getId());
 
                 long continued = DateUtil.between(data.getFirstOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
-                summary = "TASK_INCREMENT_DELAY_ALWAYS";
-                param.put("flag", flag);
-                param.put("alarmDate", alarmDate);
-                param.put("taskName", task.getName());
-                param.put("threshold", alarmRuleDto.getMs());
-                param.put("currentValue", replicateLag);
-                param.put("continueTime", continued);
-                alarmInfo.setParam(param);
+                if (continued > 0) {
+                    summary = "TASK_INCREMENT_DELAY_ALWAYS";
+                    param.put("continueTime", continued);
+                } else {
+                    summary = "TASK_INCREMENT_DELAY_START";
+                }
             } else {
                 summary = "TASK_INCREMENT_DELAY_START";
-                param.put("flag", flag);
-                param.put("alarmDate", alarmDate);
-                param.put("taskName", task.getName());
-                param.put("threshold", alarmRuleDto.getMs());
-                param.put("currentValue", replicateLag);
-                alarmInfo.setParam(param);
             }
+            alarmInfo.setParam(param);
             alarmInfo.setLevel(Level.WARNING);
             alarmInfo.setSummary(summary);
             alarmService.save(alarmInfo);
@@ -259,7 +257,7 @@ public class MeasureAOP {
         Map<String, AtomicInteger> infoMap = obsMap.get(taskId);
         if (Objects.nonNull(infoMap) && Objects.nonNull(infoMap.get(key))) {
             count.set(infoMap.get(key).intValue());
-        } else {
+        } else if (Objects.isNull(infoMap)){
             infoMap = Maps.newHashMap();
         }
 
@@ -310,9 +308,13 @@ public class MeasureAOP {
                 alarmInfo.setId(data.getId());
 
                 long continued = DateUtil.between(data.getFirstOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
-                param.put("continueTime", continued);
+                if (continued > 0) {
+                    param.put("continueTime", continued);
+                    summary = template[3];
+                } else {
+                    summary = template[2];
+                }
 
-                summary = template[3];
             } else {
                 summary = template[2];
             }
@@ -333,6 +335,7 @@ public class MeasureAOP {
                 alarmInfo.setRecoveryTime(DateUtil.date());
                 alarmInfo.setFirstOccurrenceTime(null);
                 alarmInfo.setParam(param);
+                alarmInfo.setStatus(AlarmStatusEnum.RECOVER);
                 alarmService.save(alarmInfo);
             }
         }
@@ -364,5 +367,14 @@ public class MeasureAOP {
 
     public void removeObsInfoByTaskId(String taskId) {
         obsMap.remove(taskId);
+    }
+
+    public void removeObsInfoByTaskIdAndKey(String taskId, String key) {
+        if (obsMap.containsKey(taskId)) {
+            Map<String, AtomicInteger> integerMap = obsMap.get(taskId);
+            if (Objects.nonNull(integerMap)) {
+                integerMap.remove(key);
+            }
+        }
     }
 }
