@@ -253,7 +253,7 @@ public class MeasureAOP {
         }
 
 
-        String flag = alarmRuleDto.getEqualsFlag() == -1 ? "小于" : "大于";
+        String flag = alarmRuleDto.getEqualsFlag() == -1 ? "LESS" : "GREATER";
         AtomicInteger delay = new AtomicInteger(0);
 
         int current = Math.abs(number.intValue());
@@ -291,18 +291,16 @@ public class MeasureAOP {
         if (count.get() >= alarmRuleDto.getPoint()) {
             String summary;
             Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus())).findFirst();
+            alarmInfo.setStatus(AlarmStatusEnum.ING);
             if (first.isPresent()) {
                 AlarmInfo data = first.get();
                 alarmInfo.setId(data.getId());
-                alarmInfo.setStatus(AlarmStatusEnum.RECOVER);
-                alarmInfo.setLastOccurrenceTime(null);
 
                 long continued = DateUtil.between(data.getFirstOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
                 param.put("continueTime", continued);
 
                 summary = template[3];
             } else {
-                alarmInfo.setStatus(AlarmStatusEnum.ING);
                 summary = template[2];
             }
             alarmInfo.setParam(param);
@@ -320,6 +318,7 @@ public class MeasureAOP {
                 alarmInfo.setLevel(Level.RECOVERY);
                 alarmInfo.setSummary(summary);
                 alarmInfo.setRecoveryTime(DateUtil.date());
+                alarmInfo.setFirstOccurrenceTime(null);
                 alarmInfo.setParam(param);
                 alarmService.save(alarmInfo);
             }
