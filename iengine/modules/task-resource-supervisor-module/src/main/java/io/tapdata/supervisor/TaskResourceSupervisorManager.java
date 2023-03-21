@@ -26,6 +26,8 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
 
     private String userId;
     private String processId;
+    @Bean
+    private ClassLifeCircleMonitor classLifeCircleMonitor;
 
     @Bean
     private SkeletonService skeletonService;
@@ -92,10 +94,14 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
                     taskNodeInfo.setHasLaked(Boolean.TRUE);
                 }
             }
+            SupervisorAspectTask aspectTask = taskNodeInfo.getSupervisorAspectTask();
+            if (Objects.isNull(aspectTask)){
+                continue;
+            }
             if (!taskNodeInfo.isHasLaked()) {
-                aliveTaskSet.add(taskNodeInfo.getSupervisorAspectTask());
+                aliveTaskSet.add(aspectTask);
             } else {
-                leakedTaskSet.add(taskNodeInfo.getSupervisorAspectTask());
+                leakedTaskSet.add(aspectTask);
             }
         }
         return DataMap.create().keyRegex(keyRegex)

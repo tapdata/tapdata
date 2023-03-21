@@ -10,7 +10,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Implementation(ClassLifeCircleMonitor.class)
-public class ClassLifeCircleMonitorImpl implements ClassLifeCircleMonitor {
+public class ClassLifeCircleMonitorImpl implements ClassLifeCircleMonitor<ClassOnThread> {
     private final Map<Object, ClassOnThread> classOnThreadMap = new ConcurrentHashMap<>();
 
     @Override

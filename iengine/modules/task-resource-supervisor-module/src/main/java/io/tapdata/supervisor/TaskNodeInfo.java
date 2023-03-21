@@ -6,6 +6,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.pdk.core.api.Node;
 import io.tapdata.supervisor.entity.ClassOnThread;
+import io.tapdata.supervisor.entity.MemoryLevel;
 import io.tapdata.threadgroup.utils.ThreadGroupUtil;
 
 import java.util.*;
@@ -33,7 +34,8 @@ class TaskNodeInfo implements MemoryFetcher {
                 .kv("nodeName", this.node.getName())
                 .kv("taskId", supervisorAspectTask.getTaskId())
                 .kv("threadCount", threadCount)
-                .kv("threads", this.hasLaked ? threads : "[...]")
+                .kv("threads", threads)
+                //.kv("threads", !MemoryLevel.DETAIL.level().equals(memoryLevel) && !this.hasLaked ? "[...]" : threads)
                 .kv("resources", resources);
         try {
             dataMap.kv("connector", ((TableNode) this.node).getDatabaseType());
@@ -47,7 +49,7 @@ class TaskNodeInfo implements MemoryFetcher {
         Thread[] leakedOrAliveThreads = ThreadGroupUtil.groupThreads(this.nodeThreadGroup);
         int threadCount = 0;
         for (Thread thread : leakedOrAliveThreads) {
-            if (null == thread) continue;
+            if (null == thread || !thread.isAlive()) continue;
             threadCount++;
             List<String> stack = new ArrayList<>();
             StackTraceElement[] stackTrace = thread.getStackTrace();
@@ -65,7 +67,7 @@ class TaskNodeInfo implements MemoryFetcher {
     }
 
     private void resources(List<DataMap> resources, String keyRegex, String memoryLevel) {
-        ClassLifeCircleMonitor classLifeCircleMonitor = InstanceFactory.instance(ClassLifeCircleMonitor.class);
+        ClassLifeCircleMonitor<ClassOnThread> classLifeCircleMonitor = InstanceFactory.instance(ClassLifeCircleMonitor.class);
         Map<Object, ClassOnThread> summary = classLifeCircleMonitor.summary();
         Collection<ClassOnThread> onThreads = summary.values();
         Map<ThreadGroup, List<ClassOnThread>> groupListMap = onThreads.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(ClassOnThread::getThreadGroup));
@@ -88,7 +90,7 @@ class TaskNodeInfo implements MemoryFetcher {
                 DataMap p2 = (DataMap) o2;
                 int len1 = ((List<Object>) Optional.ofNullable(p1.get("stack")).orElse(new ArrayList<>())).size();
                 int len2 = ((List<Object>) Optional.ofNullable(p2.get("stack")).orElse(new ArrayList<>())).size();
-                return len2 - len1;//如果要升序， 改为return Integer.valueOf(p1)-Integer.valueOf(p2);
+                return len2 - len1;
             });
             DataMap mapNew = DataMap.create().keyRegex(keyRegex);
             for (Map.Entry<String, Object> info : infos) {
