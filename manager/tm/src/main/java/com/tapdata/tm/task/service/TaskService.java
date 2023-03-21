@@ -1402,7 +1402,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
 
     public void deleteNotifyEnumData(List<TaskDto> taskDtoList) {
-        log.info("deleteNotifyEnumData");
+//        log.info("deleteNotifyEnumData");
         if (CollectionUtils.isEmpty(taskDtoList)) {
             return;
         }
@@ -1410,10 +1410,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             List<AlarmSettingVO> alarmSettings = taskDto.getAlarmSettings();
             if (CollectionUtils.isNotEmpty(alarmSettings)) {
                 for (AlarmSettingVO alarmSettingDto : alarmSettings) {
-                    log.info("alarmSettingDto{}", JSONObject.toJSONString(alarmSettingDto));
+//                    log.info("alarmSettingDto{}", JSONObject.toJSONString(alarmSettingDto));
                     alarmSettingDto.getNotify().remove(NotifyEnum.SMS);
                     alarmSettingDto.getNotify().remove(NotifyEnum.WECHAT);
-                    log.info("alarmSettingDto after{}", JSONObject.toJSONString(alarmSettingDto));
+//                    log.info("alarmSettingDto after{}", JSONObject.toJSONString(alarmSettingDto));
 
                 }
             }
@@ -1422,11 +1422,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     if (CollectionUtils.isNotEmpty(node.getAlarmSettings())) {
                         List<AlarmSettingVO> alarmSetting = node.getAlarmSettings();
                         for (AlarmSettingVO alarmSettingVO : alarmSetting) {
-                            log.info("alarmSettingDto Node{}", JSONObject.toJSONString(alarmSettingVO));
+//                            log.info("alarmSettingDto Node{}", JSONObject.toJSONString(alarmSettingVO));
                             if (CollectionUtils.isNotEmpty(alarmSettingVO.getNotify())) {
                                 alarmSettingVO.getNotify().remove(NotifyEnum.SMS);
                                 alarmSettingVO.getNotify().remove(NotifyEnum.WECHAT);
-                                log.info("alarmSettingDto  Node after{}", JSONObject.toJSONString(alarmSettingVO));
+//                                log.info("alarmSettingDto  Node after{}", JSONObject.toJSONString(alarmSettingVO));
 
                             }
                         }

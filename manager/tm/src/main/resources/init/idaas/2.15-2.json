@@ -1,0 +1,13 @@
+[
+  {
+	"createIndexes": "AgentMeasurementV2",
+	"indexes": [{
+		"key": {
+			"date": 1
+		},
+		"expireAfterSeconds": 604800,
+		"name": "date_1_ttl",
+	    "background": true
+	  }]
+  }
+]
