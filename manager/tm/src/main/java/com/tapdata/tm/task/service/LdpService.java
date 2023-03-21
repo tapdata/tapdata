@@ -13,7 +13,7 @@ public interface LdpService {
 
     TaskDto createMdmTask(TaskDto task, String tagId, UserDetail user);
 
-    void createLdpMetaByTask(String taskId, UserDetail user);
+    void afterLdpTask(String taskId, UserDetail user);
 
 
     Map<String, TaskDto> queryFdmTaskByTags(List<String> tagIds, UserDetail user);

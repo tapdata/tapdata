@@ -140,7 +140,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				}
 
 				TaskDto taskDto = dataProcessorContext.getTaskDto();
-				if (!sourceRunnerFirstTime.get() && CollectionUtils.isNotEmpty(taskDto.getLdpNewTables())) {
+				if (CollectionUtils.isNotEmpty(taskDto.getLdpNewTables())) {
 					if (newTables == null) {
 						newTables = new CopyOnWriteArrayList<>();
 					}

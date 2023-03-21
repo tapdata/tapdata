@@ -24,6 +24,7 @@ import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.service.LdpService;
+import com.tapdata.tm.task.service.TaskSaveService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.ThreadLocalUtils;
@@ -67,6 +68,9 @@ public class LdpServiceImpl implements LdpService {
 
     private static ThreadLocal<String> tagCache = new ThreadLocal<>();
 
+    @Autowired
+    private TaskSaveService taskSaveService;
+
     @Override
     public TaskDto createFdmTask(TaskDto task, UserDetail user) {
         //check fdm task
@@ -83,25 +87,27 @@ public class LdpServiceImpl implements LdpService {
         Query query = new Query(criteria);
         TaskDto oldTask = taskService.findOne(query, user);
 
+
         List<String> oldTableNames = new ArrayList<>();
         if (oldTask != null) {
+            flushPrefix(task.getDag(), oldTask.getDag());
 
             DatabaseNode oldSourceNode = (DatabaseNode) oldTask.getDag().getSources().get(0);
             List<String> tableNames = oldSourceNode.getTableNames();
             oldTableNames.addAll(tableNames);
             if (StringUtils.isNotBlank(oldSourceNode.getTableExpression())) {
-                mergeAllTable(user, connectionId, oldTask);
+                mergeAllTable(user, connectionId, oldTask, oldTableNames);
                 task = oldTask;
                 databaseNode = (DatabaseNode) task.getDag().getSources().get(0);
             } else if ((StringUtils.isNotBlank(databaseNode.getTableExpression()))) {
-                mergeAllTable(user, connectionId, task);
+                mergeAllTable(user, connectionId, task, oldTableNames);
                 oldTask.setDag(task.getDag());
                 task = oldTask;
             } else {
                 task = createNew(task, dag, oldTask);
             }
         } else if (StringUtils.isNotBlank(databaseNode.getTableExpression())) {
-            mergeAllTable(user, connectionId, task);
+            mergeAllTable(user, connectionId, task, null);
         } else {
             task = createNew(task, dag, oldTask);
         }
@@ -145,6 +151,35 @@ public class LdpServiceImpl implements LdpService {
         return taskDto;
     }
 
+    private void flushPrefix(DAG dag, DAG dag1) {
+        if (dag == null) {
+            return;
+        }
+
+        if (dag1 == null) {
+            return;
+        }
+
+        List<Node> nodes = dag.getNodes();
+        String prefix = null;
+        for (Node node : nodes) {
+            if (node instanceof TableRenameProcessNode) {
+                prefix = ((TableRenameProcessNode) node).getPrefix();
+                break;
+            }
+        }
+
+        if (StringUtils.isNotBlank(prefix)) {
+            List<Node> nodes1 = dag1.getNodes();
+            for (Node node : nodes1) {
+                if (node instanceof TableRenameProcessNode) {
+                    ((TableRenameProcessNode) node).setPrefix(prefix);
+                    return;
+                }
+            }
+        }
+    }
+
     @NotNull
     private TaskDto createNew(TaskDto task, DAG dag, TaskDto oldTask) {
         task = mergeSameSourceTask(task, oldTask);
@@ -183,7 +218,7 @@ public class LdpServiceImpl implements LdpService {
         return task;
     }
 
-    private void mergeAllTable(UserDetail user, String connectionId, TaskDto oldTask) {
+    private void mergeAllTable(UserDetail user, String connectionId, TaskDto oldTask, List<String> oldTableNames) {
         Criteria criteria1 = Criteria.where("source._id").is(connectionId)
                 .and("taskId").exists(false)
                 .and("is_deleted").ne(true)
@@ -194,6 +229,9 @@ public class LdpServiceImpl implements LdpService {
         List<MetadataInstancesDto> metadataInstancesServiceAllDto = metadataInstancesService.findAllDto(query1, user);
         List<String> tableNames = metadataInstancesServiceAllDto.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList());
         String sourceNodeId = oldTask.getDag().getSources().get(0).getId();
+        if (CollectionUtils.isNotEmpty(oldTableNames)) {
+            tableNames.removeAll(oldTableNames);
+        }
         mergeTable(oldTask.getDag(), sourceNodeId, tableNames);
     }
 
@@ -329,8 +367,13 @@ public class LdpServiceImpl implements LdpService {
     }
 
     @Override
-    public void createLdpMetaByTask(String taskId, UserDetail user) {
-        TaskDto task = taskService.findByTaskId(MongoUtils.toObjectId(taskId), "dag", "ldpType");
+    public void afterLdpTask(String taskId, UserDetail user) {
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), user);
+        taskService.updateAfter(taskDto, user);
+        createLdpMetaByTask(taskDto, user);
+    }
+
+    private void createLdpMetaByTask(TaskDto task, UserDetail user) {
         if (!TaskDto.LDP_TYPE_FDM.equals(task.getLdpType()) && !TaskDto.LDP_TYPE_MDM.equals(task.getLdpType())) {
             return;
         }
@@ -344,7 +387,7 @@ public class LdpServiceImpl implements LdpService {
         Node node = targets.get(0);
         String connectionId = ((DataParentNode) node).getConnectionId();
 
-        Criteria metaCriteria = Criteria.where("taskId").is(taskId).and("source._id").is(connectionId);
+        Criteria metaCriteria = Criteria.where("taskId").is(task.getId().toHexString()).and("source._id").is(connectionId);
         Query query = new Query(metaCriteria);
         List<MetadataInstancesDto> metaDatas = metadataInstancesService.findAllDto(query, user);
         if (CollectionUtils.isEmpty(metaDatas)) {

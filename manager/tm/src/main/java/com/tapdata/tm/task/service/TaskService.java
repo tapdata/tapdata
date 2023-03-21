@@ -437,10 +437,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             return create(taskDto, user);
         }
 
-        // supplement migrate_field_rename_processor fieldMapping data
-        supplementMigrateFieldMapping(taskDto, user);
-        taskSaveService.syncTaskSetting(taskDto, user);
-
         if (oldTaskDto.getEditVersion().equals(taskDto.getEditVersion())) {
             //throw new BizException("Task.OldVersion");
         }
@@ -449,6 +445,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (StringUtils.isNotBlank(taskDto.getName()) && !taskDto.getName().equals(oldTaskDto.getName())) {
             checkTaskName(taskDto.getName(), user, taskDto.getId());
         }
+
+        // supplement migrate_field_rename_processor fieldMapping data
+        supplementMigrateFieldMapping(taskDto, user);
+        taskSaveService.syncTaskSetting(taskDto, user);
 
         //校验dag
         DAG dag = taskDto.getDag();
@@ -486,6 +486,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         return save(taskDto, user);
 
+    }
+
+    public TaskDto updateAfter(TaskDto taskDto, UserDetail user) {
+        taskSaveService.syncTaskSetting(taskDto, user);
+        return save(taskDto, user);
     }
 
     private void supplementMigrateFieldMapping(TaskDto taskDto, UserDetail userDetail) {

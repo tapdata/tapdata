@@ -397,7 +397,7 @@ public class TransformSchemaService {
             }
         }
 
-        ldpService.createLdpMetaByTask(taskId, user);
+        ldpService.afterLdpTask(taskId, user);
 
 
 
