@@ -164,6 +164,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 					});
 					if (!response) {
 						if (pingFailTime.incrementAndGet() > MAX_PING_FAIL_TIME) {
+							closeSession();
 							throw new RuntimeException(String.format("No response was received for %s consecutive websocket heartbeats", MAX_PING_FAIL_TIME));
 						}
 					}
@@ -338,9 +339,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 			logger.info("Processed message result {}.", result);
 
 			JSONUtil.disableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-			session.sendMessage(
-					new TextMessage(JSONUtil.obj2Json(result))
-			);
+			sendMessage(new TextMessage(JSONUtil.obj2Json(result)));
 			JSONUtil.enableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 		}
 	}
@@ -421,6 +420,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 					} catch (InterruptedException e1) {
 						logger.warn("Waiting to be interrupted", e1);
 					}
+					closeSession();
 					createClients();
 				}
 			}
