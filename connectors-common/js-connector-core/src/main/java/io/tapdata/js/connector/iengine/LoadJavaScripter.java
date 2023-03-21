@@ -81,9 +81,14 @@ public class LoadJavaScripter {
             try {
                 for (URL url : list) {
                     List<Map.Entry<InputStream, File>> files = this.javaFiles(url, null, "io/tapdata/js-core");
+//                    for (Map.Entry<InputStream, File> file : files) {
+//                        this.scriptEngine.eval(ScriptUtil.fileToString(file.getKey()));
+//                    }
+                    StringBuilder builder = new StringBuilder();
                     for (Map.Entry<InputStream, File> file : files) {
-                        this.scriptEngine.eval(ScriptUtil.fileToString(file.getKey()));
+                        builder.append(ScriptUtil.fileToString(file.getKey())).append("\n\n");
                     }
+                    this.scriptEngine.eval(builder.toString());
                 }
                 this.hasLoadBaseJs = true;
             } catch (Exception e) {
@@ -94,9 +99,14 @@ public class LoadJavaScripter {
             try {
                 for (URL url : list) {
                     List<Map.Entry<InputStream, File>> files = this.javaScriptFiles(url);
+//                    for (Map.Entry<InputStream, File> file : files) {
+//                        this.scriptEngine.eval(ScriptUtil.fileToString(file.getKey()));
+//                    }
+                    StringBuilder builder = new StringBuilder();
                     for (Map.Entry<InputStream, File> file : files) {
-                        this.scriptEngine.eval(ScriptUtil.fileToString(file.getKey()));
+                        builder.append(ScriptUtil.fileToString(file.getKey())).append("\n\n");
                     }
+                    this.scriptEngine.eval(builder.toString());
                 }
                 this.hasLoadJs = true;
                 return this.scriptEngine;
@@ -277,7 +287,7 @@ public class LoadJavaScripter {
         try {
             Invocable invocable = (Invocable) this.scriptEngine;
             Object apply = invocable.invokeFunction(functionName, params);
-            return LoadJavaScripter.covertData(apply);//Collector.convertObj(apply);
+            return LoadJavaScripter.covertData(apply);
         } catch (Exception e) {
             throw new CoreException(String.format("JavaScript Method execution failed, method name -[%s], params are -[%s], message: %s, %s", functionName, toJson(params), e.getMessage(), InstanceFactory.instance(TapUtils.class).getStackTrace(e)));
         }

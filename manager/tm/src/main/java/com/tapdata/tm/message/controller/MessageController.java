@@ -5,20 +5,21 @@ import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSON;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.message.constant.Level;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.message.vo.MessageListVo;
 import com.tapdata.tm.utils.MapUtils;
+import com.tapdata.tm.utils.MessageUtil;
+import com.tapdata.tm.utils.WebUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Setter;
@@ -31,10 +32,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 
@@ -59,9 +57,10 @@ public class MessageController extends BaseController {
     @Deprecated
     @Operation(summary = "获取消息通知列表")
     @GetMapping
-    public ResponseMessage<Page<MessageListVo>> find(@RequestParam(value = "filter", required = false) String filterJson) {
+    public ResponseMessage<Page<MessageListVo>> find(@RequestParam(value = "filter", required = false) String filterJson, HttpServletRequest request) {
         Filter filter = parseFilter(filterJson);
-        return success(messageService.find(filter, getLoginUser()));
+        Locale locale = WebUtils.getLocale(request);
+        return success(messageService.findMessage(locale, filter, getLoginUser()));
     }
 
     @Operation(summary = "get notify list")
@@ -70,8 +69,10 @@ public class MessageController extends BaseController {
                                                      @RequestParam(required = false) String level,
                                                      @RequestParam(required = false) Boolean read,
                                                      @RequestParam(defaultValue = "1") Integer page,
-                                                     @RequestParam(defaultValue = "20") Integer size) {
-        return success(messageService.list(msgType, level, read, page, size, getLoginUser()));
+                                                     @RequestParam(defaultValue = "20") Integer size,
+                                                     HttpServletRequest request) {
+        Locale locale = WebUtils.getLocale(request);
+        return success(messageService.list(locale, msgType, level, read, page, size, getLoginUser()));
     }
 
     /**
@@ -140,7 +141,9 @@ public class MessageController extends BaseController {
     @PatchMapping
     public ResponseMessage read(@RequestBody MessageDto messageDto) {
         List<String> ids=new ArrayList<>();
-        ids.add(messageDto.getId());
+        if(messageDto.getId() !=null) {
+            ids.add(messageDto.getId().toHexString());
+        }
         Boolean result = messageService.read(ids,getLoginUser());
         return success(result);
     }
@@ -222,7 +225,7 @@ public class MessageController extends BaseController {
             messageDtoRet = messageService.addTrustAgentMessage(messageDto.getAgentName(), messageDto.getSourceId(), msgTypeEnum, messageDto.getTitle(), getLoginUser());
         } else {
             //agent启动或者停止在这里添加通知
-            messageDtoRet = messageService.add(messageDto);
+            messageDtoRet = messageService.add(messageDto,getLoginUser());
         }
         return success(messageDtoRet);
     }

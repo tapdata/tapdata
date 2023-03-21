@@ -8,11 +8,11 @@ import com.tapdata.tm.config.security.UserDetail;
 import java.util.List;
 
 public interface AlarmSettingService {
-    void save(List<AlarmSettingDto> alarms, UserDetail userDetail);
+    void saveAlarmSetting(List<AlarmSettingDto> alarms, UserDetail userDetail);
 
-    List<AlarmSettingDto> findAll(UserDetail userDetail);
+    List<AlarmSettingDto> findAllAlarmSetting(UserDetail userDetail);
 
     void updateSystemNotify(UpdateRuleDto ruleDto, UserDetail userDetail);
 
-    AlarmSettingDto findByKey(AlarmKeyEnum keyEnum, String userId);
+    AlarmSettingDto findByKey(AlarmKeyEnum keyEnum, UserDetail userDetail);
 }

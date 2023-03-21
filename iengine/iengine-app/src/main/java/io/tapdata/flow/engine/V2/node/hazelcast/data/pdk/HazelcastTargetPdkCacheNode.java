@@ -73,7 +73,6 @@ public class HazelcastTargetPdkCacheNode extends HazelcastPdkBaseNode {
 								tapEvents.add(tapRecordEvent);
 							} else {
 								if (null != tapdataEvent.getTapEvent()) {
-									logger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
 									obsLogger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
 								}
 							}

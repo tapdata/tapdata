@@ -96,7 +96,6 @@ import java.net.URL;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.group;
@@ -227,7 +226,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 			if (((updateDto.getShareCdcEnable() != null && updateDto.getShareCdcEnable())
 					|| (oldConnection.getShareCdcEnable() != null && oldConnection.getShareCdcEnable()))
-					&& updateDto.getShareCDCExternalStorageId() != null && !oldConnection.getShareCDCExternalStorageId().equals(updateDto.getShareCDCExternalStorageId())) {
+					&& updateDto.getShareCDCExternalStorageId() != null && !updateDto.getShareCDCExternalStorageId().equals(oldConnection.getShareCDCExternalStorageId())) {
 				//查询当前数据源存在的运行中的任务，存在则不允许修改，给出报错。
 				Boolean canUpdate = logCollectorService.checkUpdateConfig(updateDto.getId().toHexString(), user);
 				if (!canUpdate) {
@@ -480,6 +479,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				item.setDefinitionVersion(definitionDto.getVersion());
 				item.setDefinitionScope(definitionDto.getScope());
 				item.setDefinitionBuildNumber(String.valueOf(definitionDto.getBuildNumber()));
+				item.setDefinitionTags(definitionDto.getTags());
             }
 
 			desensitizeMongoConnection(item);
@@ -663,6 +663,30 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			throw new BizException("Datasource.NotFound", "connections not found or not belong to current user");
 		}
 
+		// 如果有心跳任务，先停止后删除
+		List<TaskDto> heartbeatTasks = taskService.findHeartbeatByConnectionId(id, "_id", "status", "is_deleted");
+		if (null != heartbeatTasks) {
+			TaskDto statusDto;
+			for (TaskDto dto : heartbeatTasks) {
+				statusDto = dto;
+				do {
+					if (TaskDto.STATUS_RUNNING.equals(statusDto.getStatus())) {
+						taskService.pause(statusDto.getId(), user, false);
+					} else if (!TaskDto.STATUS_STOPPING.equals(statusDto.getStatus())) {
+						break;
+					}
+					try {
+						Thread.sleep(500);
+					} catch (InterruptedException e) {
+						throw new RuntimeException("Delete heartbeat task failed");
+					}
+					statusDto = taskService.findByTaskId(dto.getId(), "status");
+				} while (null != statusDto);
+
+				taskService.remove(dto.getId(), user);
+			}
+		}
+
 		//根据数据源id查询所有的jobModel, ModulesModel, dataFlowsModel， 如果存在，则不允许删除connection
 		//将数据源连接删除
 
@@ -805,7 +829,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				log.debug("Reset WebHook URL error, datasource name = {}, message : PdkHash must be not null or not empty.", entity.getName());
 				return;
 			}
-			DataSourceDefinitionDto dataSource = dataSourceDefinitionService.findByPdkHash(pdkHash, user);
+			DataSourceDefinitionDto dataSource = dataSourceDefinitionService.findByPdkHash(pdkHash, Integer.MAX_VALUE, user);
 			LinkedHashMap<String, Object> properties = dataSource.getProperties();
 			//获取connection配置
 			if (null == properties || properties.isEmpty()) {
@@ -998,7 +1022,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		checkName(connection.getName());
 
 		//根据dataSourceType查询数据源定义是否存在，如果不存在则返回数据源定义不存在的错误
-		DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.findByPdkHash(connection.getPdkHash(), user);
+		DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.findByPdkHash(connection.getPdkHash(), Integer.MAX_VALUE, user);
 		if (definitionDto == null) {
 			throw new BizException("Data source definition not found");
 		}
@@ -1008,6 +1032,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		connection.setDefinitionGroup(definitionDto.getGroup());
 		connection.setDefinitionScope(definitionDto.getScope());
 		connection.setDefinitionPdkId(definitionDto.getPdkId());
+		connection.setDefinitionTags(definitionDto.getTags());
 		connection.setCapabilities(definitionDto.getCapabilities());
 
 		//检查是否存在名称相同的数据源连接，存在的话，则不允许。（还可以检验一下关键字）
@@ -1838,12 +1863,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 	public Long countTaskByConnectionId(String connectionId, UserDetail userDetail) {
 		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId)
+				.and("syncType").ne(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
 				.andOperator(Criteria.where("is_deleted").is(false),Criteria.where("status").ne("delete_failed")));
 		query.fields().include("_id", "name", "syncType");
 		return taskService.count(query, userDetail);
 	}
 	public List<TaskDto> findTaskByConnectionId(String connectionId, int limit, UserDetail userDetail) {
 		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId)
+				.and("syncType").ne(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
 				.andOperator(Criteria.where("is_deleted").is(false),Criteria.where("status").ne("delete_failed")));
 		query.fields().include("_id", "name", "syncType");
 		query.limit(limit);

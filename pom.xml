@@ -8,6 +8,7 @@
     <name>daas</name>
     <packaging>pom</packaging>
     <modules>
+        <module>error-code-root</module>
 		<module>plugin-kit</module>
         <module>file-storages</module>
         <module>manager</module>

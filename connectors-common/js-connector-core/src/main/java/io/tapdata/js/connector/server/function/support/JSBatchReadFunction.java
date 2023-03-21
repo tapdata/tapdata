@@ -66,7 +66,7 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
                         JSFunctionNames.BatchReadFunction.jsName(),
                         Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()),
                         Optional.ofNullable(context.getNodeConfig()).orElse(new DataMap()),
-                        Optional.ofNullable(contextMap.get()).orElse(new HashMap<>()),
+                        contextMap.get(),
                         table.getId(),
                         batchCount,
                         sender
@@ -117,7 +117,7 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
         if (EmptyKit.isNotNull(scriptException.get())) {
             throw new RuntimeException(scriptException.get());
         }
-        if (isAlive.get() && EmptyKit.isNotEmpty(eventList) && Objects.nonNull(eventsOffsetConsumer)) {
+        if (EmptyKit.isNotEmpty(eventList) && Objects.nonNull(eventsOffsetConsumer)) {
             if (Objects.isNull(lastContextMap)) {
                 throw new CoreException("The breakpoint offset cannot be empty. Please carry the offset when submitting the event data.");
             }

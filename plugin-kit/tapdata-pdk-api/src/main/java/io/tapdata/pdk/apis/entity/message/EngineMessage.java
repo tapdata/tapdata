@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Set;
 
 public abstract class EngineMessage {
+	protected Integer timeoutSeconds;
 	protected String id;
 
 	protected Set<String> subscribeIds;
@@ -28,6 +29,14 @@ public abstract class EngineMessage {
 
 	public void setSubscribeIds(Set<String> subscribeIds) {
 		this.subscribeIds = subscribeIds;
+	}
+
+	public Integer getTimeoutSeconds() {
+		return timeoutSeconds;
+	}
+
+	public void setTimeoutSeconds(Integer timeoutSeconds) {
+		this.timeoutSeconds = timeoutSeconds;
 	}
 
 	public void subscribeIds(String... subscribeIds) {

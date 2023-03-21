@@ -3,7 +3,6 @@ package io.tapdata.observable.metric;
 import com.google.common.collect.HashBiMap;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.task.AspectTask;
@@ -14,13 +13,11 @@ import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.module.api.PipelineDelay;
 import io.tapdata.observable.metric.handler.*;
-import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.math.BigDecimal;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
 
-@AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC})
+@AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_CONN_HEARTBEAT, TaskDto.SYNC_TYPE_LOG_COLLECTOR})
 public class ObservableAspectTask extends AspectTask {
 	private final ClassHandlers observerClassHandlers = new ClassHandlers();
 
@@ -422,7 +419,7 @@ public class ObservableAspectTask extends AspectTask {
 								// source >> target table name maybe change
 
 								String syncType = aspect.getDataProcessorContext().getTaskDto().getSyncType();
-								if (TaskDto.SYNC_TYPE_SYNC.equals(syncType)) {
+								if (TaskDto.SYNC_TYPE_SYNC.equals(syncType) || TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(syncType)) {
 									return handlers.values().stream().findFirst();
 								} else {
 									LinkedHashMap<String, String> tableNameRelation = ((DatabaseNode) node).getSyncObjects().get(0).getTableNameRelation();

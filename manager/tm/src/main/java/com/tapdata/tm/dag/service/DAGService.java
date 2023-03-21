@@ -29,6 +29,7 @@ import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.service.TaskDagCheckLogService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.task.utils.CacheUtils;
 import com.tapdata.tm.transform.entity.MetadataTransformerItemEntity;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
@@ -38,6 +39,7 @@ import com.tapdata.tm.typemappings.service.DataTypeSupportService;
 import com.tapdata.tm.typemappings.service.TypeMappingsService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.ws.enums.MessageType;
@@ -47,6 +49,7 @@ import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -64,6 +67,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -405,6 +409,7 @@ public class DAGService implements DAGDataService {
                 dataSource.setDefinitionVersion(definitionDto.getVersion());
                 dataSource.setDefinitionPdkId(definitionDto.getPdkId());
                 dataSource.setDefinitionBuildNumber(String.valueOf(definitionDto.getBuildNumber()));
+                dataSource.setDefinitionTags(definitionDto.getTags());
             }
         }
 
@@ -971,6 +976,7 @@ public class DAGService implements DAGDataService {
         dto.setDefinitionVersion(definitionDto.getVersion());
         dto.setDefinitionGroup(definitionDto.getGroup());
         dto.setDefinitionBuildNumber(String.valueOf(definitionDto.getBuildNumber()));
+        dto.setDefinitionTags(definitionDto.getTags());
         DataSourceConnectionDto dataSourceDto = new DataSourceConnectionDto();
         BeanUtils.copyProperties(dto, dataSourceDto);
         return dataSourceDto;
@@ -1072,7 +1078,6 @@ public class DAGService implements DAGDataService {
         Query query1 = new Query(Criteria.where("dataFlowId").is(taskId).and("sinkNodeId").is(nodeId).and("uuid").ne(uuid));
         metadataTransformerItemService.deleteAll(query1);
 
-
         Criteria criteria = Criteria.where("dataFlowId").is(taskId).and("stageId").is(nodeId);
         MetadataTransformerDto transformer = metadataTransformerService.findOne(new Query(criteria));
         String status = MetadataTransformerDto.StatusEnum.running.name();
@@ -1118,11 +1123,6 @@ public class DAGService implements DAGDataService {
         if (transformer.getBeginTimestamp() == 0) {
             transformer.setBeginTimestamp(transformer.getPingTime());
         }
-
-        // add transformer task log
-        taskDagCheckLogService.createLog(taskId, null, Level.INFO, DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
-                false, true, DateUtil.now(), transformer.getFinished(), transformer.getTotal());
-
         metadataTransformerService.save(transformer);
     }
 

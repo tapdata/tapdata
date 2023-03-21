@@ -1,5 +1,6 @@
 package io.tapdata.mongodb;
 
+import java.util.List;
 import java.util.Map;
 
 public class ExecuteObject {
@@ -7,6 +8,8 @@ public class ExecuteObject {
 	public static final String INSERT_OP = "insert";
 	public static final String UPDATE_OP = "update";
 	public static final String DELETE_OP = "delete";
+
+	public static final String AGGREGATE_OP = "aggregate";
 	public static final String FIND_AND_MODIFY_OP = "findAndModify";
 
 	private String op;
@@ -23,6 +26,8 @@ public class ExecuteObject {
 
 	private Map<String, Object> sort;
 
+	private List<Map<String, Object>> pipeline;
+
 	private int limit;
 	private int skip;
 
@@ -31,15 +36,6 @@ public class ExecuteObject {
 	private boolean multi;
 
 	private Map<String, Object> projection;
-
-	public ExecuteObject(String database, String collection, Map<String, Object> filter, Map<String, Object> sort, int limit) {
-		this.op = op;
-		this.database = database;
-		this.collection = collection;
-		this.filter = filter;
-		this.sort = sort;
-		this.limit = limit;
-	}
 
 	public ExecuteObject(Map<String, Object> executeObj) {
 		this.op = executeObj.get("op") == null ? null : executeObj.get("op").toString();
@@ -54,6 +50,7 @@ public class ExecuteObject {
 		this.limit = executeObj.get("limit") == null ? 0 : (int) executeObj.get("limit");
 		this.skip = executeObj.get("skip") == null ? 0 : (int) executeObj.get("skip");
 		this.projection = executeObj.get("projection") == null ? null : (Map<String, Object>) executeObj.get("projection");
+		this.pipeline = executeObj.get("pipeline") == null ? null : (List<Map<String, Object>>) executeObj.get("pipeline");
 	}
 
 	public String getOp() {
@@ -152,21 +149,30 @@ public class ExecuteObject {
 		this.projection = projection;
 	}
 
+	public List<Map<String, Object>> getPipeline() {
+		return pipeline;
+	}
+
+	public void setPipeline(List<Map<String, Object>> pipeline) {
+		this.pipeline = pipeline;
+	}
+
 	@Override
 	public String toString() {
 		return "ExecuteObject{" +
-				"op='" + op + '\'' +
-				", sql='" + sql + '\'' +
-				", database='" + database + '\'' +
-				", collection='" + collection + '\'' +
-				", filter=" + filter +
-				", opObject=" + opObject +
-				", sort=" + sort +
-				", limit=" + limit +
-				", skip=" + skip +
-				", upsert=" + upsert +
-				", multi=" + multi +
-				", projection=" + projection +
-				'}';
+						"op='" + op + '\'' +
+						", sql='" + sql + '\'' +
+						", database='" + database + '\'' +
+						", collection='" + collection + '\'' +
+						", filter=" + filter +
+						", opObject=" + opObject +
+						", sort=" + sort +
+						", pipeline=" + pipeline +
+						", limit=" + limit +
+						", skip=" + skip +
+						", upsert=" + upsert +
+						", multi=" + multi +
+						", projection=" + projection +
+						'}';
 	}
 }

@@ -6,6 +6,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.js.connector.JSConnector;
 import io.tapdata.js.connector.base.CustomEventMessage;
 import io.tapdata.js.connector.base.ScriptCore;
+import io.tapdata.js.connector.base.TapConfigContext;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.server.function.ExecuteConfig;
 import io.tapdata.js.connector.server.function.FunctionBase;
@@ -63,22 +64,23 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
         AtomicReference<Throwable> scriptException = new AtomicReference<>();
         StreamReadSender sender = new StreamReadSender().core(scriptCore);
         AtomicBoolean streamReadFinished = new AtomicBoolean(false);
+        final long waitTime = ((TapConfigContext) Optional.ofNullable(this.javaScripter.scriptEngine().get("tapConfig")).orElse(new TapConfigContext())).getStreamReadIntervalSeconds();
         Runnable runnable = () -> {
             try {
                 while (this.isAlive.get()) {
+                    synchronized (this.lock) {
+                        this.lock.wait(waitTime);//JSStreamReadFunction.STREAM_READ_DELAY_SEC
+                    }
                     synchronized (JSConnector.execLock) {
                         super.javaScripter.invoker(
                                 JSFunctionNames.StreamReadFunction.jsName(),
                                 Optional.ofNullable(nodeContext.getConnectionConfig()).orElse(new DataMap()),
                                 Optional.ofNullable(nodeContext.getNodeConfig()).orElse(new DataMap()),
-                                Optional.ofNullable(contextMap.get()).orElse(new HashMap<>()),
+                                contextMap.get(),
                                 tableList,
                                 recordSize,
                                 sender
                         );
-                    }
-                    synchronized (this.lock) {
-                        this.lock.wait(JSStreamReadFunction.STREAM_READ_DELAY_SEC);
                     }
                 }
             } catch (InterruptedException ignored) {
@@ -89,8 +91,8 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
             }
         };
         Thread t = new Thread(runnable);
-        t.start();
         consumer.streamReadStarted();
+        t.start();
         List<TapEvent> eventList = new ArrayList<>();
         Object lastContextMap = null;
         long ts = System.currentTimeMillis();
@@ -119,7 +121,7 @@ public class JSStreamReadFunction extends FunctionBase implements FunctionSuppor
                     ts = System.currentTimeMillis();
                 }
             }
-            if(streamReadFinished.get() && scriptCore.getEventQueue().isEmpty())
+            if (streamReadFinished.get() && scriptCore.getEventQueue().isEmpty())
                 break;
         }
         if (EmptyKit.isNotNull(scriptException.get())) {

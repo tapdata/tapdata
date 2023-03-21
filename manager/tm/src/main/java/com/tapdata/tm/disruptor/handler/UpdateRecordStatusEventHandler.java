@@ -4,7 +4,6 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
-import com.tapdata.tm.alarm.constant.AlarmContentTemplate;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
@@ -17,7 +16,6 @@ import com.tapdata.tm.task.bean.SyncTaskStatusDto;
 import com.tapdata.tm.task.service.TaskRecordService;
 import org.springframework.stereotype.Component;
 
-import java.text.MessageFormat;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -43,30 +41,21 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
         AlarmService alarmService = SpringUtil.getBean(AlarmService.class);
 
         String taskId = data.getTaskId();
+        String taskName = data.getTaskName();
+        String alarmDate = DateUtil.now();
+        Map<String, Object> param = Maps.newHashMap();
         switch (data.getTaskStatus()) {
-            case TaskDto.STATUS_STOP:
-                String summary = MessageFormat.format(AlarmContentTemplate.TASK_STATUS_STOP_MANUAL, data.getUpdatorName(), DateUtil.now());
-                Map<String, Object> param = Maps.newHashMap();
-                param.put("updatorName", data.getUpdatorName());
-                AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
-                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(taskId)
-                        .name(data.getTaskName()).summary(summary).metric(AlarmKeyEnum.TASK_STATUS_STOP)
-                        .param(param)
-                        .build();
-
-                alarmInfo.setUserId(data.getUserId());
-                alarmService.save(alarmInfo);
-
-                break;
             case TaskDto.STATUS_RUNNING:
                 alarmService.closeWhenTaskRunning(taskId);
 
                 break;
             case TaskDto.STATUS_ERROR:
-                String errorSummary = MessageFormat.format(AlarmContentTemplate.TASK_STATUS_STOP_ERROR, DateUtil.now());
+                param.put("taskName", taskName);
+                param.put("alarmDate", alarmDate);
                 AlarmInfo errorInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.EMERGENCY).component(AlarmComponentEnum.FE)
                         .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(taskId)
-                        .name(data.getTaskName()).summary(errorSummary).metric(AlarmKeyEnum.TASK_STATUS_ERROR)
+                        .name(data.getTaskName()).summary("TASK_STATUS_STOP_ERROR").metric(AlarmKeyEnum.TASK_STATUS_ERROR)
+                        .param(param)
                         .build();
                 errorInfo.setUserId(data.getUserId());
                 alarmService.save(errorInfo);

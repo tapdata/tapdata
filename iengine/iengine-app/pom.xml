@@ -250,6 +250,21 @@
             <groupId>org.samba.jcifs</groupId>
             <artifactId>jcifs</artifactId>
         </dependency>
+
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>error-code-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>pdk-error-code</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>error-code-scanner</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

@@ -12,31 +12,24 @@ import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.TapArrayValue;
-import io.tapdata.entity.schema.value.TapBinaryValue;
-import io.tapdata.entity.schema.value.TapBooleanValue;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
-import io.tapdata.entity.schema.value.TapDateValue;
-import io.tapdata.entity.schema.value.TapMapValue;
-import io.tapdata.entity.schema.value.TapRawValue;
-import io.tapdata.entity.schema.value.TapTimeValue;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.ConnectionOptions;
-import io.tapdata.pdk.apis.entity.FilterResult;
-import io.tapdata.pdk.apis.entity.TapFilter;
-import io.tapdata.pdk.apis.entity.TestItem;
-import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
@@ -52,6 +45,8 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
     private DorisSchemaLoader dorisSchemaLoader;
     private TapConnectionContext connectionContext;
     private Map<String, DorisStreamLoader> dorisStreamLoaderMap = new ConcurrentHashMap<>();
+
+    private String connectionTimezone;
 
     /**
      * The method invocation life circle is below,
@@ -122,6 +117,7 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
 
+        connectorFunctions.supportBatchCount(this::batchCount);
         connectorFunctions.supportWriteRecord(this::writeRecord);
         connectorFunctions.supportCreateTable(this::createTable);
 //        connectorFunctions.supportAlterTable(this::alterTable);
@@ -167,14 +163,23 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
 
         //TapTimeValue, TapDateTimeValue and TapDateValue's value is DateTime, need convert into Date object.
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
+            if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
+                tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+            }
+            return formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS");
+        });
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
         connectorFunctions.supportErrorHandleFunction(this::errorHandle);
     }
 
-    private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+    private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
+        return dorisContext.count(tapTable.getName());
+    }
+
+    protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
         RetryOptions retryOptions = RetryOptions.create();
-        if ( null != matchThrowable(throwable, DorisRetryableException.class)
+        if (null != matchThrowable(throwable, DorisRetryableException.class)
                 || null != matchThrowable(throwable, IOException.class)) {
             retryOptions.needRetry(true);
             return retryOptions;
@@ -260,12 +265,74 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
      * current instance is serving for the table from connectorContext.
      */
     @Override
-    public void onStart(TapConnectionContext connectionContext) {
+    public void onStart(TapConnectionContext connectionContext) throws Throwable {
         this.connectionContext = connectionContext;
         this.dorisContext = new DorisContext(connectionContext);
         this.dorisReader = new DorisReader(dorisContext);
         this.dorisSchemaLoader = new DorisSchemaLoader(dorisContext);
+        this.connectionTimezone = connectionContext.getConnectionConfig().getString("timezone");
+        if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
+            this.connectionTimezone = timezone();
+        }
         TapLogger.info(TAG, "Doris connector started");
+    }
+
+    private String timezone() throws Exception {
+        String DATABASE_TIMEZON_SQL = "SELECT TIMEDIFF(NOW(), UTC_TIMESTAMP()) as timezone";
+        String formatTimezone = null;
+        TapLogger.debug(TAG, "Get timezone sql: " + DATABASE_TIMEZON_SQL);
+        final Connection connection = dorisContext.getConnection();
+
+        try (   Statement statement = connection.createStatement();
+                ResultSet resultSet = dorisContext.executeQuery(statement,DATABASE_TIMEZON_SQL)
+        ) {
+            while (resultSet.next()) {
+                String timezone = resultSet.getString(1);
+                formatTimezone = formatTimezone(timezone);
+            }
+        }
+        return formatTimezone;
+    }
+
+    private static String formatTimezone(String timezone) {
+        StringBuilder sb = new StringBuilder("GMT");
+        String[] split = timezone.split(":");
+        String str = split[0];
+        //Corrections -07:59:59 to GMT-08:00
+        int m = Integer.parseInt(split[1]);
+        if (m != 0) {
+            split[1] = "00";
+            int h = Math.abs(Integer.parseInt(str)) + 1;
+            if (h < 10) {
+                str = "0" + h;
+            } else {
+                str = h + "";
+            }
+            if (split[0].contains("-")) {
+                str = "-" + str;
+            }
+        }
+        if (str.contains("-")) {
+            if (str.length() == 3) {
+                sb.append(str);
+            } else {
+                sb.append("-0").append(StringUtils.right(str, 1));
+            }
+        } else if (str.contains("+")) {
+            if (str.length() == 3) {
+                sb.append(str);
+            } else {
+                sb.append("+0").append(StringUtils.right(str, 1));
+            }
+        } else {
+            sb.append("+");
+            if (str.length() == 2) {
+                sb.append(str);
+            } else {
+                sb.append("0").append(StringUtils.right(str, 1));
+            }
+        }
+        return sb.append(":").append(split[1]).toString();
     }
 
     @Override

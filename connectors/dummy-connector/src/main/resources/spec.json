@@ -3,7 +3,9 @@
     "name": "Dummy",
     "icon": "icons/dummy.png",
     "doc" : "${doc}",
-    "id": "dummy"
+    "id": "dummy",
+    "authentication": "beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "pdkExpansion": [],
@@ -63,7 +65,8 @@
             }
           },
           "properties": {"add": {"type": "void", "x-component": "ArrayTable.Addition", "title": "${df_table_field_btn_add}"}}
-        }
+        },
+        "batchBtn": {"type": "void", "x-index": 10, "title": " ", "x-decorator": "FormItem", "x-decorator-props": {"colon": false}, "x-component": "BatchAddField", "x-component-props": {"targetField": "table_fields"}}
       }
     }
   },

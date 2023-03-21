@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public abstract class CommonDbConnector extends ConnectorBase {
@@ -140,13 +141,35 @@ public abstract class CommonDbConnector extends ConnectorBase {
         }
     }
 
-    private static final String FIND_KEY_FROM_OFFSET = "select * from (select \"%s\", row_number() over (order by \"%s\") as rowno from \"%s\".\"%s\" ) where rowno=%s";
+    private static final String FIND_KEY_FROM_OFFSET = "select * from (select \"%s\", row_number() over (order by \"%s\") as rowno from \"%s\".\"%s\" ) a where rowno=%s";
 
     protected DataMap findPrimaryKeyValue(TapTable tapTable, Long offsetSize) throws Throwable {
         String primaryKeyString = String.join("\",\"", tapTable.primaryKeys());
         DataMap dataMap = new DataMap();
-        jdbcContext.queryWithNext(String.format(FIND_KEY_FROM_OFFSET, primaryKeyString, primaryKeyString, commonDbConfig.getSchema(), tapTable.getId(), offsetSize),
-                resultSet -> dataMap.putAll(DataMap.create(DbKit.getRowFromResultSet(resultSet, DbKit.getColumnsFromResultSet(resultSet)))));
+        jdbcContext.query(String.format(FIND_KEY_FROM_OFFSET, primaryKeyString, primaryKeyString, commonDbConfig.getSchema(), tapTable.getId(), offsetSize), resultSet -> {
+            if (resultSet.next()) {
+                dataMap.putAll(DataMap.create(DbKit.getRowFromResultSet(resultSet, DbKit.getColumnsFromResultSet(resultSet))));
+            }
+        });
         return dataMap;
+    }
+
+    protected void runRawCommand(TapConnectorContext connectorContext, String command, TapTable tapTable, int eventBatchSize, Consumer<List<TapEvent>> eventsOffsetConsumer) throws Throwable {
+        jdbcContext.query(command, resultSet -> {
+            List<TapEvent> tapEvents = list();
+            List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
+            while (isAlive() && resultSet.next()) {
+                DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
+                assert dataMap != null;
+                tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
+                if (tapEvents.size() == eventBatchSize) {
+                    eventsOffsetConsumer.accept(tapEvents);
+                    tapEvents = list();
+                }
+            }
+            if (EmptyKit.isNotEmpty(tapEvents)) {
+                eventsOffsetConsumer.accept(tapEvents);
+            }
+        });
     }
 }

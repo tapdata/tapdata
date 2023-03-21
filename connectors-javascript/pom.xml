@@ -16,6 +16,7 @@
 <!--		<module>zoho-crm-connector</module>-->
 		<module>metabase-connector</module>
 		<module>lark-task-connector</module>
+		<module>salesforce-connector</module>
 	</modules>
 
 	<properties>

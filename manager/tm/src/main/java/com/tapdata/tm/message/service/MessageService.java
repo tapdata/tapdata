@@ -6,7 +6,6 @@ import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.dto.NotificationDto;
@@ -19,7 +18,7 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.service.BaseService;
-import com.tapdata.tm.commons.base.dto.BaseDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.events.constant.Type;
 import com.tapdata.tm.events.service.EventsService;
@@ -29,15 +28,16 @@ import com.tapdata.tm.message.entity.MessageEntity;
 import com.tapdata.tm.message.repository.MessageRepository;
 import com.tapdata.tm.message.vo.MessageListVo;
 import com.tapdata.tm.mp.service.MpService;
+import com.tapdata.tm.sms.SmsService;
 import com.tapdata.tm.task.constant.TaskEnum;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.user.entity.Notification;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MailUtils;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SendStatus;
-import com.tapdata.tm.sms.SmsService;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +51,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.expression.ExpressionParser;
+import org.springframework.expression.common.TemplateParserContext;
+import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -65,7 +68,7 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
-public class MessageService extends BaseService {
+public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectId,MessageRepository> {
 
     MessageRepository messageRepository;
     UserService userService;
@@ -102,7 +105,7 @@ public class MessageService extends BaseService {
      * @param userDetail
      * @return
      */
-    public Page<MessageListVo> find(Filter filter, UserDetail userDetail) {
+    public Page<MessageListVo> findMessage(Locale locale, Filter filter, UserDetail userDetail) {
         TmPageable tmPageable = new TmPageable();
 
         //page由limit 和skip计算的来
@@ -111,29 +114,43 @@ public class MessageService extends BaseService {
         tmPageable.setSize(filter.getLimit());
 
         Query query = parseWhereCondition(filter.getWhere(), userDetail);
-        List<String> collect = Arrays.stream(MsgTypeEnum.values()).filter(t -> t != MsgTypeEnum.ALARM).map(MsgTypeEnum::getValue).collect(Collectors.toList());
-        query.addCriteria(Criteria.where("msg").in(collect));
-        return getMessageListVoPage(query, tmPageable);
+        if (!filter.getWhere().containsKey("msg")) {
+            List<String> collect = Arrays.stream(MsgTypeEnum.values()).filter(t -> t != MsgTypeEnum.ALARM).map(MsgTypeEnum::getValue).collect(Collectors.toList());
+            query.addCriteria(Criteria.where("msg").in(collect));
+        }
+        return getMessageListVoPage(locale, query, tmPageable);
+    }
+
+    @Override
+    protected void beforeSave(MessageDto dto, UserDetail userDetail) {
+
     }
 
     @NotNull
-    private Page<MessageListVo> getMessageListVoPage(Query query, TmPageable tmPageable) {
+    private Page<MessageListVo> getMessageListVoPage(Locale locale, Query query, TmPageable tmPageable) {
         long total = messageRepository.getMongoOperations().count(query, MessageEntity.class);
         query.with(Sort.by("createTime").descending());
         query.with(tmPageable);
         List<MessageEntity> messageEntityList = messageRepository.getMongoOperations().find(query, MessageEntity.class);
 
+        ExpressionParser parser = new SpelExpressionParser();
+        TemplateParserContext parserContext = new TemplateParserContext();
         List<MessageListVo> messageListVoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(messageEntityList, MessageListVo.class);
         messageListVoList.forEach(messageListVo -> {
             if (StringUtils.isEmpty(messageListVo.getServerName())) {
                 messageListVo.setServerName(messageListVo.getAgentName());
+            }
+            if (MsgTypeEnum.ALARM.getValue().equals(messageListVo.getMsg()) && Objects.nonNull(messageListVo.getParam())) {
+                String template = MessageUtil.getAlarmMsg(locale, messageListVo.getTemplate());
+                String content = parser.parseExpression(template, parserContext).getValue(messageListVo.getParam(), String.class);
+                messageListVo.setTitle(content);
             }
         });
 
         return new Page<>(total, messageListVoList);
     }
 
-    public Page<MessageListVo> list(MsgTypeEnum type, String level, Boolean read, Integer page, Integer size, UserDetail userDetail) {
+    public Page<MessageListVo> list(Locale locale, MsgTypeEnum type, String level, Boolean read, Integer page, Integer size, UserDetail userDetail) {
         Query query = new Query(Criteria.where("user_id").is(userDetail.getUserId()).and("msg").is(type.getValue()));
         if (StringUtils.isNotBlank(level)) {
             query.addCriteria(Criteria.where("level").is(level));
@@ -146,7 +163,7 @@ public class MessageService extends BaseService {
         tmPageable.setPage(page);
         tmPageable.setSize(size);
 
-        return getMessageListVoPage(query, tmPageable);
+        return getMessageListVoPage(locale, query, tmPageable);
     }
 
     /**
@@ -178,7 +195,7 @@ public class MessageService extends BaseService {
 
             messageEntity.setUserId(userDetail.getUserId());
             messageEntity.setCustomId(userDetail.getCustomerId());
-            repository.getMongoOperations().save(messageEntity);
+            repository.save(messageEntity,userDetail);
             informUser(msgTypeEnum, systemEnum, messageMetadata, sourceId, messageEntity.getId().toString(), userDetail);
         } catch (Exception e) {
             log.error("新增消息异常，", e);
@@ -399,7 +416,7 @@ public class MessageService extends BaseService {
         messageEntity.setLastUpdAt(new Date());
         messageEntity.setUserId(userDetail.getUserId());
         messageEntity.setRead(false);
-        repository.getMongoOperations().save(messageEntity);
+        repository.save(messageEntity,userDetail);
         return messageEntity;
     }
 
@@ -416,12 +433,12 @@ public class MessageService extends BaseService {
         messageEntity.setUserId(userDetail.getUserId());
         messageEntity.setRead(false);
         messageEntity.setIsDeleted((!isNotify));
-        repository.getMongoOperations().save(messageEntity);
+        repository.save(messageEntity,userDetail);
         return messageEntity;
     }
 
-    public void addMessage(MessageEntity messageEntity) {
-        repository.getMongoOperations().save(messageEntity);
+    public void addMessage(MessageEntity messageEntity,UserDetail userDetail) {
+        repository.save(messageEntity,userDetail);
     }
 
     /**
@@ -600,30 +617,20 @@ public class MessageService extends BaseService {
      * @param messageDto
      * @return
      */
-    @Async("NotificationExecutor")
-    public MessageDto add(MessageDto messageDto) {
+    public MessageDto add(MessageDto messageDto, UserDetail userDetail) {
         try {
             MessageEntity messageEntity = new MessageEntity();
             BeanUtil.copyProperties(messageDto, messageEntity, "messageMetadata");
-
             MessageMetadata messageMetadata = JSONUtil.toBean(messageDto.getMessageMetadata(), MessageMetadata.class);
             messageEntity.setMessageMetadata(messageMetadata);
-
-            String userId = messageDto.getUserId();
-            UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(userId));
-            if (null != userDetail) {
-                messageEntity.setUserId(userId);
-                messageEntity.setCreateAt(new Date());
-                messageEntity.setServerName(messageDto.getAgentName());
-                messageEntity.setLastUpdAt(new Date());
-                messageEntity.setLastUpdBy(userDetail.getUsername());
-                repository.getMongoOperations().save(messageEntity);
-                messageDto.setId(messageEntity.getId().toString());
-                informUser(messageDto);
-            } else {
-                log.error("找不到用户信息. userId:{}", userId);
-            }
-
+            messageEntity.setUserId(userDetail.getUserId());
+            messageEntity.setCreateAt(new Date());
+            messageEntity.setServerName(messageDto.getAgentName());
+            messageEntity.setLastUpdAt(new Date());
+            messageEntity.setLastUpdBy(userDetail.getUsername());
+            repository.save(messageEntity, userDetail);
+            messageDto.setId(messageEntity.getId());
+            informUser(messageDto);
         } catch (Exception e) {
             log.error("新增消息异常，", e);
         }
@@ -794,11 +801,6 @@ public class MessageService extends BaseService {
         Query query = new Query(criteria);
         UpdateResult wr = messageRepository.getMongoOperations().updateMulti(query, update, MessageEntity.class);
         return true;
-    }
-
-    @Override
-    protected void beforeSave(BaseDto dto, UserDetail userDetail) {
-
     }
 
 

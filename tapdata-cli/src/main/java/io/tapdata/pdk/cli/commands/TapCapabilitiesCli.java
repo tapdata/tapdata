@@ -8,7 +8,6 @@ import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.entity.utils.cache.KVMapFactory;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.entity.Capability;
-import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.apis.functions.*;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.cli.CommonCli;
@@ -28,7 +27,6 @@ import org.apache.commons.io.FilenameUtils;
 import picocli.CommandLine;
 
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Path;

@@ -3,7 +3,9 @@
     "name": "MySQL PXC",
     "icon": "icons/mysql_pxc.png",
     "id": "mysql-pxc",
-    "doc": "${doc}"
+    "doc": "${doc}",
+    "authentication": "beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "capabilities": [

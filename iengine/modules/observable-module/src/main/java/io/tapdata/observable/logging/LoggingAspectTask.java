@@ -238,6 +238,7 @@ public class LoggingAspectTask extends AspectTask {
 
 		if (null == events || events.isEmpty()) {
 			debug(logEventType, cost, tag, context);
+			return;
 		}
 
 		Node<?> node = context.getNode();
@@ -246,17 +247,20 @@ public class LoggingAspectTask extends AspectTask {
 			if (null == event) {
 				continue;
 			}
-			TapBaseEvent baseEvent = (TapBaseEvent) event;
-			Collection<String> pkFields = getPkFields(context, baseEvent.getTableId());
-			data.add(LogEventData.builder()
+
+			LogEventData.LogEventDataBuilder logEventDataBuilder = LogEventData.builder()
 					.eventType(logEventType)
 					.status(LogEventData.LOG_EVENT_STATUS_OK)
 					.time(System.currentTimeMillis())
 					.cost(cost)
-					.withNode(node)
-					.withTapEvent(event, pkFields)
-					.build().toMap());
+					.withNode(node);
 
+			if (event instanceof TapBaseEvent) {
+				TapBaseEvent baseEvent = (TapBaseEvent) event;
+				Collection<String> pkFields = getPkFields(context, baseEvent.getTableId());
+				logEventDataBuilder.withTapEvent(baseEvent, pkFields);
+			}
+			data.add(logEventDataBuilder.build().toMap());
 		}
 
 		ObsLogger obsLogger = getObsLogger(node);
@@ -270,23 +274,27 @@ public class LoggingAspectTask extends AspectTask {
 
 		if (null == event || null == event.getTapEvent()) {
 			debug(logEventType, cost, tag, context);
+			return;
 		}
 
 		Node<?> node = context.getNode();
 		List<Map<String, Object>> data = new ArrayList<>();
-		TapBaseEvent baseEvent = (TapBaseEvent) event.getTapEvent();
-		if (null == baseEvent) {
-			return;
-		}
-		Collection<String> pkFields = getPkFields(context, baseEvent.getTableId());
-		data.add(LogEventData.builder()
+		LogEventData.LogEventDataBuilder logEventDataBuilder = LogEventData.builder()
 				.eventType(logEventType)
 				.status(LogEventData.LOG_EVENT_STATUS_OK)
 				.time(System.currentTimeMillis())
 				.cost(cost)
-				.withNode(node)
-				.withTapEvent(baseEvent, pkFields)
-				.build().toMap());
+				.withNode(node);
+		TapEvent tapEvent = event.getTapEvent();
+		if (tapEvent instanceof TapBaseEvent) {
+			TapBaseEvent baseEvent = (TapBaseEvent) event.getTapEvent();
+			if (null == baseEvent) {
+				return;
+			}
+			Collection<String> pkFields = getPkFields(context, baseEvent.getTableId());
+			logEventDataBuilder.withTapEvent(baseEvent, pkFields);
+		}
+		data.add(logEventDataBuilder.build().toMap());
 
 		ObsLogger obsLogger = getObsLogger(node);
 		obsLogger.debug(() -> obsLogger.logBaseBuilderWithLogTag(tag).data(data), logEventType);
@@ -323,16 +331,16 @@ public class LoggingAspectTask extends AspectTask {
 
 		switch (aspect.getState()) {
 			case SourceStateAspect.STATE_INITIAL_SYNC_START:
-				getObsLogger(node).info("Initial sync started...");
+				getObsLogger(node).info("Initial sync started");
 				break;
 			case SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED:
-				getObsLogger(node).info("Initial sync completed...");
+				getObsLogger(node).info("Initial sync completed");
 				break;
 			case SourceStateAspect.STATE_CDC_START:
-				getObsLogger(node).info("Incremental sync started...");
+				getObsLogger(node).info("Incremental sync starting...");
 				break;
 			case SourceStateAspect.STATE_CDC_COMPLETED:
-				getObsLogger(node).info("Incremental sync completed...");
+				getObsLogger(node).info("Incremental sync completed");
 				break;
 			default:
 				break;
@@ -411,9 +419,7 @@ public class LoggingAspectTask extends AspectTask {
 				});
 				aspect.streamingEnqueuedConsumers(events -> {
 					long now = System.currentTimeMillis();
-					if (null == streamEnqueuedLastTs.get(nodeId)) {
-						streamEnqueuedLastTs.put(nodeId, now);
-					}
+					streamEnqueuedLastTs.putIfAbsent(nodeId, now);
 					debug(LogEventData.LOG_EVENT_TYPE_SEND, now - streamEnqueuedLastTs.get(nodeId),
 							SourceNodeTag.NODE_SOURCE_INCREMENTAL_SYNC, context,
 							events.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));

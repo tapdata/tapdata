@@ -2,6 +2,7 @@ package io.tapdata.js.connector.base;
 
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.js.connector.iengine.LoadJavaScripter;
 
 import java.util.List;
 import java.util.Objects;
@@ -35,7 +36,7 @@ public class ScriptCore extends Core {
                 dataIndex.getAndIncrement();
                 try {
                     while (!eventQueue.offer(new CustomEventMessage().tapEvent(event)
-                            .contextMap(contextMap), 1, TimeUnit.SECONDS)) {
+                            .contextMap(this.paper(contextMap)), 1, TimeUnit.SECONDS)) {
                         fullQueueWarn++;
                         if (fullQueueWarn < 4) {
                             TapLogger.info(TAG, "log queue is full, waiting...");
@@ -56,7 +57,7 @@ public class ScriptCore extends Core {
     public void updateOffset(Object offset) {
         try {
             while (!eventQueue.offer(new CustomEventMessage().tapEvent(null)
-                    .contextMap(offset), 1, TimeUnit.SECONDS)) {
+                    .contextMap(this.paper(offset)), 1, TimeUnit.SECONDS)) {
                 fullQueueWarn++;
                 if (fullQueueWarn < 4) {
                     TapLogger.info(TAG, "log queue is full, waiting...");
@@ -71,4 +72,7 @@ public class ScriptCore extends Core {
         }
     }
 
+    private Object paper(Object offset){
+       return LoadJavaScripter.covertData(offset);
+    }
 }

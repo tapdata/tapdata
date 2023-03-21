@@ -162,22 +162,28 @@ public class MongodbTest {
 		nodeIds.removeAll(Sets.newHashSet("n3"));
 		assertEquals(0, nodeIds.size());
 
+		nodeIds = proxySubscriptionService.subscribedNodeIds("engine", Arrays.asList("b", "a"));
+		assertNotNull(nodeIds);
+		assertEquals(1, nodeIds.size());
+		nodeIds.removeAll(Sets.newHashSet( "n1"));
+		assertEquals(0, nodeIds.size());
+
+		nodeIds = proxySubscriptionService.subscribedNodeIds("engine", Arrays.asList("b", "a", "c"));
+		assertNotNull(nodeIds);
+		assertEquals(1, nodeIds.size());
+		nodeIds.removeAll(Sets.newHashSet( "n1"));
+		assertEquals(0, nodeIds.size());
+
 		nodeIds = proxySubscriptionService.subscribedNodeIds("engine", Arrays.asList("b", "f"));
 		assertNotNull(nodeIds);
-		assertEquals(3, nodeIds.size());
-		nodeIds.removeAll(Sets.newHashSet("n3", "n2", "n1"));
 		assertEquals(0, nodeIds.size());
 
 		nodeIds = proxySubscriptionService.subscribedNodeIds("engine", Arrays.asList("c", "f"));
 		assertNotNull(nodeIds);
-		assertEquals(2, nodeIds.size());
-		nodeIds.removeAll(Sets.newHashSet("n3", "n1"));
 		assertEquals(0, nodeIds.size());
 
 		nodeIds = proxySubscriptionService.subscribedNodeIds("engine", Arrays.asList("a", "f1323"));
 		assertNotNull(nodeIds);
-		assertEquals(1, nodeIds.size());
-		nodeIds.removeAll(Sets.newHashSet("n1"));
 		assertEquals(0, nodeIds.size());
 
 		nodeIds = proxySubscriptionService.subscribedNodeIds("engine", Arrays.asList("f1323"));

@@ -67,6 +67,7 @@ public class ElasticsearchConnector extends ConnectorBase {
 
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportWriteRecord(this::writeRecord);
         connectorFunctions.supportCreateTable(this::createTable);
         connectorFunctions.supportClearTable(this::clearTable);

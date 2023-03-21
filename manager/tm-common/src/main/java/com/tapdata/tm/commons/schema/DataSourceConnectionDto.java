@@ -43,6 +43,7 @@ public class DataSourceConnectionDto extends BaseDto {
         private String definitionGroup;
         private String definitionPdkId;
         private String definitionBuildNumber;
+        private List<String> definitionTags;
 
         /**
          * 用户区分是不是pdk数据源类型
@@ -284,6 +285,8 @@ public class DataSourceConnectionDto extends BaseDto {
         /** 数据源大于一万张表的时候， 设置的每天的某个时间点加载一次 可以设置为0-24点直接的值
          * @see ScheduleTimeEnum*/
         private String schemaUpdateHour;
+        /** 是否开启心跳写入，默认：false */
+        private Boolean heartbeatEnable;
 
 
         /**
@@ -319,6 +322,8 @@ public class DataSourceConnectionDto extends BaseDto {
                         ", status='" + status + '\'' +
                         ", tableCount=" + tableCount +
                         ", loadAllTables=" + loadAllTables +
+                        ", loadFieldsStatus=" + loadFieldsStatus +
+                        ", loadFieldErrMsg=" + loadFieldErrMsg +
                         '}';
         }
 }

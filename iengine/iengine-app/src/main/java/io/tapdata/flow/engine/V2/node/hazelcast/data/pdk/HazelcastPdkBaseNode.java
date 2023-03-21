@@ -4,6 +4,7 @@ import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.dataflow.SyncProgress;
+import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.DmlPolicy;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
@@ -24,6 +25,8 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
+import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
+import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.node.pdk.ConnectorNodeService;
@@ -53,7 +56,7 @@ import java.util.concurrent.TimeUnit;
  * @create 2022-05-10 16:57
  **/
 public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
-	public static final int DEFAULT_READ_BATCH_SIZE = 100;
+	public static final int DEFAULT_READ_BATCH_SIZE = 2000;
 	private final Logger logger = LogManager.getLogger(HazelcastPdkBaseNode.class);
 	private static final String TAG = HazelcastPdkBaseNode.class.getSimpleName();
 	protected static final String COMPLETED_INITIAL_SYNC_KEY_PREFIX = "COMPLETED-INITIAL-SYNC-";
@@ -66,10 +69,6 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	public HazelcastPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		this.readBatchSize = DEFAULT_READ_BATCH_SIZE;
-		if (getNode() instanceof DataParentNode) {
-			this.readBatchSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getReadBatchSize()).orElse(DEFAULT_READ_BATCH_SIZE);
-		}
 		logListener = new TapLogger.LogListener() {
 			@Override
 			public void debug(String log) {
@@ -104,11 +103,25 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	}
 
 	public PDKMethodInvoker createPdkMethodInvoker() {
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
+		TaskConfig taskConfig = dataProcessorContext.getTaskConfig();
+		Long retryIntervalSecond = taskConfig.getTaskRetryConfig().getRetryIntervalSecond();
+		long retryIntervalMs = TimeUnit.SECONDS.toMillis(retryIntervalSecond);
+		Long maxRetryTimeSecond = taskConfig.getTaskRetryConfig().getMaxRetryTime(TimeUnit.SECONDS);
+		long retryDurationMs = TimeUnit.SECONDS.toMillis(maxRetryTimeSecond);
+		TaskRetryService taskRetryService = TaskRetryFactory.getInstance().getTaskRetryService(taskDto, retryDurationMs);
+		if (maxRetryTimeSecond > 0) {
+			long methodRetryDurationMs = taskRetryService.getMethodRetryDurationMs(retryIntervalMs);
+			maxRetryTimeSecond = Math.max(TimeUnit.MILLISECONDS.toMinutes(methodRetryDurationMs), 1L);
+		} else {
+			maxRetryTimeSecond = 0L;
+		}
 		PDKMethodInvoker pdkMethodInvoker = PDKMethodInvoker.create()
 				.logTag(TAG)
-				.retryPeriodSeconds(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getRetryIntervalSecond())
-				.maxRetryTimeMinute(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getMaxRetryTime(TimeUnit.MINUTES))
-				.logListener(logListener);
+				.retryPeriodSeconds(retryIntervalSecond)
+				.maxRetryTimeMinute(maxRetryTimeSecond)
+				.logListener(logListener)
+				.startRetry(taskRetryService::start);
 		this.pdkMethodInvokerList.add(pdkMethodInvoker);
 		return pdkMethodInvoker;
 	}
@@ -217,19 +230,15 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 							PDKInvocationMonitor.stop(getConnectorNode());
 							PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG);
 						});
-				logger.info("PDK connector node stopped: " + associateId);
 				obsLogger.info("PDK connector node stopped: " + associateId);
 			}, err -> {
-				logger.warn(String.format("Stop PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
 				obsLogger.warn(String.format("Stop PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
 			});
 			CommonUtils.handleAnyError(() -> {
 				Optional.ofNullable(getConnectorNode()).ifPresent(node -> PDKIntegration.releaseAssociateId(associateId));
 				ConnectorNodeService.getInstance().removeConnectorNode(associateId);
-				logger.info("PDK connector node released: " + associateId);
 				obsLogger.info("PDK connector node released: " + associateId);
 			}, err -> {
-				logger.warn(String.format("Release PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
 				obsLogger.warn(String.format("Release PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
 			});
 		} finally {
