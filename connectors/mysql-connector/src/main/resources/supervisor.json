@@ -16,7 +16,7 @@
           "code": [
             {
               "type": "after",
-              "line": "((io.tapdata.pdk.core.supervisor.ClassLifeCircleMonitor)io.tapdata.entity.utils.InstanceFactory.instance(io.tapdata.pdk.core.supervisor.ClassLifeCircleMonitor.class)).instanceEnded($0);",
+              "line": "((io.tapdata.supervisor.ClassLifeCircleMonitor)io.tapdata.entity.utils.InstanceFactory.instance(io.tapdata.supervisor.ClassLifeCircleMonitor.class)).instanceEnded($0);",
               "isFinally": true,
               "isRedundant": false
             }
@@ -32,7 +32,7 @@
           "code": [
             {
               "type": "before",
-              "line": "((io.tapdata.pdk.core.supervisor.ClassLifeCircleMonitor)io.tapdata.entity.utils.InstanceFactory.instance(io.tapdata.pdk.core.supervisor.ClassLifeCircleMonitor.class)).instanceStarted($0);"
+              "line": "((io.tapdata.supervisor.ClassLifeCircleMonitor)io.tapdata.entity.utils.InstanceFactory.instance(io.tapdata.supervisor.ClassLifeCircleMonitor.class)).instanceStarted($0);"
             }
           ]
         }

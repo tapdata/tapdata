@@ -6,7 +6,6 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.pdk.core.api.Node;
 import io.tapdata.supervisor.entity.ClassOnThread;
-import io.tapdata.supervisor.entity.MemoryLevel;
 import io.tapdata.threadgroup.utils.ThreadGroupUtil;
 
 import java.util.*;
@@ -60,6 +59,7 @@ class TaskNodeInfo implements MemoryFetcher {
             threads.add(DataMap.create()
                     .keyRegex(keyRegex)
                     .kv("name", thread.getName())
+                    .kv("id", thread.getId())
                     .kv("methodStacks", stack)
             );
         }
@@ -70,11 +70,14 @@ class TaskNodeInfo implements MemoryFetcher {
         ClassLifeCircleMonitor<ClassOnThread> classLifeCircleMonitor = InstanceFactory.instance(ClassLifeCircleMonitor.class);
         Map<Object, ClassOnThread> summary = classLifeCircleMonitor.summary();
         Collection<ClassOnThread> onThreads = summary.values();
-        Map<ThreadGroup, List<ClassOnThread>> groupListMap = onThreads.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(ClassOnThread::getThreadGroup));
+        Map<ThreadGroup, List<ClassOnThread>> groupListMap = onThreads.stream().filter(obj -> Objects.nonNull(obj) && Objects.nonNull(obj.getThreadGroup()) && obj.getThreadGroup().equals(nodeThreadGroup)).collect(Collectors.groupingBy(ClassOnThread::getThreadGroup));
+
+        List<DataMap> infoArray = new ArrayList<>();
+
         groupListMap.forEach((group, thInfos) -> {
             Map<? extends Class<?>, List<ClassOnThread>> listMap = thInfos.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(info -> info.getThisObj().getClass()));
-            DataMap map = DataMap.create().keyRegex(keyRegex);
             listMap.forEach((clz, infos) -> {
+                DataMap map = DataMap.create().keyRegex(keyRegex);
                 map.kv(clz.getName(), infos.size());
                 List<List<String>> stacks = new ArrayList<>();
                 for (ClassOnThread info : infos) {
@@ -82,22 +85,22 @@ class TaskNodeInfo implements MemoryFetcher {
                     stacks.add(stackTrace.subList(0, Math.min(STACK_LENGTH, stackTrace.size()) - 1));
                 }
                 map.kv("stack", stacks);
+                infoArray.add(map);
             });
-            List<Map.Entry<String, Object>> infos = new ArrayList<>(map.entrySet());
-            //排序
-            infos.sort((o1, o2) -> {
-                DataMap p1 = (DataMap) o1;
-                DataMap p2 = (DataMap) o2;
-                int len1 = ((List<Object>) Optional.ofNullable(p1.get("stack")).orElse(new ArrayList<>())).size();
-                int len2 = ((List<Object>) Optional.ofNullable(p2.get("stack")).orElse(new ArrayList<>())).size();
-                return len2 - len1;
-            });
-            DataMap mapNew = DataMap.create().keyRegex(keyRegex);
-            for (Map.Entry<String, Object> info : infos) {
-                mapNew.kv(info.getKey(), info.getValue());
-            }
-            resources.add(mapNew);
         });
+        //排序
+        infoArray.sort((o1, o2) -> {
+            DataMap p1 = (DataMap) o1;
+            DataMap p2 = (DataMap) o2;
+            int len1 = ((List<Object>) Optional.ofNullable(p1.get("stack")).orElse(new ArrayList<>())).size();
+            int len2 = ((List<Object>) Optional.ofNullable(p2.get("stack")).orElse(new ArrayList<>())).size();
+            return len2 - len1;
+        });
+//        DataMap mapNew = DataMap.create().keyRegex(keyRegex);
+//        for (DataMap info : infoArray) {
+//            mapNew.kv(info.getKey(), info.getValue());
+//        }
+        resources.addAll(infoArray);
     }
 
     public boolean hasLaked() {

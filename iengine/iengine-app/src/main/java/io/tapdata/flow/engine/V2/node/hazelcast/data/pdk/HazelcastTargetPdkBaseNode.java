@@ -41,6 +41,7 @@ import io.tapdata.flow.engine.V2.util.TargetTapEventFilter;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.core.async.AsyncUtils;
+import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import org.apache.commons.collections.CollectionUtils;
@@ -84,7 +85,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     private PartitionConcurrentProcessor cdcPartitionConcurrentProcessor;
     private LinkedBlockingQueue<TapdataEvent> tapEventQueue;
     private final Object saveSnapshotLock = new Object();
-    private final ExecutorService queueConsumerThreadPool;
+    private final ThreadPoolExecutorEx queueConsumerThreadPool;
     private boolean inCdc = false;
     protected int targetBatch;
     protected long targetBatchIntervalMs;
@@ -106,67 +107,68 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     @Override
     protected void doInit(@NotNull Context context) throws Exception {
         super.doInit(context);
-        //threadPoolExecutorEx.submitSync(() -> {
-        if (getNode() instanceof TableNode || getNode() instanceof DatabaseNode) {
-            try {
-                createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
-                connectorNodeInit(dataProcessorContext);
-            } catch (Throwable e) {
-                throw new NodeException(e).context(getProcessorBaseContext());
-			}
-		}
-		this.uploadDagService = new AtomicBoolean(false);
-		this.insertMetadata = new CopyOnWriteArrayList<>();
-		this.updateMetadata = new ConcurrentHashMap<>();
-		this.removeMetadata = new CopyOnWriteArrayList<>();
-
-        targetBatch = DEFAULT_TARGET_BATCH;
-        if (getNode() instanceof DataParentNode) {
-            this.targetBatch = Optional.ofNullable(((DataParentNode<?>) getNode()).getWriteBatchSize()).orElse(DEFAULT_TARGET_BATCH);
-        }
-        obsLogger.info("Write batch size: {}", targetBatch);
-		targetBatchIntervalMs = DEFAULT_TARGET_BATCH_INTERVAL_MS;
-		if (getNode() instanceof DataParentNode) {
-			this.targetBatchIntervalMs = Optional.ofNullable(((DataParentNode<?>) getNode()).getWriteBatchWaitMs()).orElse(DEFAULT_TARGET_BATCH_INTERVAL_MS);
-        }
-        obsLogger.info("Write max wait interval ms per batch: {}", targetBatchIntervalMs);
-        int writeQueueCapacity = new BigDecimal(targetBatch).multiply(new BigDecimal("1.5")).setScale(0, RoundingMode.HALF_UP).intValue();
-		this.tapEventQueue = new LinkedBlockingQueue<>(writeQueueCapacity);
-        obsLogger.info("Initialize target write queue complete, capacity: {}", writeQueueCapacity);
-        this.queueConsumerThreadPool.submit(this::queueConsume);
-        obsLogger.info("Initialize target event handler complete");
-
-        final Node<?> node = this.dataProcessorContext.getNode();
-        if (node instanceof DataParentNode) {
-            DataParentNode dataParentNode = (DataParentNode) node;
-            final Boolean initialConcurrent = dataParentNode.getInitialConcurrent();
-            if (initialConcurrent != null) {
-                this.initialConcurrent = initialConcurrent;
-                this.initialConcurrentWriteNum = dataParentNode.getInitialConcurrentWriteNum() != null ? dataParentNode.getInitialConcurrentWriteNum() : 8;
-                if (initialConcurrent) {
-                    this.initialPartitionConcurrentProcessor = initConcurrentProcessor(initialConcurrentWriteNum);
-                    this.initialPartitionConcurrentProcessor.start();
+        queueConsumerThreadPool.submitSync(() -> {
+            if (getNode() instanceof TableNode || getNode() instanceof DatabaseNode) {
+                try {
+                    createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
+                    connectorNodeInit(dataProcessorContext);
+                } catch (Throwable e) {
+                    throw new NodeException(e).context(getProcessorBaseContext());
                 }
             }
-            final Boolean cdcConcurrent = dataParentNode.getCdcConcurrent();
-            if (cdcConcurrent != null) {
-                this.cdcConcurrent = cdcConcurrent;
-                this.cdcConcurrentWriteNum = dataParentNode.getCdcConcurrentWriteNum() != null ? dataParentNode.getCdcConcurrentWriteNum() : 4;
-                if (cdcConcurrent) {
-                    this.cdcPartitionConcurrentProcessor = initConcurrentProcessor(cdcConcurrentWriteNum);
-                    this.cdcPartitionConcurrentProcessor.start();
+            this.uploadDagService = new AtomicBoolean(false);
+            this.insertMetadata = new CopyOnWriteArrayList<>();
+            this.updateMetadata = new ConcurrentHashMap<>();
+            this.removeMetadata = new CopyOnWriteArrayList<>();
+
+            targetBatch = DEFAULT_TARGET_BATCH;
+            if (getNode() instanceof DataParentNode) {
+                this.targetBatch = Optional.ofNullable(((DataParentNode<?>) getNode()).getWriteBatchSize()).orElse(DEFAULT_TARGET_BATCH);
+            }
+            obsLogger.info("Write batch size: {}", targetBatch);
+            targetBatchIntervalMs = DEFAULT_TARGET_BATCH_INTERVAL_MS;
+            if (getNode() instanceof DataParentNode) {
+                this.targetBatchIntervalMs = Optional.ofNullable(((DataParentNode<?>) getNode()).getWriteBatchWaitMs()).orElse(DEFAULT_TARGET_BATCH_INTERVAL_MS);
+            }
+            obsLogger.info("Write max wait interval ms per batch: {}", targetBatchIntervalMs);
+            int writeQueueCapacity = new BigDecimal(targetBatch).multiply(new BigDecimal("1.5")).setScale(0, RoundingMode.HALF_UP).intValue();
+            this.tapEventQueue = new LinkedBlockingQueue<>(writeQueueCapacity);
+            obsLogger.info("Initialize target write queue complete, capacity: {}", writeQueueCapacity);
+            this.queueConsumerThreadPool.submit(this::queueConsume);
+            obsLogger.info("Initialize target event handler complete");
+
+            final Node<?> node = this.dataProcessorContext.getNode();
+            if (node instanceof DataParentNode) {
+                DataParentNode dataParentNode = (DataParentNode) node;
+                final Boolean initialConcurrent = dataParentNode.getInitialConcurrent();
+                if (initialConcurrent != null) {
+                    this.initialConcurrent = initialConcurrent;
+                    this.initialConcurrentWriteNum = dataParentNode.getInitialConcurrentWriteNum() != null ? dataParentNode.getInitialConcurrentWriteNum() : 8;
+                    if (initialConcurrent) {
+                        this.initialPartitionConcurrentProcessor = initConcurrentProcessor(initialConcurrentWriteNum);
+                        this.initialPartitionConcurrentProcessor.start();
+                    }
+                }
+                final Boolean cdcConcurrent = dataParentNode.getCdcConcurrent();
+                if (cdcConcurrent != null) {
+                    this.cdcConcurrent = cdcConcurrent;
+                    this.cdcConcurrentWriteNum = dataParentNode.getCdcConcurrentWriteNum() != null ? dataParentNode.getCdcConcurrentWriteNum() : 4;
+                    if (cdcConcurrent) {
+                        this.cdcPartitionConcurrentProcessor = initConcurrentProcessor(cdcConcurrentWriteNum);
+                        this.cdcPartitionConcurrentProcessor.start();
+                    }
                 }
             }
-        }
 
-        TaskDto taskDto = dataProcessorContext.getTaskDto();
-        String type = taskDto.getType();
-        if (TaskDto.TYPE_INITIAL_SYNC.equals(type)) {
-            List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
-            putInGlobalMap(getCompletedInitialKey(), predecessors.size());
-        }
-        initTapEventFilter();
-        obsLogger.info("Init target queue consumer complete");
+            TaskDto taskDto = dataProcessorContext.getTaskDto();
+            String type = taskDto.getType();
+            if (TaskDto.TYPE_INITIAL_SYNC.equals(type)) {
+                List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
+                putInGlobalMap(getCompletedInitialKey(), predecessors.size());
+            }
+            initTapEventFilter();
+            obsLogger.info("Init target queue consumer complete");
+        });
     }
 
     private void initTapEventFilter() {

@@ -10,6 +10,7 @@ import io.tapdata.modules.api.net.data.OutgoingData;
 import io.tapdata.modules.api.proxy.data.NewDataReceived;
 import io.tapdata.modules.api.service.SkeletonService;
 import io.tapdata.pdk.core.api.PDKIntegration;
+import io.tapdata.supervisor.entity.ClassOnThread;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,7 +28,7 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
     private String userId;
     private String processId;
     @Bean
-    private ClassLifeCircleMonitor classLifeCircleMonitor;
+    private ClassLifeCircleMonitor<ClassOnThread> classLifeCircleMonitor;
 
     @Bean
     private SkeletonService skeletonService;

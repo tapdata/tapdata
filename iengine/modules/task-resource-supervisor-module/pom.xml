@@ -12,5 +12,11 @@
     <artifactId>task-resource-supervisor-module</artifactId>
 
     <dependencies>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-api</artifactId>
+            <version>1.2.2-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 </project>
