@@ -535,28 +535,34 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 							.start(), (writeRecordFuncAspect ->
 							PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_WRITE_RECORD,
 									pdkMethodInvoker.runnable(
-											() -> writeRecordFunction.writeRecord(getConnectorNode().getConnectorContext(), tapRecordEvents, tapTable, writeListResult -> {
-												Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
-												if (MapUtils.isNotEmpty(errorMap)) {
-													TapRecordEvent lastErrorTapRecord = null;
-													Throwable lastErrorThrowable = null;
-													for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
-														logger.warn(tapRecordEventThrowableEntry.getValue().getMessage() + "\n" + Log4jUtil.getStackString(tapRecordEventThrowableEntry.getValue()));
-														logger.warn("Error record: " + tapRecordEventThrowableEntry.getKey());
-														obsLogger.warn(tapRecordEventThrowableEntry.getValue().getMessage() + "\n" + Log4jUtil.getStackString(tapRecordEventThrowableEntry.getValue()));
-														obsLogger.warn("Error record: " + tapRecordEventThrowableEntry.getKey());
-														lastErrorTapRecord = tapRecordEventThrowableEntry.getKey();
-														lastErrorThrowable = tapRecordEventThrowableEntry.getValue();
+											() -> {
+												ConnectorNode connectorNode = getConnectorNode();
+												if (null == connectorNode) {
+													throw new NodeException("Node is stopped, need to exit write_record").context(getDataProcessorContext());
+												}
+												writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), tapRecordEvents, tapTable, writeListResult -> {
+													Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
+													if (MapUtils.isNotEmpty(errorMap)) {
+														TapRecordEvent lastErrorTapRecord = null;
+														Throwable lastErrorThrowable = null;
+														for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
+															logger.warn(tapRecordEventThrowableEntry.getValue().getMessage() + "\n" + Log4jUtil.getStackString(tapRecordEventThrowableEntry.getValue()));
+															logger.warn("Error record: " + tapRecordEventThrowableEntry.getKey());
+															obsLogger.warn(tapRecordEventThrowableEntry.getValue().getMessage() + "\n" + Log4jUtil.getStackString(tapRecordEventThrowableEntry.getValue()));
+															obsLogger.warn("Error record: " + tapRecordEventThrowableEntry.getKey());
+															lastErrorTapRecord = tapRecordEventThrowableEntry.getKey();
+															lastErrorThrowable = tapRecordEventThrowableEntry.getValue();
+														}
+														throw new RuntimeException(String.format("Write record %s failed", lastErrorTapRecord), lastErrorThrowable);
 													}
-													throw new RuntimeException(String.format("Write record %s failed", lastErrorTapRecord), lastErrorThrowable);
-												}
 
-												if (writeRecordFuncAspect != null)
-													AspectUtils.accept(writeRecordFuncAspect.state(WriteRecordFuncAspect.STATE_WRITING).getConsumers(), tapRecordEvents, writeListResult);
-												if (logger.isDebugEnabled()) {
-													logger.debug("Wrote {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
-												}
-											})
+													if (writeRecordFuncAspect != null)
+														AspectUtils.accept(writeRecordFuncAspect.state(WriteRecordFuncAspect.STATE_WRITING).getConsumers(), tapRecordEvents, writeListResult);
+													if (logger.isDebugEnabled()) {
+														logger.debug("Wrote {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
+													}
+												});
+											}
 									)
 							)));
 				} finally {
