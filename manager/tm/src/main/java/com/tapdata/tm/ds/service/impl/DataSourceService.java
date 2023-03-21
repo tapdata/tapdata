@@ -96,7 +96,6 @@ import java.net.URL;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.group;
@@ -662,6 +661,30 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		DataSourceConnectionDto connectionDto = findById(toObjectId(id), user);
 		if (connectionDto == null) {
 			throw new BizException("Datasource.NotFound", "connections not found or not belong to current user");
+		}
+
+		// 如果有心跳任务，先停止后删除
+		List<TaskDto> heartbeatTasks = taskService.findHeartbeatByConnectionId(id, "_id", "status", "is_deleted");
+		if (null != heartbeatTasks) {
+			TaskDto statusDto;
+			for (TaskDto dto : heartbeatTasks) {
+				statusDto = dto;
+				do {
+					if (TaskDto.STATUS_RUNNING.equals(statusDto.getStatus())) {
+						taskService.pause(statusDto.getId(), user, false);
+					} else if (!TaskDto.STATUS_STOPPING.equals(statusDto.getStatus())) {
+						break;
+					}
+					try {
+						Thread.sleep(500);
+					} catch (InterruptedException e) {
+						throw new RuntimeException("Delete heartbeat task failed");
+					}
+					statusDto = taskService.findByTaskId(dto.getId(), "status");
+				} while (null != statusDto);
+
+				taskService.remove(dto.getId(), user);
+			}
 		}
 
 		//根据数据源id查询所有的jobModel, ModulesModel, dataFlowsModel， 如果存在，则不允许删除connection
@@ -1840,12 +1863,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 	public Long countTaskByConnectionId(String connectionId, UserDetail userDetail) {
 		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId)
+				.and("syncType").ne(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
 				.andOperator(Criteria.where("is_deleted").is(false),Criteria.where("status").ne("delete_failed")));
 		query.fields().include("_id", "name", "syncType");
 		return taskService.count(query, userDetail);
 	}
 	public List<TaskDto> findTaskByConnectionId(String connectionId, int limit, UserDetail userDetail) {
 		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId)
+				.and("syncType").ne(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
 				.andOperator(Criteria.where("is_deleted").is(false),Criteria.where("status").ne("delete_failed")));
 		query.fields().include("_id", "name", "syncType");
 		query.limit(limit);
