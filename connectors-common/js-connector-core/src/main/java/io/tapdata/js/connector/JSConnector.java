@@ -62,6 +62,33 @@ public class JSConnector extends ConnectorBase {
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
         this.isAlive.set(false);
+        stop("OkHttp Http2Connection");
+        stop("Okio Watchdog");
+        stop("OkHttp ConnectionPool");
+    }
+    private Thread findThread(String threadName) {
+        ThreadGroup group = Thread.currentThread().getThreadGroup();
+        while(group != null) {
+            Thread[] threads = new Thread[(int)(group.activeCount() * 1.2)];
+            int count = group.enumerate(threads, true);
+            for(int i = 0; i < count; i++) {
+                if(threadName.equals(threads[i].getName())) {
+                    return threads[i];
+                }
+            }
+            group = group.getParent();
+        }
+        return null;
+    }
+
+    private void stop(String threadName){
+        Thread thread = findThread(threadName);
+        if (Objects.nonNull(thread)){
+            try {
+                thread.interrupt();
+            }catch (Exception ignored){
+            }
+        }
     }
 
     @Override
