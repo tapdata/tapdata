@@ -374,6 +374,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					throw new RuntimeException(String.format("Process share log failed: %s", throwable.getMessage()), throwable);
 				}
 			}
+			executeAspect(new CDCHeartbeatWriteAspect().tapdataEvents(tapdataEvents).dataProcessorContext(dataProcessorContext));
 		} finally {
 			flushSyncProgressMap(lastDmlTapdataEvent.get());
 		}

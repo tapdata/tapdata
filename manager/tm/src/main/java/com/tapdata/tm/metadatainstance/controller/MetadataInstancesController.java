@@ -202,7 +202,7 @@ public class MetadataInstancesController extends BaseController {
     @GetMapping("node/heartbeatQualifiedName")
     public ResponseMessage<String> findHeartbeatQualifiedNameByNodeId(@RequestParam(value = "filter", required = false) String filterJson) {
         Filter filter = parseFilter(filterJson);
-        return success(metadataInstancesService.findQualifiedNameByNodeId(filter, getLoginUser()));
+        return success(metadataInstancesService.findHeartbeatQualifiedNameByNodeId(filter, getLoginUser()));
     }
 
 

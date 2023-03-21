@@ -55,7 +55,7 @@ public class CdcDelay implements ICdcDelay {
                 if (isFilter) {
                     HeartbeatEvent heartbeatEvent = new HeartbeatEvent();
                     tapEvent.clone(heartbeatEvent);
-                    heartbeatEvent.setReferenceTime(sourceTimes);
+                    heartbeatEvent.setReferenceTime(tapRecordEvent.getReferenceTime());
                     tapEvent = heartbeatEvent;
                 }
             } else {
