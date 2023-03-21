@@ -25,8 +25,12 @@ import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
@@ -42,6 +46,8 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
     private DorisSchemaLoader dorisSchemaLoader;
     private TapConnectionContext connectionContext;
     private Map<String, DorisStreamLoader> dorisStreamLoaderMap = new ConcurrentHashMap<>();
+
+    private String connectionTimezone;
 
     /**
      * The method invocation life circle is below,
@@ -157,7 +163,12 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
 
         //TapTimeValue, TapDateTimeValue and TapDateValue's value is DateTime, need convert into Date object.
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
+            if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
+                tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+            }
+            return formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS");
+        });
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
         connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
@@ -256,12 +267,74 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
      * current instance is serving for the table from connectorContext.
      */
     @Override
-    public void onStart(TapConnectionContext connectionContext) {
+    public void onStart(TapConnectionContext connectionContext) throws Throwable {
         this.connectionContext = connectionContext;
         this.dorisContext = new DorisContext(connectionContext);
         this.dorisReader = new DorisReader(dorisContext);
         this.dorisSchemaLoader = new DorisSchemaLoader(dorisContext);
+        this.connectionTimezone = connectionContext.getConnectionConfig().getString("timezone");
+        if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
+            this.connectionTimezone = timezone();
+        }
         TapLogger.info(TAG, "Doris connector started");
+    }
+
+    private String timezone() throws Exception {
+        String DATABASE_TIMEZON_SQL = "SELECT TIMEDIFF(NOW(), UTC_TIMESTAMP()) as timezone";
+        String formatTimezone = null;
+        TapLogger.debug(TAG, "Get timezone sql: " + DATABASE_TIMEZON_SQL);
+        final Connection connection = dorisContext.getConnection();
+
+        try (   Statement statement = connection.createStatement();
+                ResultSet resultSet = dorisContext.executeQuery(statement,DATABASE_TIMEZON_SQL)
+        ) {
+            while (resultSet.next()) {
+                String timezone = resultSet.getString(1);
+                formatTimezone = formatTimezone(timezone);
+            }
+        }
+        return formatTimezone;
+    }
+
+    private static String formatTimezone(String timezone) {
+        StringBuilder sb = new StringBuilder("GMT");
+        String[] split = timezone.split(":");
+        String str = split[0];
+        //Corrections -07:59:59 to GMT-08:00
+        int m = Integer.parseInt(split[1]);
+        if (m != 0) {
+            split[1] = "00";
+            int h = Math.abs(Integer.parseInt(str)) + 1;
+            if (h < 10) {
+                str = "0" + h;
+            } else {
+                str = h + "";
+            }
+            if (split[0].contains("-")) {
+                str = "-" + str;
+            }
+        }
+        if (str.contains("-")) {
+            if (str.length() == 3) {
+                sb.append(str);
+            } else {
+                sb.append("-0").append(StringUtils.right(str, 1));
+            }
+        } else if (str.contains("+")) {
+            if (str.length() == 3) {
+                sb.append(str);
+            } else {
+                sb.append("+0").append(StringUtils.right(str, 1));
+            }
+        } else {
+            sb.append("+");
+            if (str.length() == 2) {
+                sb.append(str);
+            } else {
+                sb.append("0").append(StringUtils.right(str, 1));
+            }
+        }
+        return sb.append(":").append(split[1]).toString();
     }
 
     @Override
