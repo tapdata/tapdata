@@ -36,7 +36,7 @@ public class ConnHeartbeatUtils {
      */
     public static boolean checkTask(@NonNull String taskType, @NonNull String taskSyncType) {
         return StringUtils.containsAny(taskSyncType, TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)  //syncType is migrate or sync
-                        || !ParentTaskDto.TYPE_INITIAL_SYNC.equals(taskType) //task type is not initial_sync
+                        && !ParentTaskDto.TYPE_INITIAL_SYNC.equals(taskType) //task type is not initial_sync
         ;
     }
 

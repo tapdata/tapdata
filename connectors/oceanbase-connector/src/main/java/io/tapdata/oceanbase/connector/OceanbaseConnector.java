@@ -19,6 +19,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.List;

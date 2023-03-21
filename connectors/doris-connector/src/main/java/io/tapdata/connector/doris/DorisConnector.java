@@ -13,6 +13,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
