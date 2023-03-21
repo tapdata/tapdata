@@ -3,11 +3,19 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Queues;
 import com.hazelcast.jet.core.Inbox;
+import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MilestoneUtil;
-import com.tapdata.entity.*;
+import com.tapdata.entity.AppType;
+import com.tapdata.entity.SyncStage;
+import com.tapdata.entity.TapdataCompleteSnapshotEvent;
+import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TapdataHeartbeatEvent;
+import com.tapdata.entity.TapdataShareLogEvent;
+import com.tapdata.entity.TapdataStartCdcEvent;
+import com.tapdata.entity.TapdataTaskErrorEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -27,6 +35,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapMapValue;
+import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionConcurrentProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.KeysPartitioner;
@@ -35,20 +44,32 @@ import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.flow.engine.V2.util.TargetTapEventFilter;
-import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -63,6 +84,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	public static final long DEFAULT_TARGET_BATCH_INTERVAL_MS = 3000;
 	public static final int DEFAULT_TARGET_BATCH = 2000;
 	private static final Logger logger = LogManager.getLogger(HazelcastTargetPdkBaseNode.class);
+	private final static long saveToSnapshotWarningIntervalMs = TimeUnit.MINUTES.toMillis(5L);
+
 	protected Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
 	private AtomicBoolean firstBatchEvent = new AtomicBoolean();
 	private AtomicBoolean firstStreamEvent = new AtomicBoolean();
@@ -90,6 +113,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected int targetBatch;
 	protected long targetBatchIntervalMs;
 	private TargetTapEventFilter targetTapEventFilter;
+
+	private Long lastSaveToSnapshotWarnTsMs;
+	private Long lastSaveDagMetaWarnTsMs;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -526,6 +552,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	public boolean saveToSnapshot() {
+		AppType appType = GlobalConstant.getInstance().getConfigurationCenter().getConfig(ConfigurationCenter.APPTYPE, AppType.class);
 		try {
 			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			if (!flushOffset.get()) return true;
@@ -552,9 +579,16 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			try {
 				clientMongoOperator.insertOne(syncProgressJsonMap, collection);
 			} catch (Exception e) {
-				logger.warn("Save to snapshot failed, collection: {}, object: {}, errors: {}, error stack: {}.", collection, this.syncProgressMap, e.getMessage(), Log4jUtil.getStackString(e));
-				obsLogger.warn("Save to snapshot failed, collection: {}, object: {}, errors: {}", collection, this.syncProgressMap, e.getMessage());
-				return false;
+				if (null != appType && appType.isCloud()) {
+					if (null == lastSaveToSnapshotWarnTsMs || (System.currentTimeMillis() - lastSaveToSnapshotWarnTsMs) > saveToSnapshotWarningIntervalMs) {
+						logger.warn("Save break point failed, api url: {}, sync progress: {}, error message: {}\nStack trace: {}", collection, this.syncProgressMap, e.getMessage(), Log4jUtil.getStackString(e));
+						obsLogger.warn("Save break point failed, api url: {}, sync progress: {}, error message: {}, stack trace: {}", collection, this.syncProgressMap, e.getMessage(), Log4jUtil.getStackString(e));
+						lastSaveToSnapshotWarnTsMs = System.currentTimeMillis();
+					}
+					return false;
+				} else {
+					throw e;
+				}
 			}
 			if (uploadDagService.get()) {
 				synchronized (this.saveSnapshotLock) {
@@ -572,7 +606,21 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						wsMessageResult.setTaskId(taskDto.getId().toHexString());
 						wsMessageResult.setTransformSchema(new HashMap<>());
 						// 返回结果调用接口返回
-						clientMongoOperator.insertOne(wsMessageResult, ConnectorConstant.TASK_COLLECTION + "/transformer/resultWithHistory");
+						String resource = ConnectorConstant.TASK_COLLECTION + "/transformer/resultWithHistory";
+					try {
+						clientMongoOperator.insertOne(wsMessageResult, resource);
+					} catch (Exception e) {
+						if (null != appType && appType.isCloud()) {
+							if (null == lastSaveDagMetaWarnTsMs || (System.currentTimeMillis() - lastSaveDagMetaWarnTsMs) > saveToSnapshotWarningIntervalMs) {
+								logger.warn("Save dag config and metadata failed, api url: {}, error message: {}\nStack trace: {}", resource, e.getMessage(), Log4jUtil.getStackString(e));
+								obsLogger.warn("Save dag config and metadata failed, api url: {}, error message: {}\nStack trace: {}", resource, e.getMessage(), Log4jUtil.getStackString(e));
+								lastSaveDagMetaWarnTsMs = System.currentTimeMillis();
+							}
+							return false;
+						} else {
+							throw e;
+						}
+					}
 						insertMetadata.clear();
 						updateMetadata.clear();
 						removeMetadata.clear();
@@ -582,6 +630,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		} catch (Throwable throwable) {
 			errorHandle(throwable, throwable.getMessage());
+			return false;
 		} finally {
 			ThreadContext.clearAll();
 		}

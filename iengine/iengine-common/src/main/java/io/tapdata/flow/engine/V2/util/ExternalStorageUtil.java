@@ -218,7 +218,7 @@ public class ExternalStorageUtil {
 		if (CollectionUtils.isEmpty(externalStorageDtoList)) {
 			throw new RuntimeException(String.format("Not found any external storage config: %s", criteria.getCriteriaObject().toJson(JsonWriterSettings.builder().indent(true).build())));
 		}
-		logger.info("Task init external storage configs completed: {}" + externalStorageDtoList.stream().map(ExternalStorageDto::getName).collect(Collectors.joining(",")));
+		logger.info("Task init external storage configs completed: {}", externalStorageDtoList.stream().map(ExternalStorageDto::getName).collect(Collectors.joining(",")));
 		externalStorageDtoMap = externalStorageDtoList.stream().collect(Collectors.toMap(e -> e.getId().toHexString(), e -> e));
 		return externalStorageDtoMap;
 	}
