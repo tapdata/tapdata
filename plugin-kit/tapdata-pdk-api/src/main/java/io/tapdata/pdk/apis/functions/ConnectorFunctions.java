@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> {
+    protected RunRawCommandFunction runRawCommandFunction;
     protected ExecuteCommandFunction executeCommandFunction;
     protected ReleaseExternalFunction releaseExternalFunction;
     protected BatchReadFunction batchReadFunction;
@@ -58,6 +59,10 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
     protected GetReadPartitionsFunction getReadPartitionsFunction;
     protected QueryFieldMinMaxValueFunction queryFieldMinMaxValueFunction;
 
+    public ConnectorFunctions supportRunRawCommandFunction(RunRawCommandFunction function) {
+        runRawCommandFunction = function;
+        return this;
+    }
     public ConnectorFunctions supportCountByPartitionFilterFunction(CountByPartitionFilterFunction function) {
         countByPartitionFilterFunction = function;
         return this;
@@ -402,4 +407,7 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
         return queryFieldMinMaxValueFunction;
     }
 
+    public RunRawCommandFunction getRunRawCommandFunction() {
+        return runRawCommandFunction;
+    }
 }

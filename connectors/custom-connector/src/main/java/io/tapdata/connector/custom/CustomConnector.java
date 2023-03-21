@@ -6,7 +6,6 @@ import io.tapdata.connector.custom.core.Core;
 import io.tapdata.connector.custom.core.ScriptCore;
 import io.tapdata.connector.custom.util.ScriptUtil;
 import io.tapdata.constant.ConnectionTypeEnum;
-import io.tapdata.constant.SyncTypeEnum;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -24,6 +23,7 @@ import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.FormatUtils;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
@@ -81,17 +81,14 @@ public class CustomConnector extends ConnectorBase {
     @Override
     public void onStop(TapConnectionContext connectionContext) {
         try {
+            if (EmptyKit.isNotNull(customConfig) && customConfig.getCustomAfterOpr()) {
+                ScriptUtil.executeScript(initScriptEngine, ScriptUtil.AFTER_FUNCTION_NAME);
+            }
             if (initScriptEngine instanceof Closeable) {
                 ((Closeable) initScriptEngine).close();
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    private void beforeStop() {
-        if (EmptyKit.isNotNull(customConfig) && customConfig.getCustomAfterOpr()) {
-            ScriptUtil.executeScript(initScriptEngine, ScriptUtil.AFTER_FUNCTION_NAME);
         }
     }
 
@@ -114,83 +111,106 @@ public class CustomConnector extends ConnectorBase {
         connectorFunctions.supportCommandCallbackFunction(this::handleCommand);
     }
 
-    private CommandResult handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
-        CollectLog logger = new CollectLog(tapConnectionContext.getLog());
-
-        String command = commandInfo.getCommand();
+    private CommandResult handleCommand(final TapConnectionContext tapConnectionContext, final CommandInfo commandInfo) {
+        final CollectLog logger = new CollectLog(tapConnectionContext.getLog());
+        final String command = commandInfo.getCommand();
         logger.info("Start executing command [{}] ", command);
-        TapConnectionContext newTapConnectionContext = new TapConnectionContext(tapConnectionContext.getSpecification(),
-                DataMap.create(commandInfo.getConnectionConfig()), DataMap.create(commandInfo.getNodeConfig()), logger);
-        try {
-            init(newTapConnectionContext);
-            if (StringUtils.equals(command, "testRun")) {
+        CommandResult commandResult = new CommandResult();
+        if (StringUtils.equals(command, "testRun")) {
+            Object data = testRun(tapConnectionContext, commandInfo, logger);
+            commandResult.setData(data);
+        } else {
+            logger.error("Unsupported command [{}]", command);
+            commandResult.setData(logger.getLogs());
+        }
+        logger.info("Command [{}] execution complete.", command);
+
+        return commandResult;
+    }
+
+    private Object testRun(TapConnectionContext tapConnectionContext, CommandInfo commandInfo, CollectLog logger) {
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        Map<String, Object> argMap = commandInfo.getArgMap();
+        String threadName = "CustomConnector-Test-Runner";
+        Runnable runnable = () -> {
+            Thread.currentThread().setName(threadName);
+            TapConnectionContext newTapConnectionContext = new TapConnectionContext(tapConnectionContext.getSpecification(),
+                    DataMap.create(commandInfo.getConnectionConfig()), DataMap.create(commandInfo.getNodeConfig()), logger);
+            try {
+                init(newTapConnectionContext);
                 String tableName = (String) commandInfo.getConnectionConfig().get("collectionName");
                 String type = commandInfo.getType();
                 TapTable tapTable = new TapTable(tableName);
+                TapConnectorContext tapConnectorContext = new TapConnectorContext(tapConnectionContext.getSpecification(),
+                        tapConnectionContext.getConnectionConfig(), tapConnectionContext.getNodeConfig(), logger);
                 if (StringUtils.equals(type, "source")) {
                     logger.info("Start fetching data as a source......");
                     String action = commandInfo.getAction();
                     if (StringUtils.contains(action, "initial_sync")) {
                         logger.info("Start initializing sync......");
-                        batchRead(null, tapTable, new Object(), 1, (events, offsetObject) -> {
-                            logger.info("Execute initial sync, get the data: {}", toTapEventStr(events, offsetObject));
+                        batchRead(tapConnectorContext, tapTable, new Object(), 1, (events, offsetObject) -> {
+                            logger.info("Execute initial sync, get the data: {}", toTapEventStr(events, offsetObject, true));
                         });
                         logger.info("Initial sync complete.");
                     }
                     if (StringUtils.contains(action, "cdc")) {
                         logger.info("Start cdc sync......");
-                        CountDownLatch countDownLatch = new CountDownLatch(1);
-                        Thread thread = new Thread(() -> {
-                            Thread.currentThread().setName("CustomConnector-Test-Runner");
-                            try {
-                                streamRead(null, Collections.singletonList(tableName), new Object(), 1, StreamReadConsumer.create((events, offsetObject) -> {
-                                    logger.info("Execute cdc, get the data: {}", toTapEventStr(events, offsetObject));
-                                }));
-                            } catch (Throwable e) {
-                                logger.error("Execute cdc error {}", e);
-                            } finally {
-                                countDownLatch.countDown();
-                            }
-                        });
-                        thread.start();
-                        boolean threadFinished = countDownLatch.await(5L, TimeUnit.SECONDS);
-                        if (!threadFinished) {
-                            thread.interrupt();
-                        }
+                        streamRead(tapConnectorContext, Collections.singletonList(tableName), new Object(), 1, StreamReadConsumer.create((events, offsetObject) -> {
+                            logger.info("Execute cdc, get the data: {}", toTapEventStr(events, offsetObject, true));
+                        }));
                         logger.info("Cdc sync complete.");
                     }
                     logger.info("Obtaining data as a source is complete.");
 
                 } else if (StringUtils.equals(type, "target")) {
                     logger.info("Start processing data as a target......");
-                    Map<String, Object> argMap = commandInfo.getArgMap();
                     List<TapRecordEvent> tapRecordEvents = getTapRecordEvents((List<Map<String, Object>>) argMap.get("input"));
                     if (tapRecordEvents.size() == 0) {
                         logger.warn("The input is empty and cannot be processed");
                     } else {
-                        logger.info("Processing data, input: {}", toTapEventStr(tapRecordEvents, null));
-                        writeRecord(null, tapRecordEvents, tapTable, writeListResult -> {
+                        logger.info("Processing data, input: \n{}", toTapEventStr(tapRecordEvents, null, true));
+                        writeRecord(tapConnectorContext, tapRecordEvents, tapTable, writeListResult -> {
                             logger.info("Processing data, output: {}", toWriteListResultStr(writeListResult));
                         });
                     }
                     logger.info("Process data completion as target.");
                 }
+            } catch (ScriptException e) {
+                logger.error( "{} execute script error:\n {}", TAG, e);
+            } catch (Throwable throwable) {
+                logger.error( "{} execute command error:\n {}", TAG, throwable);
+            } finally {
+                try {
+                    stop(newTapConnectionContext);
+                } catch (Throwable e) {
+                    logger.error("{} stop error {}", TAG, e);
+                }
+                countDownLatch.countDown();
             }
-        } catch (ScriptException e) {
-            logger.error( "{} execute script error:\n {}", TAG, e);
+        };
+
+        try {
+            Thread thread = new Thread(runnable);
+            thread.start();
+            Integer timeout = (Integer) argMap.get("timeout");
+            if (timeout == null || timeout <= 0) {
+                timeout = 10;
+            }
+            if (timeout > 60) {
+                timeout = 60;
+            }
+            boolean threadFinished = countDownLatch.await(timeout, TimeUnit.SECONDS);
+            if (!threadFinished) {
+                logger.error("Execution has timed out and will terminate.");
+                thread.interrupt();
+            }
+        } catch (InterruptedException e) {
+            logger.error("Thread [{}] interrupted, {}", threadName, e);
         } catch (Throwable throwable) {
-            logger.error( "{} execute command error:\n {}", TAG, throwable);
-        } finally {
-            try {
-                stop(newTapConnectionContext);
-            } catch (Throwable e) {
-                logger.error("{} stop error {}", TAG, e);
-            }
+            logger.error("[{}] execution failure， {}", throwable);
         }
-        logger.info("Command [{}] execution complete.", command);
-        CommandResult commandResult = new CommandResult();
-        commandResult.setData(logger.getLogs());
-        return commandResult;
+
+        return logger.getLogs();
     }
 
     private String toWriteListResultStr(WriteListResult<TapRecordEvent> writeListResult) {
@@ -200,70 +220,58 @@ public class CustomConnector extends ConnectorBase {
                 .append("d=").append(writeListResult.getRemovedCount()).append("\n");
         Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
         if (errorMap != null && errorMap.size() != 0) {
-            sb.append("\tError Record: \n");
+            Map<String, Object> map = new HashMap<>();
             for (Map.Entry<TapRecordEvent, Throwable> entry : errorMap.entrySet()) {
-                sb.append("\t\t").append("Record").append(toTapEventStr(Collections.singletonList(entry.getKey()), null)).append("\n")
-                        .append("\t\t").append("Error: ").append(entry.getValue());
+                map.put("Record", entry.getKey());
+                map.put("Error", entry.getValue());
             }
+            sb.append("\tError Record: \n").append(toJson(map, JsonParser.ToJsonFeature.PrettyFormat));
         }
         return sb.toString();
     }
 
 
-    private String toTapEventStr(List<? extends TapEvent> events, Object offsetObject) {
-        StringBuilder sb = new StringBuilder("\n");
-
-        if (events != null) {
-            for (int i = 0; i < events.size(); i++) {
-                TapEvent event = events.get(i);
-                sb.append("  event ").append(i + 1).append(":").append("\n");
-                if (event instanceof TapInsertRecordEvent) {
-                    sb.append("\t").append("from: ").append(((TapInsertRecordEvent) event).getTableId()).append("\n")
-                            .append("\t").append("op: i").append("\n")
-                            .append("\t").append("data: ").append(((TapInsertRecordEvent) event).getAfter()).append("\n");
-
-                } else if (event instanceof TapUpdateRecordEvent) {
-                    sb.append("\t").append("from: ").append(((TapUpdateRecordEvent) event).getTableId()).append("\n")
-                            .append("\t").append("op: u").append("\n")
-                            .append("\t").append("data: ").append("\n")
-                            .append("\t ").append("before: ").append(((TapUpdateRecordEvent) event).getBefore()).append("\n")
-                            .append("\t ").append("after: ").append(((TapUpdateRecordEvent) event).getAfter()).append("\n");
-
-                } else if (event instanceof TapDeleteRecordEvent) {
-                    sb.append("\t").append("from: ").append(((TapDeleteRecordEvent) event).getTableId()).append("\n")
-                            .append("\t").append("op: d").append("\n")
-                            .append("\t").append("data: ").append("\n")
-                            .append("\t ").append("before: ").append(((TapDeleteRecordEvent) event).getBefore()).append("\n");
-                } else {
-                    sb.append("\t").append(i).append(".").append(event).append("\n");
-                }
-                sb.append("\n");
-            }
-        }
-
-        if (offsetObject != null) {
-            sb.append("\t").append("offset: ").append(offsetObject).append("\n");
-        }
-        return sb.toString();
+    private String toTapEventStr(List<? extends TapEvent> events, Object offsetObject, boolean printNum) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("events", events);
+        map.put("offset", offsetObject);
+        return toJson(map, JsonParser.ToJsonFeature.PrettyFormat);
     }
 
     private List<TapRecordEvent> getTapRecordEvents(List<Map<String, Object>> maps) {
         List<TapRecordEvent> tapRecordEvents = new ArrayList<>();
         for (Map<String, Object> map : maps) {
             String op = (String) map.get("op");
-            switch (op) {
-                case "i":
-                    tapRecordEvents.add(TapInsertRecordEvent.create().init().table((String) map.get("table")).after((Map<String, Object>) map.get("after")));
-                    break;
-                case "u":
-                    tapRecordEvents.add(TapUpdateRecordEvent.create().init().table((String) map.get("table"))
-                            .after((Map<String, Object>) map.get("after")).before((Map<String, Object>) map.get("before")));
-                    break;
-                case "d":
-                    tapRecordEvents.add(TapDeleteRecordEvent.create().init().table((String) map.get("table")).before((Map<String, Object>) map.get("before")));
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unsupported op: " + op);
+            Integer type = (Integer) map.get("type");
+            if (StringUtils.isNotEmpty(op)) {
+                switch (op) {
+                    case "i":
+                        tapRecordEvents.add(TapInsertRecordEvent.create().init().table((String) map.get("table")).after((Map<String, Object>) map.get("after")));
+                        break;
+                    case "u":
+                        tapRecordEvents.add(TapUpdateRecordEvent.create().init().table((String) map.get("table"))
+                                .after((Map<String, Object>) map.get("after")).before((Map<String, Object>) map.get("before")));
+                        break;
+                    case "d":
+                        tapRecordEvents.add(TapDeleteRecordEvent.create().init().table((String) map.get("table")).before((Map<String, Object>) map.get("before")));
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unsupported op: " + op);
+                }
+            } else if (type != null) {
+                switch (type) {
+                    case 300:
+                        tapRecordEvents.add(fromJson(toJson(map), TapInsertRecordEvent.class));
+                        break;
+                    case 301:
+                        tapRecordEvents.add(fromJson(toJson(map), TapDeleteRecordEvent.class));
+                        break;
+                    case 302:
+                        tapRecordEvents.add(fromJson(toJson(map), TapUpdateRecordEvent.class));
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unsupported type: " + type);
+                }
             }
         }
         return tapRecordEvents;
@@ -273,7 +281,24 @@ public class CustomConnector extends ConnectorBase {
 
         private final Log logger;
 
-        private final List<LogRecord> logRecords = new LinkedList<>();
+        private final List<LogRecord> logRecords = new LinkedList<CollectLog.LogRecord>() {
+
+            private static final int MAX_SIZE = 200;
+            private boolean overflow = false;
+
+            @Override
+            public boolean add(CollectLog.LogRecord o) {
+                if (overflow) {
+                    return true;
+                }
+                if (size() > MAX_SIZE) {
+                    this.overflow = true;
+                    return super.add(new CollectLog.LogRecord("ERROR",
+                            "The log exceeds the maximum limit, ignore the following logs.", System.currentTimeMillis()));
+                }
+                return super.add(o);
+            }
+        };
 
         public CollectLog(Log log) {
             this.logger = log;
@@ -379,12 +404,10 @@ public class CustomConnector extends ConnectorBase {
         if (writeEnginePool.containsKey(threadName)) {
             scriptEngine = writeEnginePool.get(threadName);
         } else {
-            scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
+            scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()).log(connectorContext.getLog()));
             scriptEngine.eval(ScriptUtil.appendTargetFunctionScript(customConfig.getTargetScript()));
-//            scriptEngine.put("log", new CustomLog());
             writeEnginePool.put(threadName, scriptEngine);
         }
-        List<Map<String, Object>> data = new ArrayList<>();
         WriteListResult<TapRecordEvent> result = new WriteListResult<>();
         AtomicLong insert = new AtomicLong(0);
         AtomicLong update = new AtomicLong(0);
@@ -405,10 +428,17 @@ public class CustomConnector extends ConnectorBase {
                 delete.incrementAndGet();
             }
             temp.put("from", tapTable.getId());
-            data.add(temp);
+            try {
+                ScriptUtil.executeScript(scriptEngine, ScriptUtil.TARGET_FUNCTION_NAME, new ArrayList<Map<String, Object>>() {{
+                    add(temp);
+                }});
+                result.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get());
+            } catch (Exception e) {
+                result.addError(event, e);
+                break;
+            }
         }
-        ScriptUtil.executeScript(scriptEngine, ScriptUtil.TARGET_FUNCTION_NAME, data);
-        writeListResultConsumer.accept(result.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
+        writeListResultConsumer.accept(result);
     }
 
     private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) {
@@ -418,7 +448,7 @@ public class CustomConnector extends ConnectorBase {
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws ScriptException {
         ScriptCore scriptCore = new ScriptCore(tapTable.getId());
         assert scriptFactory != null;
-        ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
+        ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()).log(tapConnectorContext.getLog()));
         scriptEngine.eval(ScriptUtil.appendSourceFunctionScript(customConfig.getHistoryScript(), true));
         scriptEngine.put("core", scriptCore);
 //        scriptEngine.put("log", new CustomLog());
@@ -461,16 +491,13 @@ public class CustomConnector extends ConnectorBase {
         if (t.isAlive()) {
             t.stop();
         }
-        if (customConfig.getSyncType().equals(SyncTypeEnum.INITIAL_SYNC.getType())) {
-            beforeStop();
-        }
     }
 
     private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
         ScriptCore scriptCore = new ScriptCore(tableList.get(0));
         AtomicReference<Object> contextMap = new AtomicReference<>(offsetState);
         assert scriptFactory != null;
-        ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()));
+        ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(customConfig.getJsEngineName()).log(nodeContext.getLog()));
         scriptEngine.eval(ScriptUtil.appendSourceFunctionScript(customConfig.getCdcScript(), false));
         scriptEngine.put("core", scriptCore);
 //        scriptEngine.put("log", new CustomLog());
@@ -521,7 +548,6 @@ public class CustomConnector extends ConnectorBase {
             t.stop();
         }
         consumer.streamReadEnded();
-        beforeStop();
     }
 
     private Object timestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) {

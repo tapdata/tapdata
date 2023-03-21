@@ -3,7 +3,7 @@ package io.tapdata.script.factory.script;
 import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.script.ScriptOptions;
-import io.tapdata.pdk.apis.error.NotSupportedException;
+import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Engine;

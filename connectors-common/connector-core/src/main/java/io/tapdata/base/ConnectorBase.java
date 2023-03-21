@@ -347,7 +347,7 @@ public abstract class ConnectorBase implements TapConnector {
             if (throwables.contains(cause)) {
                 break;
             }
-            if (cause.getClass().getName().equals(match.getName())) {
+            if (match.isInstance(cause)) {
                 matched = cause;
                 break;
             }

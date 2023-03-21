@@ -3,7 +3,9 @@
     "name": "Aliyun RDS MySQL",
     "icon": "icons/aliyun_rds_mysql.png",
     "id": "aliyun-rds-mysql",
-    "doc": "${doc}"
+    "doc": "${doc}",
+    "authentication": "beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "capabilities": [

@@ -161,7 +161,6 @@ public abstract class AutoInspectRunner<S extends IConnector, T extends IConnect
 
     protected void errorHandle(Throwable e, String msg) {
         userLogger.warn(msg, e);
-        logger.warn(msg, e);
     }
 
     protected void exit() {

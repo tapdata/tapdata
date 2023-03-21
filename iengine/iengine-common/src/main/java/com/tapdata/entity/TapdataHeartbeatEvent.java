@@ -21,6 +21,7 @@ public class TapdataHeartbeatEvent extends TapdataEvent implements Serializable,
 		TapdataHeartbeatEvent tapdataHeartbeatEvent = new TapdataHeartbeatEvent();
 		tapdataHeartbeatEvent.setSourceTime(timestamp);
 		tapdataHeartbeatEvent.setStreamOffset(streamOffset);
+		tapdataHeartbeatEvent.setSyncStage(SyncStage.CDC);
 		return tapdataHeartbeatEvent;
 	}
 
@@ -29,6 +30,7 @@ public class TapdataHeartbeatEvent extends TapdataEvent implements Serializable,
 		tapdataHeartbeatEvent.setSourceTime(timestamp);
 		tapdataHeartbeatEvent.setStreamOffset(streamOffset);
 		tapdataHeartbeatEvent.setNodeIds(nodeIds);
+		tapdataHeartbeatEvent.setSyncStage(SyncStage.CDC);
 		return tapdataHeartbeatEvent;
 	}
 
@@ -37,6 +39,7 @@ public class TapdataHeartbeatEvent extends TapdataEvent implements Serializable,
 		tapdataHeartbeatEvent.setSourceTime(timestamp);
 		tapdataHeartbeatEvent.setStreamOffset(streamOffset);
 		tapdataHeartbeatEvent.setType(type);
+		tapdataHeartbeatEvent.setSyncStage(SyncStage.CDC);
 		return tapdataHeartbeatEvent;
 	}
 

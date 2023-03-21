@@ -1,9 +1,11 @@
 {
   "properties": {
     "name": "Databend",
-    "icon": "icons/databend.svg",
+    "icon": "icons/databend.png",
     "id": "databend",
-    "doc": "${doc}"
+    "doc": "${doc}",
+    "authentication": "beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "capabilities": [

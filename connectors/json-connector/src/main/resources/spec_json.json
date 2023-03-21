@@ -3,7 +3,9 @@
     "name": "JSON",
     "icon": "icons/json.png",
     "doc": "${doc}",
-    "id": "json"
+    "id": "json",
+    "authentication": "beta",
+    "tags": ["File"]
   },
   "configOptions": {
     "connection": {

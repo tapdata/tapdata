@@ -18,6 +18,8 @@ import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.message.vo.MessageListVo;
 import com.tapdata.tm.utils.MapUtils;
+import com.tapdata.tm.utils.MessageUtil;
+import com.tapdata.tm.utils.WebUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Setter;
@@ -30,10 +32,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 
@@ -58,9 +57,10 @@ public class MessageController extends BaseController {
     @Deprecated
     @Operation(summary = "获取消息通知列表")
     @GetMapping
-    public ResponseMessage<Page<MessageListVo>> find(@RequestParam(value = "filter", required = false) String filterJson) {
+    public ResponseMessage<Page<MessageListVo>> find(@RequestParam(value = "filter", required = false) String filterJson, HttpServletRequest request) {
         Filter filter = parseFilter(filterJson);
-        return success(messageService.findMessage(filter, getLoginUser()));
+        Locale locale = WebUtils.getLocale(request);
+        return success(messageService.findMessage(locale, filter, getLoginUser()));
     }
 
     @Operation(summary = "get notify list")
@@ -69,8 +69,10 @@ public class MessageController extends BaseController {
                                                      @RequestParam(required = false) String level,
                                                      @RequestParam(required = false) Boolean read,
                                                      @RequestParam(defaultValue = "1") Integer page,
-                                                     @RequestParam(defaultValue = "20") Integer size) {
-        return success(messageService.list(msgType, level, read, page, size, getLoginUser()));
+                                                     @RequestParam(defaultValue = "20") Integer size,
+                                                     HttpServletRequest request) {
+        Locale locale = WebUtils.getLocale(request);
+        return success(messageService.list(locale, msgType, level, read, page, size, getLoginUser()));
     }
 
     /**

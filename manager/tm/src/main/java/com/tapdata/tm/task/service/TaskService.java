@@ -1298,8 +1298,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //过滤掉挖掘任务
         String syncType = (String) where.get("syncType");
         if (StringUtils.isBlank(syncType)) {
-            HashMap<String, String> logCollectorFilter = new HashMap<>();
-            logCollectorFilter.put("$ne", "logCollector");
+            Document logCollectorFilter = new Document();
+            logCollectorFilter.put("$nin", Lists.of(TaskDto.SYNC_TYPE_LOG_COLLECTOR, TaskDto.SYNC_TYPE_CONN_HEARTBEAT));
             where.put("syncType", logCollectorFilter);
         }
 
@@ -3096,7 +3096,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //打点任务，这个标识主要是防止任务跟子任务重复执行的
         if (startFlag.charAt(1) == '1') {
-            //startConnHeartbeat(user, parentTask);
+            logCollectorService.startConnHeartbeat(user, taskDto);
         }
 
         //模型推演,如果模型已经存在，则需要推演
@@ -3126,7 +3126,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     sleepTime = sleepTime * 1000;
                     Thread.sleep(sleepTime);
                 } catch (InterruptedException e) {
-                    throw new BizException("SystemError");
+                    throw new BizException("SystemError", "Wait transformed schema timeout");
                 }
             }
             throw new BizException("Task.StartCheckModelFailed");
@@ -3382,6 +3382,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
             Update update = Update.update("stopRetryTimes", 0).unset("stopedDate");
             updateById(id, update, user);
+
+            logCollectorService.endConnHeartbeat(user, taskDto); // 尝试停止心跳任务
         }
         return id.toHexString();
     }
@@ -3842,5 +3844,29 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         for (TaskDto needStopTask : needStopTasks) {
             stopped(needStopTask.getId(), userDetail);
         }
+    }
+
+    public List<TaskDto> findHeartbeatByConnectionId(String connectionId, String... includeFields) {
+        Query query = Query.query(Criteria.where("dag.nodes.connectionId").is(connectionId)
+                .and("syncType").is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
+                .and("is_deleted").is(false)
+        );
+        if (null != includeFields && includeFields.length > 0) {
+            query.fields().include(includeFields);
+        }
+
+        return findAll(query);
+    }
+
+    public TaskDto findHeartbeatByTaskId(String taskId, String... includeFields) {
+        Query query = Query.query(Criteria.where("heartbeatTasks").is(taskId)
+                .and("syncType").is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
+                .and("is_deleted").is(false)
+        );
+        if (null != includeFields && includeFields.length > 0) {
+            query.fields().include(includeFields);
+        }
+
+        return findOne(query);
     }
 }
