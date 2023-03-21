@@ -758,4 +758,12 @@ public class MetadataInstancesController extends BaseController {
         return success(returnMap);
     }
 
+
+    @PostMapping("updateTableDesc")
+    public ResponseMessage<Void> updateTableDesc(@RequestBody MetadataInstancesDto metadataInstances) {
+        metadataInstancesService.updateTableDesc(metadataInstances, getLoginUser());
+        return success();
+    }
+
+
 }

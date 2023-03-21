@@ -33,6 +33,8 @@ import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
+import io.tapdata.pdk.apis.functions.connection.TableInfo;
+import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
 import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
@@ -132,6 +134,7 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
         connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> mysqlJdbcContext.getConnection(), c));
+        connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
         connectorFunctions.supportQueryFieldMinMaxValueFunction(this::minMaxValue);
         connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
         connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
@@ -497,4 +500,15 @@ public class MysqlConnector extends ConnectorBase {
         }
         return startTime;
     }
+
+
+    private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
+        DataMap dataMap = mysqlJdbcContext.getTableInfo(tableName);
+        TableInfo tableInfo = TableInfo.create();
+        tableInfo.setNumOfRows(Long.valueOf(dataMap.getString("TABLE_ROWS")));
+        tableInfo.setStorageSize(Long.valueOf(dataMap.getString("DATA_LENGTH")));
+        return tableInfo;
+    }
+
+
 }

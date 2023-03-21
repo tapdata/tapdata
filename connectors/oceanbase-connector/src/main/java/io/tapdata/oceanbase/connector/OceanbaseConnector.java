@@ -266,4 +266,12 @@ public class OceanbaseConnector extends CommonDbConnector {
             TapLogger.warn(TAG, "close writer failed: {}", e.getMessage());
         }
     }
+
+    private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
+        DataMap dataMap = oceanbaseJdbcContext.getTableInfo(tableName);
+        TableInfo tableInfo = TableInfo.create();
+        tableInfo.setNumOfRows(Long.valueOf(dataMap.getString("TABLE_ROWS")));
+        tableInfo.setStorageSize(Long.valueOf(dataMap.getString("DATA_LENGTH")));
+        return tableInfo;
+    }
 }

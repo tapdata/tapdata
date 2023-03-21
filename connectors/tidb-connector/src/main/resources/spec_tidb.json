@@ -4,7 +4,7 @@
 		"icon": "icons/tidb.svg",
 		"id": "tidb",
 		"doc": "${doc}",
-		"authentication": "beta",
+		"authentication": "Beta",
 		"tags": ["Database"]
 },
 	"configOptions": {
@@ -632,4 +632,3 @@
 			}
 		}
 	}
-

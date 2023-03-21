@@ -38,7 +38,6 @@ import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
 import com.tapdata.tm.metadatainstance.repository.MetadataInstancesRepository;
 import com.tapdata.tm.metadatainstance.vo.*;
 import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.task.service.TransformSchemaService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
@@ -2140,6 +2139,18 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 .and("nodeId").is(nodeId)
                 .and("sourceType").is(SourceTypeEnum.VIRTUAL);
         return count(Query.query(criteria));
+    }
+
+
+    public void updateTableDesc(MetadataInstancesDto metadataInstances,UserDetail userDetail){
+        if(org.springframework.util.StringUtils.isEmpty(metadataInstances.getId())){
+            throw new BizException("IllegalArgument", "Id");
+        }
+
+        Criteria criteria = Criteria.where("_id").is(metadataInstances.getId());
+        Query query = new Query(criteria);
+        Update update = Update.update("description",metadataInstances.getDescription());
+        update(query,update,userDetail);
     }
 
     public MetadataInstancesDto importEntity(MetadataInstancesDto metadataInstancesDto, UserDetail userDetail) {

@@ -4,7 +4,7 @@
     "icon": "icons/aliyun_rds_mariadb.png",
     "id": "aliyun-rds-mariadb",
     "doc": "${doc}",
-    "authentication": "beta",
+    "authentication": "Beta",
     "tags": ["Database"]
   },
   "configOptions": {

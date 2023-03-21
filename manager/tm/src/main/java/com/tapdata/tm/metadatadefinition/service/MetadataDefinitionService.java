@@ -176,6 +176,18 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
         return findChild(all, idList);
     }
 
+
+    public List<MetadataDefinitionDto> findAndChild(List<ObjectId> idList, UserDetail user, String... fields) {
+        Criteria criteria = Criteria.where("_id").in(idList);
+        Query query = new Query(criteria);
+        if (fields != null){
+            query.fields().include(fields);
+        }
+
+        List<MetadataDefinitionDto> all = findAllDto(query, user);
+        return findChild(all, idList, user, fields);
+    }
+
     public List<MetadataDefinitionDto> findAndChild(List<MetadataDefinitionDto> all, MetadataDefinitionDto dto, Map<String, List<MetadataDefinitionDto>> parentMap) {
         if (all == null) {
             all = new ArrayList<>();
@@ -206,13 +218,30 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
         return findChild(metadataDefinitionDtos, ids);
     }
 
+    private List<MetadataDefinitionDto> findChild(List<MetadataDefinitionDto> metadataDefinitionDtos, List<ObjectId> idList, UserDetail user, String... fields) {
+        List<String> collect = idList.stream().map(ObjectId::toHexString).collect(Collectors.toList());
+        Criteria criteria = Criteria.where("parent_id").in(collect);
+        Query query = new Query(criteria);
+        if (fields != null) {
+            query.fields().include(fields);
+        }
+        List<MetadataDefinitionDto> all = findAllDto(query, user);
+        if (CollectionUtils.isEmpty(all)) {
+            return metadataDefinitionDtos;
+        }
+        metadataDefinitionDtos.addAll(all);
+        List<ObjectId> ids = all.stream().map(BaseDto::getId).collect(Collectors.toList());
+        return findChild(metadataDefinitionDtos, ids, user, fields);
+    }
+
     @Override
     public Page<MetadataDefinitionDto> find(Filter filter, UserDetail user) {
         Page<MetadataDefinitionDto> dtoPage = super.find(filter, user);
         dtoPage.getItems().sort(Comparator.comparing(MetadataDefinitionDto::getValue));
         dtoPage.getItems().sort(Comparator.comparing(s -> {
             List<String> itemType = s.getItemType();
-            return !itemType.contains("default");
+
+            return itemType != null && !itemType.contains("default");
         }));
         Field fields = filter.getFields();
         if (fields != null) {
@@ -249,14 +278,14 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
         }
 
         List<String> userIdList = dtoPage.getItems().stream()
-                .filter(d -> d.getItemType().contains("root"))
+                .filter(d -> d.getItemType() != null && d.getItemType().contains("root"))
                 .map(BaseDto::getUserId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
         if (CollectionUtils.isNotEmpty(userIdList)) {
             Map<String, UserDetail> userMap = userService.getUserMapByIdList(userIdList);
             for (MetadataDefinitionDto item : dtoPage.getItems()) {
-                if (item.getItemType().contains("root")) {
+                if (item.getItemType() != null && item.getItemType().contains("root")) {
                     UserDetail userDetail = userMap.get(item.getUserId());
                     if (userDetail != null) {
                         item.setUserName(StringUtils.isBlank(userDetail.getUsername()) ? userDetail.getEmail() : userDetail.getUsername());

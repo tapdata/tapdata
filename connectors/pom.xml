@@ -78,7 +78,7 @@
 			<dependency>
 				<groupId>io.tapdata</groupId>
 				<artifactId>tapdata-api</artifactId>
-				<version>${tapdata.pdk.api.version}</version>
+				<version>${tapdata.api.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>io.tapdata</groupId>

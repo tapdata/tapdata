@@ -115,4 +115,6 @@ public class MetadataInstancesEntity extends BaseEntity {
     private List<ResultItem> resultItems;
     private Map<String, PossibleDataTypes> findPossibleDataTypes;
     private boolean hasUpdateField;
+
+    private String description;
 }

@@ -14,6 +14,10 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class MetadataDefinitionDto extends BaseDto {
+
+    public final static String LDP_ITEM_FDM = "fdm";
+    public final static String LDP_ITEM_MDM = "mdm";
+
     private String value;
     @JsonProperty("parent_id")
     private String parent_id;

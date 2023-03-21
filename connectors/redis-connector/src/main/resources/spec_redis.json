@@ -4,7 +4,7 @@
     "icon": "icons/redis.png",
     "doc": "${doc}",
     "id": "redis",
-    "authentication": "beta",
+    "authentication": "Beta",
     "tags": ["Database"]
   },
   "configOptions": {
@@ -160,7 +160,7 @@
         "valueType": {
           "type": "string",
           "title": "${valueType}",
-          "default": "List",
+          "default": "String",
           "x-decorator": "FormItem",
           "x-component": "Select",
           "x-index": 1,
@@ -185,7 +185,7 @@
           "x-decorator": "FormItem",
           "x-component": "Switch",
           "x-index": 2,
-          "default": true,
+          "default": false,
           "x-reactions": [
             {
               "dependencies": [".valueType"],
@@ -254,7 +254,7 @@
         "valueData": {
           "type": "string",
           "title": "${valueData}",
-          "default": "Text",
+          "default": "Json",
           "x-decorator": "FormItem",
           "x-component": "Select",
           "x-index": 6,
