@@ -992,7 +992,7 @@ public class LogCollectorService {
             logCollectorNode.setId(UUIDUtil.getUUID());
             logCollectorNode.setConnectionIds(connectionIds);
             logCollectorNode.setDatabaseType(v.get(0).getDatabase_type());
-            logCollectorNode.setName(UUIDUtil.getUUID());
+            logCollectorNode.setName("Shared Mining Source");
             logCollectorNode.setTableNames(tableNames);
             logCollectorNode.setSelectType(LogCollectorNode.SELECT_TYPE_RESERVATION);
             Map<String, Object> attr = Maps.newHashMap();
@@ -1001,7 +1001,7 @@ public class LogCollectorService {
 
             HazelCastImdgNode hazelCastImdgNode = new HazelCastImdgNode();
             hazelCastImdgNode.setId(UUIDUtil.getUUID());
-            hazelCastImdgNode.setName(hazelCastImdgNode.getId());
+            hazelCastImdgNode.setName("Shared Mining Target");
 
             List<Node> nodes = Lists.newArrayList(logCollectorNode, hazelCastImdgNode);
 
