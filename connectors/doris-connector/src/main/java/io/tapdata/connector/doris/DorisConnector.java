@@ -2,6 +2,7 @@ package io.tapdata.connector.doris;
 
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.SqlExecuteCommandFunction;
+import io.tapdata.connector.doris.bean.DorisConfig;
 import io.tapdata.connector.doris.streamload.DorisStreamLoader;
 import io.tapdata.connector.doris.streamload.HttpUtil;
 import io.tapdata.connector.doris.streamload.exception.DorisRetryableException;
@@ -52,7 +53,8 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
     private DorisSchemaLoader dorisSchemaLoader;
     private TapConnectionContext connectionContext;
     private Map<String, DorisStreamLoader> dorisStreamLoaderMap = new ConcurrentHashMap<>();
-
+    private  DorisConnectorTest dorisConnectorTest;
+    private  DorisConfig dorisConfig;
     /**
      * The method invocation life circle is below,
      * initiated -> discoverSchema -> ended
@@ -71,6 +73,17 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
         dorisSchemaLoader.discoverSchema(connectionContext, dorisContext.getDorisConfig(), tables, consumer, tableSize);
     }
 
+    @Override
+    public ConnectionOptions connectionTest(TapConnectionContext tapConnectionContext, Consumer<TestItem> consumer) throws Throwable {
+        ConnectionOptions connectionOptions = ConnectionOptions.create();
+        dorisConfig = (DorisConfig) new DorisConfig().load(connectionContext.getConnectionConfig());
+        try (DorisConnectorTest dorisConnectorTest = new DorisConnectorTest(dorisConfig, consumer, connectionOptions);
+        ) {
+            dorisConnectorTest.testOneByOne();
+
+        }
+        return connectionOptions;
+    }
     /**
      * The method invocation life circle is below,
      * initiated -> connectionTest -> ended
@@ -83,24 +96,24 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
      * @param connectionContext
      * @return
      */
-    @Override
-    public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
-        //Assume below tests are successfully, below tests are recommended, but not required.
-        //Connection test
-        consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY));
-        consumer.accept(testItem(TestItem.ITEM_LOGIN, TestItem.RESULT_SUCCESSFULLY));
-        //Read test
-        //TODO 通过权限检查有没有读权限, 暂时无法通过jdbc方式获取权限信息
-        consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_SUCCESSFULLY));
-        //Write test
-        //TODO 通过权限检查有没有写权限, 暂时无法通过jdbc方式获取权限信息
-        consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY));
-        //When test failed
-        // consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Connection refused"));
-        //When test successfully, but some warn is reported.
-        // consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, "CDC not enabled, please check your database settings"));
-        return null;
-    }
+//    @Override
+//    public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
+//        //Assume below tests are successfully, below tests are recommended, but not required.
+//        //Connection test
+//        consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY));
+//        consumer.accept(testItem(TestItem.ITEM_LOGIN, TestItem.RESULT_SUCCESSFULLY));
+//        //Read test
+//        //TODO 通过权限检查有没有读权限, 暂时无法通过jdbc方式获取权限信息
+//        consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_SUCCESSFULLY));
+//        //Write test
+//        //TODO 通过权限检查有没有写权限, 暂时无法通过jdbc方式获取权限信息
+//        consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY));
+//        //When test failed
+//        // consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Connection refused"));
+//        //When test successfully, but some warn is reported.
+//        // consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, "CDC not enabled, please check your database settings"));
+//        return null;
+//    }
 
     @Override
     public int tableCount(TapConnectionContext connectionContext) {
