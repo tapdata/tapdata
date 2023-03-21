@@ -17,6 +17,7 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.pdk.core.runtime.TapRuntime;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.supervisor.ClassLifeCircleMonitor;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -178,6 +179,8 @@ public class Application {
 			AspectUtils.executeAspect(ApplicationStartAspect.class, ApplicationStartAspect::new);
 			run.getBean(TapdataTaskScheduler.class).stopTaskIfNeed();
 			run.getBean(TapdataTaskScheduler.class).runTaskIfNeedWhenEngineStart();
+
+			InstanceFactory.instance(ClassLifeCircleMonitor.class);
 		} catch (Exception e) {
 			String err = "Run flow engine application failed, err: " + e.getMessage();
 			logger.error(err, e);

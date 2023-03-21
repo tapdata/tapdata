@@ -12,10 +12,5 @@
     <artifactId>task-resource-supervisor-module</artifactId>
 
     <dependencies>
-        <dependency>
-            <groupId>io.tapdata</groupId>
-            <artifactId>websocket-client-module</artifactId>
-            <version>1.0-SNAPSHOT</version>
-        </dependency>
     </dependencies>
 </project>

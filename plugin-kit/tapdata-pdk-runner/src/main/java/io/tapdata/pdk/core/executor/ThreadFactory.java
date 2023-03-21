@@ -34,4 +34,8 @@ public class ThreadFactory implements java.util.concurrent.ThreadFactory {
         thread.setDaemon(daemonThread);
         return thread;
     }
+
+    public ThreadGroup getThreadGroup() {
+        return threadGroup;
+    }
 }

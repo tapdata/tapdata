@@ -93,4 +93,58 @@ public class ThreadParent {
             }
         }
     }
+
+    @Test
+    public void threadGroup() {
+        final Object lock = new Object();
+
+        ThreadGroup group = new ThreadGroup("main-sub");
+        Thread td = new Thread(() -> {
+            while (true){
+                synchronized (lock){
+                    try {
+                        lock.wait(500);
+                    }catch (Exception e){
+
+                    }
+                }
+            }
+        },"main-thread-1");
+        td.start();
+
+
+
+        Thread td_sub = new Thread(group,() -> {
+            synchronized (lock){
+                try {
+                    lock.wait(500);
+                }catch (Exception e){
+
+                }
+            }
+            ThreadGroup groupSub = new ThreadGroup("main-sub-sub");
+            Thread td_sub_sub = new Thread(groupSub,()->{
+                synchronized (lock){
+                    try {
+                        lock.wait(500);
+                    }catch (Exception e){
+
+                    }
+                }
+            },"main-sub-sub-thread");
+            td_sub_sub.start();
+
+        },"main-thread-2");
+        td_sub.start();
+
+
+            synchronized (lock){
+                try {
+                    lock.wait(500);
+                }catch (Exception e){
+
+                }
+            }
+
+    }
 }

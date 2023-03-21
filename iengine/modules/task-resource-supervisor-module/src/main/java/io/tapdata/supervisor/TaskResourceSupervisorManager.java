@@ -2,18 +2,21 @@ package io.tapdata.supervisor;
 
 import cn.hutool.core.collection.ConcurrentHashSet;
 import io.tapdata.entity.annotations.Bean;
+import io.tapdata.entity.annotations.MainMethod;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.modules.api.net.data.OutgoingData;
 import io.tapdata.modules.api.proxy.data.NewDataReceived;
 import io.tapdata.modules.api.service.SkeletonService;
+import io.tapdata.pdk.core.api.PDKIntegration;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @Bean
+@MainMethod("start")
 public class TaskResourceSupervisorManager implements MemoryFetcher {
     private static final String TAG = TaskResourceSupervisorManager.class.getSimpleName();
 
@@ -31,6 +34,10 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
 
     }
 
+    private void start() {
+        PDKIntegration.registerMemoryFetcher(TaskResourceSupervisorManager.class.getSimpleName(), this);
+    }
+
     private void handleNewDataReceived(String contentType, OutgoingData outgoingData) {
         NewDataReceived newDataReceived = (NewDataReceived) outgoingData.getMessage();
         if (newDataReceived != null && newDataReceived.getSubscribeIds() != null) {
@@ -42,7 +49,7 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
                         }
                         // @TODO taskSubscribeInfo.supervisorAspectTask.enableFetchingNewData(subscribeId);
                         else
-                            TapLogger.debug(TAG, "streamRead is not started yet, new data request will be ignored for task {}", taskNodeInfo.taskId);
+                            TapLogger.debug(TAG, "streamRead is not started yet, new data request will be ignored for task {}", taskNodeInfo.getSupervisorAspectTask().getTaskId());
                     }
                 }
                 //TODO
@@ -52,34 +59,17 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
 
     public void addTaskSubscribeInfo(TaskNodeInfo taskNodeInfo) {
         taskNodeInfos.add(taskNodeInfo);
-        if (taskNodeInfo.taskId != null) {
-            taskIdTaskSubscribeInfoMap.putIfAbsent(taskNodeInfo.taskId, taskNodeInfo);
+        if (taskNodeInfo.getSupervisorAspectTask().getTaskId() != null) {
+            taskIdTaskSubscribeInfoMap.putIfAbsent(taskNodeInfo.getSupervisorAspectTask().getTaskId(), taskNodeInfo);
         }
 
     }
 
     public void removeTaskSubscribeInfo(TaskNodeInfo taskNodeInfo) {
         taskNodeInfos.remove(taskNodeInfo);
-        taskIdTaskSubscribeInfoMap.remove(taskNodeInfo.taskId);
+        taskIdTaskSubscribeInfoMap.remove(taskNodeInfo.getSupervisorAspectTask().getTaskId());
 
     }
-
-    public void taskSubscribeInfoChanged(TaskNodeInfo taskNodeInfo) {
-
-    }
-
-    private void handleTaskSubscribeInfoAfterComplete() {
-//		maxFrequencyLimiter.touch();
-//		workingFuture = null;
-//		if(needSync.get()) {
-//			synchronized (this) {
-//				if(workingFuture == null) {
-//					workingFuture = ExecutorsManager.getInstance().getScheduledExecutorService().schedule(this::syncSubscribeIds, 500, TimeUnit.MILLISECONDS);
-//				}
-//			}
-//		}
-    }
-
 
     public ConcurrentHashMap<String, List<TaskNodeInfo>> getTypeConnectionIdSubscribeInfosMap() {
         return typeConnectionIdSubscribeInfosMap;
@@ -87,14 +77,35 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
 
     @Override
     public DataMap memory(String keyRegex, String memoryLevel) {
+        Set<SupervisorAspectTask> aliveTaskSet = new HashSet<>();
+        Set<SupervisorAspectTask> leakedTaskSet = new HashSet<>();
+        for (TaskNodeInfo taskNodeInfo : taskNodeInfos) {
+            if (taskNodeInfo.isHasLaked()){
+                try {
+                    taskNodeInfo.getNodeThreadGroup().destroy();
+                    taskNodeInfo.setHasLaked(Boolean.FALSE);
+                    taskNodeInfo.getSupervisorAspectTask().getThreadGroupMap().remove(taskNodeInfo.getNodeThreadGroup());
+                    taskNodeInfo.setSupervisorAspectTask(null);
+                    taskNodeInfo.setNodeThreadGroup(null);
+                    continue;
+                } catch (Exception e1) {
+                    taskNodeInfo.setHasLaked(Boolean.TRUE);
+                }
+            }
+            if (!taskNodeInfo.isHasLaked()) {
+                aliveTaskSet.add(taskNodeInfo.getSupervisorAspectTask());
+            } else {
+                leakedTaskSet.add(taskNodeInfo.getSupervisorAspectTask());
+            }
+        }
         return DataMap.create().keyRegex(keyRegex)
-                .kv("aliveTaskCount", 0)
-                .kv("leakedTaskCount", 0)
+                .kv("aliveTaskCount", aliveTaskSet.size())
+                .kv("aliveTasks", aliveTaskSet.stream().filter(Objects::nonNull).map(spect -> spect.memory(keyRegex, memoryLevel)).collect(Collectors.toList()))
+                .kv("leakedTaskCount", leakedTaskSet.size())
+                .kv("leakedTasks", leakedTaskSet.stream().filter(Objects::nonNull).map(spect -> spect.memory(keyRegex, memoryLevel)).collect(Collectors.toList()))
                 .kv("aliveConnectorCount", 0)
-                .kv("leakedConnectorCount", 0)
-                .kv("aliveTasks", new ArrayList<>())
-                .kv("leakedTasks", new ArrayList<>())
                 .kv("aliveConnectors", new ArrayList<>())
+                .kv("leakedConnectorCount", 0)
                 .kv("leakedConnectors", new ArrayList<>());
     }
 

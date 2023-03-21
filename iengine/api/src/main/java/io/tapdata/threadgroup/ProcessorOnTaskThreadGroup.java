@@ -4,8 +4,9 @@ import com.tapdata.entity.task.context.ProcessorBaseContext;
 
 public class ProcessorOnTaskThreadGroup extends ThreadGroup {
     private ProcessorBaseContext processorBaseContext;
-    public ProcessorOnTaskThreadGroup(String name) {
-        super(name);
+    public ProcessorOnTaskThreadGroup(ProcessorBaseContext processorBaseContext) {
+        super("ProcessorOnTaskThreadGroup_" + processorBaseContext.getNode().getName());
+        this.processorBaseContext = processorBaseContext;
     }
 
     public ProcessorBaseContext getProcessorBaseContext() {

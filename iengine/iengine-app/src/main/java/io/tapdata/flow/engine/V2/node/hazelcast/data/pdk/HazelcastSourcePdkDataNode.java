@@ -16,6 +16,7 @@ import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.BatchReadFuncAspect;
+import io.tapdata.aspect.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.taskmilestones.CDCReadBeginAspect;
@@ -130,6 +131,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	@Override
 	public void startSourceRunner() {
 		try {
+			AspectUtils.executeAspect(DataNodeThreadGroupAspect.class, () ->
+					new DataNodeThreadGroupAspect(this.getNode(), associateId, Thread.currentThread().getThreadGroup())
+							.dataProcessorContext(dataProcessorContext));
 			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 			try {

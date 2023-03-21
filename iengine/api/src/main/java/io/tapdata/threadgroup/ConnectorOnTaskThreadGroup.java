@@ -5,7 +5,7 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 public class ConnectorOnTaskThreadGroup extends ThreadGroup {
     private DataProcessorContext dataProcessorContext;
     public ConnectorOnTaskThreadGroup(DataProcessorContext dataProcessorContext) {
-        super("ConnectorOnTaskThreadGroup_" + dataProcessorContext.getTaskDto().getName());
+        super("ConnectorOnTaskThreadGroup_" + dataProcessorContext.getNode().getName());
         this.dataProcessorContext = dataProcessorContext;
     }
 

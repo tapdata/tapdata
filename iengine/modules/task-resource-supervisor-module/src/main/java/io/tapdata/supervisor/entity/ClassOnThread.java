@@ -1,5 +1,7 @@
 package io.tapdata.supervisor.entity;
 
+import io.tapdata.threadgroup.utils.ThreadGroupUtil;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -11,6 +13,7 @@ public class ClassOnThread {
     private Long threadId;
     private Object thisObj;
     private List<String> stackTrace;
+    private ThreadGroup threadGroup;
 
     public static ClassOnThread create() {
         return new ClassOnThread();
@@ -24,6 +27,7 @@ public class ClassOnThread {
     public ClassOnThread thread(Thread thread) {
         this.threadId = thread.getId();
         this.threadName = thread.getName();
+        this.threadGroup = ThreadGroupUtil.THREAD_GROUP_TASK.currentThreadGroup(thread,ThreadGroupUtil.DEFAULT_NODE_THREAD);
         return this;
     }
 
@@ -86,5 +90,9 @@ public class ClassOnThread {
 
     public void setStackTrace(List<StackTraceElement> stackTrace) {
         this.stackTrace(stackTrace);
+    }
+
+    public ThreadGroup getThreadGroup() {
+        return threadGroup;
     }
 }

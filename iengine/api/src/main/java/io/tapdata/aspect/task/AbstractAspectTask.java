@@ -44,8 +44,8 @@ public abstract class AbstractAspectTask extends AspectTask {
     }
     @Override
     public DataMap memory(String keyRegex, String memoryLevel) {
-        return super.memory(keyRegex, memoryLevel)
-                .kv("observerHandlers", observerHandlers.keyList())
-                .kv("interceptHandlers", interceptHandlers.keyList());
+        return super.memory(keyRegex, memoryLevel);
+//                .kv("observerHandlers", observerHandlers.keyList())
+//                .kv("interceptHandlers", interceptHandlers.keyList());
     }
 }

@@ -1,23 +1,17 @@
 package io.tapdata.supervisor;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.PDKNodeInitAspect;
-import io.tapdata.aspect.StreamReadFuncAspect;
-import io.tapdata.aspect.TaskStartAspect;
-import io.tapdata.aspect.TaskStopAspect;
+import io.tapdata.aspect.*;
 import io.tapdata.aspect.task.AbstractAspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
-import io.tapdata.supervisor.entity.ClassOnThread;
 
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 @AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC}, ignoreErrors = false, order = 1)
 public class SupervisorAspectTask extends AbstractAspectTask {
@@ -28,20 +22,37 @@ public class SupervisorAspectTask extends AbstractAspectTask {
     private boolean isStarted;
     Long taskStartTime;
     String taskName;
-    private StreamReadFuncAspect streamReadFuncAspect;
-    private final TaskNodeInfo taskNodeInfo = new TaskNodeInfo();
+    String taskId;
+    String connectorId;
+
+    Map<ThreadGroup, TaskNodeInfo> threadGroupMap = new ConcurrentHashMap<>();
+
 
     public SupervisorAspectTask() {
-        observerHandlers.register(PDKNodeInitAspect.class, this::handlePDKNodeInit);
-        observerHandlers.register(StreamReadFuncAspect.class, this::handleStreamRead);
+        observerHandlers.register(DataNodeThreadGroupAspect.class, this::handleDataNode);
+        observerHandlers.register(ProcessNodeThreadGroupAspect.class, this::handleProcessNode);
     }
 
-    private Void handleStreamRead(StreamReadFuncAspect aspect) {
+    private Void handleDataNode(DataNodeThreadGroupAspect aspect) {
+        return this.addAspect(aspect);
+    }
+
+    private Void addAspect(ThreadGroupAspect aspect){
+        Optional.ofNullable(aspect).flatMap(a -> Optional.ofNullable(aspect.getThreadGroup())).ifPresent(t -> {
+            TaskNodeInfo info = new TaskNodeInfo();
+            info.setNodeThreadGroup(t);
+            info.setSupervisorAspectTask(this);
+            info.setNode(aspect.getNode());
+            info.setAssociateId(aspect.getAssociateId());
+            connectorId = aspect.getNode().getId();
+            taskResourceSupervisorManager.addTaskSubscribeInfo(info);
+            threadGroupMap.put(t, info);
+        });
         return null;
     }
 
-    private Void handlePDKNodeInit(PDKNodeInitAspect aspect) {
-        return null;
+    private Void handleProcessNode(ProcessNodeThreadGroupAspect aspect) {
+        return this.addAspect(aspect);
     }
 
     @Override
@@ -50,23 +61,35 @@ public class SupervisorAspectTask extends AbstractAspectTask {
         isStarted = true;
         TaskDto taskDto = startAspect.getTask();
         taskStartTime = System.nanoTime();
-        if(taskDto != null && taskDto.getId() != null && taskDto.getDag() != null) {
-            taskNodeInfo.taskId = taskDto.getId().toString();
-            taskNodeInfo.supervisorAspectTask = this;
-            taskResourceSupervisorManager.addTaskSubscribeInfo(taskNodeInfo);
+        if (taskDto != null && taskDto.getId() != null && taskDto.getDag() != null) {
+            taskId  = taskDto.getId().toString();
+            taskName = taskDto.getName();
         }
     }
 
     @Override
     public void onStop(TaskStopAspect stopAspect) {
         super.onStop(stopAspect);
-        ClassLifeCircleMonitor circleMonitor = InstanceFactory.instance(ClassLifeCircleMonitor.class);
-        Map<Object, ClassOnThread> summary = circleMonitor.summary();
+        //ClassLifeCircleMonitor circleMonitor = InstanceFactory.instance(ClassLifeCircleMonitor.class);
+        //Map<Object, ClassOnThread> summary = circleMonitor.summary();
         isStarted = false;
-        taskResourceSupervisorManager.removeTaskSubscribeInfo(taskNodeInfo);
-        taskNodeInfo.supervisorAspectTask = null;
-        if(streamReadFuncAspect != null)
-            streamReadFuncAspect.noMoreWaitRawData();
+        if (null != this.threadGroupMap && !this.threadGroupMap.isEmpty()) {
+            for (Map.Entry<ThreadGroup, TaskNodeInfo> infoEntry : threadGroupMap.entrySet()) {
+                ThreadGroup group = infoEntry.getKey();
+                TaskNodeInfo info = infoEntry.getValue();
+                try {
+                    group.destroy();
+                    taskResourceSupervisorManager.removeTaskSubscribeInfo(info);
+                    info.setHasLaked(Boolean.FALSE);
+                    info.setSupervisorAspectTask(null);
+                    info.setNodeThreadGroup(null);
+                    threadGroupMap.remove(group);
+                } catch (Exception e) {
+                    info.hasLaked = Boolean.TRUE;
+                    //@todo 延时30s再destroy后统计节点上泄露的线程
+                }
+            }
+        }
     }
 
     @Override
@@ -99,16 +122,28 @@ public class SupervisorAspectTask extends AbstractAspectTask {
         super.setTask(task);
     }
 
+    public String getTaskId() {
+        return taskId;
+    }
+
+    public String getConnectorId() {
+        return connectorId;
+    }
+
+    public Map<ThreadGroup, TaskNodeInfo> getThreadGroupMap() {
+        return threadGroupMap;
+    }
+
     @Override
     public DataMap memory(String keyRegex, String memoryLevel) {
+        List<DataMap> connectors = new ArrayList<>();
+        threadGroupMap.forEach(((threadGroup, taskNodeInfo) -> {
+            connectors.add(taskNodeInfo.memory(keyRegex,memoryLevel));
+        }));
         return super.memory(keyRegex, memoryLevel)
-                .kv("name","")
-                //.kv("associateId","")
-                //.kv("id","")
-                //.kv("threadCount",0)
-                //.kv("threads",null)
-                //.kv("resources",null)
+                .kv("taskName", taskName)
                 .kv("taskStartTime", taskStartTime != null ? new Date(taskStartTime) : null)
-                .kv("connectors", taskNodeInfo.memory(keyRegex, memoryLevel));
+                .kv("connectors", connectors);
     }
+
 }

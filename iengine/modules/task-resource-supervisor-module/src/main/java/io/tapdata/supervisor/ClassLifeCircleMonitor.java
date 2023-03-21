@@ -22,4 +22,5 @@ public interface ClassLifeCircleMonitor {
     void instanceEnded(Object thisObj);
 
     Map<Object, ClassOnThread> summary();
+
 }
