@@ -16,6 +16,7 @@ import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.BatchReadFuncAspect;
+import io.tapdata.aspect.SourceCDCDelayAspect;
 import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TaskMilestoneFuncAspect;
@@ -237,12 +238,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											createPdkMethodInvoker().runnable(() -> {
 														BiConsumer<List<TapEvent>, Object> consumer = (events, offsetObject) -> {
 															if (events != null && !events.isEmpty()) {
-																events.forEach(event -> {
+																events = events.stream().map(event -> {
 																	if (null == event.getTime()) {
 																		throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
 																	}
 																	event.addInfo(TAPEVENT_INFO_EVENT_ID_KEY, UUID.randomUUID().toString());
-																});
+																	return cdcDelayCalculation.filterAndCalcDelay(event, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
+																}).collect(Collectors.toList());
 
 																if (batchReadFuncAspect != null)
 																	AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), events);
@@ -490,26 +492,26 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					}
 				}
 				if (events != null && !events.isEmpty()) {
-					events.forEach(event -> {
+					events = events.stream().map(event -> {
 						if (null == event.getTime()) {
 							throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
 						}
 						event.addInfo("eventId", UUID.randomUUID().toString());
-					});
-
+						return cdcDelayCalculation.filterAndCalcDelay(event, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
+					}).collect(Collectors.toList());
+		
 					if (streamReadFuncAspect != null) {
 						AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), events);
 					}
-
+		
 					List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj);
-					handleSyncProgressType(tapdataEvents);
 					if (logger.isDebugEnabled()) {
 						logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
 					}
-
+		
 					if (streamReadFuncAspect != null)
 						AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
-
+		
 					if (CollectionUtils.isNotEmpty(tapdataEvents)) {
 						tapdataEvents.forEach(this::enqueue);
 						syncProgress.setStreamOffsetObj(offsetObj);

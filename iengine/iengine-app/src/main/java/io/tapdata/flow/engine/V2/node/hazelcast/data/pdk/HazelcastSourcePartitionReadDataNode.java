@@ -46,6 +46,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.sleep;
 
@@ -515,12 +516,13 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 //				}
 //			}
 			if (events != null && !events.isEmpty()) {
-				events.forEach(event -> {
+				events = events.stream().map(event -> {
 					if (null == event.getTime()) {
 						throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
 					}
 					event.addInfo("eventId", UUID.randomUUID().toString());
-				});
+					return cdcDelayCalculation.filterAndCalcDelay(event, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
+				}).collect(Collectors.toList());
 
 				if (streamReadFuncAspect != null) {
 					AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), events);

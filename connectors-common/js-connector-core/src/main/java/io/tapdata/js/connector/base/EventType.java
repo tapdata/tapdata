@@ -50,35 +50,48 @@ public class EventType {
             Map<String, Object> result = (Map<String, Object>) eventDataFromJs;
             Object eventType = result.get(EventTag.EVENT_TYPE);
             if (Objects.isNull(eventType) || !this.isEventType(String.valueOf(eventType))) {
-                throw new CoreException("Article " + dataIndex + " Record: Please use event_type to indicate event type (i/u/d). ");
+                throw new CoreException("Article " + dataIndex + " Record: Please use eventType to indicate event type (i/u/d). ");
             }
             Object tableName = result.get(EventTag.TABLE_NAME);
             if (Objects.isNull(tableName) || "".equals(tableName)) {
-                throw new CoreException("Article " + dataIndex + " Record: Please use table_name to indicate table name. ");
+                throw new CoreException("Article " + dataIndex + " Record: Please use tableName to indicate table name. ");
             }
             Object after = result.get(EventTag.AFTER_DATA);
-            if (Objects.isNull(after) && (update.equals(eventType) || insert.equals(eventType)) ) {
+            if (Objects.isNull(after) && (update.equals(eventType) || insert.equals(eventType))) {
                 throw new CoreException(
                         insert.equals(eventType) ?
-                                "Article " + dataIndex + " Record: insert event was received, but not used after_data describes the insert data. "
-                                : "Article " + dataIndex + " Record: An update data event was received, but not used after_data describes the update data. ");
+                                "Article " + dataIndex + " Record: insert event was received, but not used afterData describes the insert data. "
+                                : "Article " + dataIndex + " Record: An update data event was received, but not used afterData describes the update data. ");
             }
             if (!(after instanceof Map) && (update.equals(eventType) || insert.equals(eventType))) {
-                throw new CoreException("Article " + dataIndex + " Record: Wrong data representation, need to use k-v map to represent after_data. ");
+                throw new CoreException("Article " + dataIndex + " Record: Wrong data representation, need to use k-v map to represent afterData. ");
             }
             Object before = result.get(EventTag.BEFORE_DATA);
             if (Objects.isNull(before) && delete.equals(eventType)) {
-                throw new CoreException("Article " + dataIndex + " Record: delete event was received, but not used before_data describes the delete data. ");
+                throw new CoreException("Article " + dataIndex + " Record: delete event was received, but not used beforeData describes the delete data. ");
             }
             if (!(before instanceof Map) && delete.equals(eventType)) {
-                throw new CoreException("Article " + dataIndex + " Record: Wrong data representation, need to use k-v map to represent before_data. ");
+                throw new CoreException("Article " + dataIndex + " Record: Wrong data representation, need to use k-v map to represent beforeData. ");
             }
             Object referenceTimeObj = result.get(EventTag.REFERENCE_TIME);
             Long referenceTime = System.currentTimeMillis();
-            if (Objects.isNull(referenceTimeObj) || !(referenceTimeObj instanceof Long)) {
-                TapLogger.warn(tag, "Article " + dataIndex + " Record: cannot find reference_time, and set now time for reference_time.");
+            if (Objects.isNull(referenceTimeObj)) {
+                TapLogger.warn(tag, "Article " + dataIndex + " Record: cannot find referenceTime, and set now time for referenceTime.");
             } else {
-                referenceTime = Long.valueOf(String.valueOf(referenceTime));
+                boolean casted = false;
+                if (referenceTimeObj instanceof Number) {
+                    referenceTime = ((Number) referenceTimeObj).longValue();
+                    casted = true;
+                } else if (referenceTimeObj instanceof String) {
+                    try {
+                        referenceTime = Long.parseLong((String) referenceTimeObj);
+                        casted = true;
+                    } catch (Exception ignored) {
+                    }
+                }
+                if (!casted) {
+                    TapLogger.warn(tag, "Article " + dataIndex + " Record: cannot find referenceTime, and set now time for referenceTime.");
+                }
             }
             switch (String.valueOf(eventType)) {
                 case "d":
@@ -92,10 +105,10 @@ public class EventType {
             throw new CoreException("Article " + dataIndex + " Record:  The event format is incorrect. Please use the following rules to organize the returned results :\n" +
                     "{\n" +
                     "\"eventType\": String('i/u/d'),\n" +
-                    " \"tableName\": String('example_table_name'), " +
+                    " \"tableName\": String('exampleTableName'), " +
                     "\n\"beforeData\": {}," +
                     "\n\"afterData\": {}," +
-                    "\n\"referenceTime\": Number(time_stamp)" +
+                    "\n\"referenceTime\": Number(timeStamp)" +
                     "}\n");
         }
     }
@@ -120,8 +133,8 @@ public class EventType {
                 data.put(EventTag.TABLE_NAME, tableName);
                 data.put(EventTag.REFERENCE_TIME, System.currentTimeMillis());
             } else {
-                if (Objects.isNull(tableNameObj)){
-                    result.put(EventTag.TABLE_NAME,tableName);
+                if (Objects.isNull(tableNameObj)) {
+                    result.put(EventTag.TABLE_NAME, tableName);
                 }
                 data = result;
             }
