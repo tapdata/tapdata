@@ -1068,7 +1068,7 @@ public class LogCollectorService {
         dataSourceDtos = getConnectionByDag(user, taskDto.getDag());
         for (DataSourceConnectionDto dataSource : dataSourceDtos) {
             String dataSourceId = dataSource.getId().toHexString();
-            if (!ConnHeartbeatUtils.checkConnection(dataSource.getDatabase_type(), dataSource.getCapabilities()) || joinConnectionIdSet.contains(dataSourceId))
+            if (joinConnectionIdSet.contains(dataSourceId) || !ConnHeartbeatUtils.checkConnection(dataSource))
                 continue;
 
             //如果连接已经有心跳任务，将连接任务编号添加到 heartbeatTasks，并尝试启动任务
@@ -1091,35 +1091,23 @@ public class LogCollectorService {
                 //获取打点的Dummy数据源
                 Query query2 = new Query(Criteria.where("database_type").is(ConnHeartbeatUtils.PDK_NAME)
                         .and("createType").is(CreateTypeEnum.System)
-                        .and("config.mode").is(ConnHeartbeatUtils.MODE)
                 );
                 heartbeatConnection = dataSourceService.findOne(query2, user);
                 if (heartbeatConnection == null) {
                     Query query3 = new Query(Criteria.where("pdkId").is(ConnHeartbeatUtils.PDK_ID));
                     query3.fields().include("pdkHash", "type");
                     DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.findOne(query3);
-
-                    heartbeatConnection = new DataSourceConnectionDto();
-                    heartbeatConnection.setName(ConnHeartbeatUtils.CONNECTION_NAME);
-                    heartbeatConnection.setConfig(Optional.of(new LinkedHashMap<String, Object>()).map(m -> {
-                        m.put("mode", ConnHeartbeatUtils.MODE);
-                        m.put("connId", dataSourceId);
-                        return m;
-                    }).get());
-                    heartbeatConnection.setConnection_type("source");
-                    heartbeatConnection.setPdkType("pdk");
-                    heartbeatConnection.setRetry(0);
-                    heartbeatConnection.setStatus("testing");
-                    heartbeatConnection.setShareCdcEnable(false);
-                    heartbeatConnection.setDatabase_type(definitionDto.getType());
-                    heartbeatConnection.setPdkHash(definitionDto.getPdkHash());
-                    heartbeatConnection.setCreateType(CreateTypeEnum.System);
+                    if (null == definitionDto) {
+                        log.warn("Not found heartbeat connector: {}", ConnHeartbeatUtils.PDK_NAME);
+                        return;
+                    }
+                    heartbeatConnection = ConnHeartbeatUtils.generateConnections(dataSourceId, definitionDto);
                     heartbeatConnection = dataSourceService.add(heartbeatConnection, user);
                     dataSourceService.sendTestConnection(heartbeatConnection, true, true, user); //添加后没加载模型，手动加载一次
                     addDummy = true;
                 }
 
-                String qualifiedName = MetaDataBuilderUtils.generateQualifiedName("table", heartbeatConnection, "heartbeatTable");
+                String qualifiedName = MetaDataBuilderUtils.generateQualifiedName("table", heartbeatConnection, ConnHeartbeatUtils.TABLE_NAME);
                 MetadataInstancesDto metadata = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedName, user, "_id");
                 if (metadata == null) {
                     if (!addDummy) {
@@ -1132,7 +1120,7 @@ public class LogCollectorService {
                             try {
                                 Thread.sleep(500 * i);
                             } catch (InterruptedException e) {
-                                throw new BizException("SystemError");
+                                throw new BizException("SystemError", "Wait heartbeat task transformed schema timeout");
                             }
                         }
 
@@ -1140,7 +1128,9 @@ public class LogCollectorService {
                 }
             }
 
-            TaskDto taskDto1 = ConnHeartbeatUtils.generateTask(subTaskId, dataSourceId, dataSource.getName(), dataSource.getDatabase_type(), heartbeatConnection.getId().toHexString(), heartbeatConnection.getDatabase_type());
+            TaskDto taskDto1 = ConnHeartbeatUtils.generateTask(subTaskId
+                    , dataSourceId, dataSource.getName(), dataSource.getDatabase_type(), dataSource.getPdkHash()
+                    , heartbeatConnection.getId().toHexString(), heartbeatConnection.getDatabase_type(), heartbeatConnection.getPdkHash());
             taskDto1 = taskService.create(taskDto1, user);
             taskDto1 = taskService.confirmById(taskDto1, user, true);
             taskService.start(taskDto1.getId(), user);
@@ -1223,7 +1213,7 @@ public class LogCollectorService {
         //查询获取所有源的数据源连接
         Criteria criteria = Criteria.where("_id").in(connectionIds);
         Query query = new Query(criteria);
-        query.fields().include("_id", "uniqueName", "database_type", "name", "capabilities");
+        query.fields().include("_id", "uniqueName", "database_type", "name", "capabilities", "heartbeatEnable", "pdkHash");
         List<DataSourceConnectionDto> dataSourceDtos = dataSourceService.findAllDto(query, user);
         return dataSourceDtos;
     }

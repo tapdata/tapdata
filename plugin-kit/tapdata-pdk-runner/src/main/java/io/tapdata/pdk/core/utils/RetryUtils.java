@@ -86,7 +86,7 @@ public class RetryUtils extends CommonUtils {
 						throwIfNeed(retryOptions, message, errThrowable);
 					}
 					Optional.ofNullable(invoker.getLogListener())
-							.ifPresent(log -> log.warn(String.format("AutoRetry info: retry times (%s) | periodSeconds (%s s) | error [%s] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage())));
+							.ifPresent(log -> log.warn(String.format("AutoRetry info: retry times (%s) | periodSeconds (%s s) | error [%s] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage(), errThrowable)));
 					invoker.setRetryTimes(retryTimes - 1);
 					if (async) {
 						ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> autoRetry(node, method, invoker), retryPeriodSeconds, TimeUnit.SECONDS);
