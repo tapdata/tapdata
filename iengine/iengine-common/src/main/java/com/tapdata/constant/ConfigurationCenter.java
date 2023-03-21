@@ -36,6 +36,14 @@ public class ConfigurationCenter implements Serializable {
 		return config.get(key);
 	}
 
+	public <E> E getConfig(String key, Class<E> clazz) {
+		Object obj = getConfig(key);
+		if (clazz.isInstance(obj)) {
+			return (E) obj;
+		}
+		return null;
+	}
+
 	public Object clone() {
 		ConfigurationCenter configurationCenter = new ConfigurationCenter();
 		configurationCenter.config.putAll(this.config);
