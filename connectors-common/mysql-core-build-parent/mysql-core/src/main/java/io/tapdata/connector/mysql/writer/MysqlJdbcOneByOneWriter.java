@@ -85,7 +85,10 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 
 	@Override
 	public void onDestroy() {
-		this.jdbcCacheMap.values().forEach(JdbcCache::clear);
+		synchronized (this.jdbcCacheMap) {
+			this.jdbcCacheMap.values().forEach(JdbcCache::clear);
+			this.jdbcCacheMap.clear();
+		}
 	}
 
 	private int doInsertOne(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
