@@ -51,6 +51,11 @@ public class DataSyncEventHandler extends BaseEventHandler {
 						break;
 					case RESET:
 					case DELETE:
+						TapdataTaskScheduler taskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
+						if (null != taskScheduler && taskScheduler.getTaskClientMap().containsKey(taskId)) {
+							logger.warn("Task is running, denying this request: {}", event);
+							break;
+						}
 						TaskCleanerService.clean(new TaskCleanerContext(taskId, clientMongoOperator), opTypeStr);
 						break;
 					default:
