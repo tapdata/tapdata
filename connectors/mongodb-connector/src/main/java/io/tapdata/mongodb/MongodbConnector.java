@@ -41,6 +41,7 @@ import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.*;
 import org.bson.conversions.Bson;
 import org.bson.types.*;
@@ -436,6 +437,9 @@ public class MongodbConnector extends ConnectorBase {
 		try {
 			Map<String, Object> executeObj = tapExecuteCommand.getParams();
 			String command = tapExecuteCommand.getCommand();
+			if (MapUtils.isNotEmpty(executeObj) && StringUtils.isEmpty((CharSequence) executeObj.get("database"))) {
+				executeObj.put("database", mongoConfig.getDatabase());
+			}
 			if ("execute".equals(command)) {
 				executeResultConsumer.accept(new ExecuteResult<Long>().result(mongodbExecuteCommandFunction.execute(executeObj, mongoClient)));
 			} else if ("executeQuery".equals(command)) {
