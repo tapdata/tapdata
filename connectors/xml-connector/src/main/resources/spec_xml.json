@@ -4,7 +4,7 @@
     "icon": "icons/xml.png",
     "doc": "${doc}",
     "id": "xml",
-    "authentication": "beta",
+    "authentication": "Beta",
     "tags": ["File"]
   },
   "configOptions": {

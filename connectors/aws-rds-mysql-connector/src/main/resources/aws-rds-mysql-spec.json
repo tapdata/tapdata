@@ -4,7 +4,7 @@
     "icon": "icons/aws_rds_mysql.png",
     "id": "aws-rds-mysql",
     "doc": "${doc}",
-    "authentication": "beta",
+    "authentication": "Beta",
     "tags": ["Database"]
   },
   "configOptions": {

@@ -419,9 +419,7 @@ public class LoggingAspectTask extends AspectTask {
 				});
 				aspect.streamingEnqueuedConsumers(events -> {
 					long now = System.currentTimeMillis();
-					if (null == streamEnqueuedLastTs.get(nodeId)) {
-						streamEnqueuedLastTs.put(nodeId, now);
-					}
+					streamEnqueuedLastTs.putIfAbsent(nodeId, now);
 					debug(LogEventData.LOG_EVENT_TYPE_SEND, now - streamEnqueuedLastTs.get(nodeId),
 							SourceNodeTag.NODE_SOURCE_INCREMENTAL_SYNC, context,
 							events.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));

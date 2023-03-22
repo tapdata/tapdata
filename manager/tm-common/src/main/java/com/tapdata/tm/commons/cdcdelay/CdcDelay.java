@@ -39,6 +39,7 @@ public class CdcDelay implements ICdcDelay {
     public void addHeartbeatTable(@NonNull List<String> tables) {
         if (tables.contains(ConnHeartbeatUtils.TABLE_NAME)) {
             isFilter = false;
+            return;
         }
         tables.add(ConnHeartbeatUtils.TABLE_NAME);
         isFilter = true;
@@ -54,6 +55,7 @@ public class CdcDelay implements ICdcDelay {
                 if (isFilter) {
                     HeartbeatEvent heartbeatEvent = new HeartbeatEvent();
                     tapEvent.clone(heartbeatEvent);
+                    heartbeatEvent.setReferenceTime(tapRecordEvent.getReferenceTime());
                     tapEvent = heartbeatEvent;
                 }
             } else {

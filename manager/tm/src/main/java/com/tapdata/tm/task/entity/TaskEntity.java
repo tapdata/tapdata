@@ -234,6 +234,12 @@ public class TaskEntity extends BaseEntity {
     private int stopRetryTimes;
     private Boolean enforceShareCdc = true;
 
+    /** ldp 类型， fdm, mdm   为空或者其他为其他任务*/
+    private String ldpType;
+
+    /** ldp需要新增的表名列表 */
+    private List<String> ldpNewTables;
+
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }

@@ -19,6 +19,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.List;
@@ -265,5 +266,13 @@ public class OceanbaseConnector extends CommonDbConnector {
         } catch (Exception e) {
             TapLogger.warn(TAG, "close writer failed: {}", e.getMessage());
         }
+    }
+
+    private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
+        DataMap dataMap = oceanbaseJdbcContext.getTableInfo(tableName);
+        TableInfo tableInfo = TableInfo.create();
+        tableInfo.setNumOfRows(Long.valueOf(dataMap.getString("TABLE_ROWS")));
+        tableInfo.setStorageSize(Long.valueOf(dataMap.getString("DATA_LENGTH")));
+        return tableInfo;
     }
 }

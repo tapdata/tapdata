@@ -45,39 +45,35 @@ public class ErrorCodeService implements MemoryFetcher {
 		if (null != sourceExClass) {
 			tapExClass = sourceExClass.getAnnotation(TapExClass.class);
 		}
+		if (null != tapExClass) {
+			describe = String.format("Module - %s(%s)", tapExClass.module(), tapExClass.code());
+			if (StringUtils.isNotBlank(tapExClass.describe())) {
+				describe += String.format(": %s", tapExClass.describe());
+			} else {
+				describe += "\n\n";
+			}
+		}
 		switch (languageEnum) {
 			case CN:
-				if (null != tapExClass) {
-					describe = String.format("模块名: %s(%s)", tapExClass.module(), tapExClass.code());
-					if (StringUtils.isNotBlank(tapExClass.describe())) {
-						describe += String.format("\n模块描述: %s\n\n", tapExClass.describe());
-					} else {
-						describe += "\n\n";
-					}
+				if (StringUtils.isNotBlank(errorCode.getDescribeCN())) {
+					describe += "错误描述\n" + errorCode.getDescribeCN();
 				}
-				describe += "错误描述\n" + errorCode.getDescribeCN();
 				solution = errorCode.getSolutionCN();
 				if (StringUtils.isNotBlank(solution)) {
 					solution = "\n\n解决方案\n" + solution;
 				}
 				break;
 			default:
-				if (null != tapExClass) {
-					describe = String.format("Module name: %s(%s)", tapExClass.module(), tapExClass.code());
-					if (StringUtils.isNotBlank(tapExClass.describe())) {
-						describe += String.format("\nModule describe: %s\n\n", tapExClass.describe());
-					} else {
-						describe += "\n\n";
-					}
+				if (StringUtils.isNotBlank(errorCode.getDescribe())) {
+					describe += "Error describe\n" + errorCode.getDescribe();
 				}
-				describe += "Error describe\n" + errorCode.getDescribe();
 				solution = errorCode.getSolution();
 				if (StringUtils.isNotBlank(solution)) {
 					solution = "\n\nSolution\n" + solution;
 				}
 				break;
 		}
-		if (StringUtils.isNotBlank(describe) && StringUtils.isNotBlank(solution)) {
+		if (StringUtils.isNotBlank(solution)) {
 			describe = describe + solution;
 		}
 		res.put("describe", describe);

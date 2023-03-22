@@ -38,6 +38,7 @@ import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
 import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
+import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -431,6 +432,7 @@ public class MongodbConnector extends ConnectorBase {
 //        connectorFunctions.supportStreamOffset((connectorContext, tableList, offsetStartTime, offsetOffsetTimeConsumer) -> streamOffset(connectorContext, tableList, offsetStartTime, offsetOffsetTimeConsumer));
 		connectorFunctions.supportExecuteCommandFunction(this::executeCommand);
 		connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
+		connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
 	}
 
 	private void executeCommand(TapConnectorContext tapConnectorContext, TapExecuteCommand tapExecuteCommand, Consumer<ExecuteResult> executeResultConsumer) {
@@ -1099,5 +1101,15 @@ public class MongodbConnector extends ConnectorBase {
 			mongodbWriter.onDestroy();
 			mongodbWriter = null;
 		}
+	}
+
+	private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
+		String database = mongoConfig.getDatabase();
+		MongoDatabase mongoDatabase = 	mongoClient.getDatabase(database);
+		Document collStats = mongoDatabase.runCommand(new Document("collStats", tableName));
+		TableInfo tableInfo = TableInfo.create();
+		tableInfo.setNumOfRows(Long.valueOf(collStats.getInteger("count")));
+		tableInfo.setStorageSize(Long.valueOf(collStats.getInteger("size")));
+		return tableInfo;
 	}
 }

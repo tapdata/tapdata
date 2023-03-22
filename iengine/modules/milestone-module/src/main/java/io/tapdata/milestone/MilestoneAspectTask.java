@@ -1,6 +1,5 @@
 package io.tapdata.milestone;
 
-import com.alibaba.fastjson.JSONObject;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -47,7 +46,7 @@ import java.util.function.Consumer;
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2023/2/14 15:54 Create
  */
-@AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_LOG_COLLECTOR})
+@AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_CONN_HEARTBEAT, TaskDto.SYNC_TYPE_LOG_COLLECTOR})
 public class MilestoneAspectTask extends AbstractAspectTask {
     private final static Logger logger = LogManager.getLogger(MilestoneAspectTask.class);
 

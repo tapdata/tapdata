@@ -672,7 +672,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
      */
     @Override
     public DiscoveryStorageOverviewDto storageOverview(String id, UserDetail user) {
-        MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(id), user);
+        MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(id));
         DiscoveryStorageOverviewDto dto = new DiscoveryStorageOverviewDto();
         dto.setCreateAt(metadataInstancesDto.getCreateAt());
         dto.setVersion(metadataInstancesDto.getSchemaVersion());
@@ -687,12 +687,14 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dto.setSourceType(source.getDatabase_type());
 
         }
+        dto.setComment(metadataInstancesDto.getComment());
         dto.setId(metadataInstancesDto.getId().toHexString());
         dto.setName(metadataInstancesDto.getOriginalName());
         dto.setCategory(DataObjCategoryEnum.storage);
         dto.setType(metadataInstancesDto.getMetaType());
         dto.setSourceCategory(DataSourceCategoryEnum.connection);
         dto.setSourceInfo(getConnectInfo(metadataInstancesDto.getSource(), metadataInstancesDto.getOriginalName()));
+        dto.setDescription(metadataInstancesDto.getDescription());
         //dto.setSourceInfo();
         //dto.setBusinessName();
         //dto.setBusinessDesc();
@@ -1769,6 +1771,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dataDirectoryDto.setName(unionQueryResult.getOriginal_name());
             dataDirectoryDto.setDesc(unionQueryResult.getComment());
             dataDirectoryDto.setCategory(DataObjCategoryEnum.storage);
+            dataDirectoryDto.setSourceConId(unionQueryResult.getSource() == null ? null : unionQueryResult.getSource().get_id());
             dataDirectoryDto.setListtags(unionQueryResult.getListtags());
         } else if (StringUtils.isNotBlank(unionQueryResult.getSyncType())) {
             dataDirectoryDto.setType(unionQueryResult.getSyncType());

@@ -35,6 +35,7 @@ public enum CapabilityEnum {
     QUERY_BY_FILTER_FUNCTION("query_by_filter_function", "支持简单查询"),
     QUERY_BY_ADVANCE_FILTER_FUNCTION("query_by_advance_filter_function", "支持高级查询"),
     CREATE_TABLE_FUNCTION("create_table_function", "支持建表 "),
+    CREATE_TABLE_V2_FUNCTION("create_table_v2_function", "支持建表2"),
     CLEAR_TABLE_FUNCTION("clear_table_function", "支持清理数据"),
     DROP_TABLE_FUNCTION("drop_table_function", "支持删表");
 

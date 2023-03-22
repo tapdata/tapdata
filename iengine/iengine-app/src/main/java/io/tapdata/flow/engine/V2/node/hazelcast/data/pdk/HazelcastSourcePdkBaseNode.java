@@ -3,20 +3,11 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import cn.hutool.core.util.ReUtil;
 import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.tapdata.constant.ConnectionUtil;
-import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.ExecutorUtil;
-import com.tapdata.constant.JSONUtil;
-import com.tapdata.constant.Log4jUtil;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.DatabaseTypeEnum;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.TapdataHeartbeatEvent;
-import com.tapdata.entity.TapdataShareLogEvent;
-import com.tapdata.entity.TapdataTaskErrorEvent;
+import com.tapdata.constant.*;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.tm.commons.cdcdelay.CdcDelay;
 import com.tapdata.tm.commons.cdcdelay.CdcDelayDisable;
 import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.dag.DAG;
@@ -30,7 +21,6 @@ import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.Runnable.LoadSchemaRunner;
-import io.tapdata.aspect.SourceCDCDelayAspect;
 import io.tapdata.aspect.SourceDynamicTableAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
@@ -73,22 +63,8 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
@@ -140,7 +116,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		this.cdcDelayCalculation = new CdcDelayDisable();
+		if (Boolean.TRUE.equals(dataProcessorContext.getConnections().getHeartbeatEnable())) {
+			this.cdcDelayCalculation = new CdcDelay();
+		} else {
+			this.cdcDelayCalculation = new CdcDelayDisable();
+		}
 	}
 
 	@Override
@@ -654,8 +634,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private TapdataEvent wrapSingleTapdataEvent(TapEvent tapEvent, SyncStage syncStage, Object offsetObj, boolean isLast) {
-		tapEvent = cdcDelayCalculation.filterAndCalcDelay(tapEvent, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
-
 		TapdataEvent tapdataEvent = null;
 		if (tapEvent instanceof TapRecordEvent) {
 			TapRecordEvent tapRecordEvent = (TapRecordEvent) tapEvent;

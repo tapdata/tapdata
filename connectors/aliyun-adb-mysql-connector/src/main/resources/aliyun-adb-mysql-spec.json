@@ -4,7 +4,7 @@
     "icon": "icons/aliyun_adb_mysql.png",
     "id": "aliyun-adb-mysql",
     "doc": "${doc}",
-    "authentication": "beta",
+    "authentication": "Beta",
     "tags": ["Database"]
   },
   "configOptions": {

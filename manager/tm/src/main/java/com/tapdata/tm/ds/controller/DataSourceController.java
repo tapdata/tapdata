@@ -1,6 +1,5 @@
 package com.tapdata.tm.ds.controller;
 
-import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.tm.commons.util.JsonUtil;
@@ -24,6 +23,7 @@ import com.tapdata.tm.ds.vo.AllDataSourceConnectionVo;
 import com.tapdata.tm.ds.vo.ValidateTableVo;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -42,9 +42,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
@@ -62,6 +60,7 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 public class DataSourceController extends BaseController {
 
     private DataSourceService dataSourceService;
+    private TaskService taskService;
 
     private MetadataDefinitionService metadataDefinitionService;
 
@@ -74,7 +73,7 @@ public class DataSourceController extends BaseController {
     @Operation(summary = "添加数据源连接")
     @PostMapping
     public ResponseMessage<DataSourceConnectionDto> add(@RequestBody DataSourceConnectionDto connection, @RequestParam(name = "id", required = false) String id) {
-        if(StringUtils.isNotBlank(id)) {
+        if (StringUtils.isNotBlank(id)) {
             connection.setId(new ObjectId(id));
             return success(dataSourceService.addWithSpecifiedId(connection, getLoginUser()));
         } else {
@@ -123,8 +122,8 @@ public class DataSourceController extends BaseController {
      */
     @Operation(summary = "根据条件查询数据源连接列表")
     @GetMapping
-    public ResponseMessage<Page<DataSourceConnectionDto>> find( @RequestParam(value = "filter", required = false) String filterJson,
-                                                                @RequestParam(value = "noSchema", required = false) Boolean noSchema) {
+    public ResponseMessage<Page<DataSourceConnectionDto>> find(@RequestParam(value = "filter", required = false) String filterJson,
+                                                               @RequestParam(value = "noSchema", required = false) Boolean noSchema) {
         filterJson = replaceLoopBack(filterJson);
         NoSchemaFilter filter = JsonUtil.parseJson(filterJson, NoSchemaFilter.class);
         if (filter == null) {
@@ -141,14 +140,6 @@ public class DataSourceController extends BaseController {
             }
         }
 
-
-        Where where = filter.getWhere();
-        if (where == null) {
-            where = new Where();
-            Map<String, Object> createTypeMap = new HashMap<>();
-            createTypeMap.put("$ne", CreateTypeEnum.System);
-            where.put("createType", createTypeMap);
-        }
 
         //隐藏密码
         Page<DataSourceConnectionDto> dataSourceConnectionDtoPage = dataSourceService.list(filter, noSchema, getLoginUser());
@@ -525,7 +516,6 @@ public class DataSourceController extends BaseController {
     }
 
 
-
     @PostMapping("connectionOptions/update")
     public ResponseMessage<Void> updateConnectionOptions(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
         Where where = parseWhere(whereJson);
@@ -574,6 +564,19 @@ public class DataSourceController extends BaseController {
         dataSourceService.loadPartTables(connectionId, tables, getLoginUser());
         return success();
 
+    }
+
+    @Operation(summary = "Get connection heartbeat task")
+    @GetMapping("/{id}/heartbeat-task")
+    public ResponseMessage<Set<String>> getConnectionHeartbeatTask(@PathVariable("id") String connectionId) {
+        Set<String> taskIds = new HashSet<>();
+        List<TaskDto> tasks = taskService.findHeartbeatByConnectionId(connectionId, "_id");
+        if (null != tasks) {
+            for (TaskDto dto : tasks) {
+                taskIds.add(dto.getId().toHexString());
+            }
+        }
+        return success(taskIds);
     }
 
 }

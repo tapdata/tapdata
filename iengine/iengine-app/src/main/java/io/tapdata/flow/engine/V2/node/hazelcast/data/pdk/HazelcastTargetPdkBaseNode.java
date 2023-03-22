@@ -25,10 +25,7 @@ import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
-import io.tapdata.aspect.taskmilestones.CDCWriteBeginAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotWriteBeginAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotWriteEndAspect;
-import io.tapdata.aspect.taskmilestones.WriteErrorAspect;
+import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -377,6 +374,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					throw new RuntimeException(String.format("Process share log failed: %s", throwable.getMessage()), throwable);
 				}
 			}
+			executeAspect(new CDCHeartbeatWriteAspect().tapdataEvents(tapdataEvents).dataProcessorContext(dataProcessorContext));
 		} finally {
 			flushSyncProgressMap(lastDmlTapdataEvent.get());
 		}

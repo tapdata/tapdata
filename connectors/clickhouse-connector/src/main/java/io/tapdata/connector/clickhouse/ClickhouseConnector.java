@@ -30,6 +30,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -251,6 +252,8 @@ public class ClickhouseConnector extends CommonDbConnector {
 
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> clickhouseJdbcContext.getConnection(), this::isAlive, c));
         connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
+        connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
+
     }
 
     private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
@@ -441,4 +444,15 @@ public class ClickhouseConnector extends CommonDbConnector {
     public int tableCount(TapConnectionContext connectionContext) throws Throwable {
         return clickhouseJdbcContext.queryAllTables(null).size();
     }
+
+    private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
+        DataMap dataMap = clickhouseJdbcContext.getTableInfo(tableName);
+        TableInfo tableInfo = TableInfo.create();
+        tableInfo.setNumOfRows(Long.valueOf(dataMap.getString("NUM_ROWS")));
+        tableInfo.setStorageSize(Long.valueOf(dataMap.getString("AVG_ROW_LEN")));
+        return tableInfo;
+    }
+
+
+
 }

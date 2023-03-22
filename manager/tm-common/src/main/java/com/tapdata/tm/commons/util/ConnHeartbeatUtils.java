@@ -1,8 +1,11 @@
 package com.tapdata.tm.commons.util;
 
+import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -17,7 +20,6 @@ import java.util.*;
  * @version v1.0 2022/8/2 14:54 Create
  */
 public class ConnHeartbeatUtils {
-    private static final boolean ENABLE = false;
     public static final String PDK_ID = "dummy";
     public static final String PDK_NAME = "Dummy";
     public static final String MODE = "ConnHeartbeat";
@@ -33,35 +35,39 @@ public class ConnHeartbeatUtils {
      * @return can start heartbeat
      */
     public static boolean checkTask(@NonNull String taskType, @NonNull String taskSyncType) {
-        return ENABLE && (
-                StringUtils.containsAny(taskSyncType, TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)  //syncType is migrate or sync
-                        || !ParentTaskDto.TYPE_INITIAL_SYNC.equals(taskType) //task type is not initial_sync
-        );
+        return StringUtils.containsAny(taskSyncType, TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)  //syncType is migrate or sync
+                        && !ParentTaskDto.TYPE_INITIAL_SYNC.equals(taskType) //task type is not initial_sync
+        ;
     }
 
     /**
      * check the connection can be start heartbeat task
      *
-     * @param databaseType database type is not dummy
-     * @param capabilities capabilities has StreamRead and CreateTable and WriteRecord
+     * @param sourceConnectionDto source connection DTO
      * @return can start heartbeat
      */
-    public static boolean checkConnection(@NonNull String databaseType, @NonNull List<Capability> capabilities) {
-        if (!ENABLE || PDK_NAME.equals(databaseType)) {
+    public static boolean checkConnection(@NonNull DataSourceConnectionDto sourceConnectionDto) {
+        if (!Boolean.TRUE.equals(sourceConnectionDto.getHeartbeatEnable())
+                || PDK_NAME.equals(sourceConnectionDto.getDatabase_type())
+                || null == sourceConnectionDto.getCapabilities()
+                || "source".equalsIgnoreCase(sourceConnectionDto.getConnection_type())
+                || "target".equalsIgnoreCase(sourceConnectionDto.getConnection_type())
+        ) {
             return false;
         }
 
-        Set<String> capabilitySet = new HashSet<>();
-        for (Capability capability : capabilities) {
-            if (StringUtils.containsAny(capability.getId()
-                    , CapabilityEnum.STREAM_READ_FUNCTION.name().toLowerCase()
-                    , CapabilityEnum.CREATE_TABLE_FUNCTION.name().toLowerCase()
-                    , CapabilityEnum.WRITE_RECORD_FUNCTION.name().toLowerCase()
-            )) {
-                capabilitySet.add(capability.getId());
+        boolean hasStreamRead = false, hasCreateTable = false, hasWriteRecord = false;
+        for (Capability capability : sourceConnectionDto.getCapabilities()) {
+            if (CapabilityEnum.STREAM_READ_FUNCTION.name().equalsIgnoreCase(capability.getId())) {
+                hasStreamRead = true;
+            } else if (CapabilityEnum.CREATE_TABLE_FUNCTION.name().equalsIgnoreCase(capability.getId())
+                    || CapabilityEnum.CREATE_TABLE_V2_FUNCTION.name().equalsIgnoreCase(capability.getId())) {
+                hasCreateTable = true;
+            } else if (CapabilityEnum.WRITE_RECORD_FUNCTION.name().equalsIgnoreCase(capability.getId())) {
+                hasWriteRecord = true;
             }
         }
-        return capabilitySet.size() == 3;
+        return hasStreamRead && hasCreateTable && hasWriteRecord;
     }
 
     /**
@@ -75,12 +81,17 @@ public class ConnHeartbeatUtils {
      * @param heartbeatDatabaseType heartbeat database type
      * @return heartbeat task
      */
-    public static TaskDto generateTask(@NonNull String subTaskId, @NonNull String connectionId, @NonNull String connectionName, @NonNull String databaseType, @NonNull String heartbeatConnectionId, @NonNull String heartbeatDatabaseType) {
+    public static TaskDto generateTask(@NonNull String subTaskId
+            , @NonNull String connectionId, @NonNull String connectionName, @NonNull String databaseType, @NonNull String connectionPdkHash
+            , @NonNull String heartbeatConnectionId, @NonNull String heartbeatDatabaseType, @NonNull String heartbeatPdkHash) {
         TableNode sourceNode = new TableNode();
         sourceNode.setId(UUID.randomUUID().toString());
         sourceNode.setTableName(TABLE_NAME);
         sourceNode.setConnectionId(heartbeatConnectionId);
         sourceNode.setDatabaseType(heartbeatDatabaseType);
+        sourceNode.setAttrs(new HashMap<String, Object>() {{
+            put("pdkHash", heartbeatPdkHash);
+        }});
         sourceNode.setName(TABLE_NAME);
 
         TableNode targetNode = new TableNode();
@@ -88,18 +99,57 @@ public class ConnHeartbeatUtils {
         targetNode.setTableName(TABLE_NAME);
         targetNode.setConnectionId(connectionId);
         targetNode.setDatabaseType(databaseType);
+        targetNode.setAttrs(new HashMap<String, Object>() {{
+            put("pdkHash", connectionPdkHash);
+        }});
         targetNode.setName(TABLE_NAME);
+        targetNode.setUpdateConditionFields(Collections.singletonList("id"));
 
         TaskDto taskDto = new TaskDto();
-        taskDto.setName("来自" + connectionName + "的打点任务");
+        taskDto.setName("Heartbeat-" + connectionName);
         taskDto.setDag(DAG.build(new Dag(
                 Collections.singletonList(new Edge(sourceNode.getId(), targetNode.getId())),
                 Arrays.asList(sourceNode, targetNode)
         )));
         taskDto.setType(ParentTaskDto.TYPE_INITIAL_SYNC_CDC);
         taskDto.setSyncType(TaskDto.SYNC_TYPE_CONN_HEARTBEAT);
-        taskDto.setHeartbeatTasks(new HashSet<>());
-        taskDto.getHeartbeatTasks().add(subTaskId);
+        taskDto.setHeartbeatTasks(new HashSet<>(Collections.singleton(subTaskId)));
         return taskDto;
+    }
+
+    public static DataSourceConnectionDto generateConnections(String dataSourceId, DataSourceDefinitionDto definitionDto) {
+        DataSourceConnectionDto heartbeatConnection = new DataSourceConnectionDto();
+        heartbeatConnection.setName(ConnHeartbeatUtils.CONNECTION_NAME);
+        heartbeatConnection.setStatus(DataSourceConnectionDto.STATUS_READY);
+        heartbeatConnection.setConnection_type("source");
+        heartbeatConnection.setCreateType(CreateTypeEnum.System);
+        heartbeatConnection.setDatabase_type(definitionDto.getType());
+        heartbeatConnection.setPdkType(DataSourceDefinitionDto.PDK_TYPE);
+        heartbeatConnection.setPdkHash(definitionDto.getPdkHash());
+        heartbeatConnection.setRetry(0);
+        heartbeatConnection.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+        heartbeatConnection.setConfig(new LinkedHashMap<String, Object>() {{
+            this.put("mode", MODE);
+            this.put("connId", dataSourceId);
+            this.put("initial_totals", 1);
+            this.put("incremental_interval", 10000);
+            this.put("incremental_interval_totals", 1);
+            this.put("incremental_types", new int[]{2});
+            this.put("table_name", TABLE_NAME);
+            this.put("table_fields", new ArrayList<Map<String, Object>>() {{
+                add(new HashMap<String, Object>() {{
+                    this.put("pri", true);
+                    this.put("name", "id");
+                    this.put("type", "string(64)");
+                    this.put("def", dataSourceId);
+                }});
+                add(new HashMap<String, Object>() {{
+                    this.put("pri", false);
+                    this.put("name", "ts");
+                    this.put("type", "now");
+                }});
+            }});
+        }});
+        return heartbeatConnection;
     }
 }

@@ -4,7 +4,7 @@
     "icon": "icons/tencent_db_mysql.png",
     "id": "tencent-db-mysql",
     "doc": "${doc}",
-    "authentication": "beta",
+    "authentication": "Beta",
     "tags": ["Database"]
   },
   "configOptions": {
