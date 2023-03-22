@@ -2,6 +2,9 @@ package io.tapdata.supervisor;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
+import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
+import io.tapdata.aspect.supervisor.ProcessNodeThreadGroupAspect;
+import io.tapdata.aspect.supervisor.ThreadGroupAspect;
 import io.tapdata.aspect.task.AbstractAspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.entity.annotations.Bean;
@@ -9,6 +12,7 @@ import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.threadgroup.utils.ThreadGroupUtil;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -144,6 +148,10 @@ public class SupervisorAspectTask extends AbstractAspectTask {
                 .kv("taskName", taskName)
                 .kv("taskStartTime", taskStartTime != null ? new Date(taskStartTime) : null)
                 .kv("connectors", connectors);
+    }
+
+    private void group(){
+        ThreadGroupUtil.THREAD_GROUP_TASK.groupAll();
     }
 
 }

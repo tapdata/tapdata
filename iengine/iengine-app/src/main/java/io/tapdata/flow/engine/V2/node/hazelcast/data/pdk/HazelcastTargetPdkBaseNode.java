@@ -18,7 +18,7 @@ import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
-import io.tapdata.aspect.DataNodeThreadGroupAspect;
+import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.TaskMilestoneFuncAspect;
 import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
@@ -46,7 +46,6 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 
@@ -90,7 +89,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     protected int targetBatch;
     protected long targetBatchIntervalMs;
     private TargetTapEventFilter targetTapEventFilter;
-    //ThreadPoolExecutorEx threadPoolExecutorEx;
 
     public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);

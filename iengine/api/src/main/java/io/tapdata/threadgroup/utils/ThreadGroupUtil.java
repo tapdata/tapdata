@@ -6,6 +6,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
+import io.tapdata.threadgroup.DisposableThreadGroup;
 import io.tapdata.threadgroup.ProcessorOnTaskThreadGroup;
 import io.tapdata.threadgroup.TaskThreadGroup;
 
@@ -14,10 +15,19 @@ import java.util.*;
 
 public class ThreadGroupUtil {
     public static final Class<? extends ThreadGroup>[] DEFAULT_TASK_THREAD = new Class[]{TaskThreadGroup.class};
-    public static final Class<? extends ThreadGroup>[] DEFAULT_NODE_THREAD = new Class[]{ProcessorOnTaskThreadGroup.class, ConnectorOnTaskThreadGroup.class};
+    public static final Class<? extends ThreadGroup>[] DEFAULT_NODE_THREAD = new Class[]{ProcessorOnTaskThreadGroup.class, ConnectorOnTaskThreadGroup.class, DisposableThreadGroup.class};
     public static final ThreadGroupUtil THREAD_GROUP_TASK = ThreadGroupUtil.create(DEFAULT_TASK_THREAD[0],DEFAULT_NODE_THREAD);
     private final Class<? extends ThreadGroup> fatherClass;
     private final Class<? extends ThreadGroup>[] subClass;
+
+
+    private static ThreadGroup getSystemGroup(Thread thread){
+        ThreadGroup group = thread.getThreadGroup();
+        while (null != group && !"system".equals(group.getName())){
+            group = group.getParent();
+        }
+        return group;
+    }
 
     private boolean isFather(ThreadGroup target) {
         return (Objects.nonNull(target)) && target.getClass().getName().equals(fatherClass.getName());
@@ -142,7 +152,7 @@ public class ThreadGroupUtil {
         return threadGroup;
     }
 
-    private boolean content(ThreadGroup thread,Class<? extends ThreadGroup>[] fatherGroups){
+    private static boolean content(ThreadGroup thread,Class<? extends ThreadGroup>[] fatherGroups){
         if (Objects.isNull(thread)) return Boolean.FALSE;
         for (Class<? extends ThreadGroup> aClass : fatherGroups) {
             if (thread.getClass().getName().equals(aClass.getName())) {

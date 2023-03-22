@@ -12,6 +12,11 @@ import com.tapdata.entity.Schema;
 import com.tapdata.validator.SchemaFactory;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.TapInterface;
+import io.tapdata.aspect.supervisor.AspectRunnableUtil;
+import io.tapdata.aspect.supervisor.DisposableThreadGroupAspect;
+import io.tapdata.aspect.supervisor.entity.ConnectionTestEntity;
+import io.tapdata.aspect.supervisor.entity.DiscoverSchemaEntity;
+import io.tapdata.aspect.supervisor.entity.DisposableThreadGroupBase;
 import io.tapdata.common.ConverterUtil;
 import io.tapdata.common.TapInterfaceUtil;
 import io.tapdata.entity.LoadSchemaResult;
@@ -23,6 +28,8 @@ import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.schema.SchemaProxy;
+import io.tapdata.threadgroup.DisposableThreadGroup;
+import io.tapdata.threadgroup.utils.DisposableType;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.SendMessage;
 import io.tapdata.websocket.WebSocketEventHandler;
@@ -96,8 +103,22 @@ public class LoadSchemaEventHandler extends BaseEventHandler implements WebSocke
 		}
 
 		logger.info("Load schema field, load tables: {}", tables);
-
-		Runnable runnable = () -> {
+		String connName = (String)event.getOrDefault("name", "");
+		String pskHash = (String) event.getOrDefault("pdkHash", "");
+		String connectionId = String.valueOf(event.get("id"));
+		DisposableThreadGroupBase entity = new DiscoverSchemaEntity()
+				.associateId(UUID.randomUUID().toString())
+				.time(System.nanoTime())
+				.connectionId(connectionId)
+				.type(String.valueOf(event.get("type")))
+				.connectionName(connName)
+				.pdkType(String.valueOf(event.get("pdkType")))
+				.pdkHash(pskHash)
+				.schemaVersion(String.valueOf(event.get("schemaVersion")))
+				.databaseType(String.valueOf(event.get("database_type")));
+		String threadName = String.format("TEST-CONNECTION-%s", Optional.ofNullable(event.get("name")).orElse(""));
+		DisposableThreadGroup threadGroup = new DisposableThreadGroup(DisposableType.DISCOVER_SCHEMA, threadName);
+		Runnable runnable = AspectRunnableUtil.aspectRunnable(new DisposableThreadGroupAspect<>(connectionId,threadGroup,entity),() -> {
 			Thread.currentThread().setName(String.format("LOAD-SCHEMA-%s", Instant.now()));
 			try {
 				List<LoadSchemaEvent> loadSchemaEvents = tables.getTables();
@@ -249,10 +270,9 @@ public class LoadSchemaEventHandler extends BaseEventHandler implements WebSocke
 					logger.error(String.format("Send error load schema result to websocket failed, msg: %s, root exception: %s", ioException.getMessage(), msg), ioException);
 				}
 			}
-		};
-		Thread thread = new Thread(runnable);
+		});
+		Thread thread = new Thread(threadGroup, runnable, threadName);
 		thread.start();
-
 		return null;
 	}
 

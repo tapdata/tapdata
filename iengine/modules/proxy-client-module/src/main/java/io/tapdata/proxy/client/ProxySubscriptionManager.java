@@ -2,6 +2,11 @@ package io.tapdata.proxy.client;
 
 import cn.hutool.core.collection.ConcurrentHashSet;
 import com.tapdata.constant.ConfigurationCenter;
+import io.tapdata.aspect.supervisor.AspectRunnableUtil;
+import io.tapdata.aspect.supervisor.DisposableThreadGroupAspect;
+import io.tapdata.aspect.supervisor.entity.CommandEntity;
+import io.tapdata.aspect.supervisor.entity.DiscoverSchemaEntity;
+import io.tapdata.aspect.supervisor.entity.DisposableThreadGroupBase;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLog;
@@ -30,6 +35,8 @@ import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.timer.MaxFrequencyLimiter;
+import io.tapdata.threadgroup.DisposableThreadGroup;
+import io.tapdata.threadgroup.utils.DisposableType;
 import io.tapdata.wsclient.modules.imclient.IMClient;
 import io.tapdata.wsclient.modules.imclient.IMClientBuilder;
 import io.tapdata.wsclient.modules.imclient.impls.websocket.ChannelStatus;
@@ -237,19 +244,33 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 					return;
 //			return new Result().code(NetErrors.PDK_NOT_SUPPORT_COMMAND_CALLBACK).description("pdkId " + commandInfo.getPdkId() + " doesn't support CommandCallbackFunction");
 				}
-				AtomicReference<EngineMessageResultEntity> mapAtomicReference = new AtomicReference<>();
-				PDKInvocationMonitor.invoke(connectionNode, PDKMethod.COMMAND_CALLBACK,
-						() -> {
-							CommandResult commandResult = commandCallbackFunction.filter(connectionNode.getConnectionContext(), commandInfo);
-							mapAtomicReference.set(new EngineMessageResultEntity()
-									.content(commandResult != null ? (commandResult.getData() != null ? commandResult.getData() : commandResult.getResult()) : null)
-									.code(Data.CODE_SUCCESS)
-									.id(commandInfo.getId()));
-						}, TAG) ;
-				imClient.sendData(new IncomingData().message(mapAtomicReference.get())).exceptionally(throwable -> {
-					TapLogger.error(TAG, "Send CommandResultEntity failed, {} CommandResultEntity {}", throwable.getMessage(), mapAtomicReference.get());
-					return null;
-				});
+				String threadName = String.format("COMMAND_CALLBACK_%s_%s_%s", pdkInfo.getPdkId(), commandInfo.getCommand(),associateId);
+				DisposableThreadGroup threadGroup = new DisposableThreadGroup(DisposableType.COMMAND, threadName);
+				DisposableThreadGroupBase entity = new CommandEntity()
+						.command(commandInfo.getCommand())
+						.time(System.nanoTime())
+						.associateId(associateId)
+						.connectionName(commandInfo.getConnectionId())
+						.type(commandInfo.getType())
+						.databaseType(pdkInfo.getPdkId())
+						.pdkHash(commandInfo.getPdkHash())
+						;
+				new Thread(threadGroup,AspectRunnableUtil.aspectRunnable(new DisposableThreadGroupAspect<>(associateId,threadGroup,entity), () -> {
+					AtomicReference<EngineMessageResultEntity> mapAtomicReference = new AtomicReference<>();
+					PDKInvocationMonitor.invoke(connectionNode, PDKMethod.COMMAND_CALLBACK,
+							() -> {
+								CommandResult commandResult = commandCallbackFunction.filter(connectionNode.getConnectionContext(), commandInfo);
+								mapAtomicReference.set(new EngineMessageResultEntity()
+										.content(commandResult != null ? (commandResult.getData() != null ? commandResult.getData() : commandResult.getResult()) : null)
+										.code(Data.CODE_SUCCESS)
+										.id(commandInfo.getId()));
+							}, TAG);
+					imClient.sendData(new IncomingData().message(mapAtomicReference.get())).exceptionally(throwable -> {
+						TapLogger.error(TAG, "Send CommandResultEntity failed, {} CommandResultEntity {}", throwable.getMessage(), mapAtomicReference.get());
+						return null;
+					});
+				}), threadName).start();
+
 			} finally {
 				connectionNode.unregisterMemoryFetcher();
 				PDKIntegration.releaseAssociateId(associateId);

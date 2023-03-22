@@ -1,6 +1,7 @@
-package io.tapdata.aspect;
+package io.tapdata.aspect.supervisor;
 
 import com.tapdata.tm.commons.dag.Node;
+import io.tapdata.aspect.DataNodeAspect;
 
 public abstract class ThreadGroupAspect<T extends DataNodeAspect<?>> extends DataNodeAspect<T> {
     protected ThreadGroup threadGroup;
@@ -24,5 +25,10 @@ public abstract class ThreadGroupAspect<T extends DataNodeAspect<?>> extends Dat
         this.threadGroup = threadGroup;
         this.associateId = associateId;
         this.node = node;
+    }
+    public ThreadGroupAspect(String associateId, ThreadGroup threadGroup) {
+        super();
+        this.threadGroup = threadGroup;
+        this.associateId = associateId;
     }
 }
