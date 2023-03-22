@@ -30,11 +30,17 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
     }
 
     public void addTaskSubscribeInfo(TaskNodeInfo taskNodeInfo) {
-        taskNodeInfos.add(taskNodeInfo);
+        if (Objects.nonNull(taskNodeInfo)){
+            taskNodeInfos.add(taskNodeInfo);
+        }
     }
 
     public void removeTaskSubscribeInfo(TaskNodeInfo taskNodeInfo) {
-        taskNodeInfos.remove(taskNodeInfo);
+        if (Objects.nonNull(taskNodeInfo)){
+            taskNodeInfo.setNodeThreadGroup(null);
+            taskNodeInfo.setSupervisorAspectTask(null);
+            taskNodeInfos.remove(taskNodeInfo);
+        }
     }
 
     public void addDisposableSubscribeInfo(ThreadGroup threadGroup, DisposableNodeInfo info) {
@@ -42,6 +48,11 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
     }
 
     public void removeDisposableSubscribeInfo(ThreadGroup threadGroup) {
+        DisposableNodeInfo nodeInfo = disposableThreadGroupMap.get(threadGroup);
+        if (Objects.nonNull(nodeInfo)) {
+            nodeInfo.setNodeThreadGroup(null);
+            nodeInfo.setAspectConnector(null);
+        }
         disposableThreadGroupMap.remove(threadGroup);
     }
 

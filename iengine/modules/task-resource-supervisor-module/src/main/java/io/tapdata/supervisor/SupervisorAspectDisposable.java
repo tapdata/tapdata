@@ -1,21 +1,12 @@
 package io.tapdata.supervisor;
 
-import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.TaskStartAspect;
-import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.supervisor.DisposableThreadGroupAspect;
 import io.tapdata.aspect.supervisor.entity.DisposableThreadGroupBase;
-import io.tapdata.aspect.task.AbstractAspectTask;
-import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.aspect.annotations.AspectObserverClass;
-import io.tapdata.entity.utils.DataMap;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-
-import static javafx.scene.input.KeyCode.T;
+import java.util.Optional;
 
 @AspectObserverClass(value = DisposableThreadGroupAspect.class, ignoreErrors = false, order = 2)
 public class SupervisorAspectDisposable implements AspectObserver<DisposableThreadGroupAspect<?>> {

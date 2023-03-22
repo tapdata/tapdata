@@ -258,7 +258,7 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 
 				String returnStr = JSON.toJSONString(content, SerializerFeature.DisableCircularReferenceDetect);
 
-				dos.getDataOutputStream().writeUTF(returnStr);
+				dos.writeLongString(returnStr);
 			}
 		} else {
 			dos.writeUTF(contentClass);
@@ -331,7 +331,7 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 				}
 				break;
 			case MethodRequest.ARGUMENT_TYPE_JSON:
-				String jsonString = dis.getDataInputStream().readUTF();
+				String jsonString = dis.readLongString();
 				if(returnClass == null || returnClass.equals(JSONObject.class)) {
 					content = JSON.parse(jsonString, TapConstants.tapdataParserConfig, Feature.DisableCircularReferenceDetect);
 				} else {
