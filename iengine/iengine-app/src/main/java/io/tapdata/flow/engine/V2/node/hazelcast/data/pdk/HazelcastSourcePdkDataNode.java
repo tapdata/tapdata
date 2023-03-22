@@ -262,7 +262,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																Map<String, Object> customCommand = tableNode.getCustomCommand();
 																customCommand.put("batchSize", readBatchSize);
 																executeCommandFunction.execute(getConnectorNode().getConnectorContext(), TapExecuteCommand.create()
-																				.command((String) customCommand.get("command")).params(customCommand), executeResult -> {
+																				.command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params")), executeResult -> {
 																	if (executeResult.getError() != null) {
 																		throw new NodeException("Execute error", executeResult.getError());
 																	}
