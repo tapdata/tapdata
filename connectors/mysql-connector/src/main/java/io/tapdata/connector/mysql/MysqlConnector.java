@@ -35,7 +35,6 @@ import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
-import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
 import io.tapdata.pdk.apis.partition.ReadPartition;
@@ -138,7 +137,7 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
         connectorFunctions.supportErrorHandleFunction(this::errorHandle);
-        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> mysqlJdbcContext.getConnection(), c));
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> mysqlJdbcContext.getConnection(), this::isAlive, c));
         connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
         connectorFunctions.supportQueryFieldMinMaxValueFunction(this::minMaxValue);
         connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);

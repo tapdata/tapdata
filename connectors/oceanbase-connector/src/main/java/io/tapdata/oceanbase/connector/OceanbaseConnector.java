@@ -168,7 +168,7 @@ public class OceanbaseConnector extends CommonDbConnector {
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
-        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> oceanbaseJdbcContext.getConnection(), c));
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> oceanbaseJdbcContext.getConnection(), this::isAlive, c));
         connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
     }
 

@@ -183,7 +183,7 @@ public class PostgresConnector extends CommonDbConnector {
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
-        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> postgresJdbcContext.getConnection(), c));
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> postgresJdbcContext.getConnection(), this::isAlive, c));
         connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
 
         codecRegistry.registerFromTapValue(TapRawValue.class, "text", tapRawValue -> {

@@ -171,7 +171,7 @@ public class DatabendConnector extends ConnectorBase {
         connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilter);
 
 
-        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> databendJdbcContext.getConnection(), c));
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> databendJdbcContext.getConnection(), this::isAlive, c));
     }
 
     private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {

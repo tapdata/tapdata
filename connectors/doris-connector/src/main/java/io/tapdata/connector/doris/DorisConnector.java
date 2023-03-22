@@ -125,7 +125,7 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportQueryByFilter(this::queryByFilter);
-        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> dorisContext.getConnection(), c));
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> dorisContext.getConnection(), this::isAlive, c));
 
         codecRegistry.registerFromTapValue(TapRawValue.class, "text", tapRawValue -> {
             if (tapRawValue != null && tapRawValue.getValue() != null)
