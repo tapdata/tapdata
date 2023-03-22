@@ -74,7 +74,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
             } else {
                 TableNode tableNode = (TableNode) node;
                 tableNames.set(Lists.newArrayList(tableNode.getTableName()));
-                if (CollectionUtils.isEmpty(tableNode.getUpdateConditionFields())) {
+                if ("updateOrInsert".equals(tableNode.getWriteStrategy()) && CollectionUtils.isEmpty(tableNode.getUpdateConditionFields())) {
                     TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
                             .grade(Level.ERROR).nodeId(nodeId)
                             .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：目标节点{0}更新条件字段未设置。", name))
