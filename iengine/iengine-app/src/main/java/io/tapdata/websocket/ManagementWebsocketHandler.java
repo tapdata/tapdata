@@ -292,6 +292,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 
 		WebSocketEvent<Map> event = JSONUtil.json2POJO(payload, new TypeReference<WebSocketEvent>() {
 		});
+		logger.debug("Websocket received message: {}", event);
 
 		Map eventRequestData = event.getData();
 		String messageType = event.getType();
