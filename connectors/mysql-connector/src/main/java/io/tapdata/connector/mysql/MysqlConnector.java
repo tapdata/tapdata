@@ -33,6 +33,7 @@ import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
+import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
@@ -68,9 +69,14 @@ public class MysqlConnector extends ConnectorBase {
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
     private DDLSqlMaker ddlSqlMaker;
 
+    public synchronized MysqlJdbcContext initMysqlJdbcContext(TapConnectionContext tapConnectionContext) {
+        onStop(tapConnectionContext);
+        return new MysqlJdbcContext(tapConnectionContext);
+    }
+
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
-        this.mysqlJdbcContext = new MysqlJdbcContext(tapConnectionContext);
+        this.mysqlJdbcContext = initMysqlJdbcContext(tapConnectionContext);
         if (tapConnectionContext instanceof TapConnectorContext) {
             this.mysqlWriter = new MysqlSqlBatchWriter(mysqlJdbcContext);
             this.mysqlReader = new MysqlReader(mysqlJdbcContext);
@@ -131,7 +137,8 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
         connectorFunctions.supportErrorHandleFunction(this::errorHandle);
-        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> mysqlJdbcContext.getConnection(), c));
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> mysqlJdbcContext.getConnection(), this::isAlive, c));
+        connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
         connectorFunctions.supportQueryFieldMinMaxValueFunction(this::minMaxValue);
         connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
         connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
@@ -330,10 +337,13 @@ public class MysqlConnector extends ConnectorBase {
             Optional.ofNullable(this.mysqlWriter).ifPresent(MysqlWriter::onDestroy);
         } catch (Exception ignored) {
         }
-        try {
-            this.mysqlJdbcContext.close();
-        } catch (Exception e) {
-            TapLogger.error(TAG, "Release connector failed, error: " + e.getMessage() + "\n" + getStackString(e));
+        if (null != mysqlJdbcContext) {
+            try {
+                this.mysqlJdbcContext.close();
+                this.mysqlJdbcContext = null;
+            } catch (Exception e) {
+                TapLogger.error(TAG, "Release connector failed, error: " + e.getMessage() + "\n" + getStackString(e));
+            }
         }
     }
 
@@ -497,4 +507,15 @@ public class MysqlConnector extends ConnectorBase {
         }
         return startTime;
     }
+
+
+    private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
+        DataMap dataMap = mysqlJdbcContext.getTableInfo(tableName);
+        TableInfo tableInfo = TableInfo.create();
+        tableInfo.setNumOfRows(Long.valueOf(dataMap.getString("TABLE_ROWS")));
+        tableInfo.setStorageSize(Long.valueOf(dataMap.getString("DATA_LENGTH")));
+        return tableInfo;
+    }
+
+
 }

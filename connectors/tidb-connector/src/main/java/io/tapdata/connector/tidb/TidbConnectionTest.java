@@ -49,7 +49,7 @@ public class TidbConnectionTest extends CommonDbTest {
     protected static final String CHECK_DATABASE_BINLOG_ROW_IMAGE_SQL = "SHOW VARIABLES LIKE '%binlog_row_image%'";
     protected static final String CHECK_CREATE_TABLE_PRIVILEGES_SQL = "SELECT count(1)\n" +
             "FROM INFORMATION_SCHEMA.USER_PRIVILEGES\n" +
-            "WHERE GRANTEE LIKE '%%%s%%' and PRIVILEGE_TYPE = 'CREATE' or PRIVILEGE_TYPE = 'CREATE' = 'Create' ";
+            "WHERE GRANTEE LIKE '%%%s%%' and PRIVILEGE_TYPE = 'CREATE' or PRIVILEGE_TYPE  = 'Create' ";
     protected static String CHECK_TIDB_VERSION ="SELECT VERSION()";
     private boolean cdcCapability;
     private final ConnectionOptions connectionOptions;

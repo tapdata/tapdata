@@ -218,6 +218,9 @@ public class MongoUtils {
         if (map.containsKey("gt")) {
             map.put("$gt", map.remove("gt"));
         }
+        if (map.containsKey("ne")) {
+            map.put("$ne", map.remove("ne"));
+        }
     }
 
 

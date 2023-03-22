@@ -1,9 +1,9 @@
 package io.tapdata.observable.metric.handler;
 
+import com.tapdata.entity.TapdataEvent;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.executor.ExecutorsManager;
@@ -12,6 +12,7 @@ import io.tapdata.common.sample.sampler.AverageSampler;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.NumberSampler;
 import io.tapdata.common.sample.sampler.WriteCostAvgSampler;
+import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.observable.metric.aspect.ConnectionPingAspect;
@@ -33,6 +34,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -350,6 +352,36 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		Optional.ofNullable(inputSpeed).ifPresent(speed -> speed.add(recorder.getTotal()));
 	}
 
+	public void handleCDCHeartbeatWriteAspect(List<TapdataEvent> tapdataEvents) {
+		TapBaseEvent tapBaseEvent;
+		AtomicLong counts = new AtomicLong(0);
+		AtomicLong timesTotals = new AtomicLong(0);
+		AtomicLong lastTime = new AtomicLong(0);
+		for (TapdataEvent tapdataEvent : tapdataEvents) {
+			if (tapdataEvent.getTapEvent() instanceof TapBaseEvent) {
+				tapBaseEvent = (TapBaseEvent) tapdataEvent.getTapEvent();
+				Optional.ofNullable(tapBaseEvent.getReferenceTime()).ifPresent(t -> {
+					if (t > lastTime.get()) lastTime.set(t);
+					counts.addAndGet(1);
+					timesTotals.addAndGet(System.currentTimeMillis() - t);
+				});
+			} else {
+				Optional.ofNullable(tapdataEvent.getSourceTime()).ifPresent(t -> {
+					if (t > lastTime.get()) lastTime.set(t);
+					counts.addAndGet(1);
+					timesTotals.addAndGet(System.currentTimeMillis() - t);
+				});
+			}
+		}
+
+		Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(lastTime.get()));
+		Optional.ofNullable(replicateLag).ifPresent(speed -> {
+			if (counts.get() > 0) {
+				speed.setValue(counts.get(), timesTotals.get());
+			}
+		});
+	}
+
 	public void handleWriteRecordAccept(Long acceptTime, WriteListResult<TapRecordEvent> result, HandlerUtil.EventTypeRecorder recorder) {
 		long inserted = result.getInsertedCount();
 		long updated = result.getModifiedCount();
@@ -362,15 +394,6 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		Optional.ofNullable(outputSpeed).ifPresent(speed -> speed.add(total));
 
 		Optional.ofNullable(targetWriteTimeCostAvg).ifPresent(average -> average.add(total, acceptTime));
-
-
-
-		Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(recorder.getNewestEventTimestamp()));
-		Optional.ofNullable(replicateLag).ifPresent(speed -> {
-			if (null != recorder.getReplicateLagTotal()) {
-				speed.setValue(recorder.getTotal(), recorder.getReplicateLagTotal());
-			}
-		});
 	}
 
 	AtomicBoolean firstTableCount = new AtomicBoolean(true);

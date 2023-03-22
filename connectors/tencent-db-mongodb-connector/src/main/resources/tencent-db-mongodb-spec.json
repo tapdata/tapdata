@@ -5,7 +5,7 @@
     "doc" : "${doc}",
     "tags" : ["schema-free"],
     "id": "tencent-db-mongodb",
-    "authentication": "beta",
+    "authentication": "Beta",
     "tags": ["Database"]
   },
   "configOptions": {

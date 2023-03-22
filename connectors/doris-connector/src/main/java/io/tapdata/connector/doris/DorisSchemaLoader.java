@@ -39,6 +39,7 @@ public class DorisSchemaLoader {
     private static final String SELECT_TABLES = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' AND TABLE_TYPE='BASE TABLE'";
     private static final String TABLE_NAME_IN = " AND TABLE_NAME IN(%s)";
     private static final String SELECT_COLUMNS = "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME %s";
+    private static final String TABLE_INFO_SQL = "SELECT * FROM information_schema.tables WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s'";
 
     private static final String SELECT_ALL_INDEX_SQL_JOIN = "select i.TABLE_NAME,\n" +
             "i.INDEX_NAME,\n" +
@@ -310,4 +311,23 @@ public class DorisSchemaLoader {
         TapLogger.debug(TAG, "Execute sql: " + sql);
         return dorisContext.executeQuery(statement, sql);
     }
+
+    public DataMap getTableInfo(String tableName) throws Throwable {
+        DataMap dataMap = DataMap.create();
+        String database = dorisContext.getDorisConfig().getDatabase();
+        List list = new ArrayList();
+        list.add("TABLE_ROWS");
+        list.add("DATA_LENGTH");
+        String sql = String.format(TABLE_INFO_SQL, database, tableName);
+        try (Statement statement = dorisContext.getConnection().createStatement();
+             final ResultSet resultSet = dorisContext.executeQuery(statement, sql)) {
+            while (resultSet.next()) {
+                dataMap.putAll(DbKit.getRowFromResultSet(resultSet, list));
+            }
+        } catch (Throwable e) {
+            TapLogger.error(TAG, "Execute getTableInfo failed, error: " + e.getMessage(), e);
+        }
+        return dataMap;
+    }
+
 }

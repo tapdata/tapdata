@@ -82,7 +82,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
 	private AtomicBoolean firstBatchEvent = new AtomicBoolean();
 	private AtomicBoolean firstStreamEvent = new AtomicBoolean();
-	protected Map<String, List<String>> updateConditionFieldsMap;
+	protected Map<String, List<String>> updateConditionFieldsMap = new HashMap<>();
 	protected String writeStrategy = "updateOrInsert";
 	private AtomicBoolean flushOffset = new AtomicBoolean(false);
 	protected AtomicBoolean uploadDagService;
@@ -374,6 +374,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					throw new RuntimeException(String.format("Process share log failed: %s", throwable.getMessage()), throwable);
 				}
 			}
+			executeAspect(new CDCHeartbeatWriteAspect().tapdataEvents(tapdataEvents).dataProcessorContext(dataProcessorContext));
 		} finally {
 			flushSyncProgressMap(lastDmlTapdataEvent.get());
 		}

@@ -3,12 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.Log4jUtil;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataCompleteSnapshotEvent;
-import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.TapdataHeartbeatEvent;
-import com.tapdata.entity.TapdataStartedCdcEvent;
-import com.tapdata.entity.TapdataStartingCdcEvent;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -55,17 +50,10 @@ import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
-import io.tapdata.pdk.apis.entity.FilterResults;
-import io.tapdata.pdk.apis.entity.QueryOperator;
-import io.tapdata.pdk.apis.entity.SortOn;
-import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
+import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
-import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunction;
-import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunctionV2;
-import io.tapdata.pdk.apis.functions.connector.source.RunRawCommandFunction;
-import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.*;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
@@ -86,13 +74,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -145,7 +128,17 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						doSnapshot(new ArrayList<>(tapTableMap.keySet()));
 					}
 				}
+
 				if (!sourceRunnerFirstTime.get() && CollectionUtils.isNotEmpty(newTables)) {
+					doSnapshot(newTables);
+				}
+
+				TaskDto taskDto = dataProcessorContext.getTaskDto();
+				if (CollectionUtils.isNotEmpty(taskDto.getLdpNewTables())) {
+					if (newTables == null) {
+						newTables = new CopyOnWriteArrayList<>();
+					}
+					newTables.addAll(taskDto.getLdpNewTables());
 					doSnapshot(newTables);
 				}
 			} catch (Throwable e) {
@@ -185,7 +178,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 		BatchReadFunction batchReadFunction = getConnectorNode().getConnectorFunctions().getBatchReadFunction();
 		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
-		RunRawCommandFunction runRawCommandFunction = getConnectorNode().getConnectorFunctions().getRunRawCommandFunction();
+		ExecuteCommandFunction executeCommandFunction = getConnectorNode().getConnectorFunctions().getExecuteCommandFunction();
 
 		if (batchReadFunction != null) {
 			// MILESTONE-READ_SNAPSHOT-RUNNING
@@ -281,8 +274,18 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																		tempList.clear();
 																	}
 																});
-															} else if (tableNode.getIsCustomCommand() != null && tableNode.getIsCustomCommand() && runRawCommandFunction != null) {
-																runRawCommandFunction.run(getConnectorNode().getConnectorContext(), tableNode.getCustomCommand(), tapTable, readBatchSize, events -> consumer.accept(events, null));
+															} else if (tableNode.isEnableCustomCommand() && executeCommandFunction != null) {
+																Map<String, Object> customCommand = tableNode.getCustomCommand();
+																customCommand.put("batchSize", readBatchSize);
+																executeCommandFunction.execute(getConnectorNode().getConnectorContext(), TapExecuteCommand.create()
+																				.command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params")), executeResult -> {
+																	if (executeResult.getError() != null) {
+																		throw new NodeException("Execute error", executeResult.getError());
+																	}
+																	List<Map<String, Object>> maps = (List<Map<String, Object>>) executeResult.getResult();
+																	List<TapEvent> events = maps.stream().map(m -> TapSimplify.insertRecordEvent(m, tableName)).collect(Collectors.toList());
+																	consumer.accept(events, null);
+																});
 															} else {
 																batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
 															}

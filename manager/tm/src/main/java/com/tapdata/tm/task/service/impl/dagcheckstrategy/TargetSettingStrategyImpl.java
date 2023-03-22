@@ -88,20 +88,22 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
 //                }
 
                 tableNames.set(Lists.newArrayList(tableNode.getTableName()));
-                List<String> updateConditionFields = tableNode.getUpdateConditionFields();
-                if (CollectionUtils.isEmpty(updateConditionFields)) {
-                    TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_UPDATE_ERROR"), name);
-                    result.add(log);
-                } else {
-                    List<MetadataInstancesDto> nodeSchemas = metadataInstancesService.findByNodeId(nodeId, userDetail);
-                    Optional.ofNullable(nodeSchemas).flatMap(list -> list.stream().filter(i -> tableNode.getTableName().equals(i.getName())).findFirst()).ifPresent(schema -> {
-                        List<String> fields = schema.getFields().stream().map(Field::getFieldName).collect(Collectors.toList());
-                        List<String> noExistsFields = updateConditionFields.stream().filter(d -> !fields.contains(d)).collect(Collectors.toList());
-                        if (CollectionUtils.isNotEmpty(noExistsFields)) {
-                            TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_UPDATE_NOT_EXISTS"), name, JSON.toJSON(noExistsFields));
-                            result.add(log);
-                        }
-                    });
+                if ("updateOrInsert".equals(tableNode.getWriteStrategy())) {
+                    List<String> updateConditionFields = tableNode.getUpdateConditionFields();
+                    if (CollectionUtils.isEmpty(updateConditionFields)) {
+                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_UPDATE_ERROR"), name);
+                        result.add(log);
+                    } else {
+                        List<MetadataInstancesDto> nodeSchemas = metadataInstancesService.findByNodeId(nodeId, userDetail);
+                        Optional.ofNullable(nodeSchemas).flatMap(list -> list.stream().filter(i -> tableNode.getTableName().equals(i.getName())).findFirst()).ifPresent(schema -> {
+                            List<String> fields = schema.getFields().stream().map(Field::getFieldName).collect(Collectors.toList());
+                            List<String> noExistsFields = updateConditionFields.stream().filter(d -> !fields.contains(d)).collect(Collectors.toList());
+                            if (CollectionUtils.isNotEmpty(noExistsFields)) {
+                                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_UPDATE_NOT_EXISTS"), name, JSON.toJSON(noExistsFields));
+                                result.add(log);
+                            }
+                        });
+                    }
                 }
             }
 

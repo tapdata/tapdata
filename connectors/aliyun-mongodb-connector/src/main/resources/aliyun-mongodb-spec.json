@@ -5,7 +5,7 @@
     "doc" : "${doc}",
     "tags" : ["schema-free","Database"],
     "id": "aliyun-db-mongodb",
-    "authentication": "beta"
+    "authentication": "Beta"
   },
   "configOptions": {
     "capabilities": [

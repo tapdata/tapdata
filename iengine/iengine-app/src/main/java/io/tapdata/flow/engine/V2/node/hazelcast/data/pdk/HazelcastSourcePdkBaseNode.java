@@ -8,6 +8,7 @@ import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.cdcdelay.CdcDelay;
+import com.tapdata.tm.commons.cdcdelay.CdcDelayDisable;
 import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
@@ -115,7 +116,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		this.cdcDelayCalculation = new CdcDelay();
+		if (Boolean.TRUE.equals(dataProcessorContext.getConnections().getHeartbeatEnable())) {
+			this.cdcDelayCalculation = new CdcDelay();
+		} else {
+			this.cdcDelayCalculation = new CdcDelayDisable();
+		}
 	}
 
 	@Override

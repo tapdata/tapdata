@@ -7,6 +7,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
+import io.tapdata.aspect.taskmilestones.CDCHeartbeatWriteAspect;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
@@ -38,6 +39,7 @@ public class ObservableAspectTask extends AspectTask {
 		observerClassHandlers.register(SourceStateAspect.class, this::handleSourceState);
 		observerClassHandlers.register(SourceDynamicTableAspect.class, this::handleSourceDynamicTable);
 		// target data node aspects
+		observerClassHandlers.register(CDCHeartbeatWriteAspect.class, this::handleCDCHeartbeatWriteAspect);
 		observerClassHandlers.register(WriteRecordFuncAspect.class, this::handleWriteRecordFunc);
 		observerClassHandlers.register(NewFieldFuncAspect.class, this::handleNewFieldFun);
 		observerClassHandlers.register(AlterFieldNameFuncAspect.class, this::handleAlterFieldNameFunc);
@@ -83,8 +85,14 @@ public class ObservableAspectTask extends AspectTask {
 			dataNodeSampleHandlers = new HashMap<>();
 		}
 		Node<?> node = aspect.getDataProcessorContext().getNode();
+		String nodeId = node.getId();
 		DataNodeSampleHandler handler = new DataNodeSampleHandler(task, node);
-		dataNodeSampleHandlers.put(node.getId(), handler);
+		dataNodeSampleHandlers.put(nodeId, handler);
+		if (node.getDag().getTargets().stream().anyMatch(n->nodeId.equals(n.getId()))) {
+			taskSampleHandler.addTargetNodeHandler(nodeId, handler);
+		} else if (node.getDag().getSources().stream().anyMatch(n->nodeId.equals(n.getId()))) {
+			taskSampleHandler.addSourceNodeHandler(nodeId, handler);
+		}
 		handler.init();
 
 		return null;
@@ -230,7 +238,6 @@ public class ObservableAspectTask extends AspectTask {
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 							handler -> {
 								handler.handleStreamReadProcessComplete(System.currentTimeMillis(), recorder);
-								taskSampleHandler.addTargetNodeHandler(nodeId, handler);
 							}
 					);
 				});
@@ -255,10 +262,6 @@ public class ObservableAspectTask extends AspectTask {
 				for(String table : aspect.getDataProcessorContext().getTapTableMap().keySet()) {
 					taskSampleHandler.addTable(table);
 				}
-
-				Optional.ofNullable(dataNodeSampleHandlers.get(node.getId())).ifPresent(
-						handler -> taskSampleHandler.addSourceNodeHandler(node.getId(), handler)
-				);
 				break;
 			case SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED:
 //				taskSampleHandler.handleSnapshotDone(aspect.getInitialSyncCompletedTime());
@@ -385,6 +388,17 @@ public class ObservableAspectTask extends AspectTask {
 		return null;
 	}
 
+	public Void handleCDCHeartbeatWriteAspect(CDCHeartbeatWriteAspect aspect) {
+		Node<?> node = aspect.getDataProcessorContext().getNode();
+		String nodeId = node.getId();
+		Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
+				handler -> {
+					handler.handleCDCHeartbeatWriteAspect(aspect.getTapdataEvents());
+				}
+		);
+		return null;
+	}
+
 	private PipelineDelayImpl pipelineDelay = (PipelineDelayImpl) InstanceFactory.instance(PipelineDelay.class);
 	public Void handleWriteRecordFunc(WriteRecordFuncAspect aspect) {
 		Node<?> node = aspect.getDataProcessorContext().getNode();
@@ -397,7 +411,6 @@ public class ObservableAspectTask extends AspectTask {
 				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 						handler -> {
 							handler.handleWriteRecordStart(aspect.getTime(), recorder);
-							taskSampleHandler.addTargetNodeHandler(nodeId, handler);
 						}
 				);
 				aspect.consumer((events, result) -> {

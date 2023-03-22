@@ -71,12 +71,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (node instanceof TableNode) {
 				TableNode tableNode = (TableNode) node;
 				lastTableName = tableNode.getTableName();
-				updateConditionFieldsMap = new HashMap<>();
 				updateConditionFieldsMap.put(lastTableName, tableNode.getUpdateConditionFields());
 				writeStrategy = tableNode.getWriteStrategy();
 			} else if (node instanceof DatabaseNode) {
 				DatabaseNode dbNode = (DatabaseNode) node;
-				updateConditionFieldsMap = Optional.ofNullable(dbNode.getUpdateConditionFieldMap()).orElse(new HashMap<>());
+				Optional.ofNullable(dbNode.getUpdateConditionFieldMap()).ifPresent(m -> updateConditionFieldsMap.putAll(m));
 			}
 			initTargetDB();
 		} catch (Exception e) {

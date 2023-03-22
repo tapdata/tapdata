@@ -4,7 +4,7 @@
     "icon": "icons/tencent_db_mariadb.png",
     "id": "tencent-db-mariadb",
     "doc": "${doc}",
-    "authentication": "beta",
+    "authentication": "Beta",
     "tags": ["Database"]
   },
   "configOptions": {

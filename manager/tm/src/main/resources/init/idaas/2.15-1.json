@@ -21,5 +21,26 @@
 		"background": true
 	  }
 	]
-  }
+  },
+	{
+		"insert": "MetadataDefinition",
+		"documents": [
+			{
+				"value": "SOURCE",
+				"item_type": ["source"]
+			},
+			{
+				"value": "FDM",
+				"item_type": ["fdm"]
+			},
+			{
+				"value": "MDM",
+				"item_type": ["mdm"]
+			},
+			{
+				"value": "TARGET",
+				"item_type": ["target"]
+			}
+		]
+	}
 ]
