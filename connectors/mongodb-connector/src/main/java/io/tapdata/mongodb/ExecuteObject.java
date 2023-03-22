@@ -1,5 +1,8 @@
 package io.tapdata.mongodb;
 
+import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.pdk.apis.exception.NotSupportedException;
+
 import java.util.List;
 import java.util.Map;
 
@@ -44,7 +47,7 @@ public class ExecuteObject {
 		this.sql = executeObj.get("sql") == null ? null : executeObj.get("sql").toString();
 		this.database = executeObj.get("database") == null ? null : executeObj.get("database").toString();
 		this.collection = executeObj.get("collection") == null ? null : executeObj.get("collection").toString();
-		this.filter = executeObj.get("filter") == null ? null : (Map<String, Object>) executeObj.get("filter");
+		this.filter = getFilter(executeObj.get("filter"));
 		this.opObject = executeObj.get("opObject") == null ? null : (Map<String, Object>) executeObj.get("opObject");
 		this.upsert = executeObj.get("upsert") == null ? false : Boolean.valueOf(executeObj.get("upsert").toString());
 		this.multi = executeObj.get("multi") == null ? false : Boolean.valueOf(executeObj.get("multi").toString());
@@ -52,8 +55,34 @@ public class ExecuteObject {
 		this.limit = executeObj.get("limit") == null ? 0 : (int) executeObj.get("limit");
 		this.skip = executeObj.get("skip") == null ? 0 : (int) executeObj.get("skip");
 		this.projection = executeObj.get("projection") == null ? null : (Map<String, Object>) executeObj.get("projection");
-		this.pipeline = executeObj.get("pipeline") == null ? null : (List<Map<String, Object>>) executeObj.get("pipeline");
+		this.pipeline = getPipeline(executeObj.get("pipeline"));
 		this.batchSize = executeObj.get("batchSize") == null ? 1000 : (int) executeObj.get("batchSize");
+	}
+
+	private Map<String, Object> getFilter(Object obj) {
+		if (obj != null) {
+			if (obj instanceof Map) {
+				return (Map<String, Object>) obj;
+			} else if (obj instanceof String) {
+				return TapSimplify.fromJson((String) obj, Map.class);
+			} else {
+				throw new NotSupportedException(obj.toString());
+			}
+		}
+		return null;
+	}
+
+	private List<Map<String, Object>> getPipeline(Object obj) {
+		if (obj != null) {
+			if (obj instanceof List) {
+				return (List<Map<String, Object>>) obj;
+			} else if (obj instanceof String) {
+				return TapSimplify.fromJson((String) obj, List.class);
+			} else {
+				throw new NotSupportedException(obj.toString());
+			}
+		}
+		return null;
 	}
 
 	public String getOp() {
