@@ -190,6 +190,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     private ExternalStorageService externalStorageService;
 
+
+    private CustomSqlService customSqlService;
     public TaskService(@NonNull TaskRepository repository) {
         super(repository, TaskDto.class, TaskEntity.class);
     }
@@ -227,6 +229,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         checkTaskName(taskDto.getName(), user, taskDto.getId());
+
+        customSqlService.checkCustomSqlTask(taskDto, user);
 
         boolean rename = false;
         if (taskDto.getId() != null) {
@@ -436,6 +440,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.debug("task not found, need create new task, task id = {}", taskDto.getId());
             return create(taskDto, user);
         }
+
+
+        customSqlService.checkCustomSqlTask(taskDto, user);
 
         if (oldTaskDto.getEditVersion().equals(taskDto.getEditVersion())) {
             //throw new BizException("Task.OldVersion");

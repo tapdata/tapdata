@@ -302,7 +302,7 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         }
         return null;
     }
-    public List<DataSourceDefinitionDto> getByDataSourceType(List<String> dataSourceType, UserDetail user) {
+    public List<DataSourceDefinitionDto> getByDataSourceType(List<String> dataSourceType, UserDetail user, String... fields) {
         Criteria customCriteria = new Criteria();
         customCriteria.and("customId").is(user.getCustomerId());
         Criteria userCriteria = Criteria.where("user_id").is(user.getUserId());
@@ -311,6 +311,9 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         Criteria criteria = Criteria.where("type").in(dataSourceType).and("pdkHash").exists(true);;
         criteria.orOperator(customCriteria, userCriteria, supplierCriteria, scopeCriteria);
         Query query = Query.query(criteria);
+        if (fields != null  && fields.length != 0) {
+            query.fields().include(fields);
+        }
         query.with(Sort.by("createTime").descending());
         return findAll(query);
     }
