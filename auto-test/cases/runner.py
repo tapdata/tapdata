@@ -14,7 +14,7 @@ from smart_cdc import *
 def get_case():
     if args.case is not None:
         return args.case
-    return "test_dev_sync.py"
+    return "test_dev_all.py"
 
 
 # gen all possible test case params, using case description and support datasource config
