@@ -87,19 +87,10 @@ final class TapEventCollector {
         }
     }
 
-    public void stop(boolean stopNow) {
-        synchronized (this.lock) {
-            if (Objects.nonNull(this.future)) {
-                try {
-                    this.tryUpload(true);
-                } catch (Throwable throwable) {
-                    TapLogger.warn(TAG, "tryUpload failed when stop {}, error {}", stopNow, throwable.getMessage());
-                    throw throwable;
-                } finally {
-                    this.future.cancel(stopNow);
-                    this.future = null;
-                }
-            }
+    public void stop() {
+        if (Objects.nonNull(this.future)) {
+            this.tryUpload(true);
+            this.future.cancel(true);
         }
     }
 
