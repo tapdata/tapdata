@@ -130,7 +130,7 @@ public class TidbConnector extends ConnectorBase {
             }
             return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
         });
-
+        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTimeStr());
         codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
             if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
                 tapYearValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
