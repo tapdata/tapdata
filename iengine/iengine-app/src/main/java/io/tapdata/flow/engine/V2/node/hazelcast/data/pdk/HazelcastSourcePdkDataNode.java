@@ -481,7 +481,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 												if (streamReadFuncAspect != null)
 													executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAM_STARTED).streamStartedTime(System.currentTimeMillis()));
 												sendCdcStartedEvent();
-												obsLogger.info("Connector start stream read succeed: {}", connectorNode);
+												obsLogger.info("Tables incremental start succeed, data change syncing: {}", connectorNode.getTables());
 											}
 										});
 

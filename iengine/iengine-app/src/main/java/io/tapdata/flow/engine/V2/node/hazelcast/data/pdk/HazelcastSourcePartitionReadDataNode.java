@@ -751,7 +751,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 												if (streamReadFuncAspect != null)
 													executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAM_STARTED).streamStartedTime(System.currentTimeMillis()));
 												executeAspect(new CDCReadStartedAspect().dataProcessorContext(dataProcessorContext));
-												obsLogger.info("Connector start stream read succeed: {}", connectorNode);
+												obsLogger.info("Tables incremental start succeed, data change syncing: {}", connectorNode.getTables());
 
 												//start pending partition reader workers as stream read is started.
 												streamReadStarted.compareAndSet(false, true);
