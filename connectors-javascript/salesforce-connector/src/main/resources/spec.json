@@ -1,0 +1,88 @@
+{
+  "properties": {
+    "name": "Salesforce",
+    "icon": "icon/Salesforce-Logo.png",
+    "doc" : "${doc}",
+    "id": "salesforce"
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "String",
+          "title": "${code}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-decorator-props": {
+            "style": {"display": "none"}
+          },
+          "apiServerKey": "code",
+          "x-index": 30,
+          "required": true
+        },
+        "line": {
+          "type": "void",
+          "x-component": "Space",
+          "properties": {
+            "authButton": {
+              "type": "void",
+              "x-decorator": "FormItem",
+              "x-component": "Button",
+              "x-content": "${OAuthButtonTitle}",
+              "title": "",
+              "x-index": 20,
+              "x-component-props": {
+                "onClick": "{{useAsyncDataSourceByConfig({service: goToAuthorized, withoutField: true}, { target: 'https://redirect.tapdata.io/oauth/complete', pdkId: 'salesforce', oauthUrl: 'https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=3MVG9n_HvETGhr3Brv_TokDiPcVsfa0TubCszRjXdeqnY0z7cBUmaW0I9eTZtnz0oIC4zMLOxcUaCiEMpwr57&redirect_uri=https://redirect.tapdata.io/oauth/complete/salesforce&scope=full refresh_token'})}}"
+              },
+              "x-decorator-props":{"style":{"width":"120px"}}
+            },
+            "OAuthStatus": {
+              "type": "void",
+              "title": "",
+              "x-decorator": "FormItem",
+              "x-component": "Text",
+              "apiServerKey": "AAA",
+              "x-index": 50,
+              "required": true,
+              "x-component-props": {
+                "content": "{{$values.code ? '${OAuthButtonOK}' : '${OAuthButton}'}}",
+                "style": {"color": "{{ $values.code ? 'green' : 'red' }}"}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "doc/demo_en_US.md",
+      "code": "Grant Token",
+      "OAuthButtonTitle": "Grant Token",
+      "OAuthButton": "Please grant the token successfully before clicking Test Connection or Save",
+      "OAuthButtonOK": "Account authorization successful"
+    },
+    "zh_CN": {
+      "doc": "doc/demo_zh_CN.md",
+      "code": "授予令牌",
+      "OAuthButtonTitle": "授予令牌",
+      "OAuthButton": "请先授予令牌成功再点击连接测试或保存",
+      "OAuthButtonOK": "账户授权成功"
+    },
+    "zh_TW": {
+      "doc": "doc/demo_zh_TW.md",
+      "code": "授予權杖",
+      "OAuthButtonTitle": "授予權杖",
+      "OAuthButton": "請先授予令牌成功再點擊連接測試或保存",
+      "OAuthButtonOK": "賬戶授權成功"
+    }
+  }
+}

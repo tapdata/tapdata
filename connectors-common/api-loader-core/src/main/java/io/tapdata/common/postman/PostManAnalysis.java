@@ -39,10 +39,11 @@ public class PostManAnalysis {
     public void setConnectorConfig(Map<String, Object> connectorConfig) {
         this.connectorConfig = connectorConfig;
     }
+
     public void addConnectorConfig(Map<String, Object> connectorConfig) {
-       if (Objects.isNull(this.connectorConfig)){
-           this.connectorConfig = new HashMap<>();
-       }
+        if (Objects.isNull(this.connectorConfig)) {
+            this.connectorConfig = new HashMap<>();
+        }
         this.connectorConfig.putAll(connectorConfig);
     }
 
@@ -127,24 +128,26 @@ public class PostManAnalysis {
         }
         return false;
     }
-    private String comp(Map<String,Object> item1,Map<String,Object> item2){
+
+    private String comp(Map<String, Object> item1, Map<String, Object> item2) {
         if (Objects.isNull(item1) || item1.isEmpty() || Objects.isNull(item2) || item2.isEmpty()) return null;
         StringJoiner joiner = new StringJoiner(", ");
-        item1.forEach((key,value)->{
-            if (Objects.nonNull(item2.get(key))){
+        item1.forEach((key, value) -> {
+            if (item2.containsKey(key)) {
                 joiner.add(key);
             }
         });
-        return joiner.toString();
+        String result = joiner.toString().trim();
+        return "".equals(result) ? null : result;
     }
 
     public Request httpPrepare(String uriOrName, String method, Map<String, Object> params) {
-        String com = this.comp(this.connectorConfig,params);
-        Optional.ofNullable(com).ifPresent(str->{
-            TapLogger.warn(TAG," Some of the keys in connectionConfig or nodeConfig have the same name as the interface parameters." +
-                    " At this time, the values in connectionConfig or nodeConfig will be used as the HTTP request data by default, which will lead to errors in the HTTP call parameters. Please confirm. If it is correct, it can be ignored.  Conflicting Key: " + com);
-        });
-
+//        String com = this.comp(this.connectorConfig,params);
+//        Optional.ofNullable(com).ifPresent(str->{
+//            "{} may be overwrite by incoming params, please be caution that it is your intention";
+//            TapLogger.warn(TAG," Some of the keys in connectionConfig or nodeConfig have the same name as the api parameters." +
+//                    " At this time, the values in api parameters will be used as the HTTP request data by default, which will lead to errors in the HTTP call parameters. Please confirm. If it is correct, it can be ignored.  Conflicting Key: " + com);
+//        });
         ApiMap.ApiEntity api = this.apiContext.apis().quickGet(uriOrName, method);
         if (Objects.isNull(api)) {
             throw new CoreException(String.format("No such api name or url is [%s],method is [%s]", uriOrName, method));
@@ -152,11 +155,11 @@ public class PostManAnalysis {
 
         ApiVariable variable = ApiVariable.create();
         variable.putAll(this.apiContext.variable());
-        if (Objects.nonNull(params) && !params.isEmpty()) {
-            variable.putAll(params);
-        }
         if (Objects.nonNull(this.connectorConfig) && !this.connectorConfig.isEmpty()) {
             variable.putAll(this.connectorConfig);
+        }
+        if (Objects.nonNull(params) && !params.isEmpty()) {
+            variable.putAll(params);
         }
         Map<String, Object> tempParam = new HashMap<>();
         tempParam.putAll(variable);
@@ -173,7 +176,10 @@ public class PostManAnalysis {
         List<Header> apiHeader = apiRequest.header();
         Map<String, String> headMap = new HashMap<>();
         if (Objects.nonNull(apiHeader) && !apiHeader.isEmpty()) {
-            apiHeader.stream().filter(ent->{ if (Objects.isNull(ent)) return false; return !ent.disabled(); }).forEach(head -> headMap.put(head.key(), head.value()));
+            apiHeader.stream().filter(ent -> {
+                if (Objects.isNull(ent)) return false;
+                return !ent.disabled();
+            }).forEach(head -> headMap.put(head.key(), head.value()));
         }
         String url = apiUrl.raw();
         Body<?> apiBody = apiRequest.body();
@@ -185,7 +191,7 @@ public class PostManAnalysis {
             try {
                 bodyMap.putAll((Map<String, Object>) fromJson(String.valueOf(apiBody.raw())));
             } catch (Exception e) {
-                TapLogger.error(TAG, "API name is {} which body row cannot cast to a map, error row text: {}, Please ensure that the interface call uses the correct parameters. msg: {}", api.api().name(), apiBody.raw(), e.getMessage());
+                TapLogger.debug(TAG, "API name is {} which body row cannot cast to a map, error row text: {}, Please ensure that the interface call uses the correct parameters. msg: {}", api.api().name(), apiBody.raw(), e.getMessage());
             }
         }
         List<Map<String, Object>> query = apiUrl.query();
@@ -223,13 +229,13 @@ public class PostManAnalysis {
     }
 
     OkHttpClient client;
-    public APIResponse http(Request request) throws IOException{
+    public APIResponse http(Request request) throws IOException {
         String property = System.getProperty("show_api_invoker_result", "1");
         if (!"1".equals(property)) {
             Buffer sink = new Buffer();
             RequestBody body = request.body();
             String bodyStr = "{}";
-            if (Objects.nonNull(body)){
+            if (Objects.nonNull(body)) {
                 body.writeTo(sink);
                 bodyStr = ScriptUtil.fileToString(sink.inputStream());
             }

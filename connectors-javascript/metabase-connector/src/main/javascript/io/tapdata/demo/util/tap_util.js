@@ -1,7 +1,7 @@
 /**
  *  This is the toolkit encapsulated by Tap Data.
  * */
-var invoker = loadAPI();
+var invoker = loadAPI().httpConfigAsGlobal({'timeout': 30000});
 var OptionalUtil = {
     isEmpty: function (obj) {
         return typeof (obj) == 'undefined' || null == obj;
@@ -30,4 +30,7 @@ function commandAndConvertData(apiName, params, call){
     }
     let invokerData = invoker.invoke(apiName, params);
     return call(invokerData.result);
+}
+ function checkParam(param) {
+    return 'undefined' !== param && null != param;
 }

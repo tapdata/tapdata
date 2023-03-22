@@ -162,7 +162,7 @@ public class MeasureAOP {
         Map<String, AtomicInteger> infoMap = obsMap.get(taskId);
         if (Objects.nonNull(infoMap) && Objects.nonNull(infoMap.get(key))) {
             taskReplicateLagCount.set(infoMap.get(key).intValue());
-        } else {
+        } else if (Objects.isNull(infoMap)){
             infoMap = Maps.newHashMap();
         }
 
@@ -240,7 +240,7 @@ public class MeasureAOP {
         Map<String, AtomicInteger> infoMap = obsMap.get(taskId);
         if (Objects.nonNull(infoMap) && Objects.nonNull(infoMap.get(key))) {
             count.set(infoMap.get(key).intValue());
-        } else {
+        } else if (Objects.isNull(infoMap)){
             infoMap = Maps.newHashMap();
         }
 
@@ -305,6 +305,8 @@ public class MeasureAOP {
                 alarmInfo.setLevel(Level.RECOVERY);
                 alarmInfo.setSummary(summary);
                 alarmInfo.setRecoveryTime(DateUtil.date());
+                alarmInfo.setFirstOccurrenceTime(null);
+                alarmInfo.setStatus(AlarmStatusEnum.RECOVER);
                 alarmService.save(alarmInfo);
             }
         }
@@ -336,5 +338,14 @@ public class MeasureAOP {
 
     public void removeObsInfoByTaskId(String taskId) {
         obsMap.remove(taskId);
+    }
+
+    public void removeObsInfoByTaskIdAndKey(String taskId, String key) {
+        if (obsMap.containsKey(taskId)) {
+            Map<String, AtomicInteger> integerMap = obsMap.get(taskId);
+            if (Objects.nonNull(integerMap)) {
+                integerMap.remove(key);
+            }
+        }
     }
 }
