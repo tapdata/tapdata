@@ -1,12 +1,16 @@
 package io.tapdata.connector.doris;
 
 import io.tapdata.base.ConnectorBase;
+import io.tapdata.common.CommonDbConfig;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.doris.bean.DorisConfig;
+import io.tapdata.connector.doris.bean.DorisSnapshotOffset;
 import io.tapdata.connector.doris.streamload.DorisStreamLoader;
 import io.tapdata.connector.doris.streamload.HttpUtil;
 import io.tapdata.connector.doris.streamload.exception.DorisRetryableException;
+import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
@@ -22,12 +26,16 @@ import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
+import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -42,7 +50,7 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
     private DorisSchemaLoader dorisSchemaLoader;
     private TapConnectionContext connectionContext;
     private Map<String, DorisStreamLoader> dorisStreamLoaderMap = new ConcurrentHashMap<>();
-    private  DorisConnectorTest dorisConnectorTest;
+    private DorisConnectionTest dorisConnectionTest;
     private  DorisConfig dorisConfig;
     /**
      * The method invocation life circle is below,
@@ -62,17 +70,17 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
         dorisSchemaLoader.discoverSchema(connectionContext, dorisContext.getDorisConfig(), tables, consumer, tableSize);
     }
 
-    @Override
-    public ConnectionOptions connectionTest(TapConnectionContext tapConnectionContext, Consumer<TestItem> consumer) throws Throwable {
-        ConnectionOptions connectionOptions = ConnectionOptions.create();
-        dorisConfig = (DorisConfig) new DorisConfig().load(connectionContext.getConnectionConfig());
-        try (DorisConnectorTest dorisConnectorTest = new DorisConnectorTest(dorisConfig, consumer, connectionOptions);
-        ) {
-            dorisConnectorTest.testOneByOne();
-
-        }
-        return connectionOptions;
-    }
+//    @Override
+//    public ConnectionOptions connectionTest(TapConnectionContext tapConnectionContext, Consumer<TestItem> consumer) throws Throwable {
+//        ConnectionOptions connectionOptions = ConnectionOptions.create();
+//        dorisConfig = (DorisConfig) new DorisConfig().load(connectionContext.getConnectionConfig());
+//        try (DorisConnectorTest dorisConnectorTest = new DorisConnectorTest(dorisConfig, consumer, connectionOptions);
+//        ) {
+//            dorisConnectorTest.testOneByOne();
+//
+//        }
+//        return connectionOptions;
+//    }
     /**
      * The method invocation life circle is below,
      * initiated -> connectionTest -> ended
@@ -103,9 +111,21 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
 //        // consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, "CDC not enabled, please check your database settings"));
 //        return null;
 //    }
-
     @Override
-    public int tableCount(TapConnectionContext connectionContext) {
+    public ConnectionOptions connectionTest(TapConnectionContext databaseContext, Consumer<TestItem> consumer) {
+        ConnectionOptions connectionOptions = ConnectionOptions.create();
+        CommonDbConfig commonDbConfig = new CommonDbConfig();
+        commonDbConfig.set__connectionType(databaseContext.getConnectionConfig().getString("__connectionType"));
+        try (
+                DorisConnectionTest dorisConnectionTest = new DorisConnectionTest(new DorisContext(databaseContext),
+                        databaseContext, consumer, commonDbConfig, connectionOptions)
+        ) {
+            dorisConnectionTest.testOneByOne();
+            return connectionOptions;
+        }
+    }
+    @Override
+    public int tableCount(TapConnectionContext connectionContext) throws SQLException {
         final String database = this.dorisContext.getDorisConfig().getDatabase();
         final List<String> tables = this.dorisSchemaLoader.queryAllTables(database, null);
         return tables.size();
@@ -123,8 +143,10 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
      */
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
-
+        //source
+        connectorFunctions.supportBatchRead(this::batchRead);
         connectorFunctions.supportBatchCount(this::batchCount);
+        //target
         connectorFunctions.supportWriteRecord(this::writeRecord);
         connectorFunctions.supportCreateTable(this::createTable);
 //        connectorFunctions.supportAlterTable(this::alterTable);
@@ -175,6 +197,37 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
         connectorFunctions.supportErrorHandleFunction(this::errorHandle);
     }
 
+
+    private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offset, int batchSize, BiConsumer<List<TapEvent>, Object> consumer) throws Throwable {
+        DorisSnapshotOffset dorisSnapshotOffset;
+        if (offset instanceof DorisSnapshotOffset) {
+            dorisSnapshotOffset = (DorisSnapshotOffset) offset;
+        } else {
+            dorisSnapshotOffset = new DorisSnapshotOffset();
+        }
+
+
+        List<TapEvent> tempList = new ArrayList<>();
+        this.dorisReader.readWithOffset(tapConnectorContext, tapTable, dorisSnapshotOffset, n -> !isAlive(), (data, snapshotOffset) -> {
+            TapRecordEvent tapRecordEvent = tapRecordWrapper(tapConnectorContext, null, data, tapTable, "i");
+            tempList.add(tapRecordEvent);
+            if (tempList.size() == batchSize) {
+                consumer.accept(tempList, mysqlSnapshotOffset);
+                tempList.clear();
+            }
+        });
+        if (CollectionUtils.isNotEmpty(tempList)) {
+            consumer.accept(tempList, mysqlSnapshotOffset);
+            tempList.clear();
+        }
+    }
+
+
+
+
+
+
+
     private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
         return dorisContext.count(tapTable.getName());
     }
@@ -211,7 +264,7 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
         listConsumer.accept(filterResults);
     }
 
-    private void createTable(TapConnectionContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
+    private void createTable(TapConnectionContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws SQLException {
         dorisSchemaLoader.createTable(tapCreateTableEvent.getTable());
     }
 
@@ -246,13 +299,13 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
 //        PDKLogger.info(TAG, "alterTable");
 //    }
 
-    private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
+    private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws SQLException {
         final String tableName = tapClearTableEvent.getTableId();
         final String databaseName = dorisContext.getDorisConfig().getDatabase();
         dorisSchemaLoader.clearTable(databaseName, tableName);
     }
 
-    private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
+    private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) throws SQLException {
         final String tableName = tapDropTableEvent.getTableId();
         final String databaseName = dorisContext.getDorisConfig().getDatabase();
         dorisSchemaLoader.dropTable(databaseName, tableName);

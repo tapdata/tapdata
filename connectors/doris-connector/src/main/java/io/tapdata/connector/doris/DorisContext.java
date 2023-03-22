@@ -1,5 +1,7 @@
 package io.tapdata.connector.doris;
 
+import com.zaxxer.hikari.HikariDataSource;
+import io.tapdata.common.ResultSetConsumer;
 import io.tapdata.connector.doris.bean.DorisConfig;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
@@ -8,6 +10,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.sql.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @Author dayun
@@ -19,10 +22,12 @@ public class DorisContext implements AutoCloseable {
     private static final String TAG = DorisContext.class.getSimpleName();
     private TapConnectionContext tapConnectionContext;
     private DorisConfig dorisConfig;
-    private Connection connection;
-    private Statement statement;
-
+    public  Connection connection;
+    public Statement statement;
+    private String jdbcUrl;
+    private HikariDataSource hikariDataSource;
     private static final String SELECT_COUNT = "SELECT count(*) FROM `%s`.`%s` t";
+    private static final String SELECT_DORIS_VERSION = "select version() as version";
 
     public DorisContext(final TapConnectionContext tapConnectionContext) {
         this.tapConnectionContext = tapConnectionContext;
@@ -32,9 +37,9 @@ public class DorisContext implements AutoCloseable {
                 if (dorisConfig == null) {
                     dorisConfig = new DorisConfig().load(config);
                 }
-                String dbUrl = dorisConfig.getDatabaseUrl();
+                jdbcUrl= dorisConfig.getDatabaseUrl();
                 Class.forName(dorisConfig.getJdbcDriver());
-                connection = DriverManager.getConnection(dbUrl, dorisConfig.getUser(), dorisConfig.getPassword());
+                connection =getConnection();
             }
             if (statement == null) {
                 statement = connection.createStatement();
@@ -44,6 +49,31 @@ public class DorisContext implements AutoCloseable {
         }
     }
 
+
+    public Connection getConnection() throws SQLException, IllegalArgumentException {
+        try {
+            Connection connection = DriverManager.getConnection(jdbcUrl, dorisConfig.getUser(), dorisConfig.getPassword());
+            this.connection=connection;
+        } catch (Throwable ignored) {
+        }
+        return connection;
+    }
+
+    public void query(String sql, ResultSetConsumer resultSetConsumer) throws Throwable {
+        TapLogger.debug(TAG, "Execute query, sql: " + sql);
+        try (
+                Connection connection = getConnection();
+                Statement statement = connection.createStatement();
+                ResultSet resultSet = statement.executeQuery(sql)
+        ) {
+            statement.setFetchSize(1000);
+            if (null != resultSet) {
+                resultSetConsumer.accept(resultSet);
+            }
+        } catch (SQLException e) {
+            throw new Exception("Execute query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
+        }
+    }
     public ResultSet executeQuery(final Statement statement, final String sql) throws Exception {
         TapLogger.debug(TAG, "Execute sql: " + sql);
         try {

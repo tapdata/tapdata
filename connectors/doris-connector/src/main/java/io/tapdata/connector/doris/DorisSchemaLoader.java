@@ -20,6 +20,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -139,7 +140,7 @@ public class DorisSchemaLoader {
         return indexList;
     }
 
-    public List<String> queryAllTables(String database, final List<String> filterTables) {
+    public List<String> queryAllTables(String database, final List<String> filterTables) throws SQLException {
         final List<String> tableList = TapSimplify.list();
         final Connection connection = dorisContext.getConnection();
         try (final Statement statement = connection.createStatement();
@@ -231,7 +232,7 @@ public class DorisSchemaLoader {
         });
     }
 
-    public void createTable(final TapTable tapTable) {
+    public void createTable(final TapTable tapTable) throws SQLException {
         String database = dorisContext.getDorisConfig().getDatabase();
         final String tableName = tapTable.getName();
         Collection<String> primaryKeys = tapTable.primaryKeys(true);
@@ -270,7 +271,7 @@ public class DorisSchemaLoader {
         }
     }
 
-    public void dropTable(String dataName, final String tableName) {
+    public void dropTable(String dataName, final String tableName) throws SQLException {
         Connection connection = dorisContext.getConnection();
         try (Statement statement = connection.createStatement();
              ResultSet table = queryOneTable(statement, dataName, tableName)){
@@ -283,7 +284,7 @@ public class DorisSchemaLoader {
         }
     }
 
-    public void clearTable(String dataName, final String tableName) {
+    public void clearTable(String dataName, final String tableName) throws SQLException {
         final Connection connection = dorisContext.getConnection();
         try (Statement statement = connection.createStatement();
              ResultSet table = queryOneTable(statement, dataName, tableName)){

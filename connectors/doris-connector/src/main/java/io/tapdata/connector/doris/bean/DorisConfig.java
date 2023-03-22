@@ -15,13 +15,16 @@ import java.util.Map;
 @Getter
 public class DorisConfig extends CommonDbConfig implements Serializable {
     private static final long serialVersionUID = 1L;
-    private String databaseUrlPattern = "jdbc:mysql://%s:%s/%s?rewriteBatchedStatements=true";
+    private String databaseUrlPattern = "jdbc:mysql://%s:%s/%s?rewriteBatchedStatements=true&autoReconnect=true";
     private int insertBatchSize = 1000;
     private String dorisHttp;
     private String host;
-    private int port;
     private String password;
-    private String usename;
+    private String user;
+    private  int port;
+    private  String database;
+
+//    {"timezone":"","user":"root","password":"Gotapd8!","host":"139.198.127.226","port":32621,"dorisHttp":"139.198.127.226.32517","database":"information_schema","__connectionType":"target"}
 
     public String getDatabaseUrlPattern() {
         return databaseUrlPattern;
@@ -55,14 +58,6 @@ public class DorisConfig extends CommonDbConfig implements Serializable {
         this.host = host;
     }
 
-    public int getPort() {
-        return port;
-    }
-
-    public void setPort(int port) {
-        this.port = port;
-    }
-
     public String getPassword() {
         return password;
     }
@@ -71,12 +66,29 @@ public class DorisConfig extends CommonDbConfig implements Serializable {
         this.password = password;
     }
 
-    public String getUsename() {
-        return usename;
+
+    public String getUser() {
+        return user;
     }
 
-    public void setUsename(String usename) {
-        this.usename = usename;
+    public void setUser(String user) {
+        this.user = user;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    public void setPort(int port) {
+        this.port = port;
+    }
+
+    public String getDatabase() {
+        return database;
+    }
+
+    public void setDatabase(String database) {
+        this.database = database;
     }
 
     //customize
