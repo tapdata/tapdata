@@ -277,7 +277,7 @@ public class SelectDbConnector extends ConnectorBase {
                             10,
                             this::uploadEvents,
                             writeListResultConsumer
-                    );
+                    ).start();
                 }
             }
 
