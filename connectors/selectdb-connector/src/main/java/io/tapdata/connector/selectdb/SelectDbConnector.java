@@ -152,19 +152,18 @@ public class SelectDbConnector extends ConnectorBase {
             }
             return "null";
         });
-        codecRegistry.registerFromTapValue(TapTimeValue.class, "datev2", tapValue -> {
+        codecRegistry.registerFromTapValue(TapTimeValue.class, "varchar(10)", tapValue -> {
             if (tapValue != null && tapValue.getValue() != null) {
-                return formatTapDateTime(tapValue.getValue(), "YYYY-MM-DD");
+                return tapValue.getValue().toTimeStr();
             }
             return "null";
         });
 
         //TapTimeValue, TapDateTimeValue and TapDateValue's value is DateTime, need convert into Date object.
-        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
+//        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
     }
-
     private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
         List<String> sqls = fieldDDLHandlers.handle(tapFieldBaseEvent, tapConnectorContext);
         if (null == sqls) {
