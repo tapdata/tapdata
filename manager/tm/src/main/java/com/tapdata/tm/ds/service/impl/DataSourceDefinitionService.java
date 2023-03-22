@@ -153,19 +153,21 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
     /**
      * find model by pdk hash
      * @param pdkHash
+     * @param pdkBuildNumber
      * @param user
      * @return
      */
-    public DataSourceDefinitionDto findByPdkHash(String pdkHash, UserDetail user, String... field) {
+    public DataSourceDefinitionDto findByPdkHash(String pdkHash, Integer pdkBuildNumber, UserDetail user, String... field) {
         Criteria userCriteria = new Criteria();
         userCriteria.and("customId").is(user.getCustomerId());
         Criteria supplierCriteria = Criteria.where("supplierType").ne("self");
-        Criteria criteria = Criteria.where("pdkHash").is(pdkHash);
+        Criteria criteria = Criteria.where("pdkHash").is(pdkHash).and("pdkAPIBuildNumber").lte(pdkBuildNumber);
         criteria.orOperator(userCriteria, supplierCriteria);
         Query query = Query.query(criteria);
         if (field != null && field.length > 0) {
             query.fields().include(field);
         }
+        query.with(Sort.by("pdkAPIBuildNumber").descending());
         Optional<DataSourceDefinitionEntity> optional = repository.findOne(query);
         DataSourceDefinitionDto dataSourceDefinition = optional.map(dataSourceDefinitionEntity -> convertToDto(dataSourceDefinitionEntity, DataSourceDefinitionDto.class)).orElse(null);
 
