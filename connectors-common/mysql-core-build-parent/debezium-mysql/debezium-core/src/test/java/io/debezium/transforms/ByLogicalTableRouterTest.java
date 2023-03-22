@@ -75,7 +75,7 @@ public class ByLogicalTableRouterTest {
         assertThat(transformed1).isNotNull();
         assertThat(transformed1.topic()).isEqualTo("mysql-server-1.inventory.customers_all_shards");
 
-        assertThat(transformed1.keySchema().name()).isEqualTo("mysql_server_1.inventory.customers_all_shards.Key");
+        assertThat(transformed1.keySchema().name()).isEqualTo("mysql-server-1.inventory.customers_all_shards.Key");
         assertThat(transformed1.keySchema().fields()).hasSize(2);
         assertThat(transformed1.keySchema().fields().get(0).name()).isEqualTo("id");
         assertThat(transformed1.keySchema().fields().get(1).name()).isEqualTo("shard_id");
@@ -92,7 +92,7 @@ public class ByLogicalTableRouterTest {
         assertThat(transformed2).isNotNull();
         assertThat(transformed2.topic()).isEqualTo("mysql-server-1.inventory.customers_all_shards");
 
-        assertThat(transformed2.keySchema().name()).isEqualTo("mysql_server_1.inventory.customers_all_shards.Key");
+        assertThat(transformed2.keySchema().name()).isEqualTo("mysql-server-1.inventory.customers_all_shards.Key");
         assertThat(transformed2.keySchema().fields()).hasSize(2);
         assertThat(transformed2.keySchema().fields().get(0).name()).isEqualTo("id");
         assertThat(transformed2.keySchema().fields().get(1).name()).isEqualTo("shard_id");
@@ -109,7 +109,7 @@ public class ByLogicalTableRouterTest {
         assertThat(transformed3).isNotNull();
         assertThat(transformed3.topic()).isEqualTo("mysql-server-1.inventory.customers_all_shards");
 
-        assertThat(transformed3.keySchema().name()).isEqualTo("mysql_server_1.inventory.customers_all_shards.Key");
+        assertThat(transformed3.keySchema().name()).isEqualTo("mysql-server-1.inventory.customers_all_shards.Key");
         assertThat(transformed3.keySchema().fields()).hasSize(2);
         assertThat(transformed3.keySchema().fields().get(0).name()).isEqualTo("id");
         assertThat(transformed3.keySchema().fields().get(1).name()).isEqualTo("shard_id");
