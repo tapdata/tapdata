@@ -4,11 +4,9 @@ import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonDbConfig;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.doris.bean.DorisConfig;
-import io.tapdata.connector.doris.bean.DorisSnapshotOffset;
 import io.tapdata.connector.doris.streamload.DorisStreamLoader;
 import io.tapdata.connector.doris.streamload.HttpUtil;
 import io.tapdata.connector.doris.streamload.exception.DorisRetryableException;
-import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
@@ -144,7 +142,7 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
         //source
-        connectorFunctions.supportBatchRead(this::batchRead);
+//        connectorFunctions.supportBatchRead(this::batchRead);
         connectorFunctions.supportBatchCount(this::batchCount);
         //target
         connectorFunctions.supportWriteRecord(this::writeRecord);
@@ -198,29 +196,9 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
     }
 
 
-    private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offset, int batchSize, BiConsumer<List<TapEvent>, Object> consumer) throws Throwable {
-        DorisSnapshotOffset dorisSnapshotOffset;
-        if (offset instanceof DorisSnapshotOffset) {
-            dorisSnapshotOffset = (DorisSnapshotOffset) offset;
-        } else {
-            dorisSnapshotOffset = new DorisSnapshotOffset();
-        }
-
-
-        List<TapEvent> tempList = new ArrayList<>();
-        this.dorisReader.readWithOffset(tapConnectorContext, tapTable, dorisSnapshotOffset, n -> !isAlive(), (data, snapshotOffset) -> {
-            TapRecordEvent tapRecordEvent = tapRecordWrapper(tapConnectorContext, null, data, tapTable, "i");
-            tempList.add(tapRecordEvent);
-            if (tempList.size() == batchSize) {
-                consumer.accept(tempList, mysqlSnapshotOffset);
-                tempList.clear();
-            }
-        });
-        if (CollectionUtils.isNotEmpty(tempList)) {
-            consumer.accept(tempList, mysqlSnapshotOffset);
-            tempList.clear();
-        }
-    }
+//    private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offset, int batchSize, BiConsumer<List<TapEvent>, Object> consumer) throws Throwable {
+//
+//    }
 
 
 
