@@ -85,33 +85,35 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
             } else {
                 TableNode tableNode = (TableNode) node;
                 tableNames.set(Lists.newArrayList(tableNode.getTableName()));
-                List<String> updateConditionFields = tableNode.getUpdateConditionFields();
-                if (CollectionUtils.isEmpty(updateConditionFields)) {
-                    TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                            .grade(Level.ERROR).nodeId(nodeId)
-                            .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：目标节点{0}更新条件字段未设置。", name))
-                            .build();
-                    log.setCreateAt(now);
-                    log.setCreateUser(userId);
-                    result.add(log);
-                } else {
-                    List<MetadataInstancesDto> nodeSchemas = metadataInstancesService.findByNodeId(nodeId, userDetail);
-                    Optional.ofNullable(nodeSchemas).ifPresent(list -> {
-                        list.stream().filter(i -> tableNode.getTableName().equals(i.getName())).findFirst()
-                                .ifPresent(schema -> {
-                                    List<String> fields = schema.getFields().stream().map(Field::getFieldName).collect(Collectors.toList());
-                                    List<String> noExistsFields = updateConditionFields.stream().filter(d -> !fields.contains(d)).collect(Collectors.toList());
-                                    if (CollectionUtils.isNotEmpty(noExistsFields)) {
-                                        TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                                                .grade(Level.ERROR).nodeId(nodeId)
-                                                .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：目标节点{0}更新条件字段{1}不存在。", name, JSON.toJSON(noExistsFields)))
-                                                .build();
-                                        log.setCreateAt(now);
-                                        log.setCreateUser(userId);
-                                        result.add(log);
-                                    }
-                                });
-                    });
+                if ("updateOrInsert".equals(tableNode.getWriteStrategy())) {
+                    List<String> updateConditionFields = tableNode.getUpdateConditionFields();
+                    if (CollectionUtils.isEmpty(updateConditionFields)) {
+                        TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
+                                .grade(Level.ERROR).nodeId(nodeId)
+                                .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：目标节点{0}更新条件字段未设置。", name))
+                                .build();
+                        log.setCreateAt(now);
+                        log.setCreateUser(userId);
+                        result.add(log);
+                    } else {
+                        List<MetadataInstancesDto> nodeSchemas = metadataInstancesService.findByNodeId(nodeId, userDetail);
+                        Optional.ofNullable(nodeSchemas).ifPresent(list -> {
+                            list.stream().filter(i -> tableNode.getTableName().equals(i.getName())).findFirst()
+                                    .ifPresent(schema -> {
+                                        List<String> fields = schema.getFields().stream().map(Field::getFieldName).collect(Collectors.toList());
+                                        List<String> noExistsFields = updateConditionFields.stream().filter(d -> !fields.contains(d)).collect(Collectors.toList());
+                                        if (CollectionUtils.isNotEmpty(noExistsFields)) {
+                                            TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
+                                                    .grade(Level.ERROR).nodeId(nodeId)
+                                                    .log(MessageFormat.format("$date【$taskName】【目标节点设置检测】：目标节点{0}更新条件字段{1}不存在。", name, JSON.toJSON(noExistsFields)))
+                                                    .build();
+                                            log.setCreateAt(now);
+                                            log.setCreateUser(userId);
+                                            result.add(log);
+                                        }
+                                    });
+                        });
+                    }
                 }
             }
 
