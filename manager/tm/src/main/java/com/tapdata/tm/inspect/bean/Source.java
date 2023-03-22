@@ -25,4 +25,5 @@ public class Source {
     private String table;
     private String nodeId;
     private String nodeName;
+    private String databaseType;
 }
