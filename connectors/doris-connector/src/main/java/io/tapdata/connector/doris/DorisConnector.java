@@ -119,6 +119,7 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
 
+        connectorFunctions.supportBatchCount(this::batchCount);
         connectorFunctions.supportWriteRecord(this::writeRecord);
         connectorFunctions.supportCreateTable(this::createTable);
 //        connectorFunctions.supportAlterTable(this::alterTable);
