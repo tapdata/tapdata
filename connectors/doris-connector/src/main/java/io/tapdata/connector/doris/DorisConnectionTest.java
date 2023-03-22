@@ -39,28 +39,23 @@ public class DorisConnectionTest extends CommonDbTest {
     protected  TapConnectionContext tapConnectionContext;
     protected ConnectionOptions connectionOptions;
     protected  DorisConfig dorisConfig;
+    protected  Statement statement ;
     public DorisConnectionTest(DorisContext dorisContext, TapConnectionContext tapConnectionContext,
-                               Consumer<TestItem> consumer, CommonDbConfig commonDbConfig, ConnectionOptions connectionOptions) {
+                               Consumer<TestItem> consumer, CommonDbConfig commonDbConfig, ConnectionOptions connectionOptions) throws SQLException {
         super(commonDbConfig, consumer);
         this.dorisContext = dorisContext;
         this.tapConnectionContext = tapConnectionContext;
         this.dorisConfig=dorisContext.getDorisConfig();
         this.connectionOptions = connectionOptions;
+        statement=dorisContext.getConnection().createStatement();
         if (!ConnectionTypeEnum.SOURCE.getType().equals(commonDbConfig.get__connectionType())) {
             testFunctionMap.put("testWritePrivilege", this::testWritePrivilege);
             testFunctionMap.put("testCreateTablePrivilege", this::testCreateTablePrivilege);
-        }
-        if (!ConnectionTypeEnum.TARGET.getType().equals(commonDbConfig.get__connectionType())) {
-//            testFunctionMap.put("testBinlogMode", this::testBinlogMode);
-//            testFunctionMap.put("testBinlogRowImage", this::testBinlogRowImage);
-//            testFunctionMap.put("testCDCPrivileges", this::testCDCPrivileges);
-//            testFunctionMap.put("setCdcCapabilitie", this::setCdcCapabilitie);
         }
     }
     public Boolean testVersion() {
         AtomicReference<String> version = new AtomicReference<>();
         try {
-           Statement statement= dorisContext.getConnection().createStatement();
            ResultSet resultSet = statement.executeQuery("select version() as version");
             while(resultSet.next()){
                 String versionMsg =resultSet.getString("version");
@@ -78,7 +73,6 @@ public class DorisConnectionTest extends CommonDbTest {
     public Boolean testOneByOne() {
         testFunctionMap.put("testVersion", this::testVersion);
         testFunctionMap.put("testConnect",this::testConnect);
-//        testFunctionMap.put("testDorisHttp",this::testDorisHttp);
         if (!ConnectionTypeEnum.SOURCE.getType().equals(commonDbConfig.get__connectionType())) {
             testFunctionMap.put("testCreateTablePrivilege", this::testCreateTablePrivilege);
         }
@@ -121,7 +115,7 @@ public class DorisConnectionTest extends CommonDbTest {
     protected boolean checkDorisCreateTablePrivilege(String username) throws Throwable {
         String sql = String.format(CHECK_CREATE_TABLE_PRIVILEGES_SQL, username);
         AtomicBoolean result = new AtomicBoolean(true);
-       Statement statement = dorisContext.getConnection().createStatement();
+
          ResultSet resultSet =statement.executeQuery(sql);
             while (resultSet.next()) {
                 if (resultSet.getInt(1) > 0) {
@@ -160,9 +154,7 @@ public class DorisConnectionTest extends CommonDbTest {
     }
 
     private boolean WriteOrReadPrivilege(String mark) {
-
       String databaseName = dorisConfig.getDatabase();
-//        String databaseName=tapConnectionContext.getConnectionConfig().getString("databaseName");
         List<String> tableList = new ArrayList<>();
         AtomicReference<Boolean> globalWrite = new AtomicReference<>();
         AtomicReference<TestItem> testItem = new AtomicReference<>();
@@ -171,7 +163,6 @@ public class DorisConnectionTest extends CommonDbTest {
             itemMark = TestItem.ITEM_WRITE;
         }
         try {
-            Statement statement= dorisContext.getConnection().createStatement();
             ResultSet resultSet = statement.executeQuery(CHECK_DATABASE_PRIVILEGES_SQL);
             while(resultSet.next()){
                 String Sql =resultSet.getString("GlobalPrivs");

@@ -120,6 +120,8 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
         ) {
             dorisConnectionTest.testOneByOne();
             return connectionOptions;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
     }
     @Override
