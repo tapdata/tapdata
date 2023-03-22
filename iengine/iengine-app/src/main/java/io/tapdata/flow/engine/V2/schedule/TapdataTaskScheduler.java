@@ -446,7 +446,8 @@ public class TapdataTaskScheduler {
 					try {
 						SyncProgress progress = JSONUtil.json2POJO((String) value, SyncProgress.class);
 						String streamOffset = progress.getStreamOffset();
-						if (StringUtils.isBlank(streamOffset) && !progress.getSyncStage().equals(SyncStage.CDC.name())) {
+						String syncStage = progress.getSyncStage();
+						if (StringUtils.isBlank(streamOffset) && !SyncStage.CDC.name().equals(syncStage)) {
 							return false;
 						}
 					} catch (IOException e) {
