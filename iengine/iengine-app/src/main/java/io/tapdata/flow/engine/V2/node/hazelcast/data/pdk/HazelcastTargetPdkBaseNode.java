@@ -169,10 +169,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         });
     }
 
-    private void initTapEventFilter() {
-        this.targetTapEventFilter = TargetTapEventFilter.create();
-        this.targetTapEventFilter.addFilter(new DeleteConditionFieldFilter());
-    }
+	private void initTapEventFilter() {
+		this.targetTapEventFilter = TargetTapEventFilter.create();
+		//this.targetTapEventFilter.addFilter(new DeleteConditionFieldFilter());
+	}
 
     @Override
     final public void process(int ordinal, @NotNull Inbox inbox) {
