@@ -574,6 +574,14 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                 convertToEntity(Worker.class, worker), loginUser
         );
         workerPing.increment(worker.getWorkerType(), worker.getVersion());
+        Query query = Query.query(where);
+        query.fields().include("process_id", "worker_type", "isDeleted");
+        Optional<Worker> workerOptional = repository.findOne(query);
+        workerOptional.ifPresent(w -> {
+            if (w.getIsDeleted() != null && w.getIsDeleted()) {
+                worker.setIsDeleted(true);
+            }
+        });
         return worker;
     }
 
