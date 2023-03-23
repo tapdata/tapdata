@@ -10,6 +10,7 @@ import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
@@ -38,6 +39,7 @@ import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
@@ -422,6 +424,7 @@ public class MongodbConnector extends ConnectorBase {
 		connectorFunctions.supportBatchRead(this::batchRead);
 		connectorFunctions.supportBatchCount(this::batchCount);
 		connectorFunctions.supportCreateIndex(this::createIndex);
+		connectorFunctions.supportCreateTableV2(this::createTableV2);
 		connectorFunctions.supportStreamRead(this::streamRead);
 		connectorFunctions.supportTimestampToStreamOffset(this::streamOffset);
 		connectorFunctions.supportErrorHandleFunction(this::errorHandle);
@@ -434,7 +437,15 @@ public class MongodbConnector extends ConnectorBase {
 		connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
 	}
 
-	private void executeCommand(TapConnectorContext tapConnectorContext, TapExecuteCommand tapExecuteCommand, Consumer<ExecuteResult> executeResultConsumer) {
+	private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws Throwable {
+		// TODO: 为 分片集群建表, schema 约束建表预留位置
+		CreateTableOptions createTableOptions = new CreateTableOptions();
+		createTableOptions.setTableExists(false);
+		return createTableOptions;
+	}
+
+
+		private void executeCommand(TapConnectorContext tapConnectorContext, TapExecuteCommand tapExecuteCommand, Consumer<ExecuteResult> executeResultConsumer) {
 		try {
 			Map<String, Object> executeObj = tapExecuteCommand.getParams();
 			String command = tapExecuteCommand.getCommand();
