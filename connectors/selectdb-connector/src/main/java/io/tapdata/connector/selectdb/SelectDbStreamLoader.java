@@ -1,6 +1,7 @@
 package io.tapdata.connector.selectdb;
 
 import cn.hutool.core.lang.Assert;
+import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.tapdata.connector.selectdb.config.SelectDbConfig;
 import io.tapdata.connector.selectdb.exception.SelectDbRunTimeException;
@@ -25,12 +26,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 
 /**
@@ -82,13 +82,11 @@ public class SelectDbStreamLoader {
         TapLogger.info(TAG, "batch events length is: {}", tapRecordEvents.size());
 //        WriteListResult<TapRecordEvent> listResult = writeListResult();
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>(0L, 0L, 0L, new HashMap<>());
-
+        List<Map<String, Object>> records = new ArrayList<>();
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         DataOutputStream dataOutputStream = new DataOutputStream(byteArrayOutputStream);
         for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
-            String trimStr = new String(MessageSerializer.serialize(table, tapRecordEvent), StandardCharsets.UTF_8);
-            dataOutputStream.write(trimStr.trim().getBytes(StandardCharsets.UTF_8));
-            dataOutputStream.write(Constants.LINE_DELIMITER_DEFAULT.getBytes(StandardCharsets.UTF_8));
+            records.addAll(MessageSerializer.serializeMap(table, tapRecordEvent));
             if (tapRecordEvent instanceof TapInsertRecordEvent) {
                 listResult.incrementInserted(1);
             } else if (tapRecordEvent instanceof TapUpdateRecordEvent) {
@@ -99,6 +97,9 @@ public class SelectDbStreamLoader {
                 listResult.addError(tapRecordEvent, new Exception("Event type \"" + tapRecordEvent.getClass().getSimpleName() + "\" not support: " + tapRecordEvent));
             }
         }
+        String s = toJson(records);
+        dataOutputStream.write(s.getBytes(StandardCharsets.UTF_8));
+        dataOutputStream.write(Constants.LINE_DELIMITER_DEFAULT.getBytes(StandardCharsets.UTF_8));
         final byte[] finalBytes = byteArrayOutputStream.toByteArray();
         CopyIntoUtils.upload(finalBytes);
         CopyIntoUtils.copyInto(table);
