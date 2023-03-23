@@ -7,9 +7,11 @@ import io.tapdata.entity.annotations.MainMethod;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.core.api.PDKIntegration;
+import io.tapdata.supervisor.entity.MemoryLevel;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @Bean
@@ -68,15 +70,54 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
         Set<DisposableNodeInfo> leakedConnectorSet = new HashSet<>();
         this.summary(taskNodeInfos, aliveTaskSet, leakedTaskSet);
         this.summaryDisposable(disposableThreadGroupMap, aliveConnectorSet, leakedConnectorSet);
+
+        AtomicInteger leakedTaskCount = new AtomicInteger();
+        List<DataMap> leakedTaskDataMap = leakedTaskSet.stream().filter(Objects::nonNull).map(aspect -> aspect.memory(keyRegex, memoryLevel)).filter(map -> {
+            if (Objects.nonNull(map) && !map.isEmpty()){
+                leakedTaskCount.getAndIncrement();
+                return Boolean.TRUE;
+            }
+            return Boolean.FALSE;
+        }).collect(Collectors.toList());
+
+        AtomicInteger aliveTaskCount = new AtomicInteger();
+        List<DataMap> aliveTaskDataMap = aliveTaskSet.stream().filter(Objects::nonNull).map(aspect -> aspect.memory(keyRegex, memoryLevel)).filter(map ->{
+            if (Objects.nonNull(map) && !map.isEmpty()){
+                aliveTaskCount.getAndIncrement();
+                return Boolean.TRUE;
+            }
+            return Boolean.FALSE;
+        }).collect(Collectors.toList());
+
+        AtomicInteger aliveConnectorCount = new AtomicInteger();
+        Map<Object, List<DataMap>> aliveConnectorDataMap = aliveConnectorSet.stream().filter(Objects::nonNull).map(aspect -> aspect.memory(keyRegex, memoryLevel)).filter(map -> {
+            if (Objects.nonNull(map) && !map.isEmpty()){
+                aliveConnectorCount.getAndIncrement();
+                return Boolean.TRUE;
+            }
+            return Boolean.FALSE;
+        }).collect(Collectors.groupingBy(map -> map.get(DisposableThreadGroupBase.MODE_KEY)));
+
+        AtomicInteger lakedConnectorCount = new AtomicInteger();
+        Map<Object, List<DataMap>> leakedConnectorDataMap = leakedConnectorSet.stream().filter(Objects::nonNull).map(aspect -> aspect.memory(keyRegex, memoryLevel)).filter(map -> {
+            if (Objects.nonNull(map) && !map.isEmpty()){
+                lakedConnectorCount.getAndIncrement();
+                return Boolean.TRUE;
+            }
+            return Boolean.FALSE;
+        }).collect(Collectors.groupingBy(map -> map.get(DisposableThreadGroupBase.MODE_KEY)));
+        int total = leakedTaskCount.get() + aliveTaskCount.get() + lakedConnectorCount.get() + aliveConnectorCount.get();
         return DataMap.create().keyRegex(keyRegex)
-                .kv("aliveTaskCount", aliveTaskSet.size())
-                .kv("aliveTasks", aliveTaskSet.stream().filter(Objects::nonNull).map(aspect -> aspect.memory(keyRegex, memoryLevel)).collect(Collectors.toList()))
-                .kv("leakedTaskCount", leakedTaskSet.size())
-                .kv("leakedTasks", leakedTaskSet.stream().filter(Objects::nonNull).map(aspect -> aspect.memory(keyRegex, memoryLevel)).collect(Collectors.toList()))
-                .kv("aliveConnectorCount", aliveConnectorSet.size())
-                .kv("aliveConnectors", aliveConnectorSet.stream().filter(Objects::nonNull).map(aspect -> aspect.memory(keyRegex, memoryLevel)).collect(Collectors.groupingBy(map -> map.get(DisposableThreadGroupBase.MODE_KEY))))
-                .kv("leakedConnectorCount", leakedConnectorSet.size())
-                .kv("leakedConnectors", leakedConnectorSet.stream().filter(Objects::nonNull).map(aspect -> aspect.memory(keyRegex, memoryLevel)).collect(Collectors.groupingBy(map -> map.get(DisposableThreadGroupBase.MODE_KEY))));
+                .kv("mode", MemoryLevel.description(memoryLevel))
+                .kv("aliveTaskCount", aliveTaskCount.get())
+                .kv("aliveTasks", aliveTaskDataMap)
+                .kv("leakedTaskCount", leakedTaskCount.get())
+                .kv("leakedTasks", leakedTaskDataMap)
+                .kv("aliveConnectorCount", aliveConnectorCount.get())
+                .kv("aliveConnectors", aliveConnectorDataMap)
+                .kv("leakedConnectorCount", lakedConnectorCount.get())
+                .kv("leakedConnectors", leakedConnectorDataMap)
+                .kv("msg", total > 0 ? "Succeed" :" The thread occupancy of the corresponding resource has been released normally, and the corresponding information cannot be provided temporarily. Retrieve the summary data. ");
     }
 
     private void summary(Set<TaskNodeInfo> summarySet, Set<SupervisorAspectTask> aliveSet, Set<SupervisorAspectTask> leakedSet) {

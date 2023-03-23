@@ -12,6 +12,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.UUID;
 
 @CommandLine.Command(
         description = "Insert code to PDK jar class file",
@@ -34,7 +35,7 @@ public class SupervisorCli extends CommonCli {
                 if (!file.isFile()) continue;
                 String path = file.getAbsolutePath();
                 System.out.print("Modify class: " + path + ", is starting! ");
-                pathToSave = file.getParentFile().getAbsolutePath() + "/temp/";
+                pathToSave = file.getParentFile().getAbsolutePath() + "/temp/" + UUID.randomUUID().toString().replaceAll("-","_") + "/";
                 File pathToFile = new File(pathToSave);
                 try {
                     // unzip

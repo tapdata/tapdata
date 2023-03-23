@@ -4,6 +4,7 @@ import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.supervisor.entity.ClassOnThread;
+import io.tapdata.supervisor.entity.MemoryLevel;
 import io.tapdata.threadgroup.utils.ThreadGroupUtil;
 
 import java.util.*;
@@ -20,17 +21,24 @@ public class DisposableNodeInfo implements MemoryFetcher {
     public DataMap memory(String keyRegex, String memoryLevel) {
         List<DataMap> threads = new ArrayList<>();
         int threadCount = this.threads(threads, keyRegex, memoryLevel);
-        List<DataMap> resources = new ArrayList<>();
-        this.resources(resources, keyRegex, memoryLevel);
         DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(TaskSubscribeInfo.class.getSimpleName())*/
-                .kv("threadCount", threadCount)
-                .kv("threads", threads)
-                //.kv("threads", !MemoryLevel.DETAIL.level().equals(memoryLevel) && !this.hasLaked ? "[...]" : threads)
-                .kv("resources", resources);
+                .kv("threadCount", threadCount);
         if (Objects.nonNull(nodeMap) && !nodeMap.isEmpty()) {
             dataMap.putAll(nodeMap);
         }
-        return dataMap;
+        String associateId = String.valueOf(dataMap.get("associateId"));
+        if (Objects.isNull(memoryLevel) || !memoryLevel.matches(MemoryLevel.SUMMARY.level())) {
+            List<DataMap> resources = new ArrayList<>();
+            this.resources(resources, keyRegex, memoryLevel);
+            dataMap.kv("resources", resources)
+                    .kv("threads", threads);
+        }else {
+            String doMain = MemoryLevel.SUMMARY.level(memoryLevel);
+            String url = String.format("%s%s", doMain, associateId);
+            dataMap.kv("accessUri", url);
+            //dataMap.kv("tip",String.format("You can access the link %s to obtain the current resource usage (Note: Information may not be available after the resource is released normally).", url));
+        }
+        return Optional.ofNullable(MemoryLevel.filter(memoryLevel,associateId)).orElse(Boolean.FALSE) ? dataMap : null;
     }
 
     public boolean isHasLaked() {
@@ -64,18 +72,20 @@ public class DisposableNodeInfo implements MemoryFetcher {
         for (Thread thread : leakedOrAliveThreads) {
             if (null == thread || !thread.isAlive()) continue;
             threadCount++;
-            List<String> stack = new ArrayList<>();
-            StackTraceElement[] stackTrace = thread.getStackTrace();
-            for (int index = 0; index < Math.min(STACK_LENGTH, stackTrace.length); index++) {
-                StackTraceElement element = stackTrace[index];
-                stack.add(element.toString());
+            if (!MemoryLevel.SUMMARY.level().equals(memoryLevel)) {
+                List<String> stack = new ArrayList<>();
+                StackTraceElement[] stackTrace = thread.getStackTrace();
+                for (int index = 0; index < Math.min(STACK_LENGTH, stackTrace.length); index++) {
+                    StackTraceElement element = stackTrace[index];
+                    stack.add(element.toString());
+                }
+                threads.add(DataMap.create()
+                        .keyRegex(keyRegex)
+                        .kv("name", thread.getName())
+                        .kv("id", thread.getId())
+                        .kv("methodStacks", stack)
+                );
             }
-            threads.add(DataMap.create()
-                    .keyRegex(keyRegex)
-                    .kv("name", thread.getName())
-                    .kv("id", thread.getId())
-                    .kv("methodStacks", stack)
-            );
         }
         return threadCount;
     }

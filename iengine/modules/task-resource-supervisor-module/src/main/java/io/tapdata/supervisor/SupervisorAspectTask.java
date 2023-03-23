@@ -142,12 +142,18 @@ public class SupervisorAspectTask extends AbstractAspectTask {
     public DataMap memory(String keyRegex, String memoryLevel) {
         List<DataMap> connectors = new ArrayList<>();
         threadGroupMap.forEach(((threadGroup, taskNodeInfo) -> {
-            connectors.add(taskNodeInfo.memory(keyRegex,memoryLevel));
+            DataMap memory = taskNodeInfo.memory(keyRegex, memoryLevel);
+            if (Objects.nonNull(memory)) {
+                connectors.add(memory);
+            }
         }));
-        return super.memory(keyRegex, memoryLevel)
-                .kv("taskName", taskName)
-                .kv("taskStartTime", taskStartTime != null ? new Date(taskStartTime) : null)
-                .kv("connectors", connectors);
+        return connectors.isEmpty() ?
+                null :
+                super.memory(keyRegex, memoryLevel)
+                    .kv("taskName", taskName)
+                    .kv("taskId", taskId)
+                    .kv("taskStartTime", taskStartTime != null ? new Date(taskStartTime) : null)
+                    .kv("connectors", connectors);
     }
 
     private void group(){

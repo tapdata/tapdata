@@ -6,6 +6,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.pdk.core.api.Node;
 import io.tapdata.supervisor.entity.ClassOnThread;
+import io.tapdata.supervisor.entity.MemoryLevel;
 import io.tapdata.threadgroup.utils.ThreadGroupUtil;
 
 import java.util.*;
@@ -25,23 +26,28 @@ class TaskNodeInfo implements MemoryFetcher {
     public DataMap memory(String keyRegex, String memoryLevel) {
         List<DataMap> threads = new ArrayList<>();
         int threadCount = this.threads(threads, keyRegex, memoryLevel);
-        List<DataMap> resources = new ArrayList<>();
-        this.resources(resources, keyRegex, memoryLevel);
         DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(TaskSubscribeInfo.class.getSimpleName())*/
                 .kv("associateId", this.associateId)
                 .kv("connectorId", this.node.getId())
                 .kv("nodeName", this.node.getName())
-                .kv("taskId", supervisorAspectTask.getTaskId())
-                .kv("threadCount", threadCount)
-                .kv("threads", threads)
-                //.kv("threads", !MemoryLevel.DETAIL.level().equals(memoryLevel) && !this.hasLaked ? "[...]" : threads)
-                .kv("resources", resources);
+                .kv("threadCount", threadCount);
+        if (Objects.isNull(memoryLevel) || !memoryLevel.matches(MemoryLevel.SUMMARY.level())) {
+            List<DataMap> resources = new ArrayList<>();
+            this.resources(resources, keyRegex, memoryLevel);
+            dataMap.kv("resources", resources)
+                    .kv("threads", threads);
+        } else {
+            String doMain = MemoryLevel.SUMMARY.level(memoryLevel);
+            String url = String.format("%s%s", doMain, associateId);
+            dataMap.kv("accessUri", url);
+            //dataMap.kv("tip", String.format("You can access the link %s to obtain the resource usage status of the current node (Note: Information may not be available after normal resource release).", url));
+        }
         try {
             dataMap.kv("connector", ((TableNode) this.node).getDatabaseType());
         } catch (Exception ignored) {
 
         }
-        return dataMap;
+        return Optional.ofNullable(MemoryLevel.filter(memoryLevel, String.valueOf(dataMap.get("associateId")))).orElse(Boolean.FALSE) ? dataMap : null;
     }
 
     private int threads(List<DataMap> threads, String keyRegex, String memoryLevel) {
@@ -50,18 +56,20 @@ class TaskNodeInfo implements MemoryFetcher {
         for (Thread thread : leakedOrAliveThreads) {
             if (null == thread || !thread.isAlive()) continue;
             threadCount++;
-            List<String> stack = new ArrayList<>();
-            StackTraceElement[] stackTrace = thread.getStackTrace();
-            for (int index = 0; index < Math.min(STACK_LENGTH, stackTrace.length); index++) {
-                StackTraceElement element = stackTrace[index];
-                stack.add(element.toString());
+            if (!MemoryLevel.SUMMARY.level().equals(memoryLevel)) {
+                List<String> stack = new ArrayList<>();
+                StackTraceElement[] stackTrace = thread.getStackTrace();
+                for (int index = 0; index < Math.min(STACK_LENGTH, stackTrace.length); index++) {
+                    StackTraceElement element = stackTrace[index];
+                    stack.add(element.toString());
+                }
+                threads.add(DataMap.create()
+                        .keyRegex(keyRegex)
+                        .kv("name", thread.getName())
+                        .kv("id", thread.getId())
+                        .kv("methodStacks", stack)
+                );
             }
-            threads.add(DataMap.create()
-                    .keyRegex(keyRegex)
-                    .kv("name", thread.getName())
-                    .kv("id", thread.getId())
-                    .kv("methodStacks", stack)
-            );
         }
         return threadCount;
     }

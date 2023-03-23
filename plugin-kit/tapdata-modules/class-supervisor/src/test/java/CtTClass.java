@@ -112,7 +112,7 @@ public class CtTClass {
             "          \"code\": [\n" +
             "            {\n" +
             "              \"type\": \"after\",\n" +
-            "              \"line\": \"io.tapdata.entity.utils.InstanceFactory.instance(io.tapdata.pdk.core.supervisor.ClassLifeCircleMonitor.class).instanceEnded(this);\",\n" +
+            "              \"line\": \"io.tapdata.entity.utils.InstanceFactory.instance(io.tapdata.supervisor.ClassLifeCircleMonitor.class).instanceEnded(this);\",\n" +
             "              \"isFinally\": true,\n" +
             "              \"isRedundant\": false\n" +
             "            }\n" +
@@ -130,7 +130,7 @@ public class CtTClass {
             "          \"code\": [\n" +
             "            {\n" +
             "              \"type\": \"before\",\n" +
-            "              \"line\": \"io.tapdata.entity.utils.InstanceFactory.instance(io.tapdata.pdk.core.supervisor.ClassLifeCircleMonitor.class).instanceStarted($this);\"\n" +
+            "              \"line\": \"io.tapdata.entity.utils.InstanceFactory.instance(io.tapdata.supervisor.ClassLifeCircleMonitor.class).instanceStarted($this);\"\n" +
             "            }\n" +
             "          ]\n" +
             "        }\n" +
