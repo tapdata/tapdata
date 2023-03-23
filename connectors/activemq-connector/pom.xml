@@ -167,6 +167,7 @@
                 <configuration>
                     <executable>java</executable>
                     <arguments>
+                        <!--> -jar ../tapdata/tapdata-cli/target/pdk.jar supervisor ../tapdata/connectors/dist/${your jar}.jar <-->
                         <argument>-jar</argument>
                         <argument>${basedir}/../../tapdata-cli/target/pdk.jar</argument>
                         <argument>supervisor</argument>

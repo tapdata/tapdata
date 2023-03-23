@@ -21,12 +21,20 @@ class BuilderMethod implements Builder<BuilderMethod> {
             this.method = ctClass.getDeclaredMethod(methodName, ctClasses);
         } catch (NotFoundException e) {
             if (createNotExist) {
-                CtMethod m = new CtMethod(returnClass, methodName, ctClasses, this.ctClass);
-                m.setModifiers(Modifier.PUBLIC);
-                m.setBody(createWith);
-                this.ctClass.addMethod(m);
-                this.method = m;
-            } else {
+                try {
+                    CtMethod m = new CtMethod(returnClass, methodName, ctClasses, this.ctClass);
+                    m.setModifiers(Modifier.PUBLIC);
+                    try {
+                        m.setBody(createWith);
+                    }catch (Exception es){
+
+                    }
+                    this.ctClass.addMethod(m);
+                    this.method = m;
+                }catch (CannotCompileException ex){
+
+                }
+            }else {
                 throw e;
             }
         }
