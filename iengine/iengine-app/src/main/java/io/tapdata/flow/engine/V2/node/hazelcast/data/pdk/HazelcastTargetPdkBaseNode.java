@@ -131,17 +131,16 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		if (getNode() instanceof DataParentNode) {
 			this.targetBatch = Optional.ofNullable(((DataParentNode<?>) getNode()).getWriteBatchSize()).orElse(DEFAULT_TARGET_BATCH);
 		}
-		obsLogger.info("Write batch size: {}", targetBatch);
 		targetBatchIntervalMs = DEFAULT_TARGET_BATCH_INTERVAL_MS;
 		if (getNode() instanceof DataParentNode) {
 			this.targetBatchIntervalMs = Optional.ofNullable(((DataParentNode<?>) getNode()).getWriteBatchWaitMs()).orElse(DEFAULT_TARGET_BATCH_INTERVAL_MS);
 		}
-		obsLogger.info("Write max wait interval ms per batch: {}", targetBatchIntervalMs);
+		obsLogger.info("Write batch size: {}, max wait ms per batch: {}", targetBatch, targetBatchIntervalMs);
 		int writeQueueCapacity = new BigDecimal(targetBatch).multiply(new BigDecimal("1.5")).setScale(0, RoundingMode.HALF_UP).intValue();
 		this.tapEventQueue = new LinkedBlockingQueue<>(writeQueueCapacity);
-		obsLogger.info("Initialize target write queue complete, capacity: {}", writeQueueCapacity);
+		obsLogger.debug("Initialize target write queue complete, capacity: {}", writeQueueCapacity);
 		this.queueConsumerThreadPool.submit(this::queueConsume);
-		obsLogger.info("Initialize target event handler complete");
+		obsLogger.debug("Initialize target event handler complete");
 
 		final Node<?> node = this.dataProcessorContext.getNode();
 		if (node instanceof DataParentNode) {

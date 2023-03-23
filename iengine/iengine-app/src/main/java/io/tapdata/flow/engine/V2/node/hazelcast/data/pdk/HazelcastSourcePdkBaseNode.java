@@ -153,12 +153,18 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(),
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			initBatchAndStreamOffset(taskDto);
+			String offsetLog = "";
 			if (null != syncProgress.getBatchOffsetObj()) {
-				obsLogger.info("Decoded batch offset: {}", JSONUtil.obj2Json(syncProgress.getBatchOffsetObj()));
+				offsetLog += String.format("batch offset found: {}, ", JSONUtil.obj2Json(syncProgress.getBatchOffsetObj()));
+			} else {
+				offsetLog += "batch offset not found, ";
 			}
 			if (null != syncProgress.getStreamOffsetObj()) {
-				obsLogger.info("Decoded stream offset: {}", JSONUtil.obj2Json(syncProgress.getStreamOffsetObj()));
+				offsetLog += String.format("stream offset found: {}", JSONUtil.obj2Json(syncProgress.getStreamOffsetObj()));
+			} else {
+				offsetLog += "stream offset not found.";
 			}
+			obsLogger.info(offsetLog);
 		}
 	}
 
