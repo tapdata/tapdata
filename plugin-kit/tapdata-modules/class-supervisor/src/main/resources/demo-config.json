@@ -6,11 +6,11 @@
     {
       "target": [
         {
-        "type": "extends",
-        "path": "java.lang.Closable",
-        "scanPackage": "*",
-        "isCreate": false
-      },
+          "type": "extends",
+          "path": "java.lang.Closable",
+          "scanPackage": "*",
+          "isCreate": false
+        },
         {
           "type": "path",
           "path": "java.lang.Thread",

@@ -17,7 +17,7 @@
             {
               "type": "after",
               "line": "((io.tapdata.supervisor.ClassLifeCircleMonitor)io.tapdata.entity.utils.InstanceFactory.instance(io.tapdata.supervisor.ClassLifeCircleMonitor.class)).instanceEnded($0);",
-              "isFinally": true,
+              "isFinally": false,
               "isRedundant": false
             }
           ]

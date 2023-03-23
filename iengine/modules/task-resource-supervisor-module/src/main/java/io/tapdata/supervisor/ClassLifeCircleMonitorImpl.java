@@ -15,7 +15,7 @@ public class ClassLifeCircleMonitorImpl implements ClassLifeCircleMonitor<ClassO
 
     @Override
     public void instanceStarted(Object thisObj) {
-        if (Objects.nonNull(thisObj)) {
+        if (Objects.nonNull(thisObj) && !this.classOnThreadMap.containsKey(thisObj)) {
             Thread thread = Thread.currentThread();
             this.classOnThreadMap.put(
                     thisObj,
