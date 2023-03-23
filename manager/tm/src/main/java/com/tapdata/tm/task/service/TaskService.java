@@ -210,7 +210,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         log.debug("The save task is complete and the task will be processed, task name = {}", taskDto.getName());
         DAG dag = taskDto.getDag();
 
-        if (StringUtils.isNotEmpty(taskDto.getCrontabExpression()) && taskDto.isCrontabExpressionFlag()) {
+        if (StringUtils.isNotEmpty(taskDto.getCrontabExpression()) && taskDto.getCrontabExpressionFlag() != null && taskDto.getCrontabExpressionFlag()) {
             try {
                 CronScheduleBuilder.cronSchedule(taskDto.getCrontabExpression());
             } catch (Exception e) {
@@ -411,7 +411,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //根据id校验当前需要更新到任务是否存在
         TaskDto oldTaskDto = null;
 
-        if (StringUtils.isNotEmpty(taskDto.getCrontabExpression()) && taskDto.isCrontabExpressionFlag()) {
+        if (StringUtils.isNotEmpty(taskDto.getCrontabExpression()) && taskDto.getCrontabExpressionFlag() != null && taskDto.getCrontabExpressionFlag()) {
             try {
                 CronScheduleBuilder.cronSchedule(taskDto.getCrontabExpression());
             } catch (Exception e) {
@@ -1856,7 +1856,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (CollectionUtils.isNotEmpty(taskDtos)) {
             openTaskNum = taskDtos.size();
             for (TaskDto taskDto : taskDtos) {
-                if (taskDto.isCanOpenInspect()) {
+                if (taskDto.getCanOpenInspect() != null && taskDto.getCanOpenInspect()) {
                     canTaskNum++;
                 }
 
