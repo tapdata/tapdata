@@ -56,7 +56,7 @@ public class TaskDto extends ParentTaskDto {
     private Boolean shareCache=false;
 
     // 需要根据数据源是否支持 数据校验功能来判断
-    private boolean canOpenInspect;
+    private Boolean canOpenInspect;
     //是否开启数据校验
     private Boolean isAutoInspect;
     public boolean isAutoInspect() {

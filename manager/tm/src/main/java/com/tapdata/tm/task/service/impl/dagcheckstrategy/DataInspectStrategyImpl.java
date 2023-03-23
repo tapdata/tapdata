@@ -40,7 +40,7 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
         if (!taskDto.isAutoInspect()) {
             return results;
         }
-        if (!taskDto.isCanOpenInspect()) {
+        if (taskDto.getCanOpenInspect() == null || !taskDto.getCanOpenInspect()) {
             results.add(createWarn(taskDto, userDetail, "任务不支持校验"));
             return results;
         }
