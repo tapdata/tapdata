@@ -141,7 +141,8 @@ public class AlarmServiceImpl implements AlarmService {
         }
     }
 
-    private boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type, UserDetail userDetail) {
+    @Override
+    public boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type, UserDetail userDetail) {
         boolean openTask = false;
         if (AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN.equals(key)) {
             openTask = true;
@@ -149,7 +150,7 @@ public class AlarmServiceImpl implements AlarmService {
             List<AlarmSettingDto> alarmSettingDtos = getAlarmSettingDtos(taskDto, nodeId);
             if (CollectionUtils.isNotEmpty(alarmSettingDtos)) {
                 openTask = alarmSettingDtos.stream().anyMatch(t ->
-                        t.getKey().equals(key) && t.isOpen() && t.getNotify().contains(type));
+                        t.getKey().equals(key) && t.isOpen() && (type ==null || t.getNotify().contains(type)));
             }
         }
 
@@ -157,8 +158,9 @@ public class AlarmServiceImpl implements AlarmService {
         List<AlarmSettingDto> all = alarmSettingService.findAllAlarmSetting(userDetail);
         if (CollectionUtils.isNotEmpty(all)) {
             openSys = all.stream().anyMatch(t ->
-                    t.getKey().equals(key) && t.isOpen() && t.getNotify().contains(type));
+                    t.getKey().equals(key) && t.isOpen() && (type == null ||  t.getNotify().contains(type)));
         }
+
         return openTask && openSys;
     }
 
@@ -424,14 +426,6 @@ public class AlarmServiceImpl implements AlarmService {
         String dateTime = DateUtil.formatDateTime(info.getLastOccurrenceTime());
         String SmsEvent;
         switch (info.getMetric()) {
-            case TASK_STATUS_STOP:
-                boolean manual = info.getSummary().contains("已被用户");
-                title = manual ? MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL_TITLE, info.getName())
-                        : MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR_TITLE, info.getName());
-                content = manual ? MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL, info.getName(), dateTime, info.getParam().get("updatorName"))
-                        : MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR, info.getName(), info.getLastOccurrenceTime());
-                SmsEvent = "任务停止";
-                break;
             case TASK_STATUS_ERROR:
                 title = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR_TITLE, info.getName());
                 content = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR, info.getName(), dateTime);
@@ -451,11 +445,6 @@ public class AlarmServiceImpl implements AlarmService {
                 title = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START_TITLE, info.getName());
                 content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START, info.getName(), info.getParam().get("replicateLag"));
                 SmsEvent = "增量延迟";
-                break;
-            case DATANODE_CANNOT_CONNECT:
-                title = MessageFormat.format(AlarmMailTemplate.DATANODE_CANNOT_CONNECT_TITLE, info.getName());
-                content = MessageFormat.format(AlarmMailTemplate.DATANODE_CANNOT_CONNECT, info.getName(), info.getNode(), dateTime);
-                SmsEvent = "任务连接中断";
                 break;
             case DATANODE_AVERAGE_HANDLE_CONSUME:
                 title = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME_TITLE, info.getName());

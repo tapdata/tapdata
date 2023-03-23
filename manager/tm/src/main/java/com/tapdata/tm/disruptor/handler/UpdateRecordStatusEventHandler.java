@@ -50,15 +50,18 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
 
                 break;
             case TaskDto.STATUS_ERROR:
-                param.put("taskName", taskName);
-                param.put("alarmDate", alarmDate);
-                AlarmInfo errorInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.EMERGENCY).component(AlarmComponentEnum.FE)
-                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(taskId)
-                        .name(data.getTaskName()).summary("TASK_STATUS_STOP_ERROR").metric(AlarmKeyEnum.TASK_STATUS_ERROR)
-                        .param(param)
-                        .build();
-                errorInfo.setUserId(data.getUserId());
-                alarmService.save(errorInfo);
+                boolean checkOpen = alarmService.checkOpen(data.getTaskDto(), null, AlarmKeyEnum.TASK_STATUS_ERROR, null, data.getUserDetail());
+                if (checkOpen) {
+                    param.put("taskName", taskName);
+                    param.put("alarmDate", alarmDate);
+                    AlarmInfo errorInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.EMERGENCY).component(AlarmComponentEnum.FE)
+                            .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(taskId)
+                            .name(data.getTaskName()).summary("TASK_STATUS_STOP_ERROR").metric(AlarmKeyEnum.TASK_STATUS_ERROR)
+                            .param(param)
+                            .build();
+                    errorInfo.setUserId(data.getUserId());
+                    alarmService.save(errorInfo);
+                }
                 break;
         }
     }

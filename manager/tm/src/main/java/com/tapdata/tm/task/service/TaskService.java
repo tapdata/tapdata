@@ -2955,6 +2955,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     .unset("stopTime")
                     .unset("stopRetryTimes")
                     .unset("currentEventTimestamp")
+                    .unset("snapshotDoneAt")
                     .unset("scheduleDate")
                     .unset("stopedDate");
             String nameSuffix = RandomStringUtils.randomAlphanumeric(6);
@@ -3198,6 +3199,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     .agentId(dto.getAgentId())
                     .syncType(dto.getSyncType())
                     .userId(dto.getUserId())
+                    .taskDto(dto)
+                    .userDetail(userDetail)
                     .build();
             disruptorService.sendMessage(DisruptorTopicEnum.TASK_STATUS, info);
         }
