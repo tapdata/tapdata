@@ -1,8 +1,8 @@
 ## **Connection configuration help**
-### **1. POSTGRESQL installation instructions**
-Please follow the instructions below to ensure that the PostgreSQL database is successfully added and used in Tapdata.
+### **1. AnalyticDB PostgreSQL installation instructions**
+Please follow the instructions below to ensure that the AnalyticDBPostgreSQL database is successfully added and used in Tapdata.
 ### **2. Supported version**
-PostgreSQL 9.4, 9.5, 9.6, 10.x, 11.x, 12 versions
+AnalyticDB PostgreSQL 6.0+
 ### **3. CDC principle and support**
 #### **3.1 Principles of CDC**
 PostgreSQL's logical decoding function first appeared in version 9.4. It is a mechanism that allows to extract the changes committed to the transaction log and process these changes in a user-friendly way through the output plugin.
