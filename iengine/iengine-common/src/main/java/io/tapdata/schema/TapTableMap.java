@@ -14,7 +14,15 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.mongodb.core.query.Query;
 
-import java.util.*;
+import java.io.File;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -113,8 +121,13 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 
 	private void createEhcacheMap() {
 		try {
+			String tapdataWorkDir = System.getenv("TAPDATA_WORK_DIR");
+			String dir = DIST_CACHE_PATH;
+			if (StringUtils.isNotBlank(tapdataWorkDir)) {
+				dir = tapdataWorkDir + File.separator + dir;
+			}
 			EhcacheKVMap<TapTable> tapTableMap = EhcacheKVMap.create(this.mapKey, TapTable.class)
-					.cachePath(DIST_CACHE_PATH)
+					.cachePath(dir)
 					.maxHeapEntries(MAX_HEAP_ENTRIES)
 					//				.maxOffHeapMB(CommonUtils.getPropertyInt(TAP_TABLE_OFF_HEAP_MB_KEY, DEFAULT_OFF_HEAP_MB))
 					.maxDiskMB(CommonUtils.getPropertyInt(TAP_TABLE_DISK_MB_KEY, DEFAULT_DISK_MB))

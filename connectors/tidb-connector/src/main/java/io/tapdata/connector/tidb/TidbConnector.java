@@ -30,7 +30,6 @@ import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -53,15 +52,11 @@ public class TidbConnector extends ConnectorBase {
 
     private TidbSqlMaker tidbSqlMaker;
 
-    private TidbConnectionTest tidbConnectionTest;
-
-
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
 
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
         this.tidbConfig = (TidbConfig) new TidbConfig().load(tapConnectionContext.getConnectionConfig());
-        this.tidbConnectionTest = new TidbConnectionTest(tidbConfig, testItem -> {},null);
 
         if (EmptyKit.isNull(tidbContext) || tidbContext.isFinish()) {
             tidbContext = (TidbContext) DataSourcePool.getJdbcContext(tidbConfig, TidbContext.class, tapConnectionContext.getId());
@@ -81,7 +76,6 @@ public class TidbConnector extends ConnectorBase {
 
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
-        connectorFunctions.supportConnectionCheckFunction(this::checkConnection);
         // target functions
         connectorFunctions.supportCreateTableV2(this::createTableV2);
         connectorFunctions.supportWriteRecord(this::writeRecord);
@@ -217,12 +211,10 @@ public class TidbConnector extends ConnectorBase {
     }
 
     @Override
-    public void onStop(TapConnectionContext connectionContext) throws Throwable {
+    public void onStop(TapConnectionContext connectionContext) {
         if (EmptyKit.isNotNull(tidbContext)) {
-            DataSourcePool.removeJdbcContext(tidbConfig);
             tidbContext.finish(connectionContext.getId());
         }
-
     }
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws Throwable {
@@ -320,23 +312,12 @@ public class TidbConnector extends ConnectorBase {
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         connectionOptions.connectionString(tidbConfig.getConnectionString());
         try (
-                TidbConnectionTest connectionTest = new TidbConnectionTest(tidbConfig, consumer,connectionOptions)
+                TidbConnectionTest connectionTest = new TidbConnectionTest(tidbConfig, consumer, connectionOptions)
         ) {
             connectionTest.testOneByOne();
         }
         return connectionOptions;
     }
-
-    private void checkConnection(TapConnectionContext connectionContext, List<String> items, Consumer<ConnectionCheckItem> consumer) {
-        ConnectionCheckItem testPing = tidbConnectionTest.testPing();
-        consumer.accept(testPing);
-        if (testPing.getResult() == ConnectionCheckItem.RESULT_FAILED) {
-            return;
-        }
-        ConnectionCheckItem testConnection = tidbConnectionTest.testConnection();
-        consumer.accept(testConnection);
-    }
-
 
 }
 

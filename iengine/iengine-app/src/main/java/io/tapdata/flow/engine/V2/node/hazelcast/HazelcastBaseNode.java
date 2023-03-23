@@ -173,10 +173,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 		//如果为迁移任务、且源节点为数据库类型
 		this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getTaskDto().getDag().getSourceNode());
-		if (!StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
-			this.monitorManager = new MonitorManager();
-		}
+		this.monitorManager = new MonitorManager();
 	}
 
 	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, CommonUtils.AnyErrorConsumer<T> anyErrorConsumer) {
@@ -301,6 +298,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		messageEntity.setTableName(dataEvent.getTableId());
 		messageEntity.setTimestamp(dataEvent.getReferenceTime());
 		messageEntity.setTime(dataEvent.getTime());
+		messageEntity.setInfo(dataEvent.getInfo());
 		return messageEntity;
 	}
 
@@ -333,6 +331,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			tapRecordEvent.setTableId(messageEntity.getTableName());
 			tapRecordEvent.setReferenceTime(messageEntity.getTimestamp());
 			tapRecordEvent.setTime(messageEntity.getTime());
+			tapRecordEvent.setInfo(messageEntity.getInfo());
 		}
 		return tapRecordEvent;
 	}
@@ -527,6 +526,16 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}, err -> {
 			logger.warn(String.format("Clean node %s[%s] schema data failed: %s", getNode().getName(), getNode().getId(), err.getMessage()));
 			obsLogger.warn(String.format("Clean node %s[%s] schema data failed: %s", getNode().getName(), getNode().getId(), err.getMessage()));
+		});
+		CommonUtils.handleAnyError(() -> {
+			if (this.monitorManager != null) {
+				this.monitorManager.close();
+				logger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
+				obsLogger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
+			}
+		}, err -> {
+			logger.warn("Close monitor failed: " + err.getMessage());
+			obsLogger.warn("Close monitor failed: " + err.getMessage());
 		});
 	}
 
