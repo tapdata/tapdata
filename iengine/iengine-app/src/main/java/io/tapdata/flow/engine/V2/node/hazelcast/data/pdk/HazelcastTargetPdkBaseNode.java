@@ -416,9 +416,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private void handleTapdataShareLogEvent(List<TapdataShareLogEvent> tapdataShareLogEvents, TapdataEvent tapdataEvent, Consumer<TapdataEvent> consumer) {
-		TapRecordEvent tapRecordEvent = (TapRecordEvent) tapdataEvent.getTapEvent();
-		fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager);
-		fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager);
+		TapEvent tapEvent = tapdataEvent.getTapEvent();
+		if (tapEvent instanceof TapRecordEvent) {
+			TapRecordEvent tapRecordEvent = (TapRecordEvent) tapEvent;
+			fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager);
+			fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager);
+		}
 		tapdataShareLogEvents.add((TapdataShareLogEvent) tapdataEvent);
 		if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
 			consumer.accept(tapdataEvent);

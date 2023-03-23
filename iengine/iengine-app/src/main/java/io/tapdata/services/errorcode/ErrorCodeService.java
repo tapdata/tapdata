@@ -39,6 +39,7 @@ public class ErrorCodeService implements MemoryFetcher {
 
 		String describe = "";
 		String solution;
+		boolean hasDescribe = false;
 
 		Class<?> sourceExClass = errorCode.getSourceExClass();
 		TapExClass tapExClass = null;
@@ -49,6 +50,7 @@ public class ErrorCodeService implements MemoryFetcher {
 			describe = String.format("Module - %s(%s)", tapExClass.module(), tapExClass.code());
 			if (StringUtils.isNotBlank(tapExClass.describe())) {
 				describe += String.format(": %s", tapExClass.describe());
+				hasDescribe = true;
 			} else {
 				describe += "\n\n";
 			}
@@ -57,6 +59,7 @@ public class ErrorCodeService implements MemoryFetcher {
 			case CN:
 				if (StringUtils.isNotBlank(errorCode.getDescribeCN())) {
 					describe += "错误描述\n" + errorCode.getDescribeCN();
+					hasDescribe = true;
 				}
 				solution = errorCode.getSolutionCN();
 				if (StringUtils.isNotBlank(solution)) {
@@ -77,6 +80,7 @@ public class ErrorCodeService implements MemoryFetcher {
 			describe = describe + solution;
 		}
 		res.put("describe", describe);
+		res.put("hasDescribe", hasDescribe);
 		res.put("seeAlso", errorCode.getSeeAlso());
 		return res;
 	}

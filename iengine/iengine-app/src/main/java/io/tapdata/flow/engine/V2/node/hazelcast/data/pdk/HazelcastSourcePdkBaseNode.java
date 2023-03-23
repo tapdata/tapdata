@@ -641,22 +641,21 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	private TapdataEvent wrapSingleTapdataEvent(TapEvent tapEvent, SyncStage syncStage, Object offsetObj, boolean isLast) {
 		TapdataEvent tapdataEvent = null;
+		switch (sourceMode) {
+			case NORMAL:
+				tapdataEvent = new TapdataEvent();
+				break;
+			case LOG_COLLECTOR:
+				tapdataEvent = new TapdataShareLogEvent();
+				Connections connections = dataProcessorContext.getConnections();
+				if (null != connections) {
+					tapdataEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connections.getId());
+				}
+				break;
+		}
+		tapdataEvent.setTapEvent(tapEvent);
+		tapdataEvent.setSyncStage(syncStage);
 		if (tapEvent instanceof TapRecordEvent) {
-			TapRecordEvent tapRecordEvent = (TapRecordEvent) tapEvent;
-			switch (sourceMode) {
-				case NORMAL:
-					tapdataEvent = new TapdataEvent();
-					break;
-				case LOG_COLLECTOR:
-					tapdataEvent = new TapdataShareLogEvent();
-					Connections connections = dataProcessorContext.getConnections();
-					if (null != connections) {
-						tapdataEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connections.getId());
-					}
-					break;
-			}
-			tapdataEvent.setTapEvent(tapRecordEvent);
-			tapdataEvent.setSyncStage(syncStage);
 			if (SyncStage.INITIAL_SYNC == syncStage) {
 				if (isLast && !StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
 						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
@@ -686,103 +685,103 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				return null;
 			}
 
-			tapdataEvent = new TapdataEvent();
-			tapdataEvent.setTapEvent(tapEvent);
-			tapdataEvent.setSyncStage(syncStage);
 			tapdataEvent.setStreamOffset(offsetObj);
 			tapdataEvent.setSourceTime(((TapDDLEvent) tapEvent).getReferenceTime());
-			String tableId = ((TapDDLEvent) tapEvent).getTableId();
-			TapTable tapTable;
-			// Modify schema by ddl event
-			if (tapEvent instanceof TapCreateTableEvent) {
-				tapTable = ((TapCreateTableEvent) tapEvent).getTable();
-			} else {
-				try {
-					tapTable = processorBaseContext.getTapTableMap().get(tableId);
-					InstanceFactory.bean(DDLSchemaHandler.class).updateSchemaByDDLEvent((TapDDLEvent) tapEvent, tapTable);
-					TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
-					DefaultExpressionMatchingMap dataTypesMap = getConnectorNode().getConnectorContext().getSpecification().getDataTypesMap();
-					tableFieldTypesGenerator.autoFill(tapTable.getNameFieldMap(), dataTypesMap);
-				} catch (Exception e) {
-					throw errorHandle(e, "Modify schema by ddl failed, ddl type: " + tapEvent.getClass() + ", error: " + e.getMessage());
-				}
+			if (sourceMode.equals(SourceMode.NORMAL)) {
+				handleSchemaChange(tapEvent);
 			}
-
-			// Refresh task config by ddl event
-			DAG dag = processorBaseContext.getTaskDto().getDag();
-			try {
-				// Update DAG config
-				dag.filedDdlEvent(processorBaseContext.getNode().getId(), (TapDDLEvent) tapEvent);
-				DAG cloneDag = dag.clone();
-				// Put new DAG into info map
-				tapEvent.addInfo(NEW_DAG_INFO_KEY, cloneDag);
-			} catch (Exception e) {
-				throw errorHandle(e, "Update DAG by TapDDLEvent failed, error: " + e.getMessage());
-			}
-			// Refresh task schema by ddl event
-			try {
-				List<MetadataInstancesDto> insertMetadata = new CopyOnWriteArrayList<>();
-				Map<String, MetadataInstancesDto> updateMetadata = new ConcurrentHashMap<>();
-				List<String> removeMetadata = new CopyOnWriteArrayList<>();
-				if (null == transformerWsMessageDto) {
-					transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
-							ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
-							TransformerWsMessageDto.class);
-				}
-				List<MetadataInstancesDto> metadataInstancesDtoList = transformerWsMessageDto.getMetadataInstancesDtoList();
-				Map<String, String> qualifiedNameIdMap = metadataInstancesDtoList.stream()
-						.collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m.getId().toHexString()));
-				tapEvent.addInfo(QUALIFIED_NAME_ID_MAP_INFO_KEY, qualifiedNameIdMap);
-				if (null == dagDataService) {
-					dagDataService = new DAGDataServiceImpl(transformerWsMessageDto);
-				}
-				String qualifiedName;
-				Map<String, List<Message>> errorMessage;
-				if (tapEvent instanceof TapCreateTableEvent) {
-					qualifiedName = dagDataService.createNewTable(dataProcessorContext.getSourceConn().getId(), tapTable, processorBaseContext.getTaskDto().getId().toHexString());
-					obsLogger.info("Create new table in memory, qualified name: " + qualifiedName);
-					dataProcessorContext.getTapTableMap().putNew(tapTable.getId(), tapTable, qualifiedName);
-					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
-					TaskDto taskDto = dagDataService.getTaskById(processorBaseContext.getTaskDto().getId().toHexString());
-					taskDto.setDag(dag);
-					MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
-					if (null == metadata.getId()) {
-						metadata.setId(new ObjectId());
-					}
-					insertMetadata.add(metadata);
-					obsLogger.info("Create new table schema transform finished: " + tapTable);
-				} else if (tapEvent instanceof TapDropTableEvent) {
-					qualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(((TapDropTableEvent) tapEvent).getTableId());
-					obsLogger.info("Drop table in memory qualified name: " + qualifiedName);
-					dagDataService.dropTable(qualifiedName);
-					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
-					removeMetadata.add(qualifiedName);
-					obsLogger.info("Drop table schema transform finished");
-				} else {
-					qualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(tableId);
-					obsLogger.info("Alter table in memory, qualified name: " + qualifiedName);
-					dagDataService.coverMetaDataByTapTable(qualifiedName, tapTable);
-					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
-					MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
-					if (metadata.getId() == null) {
-						metadata.setId(metadata.getOldId());
-					}
-					updateMetadata.put(metadata.getId().toHexString(), metadata);
-					obsLogger.info("Alter table schema transform finished");
-				}
-				tapEvent.addInfo(INSERT_METADATA_INFO_KEY, insertMetadata);
-				tapEvent.addInfo(UPDATE_METADATA_INFO_KEY, updateMetadata);
-				tapEvent.addInfo(REMOVE_METADATA_INFO_KEY, removeMetadata);
-				tapEvent.addInfo(DAG_DATA_SERVICE_INFO_KEY, dagDataService);
-				tapEvent.addInfo(TRANSFORM_SCHEMA_ERROR_MESSAGE_INFO_KEY, errorMessage);
-			} catch (Throwable e) {
-				throw new RuntimeException("Transform schema by TapDDLEvent " + tapEvent + " failed, error: " + e.getMessage(), e);
-			}
-		}
-		if (null == tapdataEvent) {
-			throw new RuntimeException("Found event type does not support: " + tapEvent.getClass().getSimpleName());
 		}
 		return tapdataEvent;
+	}
+
+	private void handleSchemaChange(TapEvent tapEvent) {
+		String tableId = ((TapDDLEvent) tapEvent).getTableId();
+		TapTable tapTable;
+		// Modify schema by ddl event
+		if (tapEvent instanceof TapCreateTableEvent) {
+			tapTable = ((TapCreateTableEvent) tapEvent).getTable();
+		} else {
+			try {
+				tapTable = processorBaseContext.getTapTableMap().get(tableId);
+				InstanceFactory.bean(DDLSchemaHandler.class).updateSchemaByDDLEvent((TapDDLEvent) tapEvent, tapTable);
+				TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
+				DefaultExpressionMatchingMap dataTypesMap = getConnectorNode().getConnectorContext().getSpecification().getDataTypesMap();
+				tableFieldTypesGenerator.autoFill(tapTable.getNameFieldMap(), dataTypesMap);
+			} catch (Exception e) {
+				throw errorHandle(e, "Modify schema by ddl failed, ddl type: " + tapEvent.getClass() + ", error: " + e.getMessage());
+			}
+		}
+
+		// Refresh task config by ddl event
+		DAG dag = processorBaseContext.getTaskDto().getDag();
+		try {
+			// Update DAG config
+			dag.filedDdlEvent(processorBaseContext.getNode().getId(), (TapDDLEvent) tapEvent);
+			DAG cloneDag = dag.clone();
+			// Put new DAG into info map
+			tapEvent.addInfo(NEW_DAG_INFO_KEY, cloneDag);
+		} catch (Exception e) {
+			throw errorHandle(e, "Update DAG by TapDDLEvent failed, error: " + e.getMessage());
+		}
+		// Refresh task schema by ddl event
+		try {
+			List<MetadataInstancesDto> insertMetadata = new CopyOnWriteArrayList<>();
+			Map<String, MetadataInstancesDto> updateMetadata = new ConcurrentHashMap<>();
+			List<String> removeMetadata = new CopyOnWriteArrayList<>();
+			if (null == transformerWsMessageDto) {
+				transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
+						ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
+						TransformerWsMessageDto.class);
+			}
+			List<MetadataInstancesDto> metadataInstancesDtoList = transformerWsMessageDto.getMetadataInstancesDtoList();
+			Map<String, String> qualifiedNameIdMap = metadataInstancesDtoList.stream()
+					.collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m.getId().toHexString()));
+			tapEvent.addInfo(QUALIFIED_NAME_ID_MAP_INFO_KEY, qualifiedNameIdMap);
+			if (null == dagDataService) {
+				dagDataService = new DAGDataServiceImpl(transformerWsMessageDto);
+			}
+			String qualifiedName;
+			Map<String, List<Message>> errorMessage;
+			if (tapEvent instanceof TapCreateTableEvent) {
+				qualifiedName = dagDataService.createNewTable(dataProcessorContext.getSourceConn().getId(), tapTable, processorBaseContext.getTaskDto().getId().toHexString());
+				obsLogger.info("Create new table in memory, qualified name: " + qualifiedName);
+				dataProcessorContext.getTapTableMap().putNew(tapTable.getId(), tapTable, qualifiedName);
+				errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
+				TaskDto taskDto = dagDataService.getTaskById(processorBaseContext.getTaskDto().getId().toHexString());
+				taskDto.setDag(dag);
+				MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
+				if (null == metadata.getId()) {
+					metadata.setId(new ObjectId());
+				}
+				insertMetadata.add(metadata);
+				obsLogger.info("Create new table schema transform finished: " + tapTable);
+			} else if (tapEvent instanceof TapDropTableEvent) {
+				qualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(((TapDropTableEvent) tapEvent).getTableId());
+				obsLogger.info("Drop table in memory qualified name: " + qualifiedName);
+				dagDataService.dropTable(qualifiedName);
+				errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
+				removeMetadata.add(qualifiedName);
+				obsLogger.info("Drop table schema transform finished");
+			} else {
+				qualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(tableId);
+				obsLogger.info("Alter table in memory, qualified name: " + qualifiedName);
+				dagDataService.coverMetaDataByTapTable(qualifiedName, tapTable);
+				errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
+				MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
+				if (metadata.getId() == null) {
+					metadata.setId(metadata.getOldId());
+				}
+				updateMetadata.put(metadata.getId().toHexString(), metadata);
+				obsLogger.info("Alter table schema transform finished");
+			}
+			tapEvent.addInfo(INSERT_METADATA_INFO_KEY, insertMetadata);
+			tapEvent.addInfo(UPDATE_METADATA_INFO_KEY, updateMetadata);
+			tapEvent.addInfo(REMOVE_METADATA_INFO_KEY, removeMetadata);
+			tapEvent.addInfo(DAG_DATA_SERVICE_INFO_KEY, dagDataService);
+			tapEvent.addInfo(TRANSFORM_SCHEMA_ERROR_MESSAGE_INFO_KEY, errorMessage);
+		} catch (Throwable e) {
+			throw new RuntimeException("Transform schema by TapDDLEvent " + tapEvent + " failed, error: " + e.getMessage(), e);
+		}
 	}
 
 	public void enqueue(TapdataEvent tapdataEvent) {

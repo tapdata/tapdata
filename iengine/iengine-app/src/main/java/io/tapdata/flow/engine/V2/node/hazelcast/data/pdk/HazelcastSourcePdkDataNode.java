@@ -25,6 +25,8 @@ import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
@@ -33,6 +35,7 @@ import io.tapdata.flow.engine.V2.sharecdc.ReaderType;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcReader;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
+import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcReaderExCode_13;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
@@ -369,12 +372,20 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						if (e.isContinueWithNormalCdc() && !taskDto.getEnforceShareCdc()) {
 							// If share cdc is unavailable, and continue with normal cdc is true
 							obsLogger.info("Share cdc unusable, will use normal cdc mode, reason: " + e.getMessage());
-							doNormalCDC();
+							try {
+								doNormalCDC();
+							} catch (Exception ex) {
+								throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, e);
+							}
 						} else {
-							throw new NodeException("Read share cdc log failed: " + e.getMessage(), e).context(getProcessorBaseContext());
+							throw new TapCodeException(ShareCdcReaderExCode_13.UNKNOWN_ERROR, e);
 						}
 					} catch (Exception e) {
-						throw new NodeException("Read share cdc log failed: " + e.getMessage(), e).context(getProcessorBaseContext());
+						if (e instanceof TapCodeException) {
+							throw e;
+						} else {
+							throw new TapCodeException(ShareCdcReaderExCode_13.UNKNOWN_ERROR, e);
+						}
 					}
 				} else {
 					doNormalCDC();

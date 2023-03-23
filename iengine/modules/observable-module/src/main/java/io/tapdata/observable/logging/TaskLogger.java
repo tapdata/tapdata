@@ -257,30 +257,6 @@ class TaskLogger extends ObsLogger implements Serializable {
 		return throwable;
 	}
 
-	private static void buildErrorMessage(
-			Throwable throwable,
-			ParameterizedMessage parameterizedMessage,
-			MonitoringLogsDto.MonitoringLogsDtoBuilder builder
-	) {
-		builder.message(parameterizedMessage.getFormattedMessage());
-		String stackString = "<-- Full Stack Trace -->\n" + TapSimplify.getStackString(throwable);
-		if (throwable instanceof TapCodeException) {
-			String errorCode = ((TapCodeException) throwable).getCode();
-			builder.errorCode(errorCode);
-			ErrorCodeEntity errorCodeEntity = ErrorCodeConfig.getInstance().getErrorCode(errorCode);
-			if (null != errorCodeEntity) {
-				builder.fullErrorCode(errorCodeEntity.fullErrorCode());
-			}
-			String simpleStack = ((TapCodeException) throwable).simpleStack();
-			if (StringUtils.isNotBlank(simpleStack)) {
-				stackString = "\n<-- Simple Stack Trace -->\n" + simpleStack + "\n\n" + stackString;
-			}
-			builder.errorStack(stackString);
-		} else {
-			builder.errorStack(stackString);
-		}
-	}
-
 	@NotNull
 	public MonitoringLogsDto.MonitoringLogsDtoBuilder logBaseBuilder() {
 		Date date = new Date();
