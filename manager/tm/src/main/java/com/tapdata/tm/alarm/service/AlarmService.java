@@ -6,6 +6,7 @@ import com.tapdata.tm.alarm.dto.TaskAlarmInfoVo;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
+import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -41,4 +42,6 @@ public interface AlarmService {
     void delAlarm(String taskId);
 
     List<AlarmInfo> query(Query query);
+
+    boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type, UserDetail userDetail);
 }
