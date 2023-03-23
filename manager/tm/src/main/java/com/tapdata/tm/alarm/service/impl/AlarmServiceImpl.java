@@ -102,6 +102,8 @@ public class AlarmServiceImpl implements AlarmService {
                     DateTime lastNotifyTime = DateUtil.offset(one.getLastNotifyTime(), parseDateUnit(alarmSettingDto.getUnit()), alarmSettingDto.getInterval());
                     if (date.after(lastNotifyTime)) {
                         info.setLastNotifyTime(date);
+                    } else {
+                        info.setLastNotifyTime(one.getLastNotifyTime());
                     }
                 }
             } else {
@@ -117,7 +119,8 @@ public class AlarmServiceImpl implements AlarmService {
         }
     }
 
-    private boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type, UserDetail userDetail) {
+    @Override
+    public boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type, UserDetail userDetail) {
         boolean openTask = false;
         if (AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN.equals(key)) {
             openTask = true;
@@ -125,7 +128,7 @@ public class AlarmServiceImpl implements AlarmService {
             List<AlarmSettingDto> alarmSettingDtos = getAlarmSettingDtos(taskDto, nodeId);
             if (CollectionUtils.isNotEmpty(alarmSettingDtos)) {
                 openTask = alarmSettingDtos.stream().anyMatch(t ->
-                        t.getKey().equals(key) && t.isOpen() && t.getNotify().contains(type));
+                        t.getKey().equals(key) && t.isOpen() && (type ==null || t.getNotify().contains(type)));
             }
         }
 
@@ -134,7 +137,7 @@ public class AlarmServiceImpl implements AlarmService {
         List<AlarmSettingDto> all = alarmSettingService.findAll(userDetail);
         if (CollectionUtils.isNotEmpty(all)) {
             openSys = all.stream().anyMatch(t ->
-                    t.getKey().equals(key) && t.isOpen() && t.getNotify().contains(type));
+                    t.getKey().equals(key) && t.isOpen() && (type == null ||  t.getNotify().contains(type)));
         }
 
         return openTask && openSys;
@@ -219,7 +222,8 @@ public class AlarmServiceImpl implements AlarmService {
                 if (!reuslt) {
                     info.setLastNotifyTime(null);
                     DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
-                    info.setLastNotifyTime(dateTime);save(info);
+                    info.setLastNotifyTime(dateTime);
+                    save(info);
                 }
             });
             FunctionUtils.ignoreAnyError(() -> {
@@ -301,7 +305,7 @@ public class AlarmServiceImpl implements AlarmService {
                         break;
                     case DATANODE_AVERAGE_HANDLE_CONSUME:
                         title = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME_TITLE, info.getName());
-                        content = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME, info.getName(), info.getNode(), dateTime);
+                        content = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME, info.getName(), info.getNode(), info.getParam().get("current"), info.getParam().get("interval"), dateTime);
                         break;
                     case PROCESSNODE_AVERAGE_HANDLE_CONSUME:
                         title = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME_TITLE, info.getName());
@@ -359,7 +363,7 @@ public class AlarmServiceImpl implements AlarmService {
             if (AlarmKeyEnum.TASK_INCREMENT_DELAY.equals(info.getMetric())) {
                 key = taskId + "-" + "replicateLag";
             } else if (AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME.equals(info.getMetric())) {
-                if (info.getSummary().contains("TARGET_")) {
+                if (info.getSummary().contains("\u76EE\u6807\u8282\u70B9")) {
                     key = nodeId + "-targetWriteTimeCostAvg";
                 } else {
                     key = nodeId + "-snapshotSourceReadTimeCostAvg";
