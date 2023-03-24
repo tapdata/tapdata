@@ -528,7 +528,7 @@ public class TapdataTaskScheduler {
 					if (StringUtils.isNotBlank(e.getMessage()) && e.getMessage().contains("Transition.Not.Supported")) {
 						// 违反TM状态机，不再进行修改任务状态的重试
 						logger.warn("Call api to stop task status to " + resource + " failed, will set task to error, message: " + e.getMessage(), e);
-						clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/" + StopTaskResource.RUN_ERROR, taskId, TaskDto.class);
+						clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/" + StopTaskResource.RUN_ERROR.getResource(), taskId, TaskDto.class);
 					} else {
 						throw new RuntimeException(String.format("Call stop task api failed, api uri: %s, task: %s[%s]",
 								resource, taskClient.getTask().getName(), taskClient.getTask().getId()), e);
