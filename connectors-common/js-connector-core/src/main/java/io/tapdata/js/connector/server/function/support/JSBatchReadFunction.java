@@ -91,7 +91,6 @@ public class JSBatchReadFunction extends FunctionBase implements FunctionSupport
                 } catch (InterruptedException ignored) {
                 }
                 if (EmptyKit.isNotNull(message)) {
-                    eventList.add(message.getTapEvent());
                     lastContextMap = message.getContextMap();
                     TapEvent tapEvent = message.getTapEvent();
                     if (Objects.nonNull(lastContextMap)) {

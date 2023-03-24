@@ -255,13 +255,10 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
     for(let x in tableNameList) {
       let tableName = tableNameList[x];
       let isFirst = false;
-        log.warn('-----offset:'+offset[tableName]);
       if(!offset[tableName]){
         offset[tableName] = {tableName:tableName, page: 1, Conditions:[{Key: 'UPDATED_AT',Value: batchStart + '_' + dateUtils.nowDate()}]} ;
         isFirst = true;
       }
-      log.warn('-----offset:'+JSON.stringify(offset[tableName]));
-      log.warn('-----isFirst:'+isFirst);
         offset[tableName].page = 1;
         let condition = arrayUtils.firstElement(offset[tableName].Conditions);
         offset[tableName].Conditions = [{Key:"UPDATED_AT",Value: isParam(condition) && null != condition ? arrayUtils.firstElement(condition.Value.split('_')) + '_' + dateUtils.nowDate(): batchStart + '_' + dateUtils.nowDate()}];
@@ -413,11 +410,7 @@ function updateToken(connectionConfig, nodeConfig, apiResponse) {
     return;
     if (apiResponse.httpCode === 401 || (apiResponse.result && apiResponse.result.message === 'Requires authentication')) {
         try{
-            log.warn("connectionConfig:{}",connectionConfig);
             let getToken = invoker.invokeWithoutIntercept("refreshToken",clientInfo);
-
-            log.warn("refreshToken:{}",JSON.stringify(getToken));
-            log.warn("refreshToken:error:{}",getToken.error);
             if(getToken && getToken.result && getToken.result.access_token){
                 return {"access_token":  getToken.result.access_token};
             }
