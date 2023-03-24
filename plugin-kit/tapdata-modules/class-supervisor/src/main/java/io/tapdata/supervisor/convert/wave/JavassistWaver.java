@@ -26,6 +26,7 @@ public class JavassistWaver {
         this.pool.appendClassPath(new LoaderClassPath(dependencyURLClassLoader));
     }
 
+
     public Builder builder(String path, String saveTo) throws NotFoundException {
         return new Builder(this.pool, path, saveTo);
     }

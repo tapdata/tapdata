@@ -2,10 +2,27 @@
   "classConfigurations": [
     {
       "target": [{
+        "type": "path",
+        "path": "com.zaxxer.hikari.HikariDataSource"
+      },{
         "type": "extends",
-        "path": "java.io.Closeable",
-        "scanPackage": "*"
-      }],
+        "path": "java.sql.Statement",
+        "package": "com.zaxxer.hikari.pool"
+      },{
+        "type": "extends",
+        "path": "java.io.ResultSet",
+        "package": "com.zaxxer.hikari.pool"
+      },{
+        "type": "extends",
+        "path": "java.sql.Connection",
+        "package": "com.zaxxer.hikari.pool"
+      },{
+        "type": "extends",
+        "path": "java.io.AutoCloseable",
+        "package": "com.zaxxer.hikari",
+        "ignore": true
+      }
+      ],
       "method": [
         {
           "isCreate": true,

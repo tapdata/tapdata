@@ -72,12 +72,18 @@ public class ClassModifier {
         JavassistWaver javaSsistWaver = JavassistWaver.create(classUtil.getDependencyURLClassLoader());
         for (Waver value : this.waver) {
             List<JavassistWaver.Builder> builders = new ArrayList<>();
+            //for filter repetitive class by class path name
+            Set<String> pathCache = new HashSet<>();
             for (int jndex = JavassistTag.ZERO; jndex < value.targets.size(); jndex++) {
                 WBaseTarget wBaseTarget = value.targets.get(jndex);
                 String[] paths = wBaseTarget.paths();
                 for (String path : paths) {
+                    if (pathCache.contains(path)){
+                        continue;
+                    }
                     JavassistWaver.Builder builder = javaSsistWaver.builder(path, wBaseTarget.getSaveTo());
                     builders.add(builder);
+                    pathCache.add(path);
                 }
             }
 
