@@ -161,8 +161,15 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
             return "null";
         });
 
+        codecRegistry.registerFromTapValue(TapTimeValue.class, "varchar(10)", tapValue -> {
+            if (tapValue != null && tapValue.getValue() != null) {
+                return tapValue.getValue().toTimeStr();
+            }
+            return "null";
+        });
+
         //TapTimeValue, TapDateTimeValue and TapDateValue's value is DateTime, need convert into Date object.
-        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
+//        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
             if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
                 tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
