@@ -6,6 +6,7 @@
  */
 package com.tapdata.tm.dataflowinsight.dto;
 
+import java.math.BigInteger;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -19,7 +20,7 @@ public class DataFlowInsightStatisticsDto {
 
 	private List<DataStatisticInfo> inputDataStatistics;
 
-	private Long totalInputDataCount;
+	private BigInteger totalInputDataCount;
 
 
 	@Getter
@@ -29,6 +30,6 @@ public class DataFlowInsightStatisticsDto {
 
 		private String time;
 
-		private Long count;
+		private BigInteger count;
 	}
 }
