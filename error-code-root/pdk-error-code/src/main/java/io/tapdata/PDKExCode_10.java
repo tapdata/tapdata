@@ -8,7 +8,7 @@ import io.tapdata.exception.TapExCode;
  * @Description
  * @create 2023-02-23 12:08
  **/
-@TapExClass(code = 10, module = "PDK", prefix = "PDK", describe = "Error code for PDK")
+@TapExClass(code = 10, module = "PDK", prefix = "PDK", describe = "PDK connectors")
 public interface PDKExCode_10 {
 
 	@TapExCode(
