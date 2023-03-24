@@ -2,6 +2,7 @@ import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../init")
 from env import *
 
+
 # use a datasource => new datasource, to make new datasource data change, mock cdc
 def smart_cdc(datasources):
     cdc_sources_config = {"cdc_sources": {}, "jobs": []}
@@ -28,8 +29,11 @@ def smart_cdc(datasources):
             p.include_cdc()
             p.start()
             p.wait_initial_sync()
+            if sink == 'qa_sqlserver':
+                db_client = newDB(params[3])
+                db_client.open_cdc()
             cdc_sources_config["cdc_sources"][params[3]] = params[1]
             cdc_sources_config["jobs"].append(p)
         datasources[sink]["__has_data"] = True
-    create_datasource() # load schema, after new table created
+    create_datasource()  # load schema, after new table created
     return cdc_sources_config

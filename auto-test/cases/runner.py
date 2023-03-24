@@ -89,7 +89,7 @@ def gen_support_datasources(datasources):
                     support_datasources[datasource + "_" + table].append(source_table)
 
             if "sink" in v_type:
-                if (not args.sink) or args.sink in[source_table["connector"], source_table["source_name"]]:
+                if (not args.sink) or args.sink in [source_table["connector"], source_table["source_name"]]:
                     support_datasources[table + "_sink"].append(sink_table)
                     support_datasources[datasource + "_" + table + "_sink"].append(sink_table)
     return support_datasources
@@ -264,7 +264,8 @@ def run_jobs(test_case, run_params_template):
         try:
             logger.notice("{}", "=" * 150)
             job_name = "%s%s_%d" % (test_case.__name__, get_suffix(), i)
-            p = Pipeline(job_name, mode="sync")
+            case_name = get_case().split(".")[0]
+            p = Pipeline(job_name, mode="sync") if "dev" in case_name else Pipeline(job_name)
             p.config({"type": "initial_sync"})
             run_param = gen_run_param(p, run_params_template[i], i)
             logger.notice("start run number {} job, name is: {}, param is: {}", i, job_name, run_param)
@@ -337,6 +338,7 @@ def main():
             success += 1
     case_text += ", 此用例共运行了 {} 个任务, 通过 {} 个".format(len(result), success)
     print(case_text)
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
