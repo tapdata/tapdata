@@ -8,7 +8,7 @@ public class CommandEntity extends ConnectionTestEntity{
     public DataMap summary() {
         return super.summary()
                 .kv(MODE_KEY,"command")
-                .kv("databaseType",databaseType)
+                .kv("connectorType",databaseType)
                 .kv("name",connectionName)
                 .kv("type",type)
                 .kv("time",time)

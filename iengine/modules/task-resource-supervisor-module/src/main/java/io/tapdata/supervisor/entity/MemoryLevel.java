@@ -47,6 +47,18 @@ public enum MemoryLevel {
             return ALL.desc;
         }
     }
+    public static boolean needMemory(String level){
+        if (Objects.isNull(level)){
+            return Boolean.FALSE;
+        }
+        if (ALL.level().equals(level) ) {
+            return Boolean.FALSE;
+        }else if (DETAIL.level().equals(level) || level.matches(SUMMARY.level()) ||level.matches(DETAIL_CONNECTOR.level())){
+            return Boolean.TRUE;
+        }else {
+            return Boolean.FALSE;
+        }
+    }
 
     public static Boolean filter(String memoryLevel, String key) {
         if (Objects.isNull(memoryLevel)) return null;

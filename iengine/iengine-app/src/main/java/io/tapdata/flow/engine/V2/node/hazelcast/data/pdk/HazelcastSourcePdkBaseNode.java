@@ -134,12 +134,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	        connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
         this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
         this.sourceRunner.submitSync(() ->{
-            AspectUtils.executeAspect(DataNodeThreadGroupAspect.class, () ->
-                    new DataNodeThreadGroupAspect(this.getNode(), associateId, Thread.currentThread().getThreadGroup())
-                            .dataProcessorContext(dataProcessorContext));
             super.doInit(context);
             try {
                 createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
+                AspectUtils.executeAspect(DataNodeThreadGroupAspect.class, () ->
+                        new DataNodeThreadGroupAspect(this.getNode(), associateId, Thread.currentThread().getThreadGroup())
+                                .dataProcessorContext(dataProcessorContext));
                 connectorNodeInit(dataProcessorContext);
             } catch (Throwable e) {
                 throw new NodeException(e).context(getProcessorBaseContext());

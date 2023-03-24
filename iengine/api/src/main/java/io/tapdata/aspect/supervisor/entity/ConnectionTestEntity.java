@@ -116,7 +116,7 @@ public class ConnectionTestEntity extends DisposableThreadGroupBase {
     public DataMap summary() {
         return super.summary()
                 .kv(MODE_KEY,"connection-test")
-                .kv("databaseType",databaseType)
+                .kv("connectorType",databaseType)
                 .kv("name",connectionName)
                 .kv("type",type)
                 .kv("pdkType",pdkType)

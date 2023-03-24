@@ -64,6 +64,9 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
 
     @Override
     public DataMap memory(String keyRegex, String memoryLevel) {
+        if (!MemoryLevel.needMemory(memoryLevel)){
+            return null;
+        }
         Set<SupervisorAspectTask> aliveTaskSet = new HashSet<>();
         Set<SupervisorAspectTask> leakedTaskSet = new HashSet<>();
         Set<DisposableNodeInfo> aliveConnectorSet = new HashSet<>();
