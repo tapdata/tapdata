@@ -128,13 +128,13 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
             if (taskNodeInfo.isHasLaked()) {
                 try {
                     taskNodeInfo.getNodeThreadGroup().destroy();
-                    taskNodeInfo.setHasLaked(Boolean.FALSE);
+                    taskNodeInfo.setHasLeaked(Boolean.FALSE);
                     taskNodeInfo.getSupervisorAspectTask().getThreadGroupMap().remove(taskNodeInfo.getNodeThreadGroup());
                     taskNodeInfo.setSupervisorAspectTask(null);
                     taskNodeInfo.setNodeThreadGroup(null);
                     continue;
                 } catch (Exception e1) {
-                    taskNodeInfo.setHasLaked(Boolean.TRUE);
+                    taskNodeInfo.setHasLeaked(Boolean.TRUE);
                 }
             }
             SupervisorAspectTask aspectTask = taskNodeInfo.getSupervisorAspectTask();

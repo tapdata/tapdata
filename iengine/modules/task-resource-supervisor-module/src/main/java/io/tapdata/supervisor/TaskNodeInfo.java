@@ -127,7 +127,7 @@ class TaskNodeInfo implements MemoryFetcher {
         return hasLaked;
     }
 
-    public void setHasLaked(boolean hasLaked) {
+    public void setHasLeaked(boolean hasLaked) {
         this.hasLaked = hasLaked;
     }
 

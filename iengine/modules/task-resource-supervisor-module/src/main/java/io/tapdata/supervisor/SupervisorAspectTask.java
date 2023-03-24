@@ -84,7 +84,7 @@ public class SupervisorAspectTask extends AbstractAspectTask {
                 try {
                     group.destroy();
                     taskResourceSupervisorManager.removeTaskSubscribeInfo(info);
-                    info.setHasLaked(Boolean.FALSE);
+                    info.setHasLeaked(Boolean.FALSE);
                     info.setSupervisorAspectTask(null);
                     info.setNodeThreadGroup(null);
                     threadGroupMap.remove(group);
