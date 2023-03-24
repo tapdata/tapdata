@@ -38,7 +38,7 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
         if (!taskDto.isAutoInspect()) {
             return results;
         }
-        if (!taskDto.isCanOpenInspect()) {
+        if (taskDto.getCanOpenInspect() == null || !taskDto.getCanOpenInspect()) {
             results.add(createWarn(taskDto, userDetail, "not suports check", locale));
             return results;
         }

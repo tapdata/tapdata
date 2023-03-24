@@ -15,6 +15,7 @@ import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.milestone.constants.MilestoneStatus;
 import io.tapdata.milestone.entity.MilestoneEntity;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -153,7 +154,9 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         logger.info("Start task milestones: {}({})", task.getId().toHexString(), task.getName());
 
         taskMilestone(KPI_TASK, this::setFinish);
-        taskMilestone(KPI_TABLE_INIT, null);
+        if (!TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(task.getSyncType())) {
+            taskMilestone(KPI_TABLE_INIT, null);
+        }
         taskMilestone(KPI_DATA_NODE_INIT, null);
         if (hasSnapshot()) taskMilestone(KPI_SNAPSHOT, null);
         if (hasCdc()) taskMilestone(KPI_CDC, null);
@@ -259,36 +262,38 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     private void storeMilestone() {
         try {
             // set task table init
-            taskMilestone(KPI_TABLE_INIT, (milestone) -> {
-                milestone.setStatus(MilestoneStatus.WAITING);
-                if (targetNodes.isEmpty()) return;
+            if (!TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(task.getSyncType())) {
+                taskMilestone(KPI_TABLE_INIT, (milestone) -> {
+                    milestone.setStatus(MilestoneStatus.WAITING);
+                    if (targetNodes.isEmpty()) return;
 
-                milestone.setBegin(System.currentTimeMillis());
-                milestone.setEnd(0L);
-                milestone.setStatus(MilestoneStatus.RUNNING);
-                AtomicLong totals = new AtomicLong(0), completed = new AtomicLong(0);
-                for (String nid : targetNodes) {
-                    nodeMilestones(nid, KPI_TABLE_INIT, (m) -> {
-                        milestone.setBegin(Math.min(milestone.getBegin(), m.getBegin()));
-                        if (null == m.getEnd()) {
-                            milestone.setEnd(null);
-                        } else if (null != milestone.getEnd()) {
-                            milestone.setEnd(Math.max(milestone.getEnd(), m.getEnd()));
-                        }
+                    milestone.setBegin(System.currentTimeMillis());
+                    milestone.setEnd(0L);
+                    milestone.setStatus(MilestoneStatus.RUNNING);
+                    AtomicLong totals = new AtomicLong(0), completed = new AtomicLong(0);
+                    for (String nid : targetNodes) {
+                        nodeMilestones(nid, KPI_TABLE_INIT, (m) -> {
+                            milestone.setBegin(Math.min(milestone.getBegin(), m.getBegin()));
+                            if (null == m.getEnd()) {
+                                milestone.setEnd(null);
+                            } else if (null != milestone.getEnd()) {
+                                milestone.setEnd(Math.max(milestone.getEnd(), m.getEnd()));
+                            }
 
-                        milestone.setTotals(totals.addAndGet(m.getTotals()));
-                        milestone.setProgress(completed.addAndGet(m.getProgress()));
-                        if (null != m.getErrorMessage()) {
-                            milestone.setStatus(MilestoneStatus.ERROR);
-                            milestone.setErrorMessage(m.getErrorMessage());
-                        }
-                    });
-                }
+                            milestone.setTotals(totals.addAndGet(m.getTotals()));
+                            milestone.setProgress(completed.addAndGet(m.getProgress()));
+                            if (null != m.getErrorMessage()) {
+                                milestone.setStatus(MilestoneStatus.ERROR);
+                                milestone.setErrorMessage(m.getErrorMessage());
+                            }
+                        });
+                    }
 
-                if (MilestoneStatus.ERROR != milestone.getStatus() && totals.get() == completed.get()) {
-                    milestone.setStatus(MilestoneStatus.FINISH);
-                }
-            });
+                    if (MilestoneStatus.ERROR != milestone.getStatus() && totals.get() == completed.get()) {
+                        milestone.setStatus(MilestoneStatus.FINISH);
+                    }
+                });
+            }
 
             taskMilestone(KPI_DATA_NODE_INIT, m -> {
                 if (MilestoneStatus.FINISH == m.getStatus()) return; // return if finish

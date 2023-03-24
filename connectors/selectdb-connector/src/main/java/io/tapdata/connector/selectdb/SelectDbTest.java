@@ -4,14 +4,12 @@ import io.tapdata.common.CommonDbTest;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.connector.selectdb.config.SelectDbConfig;
 import io.tapdata.connector.selectdb.util.CopyIntoUtils;
-import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.TestItem;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
 import java.util.function.Consumer;
 import static io.tapdata.base.ConnectorBase.testItem;
 
@@ -23,7 +21,6 @@ import static io.tapdata.base.ConnectorBase.testItem;
 public class SelectDbTest extends CommonDbTest {
     protected static final String TAG = SelectDbTest.class.getSimpleName();
 
-    protected TapConnectionContext tapConnectionContext;
     protected SelectDbJdbcContext selectDbJdbcContext;
 
     public SelectDbTest(SelectDbConfig selectDbConfig, Consumer<TestItem> consumer) {
@@ -50,7 +47,7 @@ public class SelectDbTest extends CommonDbTest {
     protected Boolean testWritePrivilege() {
         try {
             List<String> sqls = new ArrayList<>();
-            selectDbJdbcContext =(SelectDbJdbcContext) DataSourcePool.getJdbcContext(commonDbConfig, SelectDbJdbcContext.class, uuid);
+            selectDbJdbcContext = (SelectDbJdbcContext) DataSourcePool.getJdbcContext(commonDbConfig, SelectDbJdbcContext.class, uuid);
             if (selectDbJdbcContext.queryAllTables(Arrays.asList(TEST_WRITE_TABLE, TEST_WRITE_TABLE.toUpperCase())).size() > 0) {
                 sqls.add(String.format(TEST_DROP_TABLE, TEST_WRITE_TABLE));
             }
@@ -75,5 +72,18 @@ public class SelectDbTest extends CommonDbTest {
             consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_FAILED, e.getMessage()));
         }
         return true;
+    }
+
+    @Override
+    protected Boolean testVersion() {
+        try {
+            selectDbJdbcContext = (SelectDbJdbcContext) DataSourcePool.getJdbcContext(commonDbConfig, SelectDbJdbcContext.class, uuid);
+            String selectDBVersion = selectDbJdbcContext.getSelectDBVersion();
+            consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_SUCCESSFULLY, selectDBVersion));
+        } catch (Throwable throwable) {
+            throwable.printStackTrace();
+            consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_FAILED, throwable.getMessage()));
+        }
+        return null;
     }
 }

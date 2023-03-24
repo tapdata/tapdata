@@ -21,6 +21,7 @@ import io.tapdata.kit.StringKit;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -55,7 +56,7 @@ public class TidbContext extends JdbcContext{
 
     private static final String TRUNCATE_TABLE_SQL = "TRUNCATE TABLE `%s`.`%s`";
 
-    public static final String SELECT_TABLE = "SELECT t.* FROM `%s`.`%s` t";
+    private static final String GET_TABLE_INFO_SQL = "SELECT * FROM information_schema.tables WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s'";
 
     private final static String TIDB_ALL_INDEX = "select *\n" +
             "from (select i.TABLE_NAME,\n" +
@@ -325,6 +326,24 @@ public class TidbContext extends JdbcContext{
         }
         return sb.append(":").append(split[1]).toString();
     }
+    public DataMap getTableInfo(String tableName) throws Throwable {
+        DataMap  dataMap = DataMap.create();
+        List  list  = new ArrayList();
+        list.add("TABLE_ROWS");
+        list.add("DATA_LENGTH");
+        try {
+            query(String.format(GET_TABLE_INFO_SQL, getConfig().getDatabase(), tableName),resultSet -> {
+                while (resultSet.next()) {
+                    dataMap.putAll(DbKit.getRowFromResultSet(resultSet, list));
+                }
+            });
+
+        }catch (Throwable e) {
+            TapLogger.error(TAG, "Execute getTableInfo failed, error: " + e.getMessage(), e);
+        }
+        return dataMap;
+    }
+
 
 
     public void queryWithStream(String sql, ResultSetConsumer resultSetConsumer) throws Throwable {

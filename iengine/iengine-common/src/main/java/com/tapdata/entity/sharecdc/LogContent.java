@@ -1,6 +1,8 @@
 package com.tapdata.entity.sharecdc;
 
 import io.tapdata.annotation.Ignore;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.ObjectSerializable;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
@@ -33,6 +35,7 @@ public class LogContent implements Serializable {
 	private String op;
 	private String offsetString;
 	private String type = LogContentType.DATA.name();
+	private byte[] tapDDLEvent;
 
 	public LogContent() {
 	}
@@ -52,8 +55,8 @@ public class LogContent implements Serializable {
 		this.timestamp = timestamp;
 	}
 
-	public LogContent(String fromTable, Long timestamp, Map<String, Object> before, Map<String, Object> after,
-					  String op, String offsetString) {
+	private LogContent(String fromTable, Long timestamp, Map<String, Object> before, Map<String, Object> after,
+					   String op, String offsetString) {
 		this.fromTable = fromTable;
 		this.timestamp = timestamp;
 		this.before = before;
@@ -63,6 +66,23 @@ public class LogContent implements Serializable {
 		if (timestamp != null) {
 			this.date = new Date(timestamp);
 		}
+	}
+
+	public static LogContent createDMLLogContent(String fromTable, Long timestamp, Map<String, Object> before, Map<String, Object> after,
+												 String op, String offsetString) {
+		return new LogContent(fromTable, timestamp, before, after, op, offsetString);
+	}
+
+	private LogContent(String fromTable, Long timestamp, String op, String offsetString, byte[] tapDDLEvent) {
+		this.fromTable = fromTable;
+		this.timestamp = timestamp;
+		this.op = op;
+		this.offsetString = offsetString;
+		this.tapDDLEvent = tapDDLEvent;
+	}
+
+	public static LogContent createDDLLogContent(String fromTable, Long timestamp, String op, String offsetString, byte[] tapDDLEvent) {
+		return new LogContent(fromTable, timestamp, op, offsetString, tapDDLEvent);
 	}
 
 	public String getFromTable() {
@@ -166,6 +186,14 @@ public class LogContent implements Serializable {
 				|| timestamp <= 0L;
 	}
 
+	public void setTapDDLEvent(byte[] tapDDLEvent) {
+		this.tapDDLEvent = tapDDLEvent;
+	}
+
+	public byte[] getTapDDLEvent() {
+		return tapDDLEvent;
+	}
+
 	public static LogContent valueOf(Document document) {
 		LogContent logContent = new LogContent();
 		logContent.setFromTable(document.getOrDefault("fromTable", "").toString());
@@ -190,18 +218,30 @@ public class LogContent implements Serializable {
 				}
 			}
 		}
+		Object tapDDLEventObj = document.get("tapDDLEvent");
+		if (tapDDLEventObj instanceof byte[]) {
+			logContent.setTapDDLEvent((byte[]) tapDDLEventObj);
+		}
 		logContent.setType(logContentType.name());
 		return logContent;
 	}
 
 	@Override
 	public String toString() {
+		Object tapDDLEventObj = null;
+		if (null != tapDDLEvent) {
+			try {
+				tapDDLEventObj = InstanceFactory.instance(ObjectSerializable.class).toObject(tapDDLEvent);
+			} catch (Exception ignored) {
+			}
+		}
 		return "LogContent{\n" +
 				"  fromTable='" + fromTable +
 				"\n  timestamp=" + new Date(timestamp).toInstant() +
 				"\n  op=" + op +
 				"\n  before=" + before +
 				"\n  after=" + after +
+				"\n  ddl event=" + (null != tapDDLEventObj ? tapDDLEventObj : "") +
 				"\n  offsetString=" + offsetString +
 				"\n  type=" + type +
 				"\n}";

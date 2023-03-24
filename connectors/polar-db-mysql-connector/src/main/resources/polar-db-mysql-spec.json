@@ -4,7 +4,7 @@
     "icon": "icons/polar-db-mysql.png",
     "id": "polar-db-mysql",
     "doc": "${doc}",
-    "authentication": "beta",
+    "authentication": "Beta",
     "tags": ["Database"]
   },
   "configOptions": {

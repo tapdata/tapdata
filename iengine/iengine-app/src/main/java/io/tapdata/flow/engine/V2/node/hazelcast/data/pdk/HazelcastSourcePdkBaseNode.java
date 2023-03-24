@@ -8,6 +8,7 @@ import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.cdcdelay.CdcDelay;
+import com.tapdata.tm.commons.cdcdelay.CdcDelayDisable;
 import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
@@ -120,7 +121,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		this.cdcDelayCalculation = new CdcDelay();
+		if (Boolean.TRUE.equals(dataProcessorContext.getConnections().getHeartbeatEnable())) {
+			this.cdcDelayCalculation = new CdcDelay();
+		} else {
+			this.cdcDelayCalculation = new CdcDelayDisable();
+		}
 	}
 
     @Override
@@ -161,12 +166,18 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(),
                 TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
             initBatchAndStreamOffset(taskDto);
-            if (null != syncProgress.getBatchOffsetObj()) {
-				obsLogger.info("Decoded batch offset: {}", JSONUtil.obj2Json(syncProgress.getBatchOffsetObj()));
-            }
-			if (null != syncProgress.getStreamOffsetObj()) {
-				obsLogger.info("Decoded stream offset: {}", JSONUtil.obj2Json(syncProgress.getStreamOffsetObj()));
+            String offsetLog = "";
+			if (null != syncProgress.getBatchOffsetObj()) {
+				offsetLog += String.format("batch offset found: %s,", JSONUtil.obj2Json(syncProgress.getBatchOffsetObj()));
+            }else {
+				offsetLog += "batch offset not found, ";
 			}
+			if (null != syncProgress.getStreamOffsetObj()) {
+				offsetLog += String.format("stream offset found: %s", JSONUtil.obj2Json(syncProgress.getStreamOffsetObj()));
+			} else {
+				offsetLog += "stream offset not found.";
+			}
+			obsLogger.info(offsetLog);
 		}
 	}
 
@@ -639,8 +650,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 
         TapdataEvent tapdataEvent = null;
-        if (tapEvent instanceof TapRecordEvent) {
-            TapRecordEvent tapRecordEvent = (TapRecordEvent) tapEvent;
+
             switch (sourceMode) {
                 case NORMAL:
                     tapdataEvent = new TapdataEvent();
@@ -653,8 +663,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                     }
                     break;
             }
-            tapdataEvent.setTapEvent(tapRecordEvent);
-            tapdataEvent.setSyncStage(syncStage);
+            tapdataEvent.setTapEvent(tapEvent);
+            tapdataEvent.setSyncStage(syncStage);if (tapEvent instanceof TapRecordEvent) {
             if (SyncStage.INITIAL_SYNC == syncStage) {
                 if (isLast && !StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
                         TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
@@ -684,11 +694,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 return null;
             }
 
-            tapdataEvent = new TapdataEvent();
-            tapdataEvent.setTapEvent(tapEvent);
-            tapdataEvent.setSyncStage(syncStage);
+
             tapdataEvent.setStreamOffset(offsetObj);
-            tapdataEvent.setSourceTime(((TapDDLEvent) tapEvent).getReferenceTime());
+            tapdataEvent.setSourceTime(((TapDDLEvent) tapEvent).getReferenceTime());if (sourceMode.equals(SourceMode.NORMAL)) {
+				handleSchemaChange(tapEvent);
+			}
+		}
+		return tapdataEvent;
+	}
+
+	private void handleSchemaChange(TapEvent tapEvent) {
             String tableId = ((TapDDLEvent) tapEvent).getTableId();
             TapTable tapTable;
             // Modify schema by ddl event
@@ -777,11 +792,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 throw new RuntimeException("Transform schema by TapDDLEvent " + tapEvent + " failed, error: " + e.getMessage(), e);
             }
         }
-        if (null == tapdataEvent) {
-            throw new RuntimeException("Found event type does not support: " + tapEvent.getClass().getSimpleName());
-        }
-        return tapdataEvent;
-    }
+
 
     public void enqueue(TapdataEvent tapdataEvent) {
         try {

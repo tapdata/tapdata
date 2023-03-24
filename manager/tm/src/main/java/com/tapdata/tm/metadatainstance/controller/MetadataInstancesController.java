@@ -202,7 +202,7 @@ public class MetadataInstancesController extends BaseController {
     @GetMapping("node/heartbeatQualifiedName")
     public ResponseMessage<String> findHeartbeatQualifiedNameByNodeId(@RequestParam(value = "filter", required = false) String filterJson) {
         Filter filter = parseFilter(filterJson);
-        return success(metadataInstancesService.findQualifiedNameByNodeId(filter, getLoginUser()));
+        return success(metadataInstancesService.findHeartbeatQualifiedNameByNodeId(filter, getLoginUser()));
     }
 
 
@@ -757,5 +757,13 @@ public class MetadataInstancesController extends BaseController {
         returnMap.put("exist", exist);
         return success(returnMap);
     }
+
+
+    @PostMapping("updateTableDesc")
+    public ResponseMessage<Void> updateTableDesc(@RequestBody MetadataInstancesDto metadataInstances) {
+        metadataInstancesService.updateTableDesc(metadataInstances, getLoginUser());
+        return success();
+    }
+
 
 }

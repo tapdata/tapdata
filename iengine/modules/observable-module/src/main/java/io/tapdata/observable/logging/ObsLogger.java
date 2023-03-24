@@ -1,7 +1,13 @@
 package io.tapdata.observable.logging;
 
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
+import io.tapdata.ErrorCodeConfig;
+import io.tapdata.ErrorCodeEntity;
+import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.observable.logging.tag.LogTag;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 
 import java.util.concurrent.Callable;
 
@@ -10,10 +16,15 @@ import java.util.concurrent.Callable;
  **/
 public abstract class ObsLogger {
 	public abstract MonitoringLogsDto.MonitoringLogsDtoBuilder logBaseBuilder();
+
 	public abstract void debug(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params);
+
 	public abstract void info(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params);
+
 	public abstract void warn(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params);
+
 	public abstract void error(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params);
+
 	public abstract void fatal(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params);
 
 	// debug level public logger api
@@ -60,7 +71,7 @@ public abstract class ObsLogger {
 		error(callable, throwable, null);
 	}
 
-	public void error(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message,  Object... params) {
+	public void error(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params) {
 		error(callable, null, message, params);
 	}
 
@@ -98,7 +109,7 @@ public abstract class ObsLogger {
 		fatal(callable, throwable, null);
 	}
 
-	public void fatal(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message,  Object... params) {
+	public void fatal(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params) {
 		fatal(callable, null, message, params);
 	}
 
@@ -135,5 +146,35 @@ public abstract class ObsLogger {
 		}
 
 		return builder;
+	}
+
+	protected static void buildErrorMessage(
+			Throwable throwable,
+			ParameterizedMessage parameterizedMessage,
+			MonitoringLogsDto.MonitoringLogsDtoBuilder builder
+	) {
+		String formattedMessage = parameterizedMessage.getFormattedMessage();
+		if (StringUtils.isBlank(formattedMessage)) {
+			formattedMessage = "<Empty error message>";
+		}
+		builder.message(parameterizedMessage.getFormattedMessage());
+		String stackString = "<-- Full Stack Trace -->\n" + TapSimplify.getStackString(throwable);
+		if (throwable instanceof TapCodeException) {
+			String errorCode = ((TapCodeException) throwable).getCode();
+			builder.errorCode(errorCode);
+			ErrorCodeEntity errorCodeEntity = ErrorCodeConfig.getInstance().getErrorCode(errorCode);
+			if (null != errorCodeEntity) {
+				builder.fullErrorCode(errorCodeEntity.fullErrorCode());
+			}
+			String simpleStack = ((TapCodeException) throwable).simpleStack();
+			if (StringUtils.isNotBlank(simpleStack)) {
+				stackString = "<-- Error Message -->\n" + formattedMessage+"\n\n"
+						+ "<-- Simple Stack Trace -->\n" + simpleStack + "\n\n"
+						+ stackString;
+			}
+			builder.errorStack(stackString);
+		} else {
+			builder.errorStack(stackString);
+		}
 	}
 }

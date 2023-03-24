@@ -69,7 +69,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     protected Map<String, SyncProgress> syncProgressMap = new ConcurrentHashMap<>();
     private AtomicBoolean firstBatchEvent = new AtomicBoolean();
     private AtomicBoolean firstStreamEvent = new AtomicBoolean();
-    protected Map<String, List<String>> updateConditionFieldsMap;
+    protected Map<String, List<String>> updateConditionFieldsMap = new HashMap<>();
     protected String writeStrategy = "updateOrInsert";
     private AtomicBoolean flushOffset = new AtomicBoolean(false);
     protected AtomicBoolean uploadDagService;
@@ -123,17 +123,17 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             if (getNode() instanceof DataParentNode) {
                 this.targetBatch = Optional.ofNullable(((DataParentNode<?>) getNode()).getWriteBatchSize()).orElse(DEFAULT_TARGET_BATCH);
             }
-            obsLogger.info("Write batch size: {}", targetBatch);
+
             targetBatchIntervalMs = DEFAULT_TARGET_BATCH_INTERVAL_MS;
             if (getNode() instanceof DataParentNode) {
                 this.targetBatchIntervalMs = Optional.ofNullable(((DataParentNode<?>) getNode()).getWriteBatchWaitMs()).orElse(DEFAULT_TARGET_BATCH_INTERVAL_MS);
             }
-            obsLogger.info("Write max wait interval ms per batch: {}", targetBatchIntervalMs);
+            obsLogger.info("Write batch size: {}, max wait ms per batch: {}", targetBatch,targetBatchIntervalMs);
             int writeQueueCapacity = new BigDecimal(targetBatch).multiply(new BigDecimal("1.5")).setScale(0, RoundingMode.HALF_UP).intValue();
             this.tapEventQueue = new LinkedBlockingQueue<>(writeQueueCapacity);
-            obsLogger.info("Initialize target write queue complete, capacity: {}", writeQueueCapacity);
+            obsLogger.debug("Initialize target write queue complete, capacity: {}", writeQueueCapacity);
             this.queueConsumerThreadPool.submit(this::queueConsume);
-            obsLogger.info("Initialize target event handler complete");
+            obsLogger.debug("Initialize target event handler complete");
 
             final Node<?> node = this.dataProcessorContext.getNode();
             if (node instanceof DataParentNode) {
@@ -373,7 +373,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     throw new RuntimeException(String.format("Process share log failed: %s", throwable.getMessage()), throwable);
                 }
             }
-        } finally {
+        executeAspect(new CDCHeartbeatWriteAspect().tapdataEvents(tapdataEvents).dataProcessorContext(dataProcessorContext));} finally {
             flushSyncProgressMap(lastDmlTapdataEvent.get());
         }
     }
@@ -415,9 +415,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     }
 
     private void handleTapdataShareLogEvent(List<TapdataShareLogEvent> tapdataShareLogEvents, TapdataEvent tapdataEvent, Consumer<TapdataEvent> consumer) {
-        TapRecordEvent tapRecordEvent = (TapRecordEvent) tapdataEvent.getTapEvent();
+        TapEvent tapEvent = tapdataEvent.getTapEvent();
+		if (tapEvent instanceof TapRecordEvent) {
+			TapRecordEvent tapRecordEvent = (TapRecordEvent) tapEvent;
         fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager);
-        fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager);
+        fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager);}
         tapdataShareLogEvents.add((TapdataShareLogEvent) tapdataEvent);
         if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
             consumer.accept(tapdataEvent);

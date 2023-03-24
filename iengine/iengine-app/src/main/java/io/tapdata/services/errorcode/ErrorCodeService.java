@@ -39,24 +39,27 @@ public class ErrorCodeService implements MemoryFetcher {
 
 		String describe = "";
 		String solution;
+		boolean hasDescribe = false;
 
 		Class<?> sourceExClass = errorCode.getSourceExClass();
 		TapExClass tapExClass = null;
 		if (null != sourceExClass) {
 			tapExClass = sourceExClass.getAnnotation(TapExClass.class);
 		}
+		if (null != tapExClass) {
+			describe = String.format("Module - %s(%s)", tapExClass.module(), tapExClass.code());
+			if (StringUtils.isNotBlank(tapExClass.describe())) {
+				describe += String.format(": %s", tapExClass.describe());
+				hasDescribe = true;
+			} else {
+				describe += "\n\n";
+			}
+		}
 		switch (languageEnum) {
 			case CN:
-				if (null != tapExClass) {
-					describe = String.format("模块名: %s(%s)", tapExClass.module(), tapExClass.code());
-					if (StringUtils.isNotBlank(tapExClass.describe())) {
-						describe += String.format("\n模块描述: %s\n\n", tapExClass.describe());
-					} else {
-						describe += "\n\n";
-					}
-				}
 				if (StringUtils.isNotBlank(errorCode.getDescribeCN())) {
 					describe += "错误描述\n" + errorCode.getDescribeCN();
+					hasDescribe = true;
 				}
 				solution = errorCode.getSolutionCN();
 				if (StringUtils.isNotBlank(solution)) {
@@ -64,14 +67,6 @@ public class ErrorCodeService implements MemoryFetcher {
 				}
 				break;
 			default:
-				if (null != tapExClass) {
-					describe = String.format("Module name: %s(%s)", tapExClass.module(), tapExClass.code());
-					if (StringUtils.isNotBlank(tapExClass.describe())) {
-						describe += String.format("\nModule describe: %s\n\n", tapExClass.describe());
-					} else {
-						describe += "\n\n";
-					}
-				}
 				if (StringUtils.isNotBlank(errorCode.getDescribe())) {
 					describe += "Error describe\n" + errorCode.getDescribe();
 				}
@@ -85,6 +80,7 @@ public class ErrorCodeService implements MemoryFetcher {
 			describe = describe + solution;
 		}
 		res.put("describe", describe);
+		res.put("hasDescribe", hasDescribe);
 		res.put("seeAlso", errorCode.getSeeAlso());
 		return res;
 	}

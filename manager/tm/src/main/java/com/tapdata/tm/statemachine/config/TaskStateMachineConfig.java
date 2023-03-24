@@ -158,7 +158,7 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 				update.set("stoppingTime", date);
 				break;
 			case TaskDto.STATUS_RUNNING:  //  running对应runningTime
-				update.set("runningTime", date);
+				update.set("runningTime", date).unset("ldpNewTables");
 				break;
 			case TaskDto.STATUS_ERROR:  //  error对应errorTime和finishTime
 				update.set("errorTime", date).set("stopTime", date).set("scheduleDate", null);

@@ -11,18 +11,33 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
+import io.tapdata.aspect.AlterFieldAttributesFuncAspect;
+import io.tapdata.aspect.AlterFieldNameFuncAspect;
+import io.tapdata.aspect.DropFieldFuncAspect;
+import io.tapdata.aspect.NewFieldFuncAspect;
 import io.tapdata.aspect.WriteRecordFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.construct.HazelcastConstruct;
 import io.tapdata.construct.constructImpl.ConstructRingBuffer;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
+import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.simplify.pretty.ClassHandlers;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.ObjectSerializable;
+import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.core.api.impl.serialize.ObjectSerializableImplV2;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
@@ -36,7 +51,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,6 +61,7 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author samuel
@@ -59,6 +75,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	private static final long MIN_FLUSH_METRICS_INTERVAL_MS = 5000L;
 	private static final int FLUSH_METRICS_BATCH_SIZE = 10;
 	public static final String TAG = HazelcastTargetPdkShareCDCNode.class.getSimpleName();
+	private final static ObjectSerializable OBJECT_SERIALIZABLE = InstanceFactory.instance(ObjectSerializable.class);
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkShareCDCNode.class);
 	private LRUMap constructMap;
 	private List<String> tableNames;
@@ -68,6 +85,8 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	private List<ShareCdcTableMetricsDto> cacheMetricsList = new ArrayList<>();
 	private final AtomicLong lastFlushMetricsTimeMs = new AtomicLong();
 	private Map<String, ShareCdcTableMetricsDto> shareCdcTableMetricsDtoMap;
+	private ClassHandlers ddlEventHandlers;
+	private final AtomicReference<LogContent> ddlLogContent = new AtomicReference<>();
 
 	public HazelcastTargetPdkShareCDCNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -89,13 +108,263 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 				construct.insert(document);
 			}
 		}
-		this.batchCacheData = new HashMap<>();
+		this.batchCacheData = new LinkedHashMap<>();
 		this.flushShareCdcTableMetricsThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>(),
 				r -> new Thread(r, "Flush-Share-Cdc-Table-Metrics-Consumer-"
 						+ dataProcessorContext.getTaskDto().getId().toHexString() + "-" + getNode().getId()));
 		this.flushShareCdcTableMetricsThreadPool.submit(this::consumeAndFlushTableMetrics);
 		this.shareCdcTableMetricsDtoMap = new ConcurrentHashMap<>();
 		obsLogger.info("Init log data storage finished, config: " + externalStorageDto);
+
+		ddlEventHandlers = new ClassHandlers();
+		ddlEventHandlers.register(TapNewFieldEvent.class, this::writeNewFieldFunction);
+		ddlEventHandlers.register(TapAlterFieldNameEvent.class, this::writeAlterFieldNameFunction);
+		ddlEventHandlers.register(TapAlterFieldAttributesEvent.class, this::writeAlterFieldAttrFunction);
+		ddlEventHandlers.register(TapDropFieldEvent.class, this::writeDropFieldFunction);
+	}
+
+	@Override
+	void processEvents(List<TapEvent> tapEvents) {
+		throw new UnsupportedOperationException();
+	}
+
+	@Override
+	@SneakyThrows
+	void processShareLog(List<TapdataShareLogEvent> tapdataShareLogEvents) {
+		if (CollectionUtils.isEmpty(tapdataShareLogEvents)) return;
+
+		List<TapdataShareLogEvent> cacheTapdataEvents = new ArrayList<>();
+		TapEvent lastTapEvent = null;
+		for (TapdataShareLogEvent tapdataShareLogEvent : tapdataShareLogEvents) {
+			// Dispatch dml and ddl events
+			TapEvent tapEvent = tapdataShareLogEvent.getTapEvent();
+			if (!tapdataShareLogEvent.isDDL() && !tapdataShareLogEvent.isDML()) {
+				continue;
+			}
+			if (null == lastTapEvent) {
+				lastTapEvent = tapEvent;
+			}
+			if (!(lastTapEvent.getClass().isInstance(tapEvent))) {
+				handleTapEvents(cacheTapdataEvents);
+			}
+			cacheTapdataEvents.add(tapdataShareLogEvent);
+			lastTapEvent = tapEvent;
+		}
+
+		handleTapEvents(cacheTapdataEvents);
+		incrementTableMetrics(tapdataShareLogEvents);
+		metricsEnqueue();
+	}
+
+	private void handleTapEvents(List<TapdataShareLogEvent> cacheTapdataEvents) {
+		if (CollectionUtils.isEmpty(cacheTapdataEvents)) {
+			return;
+		}
+		TapdataShareLogEvent firstTapdataEvent = cacheTapdataEvents.get(0);
+		if (firstTapdataEvent.isDML()) {
+			handleTapRecordEvents(cacheTapdataEvents);
+		} else if (firstTapdataEvent.isDDL()) {
+			handleTapDDLEvents(cacheTapdataEvents);
+		}
+		cacheTapdataEvents.clear();
+	}
+
+	private void handleTapRecordEvents(List<TapdataShareLogEvent> tapdataShareLogEvents) {
+		AtomicReference<WriteListResult<TapRecordEvent>> writeListResult = new AtomicReference<>();
+		List<TapRecordEvent> tapRecordEvents = new ArrayList<>();
+		List<LogContent> logContents = new ArrayList<>();
+		for (TapdataShareLogEvent shareLogEvent : tapdataShareLogEvents) {
+			LogContent logContent = wrapLogContent(shareLogEvent);
+			if (null == logContent) {
+				continue;
+			}
+			logContents.add(logContent);
+			TapEvent event = shareLogEvent.getTapEvent();
+			tapRecordEvents.add((TapRecordEvent) event);
+		}
+		executeDataFuncAspect(
+				WriteRecordFuncAspect.class,
+				() -> new WriteRecordFuncAspect()
+						.recordEvents(tapRecordEvents)
+						.table(new TapTable(externalStorageDto.getName()))
+						.dataProcessorContext(dataProcessorContext)
+						.start(),
+				writeRecordFuncAspect -> {
+					writeListResult.set(writeLogContents(logContents));
+					AspectUtils.accept(writeRecordFuncAspect.state(WriteRecordFuncAspect.STATE_WRITING).getConsumers(), tapRecordEvents, writeListResult.get());
+				}
+		);
+	}
+
+	private void handleTapDDLEvents(List<TapdataShareLogEvent> tapdataShareLogEvents) {
+		for (TapdataShareLogEvent tapdataShareLogEvent : tapdataShareLogEvents) {
+			LogContent logContent = wrapLogContent(tapdataShareLogEvent);
+			if (null == logContent) {
+				continue;
+			}
+			ddlLogContent.set(logContent);
+			TapEvent tapEvent = tapdataShareLogEvent.getTapEvent();
+			ddlEventHandlers.handle(tapEvent);
+		}
+	}
+
+	private Void writeDropFieldFunction(TapDropFieldEvent tapDropFieldEvent) {
+		AspectUtils.executeAspect(new DropFieldFuncAspect()
+				.dropFieldEvent(tapDropFieldEvent)
+				.dataProcessorContext(dataProcessorContext)
+				.state(NewFieldFuncAspect.STATE_START));
+		executeDataFuncAspect(
+				DropFieldFuncAspect.class,
+				() -> new DropFieldFuncAspect()
+						.dropFieldEvent(tapDropFieldEvent)
+						.dataProcessorContext(dataProcessorContext)
+						.start(),
+				dropFieldFuncAspect -> writeLogContent(ddlLogContent.get())
+		);
+		return null;
+	}
+
+	private Void writeAlterFieldAttrFunction(TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent) {
+		AspectUtils.executeAspect(new AlterFieldAttributesFuncAspect()
+				.alterFieldAttributesEvent(tapAlterFieldAttributesEvent)
+				.dataProcessorContext(dataProcessorContext)
+				.state(AlterFieldAttributesFuncAspect.STATE_START));
+		executeDataFuncAspect(
+				AlterFieldAttributesFuncAspect.class,
+				() -> new AlterFieldAttributesFuncAspect()
+						.alterFieldAttributesEvent(tapAlterFieldAttributesEvent)
+						.dataProcessorContext(dataProcessorContext)
+						.start(),
+				alterFieldAttributesFuncAspect -> writeLogContent(ddlLogContent.get())
+		);
+		return null;
+	}
+
+	private Void writeAlterFieldNameFunction(TapAlterFieldNameEvent tapAlterFieldNameEvent) {
+		AspectUtils.executeAspect(new AlterFieldNameFuncAspect()
+				.alterFieldNameEvent(tapAlterFieldNameEvent)
+				.dataProcessorContext(dataProcessorContext)
+				.state(AlterFieldNameFuncAspect.STATE_START));
+		executeDataFuncAspect(
+				AlterFieldNameFuncAspect.class,
+				() -> new AlterFieldNameFuncAspect()
+						.alterFieldNameEvent(tapAlterFieldNameEvent)
+						.dataProcessorContext(dataProcessorContext)
+						.state(AlterFieldNameFuncAspect.STATE_START)
+						.start(),
+				alterFieldNameFuncAspect -> writeLogContent(ddlLogContent.get())
+		);
+		return null;
+	}
+
+	private Void writeNewFieldFunction(TapNewFieldEvent tapNewFieldEvent) {
+		AspectUtils.executeAspect(new NewFieldFuncAspect()
+				.newFieldEvent(tapNewFieldEvent)
+				.dataProcessorContext(dataProcessorContext)
+				.state(NewFieldFuncAspect.STATE_START));
+		executeDataFuncAspect(
+				NewFieldFuncAspect.class,
+				() -> new NewFieldFuncAspect()
+						.newFieldEvent(tapNewFieldEvent)
+						.dataProcessorContext(dataProcessorContext)
+						.state(NewFieldFuncAspect.STATE_START)
+						.start(),
+				newFieldFuncAspect -> writeLogContent(ddlLogContent.get())
+		);
+		return null;
+	}
+
+	private void writeLogContent(LogContent logContent) {
+		if (null == logContent) {
+			return;
+		}
+		String tableId = logContent.getFromTable();
+		Document document = logContent2Document(logContent);
+		HazelcastConstruct<Document> construct = getConstruct(tableId);
+		try {
+			construct.insert(document);
+		} catch (Exception e) {
+			throw new TapCodeException(TaskProcessorExCode_11.WRITE_ONE_SHARE_LOG_FAILED, "Write document failed: %s", e);
+		}
+	}
+
+	private <E extends TapEvent> WriteListResult<E> writeLogContents(List<LogContent> logContents) {
+		WriteListResult<E> writeListResult = new WriteListResult<>();
+		for (LogContent logContent : logContents) {
+			String tableId = logContent.getFromTable();
+			Document document = logContent2Document(logContent);
+			if (!batchCacheData.containsKey(tableId)) {
+				batchCacheData.put(tableId, new ArrayList<>());
+			}
+			batchCacheData.get(tableId).add(document);
+			if (batchCacheData.get(tableId).size() >= INSERT_BATCH_SIZE) {
+				insertMany(tableId);
+				writeListResult.incrementInserted(batchCacheData.get(tableId).size());
+				batchCacheData.get(tableId).clear();
+			}
+		}
+		for (Map.Entry<String, List<Document>> entry : batchCacheData.entrySet()) {
+			String tableId = entry.getKey();
+			List<Document> list = entry.getValue();
+			if (CollectionUtils.isNotEmpty(list)) {
+				insertMany(tableId);
+			}
+		}
+		batchCacheData.clear();
+		return writeListResult;
+	}
+
+	@NotNull
+	private static Document logContent2Document(LogContent logContent) {
+		Document document;
+		try {
+			document = MapUtil.obj2Document(logContent);
+		} catch (Exception e) {
+			throw new RuntimeException("Convert map to document failed; Map data: " + logContent + ". Error: " + e.getMessage(), e);
+		}
+		return document;
+	}
+
+	private LogContent wrapLogContent(TapdataShareLogEvent tapdataShareLogEvent) {
+		if (null == tapdataShareLogEvent) {
+			return null;
+		}
+		TapEvent tapEvent = tapdataShareLogEvent.getTapEvent();
+		String tableId = TapEventUtil.getTableId(tapEvent);
+		Long timestamp = TapEventUtil.getTimestamp(tapEvent);
+		Object streamOffset = tapdataShareLogEvent.getStreamOffset();
+		String offsetStr = "";
+		if (null != streamOffset) {
+			offsetStr = PdkUtil.encodeOffset(streamOffset);
+		}
+		LogContent logContent = null;
+		String op = TapEventUtil.getOp(tapEvent);
+		if (tapdataShareLogEvent.isDML()) {
+			Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
+			handleData(before);
+			Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
+			handleData(after);
+			verifyDML(tapEvent, tableId, op, timestamp, before, after, offsetStr);
+			logContent = LogContent.createDMLLogContent(
+					tableId,
+					timestamp,
+					before,
+					after,
+					op,
+					offsetStr
+			);
+		} else if (tapdataShareLogEvent.isDDL()) {
+			verifyDDL(tapEvent, tableId, op, timestamp, offsetStr);
+			byte[] bytes = OBJECT_SERIALIZABLE.fromObject(tapEvent);
+			logContent = LogContent.createDDLLogContent(
+					tableId,
+					timestamp,
+					op,
+					offsetStr,
+					bytes
+			);
+		}
+		return logContent;
 	}
 
 	private void consumeAndFlushTableMetrics() {
@@ -153,124 +422,48 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		return (HazelcastConstruct<Document>) constructMap.get(tableName);
 	}
 
-	@Override
-	void processEvents(List<TapEvent> tapEvents) {
-		throw new UnsupportedOperationException();
-	}
-
-	@Override
-	@SneakyThrows
-	void processShareLog(List<TapdataShareLogEvent> tapdataShareLogEvents) {
-		if (CollectionUtils.isEmpty(tapdataShareLogEvents)) return;
-
-		List<TapRecordEvent> tapRecordEvents = new ArrayList<>();
+	private void incrementTableMetrics(List<TapdataShareLogEvent> tapdataShareLogEvents) {
 		for (TapdataShareLogEvent tapdataShareLogEvent : tapdataShareLogEvents) {
-			TapEvent tapEvent = tapdataShareLogEvent.getTapEvent();
-			if (!(tapEvent instanceof TapRecordEvent)) {
-				throw new RuntimeException("Share cdc target expected " + TapRecordEvent.class.getName() + ", actual: " + tapEvent.getClass().getName());
+			if (null == tapdataShareLogEvent) {
+				continue;
 			}
-			tapRecordEvents.add((TapRecordEvent) tapEvent);
+			if (!tapdataShareLogEvent.isDML() && !tapdataShareLogEvent.isDDL()) {
+				continue;
+			}
+			String connectionId = "";
+			String nodeId = "";
+			Object connIdObj = tapdataShareLogEvent.getInfo(TapdataEvent.CONNECTION_ID_INFO_KEY);
+			if (connIdObj instanceof String) {
+				connectionId = (String) connIdObj;
+			}
+			List<String> nodeIds = tapdataShareLogEvent.getNodeIds();
+			if (CollectionUtils.isNotEmpty(nodeIds)) {
+				nodeId = nodeIds.get(0);
+			}
+			TapEvent tapEvent = tapdataShareLogEvent.getTapEvent();
+			String tableId = TapEventUtil.getTableId(tapEvent);
+			if (StringUtils.isBlank(connectionId)
+					|| StringUtils.isBlank(nodeId)
+					|| StringUtils.isBlank(tableId)) {
+				return;
+			}
+			String key = getTableMetricsKey(connectionId, nodeId, tableId);
+			ShareCdcTableMetricsDto shareCdcTableMetricsDto;
+			if (!shareCdcTableMetricsDtoMap.containsKey(key)) {
+				shareCdcTableMetricsDto = new ShareCdcTableMetricsDto();
+				shareCdcTableMetricsDto.setTaskId(dataProcessorContext.getTaskDto().getId().toHexString());
+				shareCdcTableMetricsDto.setConnectionId(connectionId);
+				shareCdcTableMetricsDto.setNodeId(nodeId);
+				shareCdcTableMetricsDto.setTableName(tableId);
+				shareCdcTableMetricsDto.setCount(1L);
+				shareCdcTableMetricsDtoMap.put(key, shareCdcTableMetricsDto);
+			} else {
+				shareCdcTableMetricsDto = shareCdcTableMetricsDtoMap.get(key);
+				shareCdcTableMetricsDto.setCount(shareCdcTableMetricsDto.getCount() + 1L);
+			}
+			shareCdcTableMetricsDto.setFirstEventTime(tapdataShareLogEvent.getSourceTime());
+			shareCdcTableMetricsDto.setCurrentEventTime(tapdataShareLogEvent.getSourceTime());
 		}
-
-		WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>();
-
-		executeDataFuncAspect(
-				WriteRecordFuncAspect.class,
-				() -> new WriteRecordFuncAspect()
-						.recordEvents(tapRecordEvents)
-						.table(new TapTable(externalStorageDto.getName()))
-						.dataProcessorContext(dataProcessorContext)
-						.start(),
-				writeRecordFuncAspect -> {
-					for (TapdataShareLogEvent tapdataShareLogEvent : tapdataShareLogEvents) {
-						TapEvent tapEvent = tapdataShareLogEvent.getTapEvent();
-						String tableId = TapEventUtil.getTableId(tapEvent);
-						String op = TapEventUtil.getOp(tapEvent);
-						Long timestamp = TapEventUtil.getTimestamp(tapEvent);
-						Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
-						handleData(before);
-						Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
-						handleData(after);
-						Object streamOffset = tapdataShareLogEvent.getStreamOffset();
-						String offsetStr = "";
-						if (null != streamOffset) {
-							offsetStr = PdkUtil.encodeOffset(streamOffset);
-						}
-						verify(tableId, op, before, after, timestamp, offsetStr);
-						LogContent logContent = new LogContent(
-								tableId,
-								timestamp,
-								before,
-								after,
-								op,
-								offsetStr
-						);
-						Document document;
-						try {
-							document = MapUtil.obj2Document(logContent);
-						} catch (Exception e) {
-							throw new RuntimeException("Convert map to document failed; Map data: " + logContent + ". Error: " + e.getMessage(), e);
-						}
-						if (!batchCacheData.containsKey(tableId)) {
-							batchCacheData.put(tableId, new ArrayList<>());
-						}
-						batchCacheData.get(tableId).add(document);
-						if (batchCacheData.get(tableId).size() >= INSERT_BATCH_SIZE) {
-							insertMany(tableId);
-							writeListResult.incrementInserted(batchCacheData.get(tableId).size());
-							batchCacheData.get(tableId).clear();
-						}
-						incrementTableMetrics(tapdataShareLogEvent);
-					}
-					for (Map.Entry<String, List<Document>> entry : batchCacheData.entrySet()) {
-						String tableName = entry.getKey();
-						List<Document> list = entry.getValue();
-						if (CollectionUtils.isNotEmpty(list)) {
-							insertMany(tableName);
-							writeListResult.incrementInserted(list.size());
-						}
-					}
-					AspectUtils.accept(writeRecordFuncAspect.state(WriteRecordFuncAspect.STATE_WRITING).getConsumers(), tapRecordEvents, writeListResult);
-				}
-		);
-		metricsEnqueue();
-		batchCacheData.clear();
-	}
-
-	private void incrementTableMetrics(TapdataShareLogEvent tapdataShareLogEvent) {
-		String connectionId = "";
-		String nodeId = "";
-		Object connIdObj = tapdataShareLogEvent.getInfo(TapdataEvent.CONNECTION_ID_INFO_KEY);
-		if (connIdObj instanceof String) {
-			connectionId = (String) connIdObj;
-		}
-		List<String> nodeIds = tapdataShareLogEvent.getNodeIds();
-		if (CollectionUtils.isNotEmpty(nodeIds)) {
-			nodeId = nodeIds.get(0);
-		}
-		TapEvent tapEvent = tapdataShareLogEvent.getTapEvent();
-		String tableId = TapEventUtil.getTableId(tapEvent);
-		if (StringUtils.isBlank(connectionId)
-				|| StringUtils.isBlank(nodeId)
-				|| StringUtils.isBlank(tableId)) {
-			return;
-		}
-		String key = getTableMetricsKey(connectionId, nodeId, tableId);
-		ShareCdcTableMetricsDto shareCdcTableMetricsDto;
-		if (!shareCdcTableMetricsDtoMap.containsKey(key)) {
-			shareCdcTableMetricsDto = new ShareCdcTableMetricsDto();
-			shareCdcTableMetricsDto.setTaskId(dataProcessorContext.getTaskDto().getId().toHexString());
-			shareCdcTableMetricsDto.setConnectionId(connectionId);
-			shareCdcTableMetricsDto.setNodeId(nodeId);
-			shareCdcTableMetricsDto.setTableName(tableId);
-			shareCdcTableMetricsDto.setCount(1L);
-			shareCdcTableMetricsDtoMap.put(key, shareCdcTableMetricsDto);
-		} else {
-			shareCdcTableMetricsDto = shareCdcTableMetricsDtoMap.get(key);
-			shareCdcTableMetricsDto.setCount(shareCdcTableMetricsDto.getCount() + 1L);
-		}
-		shareCdcTableMetricsDto.setFirstEventTime(tapdataShareLogEvent.getSourceTime());
-		shareCdcTableMetricsDto.setCurrentEventTime(tapdataShareLogEvent.getSourceTime());
 	}
 
 	private String getTableMetricsKey(String connectionId, String nodeId, String tableId) {
@@ -329,7 +522,10 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		});
 	}
 
-	private void verify(String tableId, String op, Map<String, Object> before, Map<String, Object> after, Long timestamp, String offsetStr) {
+	private void verifyDML(TapEvent tapEvent, String tableId, String op, Long timestamp, Map<String, Object> before, Map<String, Object> after, String offsetStr) {
+		if (!(tapEvent instanceof TapRecordEvent)) {
+			throw new RuntimeException(String.format("Expected %s, actual %s", TapRecordEvent.class.getSimpleName(), tapEvent.getClass().getSimpleName()));
+		}
 		if (StringUtils.isBlank(tableId)) {
 			throw new RuntimeException("Missing table id");
 		}
@@ -338,6 +534,24 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		}
 		if (MapUtils.isEmpty(before) && MapUtils.isEmpty(after)) {
 			throw new RuntimeException("Both before and after is empty");
+		}
+		if (null == timestamp || timestamp.compareTo(0L) <= 0) {
+			obsLogger.warn("Invalid timestamp value: " + timestamp);
+		}
+		if (StringUtils.isBlank(offsetStr)) {
+			obsLogger.warn("Invalid offset string: " + offsetStr);
+		}
+	}
+
+	private void verifyDDL(TapEvent tapEvent, String tableId, String op, Long timestamp, String offsetStr) {
+		if (!(tapEvent instanceof TapDDLEvent)) {
+			throw new RuntimeException(String.format("Expected %s, actual %s", TapDDLEvent.class.getSimpleName(), tapEvent.getClass().getSimpleName()));
+		}
+		if (StringUtils.isBlank(tableId)) {
+			throw new RuntimeException("Missing table id");
+		}
+		if (StringUtils.isBlank(op)) {
+			throw new RuntimeException("Missing operation type");
 		}
 		if (null == timestamp || timestamp.compareTo(0L) <= 0) {
 			obsLogger.warn("Invalid timestamp value: " + timestamp);

@@ -258,9 +258,11 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
                 userCriteria.and("user_id").is(user.getUserId());
             }
         }
+
         //Criteria supplierCriteria = Criteria.where("supplierType").ne("self");
         Criteria supplierCriteria = Criteria.where("pdkType").ne(DataSourceDefinitionDto.PDK_TYPE);
         Criteria criteria = repository.filterBuildCriteria(filter);
+
         criteria.orOperator(userCriteria, supplierCriteria, Criteria.where("scope").is("public"));
         // only return the latest version
         criteria.and("latest").is(true);
@@ -300,7 +302,7 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         }
         return null;
     }
-    public List<DataSourceDefinitionDto> getByDataSourceType(List<String> dataSourceType, UserDetail user) {
+    public List<DataSourceDefinitionDto> getByDataSourceType(List<String> dataSourceType, UserDetail user, String... fields) {
         Criteria customCriteria = new Criteria();
         customCriteria.and("customId").is(user.getCustomerId());
         Criteria userCriteria = Criteria.where("user_id").is(user.getUserId());
@@ -309,6 +311,9 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         Criteria criteria = Criteria.where("type").in(dataSourceType).and("pdkHash").exists(true);;
         criteria.orOperator(customCriteria, userCriteria, supplierCriteria, scopeCriteria);
         Query query = Query.query(criteria);
+        if (fields != null  && fields.length != 0) {
+            query.fields().include(fields);
+        }
         query.with(Sort.by("createTime").descending());
         return findAll(query);
     }
@@ -419,5 +424,62 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         Query query = new Query(criteria);
         long count = count(query, user);
         return count > 0;
+    }
+
+
+    /**
+     * 查询数据源类型信息列表
+     * @param user
+     * @param filter
+     * @return
+     */
+    public List<DataSourceTypeDto> dataSourceTypesV2(UserDetail user, Filter filter) {
+        Where where = filter.getWhere();
+        Query query = new Query();
+        String tag = (String) where.get("tag");
+        if (StringUtils.isEmpty(tag)) {
+            throw new BizException("IllegalArgument", "tag");
+        }
+        String authentication = (String) where.get("authentication");
+        Criteria criteria =  new Criteria();
+        String scope = "public";
+        if("Custom".equals(tag)){
+            scope = "customer";
+            criteria.and("customId").is(user.getCustomerId());
+        }
+        criteria.and("scope").is(scope);
+        criteria.and("latest").is(true);
+        if(!"All".equals(tag) && !"Custom".equals(tag)){
+            criteria.and("tags").in(tag);
+        }
+        if(!"All".equals(authentication)){
+            if(StringUtils.isEmpty(authentication)){
+                criteria.and("authentication").is("GA");
+            }else {
+                criteria.and("authentication").in(authentication,"GA");
+            }
+        }
+        query.addCriteria(criteria);
+        query.limit(0);
+        query.skip(0);
+        MongoUtils.applyField(query, filter.getFields());
+        List<DataSourceDefinitionDto> definitionEntities = findAll(query);
+        long count = repository.count(query);
+        for (DataSourceDefinitionDto definitionEntity : definitionEntities) {
+            updateConfigPropertiesTitle(definitionEntity);
+        }
+        definitionEntities = definitionEntities.stream().collect(
+                Collectors.collectingAndThen(
+                        Collectors.toCollection(() -> new TreeSet<>(Comparator.comparing(d-> StringUtils.isNotBlank(d.getPdkId()) ? d.getPdkId() : d.getId().toHexString()))), ArrayList::new
+                )
+        );
+
+
+        List<DataSourceTypeDto> typeList = CglibUtil.copyList(definitionEntities, DataSourceTypeDto::new);
+
+        Page<DataSourceTypeDto> dataSourceTypeDtoPage = new Page<>();
+        dataSourceTypeDtoPage.setTotal(count);
+        dataSourceTypeDtoPage.setItems(typeList);
+        return dataSourceTypeDtoPage.getItems();
     }
 }

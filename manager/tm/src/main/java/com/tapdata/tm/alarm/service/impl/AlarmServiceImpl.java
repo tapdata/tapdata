@@ -5,7 +5,9 @@ import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.cglib.CglibUtil;
+import cn.hutool.extra.spring.SpringUtil;
 import cn.hutool.json.JSONUtil;
+import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
@@ -15,14 +17,10 @@ import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.alarm.constant.AlarmMailTemplate;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
-import com.tapdata.tm.alarm.dto.AlarmChannelDto;
-import com.tapdata.tm.alarm.dto.AlarmListInfoVo;
-import com.tapdata.tm.alarm.dto.AlarmListReqDto;
-import com.tapdata.tm.alarm.dto.AlarmNumVo;
-import com.tapdata.tm.alarm.dto.TaskAlarmInfoVo;
-import com.tapdata.tm.alarm.dto.TaskAlarmNodeInfoVo;
+import com.tapdata.tm.alarm.dto.*;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
+import com.tapdata.tm.base.aop.MeasureAOP;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.commons.dag.Node;
@@ -35,11 +33,7 @@ import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.events.constant.Type;
 import com.tapdata.tm.events.service.EventsService;
-import com.tapdata.tm.message.constant.Level;
-import com.tapdata.tm.message.constant.MessageMetadata;
-import com.tapdata.tm.message.constant.MsgTypeEnum;
-import com.tapdata.tm.message.constant.SourceModuleEnum;
-import com.tapdata.tm.message.constant.SystemEnum;
+import com.tapdata.tm.message.constant.*;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.message.entity.MessageEntity;
 import com.tapdata.tm.message.service.MessageService;
@@ -47,12 +41,7 @@ import com.tapdata.tm.mp.service.MpService;
 import com.tapdata.tm.sms.SmsService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.utils.FunctionUtils;
-import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MailUtils;
-import com.tapdata.tm.utils.MessageUtil;
-import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.SendStatus;
+import com.tapdata.tm.utils.*;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -74,15 +63,7 @@ import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.stereotype.Service;
 
 import java.text.MessageFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -131,7 +112,7 @@ public class AlarmServiceImpl implements AlarmService {
             info.setId(one.getId());
             info.setTally(one.getTally() + 1);
             info.setLastUpdAt(date);
-            FunctionUtils.isTureOrFalse(AlarmStatusEnum.CLOESE.equals(one.getStatus())).trueOrFalseHandle(
+            FunctionUtils.isTureOrFalse(Lists.of(AlarmStatusEnum.CLOESE, AlarmStatusEnum.RECOVER).contains(one.getStatus())).trueOrFalseHandle(
                     () -> info.setFirstOccurrenceTime(date),
                     () -> info.setFirstOccurrenceTime(one.getFirstOccurrenceTime())
             );
@@ -160,7 +141,8 @@ public class AlarmServiceImpl implements AlarmService {
         }
     }
 
-    private boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type, UserDetail userDetail) {
+    @Override
+    public boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type, UserDetail userDetail) {
         boolean openTask = false;
         if (AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN.equals(key)) {
             openTask = true;
@@ -168,7 +150,7 @@ public class AlarmServiceImpl implements AlarmService {
             List<AlarmSettingDto> alarmSettingDtos = getAlarmSettingDtos(taskDto, nodeId);
             if (CollectionUtils.isNotEmpty(alarmSettingDtos)) {
                 openTask = alarmSettingDtos.stream().anyMatch(t ->
-                        t.getKey().equals(key) && t.isOpen() && t.getNotify().contains(type));
+                        t.getKey().equals(key) && t.isOpen() && (type ==null || t.getNotify().contains(type)));
             }
         }
 
@@ -176,8 +158,9 @@ public class AlarmServiceImpl implements AlarmService {
         List<AlarmSettingDto> all = alarmSettingService.findAllAlarmSetting(userDetail);
         if (CollectionUtils.isNotEmpty(all)) {
             openSys = all.stream().anyMatch(t ->
-                    t.getKey().equals(key) && t.isOpen() && t.getNotify().contains(type));
+                    t.getKey().equals(key) && t.isOpen() && (type == null ||  t.getNotify().contains(type)));
         }
+
         return openTask && openSys;
     }
 
@@ -381,7 +364,7 @@ public class AlarmServiceImpl implements AlarmService {
             if (messageDto == null) {
                  mailAccount = getMailAccount(taskDto.getUserId());
                 if (!checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.EMAIL, userDetail)) {
-                    log.error("Current user ({}, {}) can't bind email, cancel send message.", userDetail.getUsername(), userDetail.getUserId());
+                    log.error("Current user ({}, {}) can't bind email, cancel send message {}.", userDetail.getUsername(), userDetail.getUserId(), JSON.toJSONString(info));
                     return true;
                 }
                 Map<String, String> map = getTaskTitleAndContent(info);
@@ -443,14 +426,6 @@ public class AlarmServiceImpl implements AlarmService {
         String dateTime = DateUtil.formatDateTime(info.getLastOccurrenceTime());
         String SmsEvent;
         switch (info.getMetric()) {
-            case TASK_STATUS_STOP:
-                boolean manual = info.getSummary().contains("已被用户");
-                title = manual ? MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL_TITLE, info.getName())
-                        : MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR_TITLE, info.getName());
-                content = manual ? MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL, info.getName(), dateTime, info.getParam().get("updatorName"))
-                        : MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR, info.getName(), info.getLastOccurrenceTime());
-                SmsEvent = "任务停止";
-                break;
             case TASK_STATUS_ERROR:
                 title = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR_TITLE, info.getName());
                 content = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR, info.getName(), dateTime);
@@ -471,14 +446,9 @@ public class AlarmServiceImpl implements AlarmService {
                 content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START, info.getName(), info.getParam().get("replicateLag"));
                 SmsEvent = "增量延迟";
                 break;
-            case DATANODE_CANNOT_CONNECT:
-                title = MessageFormat.format(AlarmMailTemplate.DATANODE_CANNOT_CONNECT_TITLE, info.getName());
-                content = MessageFormat.format(AlarmMailTemplate.DATANODE_CANNOT_CONNECT, info.getName(), info.getNode(), dateTime);
-                SmsEvent = "任务连接中断";
-                break;
             case DATANODE_AVERAGE_HANDLE_CONSUME:
                 title = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME_TITLE, info.getName());
-                content = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME, info.getName(), info.getNode(), dateTime);
+                content = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME, info.getName(), info.getNode(), info.getParam().get("currentValue"), info.getParam().get("threshold"), dateTime);
                 SmsEvent = "当前任务运行超过阈值";
                 break;
             case PROCESSNODE_AVERAGE_HANDLE_CONSUME:
@@ -680,6 +650,29 @@ public class AlarmServiceImpl implements AlarmService {
         List<ObjectId> collect = Arrays.stream(ids).map(MongoUtils::toObjectId).collect(Collectors.toList());
 
         Query query = new Query(Criteria.where("_id").in(collect));
+        List<AlarmInfo> alarmInfos = mongoTemplate.find(query, AlarmInfo.class);
+        alarmInfos.forEach(info -> {
+            String taskId = info.getTaskId();
+            String nodeId = info.getNodeId();
+            String key = "";
+            if (AlarmKeyEnum.TASK_INCREMENT_DELAY.equals(info.getMetric())) {
+                key = taskId + "-" + "replicateLag";
+            } else if (AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME.equals(info.getMetric())) {
+                if (info.getSummary().contains("TARGET_")) {
+                    key = nodeId + "-targetWriteTimeCostAvg";
+                } else {
+                    key = nodeId + "-snapshotSourceReadTimeCostAvg";
+                }
+
+            } else if (AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME.equals(info.getMetric())) {
+                key = nodeId + "-timeCostAvg";
+            }
+            if (StringUtils.isNotBlank(key)) {
+                SpringUtil.getBean(MeasureAOP.class).removeObsInfoByTaskIdAndKey(taskId, key);
+            }
+        });
+
+
         Update update = new Update().set("status", AlarmStatusEnum.CLOESE.name())
                 .set("closeTime", DateUtil.date())
                 .set("closeBy", userDetail.getUserId());
@@ -729,6 +722,14 @@ public class AlarmServiceImpl implements AlarmService {
         List<AlarmListInfoVo> collect = alarmInfos.stream()
                 .map(t -> {
                     String template = MessageUtil.getAlarmMsg(locale, t.getSummary());
+                    if (Objects.nonNull(t.getParam())) {
+                        if (t.getParam().containsValue("GREATER")) {
+                            t.getParam().put("flag", MessageUtil.getAlarmMsg(locale, "GREATER"));
+                        } else if (t.getParam().containsValue("LESS")){
+                            t.getParam().put("flag", MessageUtil.getAlarmMsg(locale, "LESS"));
+                        }
+                    }
+
                     String content = parser.parseExpression(template, parserContext).getValue(t.getParam(), String.class);
                     return AlarmListInfoVo.builder()
                             .id(t.getId().toHexString())
@@ -777,6 +778,14 @@ public class AlarmServiceImpl implements AlarmService {
         TemplateParserContext parserContext = new TemplateParserContext();
         alarmInfos.forEach(t -> {
             String template = MessageUtil.getAlarmMsg(dto.getLocale(), t.getSummary());
+            if (Objects.nonNull(t.getParam())) {
+                if (t.getParam().containsValue("GREATER")) {
+                    t.getParam().put("flag", MessageUtil.getAlarmMsg(dto.getLocale(), "GREATER"));
+                } else if (t.getParam().containsValue("LESS")){
+                    t.getParam().put("flag", MessageUtil.getAlarmMsg(dto.getLocale(), "LESS"));
+                }
+            }
+
             String content = parser.parseExpression(template, parserContext).getValue(t.getParam(), String.class);
             AlarmListInfoVo build = AlarmListInfoVo.builder()
                     .id(t.getId().toHexString())

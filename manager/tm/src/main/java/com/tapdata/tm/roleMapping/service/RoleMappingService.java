@@ -92,7 +92,8 @@ public class RoleMappingService extends BaseService<RoleMappingDto, RoleMappingE
     public List<RoleMappingDto> saveAll(List<RoleMappingDto> roleDtos, UserDetail userDetail) {
         for (RoleMappingDto roleMappingDto : roleDtos) {
             String uerId = roleMappingDto.getPrincipalId();
-            Query query = Query.query(Criteria.where("principalType").is(PrincipleType.USER.getValue()).and("principalId").is(uerId));
+            Query query = Query.query(Criteria.where("principalType").is(PrincipleType.USER.getValue()).and("principalId").is(uerId)
+                    .and("roleId").is(roleMappingDto.getRoleId()));
             deleteAll(query);
         }
         save(roleDtos, userDetail);

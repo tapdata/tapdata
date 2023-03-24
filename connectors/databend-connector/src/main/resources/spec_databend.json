@@ -4,7 +4,7 @@
     "icon": "icons/databend.png",
     "id": "databend",
     "doc": "${doc}",
-    "authentication": "beta",
+    "authentication": "Beta",
     "tags": ["Database"]
   },
   "configOptions": {

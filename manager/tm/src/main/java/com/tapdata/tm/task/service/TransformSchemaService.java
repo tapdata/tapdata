@@ -66,12 +66,14 @@ public class TransformSchemaService {
     private MessageQueueService messageQueueService;
     private WorkerService workerService;
     private TaskDagCheckLogService taskDagCheckLogService;
+    private LdpService ldpService;
 
     @Autowired
     public TransformSchemaService(DAGDataService dagDataService, MetadataInstancesService metadataInstancesService, TaskService taskService,
                                   DataSourceService dataSourceService, MetadataTransformerService metadataTransformerService,
                                   DataSourceDefinitionService definitionService, MetadataTransformerItemService metadataTransformerItemService,
-                                  MessageQueueService messageQueueService, WorkerService workerService, TaskDagCheckLogService taskDagCheckLogService) {
+                                  MessageQueueService messageQueueService, WorkerService workerService, TaskDagCheckLogService taskDagCheckLogService,
+                                  LdpService ldpService) {
         this.dagDataService = dagDataService;
         this.metadataInstancesService = metadataInstancesService;
         this.taskService = taskService;
@@ -82,6 +84,7 @@ public class TransformSchemaService {
         this.messageQueueService = messageQueueService;
         this.workerService = workerService;
         this.taskDagCheckLogService = taskDagCheckLogService;
+        this.ldpService = ldpService;
     }
 
     @Value("${tm.transform.batch.num:1000}")
@@ -393,6 +396,11 @@ public class TransformSchemaService {
                         Update.update("transformed", true).set("transformUuid", result.getTransformUuid()), user);
             }
         }
+
+        ldpService.afterLdpTask(taskId, user);
+
+
+
     }
 
     private void sendTransformer(TransformerWsMessageDto wsMessageDto, UserDetail user) {

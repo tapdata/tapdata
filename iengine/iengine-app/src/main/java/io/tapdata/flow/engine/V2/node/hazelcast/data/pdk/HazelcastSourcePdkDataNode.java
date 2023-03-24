@@ -3,12 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.Log4jUtil;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataCompleteSnapshotEvent;
-import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.TapdataHeartbeatEvent;
-import com.tapdata.entity.TapdataStartedCdcEvent;
-import com.tapdata.entity.TapdataStartingCdcEvent;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -20,17 +15,7 @@ import io.tapdata.aspect.SourceCDCDelayAspect;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
-import io.tapdata.aspect.taskmilestones.CDCReadBeginAspect;
-import io.tapdata.aspect.taskmilestones.CDCReadEndAspect;
-import io.tapdata.aspect.taskmilestones.CDCReadErrorAspect;
-import io.tapdata.aspect.taskmilestones.CDCReadStartedAspect;
-import io.tapdata.aspect.taskmilestones.Snapshot2CDCAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadBeginAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadEndAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadErrorAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadTableBeginAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadTableEndAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadTableErrorAspect;
+import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
@@ -41,6 +26,8 @@ import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
@@ -49,21 +36,15 @@ import io.tapdata.flow.engine.V2.sharecdc.ReaderType;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcReader;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
+import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcReaderExCode_13;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
-import io.tapdata.pdk.apis.entity.FilterResults;
-import io.tapdata.pdk.apis.entity.QueryOperator;
-import io.tapdata.pdk.apis.entity.SortOn;
-import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
+import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
-import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunction;
-import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunctionV2;
-import io.tapdata.pdk.apis.functions.connector.source.RunRawCommandFunction;
-import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.*;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
@@ -84,13 +65,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -140,7 +116,17 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						doSnapshot(new ArrayList<>(tapTableMap.keySet()));
 					}
 				}
+
 				if (!sourceRunnerFirstTime.get() && CollectionUtils.isNotEmpty(newTables)) {
+					doSnapshot(newTables);
+				}
+
+				TaskDto taskDto = dataProcessorContext.getTaskDto();
+				if (CollectionUtils.isNotEmpty(taskDto.getLdpNewTables())) {
+					if (newTables == null) {
+						newTables = new CopyOnWriteArrayList<>();
+					}
+					newTables.addAll(taskDto.getLdpNewTables());
 					doSnapshot(newTables);
 				}
 			} catch (Throwable e) {
@@ -180,7 +166,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 		BatchReadFunction batchReadFunction = getConnectorNode().getConnectorFunctions().getBatchReadFunction();
 		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
-		RunRawCommandFunction runRawCommandFunction = getConnectorNode().getConnectorFunctions().getRunRawCommandFunction();
+		ExecuteCommandFunction executeCommandFunction = getConnectorNode().getConnectorFunctions().getExecuteCommandFunction();
 
 		if (batchReadFunction != null) {
 			// MILESTONE-READ_SNAPSHOT-RUNNING
@@ -276,8 +262,18 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																		tempList.clear();
 																	}
 																});
-															} else if (tableNode.getIsCustomCommand() != null && tableNode.getIsCustomCommand() && runRawCommandFunction != null) {
-																runRawCommandFunction.run(getConnectorNode().getConnectorContext(), tableNode.getCustomCommand(), tapTable, readBatchSize, events -> consumer.accept(events, null));
+															} else if (tableNode.isEnableCustomCommand() && executeCommandFunction != null) {
+																Map<String, Object> customCommand = tableNode.getCustomCommand();
+																customCommand.put("batchSize", readBatchSize);
+																executeCommandFunction.execute(getConnectorNode().getConnectorContext(), TapExecuteCommand.create()
+																				.command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params")), executeResult -> {
+																	if (executeResult.getError() != null) {
+																		throw new NodeException("Execute error", executeResult.getError());
+																	}
+																	List<Map<String, Object>> maps = (List<Map<String, Object>>) executeResult.getResult();
+																	List<TapEvent> events = maps.stream().map(m -> TapSimplify.insertRecordEvent(m, tableName)).collect(Collectors.toList());
+																	consumer.accept(events, null);
+																});
 															} else {
 																batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
 															}
@@ -377,12 +373,20 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						if (e.isContinueWithNormalCdc() && !taskDto.getEnforceShareCdc()) {
 							// If share cdc is unavailable, and continue with normal cdc is true
 							obsLogger.info("Share cdc unusable, will use normal cdc mode, reason: " + e.getMessage());
-							doNormalCDC();
+							try {
+								doNormalCDC();
+							} catch (Exception ex) {
+								throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, e);
+							}
 						} else {
-							throw new NodeException("Read share cdc log failed: " + e.getMessage(), e).context(getProcessorBaseContext());
+							throw new TapCodeException(ShareCdcReaderExCode_13.UNKNOWN_ERROR, e);
 						}
 					} catch (Exception e) {
-						throw new NodeException("Read share cdc log failed: " + e.getMessage(), e).context(getProcessorBaseContext());
+						if (e instanceof TapCodeException) {
+							throw e;
+						} else {
+							throw new TapCodeException(ShareCdcReaderExCode_13.UNKNOWN_ERROR, e);
+						}
 					}
 				} else {
 					doNormalCDC();
@@ -489,7 +493,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 												if (streamReadFuncAspect != null)
 													executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAM_STARTED).streamStartedTime(System.currentTimeMillis()));
 												sendCdcStartedEvent();
-												obsLogger.info("Connector start stream read succeed: {}", connectorNode);
+												obsLogger.info("Connector {} incremental start succeed, tables: {}, data change syncing", connectorNode.getTapNodeInfo().getTapNodeSpecification().getName(), tables);
 											}
 										});
 
