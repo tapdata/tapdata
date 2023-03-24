@@ -189,7 +189,8 @@ public class MeasurementServiceV2 {
             long end = null != querySample.getEndAt() ? querySample.getEndAt() : initialEnd;
             switch (querySample.getType()) {
                 case MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT:
-                    Map<String, Sample> instantSamples = getInstantSamples(querySample, INSTANT_PADDING_LEFT_AND_RIGHT, start, end);
+                    String type = start == end ? INSTANT_PADDING_RIGHT : INSTANT_PADDING_LEFT_AND_RIGHT;
+                    Map<String, Sample> instantSamples = getInstantSamples(querySample, type, start, end);
                     uniqueData.addAll(formatSingleSamples(instantSamples));
                     break;
                 case MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_DIFFERENCE:
