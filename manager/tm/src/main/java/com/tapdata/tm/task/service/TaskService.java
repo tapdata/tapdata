@@ -2358,7 +2358,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         });
 
         List<DataFlowInsightStatisticsDto.DataStatisticInfo> inputDataStatistics = new ArrayList<>();
-        AtomicReference<BigInteger> totalInputDataCount = new AtomicReference<>();
+        AtomicReference<BigInteger> totalInputDataCount = new AtomicReference<>(BigInteger.ZERO);
         allInputNumMap.forEach((k, v) -> {
             inputDataStatistics.add(new DataFlowInsightStatisticsDto.DataStatisticInfo(k.format(format), v));
             totalInputDataCount.set(totalInputDataCount.get().add(v));
