@@ -2,7 +2,6 @@ package com.tapdata.tm.monitor.service;
 
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUtil;
-import com.google.common.util.concurrent.AtomicDouble;
 import com.mongodb.client.result.DeleteResult;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
@@ -165,6 +164,7 @@ public class MeasurementServiceV2 {
             MeasurementEntity.FIELD_SAMPLES, Sample.FIELD_VALUES);
     private static final String INSTANT_PADDING_LEFT = "left";
     private static final String INSTANT_PADDING_RIGHT = "right";
+    private static final String INSTANT_PADDING_LEFT_AND_RIGHT = "leftAndRight";
 
 
     public Object getSamples(MeasurementQueryParam measurementQueryParam) {
@@ -189,7 +189,7 @@ public class MeasurementServiceV2 {
             long end = null != querySample.getEndAt() ? querySample.getEndAt() : initialEnd;
             switch (querySample.getType()) {
                 case MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT:
-                    Map<String, Sample> instantSamples = getInstantSamples(querySample, end, INSTANT_PADDING_RIGHT);
+                    Map<String, Sample> instantSamples = getInstantSamples(querySample, INSTANT_PADDING_LEFT_AND_RIGHT, start, end);
                     uniqueData.addAll(formatSingleSamples(instantSamples));
                     break;
                 case MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_DIFFERENCE:
@@ -285,11 +285,12 @@ public class MeasurementServiceV2 {
      *  when query instant value of time2, but the last sample value is s8, here we use `padding=right` to tolerance
      *  the data loss of the right part, aka. we got s2 for the query.
      * @param querySample querySample
-     * @param time time
      * @param padding padding
+     * @param start time
+     * @param end time
      * @return Map
      */
-    private Map<String, Sample> getInstantSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long time, String padding) {
+    private Map<String, Sample> getInstantSamples(MeasurementQueryParam.MeasurementQuerySample querySample, String padding, long start, long end) {
         List<String> fields = querySample.getFields();
         Map<String, Sample> data = new HashMap<>();
         if (!StringUtils.equalsAny(querySample.getType(),
@@ -298,20 +299,28 @@ public class MeasurementServiceV2 {
             return data;
         }
 
-        Date date = TimeUtil.cleanTimeAfterMinute(new Date(time));
+        Date startDate = TimeUtil.cleanTimeAfterMinute(new Date(start));
+        Date endDate = TimeUtil.cleanTimeAfterMinute(new Date(end));
         Criteria criteria = Criteria.where(MeasurementEntity.FIELD_DATE);
         SortOperation sort;
+        long time;
         switch (padding) {
             case INSTANT_PADDING_LEFT:
-                criteria = criteria.gte(date);
+                criteria = criteria.gte(startDate);
+                time = start;
                 sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).ascending());
                 break;
             case INSTANT_PADDING_RIGHT:
-                criteria = criteria.lte(date);
+                criteria = criteria.lte(endDate);
+                time = end;
                 sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).descending());
                 break;
             default:
-                throw new RuntimeException("invalid padding value when get instant value");
+                criteria = criteria.gte(startDate).lte(endDate);
+                time = end;
+                sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).descending());
+                break;
+
         }
         criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
 
@@ -402,28 +411,9 @@ public class MeasurementServiceV2 {
         return data;
     }
 
-    private Number getSnapshotStartAt(MeasurementQueryParam.MeasurementQuerySample querySample) {
-        Number snapshotStartAt = 0;
-
-        String taskId = querySample.getTags().get("taskId");
-        String taskRecordId = querySample.getTags().get("taskRecordId");
-        Criteria criteria = Criteria.where("grnty").is("minute")
-                .and("tags.taskId").is(taskId)
-                .and("tags.taskRecordId").is(taskRecordId)
-                .and("tags.type").is("task")
-                .and("ss.vs.snapshotStartAt").gt(0);
-        Query query = Query.query(criteria).limit(1);
-        MeasurementEntity one = mongoOperations.findOne(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
-        if (Objects.nonNull(one) && CollectionUtils.isNotEmpty(one.getSamples())) {
-            snapshotStartAt = one.getSamples().get(0).getVs().get("snapshotStartAt");
-        }
-
-        return snapshotStartAt;
-    }
-
     public Map<String, Sample> getDifferenceSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long start, long end) {
-        Map<String, Sample> endSamples = getInstantSamples(querySample, end, INSTANT_PADDING_RIGHT);
-        Map<String, Sample> startSamples = getInstantSamples(querySample, start, INSTANT_PADDING_LEFT);
+        Map<String, Sample> endSamples = getInstantSamples(querySample, INSTANT_PADDING_RIGHT, start , end);
+        Map<String, Sample> startSamples = getInstantSamples(querySample, INSTANT_PADDING_LEFT, start , end);
 
         Map<String, Sample> data = new HashMap<>();
         for (String hash : endSamples.keySet()) {
