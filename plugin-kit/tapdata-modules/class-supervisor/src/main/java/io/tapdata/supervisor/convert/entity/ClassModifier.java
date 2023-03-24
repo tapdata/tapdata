@@ -10,6 +10,11 @@ import javassist.NotFoundException;
 import java.io.IOException;
 import java.util.*;
 
+/**
+ * Class modify by javassist
+ * @author 2749984520@qq.com Gavin
+ * @time 2023/03/24
+ * */
 public class ClassModifier {
     private final List<Waver> waver;
     private String outputFilePath = "plugin-kit/tapdata-modules/class-supervisor/src/main";

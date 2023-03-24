@@ -4,6 +4,15 @@
       "target": [{
         "type": "path",
         "path": "io.tapdata.coding.HelloImpl"
+      },{
+        "type": "path",
+        "path": "io.tapdata.coding.HelloImpl"
+      },{
+        "type": "extents",
+        "path": "io.tapdata.coding.HelloClass"
+      },{
+        "type": "path",
+        "path": "io.tapdata.coding.HelloImpl"
       }],
       "method": [
         {

@@ -4,6 +4,11 @@ import io.tapdata.supervisor.utils.ClassUtil;
 
 import java.util.*;
 
+/**
+ * Class modify by javassist
+ * @author 2749984520@qq.com Gavin
+ * @time 2023/03/24
+ * */
 class Waver extends WBase implements Resolvable<Waver> {
     List<WBaseTarget> targets;
     List<WBaseMethod> methods;

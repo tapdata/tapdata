@@ -14,6 +14,11 @@ import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.UUID;
 
+/**
+ * Class modify by javassist
+ * @author 2749984520@qq.com Gavin
+ * @time 2023/03/24
+ * */
 @CommandLine.Command(
         description = "Insert code to PDK jar class file",
         subcommands = MainCli.class
@@ -35,7 +40,7 @@ public class SupervisorCli extends CommonCli {
                 if (!file.isFile()) continue;
                 String path = file.getAbsolutePath();
                 System.out.print("Modify class: " + path + ", is starting! ");
-                pathToSave = file.getParentFile().getAbsolutePath() + "/temp/" + UUID.randomUUID().toString().replaceAll("-","_") + "/";
+                pathToSave = file.getParentFile().getAbsolutePath() + "/" + UUID.randomUUID().toString().replaceAll("-","_") + "/";
                 File pathToFile = new File(pathToSave);
                 try {
                     // unzip
@@ -65,6 +70,7 @@ public class SupervisorCli extends CommonCli {
                 } finally {
                     //清除pathToSave目录下的class
                     FileUtils.deleteQuietly(pathToFile);
+                    boolean delete = pathToFile.delete();
                 }
                 System.out.println();
             }
