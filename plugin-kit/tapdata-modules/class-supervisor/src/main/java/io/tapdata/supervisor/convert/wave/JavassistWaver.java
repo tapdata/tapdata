@@ -18,6 +18,7 @@ public class JavassistWaver {
     private JavassistWaver(DependencyURLClassLoader dependencyURLClassLoader) {
         this.pool = ClassPool.getDefault();
         this.pool.appendClassPath(new LoaderClassPath(dependencyURLClassLoader));
+        this.dependencyURLClassLoader = dependencyURLClassLoader;
     }
 
     private JavassistWaver(ClassPool pool) {

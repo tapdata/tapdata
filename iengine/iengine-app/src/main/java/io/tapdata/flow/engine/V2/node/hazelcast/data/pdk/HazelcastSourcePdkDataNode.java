@@ -132,9 +132,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	@Override
 	public void startSourceRunner() {
 		try {
-			AspectUtils.executeAspect(DataNodeThreadGroupAspect.class, () ->
-					new DataNodeThreadGroupAspect(this.getNode(), associateId, Thread.currentThread().getThreadGroup())
-							.dataProcessorContext(dataProcessorContext));
 			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 			try {

@@ -255,7 +255,7 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 						.databaseType(pdkInfo.getPdkId())
 						.pdkHash(commandInfo.getPdkHash())
 						;
-				new Thread(threadGroup,AspectRunnableUtil.aspectRunnable(new DisposableThreadGroupAspect<>(associateId,threadGroup,entity), () -> {
+				new Thread(threadGroup, AspectRunnableUtil.aspectRunnable(new DisposableThreadGroupAspect<>(associateId,threadGroup,entity), () -> {
 					AtomicReference<EngineMessageResultEntity> mapAtomicReference = new AtomicReference<>();
 					PDKInvocationMonitor.invoke(connectionNode, PDKMethod.COMMAND_CALLBACK,
 							() -> {

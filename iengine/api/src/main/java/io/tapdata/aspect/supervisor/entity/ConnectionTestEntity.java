@@ -113,8 +113,8 @@ public class ConnectionTestEntity extends DisposableThreadGroupBase {
     }
 
     @Override
-    public DataMap summery() {
-        return super.summery()
+    public DataMap summary() {
+        return super.summary()
                 .kv(MODE_KEY,"connection-test")
                 .kv("databaseType",databaseType)
                 .kv("name",connectionName)

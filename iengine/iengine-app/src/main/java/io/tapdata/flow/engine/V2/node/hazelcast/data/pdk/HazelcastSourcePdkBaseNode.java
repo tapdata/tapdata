@@ -23,6 +23,7 @@ import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.SourceDynamicTableAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
+import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
@@ -51,6 +52,7 @@ import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.async.AsyncUtils;
+import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
@@ -84,7 +86,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
     private static final int ASYNCLY_COUNT_SNAPSHOT_ROW_SIZE_TABLE_THRESHOLD = 100;
     private final Logger logger = LogManager.getLogger(HazelcastSourcePdkBaseNode.class);
     protected SyncProgress syncProgress;
-    protected ExecutorService sourceRunner;
+    protected ThreadPoolExecutorEx sourceRunner;
     protected ScheduledExecutorService tableMonitorResultHandler;
     protected SnapshotProgressManager snapshotProgressManager;
 	protected int sourceQueueCapacity;
@@ -114,6 +116,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
     private boolean firstComplete = true;
     protected Map<String, Long> snapshotRowSizeMap;
     private ExecutorService snapshotRowSizeThreadPool;
+    private ConnectorOnTaskThreadGroup connectorOnTaskThreadGroup;
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -122,20 +125,28 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
     @Override
     protected void doInit(@NotNull Context context) throws Exception {
-        super.doInit(context);
-        try {
-            createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
-            connectorNodeInit(dataProcessorContext);
-        } catch (Throwable e) {
-            throw new NodeException(e).context(getProcessorBaseContext());
-		}
+	    if(connectorOnTaskThreadGroup == null)
+	        connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
+        this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
+        this.sourceRunner.submitSync(() ->{
+            AspectUtils.executeAspect(DataNodeThreadGroupAspect.class, () ->
+                    new DataNodeThreadGroupAspect(this.getNode(), associateId, Thread.currentThread().getThreadGroup())
+                            .dataProcessorContext(dataProcessorContext));
+            super.doInit(context);
+            try {
+                createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
+                connectorNodeInit(dataProcessorContext);
+            } catch (Throwable e) {
+                throw new NodeException(e).context(getProcessorBaseContext());
+            }
 
-		initSourceReadBatchSize();
-		initSourceEventQueue();
-		initSyncProgress();
-		initDDLFilter();
-		initTableMonitor();
-		initAndStartSourceRunner();
+            initSourceReadBatchSize();
+            initSourceEventQueue();
+            initSyncProgress();
+            initDDLFilter();
+            initTableMonitor();
+            initAndStartSourceRunner();
+        });
 	}
 
 	private void initSyncProgress() throws JsonProcessingException {
@@ -168,7 +179,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         this.sourceRunnerFirstTime = new AtomicBoolean(true);
         this.databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, dataProcessorContext.getConnections().getPdkHash());
 
-		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 2, new ConnectorOnTaskThreadGroup(dataProcessorContext), TAG);
 		this.sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunner);
 	}
 
@@ -540,7 +550,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                                             return;
                                         }
                                         this.sourceRunner.shutdownNow();
-                                        this.sourceRunner = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
+                                        this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-table-changed-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
                                         sourceRunner.submit(this::startSourceRunner);
                                     } else {
                                         String error = "Source runner is null";

@@ -1,10 +1,9 @@
 {
-  "class": [
+  "classConfigurations": [
     {
       "target": [{
-        "type": "extends",
-        "path": "java.io.Closeable",
-        "scanPackage": "*"
+        "type": "path",
+        "path": "io.tapdata.coding.HelloImpl"
       }],
       "method": [
         {

@@ -44,13 +44,13 @@ public class SupervisorCli extends CommonCli {
                     }
                     System.out.print("-> step of unzip jar: ");
                     ZipUtils.unzip(file.getAbsolutePath(), pathToSave);
-                    System.out.print("unzip jar succeed. ");
+                    System.out.print("unzip jar successfully. ");
 
                     //根据配置，植入代码
                     System.out.print("-> step of modify class: ");
                     ClassModifier modifier = ClassModifier.load(path, pathToSave);
                     modifier.wave();
-                    System.out.print("modify class succeed. ");
+                    System.out.print("modify class successfully. ");
 
                     System.out.print("-> step of zip jar: ");
                     File atomicFile = new File(file.getAbsolutePath());
@@ -58,9 +58,9 @@ public class SupervisorCli extends CommonCli {
                         FileUtils.deleteQuietly(atomicFile);
                     try (OutputStream fos = new FileOutputStream(atomicFile)) {
                         ZipUtils.zip(pathToSave, fos);
-                        System.out.print("zip jar succeed. ");
+                        System.out.print("zip jar successfully. ");
                     } catch (Exception e) {
-                        System.out.print("zip jar fail. ");
+                        System.out.print("zip jar failed. ");
                     }
                 } finally {
                     //清除pathToSave目录下的class

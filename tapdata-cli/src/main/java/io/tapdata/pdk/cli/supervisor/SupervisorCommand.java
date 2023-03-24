@@ -15,7 +15,7 @@ public class SupervisorCommand {
     private enum ConnectorEnums {
         //Empty(BASE_PATH + "connectors/dist/empty-connector-v1.1-SNAPSHOT.jar", "all", "empty"),
 //        Dummy(BASE_PATH + "connectors/dist/dummy-connector-v1.0-SNAPSHOT.jar", "all", "dummy", "basic"),
-        Mysql(BASE_PATH + "connectors/dist/mysql-connector-v1.0-SNAPSHOT.jar", "all", "mysql", "basic", "jdbc"),
+//        Mysql(BASE_PATH + "connectors/dist/mysql-connector-v1.0-SNAPSHOT.jar", "all", "mysql", "basic", "jdbc"),
 //        Postgres(BASE_PATH + "connectors/dist/postgres-connector-v1.0-SNAPSHOT.jar", "all", "postgres", "basic", "jdbc"),
 //        Mongodb(BASE_PATH + "connectors/dist/mongodb-connector-v1.0-SNAPSHOT.jar", "all", "mongodb", "basic", "jdbc"),
 //        Elasticsearch(BASE_PATH + "connectors/dist/elasticsearch-connector-v1.0-SNAPSHOT.jar", "all", "elasticsearch"),
@@ -29,7 +29,7 @@ public class SupervisorCommand {
 //        Redis(BASE_PATH + "connectors/dist/redis-connector-v1.0-SNAPSHOT.jar", "all", "redis"),
 //        Hive1(BASE_PATH + "connectors/dist/hive1-connector-v1.0-SNAPSHOT.jar", "all", "hive1"),
 //        Mariadb(BASE_PATH + "connectors/dist/mariadb-connector-v1.0-SNAPSHOT.jar", "all", "mariadb"),
-//        Coding(BASE_PATH + "connectors/dist/coding-connector-v1.0-SNAPSHOT.jar", "all", "coding"),
+        Coding(BASE_PATH + "connectors/dist/coding-connector-v1.0-SNAPSHOT.jar", "all", "coding"),
 //        ZOHODesk(BASE_PATH + "connectors/dist/zoho-desk-connector-v1.0-SNAPSHOT.jar", "all", "zoho-desk"),
 //        Tidb(BASE_PATH + "connectors/dist/tidb-connector-v1.0-SNAPSHOT.jar", "all", "tidb"),
 //        Tablestore(BASE_PATH + "connectors/dist/tablestore-connector-v1.0-SNAPSHOT.jar", "all", "tablestore"),

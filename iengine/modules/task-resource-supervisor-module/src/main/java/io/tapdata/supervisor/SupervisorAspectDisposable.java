@@ -22,7 +22,7 @@ public class SupervisorAspectDisposable implements AspectObserver<DisposableThre
             DisposableNodeInfo info = new DisposableNodeInfo();
             info.setNodeThreadGroup(group);
             info.setAspectConnector(this);
-            info.setNodeMap(aspect.getEntity().summery());
+            info.setNodeMap(aspect.getEntity().summary());
             taskResourceSupervisorManager.addDisposableSubscribeInfo(group, info);
         });
     }

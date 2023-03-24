@@ -20,19 +20,25 @@ class BuilderMethod implements Builder<BuilderMethod> {
             //String parameters = Descriptor.ofMethod(returnClass, ctClasses);
             this.method = ctClass.getDeclaredMethod(methodName, ctClasses);
         } catch (NotFoundException e) {
-            if (createNotExist) {
-                CtMethod m = new CtMethod(returnClass, methodName, ctClasses, this.ctClass);
-                m.setModifiers(Modifier.PUBLIC);
-                try {
-                    m.setBody(createWith);
-                }catch (Exception es){
-                    m.setBody("{ Object varES;}");
+            CtMethod m = new CtMethod(returnClass, methodName, ctClasses, this.ctClass);
+            String parameters = Descriptor.ofMethod(returnClass, ctClasses);
+            try {
+                CtMethod ctMethod = ctClass.getMethod(methodName, parameters);
+                m.setWrappedBody(ctMethod, null);
+            } catch (CannotCompileException ex) {
+                if (createNotExist) {
+                    m.setModifiers(Modifier.PUBLIC);
+                    try {
+                        m.setBody(createWith);
+                    } catch (Exception es) {
+                        m.setBody("{ Object varES;}");
+                    }
+                } else {
+                    throw new CannotCompileException("Cannot get declared method named is " + methodName + " :" + e.getMessage() + ", and " + ex.getMessage());
                 }
-                this.ctClass.addMethod(m);
-                this.method = m;
-            }else {
-                throw e;
             }
+            this.ctClass.addMethod(m);
+            this.method = m;
         }
     }
 

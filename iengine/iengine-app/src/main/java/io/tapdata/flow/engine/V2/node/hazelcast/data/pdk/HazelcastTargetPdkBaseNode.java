@@ -104,8 +104,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
     @Override
     protected void doInit(@NotNull Context context) throws Exception {
-        super.doInit(context);
         queueConsumerThreadPool.submitSync(() -> {
+            super.doInit(context);
             if (getNode() instanceof TableNode || getNode() instanceof DatabaseNode) {
                 try {
                     createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());

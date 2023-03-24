@@ -5,7 +5,7 @@ import java.util.*;
 public class WZTags {
     protected static final String W_IGNORE = "ignore";
 
-    public static final String W_CLASS = "class";
+    public static final String W_CLASS = "classConfigurations";
     protected static final String W_TARGET = "target";
     protected static final String W_METHOD = "method";
     protected static final String W_CONSTRUCTOR = "constructor";

@@ -4,7 +4,7 @@ import io.tapdata.entity.utils.DataMap;
 
 public abstract class DisposableThreadGroupBase {
     public static final String MODE_KEY = "mode";
-    public DataMap summery(){
+    public DataMap summary(){
         return new DataMap().kv(MODE_KEY,"default");
     }
 }

@@ -5,8 +5,8 @@ import io.tapdata.entity.utils.DataMap;
 public class CommandEntity extends ConnectionTestEntity{
     String command;
     @Override
-    public DataMap summery() {
-        return super.summery()
+    public DataMap summary() {
+        return super.summary()
                 .kv(MODE_KEY,"command")
                 .kv("databaseType",databaseType)
                 .kv("name",connectionName)
