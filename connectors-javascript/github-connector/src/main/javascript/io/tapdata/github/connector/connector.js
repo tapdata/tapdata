@@ -267,6 +267,7 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
         }
         iterateAllData('issues', offset[tableName], (result, offsetNext, error) => {
             let haveNext = false;
+            let arr = [];
             if(result && result !== ''){
                 if(result && result.length > 0){
                     if(!offsetNext.page){
@@ -281,8 +282,20 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
                     if( result[x].updated_at && offset[tableName]['since'] < result[x].updated_at){
                         offset[tableName]['since'] = new Date(new Date(result[x].updated_at).getTime() + 1000).toISOString();
                     }
+                    let item = {
+                        "eventType": "i",
+                        "tableName": tableName,
+                        "afterData": result[x],
+                        "referenceTime":  Number(new Date())
+                    };
+                    if (result[x].created_at === result[x].updated_at) {
+                        item.eventType = 'i';
+                    } else {
+                        item.eventType = 'u';
+                    }
+                    arr.push(item);
                 }
-                streamReadSender.send(result,tableName,offset);
+                streamReadSender.send(arr,tableName,offset);
                 if(!haveNext){
                     return false
                 }
