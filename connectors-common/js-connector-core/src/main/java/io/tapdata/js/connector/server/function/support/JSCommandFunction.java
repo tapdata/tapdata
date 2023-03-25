@@ -139,8 +139,8 @@ public class JSCommandFunction extends FunctionBase implements FunctionSupport<C
                 commandResult.result(data);
             }
         } catch (Exception e) {
-            TapLogger.warn(TAG, " Method " + this.functionName.jsName() + " failed to execute. Unable to get the return result. The final result will be null ，error msg: {}", e.getMessage());
-            commandResult.result(new HashMap<>());
+            TapLogger.warn(TAG, " Method " + this.functionName.jsName() + " failed to execute. Unable to get the return result. The final result will be null. " + InstanceFactory.instance(TapUtils.class).getStackTrace(e));
+            throw e;
         }
         return commandResult;
     }

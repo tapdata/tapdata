@@ -117,7 +117,7 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 							}
 							break;
 						case ARGUMENT_TYPE_JSON:
-							String jsonString = dis.getDataInputStream().readUTF();
+							String jsonString = dis.readLongString();
 							if(parameterTypes[i] != null) {
 								Object value = JSON.parseObject(jsonString, parameterTypes[i], TapConstants.tapdataParserConfig, Feature.DisableCircularReferenceDetect);//parseObject(jsonString, parameterTypes[i], TapConstants.tapdataParserConfig);
 								args[i] = value;
@@ -202,7 +202,7 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 					}
 				} else {
 					dos.getDataOutputStream().writeByte(ARGUMENT_TYPE_JSON);
-					dos.getDataOutputStream().writeUTF(JSON.toJSONString(arg, SerializerFeature.DisableCircularReferenceDetect));
+					dos.writeLongString(JSON.toJSONString(arg, SerializerFeature.DisableCircularReferenceDetect));
 				}
 			}
 		}
@@ -258,7 +258,7 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 
 				String returnStr = JSON.toJSONString(content, SerializerFeature.DisableCircularReferenceDetect);
 
-				dos.getDataOutputStream().writeUTF(returnStr);
+				dos.writeLongString(returnStr);
 			}
 		} else {
 			dos.writeUTF(contentClass);
@@ -331,7 +331,7 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 				}
 				break;
 			case MethodRequest.ARGUMENT_TYPE_JSON:
-				String jsonString = dis.getDataInputStream().readUTF();
+				String jsonString = dis.readLongString();
 				if(returnClass == null || returnClass.equals(JSONObject.class)) {
 					content = JSON.parse(jsonString, TapConstants.tapdataParserConfig, Feature.DisableCircularReferenceDetect);
 				} else {
