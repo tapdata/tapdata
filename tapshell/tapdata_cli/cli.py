@@ -2065,7 +2065,7 @@ class BaseNode:
             "connectionId": self.connectionId,
             "databaseType": self.databaseType,
             "id": self.id,
-            "name": self.tableName,
+            "name": self.connection.c["name"] if mode == JobType.migrate else self.tableName,
             "attrs": {
                 "connectionType": self.connection.c["connection_type"],
                 "position": [0, 0],
