@@ -181,7 +181,9 @@ public class MongodbV4StreamReader implements MongodbStreamReader {
 										unset.put(f, true);
 									}
 								}
-								info.put("$unset", unset);
+								if (unset.size() > 0) {
+									info.put("$unset", unset);
+								}
 							}
 							recordEvent.setInfo(info);
 							recordEvent.setReferenceTime((long) (event.getClusterTime().getTime()) * 1000);
