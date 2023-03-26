@@ -267,7 +267,26 @@ def run_jobs(test_case, run_params_template):
             case_name = get_case().split(".")[0]
             p = Pipeline(job_name, mode="sync") if "dev" in case_name else Pipeline(job_name)
             p.config({"type": "initial_sync"})
-            run_param = gen_run_param(p, run_params_template[i], i)
+            if "dev" in case_name:
+                run_param = gen_run_param(p, run_params_template[i], i)
+            elif "cp" in case_name:
+                run_param = []
+                tables = []
+                source_db = ''
+                sink_db = ''
+                for rp in gen_run_param(p, run_params_template[i], i):
+                    if not isinstance(rp, str):
+                        continue
+                    if "car_" in rp and "sink_" not in rp:
+                        tables.append(rp.split(".")[1])
+                        source_db = rp.split(".")[0]
+                        continue
+                    elif "sink_" in rp:
+                        sink_db = rp.split(".")[0]
+                source = Source(source_db, table=tables)
+                sink = Sink(sink_db)
+                source.config({"migrateTableSelectType": "custom"})
+                run_param = [p, source, None, sink]
             logger.notice("start run number {} job, name is: {}, param is: {}", i, job_name, run_param)
             with open("jobs_number", "a+") as fd:
                 fd.write(".\n")
