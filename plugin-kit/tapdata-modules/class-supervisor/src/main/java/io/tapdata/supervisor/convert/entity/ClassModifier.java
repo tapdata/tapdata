@@ -87,8 +87,10 @@ public class ClassModifier {
                         continue;
                     }
                     JavassistWaver.Builder builder = javaSsistWaver.builder(path, wBaseTarget.getSaveTo());
-                    builders.add(builder);
-                    pathCache.add(path);
+                    if (Objects.nonNull(builder)){
+                        builders.add(builder);
+                        pathCache.add(path);
+                    }
                 }
             }
 

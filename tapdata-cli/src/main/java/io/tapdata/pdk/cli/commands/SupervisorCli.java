@@ -39,7 +39,7 @@ public class SupervisorCli extends CommonCli {
             for (File file : files) {
                 if (!file.isFile()) continue;
                 String path = file.getAbsolutePath();
-                System.out.print("Modify class: " + path + ", is starting! ");
+                System.out.println("Modify class: " + path + ", is starting! ");
                 pathToSave = file.getParentFile().getAbsolutePath() + "/" + UUID.randomUUID().toString().replaceAll("-","_") + "/";
                 File pathToFile = new File(pathToSave);
                 try {
@@ -47,25 +47,25 @@ public class SupervisorCli extends CommonCli {
                     if (!pathToFile.isDirectory()) {
                         boolean mkdir = pathToFile.mkdir();
                     }
-                    System.out.print("-> step of unzip jar: ");
+                    System.out.println("-> step of unzip jar: ");
                     ZipUtils.unzip(file.getAbsolutePath(), pathToSave);
-                    System.out.print("unzip jar successfully. ");
+                    System.out.println("unzip jar successfully. ");
 
                     //根据配置，植入代码
-                    System.out.print("-> step of modify class: ");
+                    System.out.println("-> step of modify class: ");
                     ClassModifier modifier = ClassModifier.load(path, pathToSave);
                     modifier.wave();
-                    System.out.print("modify class successfully. ");
+                    System.out.println("modify class successfully. ");
 
-                    System.out.print("-> step of zip jar: ");
+                    System.out.println("-> step of zip jar: ");
                     File atomicFile = new File(file.getAbsolutePath());
                     if (atomicFile.exists())
                         FileUtils.deleteQuietly(atomicFile);
                     try (OutputStream fos = new FileOutputStream(atomicFile)) {
                         ZipUtils.zip(pathToSave, fos);
-                        System.out.print("zip jar successfully. ");
+                        System.out.println("zip jar successfully. ");
                     } catch (Exception e) {
-                        System.out.print("zip jar failed. ");
+                        System.out.println("zip jar failed. ");
                     }
                 } finally {
                     //清除pathToSave目录下的class

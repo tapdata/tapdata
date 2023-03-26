@@ -20,7 +20,7 @@ class BuilderConstructor implements Builder<BuilderConstructor> {
         this.constructor = ctClass.getConstructor(parameters);
     }
 
-    protected BuilderConstructor(CtClass ctClass, CtConstructor constructor){
+    protected BuilderConstructor(CtClass ctClass, CtConstructor constructor) {
         this.constructor = constructor;
         this.ctClass = ctClass;
     }
@@ -43,25 +43,31 @@ class BuilderConstructor implements Builder<BuilderConstructor> {
 
     public BuilderConstructor appendBefore(String script) throws CannotCompileException {
         this.constructor.insertBefore(script);
+        System.out.printf("[Constructor %s %s] insert code before successfully%n", this.ctClass.getName(), this.constructor.getName());
         return this;
     }
 
     public BuilderConstructor appendAfter(boolean needFinally, boolean needRedundant, String script) throws CannotCompileException {
         this.constructor.insertAfter(script, needFinally, needRedundant);
+        System.out.printf("[Constructor %s %s] insert code after successfully%n", this.ctClass.getName(), this.constructor.getName());
         return this;
     }
 
     public BuilderConstructor appendAt(int atIndex, boolean needModify, String script) throws CannotCompileException {
         this.constructor.insertAt(atIndex, needModify, script);
+        System.out.printf("[Constructor %s %s] insert code at %s successfully%n", this.ctClass.getName(), this.constructor.getName(), atIndex);
         return this;
     }
 
     @Override
     public BuilderConstructor appendCatch(String exception, String name, String script) throws NotFoundException, CannotCompileException {
         ClassPool pool = ctClass.getClassPool();
-        if (Objects.isNull(exception) || JavassistTag.EMPTY.equals(exception.trim())) exception = JavassistTag.DEFAULT_CATCH_PATH;
-        if (Objects.isNull(name) || JavassistTag.EMPTY.equals(name.trim())) name = JavassistTag.DEFAULT_CATCH_EXCEPTION_NAME;
+        if (Objects.isNull(exception) || JavassistTag.EMPTY.equals(exception.trim()))
+            exception = JavassistTag.DEFAULT_CATCH_PATH;
+        if (Objects.isNull(name) || JavassistTag.EMPTY.equals(name.trim()))
+            name = JavassistTag.DEFAULT_CATCH_EXCEPTION_NAME;
         this.constructor.addCatch(script, pool.get(exception), name);
+        System.out.printf("[Constructor %s %s] insert code catch successfully%n", this.ctClass.getName(), this.constructor.getName());
         return this;
     }
 

@@ -10,7 +10,7 @@
         "package": "com.zaxxer.hikari.pool"
       },{
         "type": "extends",
-        "path": "java.io.ResultSet",
+        "path": "java.sql.ResultSet",
         "package": "com.zaxxer.hikari.pool"
       },{
         "type": "extends",

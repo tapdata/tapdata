@@ -28,7 +28,19 @@ public class JavassistWaver {
 
 
     public Builder builder(String path, String saveTo) throws NotFoundException {
-        return new Builder(this.pool, path, saveTo);
+        try {
+            return new Builder(this.pool, path, saveTo);
+//            Class<?> aClass = Class.forName(path);
+//            int modifiers = aClass.getModifiers();
+//            if (!Modifier.isFinal(modifiers)) {
+//                return new Builder(this.pool, path, saveTo);
+//            }else {
+//                System.out.println("[WARN] Class is final, cannot be modify. " + path + " will be ignore.");
+//                return null;
+//            }
+        }catch (Exception ignored){
+            return null;
+        }
     }
 
     public static class Builder {
