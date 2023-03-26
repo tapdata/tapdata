@@ -24,6 +24,7 @@ import io.tapdata.pdk.apis.utils.TypeConverter;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -411,7 +412,7 @@ public abstract class ConnectorBase implements TapConnector {
         return null;
     }
 
-    protected void singleThreadDiscoverSchema(List<DataMap> subList, Consumer<List<TapTable>> consumer) {
+    protected void singleThreadDiscoverSchema(List<DataMap> subList, Consumer<List<TapTable>> consumer) throws SQLException {
         throw new UnsupportedOperationException("This type of datasource is not supported");
     }
 

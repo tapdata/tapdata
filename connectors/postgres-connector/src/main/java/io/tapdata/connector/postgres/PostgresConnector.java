@@ -3,7 +3,6 @@ package io.tapdata.connector.postgres;
 import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonSqlMaker;
-import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.common.ddl.DDLSqlGenerator;
 import io.tapdata.connector.postgres.bean.PostgresColumn;
@@ -324,7 +323,7 @@ public class PostgresConnector extends ConnectorBase {
             postgresTest = null;
         }
         if (EmptyKit.isNotNull(postgresJdbcContext)) {
-            postgresJdbcContext.finish(connectionContext.getId());
+            postgresJdbcContext.close();
         }
     }
 
@@ -333,8 +332,8 @@ public class PostgresConnector extends ConnectorBase {
         postgresConfig = (PostgresConfig) new PostgresConfig().load(connectorContext.getConnectionConfig());
         postgresTest = new PostgresTest(postgresConfig, testItem -> {
         }).initContext();
-        if (EmptyKit.isNull(postgresJdbcContext) || postgresJdbcContext.isFinish()) {
-            postgresJdbcContext = (PostgresJdbcContext) DataSourcePool.getJdbcContext(postgresConfig, PostgresJdbcContext.class, connectorContext.getId());
+        if (EmptyKit.isNull(postgresJdbcContext)) {
+            postgresJdbcContext = new PostgresJdbcContext(postgresConfig);
         }
         isConnectorStarted(connectorContext, tapConnectorContext -> slotName = tapConnectorContext.getStateMap().get("tapdata_pg_slot"));
         postgresVersion = postgresJdbcContext.queryVersion();

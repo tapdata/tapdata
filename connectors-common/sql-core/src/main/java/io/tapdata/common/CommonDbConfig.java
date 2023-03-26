@@ -33,6 +33,7 @@ public class CommonDbConfig implements Serializable {
     private String extParams;
     private String jdbcDriver;
     private Properties properties;
+    private char escapeChar = '"';
 
     //pattern for jdbc-url
     public String getDatabaseUrlPattern() {
@@ -169,5 +170,13 @@ public class CommonDbConfig implements Serializable {
 
     public void setProperties(Properties properties) {
         this.properties = properties;
+    }
+
+    public char getEscapeChar() {
+        return escapeChar;
+    }
+
+    public void setEscapeChar(char escapeChar) {
+        this.escapeChar = escapeChar;
     }
 }
