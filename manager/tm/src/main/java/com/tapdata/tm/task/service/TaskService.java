@@ -3887,10 +3887,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         Criteria criteria = new Criteria();
         // tableName 不为空根据表查询。否则根据连接查询
-        criteria.and("dag.nodes.connectionId").is(connectionId).and("is_deleted").is(false);
+        criteria.and("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true);
         if (StringUtils.isNotBlank(tableName)) {
             criteria.orOperator(new Criteria().and("dag.nodes.tableName").is(tableName),
-                    new Criteria().and("dag.nodes.tableNames").in(tableName));
+                    new Criteria().and("dag.nodes.syncObjects.objectNames").is(tableName));
         }
         Query query = Query.query(criteria);
         return findAllDto(query,userDetail);
