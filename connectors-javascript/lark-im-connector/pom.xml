@@ -169,10 +169,10 @@
                 <includes>
                     <include>**/*.js</include>
                 </includes>
-                <targetPath>./${parent.artifactId}/${project.artifactId}/src/main/javascript/</targetPath>
+                <targetPath>./${project.parent.artifactId}/${project.artifactId}/src/main/javascript/</targetPath>
             </resource>
             <resource>
-                <directory>${basedir}/src/main/resources</directory>
+                <directory>${project.basedir}/src/main/resources</directory>
                 <includes>
                     <include>**/*</include>
                 </includes>
