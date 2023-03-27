@@ -165,9 +165,13 @@ public class MongodbV4StreamReader implements MongodbStreamReader {
 							UpdateDescription updateDescription = event.getUpdateDescription();
 							if (updateDescription != null) {
 								for (String f:updateDescription.getRemovedFields()) {
-									unset.put(f, true);
+									if (!after.containsKey(f)) {
+										unset.put(f, true);
+									}
 								}
-								info.put("$unset", unset);
+								if (unset.size() > 0) {
+									info.put("$unset", unset);
+								}
 							}
 							recordEvent.setInfo(info);
 							recordEvent.setReferenceTime((long) (event.getClusterTime().getTime()) * 1000);
