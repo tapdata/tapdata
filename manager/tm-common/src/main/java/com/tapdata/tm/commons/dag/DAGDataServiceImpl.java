@@ -593,8 +593,12 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.getTargetTypesGenerator().convert(nameFieldMap
                     , DefaultExpressionMatchingMap.map(expression), codecsFilterManager, findPossibleDataTypes);
             LinkedHashMap<String, TapField> data = convert.getData();
-            schema.setResultItems(convert.getResultItems());
             schema.setFindPossibleDataTypes(findPossibleDataTypes);
+            boolean anyMatch = findPossibleDataTypes.values().stream().anyMatch(dataType -> dataType.getLastMatchedDataType() == null);
+            if (anyMatch) {
+                schema.setHasTransformEx(true);
+            }
+
 
             data.forEach((k, v) -> {
                 TapField tapField = nameFieldMap.get(k);
@@ -610,7 +614,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         metadataInstancesDto.setOldId(oldId);
         metadataInstancesDto.setAncestorsName(schema.getAncestorsName());
         metadataInstancesDto.setNodeId(schema.getNodeId());
-        metadataInstancesDto.setResultItems(schema.getResultItems());
+        metadataInstancesDto.setHasTransformEx(schema.isHasTransformEx());
         metadataInstancesDto.setFindPossibleDataTypes(schema.getFindPossibleDataTypes());
 
         AtomicBoolean hasPrimayKey = new AtomicBoolean(false);
@@ -936,7 +940,6 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                 update2.setQualifiedName(metadataInstancesDto.getQualifiedName());
                 update2.setHasPrimaryKey(metadataInstancesDto.isHasPrimaryKey());
                 update2.setHasUnionIndex(metadataInstancesDto.isHasUnionIndex());
-                update2.setResultItems(metadataInstancesDto.getResultItems());
                 update2.setFindPossibleDataTypes(metadataInstancesDto.getFindPossibleDataTypes());
                 update2.setHasUpdateField(metadataInstancesDto.isHasUpdateField());
                 if (existsMetadataInstance != null && existsMetadataInstance.getId() != null) {
