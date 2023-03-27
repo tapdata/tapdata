@@ -105,7 +105,7 @@ public class DisposableNodeInfo implements MemoryFetcher {
             if (needResources) {
                 Map<? extends Class<?>, List<ClassOnThread>> listMap = thInfos.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(info -> info.getThisObj().getClass()));
                 for (Map.Entry<? extends Class<?>, List<ClassOnThread>> entry : listMap.entrySet()) {
-                    Class<?> clz = entry.getClass();
+                    Class<?> clz = entry.getKey();
                     List<ClassOnThread> infos = entry.getValue();
                     DataMap map = DataMap.create().keyRegex(keyRegex);
                     map.kv(clz.getName(), infos.size());
