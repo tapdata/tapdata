@@ -19,7 +19,8 @@
           "x-component-props": {
             "filterable": true,
             "method": "{{loadCommandList}}",
-            "params": "{{ {$values: $values, command: \"getUserRepos\"} }}"
+            "params": "{{ {$values: $values, command: \"getUserRepos\"} }}",
+            "pageSize":100
           },
           "x-index": 30,
           "x-reactions": [
