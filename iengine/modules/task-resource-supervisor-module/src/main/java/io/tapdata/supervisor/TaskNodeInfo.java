@@ -25,15 +25,17 @@ class TaskNodeInfo implements MemoryFetcher {
     @Override
     public DataMap memory(String keyRegex, String memoryLevel) {
         List<DataMap> threads = new ArrayList<>();
+        List<DataMap> resources = new ArrayList<>();
         int threadCount = this.threads(threads, keyRegex, memoryLevel);
+        boolean needResource = Objects.isNull(memoryLevel) || !memoryLevel.matches(MemoryLevel.SUMMARY.level());
+        int resourcesCount = this.resources(resources, keyRegex, memoryLevel, needResource);
         DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(TaskSubscribeInfo.class.getSimpleName())*/
                 .kv("associateId", this.associateId)
                 .kv("connectorId", this.node.getId())
                 .kv("nodeName", this.node.getName())
-                .kv("threadCount", threadCount);
-        if (Objects.isNull(memoryLevel) || !memoryLevel.matches(MemoryLevel.SUMMARY.level())) {
-            List<DataMap> resources = new ArrayList<>();
-            this.resources(resources, keyRegex, memoryLevel);
+                .kv("threadCount", threadCount)
+                .kv("resourcesCount", resourcesCount);
+        if (needResource) {
             dataMap.kv("resources", resources)
                     .kv("threads", threads);
         } else {
@@ -74,41 +76,46 @@ class TaskNodeInfo implements MemoryFetcher {
         return threadCount;
     }
 
-    private void resources(List<DataMap> resources, String keyRegex, String memoryLevel) {
+    private int resources(List<DataMap> resources, String keyRegex, String memoryLevel, boolean needResources) {
         ClassLifeCircleMonitor<ClassOnThread> classLifeCircleMonitor = InstanceFactory.instance(ClassLifeCircleMonitor.class);
         Map<Object, ClassOnThread> summary = classLifeCircleMonitor.summary();
         Collection<ClassOnThread> onThreads = summary.values();
         Map<ThreadGroup, List<ClassOnThread>> groupListMap = onThreads.stream().filter(obj -> Objects.nonNull(obj) && Objects.nonNull(obj.getThreadGroup()) && obj.getThreadGroup().equals(nodeThreadGroup)).collect(Collectors.groupingBy(ClassOnThread::getThreadGroup));
 
         List<DataMap> infoArray = new ArrayList<>();
-
-        groupListMap.forEach((group, thInfos) -> {
-            Map<? extends Class<?>, List<ClassOnThread>> listMap = thInfos.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(info -> info.getThisObj().getClass()));
-            listMap.forEach((clz, infos) -> {
-                DataMap map = DataMap.create().keyRegex(keyRegex);
-                map.kv(clz.getName(), infos.size());
-                List<List<String>> stacks = new ArrayList<>();
-                for (ClassOnThread info : infos) {
-                    List<String> stackTrace = info.getStackTrace();
-                    stacks.add(stackTrace.subList(0, Math.min(STACK_LENGTH, stackTrace.size()) - 1));
+        int resourcesCount = 0;
+        for (Map.Entry<ThreadGroup, List<ClassOnThread>> groupEntry : groupListMap.entrySet()) {
+            List<ClassOnThread> thInfos = groupEntry.getValue();
+            if (needResources) {
+                Map<? extends Class<?>, List<ClassOnThread>> listMap = thInfos.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(info -> info.getThisObj().getClass()));
+                for (Map.Entry<? extends Class<?>, List<ClassOnThread>> entry : listMap.entrySet()) {
+                    Class<?> clz = entry.getClass();
+                    List<ClassOnThread> infos = entry.getValue();
+                    DataMap map = DataMap.create().keyRegex(keyRegex);
+                    map.kv(clz.getName(), infos.size());
+                    List<List<String>> stacks = new ArrayList<>();
+                    for (ClassOnThread info : infos) {
+                        List<String> stackTrace = info.getStackTrace();
+                        stacks.add(stackTrace.subList(0, Math.min(STACK_LENGTH, stackTrace.size()) - 1));
+                    }
+                    map.kv("stack", stacks);
+                    infoArray.add(map);
                 }
-                map.kv("stack", stacks);
-                infoArray.add(map);
-            });
-        });
+            }
+            resourcesCount += thInfos.size();
+        }
         //排序
-        infoArray.sort((o1, o2) -> {
-            DataMap p1 = (DataMap) o1;
-            DataMap p2 = (DataMap) o2;
-            int len1 = ((List<Object>) Optional.ofNullable(p1.get("stack")).orElse(new ArrayList<>())).size();
-            int len2 = ((List<Object>) Optional.ofNullable(p2.get("stack")).orElse(new ArrayList<>())).size();
-            return len2 - len1;
-        });
-//        DataMap mapNew = DataMap.create().keyRegex(keyRegex);
-//        for (DataMap info : infoArray) {
-//            mapNew.kv(info.getKey(), info.getValue());
-//        }
-        resources.addAll(infoArray);
+        if (needResources) {
+            infoArray.sort((o1, o2) -> {
+                DataMap p1 = (DataMap) o1;
+                DataMap p2 = (DataMap) o2;
+                int len1 = ((List<Object>) Optional.ofNullable(p1.get("stack")).orElse(new ArrayList<>())).size();
+                int len2 = ((List<Object>) Optional.ofNullable(p2.get("stack")).orElse(new ArrayList<>())).size();
+                return len2 - len1;
+            });
+            resources.addAll(infoArray);
+        }
+        return resourcesCount;
     }
 
     public boolean hasLaked() {
