@@ -5,7 +5,6 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.entity.ExecuteResult;
-import io.tapdata.pdk.apis.error.NotSupportedException;
 import io.tapdata.pdk.apis.functions.TapSupplier;
 import io.tapdata.util.DateUtil;
 
@@ -320,7 +319,7 @@ public class DefaultSqlExecutor {
       case "blob":
         return Types.BLOB;
       default:
-        throw new NotSupportedException(type);
+        throw new IllegalArgumentException("Not supported:" + type);
     }
   }
 
