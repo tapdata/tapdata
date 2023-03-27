@@ -3,7 +3,6 @@ package io.tapdata.common;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.ExecuteResult;
 import io.tapdata.pdk.apis.entity.TapExecuteCommand;
-import io.tapdata.pdk.apis.error.NotSupportedException;
 import io.tapdata.pdk.apis.functions.TapSupplier;
 
 import java.sql.Connection;
@@ -34,7 +33,7 @@ public class SqlExecuteCommandFunction {
           executeResult = sqlExecutor.call(funcName, callParams, connectionSupplier);
           break;
         default:
-          executeResult = new ExecuteResult<>().error(new NotSupportedException(command));
+          executeResult = new ExecuteResult<>().error(new IllegalArgumentException("Not supported command: " + command));
       }
     } catch (Exception e) {
       executeResult = new ExecuteResult<>().error(e);
@@ -60,7 +59,7 @@ public class SqlExecuteCommandFunction {
           executeResultConsumer.accept(sqlExecutor.call(funcName, callParams, connectionSupplier));
           break;
         default:
-          executeResultConsumer.accept(new ExecuteResult<>().error(new NotSupportedException(command)));
+          executeResultConsumer.accept(new ExecuteResult<>().error(new IllegalArgumentException("Not supported command: " + command)));
       }
     } catch (Exception e) {
       executeResultConsumer.accept(new ExecuteResult<>().error(e));
