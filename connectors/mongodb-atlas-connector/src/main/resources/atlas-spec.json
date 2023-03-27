@@ -48,7 +48,7 @@
             {
               "label": "${dataForm_form_options_standardMode}",
               "value": false,
-              "disabled": false
+              "disabled": true
             }
           ],
           "default": true,
@@ -287,11 +287,11 @@
   "messages": {
     "default": "en_US",
     "en_US": {
-      "doc": "docs/mongodb_en_US.md",
+      "doc": "docs/mongodb_atlas_en_US.md",
       "isUri": "Connection method",
       "isUrlTips1": "Configure MongoDB database in URI mode. Batch input is supported",
       "isUrlTips2": "Tapdata will connect to a separate server in your network which provides an TSL/SSL tunnel to your database. This method is necessary if your database is in an inaccessible subnet",
-      "uriTips": "MongoDB database connection URI example:\nThe username and password in the URI must be url encoded and then spliced into the connection string\nReplica set: mongodb://192.168.0.100:27017/mydb?replicaSet=xxx\n Authenticated replica set: mongodb://admin:password@192.168.0.100:27017/mydb?replicaSet=xxx&authSource=admin\nMulti-node replica set: mongodb://192.168.0.1:27017,192.168.0.2:27017, 192.168.0.3:27017/mydb?replicaSet=xxx\nSharded set: mongodb://192.168.0.100:27017/mydb\nMultiple mongos: mongodb://192.168.0.1:27017,192.168.0.2:27017, 192.168.0.3:27017/mydb",
+      "uriTips": "MongoDB database connection URI example:\nmongodb+srv://<username>:<password>@atlascluster.bo1rp4b.mongodb.net/?retryWrites=true&w=majority",
       "dataForm_form_options_URIMode": "URI Mode",
       "dataForm_form_options_standardMode": "Standard Mode",
       "dataForm_form_databaseUri": "Database URI",
@@ -313,11 +313,11 @@
       "saveData": "Save Delete Data"
     },
     "zh_CN": {
-      "doc": "docs/mongodb_zh_CN.md",
+      "doc": "docs/mongodb_atlas_zh_CN.md",
       "isUri": "连接方式",
       "isUrlTips1": "以URI方式配置MongoDB数据库，支持批量输入",
       "isUrlTips2": "Tapdata 将连接网络中的单独服务器，该服务器提供到数据库的TSL/SSL通道。如果您的数据库位于不可访问的子网中，则可尝试使用此方法",
-      "uriTips": "MongoDB 数据库连接 URI 示范 :\nURI中的用户名和密码必须做 url encode 编码后在拼接到连接串中\n副本集 : mongodb://192.168.0.100:27017/mydb?replicaSet=xxx\n启用认证的副本集 : mongodb://admin:password@192.168.0.100:27017/mydb?replicaSet=xxx&authSource=admin\n多节点副本集 : mongodb://192.168.0.1:27017,192.168.0.2:27017,192.168.0.3:27017/mydb?replicaSet=xxx\n分片集 : mongodb://192.168.0.100:27017/mydb\n多个mongos : mongodb://192.168.0.1:27017,192.168.0.2:27017,192.168.0.3:27017/mydb",
+      "uriTips": "MongoDB 数据库连接 URI 示范 :\nmongodb+srv://<username>:<password>@atlascluster.bo1rp4b.mongodb.net/?retryWrites=true&w=majority",
       "dataForm_form_options_URIMode": "URI模式",
       "dataForm_form_options_standardMode": "标准模式",
       "dataForm_form_databaseUri": "数据库 URI",
@@ -339,11 +339,11 @@
       "saveData": "保存删除数据"
     },
     "zh_TW": {
-      "doc": "docs/mongodb_zh_TW.md",
+      "doc": "docs/mongodb_atlas_zh_TW.md",
       "isUri": "連接方式",
       "isUrlTips1": "以URI方式配置MongoDB數據庫，支持批量輸入",
       "isUrlTips2": "Tapdata 將連接奧網絡中的單獨服務器，該服務器提供到數據庫的TSL/SSL通道。如果您的數據庫位於不可訪問的子網中，則可嘗試使用此方法",
-      "uriTips": "MongoDB 數據庫連接 URI 示範 :\nURI中的用戶名和密碼必須做 url encode 編碼後在拼接到連接串中\n副本集 : mongodb://192.168.0.100:27017/mydb?replicaSet=xxx\n啟用認證的副本集 : mongodb://admin:password@192.168.0.100:27017/mydb?replicaSet=xxx&authSource=admin\n多節點副本集 : mongodb://192.168.0.1:27017,192.168.0.2:27017,192.168.0.3:27017/mydb?replicaSet=xxx\n分片集 : mongodb://192.168.0.100:27017/mydb\n多個mongos : mongodb://192.168.0.1:27017,192.168.0.2:27017,192.168.0.3:27017/mydb",
+      "uriTips": "MongoDB 數據庫連接 URI 示範 :\nmongodb+srv://<username>:<password>@atlascluster.bo1rp4b.mongodb.net/?retryWrites=true&w=majority",
       "dataForm_form_options_URIMode": "URI模式",
       "dataForm_form_options_standardMode": "標準模式",
       "dataForm_form_databaseUri": "數據庫 URI",
