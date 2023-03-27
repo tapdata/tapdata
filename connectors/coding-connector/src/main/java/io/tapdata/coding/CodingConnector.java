@@ -251,7 +251,6 @@ public class CodingConnector extends ConnectorBase {
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
         CodingHttp.interceptor = (http, request, hasIgnore) -> {
             if (hasIgnore) return request;
-
             return request;
         };
         ConnectionOptions connectionOptions = ConnectionOptions.create();
