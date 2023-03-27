@@ -124,7 +124,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -3974,7 +3973,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 cdcDelayTime = Long.valueOf(sample.getVs().get("replicateLag").toString());
             }
             tableStatusInfoDto.setCdcDelayTime(cdcDelayTime);
-            long LastDataChangeTime = Long.parseLong(sample.getVs().get("currentEventTimestamp").toString());
+            long  LastDataChangeTime = sample.getVs().get("currentEventTimestamp").longValue();
+
             tableStatusInfoDto.setLastDataChangeTime(new Date(LastDataChangeTime));
         }
 
