@@ -1,4 +1,8 @@
 {
+  "info": {
+    "url": "https://www.cnblogs.com/Java-Script/p/11091330.html",
+    "tip": "To 'plugin-kit/tapdata-modules/class-supervisor/src/main/resources/demo-config.json' learn more classConfigurations."
+  },
   "classConfigurations": [
     {
       "target": [{
