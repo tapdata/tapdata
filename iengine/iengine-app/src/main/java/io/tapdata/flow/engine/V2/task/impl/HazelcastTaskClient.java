@@ -182,7 +182,8 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 
 	@Override
 	public boolean isRunning() {
-		return job.getStatus() == JobStatus.RUNNING;
+		JobStatus status = job.getStatus();
+		return status == JobStatus.STARTING || status == JobStatus.RUNNING;
 	}
 
 	@Override
