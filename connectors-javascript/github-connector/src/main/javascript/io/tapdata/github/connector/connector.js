@@ -26,7 +26,7 @@
  * */
 function discoverSchema(connectionConfig) {
     return [{
-        "name":'Issues',
+        "name":'Issues and Pull requests',
         "fields":{
             'id':{
                 'type':'Number',
