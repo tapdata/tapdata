@@ -61,6 +61,7 @@ import org.springframework.stereotype.Service;
 import javax.annotation.Nullable;
 import java.text.MessageFormat;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -992,7 +993,7 @@ public class LogCollectorService {
             logCollectorNode.setId(UUIDUtil.getUUID());
             logCollectorNode.setConnectionIds(connectionIds);
             logCollectorNode.setDatabaseType(v.get(0).getDatabase_type());
-            logCollectorNode.setName("Shared Mining Source");
+            logCollectorNode.setName(v.get(0).getName());
             logCollectorNode.setTableNames(tableNames);
             logCollectorNode.setSelectType(LogCollectorNode.SELECT_TYPE_RESERVATION);
             Map<String, Object> attr = Maps.newHashMap();
@@ -1001,10 +1002,12 @@ public class LogCollectorService {
 
             HazelCastImdgNode hazelCastImdgNode = new HazelCastImdgNode();
             hazelCastImdgNode.setId(UUIDUtil.getUUID());
-            hazelCastImdgNode.setName("Shared Mining Target");
+            AtomicReference<String> targetName = new AtomicReference<>("Shared Mining Target");
             Optional.ofNullable(externalStorageService.findById(MongoUtils.toObjectId(dataSource.getShareCDCExternalStorageId()))).ifPresent(externalStorageDto -> {
                 hazelCastImdgNode.setExternaltype(externalStorageDto.getType());
+                targetName.set(externalStorageDto.getName());
             });
+            hazelCastImdgNode.setName(targetName.get());
 
             List<Node> nodes = Lists.newArrayList(logCollectorNode, hazelCastImdgNode);
 
