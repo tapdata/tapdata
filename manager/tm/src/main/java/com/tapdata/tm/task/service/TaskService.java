@@ -3974,7 +3974,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 cdcDelayTime = Long.valueOf(sample.getVs().get("replicateLag").toString());
             }
             tableStatusInfoDto.setCdcDelayTime(cdcDelayTime);
-            long LastDataChangeTime = (long) sample.getVs().get("currentEventTimestamp");
+            long LastDataChangeTime = Long.parseLong(sample.getVs().get("currentEventTimestamp").toString());
             tableStatusInfoDto.setLastDataChangeTime(new Date(LastDataChangeTime));
         }
 
