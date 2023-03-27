@@ -378,8 +378,13 @@ function commandCallback(connectionConfig, nodeConfig, commandInfo) {
     if (commandInfo.command === 'getUserRepos') {
         let rs = [];
         let page = 1;
-        if(commandInfo.args && commandInfo.args.page){
-            page = commandInfo.args.page
+        if(commandInfo.args && commandInfo.args.page && commandInfo.args.page > 1){
+            return {
+                "items": [],
+                "page": commandInfo.args.page,
+                "size": 100,
+                "total": 0
+            };
         }
         while(true){
             let res = invoker.invoke("getUserRepos",{page:page,access_token:connectionConfig.access_token});
@@ -401,7 +406,7 @@ function commandCallback(connectionConfig, nodeConfig, commandInfo) {
         return {
             "items": arrayUtils.convertList(rs, {'full_name':'label', 'full_name':'value'}),
             "page": 1,
-            "size": 100,
+            "size": rs.length,
             "total": rs.length
         };
     }
