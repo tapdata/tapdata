@@ -4,18 +4,17 @@ import io.tapdata.base.ConnectorBase;
 import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.param.Param;
 import io.tapdata.coding.service.command.Command;
-import io.tapdata.coding.service.loader.*;
 import io.tapdata.coding.service.connectionMode.ConnectionMode;
+import io.tapdata.coding.service.loader.CodingLoader;
+import io.tapdata.coding.service.loader.IssuesLoader;
+import io.tapdata.coding.service.loader.TestCoding;
 import io.tapdata.coding.service.schema.SchemaStart;
+import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.ErrorHttpException;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
-import io.tapdata.entity.event.dml.TapInsertRecordEvent;
-import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.memory.LastData;
 import io.tapdata.entity.schema.TapTable;
@@ -28,22 +27,22 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
-import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static io.tapdata.entity.simplify.TapSimplify.list;
-import static io.tapdata.entity.simplify.TapSimplify.map;
-
-@TapConnectorClass("spec.json")
+@TapConnectorClass("spec-oauth.json")
 public class CodingConnector extends ConnectorBase {
     private static final String TAG = CodingConnector.class.getSimpleName();
 
@@ -55,10 +54,12 @@ public class CodingConnector extends ConnectorBase {
     private List<Integer> lastTimeSplitIssueCode = new ArrayList<>();//hash code list
 
     private LastData lastCommandResult;
+    private final AtomicReference<String> accessToken = new AtomicReference<>();
 
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
-        IssuesLoader.create(connectionContext).verifyConnectionConfig();
+        IssuesLoader loader = IssuesLoader.create(connectionContext, accessToken);
+        loader.verifyConnectionConfig();
         DataMap connectionConfig = connectionContext.getConnectionConfig();
         String streamReadType = connectionConfig.getString("streamReadType");
         if (Checker.isEmpty(streamReadType)) {
@@ -75,6 +76,10 @@ public class CodingConnector extends ConnectorBase {
 //			default:
 //				throw new CoreException("Error in connection parameters [streamReadType],just be [WebHook] or [Polling], please go to verify");
         }
+        CodingHttp.interceptor = (http, request, hasIgnore) -> {
+            if (hasIgnore) return request;
+            return http.header("Authorization", loader.refreshTokenByOAuth2()).execute();
+        };
     }
 
     @Override
@@ -102,15 +107,15 @@ public class CodingConnector extends ConnectorBase {
 
     private RetryOptions error(TapConnectionContext context, PDKMethod pdkMethod, Throwable throwable) {
         Throwable lastCause = ErrorKit.getLastCause(throwable);
-        if (lastCause instanceof ErrorHttpException || lastCause instanceof IOException){
-            return RetryOptions.create().needRetry(true).beforeRetryMethod(()->{
+        if (lastCause instanceof ErrorHttpException || lastCause instanceof IOException) {
+            return RetryOptions.create().needRetry(true).beforeRetryMethod(() -> {
                 try {
                     synchronized (this.streamReadLock) {
                         this.onStop(context);
                         this.onStart(context);
                     }
-                }catch (Throwable e){
-                    TapLogger.warn("Cannot stop and start Coding connector when occur an http error or IOException. {}",e.getMessage());
+                } catch (Throwable e) {
+                    TapLogger.warn("Cannot stop and start Coding connector when occur an http error or IOException. {}", e.getMessage());
                 }
             });
         }
@@ -127,13 +132,13 @@ public class CodingConnector extends ConnectorBase {
     }
 
     private CommandResult handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
-        return LastData.traceLastData(() -> Command.command(tapConnectionContext, commandInfo), lastData -> this.lastCommandResult = lastData);
+        return LastData.traceLastData(() -> Command.command(tapConnectionContext, commandInfo, accessToken), lastData -> this.lastCommandResult = lastData);
     }
 
     private List<TapEvent> rawDataCallbackFilterFunctionV2(TapConnectorContext connectorContext, List<String> tableList, Map<String, Object> issueEventData) {
         //CodingLoader<Param> loader = CodingLoader.loader(connectorContext, "");
         //return Checker.isNotEmpty(loader) ? loader.rawDataCallbackFilterFunction(issueEventData) : null;
-        List<CodingLoader<Param>> loaders = CodingLoader.loader(connectorContext, tableList);
+        List<CodingLoader<Param>> loaders = CodingLoader.loader(connectorContext, tableList, accessToken);
         if (Checker.isNotEmpty(loaders) && !loaders.isEmpty()) {
             List<TapEvent> events = new ArrayList<TapEvent>() {{
                 for (CodingLoader<Param> loader : loaders) {
@@ -154,7 +159,7 @@ public class CodingConnector extends ConnectorBase {
             Object offsetState,
             int recordSize,
             StreamReadConsumer consumer) {
-        List<CodingLoader<Param>> loaders = CodingLoader.loader(nodeContext, tableList);
+        List<CodingLoader<Param>> loaders = CodingLoader.loader(nodeContext, tableList, accessToken);
         if (Checker.isEmpty(loaders) || loaders.isEmpty()) {
             throw new CoreException("can not load CodingLoad, please sure your table name is accurate.");
         }
@@ -199,7 +204,7 @@ public class CodingConnector extends ConnectorBase {
                           int batchCount,
                           BiConsumer<List<TapEvent>, Object> consumer) {
         TapLogger.debug(TAG, "start {} batch read", table.getName());
-        CodingLoader<Param> loader = CodingLoader.loader(connectorContext, table.getId());
+        CodingLoader<Param> loader = CodingLoader.loader(connectorContext, table.getId(), accessToken);
         if (Checker.isNotEmpty(loader)) {
             loader.connectorInit(this);
             loader.batchRead(offset, batchCount, consumer);
@@ -209,7 +214,7 @@ public class CodingConnector extends ConnectorBase {
     }
 
     private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
-        CodingLoader<Param> loader = CodingLoader.loader(tapConnectorContext, tapTable.getId());
+        CodingLoader<Param> loader = CodingLoader.loader(tapConnectorContext, tapTable.getId(), accessToken);
         if (Checker.isNotEmpty(loader)) {
             int count = loader.batchCount();
             return Long.parseLong(String.valueOf(count));
@@ -223,11 +228,11 @@ public class CodingConnector extends ConnectorBase {
         //return TapTable for each project. Issue
         //IssueLoader.create(connectionContext).setTableSize(tableSize).discoverIssue(tables,consumer);
         String modeName = connectionContext.getConnectionConfig().getString("connectionMode");
-        ConnectionMode connectionMode = ConnectionMode.getInstanceByName(connectionContext, modeName);
+        ConnectionMode connectionMode = ConnectionMode.getInstanceByName(connectionContext, accessToken, modeName);
         if (null == connectionMode) {
             throw new CoreException("Connection Mode is not empty or not null.");
         }
-        List<TapTable> tapTables = connectionMode.discoverSchema(tables, tableSize);
+        List<TapTable> tapTables = connectionMode.discoverSchema(tables, tableSize, accessToken);
         List<TapTable> tablesFinal = new ArrayList<>();
         if (null != tapTables && !tapTables.isEmpty()) {
             tapTables.stream().filter(Objects::nonNull).forEach(tab -> {
@@ -244,9 +249,14 @@ public class CodingConnector extends ConnectorBase {
 
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
+        CodingHttp.interceptor = (http, request, hasIgnore) -> {
+            if (hasIgnore) return request;
+
+            return request;
+        };
         ConnectionOptions connectionOptions = ConnectionOptions.create();
 
-        TestCoding testConnection = TestCoding.create(connectionContext);
+        TestCoding testConnection = TestCoding.create(connectionContext, accessToken);
         TestItem testItem = testConnection.testItemConnection();
         consumer.accept(testItem);
         if (testItem.getResult() == TestItem.RESULT_FAILED) {

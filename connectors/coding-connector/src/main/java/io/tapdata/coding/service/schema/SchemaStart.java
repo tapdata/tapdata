@@ -7,6 +7,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 public interface SchemaStart {
     static final String TAG = SchemaStart.class.getSimpleName();
@@ -20,7 +21,7 @@ public interface SchemaStart {
 
     public TapTable document(TapConnectionContext connectionContext);
 
-    public default TapTable csv(TapConnectionContext connectionContext) {
+    public default TapTable csv(TapConnectionContext connectionContext, AtomicReference<String> accessToken) {
         throw new CoreException("May be not support CSV for " + this.tableName() + " Schema.");
     }
 

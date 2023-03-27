@@ -13,6 +13,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
@@ -28,15 +29,15 @@ public class DocumentMode implements ConnectionMode {
     ContextConfig contextConfig;
 
     @Override
-    public ConnectionMode config(TapConnectionContext connectionContext) {
+    public ConnectionMode config(TapConnectionContext connectionContext, AtomicReference<String> accessToken) {
         this.connectionContext = connectionContext;
-        this.loader = IssuesLoader.create(connectionContext);
+        this.loader = IssuesLoader.create(connectionContext, accessToken);
         this.contextConfig = loader.veryContextConfigAndNodeConfig();
         return this;
     }
 
     @Override
-    public List<TapTable> discoverSchema(List<String> tables, int tableSize) {
+    public List<TapTable> discoverSchema(List<String> tables, int tableSize, AtomicReference<String> accessToken) {
         /**
          if(tables == null || tables.isEmpty()) {
          return list(

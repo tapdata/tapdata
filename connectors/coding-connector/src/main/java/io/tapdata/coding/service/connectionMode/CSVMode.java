@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
@@ -36,20 +37,20 @@ public class CSVMode implements ConnectionMode {
     ContextConfig contextConfig;
 
     @Override
-    public ConnectionMode config(TapConnectionContext connectionContext) {
+    public ConnectionMode config(TapConnectionContext connectionContext, AtomicReference<String> accessToken) {
         this.connectionContext = connectionContext;
-        this.loader = IssuesLoader.create(connectionContext);
+        this.loader = IssuesLoader.create(connectionContext, accessToken);
         this.contextConfig = loader.veryContextConfigAndNodeConfig();
         return this;
     }
 
     @Override
-    public List<TapTable> discoverSchema(List<String> tables, int tableSize) {
+    public List<TapTable> discoverSchema(List<String> tables, int tableSize, AtomicReference<String> accessToken) {
         List<SchemaStart> schemaStart = SchemaStart.getAllSchemas(connectionContext);
         if (tables == null || tables.isEmpty()) {
             List<TapTable> tapTables = list();
             schemaStart.forEach(schema -> {
-                TapTable csvTable = schema.csv(connectionContext);
+                TapTable csvTable = schema.csv(connectionContext, accessToken);
                 if (Checker.isNotEmpty(csvTable)) {
                     tapTables.add(csvTable);
                 }

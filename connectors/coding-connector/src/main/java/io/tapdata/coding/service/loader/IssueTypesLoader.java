@@ -15,6 +15,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static io.tapdata.coding.enums.TapEventTypes.CREATED_EVENT;
@@ -24,12 +25,12 @@ public class IssueTypesLoader extends CodingStarter implements CodingLoader<Issu
     OverlayQueryEventDifferentiator overlayQueryEventDifferentiator = new OverlayQueryEventDifferentiator();
     public static final String TABLE_NAME = "IssueTypes";
 
-    public IssueTypesLoader(TapConnectionContext tapConnectionContext) {
-        super(tapConnectionContext);
+    public IssueTypesLoader(TapConnectionContext tapConnectionContext, AtomicReference<String> accessToken) {
+        super(tapConnectionContext, accessToken);
     }
 
-    public static IssueTypesLoader create(TapConnectionContext context) {
-        return new IssueTypesLoader(context);
+    public static IssueTypesLoader create(TapConnectionContext context, AtomicReference<String> accessToken) {
+        return new IssueTypesLoader(context, accessToken);
     }
 
     @Override

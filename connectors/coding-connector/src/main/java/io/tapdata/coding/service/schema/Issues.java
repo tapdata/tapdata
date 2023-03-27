@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
@@ -95,7 +96,7 @@ public class Issues implements SchemaStart {
 
 
     @Override
-    public TapTable csv(TapConnectionContext connectionContext) {
+    public TapTable csv(TapConnectionContext connectionContext, AtomicReference<String> accessToken) {
         TapTable tapTable = table(tableName())
                 .add(field("Code", "Integer").isPrimaryKey(true).primaryKeyPos(3))        //事项 Code
                 .add(field("ProjectName", "StringMinor").isPrimaryKey(true).primaryKeyPos(2))    //项目名称
@@ -121,11 +122,11 @@ public class Issues implements SchemaStart {
                 ;
         // 查询自定义属性列表
         Map<Integer, Map<String, Object>> customFields = new HashMap<>();
-        List<Map<String, Object>> allIssueType = IssuesLoader.create(connectionContext).getAllIssueType();
+        List<Map<String, Object>> allIssueType = IssuesLoader.create(connectionContext, accessToken).getAllIssueType();
         if (Checker.isEmpty(allIssueType)) {
             throw new CoreException("Get issue type list error.");
         }
-        ContextConfig contextConfig = IssuesLoader.create(connectionContext).veryContextConfigAndNodeConfig();
+        ContextConfig contextConfig = IssuesLoader.create(connectionContext, accessToken).veryContextConfigAndNodeConfig();
         //查询全部事项类型，根据事项类型获取全部自定义属性
         for (Map<String, Object> issueType : allIssueType) {
             Object type = issueType.get("IssueType");

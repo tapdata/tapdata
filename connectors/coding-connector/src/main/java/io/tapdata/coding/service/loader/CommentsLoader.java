@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 /**
@@ -24,12 +25,12 @@ import java.util.function.BiConsumer;
 public class CommentsLoader extends CodingStarter implements CodingLoader<CommentParam> {
     private static final String TAG = CommentsLoader.class.getSimpleName();
 
-    public CommentsLoader(TapConnectionContext tapConnectionContext) {
-        super(tapConnectionContext);
+    public CommentsLoader(TapConnectionContext tapConnectionContext, AtomicReference<String> accessToken) {
+        super(tapConnectionContext, accessToken);
     }
 
-    public static CommentsLoader create(TapConnectionContext tapConnectionContext) {
-        return new CommentsLoader(tapConnectionContext);
+    public static CommentsLoader create(TapConnectionContext tapConnectionContext, AtomicReference<String> accessToken) {
+        return new CommentsLoader(tapConnectionContext, accessToken);
     }
 
     @Override

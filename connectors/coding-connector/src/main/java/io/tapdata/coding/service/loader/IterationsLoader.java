@@ -20,6 +20,7 @@ import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static io.tapdata.coding.enums.TapEventTypes.*;
@@ -39,17 +40,17 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
 //    private Map<Integer,Integer> iterationHashMap = new HashMap<>();
 //    private Set<Integer> currentBatchIterationSet = new HashSet<>();
 
-    public static IterationsLoader create(TapConnectionContext tapConnectionContext, Map<String, Object> queryMap) {
-        return new IterationsLoader(tapConnectionContext, queryMap);
+    public static IterationsLoader create(TapConnectionContext tapConnectionContext, AtomicReference<String> accessToken, Map<String, Object> queryMap) {
+        return new IterationsLoader(tapConnectionContext, accessToken, queryMap);
     }
 
-    public IterationsLoader(TapConnectionContext tapConnectionContext, Map<String, Object> queryMap) {
-        super(tapConnectionContext);
+    public IterationsLoader(TapConnectionContext tapConnectionContext, AtomicReference<String> accessToken, Map<String, Object> queryMap) {
+        super(tapConnectionContext, accessToken);
         this.queryMap = queryMap;
     }
 
-    public IterationsLoader(TapConnectionContext tapConnectionContext) {
-        super(tapConnectionContext);
+    public IterationsLoader(TapConnectionContext tapConnectionContext, AtomicReference<String> accessToken) {
+        super(tapConnectionContext, accessToken);
     }
 
     public HttpEntity<String, Object> commandSetter(String command, HttpEntity<String, Object> requestBody) {

@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.base.ConnectorBase.entry;
 import static io.tapdata.base.ConnectorBase.map;
@@ -21,13 +22,13 @@ public class DescribeUserProjects implements Command {
     private static final String TAG = DescribeUserProjects.class.getSimpleName();
 
     @Override
-    public CommandResult commandResult(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
+    public CommandResult commandResult(TapConnectionContext tapConnectionContext, CommandInfo commandInfo, AtomicReference<String> accessToken) {
         Map<String, Object> connectionConfig = commandInfo.getConnectionConfig();
         if (Checker.isEmptyCollection(connectionConfig)) {
             throw new CoreException("Connection Config must be null or empty.");
         }
         tapConnectionContext.setConnectionConfig(DataMap.create(connectionConfig));
-        ProjectsLoader loader = ProjectsLoader.create(tapConnectionContext);
+        ProjectsLoader loader = ProjectsLoader.create(tapConnectionContext, accessToken);
         List<Map<String, Object>> maps = loader.myProjectList();
         Map<String, Object> pageResult = new HashMap<>();
         if (Checker.isEmptyCollection(maps)) {

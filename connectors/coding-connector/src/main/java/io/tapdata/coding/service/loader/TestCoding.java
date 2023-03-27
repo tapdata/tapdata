@@ -10,6 +10,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.TestItem;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.base.ConnectorBase.testItem;
 
@@ -20,12 +21,12 @@ import static io.tapdata.base.ConnectorBase.testItem;
  **/
 public class TestCoding extends CodingStarter {
 
-    public static TestCoding create(TapConnectionContext tapConnectionContext) {
-        return new TestCoding(tapConnectionContext);
+    public static TestCoding create(TapConnectionContext tapConnectionContext, AtomicReference<String> accessToken) {
+        return new TestCoding(tapConnectionContext, accessToken);
     }
 
-    public TestCoding(TapConnectionContext tapConnectionContext) {
-        super(tapConnectionContext);
+    public TestCoding(TapConnectionContext tapConnectionContext, AtomicReference<String> accessToken) {
+        super(tapConnectionContext, accessToken);
     }
 
     //测试团队名称

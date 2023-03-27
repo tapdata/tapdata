@@ -3,12 +3,18 @@ package io.tapdata.coding.service.loader;
 import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.enums.IssueType;
+import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.Entry;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 
 
 public abstract class CodingStarter {
@@ -18,6 +24,8 @@ public abstract class CodingStarter {
     public static final String OPEN_API_URL = "https://%s.coding.net/open-api";//%{s}---》teamName
     public static final String TOKEN_URL = "https://%s.coding.net/api/me";
     public static final String TOKEN_PREF = "token ";
+
+    protected final AtomicReference<String> accessToken;
 
     protected TapConnectionContext tapConnectionContext;
 
@@ -41,8 +49,9 @@ public abstract class CodingStarter {
 
     protected boolean isVerify;
 
-    CodingStarter(TapConnectionContext tapConnectionContext) {
+    CodingStarter(TapConnectionContext tapConnectionContext, AtomicReference<String> accessToken) {
         this.tapConnectionContext = tapConnectionContext;
+        this.accessToken = accessToken;
         this.isVerify = Boolean.FALSE;
     }
 
@@ -59,6 +68,12 @@ public abstract class CodingStarter {
     public ContextConfig veryContextConfigAndNodeConfig() {
         this.verifyConnectionConfig();
         DataMap connectionConfigConfigMap = this.tapConnectionContext.getConnectionConfig();
+
+        String loginMode = connectionConfigConfigMap.getString("loginMode");
+        String clientId = connectionConfigConfigMap.getString("clientId");
+        String clientSecret = connectionConfigConfigMap.getString("clientSecret");
+        String refreshToken = connectionConfigConfigMap.getString("refreshToken");
+
         String projectName = connectionConfigConfigMap.getString("projectName");
         String token = connectionConfigConfigMap.getString("token");
         token = this.tokenSetter(token);
@@ -66,13 +81,17 @@ public abstract class CodingStarter {
         String streamReadType = connectionConfigConfigMap.getString("streamReadType");
         String connectionMode = connectionConfigConfigMap.getString("connectionMode");
         ContextConfig config = ContextConfig.create()
+                .loginMode(loginMode)
+                .clientId(clientId)
+                .clientSecret(clientSecret)
+                .refreshToken(refreshToken)
                 .projectName(projectName)
                 .teamName(teamName)
                 .token(token)
                 .streamReadType(streamReadType)
                 .connectionMode(connectionMode);
         if (this.tapConnectionContext instanceof TapConnectorContext) {
-            DataMap nodeConfigMap = ((TapConnectorContext) this.tapConnectionContext).getNodeConfig();
+            DataMap nodeConfigMap = this.tapConnectionContext.getNodeConfig();
             if (null == nodeConfigMap) {
                 config.issueType(IssueType.ALL);
                 config.iterationCodes("-1");
@@ -125,5 +144,21 @@ public abstract class CodingStarter {
             TapLogger.info(TAG, "Connection parameter connectionMode exception: {} ", teamName);
         }
         this.isVerify = Boolean.TRUE;
+    }
+
+    public String refreshTokenByOAuth2(){
+//        CodingHttp refreshTokenHttp = CodingHttp.create(
+//                Collections.emptyMap(), "")
+//                .hasIgnore(Boolean.TRUE);
+//        Map<String, Object> post = refreshTokenHttp.post();
+//        if (Objects.nonNull(post)){
+//            Object token = post.get("");
+//            if (Objects.nonNull(token)){
+//                accessToken.set(String.format("Bearer %s", token));
+//                return accessToken.get();
+//            }
+//        }
+//        return "Bearer " + accessToken.get();
+        return accessToken.get();
     }
 }

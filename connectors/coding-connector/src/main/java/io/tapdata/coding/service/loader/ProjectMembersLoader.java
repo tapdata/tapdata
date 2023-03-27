@@ -15,7 +15,11 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static io.tapdata.coding.enums.TapEventTypes.*;
@@ -25,16 +29,16 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
     public static final String TABLE_NAME = "ProjectMembers";
     private Integer currentProjectId;
 
-    public ProjectMembersLoader(TapConnectionContext tapConnectionContext) {
-        super(tapConnectionContext);
-        Map<String, Object> project = ProjectsLoader.create(tapConnectionContext).get(null);
+    public ProjectMembersLoader(TapConnectionContext tapConnectionContext, AtomicReference<String> accessToken) {
+        super(tapConnectionContext, accessToken);
+        Map<String, Object> project = ProjectsLoader.create(tapConnectionContext, accessToken).get(null);
         if (Checker.isNotEmpty(project)) {
             this.currentProjectId = (Integer) project.get("Id");
         }
     }
 
-    public static ProjectMembersLoader create(TapConnectionContext tapConnectionContext) {
-        return new ProjectMembersLoader(tapConnectionContext);
+    public static ProjectMembersLoader create(TapConnectionContext tapConnectionContext, AtomicReference<String> accessToken) {
+        return new ProjectMembersLoader(tapConnectionContext, accessToken);
     }
 
     @Override

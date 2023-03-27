@@ -27,6 +27,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -44,8 +45,8 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
     private static final String TAG = IssuesLoader.class.getSimpleName();
     public static final String TABLE_NAME = "Issues";
 
-    public static IssuesLoader create(TapConnectionContext tapConnectionContext) {
-        return new IssuesLoader(tapConnectionContext);
+    public static IssuesLoader create(TapConnectionContext tapConnectionContext, AtomicReference<String> accessToken) {
+        return new IssuesLoader(tapConnectionContext, accessToken);
     }
 
     private final long streamExecutionGap = 5000;//util: ms
@@ -56,8 +57,8 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
     ContextConfig contextConfig;
     private AtomicBoolean stopRead = new AtomicBoolean(false);
 
-    public IssuesLoader(TapConnectionContext tapConnectionContext) {
-        super(tapConnectionContext);
+    public IssuesLoader(TapConnectionContext tapConnectionContext, AtomicReference<String> accessToken) {
+        super(tapConnectionContext, accessToken);
         this.contextConfig = this.veryContextConfigAndNodeConfig();
     }
 
@@ -358,7 +359,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
     @Override
     public int batchCount() throws Throwable {
         int count = 0;
-        IssuesLoader issuesLoader = IssuesLoader.create(this.tapConnectionContext);
+        IssuesLoader issuesLoader = IssuesLoader.create(this.tapConnectionContext, super.accessToken);
         issuesLoader.verifyConnectionConfig();
         try {
             DataMap connectionConfig = this.tapConnectionContext.getConnectionConfig();
@@ -406,7 +407,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 if (null != obj) count = (Integer) obj;
             }
         } catch (Exception e) {
-            throw new RuntimeException();
+            throw new RuntimeException(e.getMessage());
         }
         TapLogger.debug(TAG, "Batch count is " + count);
         return count;
@@ -608,7 +609,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 Map<String, Object> dataMap = null;
                 try {
                     dataMap = this.getIssuePage(header.getEntity(), pageBody.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName));
-                }catch (Exception e){
+                } catch (Exception e) {
                     offsetMap.put("PAGE_NUMBER_BATCH_READ", queryIndex);
                     throw new ErrorHttpException(e.getMessage());
                 }
@@ -926,7 +927,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             Map<String, Object> dataMap = null;
             try {
                 dataMap = this.getIssuePage(header.getEntity(), pageBody.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName));
-            }catch (Exception e){
+            } catch (Exception e) {
                 throw new ErrorHttpException(e.getMessage());
             }
             if (null == dataMap || null == dataMap.get("List")) {

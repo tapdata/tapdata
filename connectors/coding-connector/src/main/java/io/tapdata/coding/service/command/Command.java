@@ -11,6 +11,7 @@ import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 public interface Command {
     static final String TAG = Command.class.getSimpleName();
@@ -31,7 +32,7 @@ public interface Command {
         return null;
     }
 
-    public static CommandResult command(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
+    public static CommandResult command(TapConnectionContext tapConnectionContext, CommandInfo commandInfo, AtomicReference<String> accessToken) {
         TapLogger.debug(TAG, "Command info {}", commandInfo);
         String command = commandInfo.getCommand();
         if (Checker.isEmpty(command)) {
@@ -39,10 +40,10 @@ public interface Command {
         }
         if (Checker.isEmpty(command))
             throw new RuntimeException(MessageFormat.format("Command is empty from command info {}", commandInfo));
-        Class clz = null;
+        Class<?> clz = null;
         try {
             clz = Class.forName("io.tapdata.coding.service.command." + command);
-            CommandResult result = ((Command) clz.newInstance()).commandResult(tapConnectionContext, commandInfo);
+            CommandResult result = ((Command) clz.newInstance()).commandResult(tapConnectionContext, commandInfo, accessToken);
             TapLogger.info(TAG, "Command result {}", result);
             return result;
         } catch (Throwable e) {
@@ -50,7 +51,7 @@ public interface Command {
         }
     }
 
-    public CommandResult commandResult(TapConnectionContext tapConnectionContext, CommandInfo commandInfo);
+    public CommandResult commandResult(TapConnectionContext tapConnectionContext, CommandInfo commandInfo, AtomicReference<String> accessToken);
 
     public static CommandResult emptyResult() {
         Map<String, Object> pageResult = new HashMap<>();

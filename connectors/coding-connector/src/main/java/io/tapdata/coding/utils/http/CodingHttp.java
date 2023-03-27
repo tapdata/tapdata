@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 public class CodingHttp {
+    public static InterceptorHttp interceptor = null;
     private static final String TAG = CodingHttp.class.getSimpleName();
     private Map<String, Object> body;
     private Map<String, String> heads;
@@ -21,9 +22,15 @@ public class CodingHttp {
     private Boolean keepAlive;
     private boolean needRetry = false;
     private AtomicBoolean isAlive = new AtomicBoolean(true);
+    private boolean hasIgnore = Boolean.FALSE;
 
     public static CodingHttp create(Map<String, String> heads, Map<String, Object> body, String url) {
         return new CodingHttp(heads, body, url);
+    }
+
+    public CodingHttp hasIgnore(boolean hasIgnore){
+        this.hasIgnore = hasIgnore;
+        return this;
     }
 
     public static CodingHttp create(Map<String, String> heads, String url) {
@@ -45,6 +52,7 @@ public class CodingHttp {
         this.needRetry = needRetry;
         return this;
     }
+
     public CodingHttp isAlive(AtomicBoolean isAlive) {
         this.isAlive = isAlive;
         return this;
@@ -161,6 +169,7 @@ public class CodingHttp {
         if (null == execute) {
             throw new RuntimeException(String.format("Coding request failed, HttpResponse is empty. request url:%s, request body: %s.", request.getUrl(), toJson(this.body)));
         }
+        execute = interceptor.interceptor(request, execute, this.hasIgnore);
         if (execute.getStatus() != HttpStatus.HTTP_OK) {
             throw new RuntimeException(String.format("Coding request failed with http code %s. request url:%s, request body: %s.", execute.getStatus(), request.getUrl(), toJson(this.body)));
         }

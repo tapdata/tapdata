@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 public interface CodingLoader<T extends Param> {
@@ -30,12 +31,12 @@ public interface CodingLoader<T extends Param> {
 
     public CodingStarter connectorOut();
 
-    public static CodingLoader<Param> loader(TapConnectionContext tapConnectionContext, String tableName) {
+    public static CodingLoader<Param> loader(TapConnectionContext tapConnectionContext, String tableName, AtomicReference<String> accessToken) {
         Class clz = null;
         try {
             clz = Class.forName("io.tapdata.coding.service.loader." + tableName + "Loader");//CodingLoader.class.getPackage().getName()
-            Constructor com = clz.getConstructor(TapConnectionContext.class);
-            return (CodingLoader) com.newInstance(tapConnectionContext);
+            Constructor com = clz.getConstructor(TapConnectionContext.class, AtomicReference.class);
+            return (CodingLoader) com.newInstance(tapConnectionContext, accessToken);
         } catch (ClassNotFoundException e0) {
             TapLogger.debug(TAG, "ClassNotFoundException for Schema {}", tableName);
         } catch (NoSuchMethodException e1) {
@@ -50,11 +51,11 @@ public interface CodingLoader<T extends Param> {
         return null;
     }
 
-    public static List<CodingLoader<Param>> loader(TapConnectionContext tapConnectionContext, List<String> tableName) {
+    public static List<CodingLoader<Param>> loader(TapConnectionContext tapConnectionContext, List<String> tableName, AtomicReference<String> accessToken) {
         List<CodingLoader<Param>> loaders = new ArrayList<>();
         if (Checker.isEmpty(tableName)) return loaders;
         for (String table : tableName) {
-            CodingLoader<Param> loader = CodingLoader.loader(tapConnectionContext, table);
+            CodingLoader<Param> loader = CodingLoader.loader(tapConnectionContext, table, accessToken);
             if (Checker.isNotEmpty(loader)) {
                 loaders.add(loader);
             }

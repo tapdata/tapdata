@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.base.ConnectorBase.entry;
 import static io.tapdata.base.ConnectorBase.map;
@@ -22,9 +23,8 @@ import static io.tapdata.base.ConnectorBase.map;
 public class DescribeCodingProjects implements Command {
 
     @Override
-    public CommandResult commandResult(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
+    public CommandResult commandResult(TapConnectionContext tapConnectionContext, CommandInfo commandInfo, AtomicReference<String> accessToken) {
         String command = commandInfo.getCommand();
-        String action = commandInfo.getAction();
         Map<String, Object> argMap = commandInfo.getArgMap();
         String token = null;
         String teamName = null;
@@ -63,7 +63,7 @@ public class DescribeCodingProjects implements Command {
         String upToken = token.toUpperCase();
         token = (upToken.startsWith("TOKEN ") ? token : "token " + token);
         HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", token);
-        HttpEntity<String, Object> body = IterationsLoader.create(tapConnectionContext, argMap)
+        HttpEntity<String, Object> body = IterationsLoader.create(tapConnectionContext, accessToken, argMap)
                 .commandSetter(command, HttpEntity.create());
         if ("DescribeIterationList".equals(command) && Checker.isNotEmpty(projectName)) {
             body.builder("ProjectName", projectName);

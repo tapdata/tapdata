@@ -16,18 +16,19 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 
 public class ProjectsLoader extends CodingStarter implements CodingLoader<ProjectParam> {
     public static final String TABLE_NAME = "Projects";
 
-    public ProjectsLoader(TapConnectionContext tapConnectionContext) {
-        super(tapConnectionContext);
+    public ProjectsLoader(TapConnectionContext tapConnectionContext, AtomicReference<String> accessToken) {
+        super(tapConnectionContext, accessToken);
     }
 
-    public static ProjectsLoader create(TapConnectionContext tapConnectionContext) {
-        return new ProjectsLoader(tapConnectionContext);
+    public static ProjectsLoader create(TapConnectionContext tapConnectionContext, AtomicReference<String> accessToken) {
+        return new ProjectsLoader(tapConnectionContext, accessToken);
     }
 
     public List<Map<String, Object>> myProjectList() {
