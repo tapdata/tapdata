@@ -208,6 +208,9 @@ function discoverSchema(connectionConfig) {
  * @param pageSize Processing number of each batch of data in the full stage
  * @param batchReadSender  Sender of submitted data
  * */
+const tableMapping = {
+    'Issues and Pull requests':'issues'
+}
 function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
     if(!offset || !offset.tableName){
         offset = {
@@ -216,7 +219,7 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
             since: new Date('1990-01-01').toISOString()
         };
     }
-    iterateAllData(tableName.toLowerCase(), offset, (result, offsetNext, error) => {
+    iterateAllData(tableMapping[tableName], offset, (result, offsetNext, error) => {
         let haveNext = false;
         if(result && result !== ''){
             if(result && result.length > 0){
