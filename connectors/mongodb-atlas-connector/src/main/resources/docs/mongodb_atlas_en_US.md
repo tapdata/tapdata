@@ -24,7 +24,7 @@ You can get the URL.
 ```
 URL format:
 ```
-mongodb+srv://<username>:<password>@atlascluster.bo1rp4b.mongodb.net/?retryWrites=true&w=majority
+mongodb+srv://<username>:<password>@atlascluster.bo1rp4b.mongodb.net/<databaseName>?retryWrites=true&w=majority
 ```
 #### **3.2 as the target database**
 #####  **3.2.1 Basic Configuration**

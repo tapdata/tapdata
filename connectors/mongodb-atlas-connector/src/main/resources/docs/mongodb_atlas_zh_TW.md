@@ -24,7 +24,7 @@ readAnyDatabase@admin
 ```
 URL格式：
 ```
-mongodb+srv://<username>:<password>@atlascluster.bo1rp4b.mongodb.net/?retryWrites=true&w=majority
+mongodb+srv://<username>:<password>@atlascluster.bo1rp4b.mongodb.net/<databaseName>?retryWrites=true&w=majority
 ```
 #### **3.2 作爲目標數據庫**
 #####  **3.2.1 基本配置**
