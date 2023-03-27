@@ -124,7 +124,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -3888,10 +3887,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         Criteria criteria = new Criteria();
         // tableName 不为空根据表查询。否则根据连接查询
-        criteria.and("dag.nodes.connectionId").is(connectionId).and("is_deleted").is(false);
+        criteria.and("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true);
         if (StringUtils.isNotBlank(tableName)) {
             criteria.orOperator(new Criteria().and("dag.nodes.tableName").is(tableName),
-                    new Criteria().and("dag.nodes.tableNames").in(tableName));
+                    new Criteria().and("dag.nodes.syncObjects.objectNames").is(tableName));
         }
         Query query = Query.query(criteria);
         return findAllDto(query,userDetail);
@@ -3974,7 +3973,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 cdcDelayTime = Long.valueOf(sample.getVs().get("replicateLag").toString());
             }
             tableStatusInfoDto.setCdcDelayTime(cdcDelayTime);
-            long LastDataChangeTime = (long) sample.getVs().get("currentEventTimestamp");
+            long  LastDataChangeTime = sample.getVs().get("currentEventTimestamp").longValue();
+
             tableStatusInfoDto.setLastDataChangeTime(new Date(LastDataChangeTime));
         }
 
