@@ -89,6 +89,9 @@ public class TaskRetryService extends RetryService implements Serializable {
 		Query query = Query.query(where("_id").is(taskId));
 		query.fields().include("attrs.syncProgress").include("type");
 		TaskDto findTask = clientMongoOperator.findOne(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+		if (findTask == null) {
+			return new TaskRetryResult(false, "Task not found, maybe deleted");
+		}
 		Map<String, Object> attrs = findTask.getAttrs();
 		SyncTypeEnum syncType = SyncTypeEnum.get(findTask.getType());
 		if (syncType.equals(SyncTypeEnum.CDC)) {
