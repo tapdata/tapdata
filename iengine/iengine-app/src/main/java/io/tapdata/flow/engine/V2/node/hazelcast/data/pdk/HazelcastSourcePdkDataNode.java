@@ -267,7 +267,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																executeCommandFunction.execute(getConnectorNode().getConnectorContext(), TapExecuteCommand.create()
 																				.command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params")), executeResult -> {
 																	if (executeResult.getError() != null) {
-																		throw new NodeException("Execute error", executeResult.getError());
+																		throw new NodeException("Execute error: " + executeResult.getError().getMessage(), executeResult.getError());
+																	}
+																	if (executeResult.getResult() == null) {
+																		obsLogger.info("Execute result is null");
+																		return;
 																	}
 																	List<Map<String, Object>> maps = (List<Map<String, Object>>) executeResult.getResult();
 																	List<TapEvent> events = maps.stream().map(m -> TapSimplify.insertRecordEvent(m, tableName)).collect(Collectors.toList());
