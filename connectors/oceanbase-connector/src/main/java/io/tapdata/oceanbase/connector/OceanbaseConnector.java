@@ -1,7 +1,6 @@
 package io.tapdata.oceanbase.connector;
 
 import io.tapdata.common.CommonDbConnector;
-import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -22,6 +21,7 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import org.apache.commons.lang3.StringUtils;
 
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -198,13 +198,13 @@ public class OceanbaseConnector extends CommonDbConnector {
      * @param filters          Multple fitlers, need return multiple filter results
      * @param listConsumer     tell incremental engine the filter results according to filters
      */
-    private void queryByFilter(TapConnectorContext connectorContext, List<TapFilter> filters, TapTable tapTable, Consumer<List<FilterResult>> listConsumer) throws Throwable {
+    protected void queryByFilter(TapConnectorContext connectorContext, List<TapFilter> filters, TapTable tapTable, Consumer<List<FilterResult>> listConsumer) throws Throwable {
         //Filter is exactly match.
         //If query by the filter, no value is in database, please still create a FilterResult with null value in it. So that incremental engine can understand the filter has no value.
         this.oceanbaseJdbcContext.queryByFilter(connectorContext, filters, tapTable, listConsumer);
     }
 
-    private void dropTable(TapConnectorContext connectorContext, TapDropTableEvent dropTableEvent) throws Throwable {
+    protected void dropTable(TapConnectorContext connectorContext, TapDropTableEvent dropTableEvent) throws SQLException {
         oceanbaseJdbcContext.dropTable(dropTableEvent.getTableId());
     }
 
@@ -237,8 +237,8 @@ public class OceanbaseConnector extends CommonDbConnector {
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
         oceanbaseConfig = new OceanbaseConfig().load(tapConnectionContext.getConnectionConfig());
-        if (EmptyKit.isNull(oceanbaseJdbcContext) || oceanbaseJdbcContext.isFinish()) {
-            oceanbaseJdbcContext = (OceanbaseJdbcContext) DataSourcePool.getJdbcContext(oceanbaseConfig, OceanbaseJdbcContext.class, tapConnectionContext.getId());
+        if (EmptyKit.isNull(oceanbaseJdbcContext)) {
+            oceanbaseJdbcContext = new OceanbaseJdbcContext(oceanbaseConfig);
             oceanbaseJdbcContext.setTapConnectionContext(tapConnectionContext);
         }
         commonDbConfig = oceanbaseConfig;

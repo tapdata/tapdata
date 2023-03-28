@@ -4,7 +4,6 @@ import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonDbConnector;
 import io.tapdata.common.CommonSqlMaker;
-import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.clickhouse.config.ClickhouseConfig;
 import io.tapdata.connector.clickhouse.ddl.sqlmaker.ClickhouseDDLSqlMaker;
@@ -33,7 +32,6 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 
 import java.sql.SQLException;
 import java.util.*;
@@ -59,7 +57,7 @@ public class ClickhouseConnector extends CommonDbConnector {
 
 //    private String connectionTimezone;
 
-    private  ClickhouseDDLSqlMaker ddlSqlMaker;
+    private ClickhouseDDLSqlMaker ddlSqlMaker;
 
     private final ClickhouseBatchWriter clickhouseWriter = new ClickhouseBatchWriter(TAG);
 
@@ -82,6 +80,7 @@ public class ClickhouseConnector extends CommonDbConnector {
         }
 
     }
+
     private List<String> dropField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapDropFieldEvent)) {
             return null;
@@ -89,6 +88,7 @@ public class ClickhouseConnector extends CommonDbConnector {
         TapDropFieldEvent tapDropFieldEvent = (TapDropFieldEvent) tapFieldBaseEvent;
         return ddlSqlMaker.dropColumn(tapConnectorContext, tapDropFieldEvent);
     }
+
     private List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapNewFieldEvent)) {
             return null;
@@ -96,6 +96,7 @@ public class ClickhouseConnector extends CommonDbConnector {
         TapNewFieldEvent tapNewFieldEvent = (TapNewFieldEvent) tapFieldBaseEvent;
         return ddlSqlMaker.addColumn(tapConnectorContext, tapNewFieldEvent);
     }
+
     private List<String> alterFieldName(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapAlterFieldNameEvent)) {
             return null;
@@ -103,6 +104,7 @@ public class ClickhouseConnector extends CommonDbConnector {
         TapAlterFieldNameEvent tapAlterFieldNameEvent = (TapAlterFieldNameEvent) tapFieldBaseEvent;
         return ddlSqlMaker.alterColumnName(tapConnectorContext, tapAlterFieldNameEvent);
     }
+
     private List<String> alterFieldAttr(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapAlterFieldAttributesEvent)) {
             return null;
@@ -110,10 +112,11 @@ public class ClickhouseConnector extends CommonDbConnector {
         TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent = (TapAlterFieldAttributesEvent) tapFieldBaseEvent;
         return ddlSqlMaker.alterColumnAttr(tapConnectorContext, tapAlterFieldAttributesEvent);
     }
+
     private void initConnection(TapConnectionContext connectionContext) throws Throwable {
         clickhouseConfig = (ClickhouseConfig) new ClickhouseConfig().load(connectionContext.getConnectionConfig());
-        if (EmptyKit.isNull(clickhouseJdbcContext) || clickhouseJdbcContext.isFinish()) {
-            clickhouseJdbcContext = (ClickhouseJdbcContext) DataSourcePool.getJdbcContext(clickhouseConfig, ClickhouseJdbcContext.class, connectionContext.getId());
+        if (EmptyKit.isNull(clickhouseJdbcContext)) {
+            clickhouseJdbcContext = new ClickhouseJdbcContext(clickhouseConfig);
         }
         commonDbConfig = clickhouseConfig;
         jdbcContext = clickhouseJdbcContext;
@@ -179,9 +182,9 @@ public class ClickhouseConnector extends CommonDbConnector {
 
 
     @Override
-    public void onStop(TapConnectionContext connectionContext) throws Throwable {
+    public void onStop(TapConnectionContext connectionContext) {
         if (EmptyKit.isNotNull(clickhouseJdbcContext)) {
-            clickhouseJdbcContext.finish(connectionContext.getId());
+            clickhouseJdbcContext.close();
         }
         JdbcUtil.closeQuietly(clickhouseWriter);
     }

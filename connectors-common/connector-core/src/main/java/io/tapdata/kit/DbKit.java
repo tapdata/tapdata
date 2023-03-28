@@ -1,5 +1,6 @@
 package io.tapdata.kit;
 
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.simplify.TapSimplify;
@@ -16,6 +17,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
+
 /**
  * tools for ResultSet
  *
@@ -30,18 +33,14 @@ public class DbKit {
      * @param resultSet ResultSet
      * @return list<Map>
      */
-    public static List<DataMap> getDataFromResultSet(ResultSet resultSet) {
+    public static List<DataMap> getDataFromResultSet(ResultSet resultSet) throws SQLException {
         List<DataMap> list = TapSimplify.list();
-        try {
-            if (EmptyKit.isNotNull(resultSet)) {
-                List<String> columnNames = getColumnsFromResultSet(resultSet);
-                //cannot replace with while resultSet.next()
-                while (resultSet.next()) {
-                    list.add(getRowFromResultSet(resultSet, columnNames));
-                }
+        if (EmptyKit.isNotNull(resultSet)) {
+            List<String> columnNames = getColumnsFromResultSet(resultSet);
+            //cannot replace with while resultSet.next()
+            while (resultSet.next()) {
+                list.add(getRowFromResultSet(resultSet, columnNames));
             }
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
         return list;
     }
@@ -53,19 +52,22 @@ public class DbKit {
      * @param columnNames column names of ResultSet
      * @return Map
      */
-    public static DataMap getRowFromResultSet(ResultSet resultSet, Collection<String> columnNames) {
+    public static DataMap getRowFromResultSet(ResultSet resultSet, Collection<String> columnNames) throws SQLException {
         DataMap map = DataMap.create();
-        try {
-            if (EmptyKit.isNotNull(resultSet) && resultSet.getRow() > 0) {
-                for (String col : columnNames) {
+        if (EmptyKit.isNotNull(resultSet) && resultSet.getRow() > 0) {
+            String errorCol = null;
+            for (String col : columnNames) {
+                try {
                     map.put(col, resultSet.getObject(col));
+                } catch (Exception e) {
+                    errorCol = col;
                 }
-                return map;
             }
-        } catch (SQLException e) {
-            e.printStackTrace();
+            if (EmptyKit.isNotNull(errorCol)) {
+                TapLogger.warn("JDBC ERROR", "row: {}, skip {}", toJson(map), errorCol);
+            }
         }
-        return null;
+        return map;
     }
 
     /**
@@ -74,44 +76,32 @@ public class DbKit {
      * @param resultSet ResultSet
      * @return List<String>
      */
-    public static List<String> getColumnsFromResultSet(ResultSet resultSet) {
+    public static List<String> getColumnsFromResultSet(ResultSet resultSet) throws SQLException {
         //get all column names
         List<String> columnNames = new ArrayList<>();
-        try {
-            ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
-            for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
-                String[] columnNameArr = resultSetMetaData.getColumnName(i).split("\\.");
-                String substring = columnNameArr[columnNameArr.length - 1];
-                columnNames.add(substring);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
+        ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
+        for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
+            String[] columnNameArr = resultSetMetaData.getColumnName(i).split("\\.");
+            String substring = columnNameArr[columnNameArr.length - 1];
+            columnNames.add(substring);
         }
         return columnNames;
     }
 
-    public static List<String> getColumnTypesFromResultSet(ResultSet resultSet) {
+    public static List<String> getColumnTypesFromResultSet(ResultSet resultSet) throws SQLException {
         //get all column typeNames
         List<String> columnTypeNames = new ArrayList<>();
-        try {
-            ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
-            for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
-                columnTypeNames.add(resultSetMetaData.getColumnTypeName(i));
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
+        ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
+        for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
+            columnTypeNames.add(resultSetMetaData.getColumnTypeName(i));
         }
         return columnTypeNames;
     }
 
-    public static List<Object> getDataArrayByColumnName(ResultSet resultSet, String columnName) {
+    public static List<Object> getDataArrayByColumnName(ResultSet resultSet, String columnName) throws SQLException {
         List<Object> list = TapSimplify.list();
-        try {
-            while (resultSet.next()) {
-                list.add(resultSet.getObject(columnName));
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
+        while (resultSet.next()) {
+            list.add(resultSet.getObject(columnName));
         }
         return list;
     }
@@ -129,8 +119,7 @@ public class DbKit {
             }
             return bytes;
         } catch (SQLException | IOException e) {
-            e.printStackTrace();
-            return null;
+            throw new RuntimeException(e);
         } finally {
             if (bis != null) {
                 try {
@@ -153,7 +142,7 @@ public class DbKit {
             }
             re = sb.toString();
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new RuntimeException(e);
         }
         return re;
     }

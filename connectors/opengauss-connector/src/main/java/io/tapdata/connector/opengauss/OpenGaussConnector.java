@@ -3,7 +3,6 @@ package io.tapdata.connector.opengauss;
 import com.google.common.collect.Lists;
 import io.tapdata.common.CommonDbConnector;
 import io.tapdata.common.CommonSqlMaker;
-import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.common.ddl.DDLSqlGenerator;
 import io.tapdata.connector.postgres.PostgresJdbcContext;
@@ -313,7 +312,7 @@ public class OpenGaussConnector extends CommonDbConnector {
             postgresTest = null;
         }
         if (EmptyKit.isNotNull(postgresJdbcContext)) {
-            postgresJdbcContext.finish(connectionContext.getId());
+            postgresJdbcContext.close();
         }
     }
 
@@ -322,8 +321,8 @@ public class OpenGaussConnector extends CommonDbConnector {
         postgresConfig = (PostgresConfig) new PostgresConfig().load(connectorContext.getConnectionConfig());
         postgresTest = new PostgresTest(postgresConfig, testItem -> {
         }).initContext();
-        if (EmptyKit.isNull(postgresJdbcContext) || postgresJdbcContext.isFinish()) {
-            postgresJdbcContext = (PostgresJdbcContext) DataSourcePool.getJdbcContext(postgresConfig, PostgresJdbcContext.class, connectorContext.getId());
+        if (EmptyKit.isNull(postgresJdbcContext)) {
+            postgresJdbcContext = new PostgresJdbcContext(postgresConfig);
         }
         commonDbConfig = postgresConfig;
         jdbcContext = postgresJdbcContext;
