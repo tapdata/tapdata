@@ -66,5 +66,6 @@ public interface PDKRunnerErrorCodes {
     int TARGET_TABLE_NOT_FOUND_IN_TAPEVENT = 90001;
 
 
-
+    int SUBMIT_SYNC_RUNNABLE_FAILED = 90002;
+    int SUBMIT_SYNC_CALLABLE_FAILED = 90003;
 }

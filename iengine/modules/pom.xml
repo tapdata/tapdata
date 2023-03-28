@@ -18,6 +18,7 @@
         <module>deduction-module</module>
         <module>proxy-client-module</module>
         <module>custom-sql-filter-module</module>
+        <module>task-resource-supervisor-module</module>
     </modules>
     <dependencies>
         <dependency>

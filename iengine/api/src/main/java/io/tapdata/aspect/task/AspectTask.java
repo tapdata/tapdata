@@ -35,8 +35,8 @@ public abstract class AspectTask implements MemoryFetcher {
 
 	@Override
 	public DataMap memory(String keyRegex, String memoryLevel) {
-		return DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
-				.kv("taskName", task.getName())
-				.kv("taskId", task.getId());
+		return DataMap.create().keyRegex(keyRegex);/*.prefix(this.getClass().getSimpleName())*/
+//				.kv("taskName", task.getName())
+//				.kv("taskId", task.getId());
 	}
 }
