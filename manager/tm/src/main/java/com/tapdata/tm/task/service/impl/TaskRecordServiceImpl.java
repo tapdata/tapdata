@@ -4,6 +4,7 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DatePattern;
 import cn.hutool.core.date.DateUtil;
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
@@ -69,20 +70,17 @@ public class TaskRecordServiceImpl implements TaskRecordService {
         if (count == 0) {
             return new Page<>(0, Collections.emptyList());
         }
+        size = size > 20 ? 20 :size;
 
+        TmPageable pageable = new TmPageable();
+        pageable.setPage(page);
+        pageable.setSize(size);
+
+        query.with(pageable);
         query.with(Sort.by("createTime").descending());
-        List<TaskRecord> taskRecordList = mongoTemplate.find(query, TaskRecord.class);
 
-        if (size > 20) {
-            size = 20;
-        }
+        List<TaskRecord> taskRecords = mongoTemplate.find(query, TaskRecord.class);
 
-        List<List<TaskRecord>> partition = ListUtils.partition(taskRecordList, size);
-        if (page > partition.size()) {
-            page = partition.size();
-        }
-
-        List<TaskRecord> taskRecords = partition.get(page - 1);
         List<String> userIds = taskRecords.stream().map(TaskRecord::getUserId).distinct().collect(Collectors.toList());
         List<UserDetail> users = userService.getUserByIdList(userIds);
         Map<String, String> userMap = users.stream().collect(Collectors.toMap(UserDetail::getUserId, UserDetail::getUsername, (o1,o2) -> o1));
