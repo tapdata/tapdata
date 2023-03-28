@@ -3,6 +3,7 @@ package io.tapdata.connector.postgres.cdc;
 import io.debezium.embedded.EmbeddedEngine;
 import io.debezium.engine.DebeziumEngine;
 import io.tapdata.common.cdc.CdcRunner;
+import io.tapdata.kit.EmptyKit;
 import org.apache.kafka.connect.source.SourceRecord;
 
 import java.io.IOException;
@@ -39,7 +40,9 @@ public abstract class DebeziumCdcRunner implements CdcRunner {
      */
     @Override
     public void startCdcRunner() {
-        engine.run();
+        if (EmptyKit.isNotNull(engine)) {
+            engine.run();
+        }
     }
 
     public void stopCdcRunner() {
