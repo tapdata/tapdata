@@ -132,7 +132,7 @@ public class ConnHeartbeatUtils {
             this.put("mode", MODE);
             this.put("connId", dataSourceId);
             this.put("initial_totals", 1);
-            this.put("incremental_interval", 10000);
+            this.put("incremental_interval", 1000);
             this.put("incremental_interval_totals", 1);
             this.put("incremental_types", new int[]{2});
             this.put("table_name", TABLE_NAME);

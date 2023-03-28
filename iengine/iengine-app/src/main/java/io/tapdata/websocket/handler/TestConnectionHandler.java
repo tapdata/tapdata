@@ -9,10 +9,16 @@ import com.tapdata.validator.ConnectionValidateResult;
 import com.tapdata.validator.ConnectionValidateResultDetail;
 import com.tapdata.validator.ConnectionValidator;
 import io.tapdata.Runnable.LoadSchemaRunner;
+import io.tapdata.aspect.supervisor.AspectRunnableUtil;
+import io.tapdata.aspect.supervisor.DisposableThreadGroupAspect;
+import io.tapdata.aspect.supervisor.entity.ConnectionTestEntity;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.BaseConnectionValidateResult;
 import io.tapdata.exception.ConnectionException;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
+import io.tapdata.threadgroup.DisposableThreadGroup;
+import io.tapdata.threadgroup.utils.DisposableType;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.SendMessage;
 import io.tapdata.websocket.WebSocketEventHandler;
@@ -75,26 +81,36 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 	 */
 	@Override
 	public Object handle(Map event, SendMessage sendMessage) {
-
 		logger.info(String.format("Test connection, event: %s", event));
 		if (MapUtils.isEmpty(event)) {
 			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.TEST_CONNECTION_RESULT, "Event data cannot be empty");
 		}
-
-		Runnable runnable = () -> {
-			Thread.currentThread().setName(String.format("TEST-CONNECTION-%s", event.getOrDefault("name", "")));
+		String connName = (String)event.getOrDefault("name", "");
+		String pskHash = (String) event.getOrDefault("pdkHash", "");
+		String connectionId = String.valueOf(event.get("id"));
+		ConnectionTestEntity entity = new ConnectionTestEntity()
+				.associateId(UUID.randomUUID().toString())
+				.time(System.nanoTime())
+				.connectionId(connectionId)
+				.type(String.valueOf(event.get("type")))
+				.connectionName(connName)
+				.pdkType(String.valueOf(event.get("pdkType")))
+				.pdkHash(pskHash)
+				.schemaVersion(String.valueOf(event.get("schemaVersion")))
+				.databaseType(String.valueOf(event.get("database_type")));
+		String threadName = String.format("TEST-CONNECTION-%s", Optional.ofNullable(event.get("name")).orElse(""));
+		DisposableThreadGroup threadGroup = new DisposableThreadGroup(DisposableType.CONNECTION_TEST, threadName);
+		Runnable runnable = AspectRunnableUtil.aspectRunnable(new DisposableThreadGroupAspect<>(connectionId, threadGroup, entity),() -> {
 			Connections connection = null;
-			String connName = event.getOrDefault("name", "").toString();
-			String schemaVersion = UUIDGenerator.uuid();
 			Schema schema;
-
 			try {
+				String schemaVersion = UUIDGenerator.uuid();
 				try {
 					if (event.containsKey("schema") && !(event.get("schema") instanceof Map)) {
 						event.remove("schema");
 					}
 					connection = JSONUtil.map2POJO(event, Connections.class);
-					connection.setPdkHash((String) event.getOrDefault("pdkHash", ""));
+					connection.setPdkHash(pskHash);
 				} catch (Exception e) {
 					String errMsg = String.format("Map convert to Connections failed, event: %s, err: %s", event, e.getMessage());
 					logger.error(errMsg, e);
@@ -212,11 +228,9 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 					clientMongoOperator.update(updateQuery, update, NOT_CHANGE_LAST_COLLECTION);
 				}
 			}
-		};
-
-		Thread thread = new Thread(runnable);
+		});
+		Thread thread = new Thread(threadGroup, runnable, threadName);
 		thread.start();
-
 		return null;
 	}
 

@@ -124,7 +124,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -2358,7 +2357,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         });
 
         List<DataFlowInsightStatisticsDto.DataStatisticInfo> inputDataStatistics = new ArrayList<>();
-        AtomicReference<BigInteger> totalInputDataCount = new AtomicReference<>();
+        AtomicReference<BigInteger> totalInputDataCount = new AtomicReference<>(BigInteger.ZERO);
         allInputNumMap.forEach((k, v) -> {
             inputDataStatistics.add(new DataFlowInsightStatisticsDto.DataStatisticInfo(k.format(format), v));
             totalInputDataCount.set(totalInputDataCount.get().add(v));
@@ -3970,15 +3969,21 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (CollectionUtils.isNotEmpty(samples)) {
             Sample sample = samples.get(0);
             Long cdcDelayTime = null;
+            Date lastData = null;
             if (sample.getVs().get("replicateLag") != null) {
                 cdcDelayTime = Long.valueOf(sample.getVs().get("replicateLag").toString());
             }
             tableStatusInfoDto.setCdcDelayTime(cdcDelayTime);
-            long LastDataChangeTime = (long) sample.getVs().get("currentEventTimestamp");
-            tableStatusInfoDto.setLastDataChangeTime(new Date(LastDataChangeTime));
+            long  LastDataChangeTime = sample.getVs().get("currentEventTimestamp").longValue();
+            if(LastDataChangeTime !=0){
+                lastData = new Date(LastDataChangeTime);
+            }
+            tableStatusInfoDto.setLastDataChangeTime(lastData);
         }
 
     }
+
+
 
     public boolean judgeTargetInspect(String connectionId, String tableName, UserDetail userDetail) {
         Criteria criteriaInspect = new Criteria();

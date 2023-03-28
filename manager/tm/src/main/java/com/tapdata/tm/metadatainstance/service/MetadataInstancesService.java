@@ -1606,14 +1606,14 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                                     .and("hasUnionIndex").is(false)
                                     .and("hasUpdateField").is(false);
                         } else if ("transformEx".equals(filterType)) {
-                            criteriaTable.and("resultItems").ne(null);
+                            criteriaTable.and("hasTransformEx").is(true);
                         }
                     }
 
                     if (CollectionUtils.isEmpty(tableNames)) {
                         metadatas = Lists.newArrayList();
                     } else{
-                        criteriaTable.and("source._id").is(tableNode.getConnectionId())
+                        criteriaTable.and("nodeId").is(nodeId)
                                 .and("originalName").in(tableNames)
                                 .and("taskId").is(taskId)
                                 .and("is_deleted").ne(true);
@@ -2140,7 +2140,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 .where("is_deleted").ne(true)
                 .and("nodeId").is(nodeId)
                 .and("sourceType").is(SourceTypeEnum.VIRTUAL)
-                .and("resultItems").ne(null);
+                .and("resultItems").is(true);
         return count(Query.query(criteria));
     }
 

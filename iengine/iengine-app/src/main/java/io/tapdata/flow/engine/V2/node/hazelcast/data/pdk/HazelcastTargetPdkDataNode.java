@@ -694,7 +694,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			currentProperty.setMergeType(MergeTableProperties.MergeType.valueOf(writeStrategy));
 		}
 		if (currentProperty.getMergeType() == MergeTableProperties.MergeType.appendWrite) return;
-		List<String> updateConditionFields = updateConditionFieldsMap.get(currentProperty.getTableName());
+		final String tgtTableName = getTgtTableNameFromTapEvent(tapEvent);
+		List<String> updateConditionFields = updateConditionFieldsMap.get(tgtTableName);
 		if (CollectionUtils.isEmpty(updateConditionFields)) return;
 		if (CollectionUtils.isEmpty(currentProperty.getJoinKeys())) {
 			List<Map<String, String>> joinKeys = new ArrayList<>();
