@@ -2,6 +2,7 @@ package com.tapdata.processor.util;
 
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MapUtil;
+import io.tapdata.entity.logger.TapLogger;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -102,13 +103,21 @@ public class CustomRest {
 
 	public static Map<String, Object> post(String url, String paramsStr, String returnType) {
 		Map<String, Object> paramsMap = new HashMap<>();
-		Arrays.stream(paramsStr.split("\n")).forEach(line -> paramsMap.put(line.substring(0, line.indexOf("=")), line.substring(line.indexOf("=") + 1)));
+		try {
+			Arrays.stream(paramsStr.split("\n")).forEach(line -> paramsMap.put(line.substring(0, line.indexOf("=")), line.substring(line.indexOf("=") + 1)));
+		} catch (Exception e) {
+			throw new IllegalArgumentException("params invalid");
+		}
 		return post(url, paramsMap, new HashMap<>(), returnType);
 	}
 
 	public static Map<String, Object> post(String url, String paramsStr, String returnType, int connectTimeout, int readTimeout) {
 		Map<String, Object> paramsMap = new HashMap<>();
-		Arrays.stream(paramsStr.split("\n")).forEach(line -> paramsMap.put(line.substring(0, line.indexOf("=")), line.substring(line.indexOf("=") + 1)));
+		try {
+			Arrays.stream(paramsStr.split("\n")).forEach(line -> paramsMap.put(line.substring(0, line.indexOf("=")), line.substring(line.indexOf("=") + 1)));
+		} catch (Exception e) {
+			throw new IllegalArgumentException("params invalid");
+		}
 		return post(url, paramsMap, new HashMap<>(), returnType, connectTimeout, readTimeout);
 	}
 
