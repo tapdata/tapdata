@@ -681,7 +681,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			ConstructIMap<Document> imap = new ConstructIMap<>(hazelcastInstance, cacheName, externalStorageDto);
 			try {
 				imap.clear();
-				PersistenceStorage.getInstance().destroy(imap.getName());
+				imap.destroy();
 			} catch (Exception e) {
 				throw new RuntimeException("Clear imap failed, name: " + cacheName + ", error message: " + e.getMessage(), e);
 			}
