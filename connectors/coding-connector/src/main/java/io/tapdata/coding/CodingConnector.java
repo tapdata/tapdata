@@ -195,12 +195,14 @@ public class CodingConnector extends ConnectorBase {
         while (isAlive()) {
             synchronized (this) {
                 try {
-                    this.wait(loaders.get(0).streamReadTime());
+                    this.wait(2 * 60 * 1000L);
+//                    this.wait(loaders.get(0).streamReadTime());
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
             }
             for (CodingLoader<Param> loader : loaders) {
+                loader.connectorInit(this);
                 loader.streamRead(tableList, offsetState, recordSize, consumer);
             }
         }

@@ -845,7 +845,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             if (Checker.isEmptyCollection(issueDetail)) continue;
 
             Long referenceTime = (Long) issueDetail.get("CreatedAt");
-            events.add(TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(System.currentTimeMillis()));
+            events.add(TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(Optional.ofNullable(referenceTime).orElse(System.currentTimeMillis())));
             offset.getTableUpdateTimeMap().put(TABLE_NAME, referenceTime);
             if (events.size() != readSize) continue;
             consumer.accept(events, offset);
@@ -938,13 +938,18 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 }
                 if (Checker.isNotEmptyCollection(issueDetail)) {
                     Long referenceTime = (Long) issueDetail.get("UpdatedAt");
+                    Long createdAt = (Long) issueDetail.get("CreatedAt");
                     Long currentTimePoint = referenceTime - referenceTime % (24 * 60 * 60 * 1000);//时间片段
                     Integer issueDetialHash = MapUtil.create().hashCode(issueDetail);
                     //issueDetial的更新时间字段值是否属于当前时间片段，并且issueDiteal的hashcode是否在上一次批量读取同一时间段内
                     //如果不在，说明时全新增加或修改的数据，需要在本次读取这条数据
                     //如果在，说明上一次批量读取中以及读取了这条数据，本次不在需要读取 !currentTimePoint.equals(lastTimePoint) &&
                     if (!lastTimeSplitIssueCode.contains(issueDetialHash)) {
-                        events[0].add(TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(System.currentTimeMillis()));
+                        if(referenceTime > createdAt){
+                            events[0].add(TapSimplify.updateDMLEvent(null,issueDetail, TABLE_NAME).referenceTime(referenceTime));
+                        }else {
+                            events[0].add(TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(createdAt));
+                        }
                         totalCount += 1;
                         if (!currentTimePoint.equals(this.lastTimePoint)) {
                             this.lastTimePoint = currentTimePoint;
