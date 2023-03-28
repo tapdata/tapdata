@@ -39,9 +39,6 @@ public class MongodbAtlasTest extends MongodbTest {
             if (!validateAuthDB(connectionStatus)) {
                 return false;
             }
-//            if (!validateOplog(connectionStatus)) {
-//                return false;
-//            }
             if (!validateReadOrWriteDatabase(connectionStatus, database, READ_PRIVILEGE_ACTIONS)) {
                 consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_FAILED, "Missing read privileges on" + mongodbConfig.getDatabase() + "database"));
                 return false;
