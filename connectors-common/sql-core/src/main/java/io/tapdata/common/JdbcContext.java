@@ -220,7 +220,9 @@ public abstract class JdbcContext implements AutoCloseable {
 
     @Override
     public void close() {
-        hikariDataSource.close();
+        if (EmptyKit.isNotNull(hikariDataSource)) {
+            hikariDataSource.close();
+        }
     }
 
     //static Hikari connection
