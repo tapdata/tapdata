@@ -100,6 +100,18 @@ public class CustomRest {
 		return post(url, new HashMap<>(), new HashMap<>(), returnType, connectTimeout, readTimeout);
 	}
 
+	public static Map<String, Object> post(String url, String paramsStr, String returnType) {
+		Map<String, Object> paramsMap = new HashMap<>();
+		Arrays.stream(paramsStr.split("\n")).forEach(line -> paramsMap.put(line.substring(0, line.indexOf("=")), line.substring(line.indexOf("=") + 1)));
+		return post(url, paramsMap, new HashMap<>(), returnType);
+	}
+
+	public static Map<String, Object> post(String url, String paramsStr, String returnType, int connectTimeout, int readTimeout) {
+		Map<String, Object> paramsMap = new HashMap<>();
+		Arrays.stream(paramsStr.split("\n")).forEach(line -> paramsMap.put(line.substring(0, line.indexOf("=")), line.substring(line.indexOf("=") + 1)));
+		return post(url, paramsMap, new HashMap<>(), returnType, connectTimeout, readTimeout);
+	}
+
 	public static Map<String, Object> post(String url, Map<String, Object> paramsMap) {
 		return post(url, paramsMap, new HashMap<>(), RETURN_TYPE_ARRAY);
 	}
