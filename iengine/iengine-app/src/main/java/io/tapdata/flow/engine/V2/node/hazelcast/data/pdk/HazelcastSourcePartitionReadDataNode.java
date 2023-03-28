@@ -454,7 +454,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 //	}
 
 	@Override
-	protected StreamReadConsumer generateStreamReadConsumer(ConnectorNode connectorNode, PDKMethodInvoker pdkMethodInvoker, StreamReadFuncAspect streamReadFuncAspect) {
+	protected StreamReadConsumer generateStreamReadConsumer(ConnectorNode connectorNode, PDKMethodInvoker pdkMethodInvoker) {
 		return StreamReadConsumer.create(this::handleStreamEventsReceivedDuringPartition).stateListener((oldState, newState) -> {
 			if (StreamReadConsumer.STATE_STREAM_READ_ENDED != newState) {
 				PDKInvocationMonitor.invokerRetrySetter(pdkMethodInvoker);
@@ -466,7 +466,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 				TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.FINISH);
 //												MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.FINISH);
 				logger.info("Connector start stream read succeed: {}", connectorNode);
-				obsLogger.info("Connector {} incremental start succeed, tables: {}, data change syncing", connectorNode.getTapNodeInfo().getTapNodeSpecification().getName(), tables);
+				obsLogger.info("Connector {} incremental start succeed, tables: {}, data change syncing", connectorNode.getTapNodeInfo().getTapNodeSpecification().getName(), streamReadFuncAspect != null ? streamReadFuncAspect.getTables() : null);
 
 				//start pending partition reader workers as stream read is started.
 				streamReadStarted.compareAndSet(false, true);

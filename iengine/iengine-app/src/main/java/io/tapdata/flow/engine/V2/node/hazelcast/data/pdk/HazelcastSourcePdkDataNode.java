@@ -373,7 +373,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			return;
 		}
 		streamReadMethodInvoker = createPdkMethodInvoker();
-		streamReadConsumer = generateStreamReadConsumer(connectorNode, streamReadMethodInvoker, streamReadFuncAspect);
+		streamReadConsumer = generateStreamReadConsumer(connectorNode, streamReadMethodInvoker);
 
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		Node<?> node = dataProcessorContext.getNode();
@@ -498,7 +498,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 	}
 
-	protected StreamReadConsumer generateStreamReadConsumer(ConnectorNode connectorNode, PDKMethodInvoker pdkMethodInvoker, StreamReadFuncAspect streamReadFuncAspect) {
+	protected StreamReadConsumer generateStreamReadConsumer(ConnectorNode connectorNode, PDKMethodInvoker pdkMethodInvoker) {
 		return StreamReadConsumer.create((events, offsetObj) -> {
 			try {
 				while (isRunning()) {
@@ -554,7 +554,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				if (streamReadFuncAspect != null)
 					executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAM_STARTED).streamStartedTime(System.currentTimeMillis()));
 				sendCdcStartedEvent();
-				obsLogger.info("Connector {} incremental start succeed, tables: {}, data change syncing", connectorNode.getTapNodeInfo().getTapNodeSpecification().getName(), tables);
+				obsLogger.info("Connector {} incremental start succeed, tables: {}, data change syncing", connectorNode.getTapNodeInfo().getTapNodeSpecification().getName(), streamReadFuncAspect != null ? streamReadFuncAspect.getTables() : null);
 			}
 		});
 	}
