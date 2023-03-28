@@ -58,7 +58,7 @@ import static io.tapdata.entity.simplify.TapSimplify.indexField;
  */
 @TapConnectorClass("spec_postgres.json")
 public class PostgresConnector extends ConnectorBase {
-    private PostgresConfig postgresConfig;
+    protected PostgresConfig postgresConfig;
     private PostgresJdbcContext postgresJdbcContext;
     private PostgresTest postgresTest;
     private PostgresCdcRunner cdcRunner; //only when task start-pause this variable can be shared

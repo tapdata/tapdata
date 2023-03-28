@@ -20,7 +20,6 @@ import io.tapdata.pdk.apis.entity.FilterResult;
 import io.tapdata.pdk.apis.entity.TapFilter;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 
-import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
@@ -69,14 +68,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
             //3、primary key and table index
             List<String> primaryKey = TapSimplify.list();
             List<TapIndex> tapIndexList = TapSimplify.list();
-            Map<String, List<DataMap>> indexMap = indexList.stream().filter(idx -> table.equals(idx.getString("tableName")))
-                    .collect(Collectors.groupingBy(idx -> idx.getString("indexName"), LinkedHashMap::new, Collectors.toList()));
-            indexMap.forEach((key, value) -> {
-                if (value.stream().anyMatch(v -> ("1".equals(v.getString("isPk"))))) {
-                    primaryKey.addAll(value.stream().map(v -> v.getString("columnName")).collect(Collectors.toList()));
-                }
-                tapIndexList.add(makeTapIndex(key, value));
-            });
+            makePrimaryKeyAndIndex(indexList, table, primaryKey, tapIndexList);
             //4、table columns info
             AtomicInteger keyPos = new AtomicInteger(0);
             columnList.stream().filter(col -> table.equals(col.getString("tableName")))
@@ -91,6 +83,17 @@ public abstract class CommonDbConnector extends ConnectorBase {
             tapTableList.add(tapTable);
         });
         syncSchemaSubmit(tapTableList, consumer);
+    }
+
+    protected void makePrimaryKeyAndIndex(List<DataMap> indexList, String table, List<String> primaryKey, List<TapIndex> tapIndexList) {
+        Map<String, List<DataMap>> indexMap = indexList.stream().filter(idx -> table.equals(idx.getString("tableName")))
+                .collect(Collectors.groupingBy(idx -> idx.getString("indexName"), LinkedHashMap::new, Collectors.toList()));
+        indexMap.forEach((key, value) -> {
+            if (value.stream().anyMatch(v -> ("1".equals(v.getString("isPk"))))) {
+                primaryKey.addAll(value.stream().map(v -> v.getString("columnName")).collect(Collectors.toList()));
+            }
+            tapIndexList.add(makeTapIndex(key, value));
+        });
     }
 
     protected TapField makeTapField(DataMap dataMap) {
@@ -313,6 +316,10 @@ public abstract class CommonDbConnector extends ConnectorBase {
         jdbcContext.batchExecute(sqlList);
     }
 
+    protected void makePrimaryKey() {
+
+    }
+
     protected TapIndex makeTapIndex(String key, List<DataMap> value) {
         TapIndex index = new TapIndex();
         index.setName(key);
@@ -415,9 +422,9 @@ public abstract class CommonDbConnector extends ConnectorBase {
         }
         sb.append("index ");
         if (EmptyKit.isNotBlank(tapIndex.getName())) {
-            sb.append(tapIndex.getName());
+            sb.append(escapeChar).append(tapIndex.getName()).append(escapeChar);
         } else {
-            sb.append(DbKit.buildIndexName(tapTable.getId()));
+            sb.append(escapeChar).append(DbKit.buildIndexName(tapTable.getId())).append(escapeChar);
         }
         sb.append(" on ").append(getSchemaAndTable(tapTable.getId())).append('(')
                 .append(tapIndex.getIndexFields().stream().map(f -> escapeChar + f.getName() + escapeChar + " " + (f.getFieldAsc() ? "asc" : "desc"))
