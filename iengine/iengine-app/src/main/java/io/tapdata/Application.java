@@ -179,8 +179,6 @@ public class Application {
 			AspectUtils.executeAspect(ApplicationStartAspect.class, ApplicationStartAspect::new);
 			run.getBean(TapdataTaskScheduler.class).stopTaskIfNeed();
 			run.getBean(TapdataTaskScheduler.class).runTaskIfNeedWhenEngineStart();
-
-			InstanceFactory.instance(ClassLifeCircleMonitor.class);
 		} catch (Exception e) {
 			String err = "Run flow engine application failed, err: " + e.getMessage();
 			logger.error(err, e);
