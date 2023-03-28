@@ -77,6 +77,7 @@ public class MysqlReader implements Closeable {
 	private static final String SOURCE_RECORD_DDL_KEY = "ddl";
 	public static final String FIRST_TIME_KEY = "FIRST_TIME";
 	private static final DDLWrapperConfig DDL_WRAPPER_CONFIG = CCJBaseDDLWrapper.CCJDDLWrapperConfig.create().split("`");
+	public static final long SAVE_DEBEZIUM_SCHEMA_HISTORY_INTERVAL_SEC = 2L;
 	private String serverName;
 	private AtomicBoolean running;
 	private MysqlJdbcContext mysqlJdbcContext;
@@ -236,7 +237,7 @@ public class MysqlReader implements Closeable {
 			initMysqlSchemaHistory(tapConnectorContext);
 			this.mysqlSchemaHistoryMonitor = new ScheduledThreadPoolExecutor(1);
 			this.mysqlSchemaHistoryMonitor.scheduleAtFixedRate(() -> saveMysqlSchemaHistory(tapConnectorContext),
-					10L, 10L, TimeUnit.SECONDS);
+					SAVE_DEBEZIUM_SCHEMA_HISTORY_INTERVAL_SEC, SAVE_DEBEZIUM_SCHEMA_HISTORY_INTERVAL_SEC, TimeUnit.SECONDS);
 			Configuration.Builder builder = Configuration.create()
 					.with("name", serverName)
 					.with("connector.class", "io.debezium.connector.mysql.MySqlConnector")
