@@ -533,7 +533,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 			}
 			values.add(String.valueOf(value));
 		}
-		return String.join("_", values);
+		return Base64.getEncoder().encodeToString(String.join("_", values).getBytes(StandardCharsets.UTF_8));
 	}
 
 	private Map<String, RelateDatabaseField> getSourceFieldMap(String connectionId, String sourceTableName) {

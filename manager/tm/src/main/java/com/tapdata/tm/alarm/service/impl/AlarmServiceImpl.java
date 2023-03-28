@@ -813,14 +813,13 @@ public class AlarmServiceImpl implements AlarmService {
             }
         });
 
-        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
-        List<TaskAlarmNodeInfoVo> taskAlarmNodeInfoVos = taskDto.getDag().getNodes().stream().map(t ->
+        List<TaskAlarmNodeInfoVo> taskAlarmNodeInfoVos = Optional.ofNullable(taskService.findById(MongoUtils.toObjectId(taskId))).map(taskDto -> taskDto.getDag().getNodes().stream().map(t ->
                 TaskAlarmNodeInfoVo.builder()
                         .nodeId(t.getId())
                         .nodeName(t.getName())
                         .num(nodeNumMap.get(t.getId()))
                         .build()
-        ).collect(Collectors.toList());
+        ).collect(Collectors.toList())).orElse(new ArrayList<>());
 
         long alert = alarmInfos.stream().filter(t -> !AlarmStatusEnum.CLOESE.equals(t.getStatus())
                 && Lists.of(Level.WARNING).contains(t.getLevel())).count();
