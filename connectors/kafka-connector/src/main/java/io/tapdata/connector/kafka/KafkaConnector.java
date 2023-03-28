@@ -2,9 +2,12 @@ package io.tapdata.connector.kafka;
 
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonDbConfig;
+import io.tapdata.common.ddl.DDLFactory;
+import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.kafka.config.KafkaConfig;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
@@ -17,15 +20,19 @@ import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+
+import static io.tapdata.pdk.apis.entity.ConnectionOptions.*;
 
 @TapConnectorClass("spec_kafka.json")
 public class KafkaConnector extends ConnectorBase {
@@ -67,6 +74,15 @@ public class KafkaConnector extends ConnectorBase {
         connectorFunctions.supportBatchRead(this::batchRead);
         connectorFunctions.supportStreamRead(this::streamRead);
         connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
+
+        connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
+        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
+        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
+        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+    }
+
+    private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
+        kafkaService.produce(tapFieldBaseEvent);
     }
 
     @Override
@@ -83,14 +99,20 @@ public class KafkaConnector extends ConnectorBase {
             onStart(connectionContext);
             CommonDbConfig config = new CommonDbConfig();
             config.set__connectionType(kafkaConfig.get__connectionType());
-            KafkaTest kafkaTest = new KafkaTest(kafkaConfig, consumer, kafkaService,config);
+            KafkaTest kafkaTest = new KafkaTest(kafkaConfig, consumer, kafkaService, config);
             kafkaTest.testOneByOne();
         } catch (Throwable throwable) {
-            TapLogger.error(TAG,throwable.getMessage());
+            TapLogger.error(TAG, throwable.getMessage());
             consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Failed, " + throwable.getMessage()));
-        }finally {
+        } finally {
             onStop(connectionContext);
         }
+        List<Capability> ddlCapabilities = Arrays.asList(
+                Capability.create(DDL_NEW_FIELD_EVENT).type(Capability.TYPE_DDL),
+                Capability.create(DDL_ALTER_FIELD_NAME_EVENT).type(Capability.TYPE_DDL),
+                Capability.create(DDL_ALTER_FIELD_ATTRIBUTES_EVENT).type(Capability.TYPE_DDL),
+                Capability.create(DDL_DROP_FIELD_EVENT).type(Capability.TYPE_DDL));
+        ddlCapabilities.forEach(connectionOptions::capability);
         return connectionOptions;
     }
 

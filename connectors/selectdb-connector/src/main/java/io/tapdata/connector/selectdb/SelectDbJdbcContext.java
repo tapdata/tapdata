@@ -1,6 +1,5 @@
 package io.tapdata.connector.selectdb;
 
-import com.zaxxer.hikari.HikariDataSource;
 import io.tapdata.common.JdbcContext;
 import io.tapdata.common.ResultSetConsumer;
 import io.tapdata.connector.selectdb.config.SelectDbConfig;
@@ -32,11 +31,11 @@ public class SelectDbJdbcContext extends JdbcContext {
     private static final String TAG = SelectDbJdbcContext.class.getSimpleName();
     protected static final String TEST_SELECTDB_VERSION = "show variables where Variable_name = 'version_comment';";
 
-    public SelectDbJdbcContext(SelectDbConfig config, HikariDataSource hikariDataSource) {
-        super(config, hikariDataSource);
+    public SelectDbJdbcContext(SelectDbConfig config) {
+        super(config);
     }
 
-    public void query(String sql, ResultSetConsumer resultSetConsumer) throws Throwable {
+    public void query(String sql, ResultSetConsumer resultSetConsumer) throws SQLException {
         TapLogger.debug(TAG, "Execute query, sql: " + sql);
         try (
                 Connection connection = getConnection();
@@ -48,7 +47,7 @@ public class SelectDbJdbcContext extends JdbcContext {
                 resultSetConsumer.accept(resultSet);
             }
         } catch (SQLException e) {
-            throw new Exception("Execute query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
+            throw new RuntimeException("Execute query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
         }
     }
 

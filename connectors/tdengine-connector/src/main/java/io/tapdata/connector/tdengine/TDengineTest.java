@@ -4,13 +4,10 @@ import com.google.common.collect.Lists;
 import com.taosdata.jdbc.tmq.TMQConstants;
 import com.taosdata.jdbc.tmq.TaosConsumer;
 import io.tapdata.common.CommonDbTest;
-import io.tapdata.common.DataSourcePool;
 import io.tapdata.connector.tdengine.config.TDengineConfig;
-import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.entity.TestItem;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static io.tapdata.base.ConnectorBase.testItem;
@@ -34,7 +31,7 @@ public class TDengineTest extends CommonDbTest {
 
     public TDengineTest(TDengineConfig tdengineConfig, Consumer<TestItem> consumer) {
         super(tdengineConfig, consumer);
-        jdbcContext = DataSourcePool.getJdbcContext(tdengineConfig, TDengineJdbcContext.class, uuid);
+        jdbcContext = new TDengineJdbcContext(tdengineConfig);
     }
 
     @Override
@@ -105,14 +102,6 @@ public class TDengineTest extends CommonDbTest {
             consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_FAILED, e.getMessage()));
         }
         return true;
-    }
-
-    @Override
-    public void close() {
-        try {
-            jdbcContext.finish(uuid);
-        } catch (Exception ignored) {
-        }
     }
 
 }

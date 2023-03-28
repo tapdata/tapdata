@@ -2,15 +2,12 @@ package io.tapdata.connector.tidb;
 
 import com.alibaba.fastjson.JSONObject;
 import io.tapdata.common.CommonDbTest;
-import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.ddl.DDLFactory;
 import io.tapdata.common.ddl.type.DDLParserType;
-import io.tapdata.connector.kafka.KafkaService;
 import io.tapdata.connector.kafka.config.KafkaConfig;
 import io.tapdata.connector.mysql.constant.MysqlTestItem;
 import io.tapdata.connector.tidb.config.TidbConfig;
 import io.tapdata.constant.ConnectionTypeEnum;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
@@ -20,7 +17,6 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.net.URI;
 import java.sql.Connection;
-import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,7 +25,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.regex.Pattern;
 
 import static io.tapdata.base.ConnectorBase.getStackString;
 import static io.tapdata.base.ConnectorBase.testItem;
@@ -50,18 +45,19 @@ public class TidbConnectionTest extends CommonDbTest {
     protected static final String CHECK_CREATE_TABLE_PRIVILEGES_SQL = "SELECT count(1)\n" +
             "FROM INFORMATION_SCHEMA.USER_PRIVILEGES\n" +
             "WHERE GRANTEE LIKE '%%%s%%' and PRIVILEGE_TYPE = 'CREATE'";
-    protected static final  String CHECK_LOW_CREATE_TABLE_PRIVILEGES_SQL="SELECT count(1)\n" +
+    protected static final String CHECK_LOW_CREATE_TABLE_PRIVILEGES_SQL = "SELECT count(1)\n" +
             "FROM INFORMATION_SCHEMA.USER_PRIVILEGES\n" +
             "WHERE GRANTEE LIKE '%%%s%%' and PRIVILEGE_TYPE = 'Create'";
-    protected static String CHECK_TIDB_VERSION ="SELECT VERSION()";
+    protected static String CHECK_TIDB_VERSION = "SELECT VERSION()";
     private boolean cdcCapability;
     private final ConnectionOptions connectionOptions;
     private String array[];
+
     public TidbConnectionTest(TidbConfig tidbConfig, Consumer<TestItem> consumer, ConnectionOptions connectionOptions) {
         super(tidbConfig, consumer);
         this.tidbConfig = tidbConfig;
         this.connectionOptions = connectionOptions;
-        jdbcContext = DataSourcePool.getJdbcContext(tidbConfig, TidbContext.class, uuid);
+        jdbcContext = new TidbContext(tidbConfig);
     }
 
     public void setKafkaConfig(KafkaConfig kafkaConfig) {
@@ -80,10 +76,10 @@ public class TidbConnectionTest extends CommonDbTest {
             TidbConfig tidbConfig = (TidbConfig) commonDbConfig;
             if (tidbConfig.getEnableIncrement()) {
                 testFunctionMap.put("testKafkaHostPort", this::testKafkaHostPort);
-                consumer.accept(testItem(IC_CONFIGURATION_ENABLED, TestItem.RESULT_SUCCESSFULLY,"Incremental configuration is enabled"));
+                consumer.accept(testItem(IC_CONFIGURATION_ENABLED, TestItem.RESULT_SUCCESSFULLY, "Incremental configuration is enabled"));
 
             } else {
-                consumer.accept(testItem(IC_CONFIGURATION_ENABLED, TestItem.RESULT_SUCCESSFULLY_WITH_WARN,"Incremental configuration is not enabled"));
+                consumer.accept(testItem(IC_CONFIGURATION_ENABLED, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, "Incremental configuration is not enabled"));
             }
         }
         return super.testOneByOne();
@@ -189,7 +185,7 @@ public class TidbConnectionTest extends CommonDbTest {
                 return true;
             }
 
-        } else if (grantSql.contains( databaseName + ".* TO")) {
+        } else if (grantSql.contains(databaseName + ".* TO")) {
             if (privilege) {
                 return true;
             }
@@ -208,28 +204,28 @@ public class TidbConnectionTest extends CommonDbTest {
         return WriteOrReadPrivilege("read");
     }
 
-//    @Override
+    //    @Override
 //    public Boolean testVersion() {
 //        consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_SUCCESSFULLY));
 //        return true;
 //    }
-   @Override
-   public Boolean testVersion() {
-       AtomicReference<String> version = new AtomicReference<>();
-           try {
-               jdbcContext.query(CHECK_TIDB_VERSION, resultSet -> {
-                   while (resultSet.next()) {
-                     String versionMsg=  resultSet.getString(1);
-                     version.set(versionMsg);
-                   }
-               });
-                array=String.valueOf(version).split("-");
-               consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_SUCCESSFULLY,array[1]+"-"+array[2]));
-           } catch (Throwable e) {
-               consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_FAILED, e.getMessage()));
-           }
-       return  true;
-}
+    @Override
+    public Boolean testVersion() {
+        AtomicReference<String> version = new AtomicReference<>();
+        try {
+            jdbcContext.query(CHECK_TIDB_VERSION, resultSet -> {
+                while (resultSet.next()) {
+                    String versionMsg = resultSet.getString(1);
+                    version.set(versionMsg);
+                }
+            });
+            array = String.valueOf(version).split("-");
+            consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_SUCCESSFULLY, array[1] + "-" + array[2]));
+        } catch (Throwable e) {
+            consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_FAILED, e.getMessage()));
+        }
+        return true;
+    }
 
     public Boolean testCDCPrivileges() {
         AtomicReference<TestItem> testItem = new AtomicReference<>();
@@ -400,24 +396,24 @@ public class TidbConnectionTest extends CommonDbTest {
     }
 
     protected boolean checkMySqlCreateTablePrivilege(String username) throws Throwable {
-           String sql = null;
-          AtomicBoolean result = new AtomicBoolean(true);
-          String versionMsg[]=array[2].split("v");
-          String version[]=versionMsg[1].split("\\.");
-          if (Integer.parseInt(version[0])==5){
-              if (Integer.parseInt(version[2])<4){
-                  sql=CHECK_LOW_CREATE_TABLE_PRIVILEGES_SQL; 
-              }
-          }else {
-              sql=CHECK_CREATE_TABLE_PRIVILEGES_SQL;
-          }
-            jdbcContext.query(String.format(sql, username), resultSet -> {
-                while (resultSet.next()) {
-                    if (resultSet.getInt(1) > 0) {
-                        result.set(false);
-                    }
+        String sql = null;
+        AtomicBoolean result = new AtomicBoolean(true);
+        String versionMsg[] = array[2].split("v");
+        String version[] = versionMsg[1].split("\\.");
+        if (Integer.parseInt(version[0]) == 5) {
+            if (Integer.parseInt(version[2]) < 4) {
+                sql = CHECK_LOW_CREATE_TABLE_PRIVILEGES_SQL;
+            }
+        } else {
+            sql = CHECK_CREATE_TABLE_PRIVILEGES_SQL;
+        }
+        jdbcContext.query(String.format(sql, username), resultSet -> {
+            while (resultSet.next()) {
+                if (resultSet.getInt(1) > 0) {
+                    result.set(false);
                 }
-            });
+            }
+        });
         return result.get();
     }
 

@@ -9,6 +9,7 @@ import io.tapdata.connector.kafka.config.*;
 import io.tapdata.connector.kafka.util.Krb5Util;
 import io.tapdata.constant.MqTestItem;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -33,7 +34,9 @@ import org.apache.kafka.common.header.internals.RecordHeaders;
 
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -173,54 +176,48 @@ public class KafkaService extends AbstractMqService {
     protected void submitPageTables(int tableSize, Consumer<List<TapTable>> consumer, SchemaConfiguration schemaConfiguration, Set<String> destinationSet) {
         List<List<String>> tablesList = Lists.partition(new ArrayList<>(destinationSet), tableSize);
         Map<String, Object> config = schemaConfiguration.build();
-        tablesList.forEach(tables -> {
-            List<TapTable> tableList = new CopyOnWriteArrayList<>();
-            final Set<String> topicSet = new CopyOnWriteArraySet<>();
-            CountDownLatch countDownLatch = new CountDownLatch(tables.size());
-            executorService = Executors.newFixedThreadPool(tables.size());
-            tables.forEach(table -> executorService.submit(() -> {
-                KafkaConsumer<byte[], byte[]> kafkaConsumer = new KafkaConsumer<>(config);
-                kafkaConsumer.subscribe(Collections.singleton(table));
-                ConsumerRecords<byte[], byte[]> consumerRecords = kafkaConsumer.poll(Duration.ofSeconds(2L));
-                for (ConsumerRecord<byte[], byte[]> record : consumerRecords) {
-                    if (topicSet.contains(record.topic())) {
-                        continue;
+        try (
+                KafkaConsumer<byte[], byte[]> kafkaConsumer = new KafkaConsumer<>(config)
+        ) {
+            tablesList.forEach(tables -> {
+                List<TapTable> tableList = new ArrayList<>();
+                List<String> topics = new ArrayList<>(tables);
+                kafkaConsumer.subscribe(topics);
+                ConsumerRecords<byte[], byte[]> consumerRecords;
+                while (!(consumerRecords = kafkaConsumer.poll(Duration.ofSeconds(2L))).isEmpty()) {
+                    for (ConsumerRecord<byte[], byte[]> record : consumerRecords) {
+                        if (!topics.contains(record.topic())) {
+                            continue;
+                        }
+                        Map<String, Object> messageBody;
+                        try {
+                            messageBody = jsonParser.fromJsonBytes(record.value(), Map.class);
+                        } catch (Exception e) {
+                            TapLogger.error(TAG, "topic[{}] value [{}] can not parse to json, ignore...", record.topic(), record.value());
+                            continue;
+                        }
+                        if (messageBody == null) {
+                            TapLogger.warn(TAG, "messageBody not allow null...");
+                            continue;
+                        }
+                        if (messageBody.containsKey("mqOp")) {
+                            messageBody = (Map<String, Object>) messageBody.get("data");
+                        }
+                        try {
+                            TapTable tapTable = new TapTable(record.topic());
+                            SCHEMA_PARSER.parse(tapTable, messageBody);
+                            tableList.add(tapTable);
+                        } catch (Throwable t) {
+                            TapLogger.error(TAG, String.format("%s parse topic invalid json object: %s", record.topic(), t.getMessage()), t);
+                        }
+                        topics.remove(record.topic());
                     }
-                    Map<String, Object> messageBody;
-                    try {
-                        messageBody = jsonParser.fromJsonBytes(record.value(), Map.class);
-                    } catch (Exception e) {
-                        TapLogger.error(TAG, "topic[{}] value [{}] can not parse to json, ignore...", record.topic(), record.value());
-                        continue;
-                    }
-                    if (messageBody == null) {
-                        TapLogger.warn(TAG, "messageBody not allow null...");
-                        continue;
-                    }
-                    if (messageBody.containsKey("mqOp")) {
-                        messageBody = (Map<String, Object>) messageBody.get("data");
-                    }
-                    try {
-                        TapTable tapTable = new TapTable(table);
-                        SCHEMA_PARSER.parse(tapTable, messageBody);
-                        tableList.add(tapTable);
-                    } catch (Throwable t) {
-                        TapLogger.error(TAG, String.format("%s parse topic invalid json object: %s", record.topic(), t.getMessage()), t);
-                    }
-                    topicSet.add(record.topic());
+                    kafkaConsumer.subscribe(topics);
                 }
-                kafkaConsumer.close();
-                countDownLatch.countDown();
-            }));
-            try {
-                countDownLatch.await();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-            executorService.shutdown();
-            tables.stream().filter(v -> !topicSet.contains(v)).map(TapTable::new).forEach(tableList::add);
-            consumer.accept(tableList);
-        });
+                topics.stream().map(TapTable::new).forEach(tableList::add);
+                consumer.accept(tableList);
+            });
+        }
     }
 
     @Override
@@ -293,6 +290,20 @@ public class KafkaService extends AbstractMqService {
         }
     }
 
+    @Override
+    public void produce(TapFieldBaseEvent tapFieldBaseEvent) {
+        AtomicReference<Throwable> reference = new AtomicReference<>();
+        byte[] body = jsonParser.toJsonBytes(tapFieldBaseEvent);
+        ProducerRecord<byte[], byte[]> producerRecord = new ProducerRecord<>(tapFieldBaseEvent.getTableId(),
+                null, tapFieldBaseEvent.getTime(), jsonParser.toJsonBytes(tapFieldBaseEvent.getClass().getSimpleName()), body,
+                new RecordHeaders().add("mqOp", MqOp.DDL.getOp().getBytes()));
+        Callback callback = (metadata, exception) -> reference.set(exception);
+        kafkaProducer.send(producerRecord, callback);
+        if (EmptyKit.isNotNull(reference.get())) {
+            throw new RuntimeException(reference.get());
+        }
+    }
+
     private byte[] getKafkaMessageKey(Map<String, Object> data, TapTable tapTable) {
         if (EmptyKit.isEmpty(tapTable.primaryKeys(true))) {
             return null;
@@ -355,20 +366,25 @@ public class KafkaService extends AbstractMqService {
     }
 
     private void makeMessage(ConsumerRecord<byte[], byte[]> consumerRecord, List<TapEvent> list, String tableName) {
-        Map<String, Object> data = jsonParser.fromJsonBytes(consumerRecord.value(), Map.class);
         AtomicReference<String> mqOpReference = new AtomicReference<>();
         mqOpReference.set(MqOp.INSERT.getOp());
         consumerRecord.headers().headers("mqOp").forEach(header -> mqOpReference.set(new String(header.value())));
-        switch (MqOp.fromValue(mqOpReference.get())) {
-            case INSERT:
-                list.add(new TapInsertRecordEvent().init().table(tableName).after(data).referenceTime(System.currentTimeMillis()));
-                break;
-            case UPDATE:
-                list.add(new TapUpdateRecordEvent().init().table(tableName).after(data).referenceTime(System.currentTimeMillis()));
-                break;
-            case DELETE:
-                list.add(new TapDeleteRecordEvent().init().table(tableName).before(data).referenceTime(System.currentTimeMillis()));
-                break;
+        if (MqOp.fromValue(mqOpReference.get()) == MqOp.DDL) {
+            TapFieldBaseEvent tapFieldBaseEvent = jsonParser.fromJsonBytes(consumerRecord.value(), TapFieldBaseEvent.class);
+            list.add(tapFieldBaseEvent);
+        } else {
+            Map<String, Object> data = jsonParser.fromJsonBytes(consumerRecord.value(), Map.class);
+            switch (MqOp.fromValue(mqOpReference.get())) {
+                case INSERT:
+                    list.add(new TapInsertRecordEvent().init().table(tableName).after(data).referenceTime(System.currentTimeMillis()));
+                    break;
+                case UPDATE:
+                    list.add(new TapUpdateRecordEvent().init().table(tableName).after(data).referenceTime(System.currentTimeMillis()));
+                    break;
+                case DELETE:
+                    list.add(new TapDeleteRecordEvent().init().table(tableName).before(data).referenceTime(System.currentTimeMillis()));
+                    break;
+            }
         }
     }
 
