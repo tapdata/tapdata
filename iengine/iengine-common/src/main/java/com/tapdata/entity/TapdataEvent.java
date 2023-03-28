@@ -39,6 +39,7 @@ public class TapdataEvent implements Serializable, Cloneable {
 
 	public TapdataEvent() {
 		this.nodeIds = new ArrayList<>();
+		this.type = SyncProgress.Type.NORMAL;
 	}
 
 	@Deprecated
