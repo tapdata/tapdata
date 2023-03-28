@@ -188,7 +188,6 @@ public class MongodbWriter {
 			final Document pkFilter = getPkFilter(pks, before);
 
 			writeModel = new DeleteOneModel<>(pkFilter);
-			collection.deleteOne(new Document(before));
 			deleted.incrementAndGet();
 		}
 
@@ -208,7 +207,10 @@ public class MongodbWriter {
 	private Document getPkFilter(Collection<String> pks, Map<String, Object> record) {
 		Document filter = new Document();
 		for (String pk : pks) {
-			filter.append(pk, record.get(pk));
+			Optional.ofNullable(record.get(pk)).map(v -> {
+				filter.append(pk, v);
+				return null;
+			});
 		}
 
 		return filter;
