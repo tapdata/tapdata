@@ -63,6 +63,7 @@ public class MysqlJdbcContext implements AutoCloseable {
 
 	public MysqlJdbcContext(TapConnectionContext tapConnectionContext) {
 		this.tapConnectionContext = tapConnectionContext;
+
 		this.jdbcUrl = jdbcUrl();
 		this.hikariDataSource = HikariConnection.getHikariDataSource(tapConnectionContext, jdbcUrl);
 	}
@@ -138,6 +139,8 @@ public class MysqlJdbcContext implements AutoCloseable {
 				properties.put("serverTimezone", serverTimezone);
 			} catch (Exception ignored) {
 			}
+		}else {
+			properties.put("serverTimezone", "GMT");
 		}
 		StringBuilder propertiesString = new StringBuilder();
 		properties.forEach((k, v) -> propertiesString.append("&").append(k).append("=").append(v));
