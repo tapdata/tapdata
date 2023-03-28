@@ -51,13 +51,8 @@ public class CodingConnector extends ConnectorBase {
 
     private Long lastTimePoint;
     private Set<String> lastTimeSplitIssueCode = new HashSet<>();//hash code list
-
-    public Set<String> lastTimeSplitIssueCode(){
-        return this.lastTimeSplitIssueCode;
-    }
-    public void lastTimeSplitIssueCode(Set<String> set){
-        this.lastTimeSplitIssueCode = set;
-    }
+    private Set<String> lastTimeSplitIterationCode = new HashSet<>();//hash code list
+    private Set<String> lastTimeProjectMembersCode = new HashSet<>();//hash code list
 
     private LastData lastCommandResult;
     private final AtomicReference<String> accessToken = new AtomicReference<>();
@@ -211,6 +206,7 @@ public class CodingConnector extends ConnectorBase {
             for (CodingLoader<Param> loader : loaders) {
                 loader.connectorInit(this);
                 loader.streamRead(tableList, offsetState, recordSize, consumer);
+                loader.connectorOut();
             }
         }
     }
@@ -325,5 +321,24 @@ public class CodingConnector extends ConnectorBase {
     public int tableCount(TapConnectionContext connectionContext) throws Throwable {
         List<SchemaStart> allSchemas = SchemaStart.getAllSchemas(connectionContext, accessToken);
         return allSchemas.size();
+    }
+
+    public Set<String> lastTimeSplitIssueCode(){
+        return this.lastTimeSplitIssueCode;
+    }
+    public void lastTimeSplitIssueCode(Set<String> set){
+        this.lastTimeSplitIssueCode = set;
+    }
+    public Set<String> lastTimeSplitIterationCode(){
+        return this.lastTimeSplitIterationCode;
+    }
+    public void lastTimeSplitIterationCode(Set<String> set){
+        this.lastTimeSplitIterationCode = set;
+    }
+    public Set<String> lastTimeProjectMembersCode(){
+        return this.lastTimeProjectMembersCode;
+    }
+    public void lastTimeProjectMembersCode(Set<String> set){
+        this.lastTimeProjectMembersCode = set;
     }
 }

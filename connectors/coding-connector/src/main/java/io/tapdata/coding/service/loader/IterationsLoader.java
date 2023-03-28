@@ -1,6 +1,7 @@
 package io.tapdata.coding.service.loader;
 
 import cn.hutool.json.JSONUtil;
+import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.IterationParam;
@@ -33,12 +34,20 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
     private int batchReadPageSize = 500;//coding page 1~500,
 
     private Long lastTimePoint;
-    private List<Integer> lastTimeSplitIterationCode = new ArrayList<>();//hash code list
+    private Set<String> lastTimeSplitIterationCode = new HashSet<>();//hash code list
     int tableSize;
 
+    @Override
+    public CodingStarter connectorInit(CodingConnector codingConnector) {
+        this.lastTimeSplitIterationCode.addAll(codingConnector.lastTimeSplitIterationCode());
+        return super.connectorInit(codingConnector);
+    }
 
-//    private Map<Integer,Integer> iterationHashMap = new HashMap<>();
-//    private Set<Integer> currentBatchIterationSet = new HashSet<>();
+    @Override
+    public CodingStarter connectorOut(){
+        this.codingConnector.lastTimeSplitIterationCode(this.lastTimeSplitIterationCode);
+        return super.connectorOut();
+    }
 
     public static IterationsLoader create(TapConnectionContext tapConnectionContext, AtomicReference<String> accessToken, Map<String, Object> queryMap) {
         return new IterationsLoader(tapConnectionContext, accessToken, queryMap);
@@ -137,12 +146,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
                 break;
             }
             List<Map> list = JSONUtil.toList(JSONUtil.parseArray(dataMap.get("List")), Map.class);
-
-
             matterList.addAll(list);
-            //if (null == responseMap || null == responseMap.get("Project")){
-            //    throw new Exception("Incorrect project name entered!");
-            //}
         } while (currentQueryCount < tableSize);
 
         return matterList;
@@ -208,8 +212,6 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
                 .builder("Limit", param.limit())
                 .builderIfNotAbsent("Assignee", param.assignee())
                 .builderIfNotAbsent("Status", param.status());
-//                .builderIfNotAbsent("EndDate",this.longToDateStr(param.endDate()))
-//                .builderIfNotAbsent("StartDate",this.longToDateStr(param.startDate()));
         return CodingHttp.create(
                 header.getEntity(),
                 body.getEntity(),
@@ -261,71 +263,6 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
         this.read(codingOffset, current, last, recordSize, consumer);
     }
 
-    /**
-     * {
-     * "CreatedAt": 1599027192000,
-     * "UpdatedAt": 1599027192000,
-     * "Name": "demo iteration",
-     * "Code": 8,
-     * "Goal": "",
-     * "StartAt": -28800000,
-     * "EndAt": -28800000,
-     * "Assignee": 0,
-     * "Creator": 1,
-     * "Deleter": 0,
-     * "Starter": 0,
-     * "Completer": 0,
-     * "Status": "WAIT_PROCESS",
-     * "WaitProcessCount": 0,
-     * "ProcessingCount": 0,
-     * "CompletedCount": 0,
-     * "CompletedPercent": 0
-     * }
-     * <p>
-     * <p>
-     * "iteration": {
-     * "title": "新建迭代",
-     * "goal": "啊啊啊",
-     * "html_url": "https://testhookgavin.coding.net/p/testissue/iterations/93",
-     * "project_id": 11021181,
-     * "code": 93,
-     * "creator": {
-     * "id": 8613060,
-     * "login": "cxRfjXWiUi",
-     * "avatar_url": "https://coding-net-production-static-ci.codehub.cn/3b111f6b-f929-4f16-838c-f29ff2c97eb6.jpg?imageView2/1/w/0/h/0",
-     * "url": "https://testhookgavin.coding.net/api/user/key/cxRfjXWiUi",
-     * "html_url": "https://testhookgavin.coding.net/u/cxRfjXWiUi",
-     * "name": "TestHookGavin",
-     * "name_pinyin": "TestHookGavin"
-     * },
-     * "assignee": {
-     * "id": 8613060,
-     * "login": "cxRfjXWiUi",
-     * "avatar_url": "https://coding-net-production-static-ci.codehub.cn/3b111f6b-f929-4f16-838c-f29ff2c97eb6.jpg?imageView2/1/w/0/h/0",
-     * "url": "https://testhookgavin.coding.net/api/user/key/cxRfjXWiUi",
-     * "html_url": "https://testhookgavin.coding.net/u/cxRfjXWiUi",
-     * "name": "TestHookGavin",
-     * "name_pinyin": "TestHookGavin"
-     * },
-     * "watchers": [
-     * {
-     * "id": 8613060,
-     * "login": "cxRfjXWiUi",
-     * "avatar_url": "https://coding-net-production-static-ci.codehub.cn/3b111f6b-f929-4f16-838c-f29ff2c97eb6.jpg?imageView2/1/w/0/h/0",
-     * "url": "",
-     * "html_url": "",
-     * "name": "TestHookGavin",
-     * "name_pinyin": "TestHookGavin"
-     * }
-     * ],
-     * "status": "WAIT_PROCESS",
-     * "plan_issue_number": 0,
-     * "start_at": 1668009600000,
-     * "end_at": 1668268799000,
-     * "created_at": 1665309831747,
-     * "updated_at": 1665309831747
-     * }
-     */
     @Override
     public List<TapEvent> rawDataCallbackFilterFunction(Map<String, Object> issueEventData) {
         CodingEvent issueEvent = this.getRowDataCallBackEvent(issueEventData);
@@ -367,17 +304,21 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
         return Collections.singletonList(event);
     }
 
-    private void read(Object offset,
+    private void read(Object offsetState,
                       Long readStartTime,
                       Long readEndTime,
                       int batchCount,
                       BiConsumer<List<TapEvent>, Object> consumer) {
-        int startPage = 0;
+        if (Checker.isEmpty(offsetState)) {
+            offsetState = new CodingOffset();
+        }
+        CodingOffset offset = (CodingOffset) offsetState;
+        long startPage = Optional.ofNullable(offset.getTableUpdateTimeMap().get(TABLE_NAME)).orElse(0L);
         Param param = IterationParam.create()
                 .startDate(readStartTime)
                 .endDate(readEndTime)
                 .limit(batchCount)
-                .offset(startPage);
+                .offset((int)startPage);
         CodingHttp codingHttp = this.codingHttp((IterationParam) param);
         List<TapEvent> events = new ArrayList<>();
         while (this.sync()) {
@@ -397,22 +338,24 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
                 List<Map<String, Object>> result = (List<Map<String, Object>>) listObj;
                 for (Map<String, Object> iteration : result) {
                     Long referenceTime = (Long) iteration.get("UpdatedAt");
+                    Long createdAt = (Long) iteration.get("CreatedAt");
                     Long currentTimePoint = referenceTime - referenceTime % (24 * 60 * 60 * 1000);//时间片段
-                    Integer iterationHash = MapUtil.create().hashCode(iteration);
-
+                    String iterationHash = this.key(iteration, createdAt, referenceTime);
                     if (!lastTimeSplitIterationCode.contains(iterationHash)) {
-                        events.add(TapSimplify.insertRecordEvent(iteration, TABLE_NAME).referenceTime(System.currentTimeMillis()));
-
-                        if (null == currentTimePoint || !currentTimePoint.equals(this.lastTimePoint)) {
+                        if (referenceTime > createdAt) {
+                            events.add(TapSimplify.updateDMLEvent(null, iteration, TABLE_NAME).referenceTime(System.currentTimeMillis()));
+                        }else {
+                            events.add(TapSimplify.insertRecordEvent(iteration, TABLE_NAME).referenceTime(System.currentTimeMillis()));
+                        }
+                        if (!currentTimePoint.equals(this.lastTimePoint)) {
                             this.lastTimePoint = currentTimePoint;
-                            lastTimeSplitIterationCode = new ArrayList<Integer>();
+                            lastTimeSplitIterationCode = new HashSet<>();
                         }
                         lastTimeSplitIterationCode.add(iterationHash);
                     }
                     if (Checker.isEmpty(offset)) {
                         offset = new CodingOffset();
                     }
-                    ((CodingOffset) offset).getTableUpdateTimeMap().put(TABLE_NAME, referenceTime);
                     if (events.size() == batchCount) {
                         consumer.accept(events, offset);
                         events = new ArrayList<>();
@@ -421,7 +364,8 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
                 if (result.size() < param.limit()) {
                     break;
                 }
-                startPage += param.limit();
+                startPage ++;
+                offset.getTableUpdateTimeMap().put(TABLE_NAME, startPage);
             } else {
                 break;
             }
@@ -430,5 +374,10 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
             this.connectorOut();
         }
         if (events.size() > 0) consumer.accept(events, offset);
+    }
+
+    public String key(Map<String, Object> iteration, Long createTime, Long updateTime) {
+        String code = String.valueOf(iteration.get("Code"));
+        return code + createTime + updateTime;
     }
 }

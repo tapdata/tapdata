@@ -70,7 +70,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
 
     public CodingStarter connectorOut(){
         this.codingConnector.lastTimeSplitIssueCode(this.lastTimeSplitIssueCode);
-        return this;
+        return super.connectorOut();
     }
     public IssuesLoader setTableSize(int tableSize) {
         this.tableSize = tableSize;
@@ -714,159 +714,6 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         consumer.accept(events, offset);
     }
 
-    public void readV3(
-            Long readEndTime,
-            int readSize,
-            Object offsetState,
-            BiConsumer<List<TapEvent>, Object> consumer) {
-        final int MAX_THREAD = 20;
-        Queue<Integer> queuePage = new ConcurrentLinkedQueue<>();
-        Queue<Map<String, Object>> queueItem = new ConcurrentLinkedQueue<>();
-        AtomicInteger itemThreadCount = new AtomicInteger(0);
-
-        String teamName = codingConfig.getTeamName();
-        List<TapEvent> events = new ArrayList<>();
-        HttpEntity<String, String> header = HttpEntity.create();
-        HttpEntity<String, Object> pageBody = HttpEntity.create();
-        this.defineHttpAttributesV2(readSize, header, pageBody, false);
-        CodingOffset offset = (CodingOffset) (Checker.isEmpty(offsetState) ? new CodingOffset() : offsetState);
-
-        AtomicInteger total = new AtomicInteger(-1);
-        //分页线程
-        Thread pageThread = new Thread(() -> {
-            int currentQueryCount = 0;
-            AtomicInteger queryIndex = new AtomicInteger(1);
-            /**
-             * start page ,and add page to queuePage;
-             * */
-            Object conditionsObj = pageBody.getEntity().get("Conditions");
-
-            Object referenceTimeObj = offset.getTableUpdateTimeMap().get(TABLE_NAME);
-            AtomicLong referenceTime = new AtomicLong(Checker.isEmpty(referenceTimeObj) ? null : (Long) referenceTimeObj);
-            List<Map<String, Object>> coditions = Checker.isEmpty(conditionsObj) ? io.tapdata.entity.simplify.TapSimplify.list() : (List<Map<String, Object>>) conditionsObj;
-            Entry sortEntry = entry("Value", null);//this.longToDateStr(readStartTime) + "_" + this.longToDateStr(readEndTime));
-            coditions.add(map(entry("Key", this.sortKey(false)), sortEntry));
-
-            if (Checker.isEmpty(pageBody.getEntity().get("Conditions"))) {
-                pageBody.getEntity().put("Conditions", coditions);
-            }
-            final Set<Integer>[] issuesLastPageCache = new HashSet[]{new HashSet<>()};
-            do {
-                synchronized (codingConnector) {
-                    if (!codingConnector.isAlive()) {
-                        break;
-                    }
-                }
-                sortEntry.setValue(this.longToDateStr(referenceTime.get()) + "_" + this.longToDateStr(readEndTime));
-                Map<String, Object> dataMap = this.getIssuePage(header.getEntity(), pageBody.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName));
-                if (null == dataMap || null == dataMap.get("List")) {
-                    TapLogger.error(TAG, "Paging result request failed, the Issue list is empty: page index = {}", queryIndex.get());
-                    throw new RuntimeException("Paging result request failed, the Issue list is empty: " + CodingStarter.OPEN_API_URL + "?Action=DescribeIssueListWithPage");
-                }
-                List<Map<String, Object>> resultList = (List<Map<String, Object>>) dataMap.get("List");
-                currentQueryCount = resultList.size();
-                batchReadPageSize = null != dataMap.get("PageSize") ? (int) (dataMap.get("PageSize")) : batchReadPageSize;
-                if (total.get() < 0) {
-                    total.set((int) (dataMap.get("TotalCount")));
-                }
-
-                Set<Integer> issuesCurrentPageCache = new HashSet<>();
-                queuePage.addAll(resultList.stream().map(obj -> {
-                    Object cretaeAtObj = obj.get("CreatedAt");
-                    Long time = Checker.isEmpty(cretaeAtObj) ? null : (Long) cretaeAtObj;
-                    referenceTime.set(time);
-                    //pageBody.builder("PageNumber", time.equals(referenceTime.get()) ? queryIndex.addAndGet(1) : queryIndex.addAndGet(1-queryIndex.get()));
-                    Integer issueCode = (Integer) (obj.get("Code"));
-                    if (!issuesLastPageCache[0].contains(issueCode)) {
-                        issuesCurrentPageCache.add(issueCode);
-                        return issueCode;
-                    }
-                    return null;
-                }).filter(Objects::nonNull).collect(Collectors.toList()));
-                issuesLastPageCache[0] = issuesCurrentPageCache;
-            } while (currentQueryCount >= batchReadPageSize);
-        }, "PAGE_THREAD");
-        pageThread.start();
-
-        //详情查询线程
-        while (true) {
-            synchronized (codingConnector) {
-                if (!codingConnector.isAlive()) {
-                    break;
-                }
-            }
-            if (!pageThread.isAlive() && queuePage.isEmpty()) break;
-            if (!queuePage.isEmpty()) {
-                int threadCount = total.get() / 500;
-                threadCount = Math.min(threadCount, MAX_THREAD);
-                threadCount = Math.max(threadCount, 1);
-                final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(threadCount + 1, run -> {
-                    Thread thread = new Thread(run);
-                    return thread;
-                });
-                for (int i = 0; i < threadCount; i++) {
-                    executor.schedule(() -> {
-                        itemThreadCount.getAndAdd(1);
-                        /**
-                         * start page ,and add page to queuePage;
-                         * */
-                        try {
-                            while ((!queuePage.isEmpty() || pageThread.isAlive())) {
-                                synchronized (codingConnector) {
-                                    if (!codingConnector.isAlive()) {
-                                        break;
-                                    }
-                                }
-                                Integer peekId = queuePage.poll();
-                                if (Checker.isEmpty(peekId)) continue;
-                                Map<String, Object> issueDetail = null;
-                                try {
-                                    issueDetail = this.get(IssueParam.create().issueCode(peekId));
-                                } catch (Exception e) {
-                                    TapLogger.warn(TAG, e.getMessage());
-                                    continue;
-                                }
-                                if (Checker.isEmpty(issueDetail)) continue;
-                                queueItem.add(issueDetail);
-                            }
-                        } catch (Exception e) {
-                            throw e;
-                        } finally {
-                            itemThreadCount.getAndAdd(-1);
-                        }
-                    }, 1, TimeUnit.SECONDS);
-                }
-                break;
-            }
-        }
-
-        //主线程生成事件
-        while ((!queuePage.isEmpty() || pageThread.isAlive() || itemThreadCount.get() > 0 || !queueItem.isEmpty())) {
-            synchronized (codingConnector) {
-                if (!codingConnector.isAlive()) {
-                    break;
-                }
-            }
-            /**
-             * 从queueItem取数据生成事件
-             * **/
-            if (queueItem.isEmpty()) {
-                continue;
-            }
-            Map<String, Object> issueDetail = queueItem.poll();
-            if (Checker.isEmptyCollection(issueDetail)) continue;
-
-            Long referenceTime = (Long) issueDetail.get("CreatedAt");
-            events.add(TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(Optional.ofNullable(referenceTime).orElse(System.currentTimeMillis())));
-            offset.getTableUpdateTimeMap().put(TABLE_NAME, referenceTime);
-            if (events.size() != readSize) continue;
-            consumer.accept(events, offset);
-            events = new ArrayList<>();
-        }
-        if (events.isEmpty()) return;
-        consumer.accept(events, offset);
-    }
-
     /**
      * 分页读取事项列表，并依次查询事项详情
      *
@@ -958,7 +805,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                     //如果在，说明上一次批量读取中以及读取了这条数据，本次不在需要读取 !currentTimePoint.equals(lastTimePoint) &&
                     if (!lastTimeSplitIssueCode.contains(issueDetailHash)) {
                         if(referenceTime > createdAt){
-                            events[0].add(TapSimplify.updateDMLEvent(null,issueDetail, TABLE_NAME).referenceTime(referenceTime));
+                            events[0].add(TapSimplify.updateDMLEvent(null, issueDetail, TABLE_NAME).referenceTime(referenceTime));
                         }else {
                             events[0].add(TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(createdAt));
                         }
