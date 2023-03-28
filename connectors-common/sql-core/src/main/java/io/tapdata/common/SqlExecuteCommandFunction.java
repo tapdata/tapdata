@@ -61,7 +61,7 @@ public class SqlExecuteCommandFunction {
         default:
           executeResultConsumer.accept(new ExecuteResult<>().error(new IllegalArgumentException("Not supported command: " + command)));
       }
-    } catch (Exception e) {
+    } catch (Throwable e) {
       executeResultConsumer.accept(new ExecuteResult<>().error(e));
     }
   }

@@ -33,7 +33,7 @@ public class DefaultSqlExecutor {
   private static final String MODE_IN_OUT = "in/out";
   private static final String MODE_RETURN = "return";
 
-  public void execute(String sql, TapSupplier<Connection> connectionSupplier, Consumer<Object> consumer, Supplier<Boolean> aliveSupplier, int batchSize) {
+  public void execute(String sql, TapSupplier<Connection> connectionSupplier, Consumer<Object> consumer, Supplier<Boolean> aliveSupplier, int batchSize) throws Throwable {
     try (Connection connection = connectionSupplier.get();
          Statement sqlStatement = connection.createStatement()) {
       boolean isQuery = sqlStatement.execute(sql);
@@ -57,9 +57,6 @@ public class DefaultSqlExecutor {
         consumer.accept((long) sqlStatement.getUpdateCount());
       }
       connection.commit();
-
-    } catch (Throwable e) {
-      consumer.accept(new ExecuteResult<>().error(e));
     }
   }
 
