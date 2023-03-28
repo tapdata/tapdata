@@ -5,6 +5,7 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.*;
+import com.mongodb.client.model.changestream.UpdateDescription;
 import io.tapdata.constant.AppType;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -23,10 +24,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.bson.Document;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -173,7 +171,15 @@ public class MongodbWriter {
 				options.upsert(false);
 			}
 			MongodbUtil.removeIdIfNeed(pks, after);
-			writeModel = new UpdateManyModel<>(pkFilter, new Document().append("$set", after), options);
+			Document u = new Document().append("$set", after);
+			Map<String, Object> info = recordEvent.getInfo();
+			if (info != null) {
+				Object unset = info.get("$unset");
+				if (unset != null) {
+					u.append("$unset", unset);
+				}
+			}
+			writeModel = new UpdateManyModel<>(pkFilter, u, options);
 			updated.incrementAndGet();
 		} else if (recordEvent instanceof TapDeleteRecordEvent && CollectionUtils.isNotEmpty(pks)) {
 

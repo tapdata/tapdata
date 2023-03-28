@@ -82,9 +82,10 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		if (offset instanceof Map) {
 			Map<String, Long> map = new HashMap<>();
 			for (Map.Entry<?, ?> entry : ((Map<?, ?>) offset).entrySet()) {
-				if (null != entry.getKey() && null != entry.getValue()) {
-					map.put(entry.getKey().toString(), Long.parseLong(entry.getValue().toString()));
+				if (!(entry.getValue() instanceof Long)) {
+					continue;
 				}
+				map.put(entry.getKey().toString(), Long.parseLong(((Long) entry.getValue()).toString()));
 			}
 			this.sequenceMap = new ConcurrentHashMap<>(map);
 		} else {
