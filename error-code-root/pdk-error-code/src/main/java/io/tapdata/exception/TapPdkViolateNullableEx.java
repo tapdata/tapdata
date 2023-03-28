@@ -1,5 +1,7 @@
 package io.tapdata.exception;
 
+import io.tapdata.PDKExCode_10;
+
 /**
  * @author samuel
  * @Description
@@ -11,8 +13,8 @@ public class TapPdkViolateNullableEx extends TapPdkBaseException {
 
 	private String targetFieldName;
 
-	public TapPdkViolateNullableEx(String code, String pdkId, Throwable cause, String targetFieldName) {
-		super(code, pdkId, cause);
+	public TapPdkViolateNullableEx(String pdkId, String targetFieldName, Throwable cause) {
+		super(PDKExCode_10.WRITE_VIOLATE_NULLABLE_CONSTRAINT, pdkId, cause);
 		this.targetFieldName = targetFieldName;
 	}
 

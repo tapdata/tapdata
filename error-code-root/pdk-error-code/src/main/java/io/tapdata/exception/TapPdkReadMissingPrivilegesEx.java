@@ -16,4 +16,9 @@ public class TapPdkReadMissingPrivilegesEx extends TapMissingPrivilegesEx {
 	public TapPdkReadMissingPrivilegesEx(String pdkId, Object operation, List<String> privileges, Throwable cause) {
 		super(PDKExCode_10.READ_MISSING_PRIVILEGES, pdkId, operation, privileges, cause);
 	}
+
+	@Override
+	protected String getType() {
+		return "read data";
+	}
 }

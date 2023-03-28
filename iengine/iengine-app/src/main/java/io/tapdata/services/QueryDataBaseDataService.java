@@ -6,6 +6,7 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
+import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
@@ -39,6 +40,10 @@ public class QueryDataBaseDataService {
 
     public static final int rows = 100;
 
+    private TapCodecsFilterManager originCodecsFilterManager;
+    public QueryDataBaseDataService() {
+        originCodecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
+    }
 
     public Map<String, Object> getData(String connectionId, String tableName) throws Throwable {
         String associateId = "queryRecords_" + connectionId + "_" + tableName + "_" + UUID.randomUUID();
@@ -74,7 +79,7 @@ public class QueryDataBaseDataService {
                     if (CollectionUtils.isNotEmpty(maps)) {
                         for (Map<String, Object> map : maps) {
                             codecsFilterManager.transformToTapValueMap(map, tapTable.getNameFieldMap());
-                            codecsFilterManager.transformFromTapValueMap(map);
+                            originCodecsFilterManager.transformFromTapValueMap(map);
                         }
                     }
                 } catch (Exception e1) {
