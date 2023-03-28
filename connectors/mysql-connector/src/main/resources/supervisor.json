@@ -1,0 +1,55 @@
+{
+  "info": {
+    "url": "https://www.cnblogs.com/Java-Script/p/11091330.html",
+    "tip": "To 'plugin-kit/tapdata-modules/class-supervisor/src/main/resources/demo-config.json' learn more classConfigurations."
+  },
+  "classConfigurations": [
+    {
+      "target": [{
+        "type": "path",
+        "path": "com.zaxxer.hikari.HikariDataSource"
+      }, {
+        "type": "path",
+        "path": "com.zaxxer.hikari.pool.ProxyStatement"
+      } ,{
+        "type": "path",
+        "path": "com.zaxxer.hikari.pool.ProxyConnection"
+      },{
+        "type": "path",
+        "path": "com.zaxxer.hikari.pool.HikariProxyResultSet"
+      }
+      ],
+      "method": [
+        {
+          "isCreate": true,
+          "createWith": "{super.close();}",
+          "name": "close",
+          "args:": [],
+          "returnType": "void",
+          "code": [
+            {
+              "type": "after",
+              "line": "((io.tapdata.supervisor.ClassLifeCircleMonitor)io.tapdata.entity.utils.InstanceFactory.instance(io.tapdata.supervisor.ClassLifeCircleMonitor.class)).instanceEnded($0);",
+              "isFinally": true,
+              "isRedundant": false
+            }
+          ]
+        }
+      ],
+      "constructor": [
+        {
+          "isCreate": false,
+          "args": "*",
+          "type": [ "void"],
+          "returnType": "void",
+          "code": [
+            {
+              "type": "before",
+              "line": "((io.tapdata.supervisor.ClassLifeCircleMonitor)io.tapdata.entity.utils.InstanceFactory.instance(io.tapdata.supervisor.ClassLifeCircleMonitor.class)).instanceStarted($0);"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

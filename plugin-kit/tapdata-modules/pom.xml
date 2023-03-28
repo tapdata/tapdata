@@ -19,6 +19,7 @@
 		<module>script-engines-module</module>
 		<module>async-tools-module</module>
 		<module>tapdata-storage-module</module>
+		<module>class-supervisor</module>
     </modules>
 
 	<properties>

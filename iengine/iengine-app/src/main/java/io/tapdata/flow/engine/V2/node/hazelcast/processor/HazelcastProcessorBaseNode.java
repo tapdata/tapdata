@@ -26,6 +26,7 @@ import java.util.function.BiConsumer;
  * @create 2022-07-12 17:10
  **/
 public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
+	private static final String TAG = HazelcastProcessorBaseNode.class.getSimpleName();
 	private final Logger logger = LogManager.getLogger(HazelcastProcessorBaseNode.class);
 
 	/**
@@ -77,35 +78,40 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 							}
 						}
 
-						// consider process is done
-						processedEventList.add(event);
-						if (null != processorNodeProcessAspect) {
-							AspectUtils.accept(processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), event);
-						}
+							// consider process is done
+							processedEventList.add(event);
+							if (null != processorNodeProcessAspect) {
+								AspectUtils.accept(processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), event);
+							}
 
+						});
 					});
-				});
-			} catch (Throwable throwable) {
-				throw new NodeException("Error occurred when process events in processor", throwable)
-						.context(getProcessorBaseContext())
-						.event(tapdataEvent.getTapEvent());
-			}
+				} catch (Throwable throwable) {
+					throw new NodeException("Error occurred when process events in processor", throwable)
+							.context(getProcessorBaseContext())
+							.event(tapdataEvent.getTapEvent());
+				}
 
-			if (CollectionUtils.isNotEmpty(processedEventList)) {
-				for (TapdataEvent event : processedEventList) {
-					while (isRunning()) {
-						if (offer(event)) {
-							break;
+				if (CollectionUtils.isNotEmpty(processedEventList)) {
+					for (TapdataEvent event : processedEventList) {
+						while (isRunning()) {
+							if (offer(event)) {
+								break;
+							}
 						}
 					}
 				}
+			} catch (Throwable throwable) {
+				errorHandle(throwable, throwable.getMessage());
+			} finally {
+				ThreadContext.clearAll();
 			}
-		} catch (Throwable throwable) {
-			errorHandle(throwable, throwable.getMessage());
-		} finally {
-			ThreadContext.clearAll();
-		}
-		return true;
+			return true;
+	}
+
+	@Override
+	protected void doClose() throws Exception{
+		super.doClose();
 	}
 
 	protected ProcessResult getProcessResult(String tableName) {
