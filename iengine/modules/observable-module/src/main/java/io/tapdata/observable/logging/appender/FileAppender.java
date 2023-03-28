@@ -26,7 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @date 2022/6/21 18:36
  **/
 public class FileAppender implements Appender<MonitoringLogsDto>, Serializable {
-	private final static String LOGGER_NAME_PREFIX = "observe-logger-name";
+	private final static String LOGGER_NAME_PREFIX = "job-log";
 	public static final String LOG_PATH = "logs" + File.separator + "jobs";
 	public static final String ONE_GB = "1G";
 
@@ -67,7 +67,7 @@ public class FileAppender implements Appender<MonitoringLogsDto>, Serializable {
 	public void addRollingFileAppender(String taskId) {
 		StringBuilder logsPath = new StringBuilder();
 		if (StringUtils.isNotBlank(workDir)) {
-			logsPath.append(workDir).append(LOG_PATH);
+			logsPath.append(workDir).append(File.separator).append(LOG_PATH);
 		} else {
 			logsPath.append(LOG_PATH);
 		}
@@ -87,8 +87,8 @@ public class FileAppender implements Appender<MonitoringLogsDto>, Serializable {
 
 		RollingFileAppender rollingFileAppender = RollingFileAppender.newBuilder()
 				.setName("rollingFileAppender-" + taskId)
-				.withFileName(logsPath + "/observe-log-" + taskId + ".log")
-				.withFilePattern(logsPath + "/observe-log-" + taskId + ".log.%d{yyyyMMdd}-%i.gz")
+				.withFileName(logsPath + File.separator + taskId + ".log")
+				.withFilePattern(logsPath + File.separator + taskId + ".log.%d{yyyyMMdd}-%i.gz")
 				.setLayout(patternLayout)
 				.withPolicy(compositeTriggeringPolicy)
 				.withStrategy(strategy)

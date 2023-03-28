@@ -115,6 +115,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.text.MessageFormat;
 import java.time.LocalDate;
@@ -123,7 +124,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -190,6 +190,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     private ExternalStorageService externalStorageService;
 
+
+    private CustomSqlService customSqlService;
     public TaskService(@NonNull TaskRepository repository) {
         super(repository, TaskDto.class, TaskEntity.class);
     }
@@ -208,7 +210,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         log.debug("The save task is complete and the task will be processed, task name = {}", taskDto.getName());
         DAG dag = taskDto.getDag();
 
-        if (StringUtils.isNotEmpty(taskDto.getCrontabExpression()) && taskDto.isCrontabExpressionFlag()) {
+        if (StringUtils.isNotEmpty(taskDto.getCrontabExpression()) && taskDto.getCrontabExpressionFlag() != null && taskDto.getCrontabExpressionFlag()) {
             try {
                 CronScheduleBuilder.cronSchedule(taskDto.getCrontabExpression());
             } catch (Exception e) {
@@ -227,6 +229,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         checkTaskName(taskDto.getName(), user, taskDto.getId());
+
+        customSqlService.checkCustomSqlTask(taskDto, user);
 
         boolean rename = false;
         if (taskDto.getId() != null) {
@@ -407,7 +411,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //根据id校验当前需要更新到任务是否存在
         TaskDto oldTaskDto = null;
 
-        if (StringUtils.isNotEmpty(taskDto.getCrontabExpression()) && taskDto.isCrontabExpressionFlag()) {
+        if (StringUtils.isNotEmpty(taskDto.getCrontabExpression()) && taskDto.getCrontabExpressionFlag() != null && taskDto.getCrontabExpressionFlag()) {
             try {
                 CronScheduleBuilder.cronSchedule(taskDto.getCrontabExpression());
             } catch (Exception e) {
@@ -436,6 +440,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.debug("task not found, need create new task, task id = {}", taskDto.getId());
             return create(taskDto, user);
         }
+
+
+        customSqlService.checkCustomSqlTask(taskDto, user);
 
         if (oldTaskDto.getEditVersion().equals(taskDto.getEditVersion())) {
             //throw new BizException("Task.OldVersion");
@@ -1849,7 +1856,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (CollectionUtils.isNotEmpty(taskDtos)) {
             openTaskNum = taskDtos.size();
             for (TaskDto taskDto : taskDtos) {
-                if (taskDto.isCanOpenInspect()) {
+                if (taskDto.getCanOpenInspect() != null && taskDto.getCanOpenInspect()) {
                     canTaskNum++;
                 }
 
@@ -2225,7 +2232,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         inputDataStatistics.sort(Comparator.comparing(DataFlowInsightStatisticsDto.DataStatisticInfo::getTime));
         DataFlowInsightStatisticsDto dataFlowInsightStatisticsDto = new DataFlowInsightStatisticsDto();
         dataFlowInsightStatisticsDto.setInputDataStatistics(inputDataStatistics);
-        Long count = inputDataStatistics.stream().map(DataFlowInsightStatisticsDto.DataStatisticInfo::getCount).reduce(0L, Long::sum);
+        BigInteger count = inputDataStatistics.stream().map(DataFlowInsightStatisticsDto.DataStatisticInfo::getCount).reduce(BigInteger.ZERO, BigInteger::add);
         dataFlowInsightStatisticsDto.setTotalInputDataCount(count);
         dataFlowInsightStatisticsDto.setGranularity("month");
         return dataFlowInsightStatisticsDto;
@@ -2281,9 +2288,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         List<TaskDto> allDto = findAllDto(query, userDetail);
         List<String> ids = allDto.stream().map(a->a.getId().toHexString()).collect(Collectors.toList());
 
-        Map<LocalDate, Long> allInputNumMap = new HashMap<>();
+        Map<LocalDate, BigInteger> allInputNumMap = new HashMap<>();
         for (LocalDate date : localDates) {
-            allInputNumMap.put(date, 0L);
+            allInputNumMap.put(date, BigInteger.ZERO);
         }
         List<Date> localDateTimes = new ArrayList<>();
         for (LocalDate localDate : localDates) {
@@ -2310,7 +2317,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
 
         taskMap.forEach((k1, v1) -> {
-            Map<LocalDate, Long> inputNumMap = new HashMap<>();
+            Map<LocalDate, BigInteger> inputNumMap = new HashMap<>();
             Map<LocalDate, List<Sample>> sampleMap = v1.stream().flatMap(m -> m.getSamples().stream()).collect(Collectors.groupingBy(s -> {
                 Date date = s.getDate();
                 return date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
@@ -2318,29 +2325,29 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             List<LocalDate> collect = sampleMap.keySet().stream().sorted().collect(Collectors.toList());
             for (LocalDate k : collect) {
                 List<Sample> v = sampleMap.get(k);
-                long value = 0;
+                BigInteger value = BigInteger.ZERO;
                 Optional<Sample> max = v.stream().max(Comparator.comparing(Sample::getDate));
                 if (max.isPresent()) {
                     Sample sample = max.get();
                     Map<String, Number> vs = sample.getVs();
-                    value += parseDataTotal(vs.get("inputInsertTotal"));
-                    value += parseDataTotal(vs.get("inputOthersTotal"));
-                    value += parseDataTotal(vs.get("inputDdlTotal"));
-                    value += parseDataTotal(vs.get("inputUpdateTotal"));
-                    value += parseDataTotal(vs.get("inputDeleteTotal"));
+                    value = value.add(parseDataTotal(vs.get("inputInsertTotal")));
+                    value = value.add(parseDataTotal(vs.get("inputOthersTotal")));
+                    value = value.add(parseDataTotal(vs.get("inputDdlTotal")));
+                    value = value.add(parseDataTotal(vs.get("inputUpdateTotal")));
+                    value = value.add(parseDataTotal(vs.get("inputDeleteTotal")));
                 }
                 LocalDate localDate = k.minusDays(1L);
-                Long lastNum = inputNumMap.get(localDate);
+                BigInteger lastNum = inputNumMap.get(localDate);
                 if (lastNum != null) {
-                    value = value - lastNum;
+                    value = value.subtract(lastNum);
                 }
                 inputNumMap.put(k, value);
             }
 
             inputNumMap.forEach((k2, v2) -> {
-                Long allNum = allInputNumMap.get(k2);
+                BigInteger allNum = allInputNumMap.get(k2);
                 if (allNum != null) {
-                    v2 = v2 + allNum;
+                    v2 = v2.add(allNum);
                 }
 
                 allInputNumMap.put(k2, v2);
@@ -2350,10 +2357,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         });
 
         List<DataFlowInsightStatisticsDto.DataStatisticInfo> inputDataStatistics = new ArrayList<>();
-        AtomicLong totalInputDataCount = new AtomicLong();
+        AtomicReference<BigInteger> totalInputDataCount = new AtomicReference<>(BigInteger.ZERO);
         allInputNumMap.forEach((k, v) -> {
             inputDataStatistics.add(new DataFlowInsightStatisticsDto.DataStatisticInfo(k.format(format), v));
-            totalInputDataCount.addAndGet(v);
+            totalInputDataCount.set(totalInputDataCount.get().add(v));
         });
 
         DataFlowInsightStatisticsDto dataFlowInsightStatisticsDto = new DataFlowInsightStatisticsDto();
@@ -2948,6 +2955,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     .unset("stopTime")
                     .unset("stopRetryTimes")
                     .unset("currentEventTimestamp")
+                    .unset("snapshotDoneAt")
                     .unset("scheduleDate")
                     .unset("stopedDate");
             String nameSuffix = RandomStringUtils.randomAlphanumeric(6);
@@ -3191,6 +3199,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     .agentId(dto.getAgentId())
                     .syncType(dto.getSyncType())
                     .userId(dto.getUserId())
+                    .taskDto(dto)
+                    .userDetail(userDetail)
                     .build();
             disruptorService.sendMessage(DisruptorTopicEnum.TASK_STATUS, info);
         }
@@ -3770,7 +3780,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         updateById(taskObjectId, update, userDetail);
     }
 
-    public Map<String, Long> chart6(UserDetail user) {
+    public Map<String, BigInteger> chart6(UserDetail user) {
         Criteria criteria = Criteria.where("is_deleted").ne(true).and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE);
         Query query = new Query(criteria);
         query.fields().include("_id");
@@ -3787,11 +3797,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             });
         }
 
-        long output = 0;
-        long input = 0;
-        long insert = 0;
-        long update = 0;
-        long delete = 0;
+        BigInteger output = BigInteger.ZERO;
+        BigInteger input = BigInteger.ZERO;
+        BigInteger insert = BigInteger.ZERO;
+        BigInteger update = BigInteger.ZERO;
+        BigInteger delete = BigInteger.ZERO;
 
         for (MeasurementEntity allMeasurement : allMeasurements) {
             if (allMeasurement == null) {
@@ -3803,38 +3813,38 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (max.isPresent()) {
                     Sample sample = max.get();
                     Map<String, Number> vs = sample.getVs();
-                    long inputInsertTotal = parseDataTotal(vs.get("inputInsertTotal"));
-                    long inputOthersTotal = parseDataTotal(vs.get("inputOthersTotal"));
-                    long inputDdlTotal = parseDataTotal(vs.get("inputDdlTotal"));
-                    long inputUpdateTotal = parseDataTotal(vs.get("inputUpdateTotal"));
-                    long inputDeleteTotal = parseDataTotal(vs.get("inputDeleteTotal"));
+                    BigInteger inputInsertTotal = parseDataTotal(vs.get("inputInsertTotal"));
+                    BigInteger inputOthersTotal = parseDataTotal(vs.get("inputOthersTotal"));
+                    BigInteger inputDdlTotal = parseDataTotal(vs.get("inputDdlTotal"));
+                    BigInteger inputUpdateTotal = parseDataTotal(vs.get("inputUpdateTotal"));
+                    BigInteger inputDeleteTotal = parseDataTotal(vs.get("inputDeleteTotal"));
 
-                    long outputInsertTotal = parseDataTotal(vs.get("outputInsertTotal"));
-                    long outputOthersTotal = parseDataTotal(vs.get("outputOthersTotal"));
-                    long outputDdlTotal = parseDataTotal(vs.get("outputDdlTotal"));
-                    long outputUpdateTotal = parseDataTotal(vs.get("outputUpdateTotal"));
-                    long outputDeleteTotal = parseDataTotal(vs.get("outputDeleteTotal"));
-                    output += outputInsertTotal;
-                    output += outputOthersTotal;
-                    output += outputDdlTotal;
-                    output += outputUpdateTotal;
-                    output += outputDeleteTotal;
+                    BigInteger outputInsertTotal = parseDataTotal(vs.get("outputInsertTotal"));
+                    BigInteger outputOthersTotal = parseDataTotal(vs.get("outputOthersTotal"));
+                    BigInteger outputDdlTotal = parseDataTotal(vs.get("outputDdlTotal"));
+                    BigInteger outputUpdateTotal = parseDataTotal(vs.get("outputUpdateTotal"));
+                    BigInteger outputDeleteTotal = parseDataTotal(vs.get("outputDeleteTotal"));
+                    output = output.add(outputInsertTotal);
+                    output = output.add(outputOthersTotal);
+                    output = output.add(outputDdlTotal);
+                    output = output.add(outputUpdateTotal);
+                    output = output.add(outputDeleteTotal);
 
-                    input += inputInsertTotal;
-                    input += inputOthersTotal;
-                    input += inputDdlTotal;
-                    input += inputUpdateTotal;
-                    input += inputDeleteTotal;
+                    input = input.add(inputInsertTotal);
+                    input = input.add(inputOthersTotal);
+                    input = input.add(inputDdlTotal);
+                    input = input.add(inputUpdateTotal);
+                    input = input.add(inputDeleteTotal);
 
-                    insert += inputInsertTotal;
-                    update += inputUpdateTotal;
-                    delete += inputDeleteTotal;
+                    insert = insert.add(inputInsertTotal);
+                    update = update.add(inputUpdateTotal);
+                    delete = delete.add(inputDeleteTotal);
 
                 }
             }
         }
 
-        Map<String, Long> chart6Map = new HashMap<>();
+        Map<String, BigInteger> chart6Map = new HashMap<>();
         chart6Map.put("outputTotal", output);
         chart6Map.put("inputTotal", input);
         chart6Map.put("insertedTotal", insert);
@@ -3844,14 +3854,21 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
 
-    private long parseDataTotal(Object param) {
+    private BigInteger parseDataTotal(Object param) {
         if (param == null) {
-            return 0L;
+            return BigInteger.ZERO;
         }
         if ("null".equals(param)) {
-            return 0L;
+            return BigInteger.ZERO;
         }
-        return Long.parseLong(String.valueOf(param));
+
+        if (param instanceof Long) {
+            return BigInteger.valueOf(Long.parseLong(String.valueOf(param)));
+        } else if (param instanceof BigInteger) {
+            return new BigInteger(String.valueOf(param));
+        }
+
+        return new BigInteger(String.valueOf(param));
     }
 
     public void stopTaskIfNeedByAgentId(String agentId, UserDetail userDetail) {
@@ -3952,15 +3969,21 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (CollectionUtils.isNotEmpty(samples)) {
             Sample sample = samples.get(0);
             Long cdcDelayTime = null;
+            Date lastData = null;
             if (sample.getVs().get("replicateLag") != null) {
                 cdcDelayTime = Long.valueOf(sample.getVs().get("replicateLag").toString());
             }
             tableStatusInfoDto.setCdcDelayTime(cdcDelayTime);
-            long LastDataChangeTime = (long) sample.getVs().get("currentEventTimestamp");
-            tableStatusInfoDto.setLastDataChangeTime(new Date(LastDataChangeTime));
+            long  LastDataChangeTime = sample.getVs().get("currentEventTimestamp").longValue();
+            if(LastDataChangeTime !=0){
+                lastData = new Date(LastDataChangeTime);
+            }
+            tableStatusInfoDto.setLastDataChangeTime(lastData);
         }
 
     }
+
+
 
     public boolean judgeTargetInspect(String connectionId, String tableName, UserDetail userDetail) {
         Criteria criteriaInspect = new Criteria();

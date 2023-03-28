@@ -54,7 +54,7 @@ public class AppenderFactory implements Serializable {
 	private final Logger logger = LogManager.getLogger(AppenderFactory.class);
 	public final static int BATCH_SIZE = 100;
 	private final static int BATCH_INTERVAL = 500;
-	private final static String APPEND_LOG_THREAD_NAME = "Observe-Logs-Appender";
+	private final static String APPEND_LOG_THREAD_NAME = "";
 	private final static String CACHE_QUEUE_DIR = "CacheObserveLogs";
 
 	private Long lastFlushAt;

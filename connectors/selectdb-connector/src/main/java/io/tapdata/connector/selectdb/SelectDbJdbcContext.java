@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
  **/
 public class SelectDbJdbcContext extends JdbcContext {
     private static final String TAG = SelectDbJdbcContext.class.getSimpleName();
+    protected static final String TEST_SELECTDB_VERSION = "show variables where Variable_name = 'version_comment';";
 
     public SelectDbJdbcContext(SelectDbConfig config, HikariDataSource hikariDataSource) {
         super(config, hikariDataSource);
@@ -51,14 +52,13 @@ public class SelectDbJdbcContext extends JdbcContext {
         }
     }
 
-    @Override
-    public String queryVersion() {
-        AtomicReference<String> version = new AtomicReference<>("");
-        try {
-            queryWithNext("show variables where variable_name = 'version'", resultSet -> version.set(resultSet.getString(1)));
-        } catch (Throwable e) {
-            throw new RuntimeException(e);
-        }
+    public String getSelectDBVersion() throws Throwable {
+        AtomicReference<String> version = new AtomicReference<>();
+        query(TEST_SELECTDB_VERSION, resultSet -> {
+            if (resultSet.next()) {
+                version.set(resultSet.getString(2));
+            }
+        });
         return version.get();
     }
 
@@ -82,7 +82,7 @@ public class SelectDbJdbcContext extends JdbcContext {
         List<String> tableList = TapSimplify.list();
         String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND table_name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
         try {
-            query(String.format(SDB_ALL_TABLE, getConfig().getDatabase(), getConfig().getSchema(), tableSql),
+            query(String.format(SDB_ALL_TABLE, getConfig().getDatabase(), tableSql),
                     resultSet -> {
                         while (resultSet.next()) {
                             String tableName = resultSet.getString("table_name");

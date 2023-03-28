@@ -466,7 +466,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 				TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.FINISH);
 //												MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.FINISH);
 				logger.info("Connector start stream read succeed: {}", connectorNode);
-				obsLogger.info("Connector start stream read succeed: {}", connectorNode);
+				obsLogger.info("Connector {} incremental start succeed, tables: {}, data change syncing", connectorNode.getTapNodeInfo().getTapNodeSpecification().getName(), tables);
 
 				//start pending partition reader workers as stream read is started.
 				streamReadStarted.compareAndSet(false, true);

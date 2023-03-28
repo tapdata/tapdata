@@ -12,6 +12,7 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.SourceCDCDelayAspect;
+import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TaskMilestoneFuncAspect;
@@ -36,6 +37,8 @@ import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
@@ -44,6 +47,7 @@ import io.tapdata.flow.engine.V2.sharecdc.ReaderType;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcReader;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
+import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcReaderExCode_13;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
@@ -280,7 +284,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																executeCommandFunction.execute(getConnectorNode().getConnectorContext(), TapExecuteCommand.create()
 																				.command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params")), executeResult -> {
 																	if (executeResult.getError() != null) {
-																		throw new NodeException("Execute error", executeResult.getError());
+																		throw new NodeException("Execute error: " + executeResult.getError().getMessage(), executeResult.getError());
+																	}
+																	if (executeResult.getResult() == null) {
+																		obsLogger.info("Execute result is null");
+																		return;
 																	}
 																	List<Map<String, Object>> maps = (List<Map<String, Object>>) executeResult.getResult();
 																	List<TapEvent> events = maps.stream().map(m -> TapSimplify.insertRecordEvent(m, tableName)).collect(Collectors.toList());
@@ -384,12 +392,20 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						if (e.isContinueWithNormalCdc() && !taskDto.getEnforceShareCdc()) {
 							// If share cdc is unavailable, and continue with normal cdc is true
 							obsLogger.info("Share cdc unusable, will use normal cdc mode, reason: " + e.getMessage());
-							doNormalCDC();
+							try {
+								doNormalCDC();
+							} catch (Exception ex) {
+								throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, e);
+							}
 						} else {
-							throw new NodeException("Read share cdc log failed: " + e.getMessage(), e).context(getProcessorBaseContext());
+							throw new TapCodeException(ShareCdcReaderExCode_13.UNKNOWN_ERROR, e);
 						}
 					} catch (Exception e) {
-						throw new NodeException("Read share cdc log failed: " + e.getMessage(), e).context(getProcessorBaseContext());
+						if (e instanceof TapCodeException) {
+							throw e;
+						} else {
+							throw new TapCodeException(ShareCdcReaderExCode_13.UNKNOWN_ERROR, e);
+						}
 					}
 				} else {
 					doNormalCDC();
@@ -502,19 +518,19 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						event.addInfo("eventId", UUID.randomUUID().toString());
 						return cdcDelayCalculation.filterAndCalcDelay(event, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
 					}).collect(Collectors.toList());
-		
+
 					if (streamReadFuncAspect != null) {
 						AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), events);
 					}
-		
+
 					List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj);
 					if (logger.isDebugEnabled()) {
 						logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
 					}
-		
+
 					if (streamReadFuncAspect != null)
 						AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
-		
+
 					if (CollectionUtils.isNotEmpty(tapdataEvents)) {
 						tapdataEvents.forEach(this::enqueue);
 						syncProgress.setStreamOffsetObj(offsetObj);
@@ -538,7 +554,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				if (streamReadFuncAspect != null)
 					executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAM_STARTED).streamStartedTime(System.currentTimeMillis()));
 				sendCdcStartedEvent();
-				obsLogger.info("Connector start stream read succeed: {}", connectorNode);
+				obsLogger.info("Connector {} incremental start succeed, tables: {}, data change syncing", connectorNode.getTapNodeInfo().getTapNodeSpecification().getName(), tables);
 			}
 		});
 	}

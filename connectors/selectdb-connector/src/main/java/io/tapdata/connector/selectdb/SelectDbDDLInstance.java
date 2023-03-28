@@ -60,7 +60,7 @@ public class SelectDbDDLInstance {
         if (tapField.getDataType() == null) {
             return null;
         }
-        fieldStrs.add(tapField.getName());
+        fieldStrs.add("`" + tapField.getName() + "`");
         fieldStrs.add(tapField.getDataType());
         Boolean nullable = tapField.getNullable();
         if (nullable != null && !nullable) {
@@ -70,7 +70,11 @@ public class SelectDbDDLInstance {
         }
         if (tapField.getDefaultValue() != null) {
             fieldStrs.add("DEFAULT");
-            fieldStrs.add(tapField.getDefaultValue().toString());
+            fieldStrs.add("\"" + tapField.getDefaultValue().toString() + "\"");
+        }
+        if (tapField.getComment() != null) {
+            fieldStrs.add("COMMENT");
+            fieldStrs.add(" '" + tapField.getComment() + "'");
         }
         return StringUtils.join(fieldStrs, " ");
     }

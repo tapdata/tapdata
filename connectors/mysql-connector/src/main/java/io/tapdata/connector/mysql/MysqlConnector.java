@@ -215,11 +215,13 @@ public class MysqlConnector extends ConnectorBase {
     protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
         RetryOptions retryOptions = RetryOptions.create();
         retryOptions.setNeedRetry(true);
-        retryOptions.beforeRetryMethod(()->{
+        retryOptions.beforeRetryMethod(() -> {
             try {
-                this.onStop(tapConnectionContext);
-                if (isAlive()) {
-                    this.onStart(tapConnectionContext);
+                synchronized (this) {
+                    this.onStop(tapConnectionContext);
+                    if (isAlive()) {
+                        this.onStart(tapConnectionContext);
+                    }
                 }
             } catch (Throwable ignore) {
             }

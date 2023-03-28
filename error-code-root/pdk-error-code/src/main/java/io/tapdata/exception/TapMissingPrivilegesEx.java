@@ -1,5 +1,7 @@
 package io.tapdata.exception;
 
+import org.apache.commons.lang3.StringUtils;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -13,11 +15,19 @@ public abstract class TapMissingPrivilegesEx extends TapPdkBaseException {
 
 	private Object operation;
 	private List<String> privileges;
+	private String preferCommand;
 
 	protected TapMissingPrivilegesEx(String code, String pdkId, Object operation, List<String> privileges, Throwable cause) {
 		super(code, pdkId, cause);
 		this.operation = operation;
 		this.privileges = privileges;
+	}
+
+	protected TapMissingPrivilegesEx(String code, String pdkId, Object operation, List<String> privileges, String preferCommand, Throwable cause) {
+		super(code, pdkId, cause);
+		this.operation = operation;
+		this.privileges = privileges;
+		this.preferCommand = preferCommand;
 	}
 
 	public Object getOperation() {
@@ -28,15 +38,17 @@ public abstract class TapMissingPrivilegesEx extends TapPdkBaseException {
 		return privileges;
 	}
 
+	abstract protected String getType();
+
 	@Override
 	public String getMessage() {
-		String prefix = "Missing privileges when doing some operation on %s. ";
-		if (getClass().equals(TapPdkReadMissingPrivilegesEx.class)) {
-			prefix = "Missing privileges when read data from %s. ";
-		} else if (getClass().equals(TapPdkWriteMissingPrivilegesEx.class)) {
-			prefix = "Missing privileges when write data to %s. ";
+		String message = "Missing privileges when %s on %s. \n - Executing operation: %s\n - Missing privileges: [%s]";
+		String type = StringUtils.isNotBlank(getType()) ? getType() : "do some operation";
+		message = String.format(message, type, pdkId, operation, String.join(", ", privileges));
+		if (StringUtils.isNotBlank(preferCommand)) {
+			message += "\n - Prefer command: " + preferCommand;
 		}
-		return String.format(prefix + "\n - Executing operation: %s\n - Missing privileges: [%s]", pdkId, operation, String.join(", ", privileges));
+		return message;
 	}
 
 	@Override
@@ -45,6 +57,7 @@ public abstract class TapMissingPrivilegesEx extends TapPdkBaseException {
 			TapMissingPrivilegesEx tapMissingPrivilegesEx = (TapMissingPrivilegesEx) tapRuntimeException;
 			tapMissingPrivilegesEx.operation = this.operation;
 			tapMissingPrivilegesEx.privileges = new ArrayList<>(this.privileges);
+			tapMissingPrivilegesEx.preferCommand = this.preferCommand;
 		}
 		super.clone(tapRuntimeException);
 	}

@@ -37,7 +37,7 @@ public class ScheduleService{
             return;
         }
         // 修改任务状态
-        if (StringUtils.isBlank(taskDto.getCrontabExpression()) || !taskDto.isCrontabExpressionFlag()) {
+        if (StringUtils.isBlank(taskDto.getCrontabExpression()) || taskDto.getCrontabExpressionFlag() == null || !taskDto.getCrontabExpressionFlag()) {
             log.info("Taskid :" + taskDto.getId() + " has not schedule");
             return;
         }

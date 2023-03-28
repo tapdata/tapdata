@@ -227,7 +227,7 @@ public class TaskEntity extends BaseEntity {
 
     private boolean needCreateRecord;
 
-    private boolean crontabExpressionFlag;
+    private Boolean crontabExpressionFlag;
 
     private String testTaskId;
     private String transformTaskId;

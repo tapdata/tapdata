@@ -324,6 +324,10 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 												return null;
 										}
 										tapBaseEvent = updateDMLEvent(null, after, collectionName);
+										Map<String, Boolean> unset = o.get("$unset", Map.class);
+										Map<String, Object> info = new HashMap<>();
+										info.put("$unset", unset);
+										tapBaseEvent.setInfo(info);
 								} else if ("i".equalsIgnoreCase(event.getString("op"))) {
 										tapBaseEvent = insertRecordEvent(o, collectionName);
 								} else if ("d".equalsIgnoreCase(event.getString("op"))) {

@@ -58,6 +58,8 @@ public class TapEventUtil {
 			op = OperationType.UPDATE.getOp();
 		} else if (tapEvent instanceof TapDeleteRecordEvent) {
 			op = OperationType.DELETE.getOp();
+		} else if (tapEvent instanceof TapDDLEvent) {
+			op = OperationType.DDL.getOp();
 		}
 		return op;
 	}

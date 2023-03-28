@@ -1,16 +1,21 @@
 package io.tapdata.flow.engine.V2.sharecdc.impl;
 
 import com.tapdata.constant.ClientOperatorUtil;
+import com.tapdata.entity.OperationType;
+import com.tapdata.entity.sharecdc.LogContent;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.common.SettingService;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcContext;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcReader;
+import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcReaderExCode_13;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -147,6 +152,53 @@ public class ShareCdcBaseReader implements ShareCdcReader {
 		}
 		if (CollectionUtils.isNotEmpty(missingField)) {
 			throw new IllegalArgumentException("Log data unusable, missing field: " + String.join(",", missingField) + ", document: " + document);
+		}
+	}
+
+	protected static void logContentVerify(LogContent logContent) {
+		if (null == logContent) {
+			throw new TapCodeException(ShareCdcReaderExCode_13.LOG_DATA_NULL);
+		}
+		String op = logContent.getOp();
+		if (StringUtils.isBlank(op)) {
+			throw new TapCodeException(ShareCdcReaderExCode_13.MISSING_OPERATION, "Log data: " + logContent);
+		}
+		if (StringUtils.isBlank(logContent.getOffsetString())) {
+			throw new TapCodeException(ShareCdcReaderExCode_13.MISSING_OFFSET, "Log data: " + logContent);
+		}
+		if (StringUtils.isBlank(logContent.getFromTable())) {
+			throw new TapCodeException(ShareCdcReaderExCode_13.MISSING_TABLE_NAME, "Log data: " + logContent);
+		}
+		OperationType operationType;
+		try {
+			operationType = OperationType.fromOp(logContent.getOp());
+		} catch (Exception e) {
+			throw new TapCodeException(ShareCdcReaderExCode_13.GET_OP_TYPE_ERROR, "Log content op: " + op, e);
+		}
+		if (null == operationType) {
+			throw new TapCodeException(ShareCdcReaderExCode_13.GET_OP_TYPE_ERROR, "Log content op: " + op);
+		}
+		switch (operationType) {
+			case INSERT:
+				if (MapUtils.isEmpty(logContent.getAfter())) {
+					throw new TapCodeException(ShareCdcReaderExCode_13.INSERT_MISSING_AFTER, "Log data: " + logContent);
+				}
+				break;
+			case UPDATE:
+				if (MapUtils.isEmpty(logContent.getAfter())) {
+					throw new TapCodeException(ShareCdcReaderExCode_13.UPDATE_MISSING_AFTER, "Log data: " + logContent);
+				}
+				break;
+			case DELETE:
+				if (MapUtils.isEmpty(logContent.getBefore())) {
+					throw new TapCodeException(ShareCdcReaderExCode_13.DELETE_MISSING_BEFORE, "Log data: " + logContent);
+				}
+				break;
+			case DDL:
+				if (null == logContent.getTapDDLEvent()) {
+					throw new TapCodeException(ShareCdcReaderExCode_13.DDL_MISSING_BYTES, "Log data: " + logContent);
+				}
+				break;
 		}
 	}
 

@@ -16,4 +16,9 @@ public class TapPdkWriteMissingPrivilegesEx extends TapMissingPrivilegesEx {
 	public TapPdkWriteMissingPrivilegesEx(String pdkId, Object operation, List<String> privileges, Throwable cause) {
 		super(PDKExCode_10.WRITE_MISSING_PRIVILEGES, pdkId, operation, privileges, cause);
 	}
+
+	@Override
+	protected String getType() {
+		return "write data";
+	}
 }

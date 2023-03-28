@@ -19,18 +19,6 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.graalvm.js</groupId>
-            <artifactId>js</artifactId>
-            <version>21.3.0</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.graalvm.js</groupId>
-            <artifactId>js-scriptengine</artifactId>
-            <version>21.3.0</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>connector-core</artifactId>
         </dependency>
@@ -55,7 +43,7 @@
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>RELEASE</version>
+            <version>4.13.2</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -89,8 +77,8 @@
         <dependency>
             <groupId>com.alibaba</groupId>
             <artifactId>fastjson</artifactId>
-            <version>1.2.76</version>
-            <scope>compile</scope>
+            <version>1.2.83</version>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
     <build>

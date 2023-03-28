@@ -17,13 +17,16 @@ import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.construct.ConstructIterator;
 import io.tapdata.construct.HazelcastConstruct;
 import io.tapdata.construct.constructImpl.ConstructRingBuffer;
+import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
-import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.value.TapStringValue;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcContext;
@@ -33,6 +36,7 @@ import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.pdk.core.api.impl.serialize.ObjectSerializableImplV2;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.collections4.CollectionUtils;
@@ -70,12 +74,12 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  * @create 2022-02-17 15:13
  **/
 public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializable {
-
 	private static final long serialVersionUID = -8010918045236535239L;
 	private static final int DEFAULT_THREAD_NUMBER = 8;
 	private static final String THREAD_NAME_PREFIX = "Share-CDC-Task-Reader-";
 	private static final String LOG_PREFIX = "[Share CDC Task HZ Reader] - ";
 	public static final String TAG = ShareCdcPDKTaskReader.class.getSimpleName();
+	private final static ObjectSerializable OBJECT_SERIALIZABLE = InstanceFactory.instance(ObjectSerializable.class);
 	public static final int QUEUE_CAPACITY = 100;
 	private ExecutorService readThreadPool;
 	private TaskDto logCollectorTaskDto;
@@ -512,28 +516,15 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			return null;
 		}
 		LogContent logContent = LogContent.valueOf(document);
-		logDocumentVerify(document);
-
-		if (OperationType.isDml(logContent.getOp())) {
-			if (null == logContent.getBefore() && null == logContent.getAfter()) {
-				throw new IllegalArgumentException("Log data unusable, op: " + logContent.getOp() + ", before and after are both null");
-			}
-			if (StringUtils.isBlank(logContent.getFromTable())) {
-				throw new IllegalArgumentException("Log data unusable, op:" + logContent.getOp() + ", from table is null");
-			}
-		}
+		logContentVerify(logContent);
 
 		TapEvent tapEvent = null;
 		OperationType operationType = OperationType.fromOp(logContent.getOp());
 		switch (operationType) {
 			case INSERT:
 				tapEvent = new TapInsertRecordEvent().init();
-				if (MapUtils.isNotEmpty(logContent.getAfter())) {
-					handleData(logContent.getAfter());
-					((TapInsertRecordEvent) tapEvent).setAfter(logContent.getAfter());
-				} else {
-					throw new RuntimeException("Insert event must have after data: " + logContent);
-				}
+				handleData(logContent.getAfter());
+				((TapInsertRecordEvent) tapEvent).setAfter(logContent.getAfter());
 				break;
 			case UPDATE:
 				tapEvent = new TapUpdateRecordEvent().init();
@@ -544,11 +535,14 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				break;
 			case DELETE:
 				tapEvent = new TapDeleteRecordEvent().init();
-				if (MapUtils.isNotEmpty(logContent.getBefore())) {
-					handleData(logContent.getBefore());
-					((TapDeleteRecordEvent) tapEvent).setBefore(logContent.getBefore());
-				} else {
-					throw new RuntimeException("Delete event must have before data: " + logContent);
+				handleData(logContent.getBefore());
+				((TapDeleteRecordEvent) tapEvent).setBefore(logContent.getBefore());
+				break;
+			case DDL:
+				Object tapDDLEventObj = OBJECT_SERIALIZABLE.toObject(logContent.getTapDDLEvent(),
+						new ObjectSerializable.ToObjectOptions().classLoader(logContent.getClass().getClassLoader()));
+				if (tapDDLEventObj instanceof TapDDLEvent) {
+					tapEvent = (TapDDLEvent) tapDDLEventObj;
 				}
 				break;
 			default:
@@ -558,8 +552,8 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		if (null == tapEvent) {
 			return null;
 		}
-		((TapRecordEvent) tapEvent).setReferenceTime(logContent.getTimestamp());
-		((TapRecordEvent) tapEvent).setTableId(logContent.getFromTable());
+		((TapBaseEvent) tapEvent).setReferenceTime(logContent.getTimestamp());
+		((TapBaseEvent) tapEvent).setTableId(logContent.getFromTable());
 		Object offsetObj;
 		try {
 			offsetObj = PdkUtil.decodeOffset(logContent.getOffsetString(), ((ShareCdcTaskPdkContext) shareCdcContext).getConnectorNode());
