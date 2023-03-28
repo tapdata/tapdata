@@ -116,7 +116,7 @@ public class MetadataInstancesDto extends BaseDto {
     private String sourceType= SourceTypeEnum.SOURCE.name();
 
     private ObjectId oldId;
-    private List<ResultItem> resultItems;
+    private boolean hasTransformEx;
     private Map<String, PossibleDataTypes> findPossibleDataTypes;
     private boolean hasUpdateField;
 

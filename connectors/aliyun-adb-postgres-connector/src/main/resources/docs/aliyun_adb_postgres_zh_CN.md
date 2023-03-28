@@ -1,8 +1,8 @@
 ## **连接配置帮助**
-### **1. POSTGRESQL安装说明**
+### **1. AnalyticDB PostgreSQL安装说明**
 请遵循以下说明以确保在 Tapdata 中成功添加和使用PostgreSQL数据库。
 ### **2. 支持版本**
-PostgreSQL 9.4、9.5、9.6、10.x、11.x、12版本
+AnalyticDB PostgreSQL 6.0+
 ### **3. CDC原理和支持**
 #### **3.1 CDC原理**
 PostgreSQL 的逻辑解码功能最早出现在9.4版本中，它是一种机制，允许提取提交到事务日志中的更改，并通过输出插件以用户友好的方式处理这些更改。

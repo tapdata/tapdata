@@ -37,7 +37,7 @@ public class TapRunScriptEngine implements ScriptEngine, Invocable, Closeable {
         EngineType jsEngineEnum = EngineType.getByEngineName(jsEngineName);
         ScriptEngine scriptEngine;
 
-        TapLogger.warn("TAG", "current context class loader {}", Thread.currentThread().getContextClassLoader());
+//        TapLogger.warn("TAG", "current context class loader {}", Thread.currentThread().getContextClassLoader());
         if (jsEngineEnum == EngineType.GRAALVM_JS) {
             scriptEngine = GraalJSScriptEngine
                     .create(Engine.newBuilder()

@@ -112,6 +112,12 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                     List<String> capList = dto.getCapabilities().stream().map(Capability::getId)
                             .filter(id -> Lists.of("stream_read_function", "batch_read_function").contains(id)).collect(Collectors.toList());
 
+                    if (Lists.of("Tidb", "Doris").contains(connectionDto.getDatabase_type()) &&
+                            connectionDto.getConfig().containsKey("enableIncrement") &&
+                            !(Boolean) connectionDto.getConfig().get("enableIncrement")) {
+                        capList.remove("stream_read_function");
+                    }
+
                     boolean streamReadNotMatch = taskDto.getType().contains("cdc") && !capList.contains("stream_read_function");
                     boolean batchReadNotMatch = taskDto.getType().contains("initial_sync") && !capList.contains("batch_read_function");
 
