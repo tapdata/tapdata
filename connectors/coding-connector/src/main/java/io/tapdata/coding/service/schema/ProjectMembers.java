@@ -5,6 +5,7 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Array;
@@ -16,6 +17,9 @@ public class ProjectMembers implements SchemaStart {
     @Override
     public Boolean use() {
         return use;
+    }
+
+    public ProjectMembers(AtomicReference<String> accessToken){
     }
 
     @Override

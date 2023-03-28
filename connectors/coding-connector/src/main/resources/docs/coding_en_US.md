@@ -3,27 +3,12 @@
 #### **1.1 Fill in the team name**
 It can also be obtained intuitively in your coding link, such as：https://{teamName}.coding.net/,Then his team name is teamName
 #### **1.2 Obtain the access token token from the coding management page**
-- The token must be completed, which is a sufficient and necessary precondition。
-- How to get the token:
-```
-    Go to Coding to enter personal account settings ->
-    Find the access token in the left menu ->
-    Click New Token -> 
-    Enter the token description, select the expiration time, select the corresponding permission, and click Save -> 
-    Copy the generated token and go to the connection page.
-```
-- Go to get your access token: https://tapdata.coding.net/user/account/setting/tokens
-#### **1.3 Select connection mode**
-- You only need to consider what structure of data you need:
-##### **1.3.1 CSV mode (Not supported yet)**
-- It is a simple key value pair mode, similar to the data storage structure in MySQL. It seems to be a flat format for data in normal document mode。
-##### **1.3.1 Document Mode**
-- It is the original state of the data, which is basically similar to our JSON data format.  
-#### **1.4 Select Incremental Method**
+After filling in your team name, directly click the authorization button, jump to the authorization button, and click the authorization button to automatically return to the page
+#### **1.3 Select Incremental Method**
 - At this moment, there are web hooks supported by Coding, and there are also incremental methods of regular polling on time.
 - Of course, if you choose the WebHook mode that saves processor performance, you need to go to Coding to configure the web hook (click the HookButton and you can see a line of concise URLs. Here, you need to copy the URL input box that goes to Coding and pastes to the WebHook configuration page.)
-##### **1.4.1 polled**
-##### **1.4.1 WebHook**
+##### **1.3.1 polled**
+##### **1.3.1 WebHook**
 - In this mode, you need to configure ServiceHook before creating tasks:
 - The process of configuring web hooks is as follows:
 ```
