@@ -1,12 +1,13 @@
 package io.tapdata.entity.conversion;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * @author aplomb
  */
-public class PossibleDataTypes {
+public class PossibleDataTypes implements Serializable {
 	private List<String> dataTypes;
 	public PossibleDataTypes dataType(String dataType) {
 		if(dataTypes == null)
