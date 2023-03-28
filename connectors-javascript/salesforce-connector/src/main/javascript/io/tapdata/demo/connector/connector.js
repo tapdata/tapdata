@@ -4,7 +4,6 @@ var afterData;
 var clientInfo = {
     "client_id": "3MVG9n_HvETGhr3Brv_TokDiPcVsfa0TubCszRjXdeqnY0z7cBUmaW0I9eTZtnz0oIC4zMLOxcUaCiEMpwr57",
     "client_secret": "3ACD5F530CE58AFA0A5224D2CD04A0A97D2495D60575E4592B00348D8D0C55BA",
-    "_endpoint": "https://163com-8a-dev-ed.develop.my.salesforce.com",
     "url": "https://login.salesforce.com",
     "version": "57.0"
 }
@@ -734,10 +733,10 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
         let uiApi;
         try {
             if (isFirst) {
-            clientInfo.Authorization = connectionConfig.access_token;
+                clientInfo.Authorization = connectionConfig.access_token;
                 invoke = invoker.invoke(tableName, clientInfo);
-        } else {
-            clientInfo.after = afterData;
+            } else {
+                clientInfo.after = afterData;
                 invoke = invoker.invoke(tableName + " by after", clientInfo);
             }
         } catch (e) {
@@ -798,14 +797,14 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
                                 "eventType": "i",
                                 "tableName": tableNameList[index],
                                 "afterData": sendData(nod),
-                                "referenceTime":  Number(new Date())
+                                "referenceTime": Number(new Date())
                             };
                         } else {
                             arr[j] = {
                                 "eventType": "u",
                                 "tableName": tableNameList[index],
                                 "afterData": sendData(nod),
-                                "referenceTime":  Number(new Date())
+                                "referenceTime": Number(new Date())
                             };
                         }
                         batchStart = Date.parse(new Date());
@@ -829,6 +828,8 @@ function commandCallback(connectionConfig, nodeConfig, commandInfo) {
         if (getToken.result) {
             connectionConfig.access_token = getToken.result.access_token;
             connectionConfig.refresh_token1 = getToken.result.refresh_token;
+            connectionConfig.Authorization = getToken.result.access_token;
+            connectionConfig._endpoint = getToken.result.instance_url;
         }
         return connectionConfig;
     }
@@ -856,7 +857,6 @@ function updateToken(connectionConfig, nodeConfig, apiResponse) {
 
 function connectionTest(connectionConfig) {
     let invoke;
-    clientInfo.Authorization = connectionConfig.access_token;
     try {
         invoke = invoker.invoke('Opportunity', clientInfo);
     } catch (e) {
@@ -876,16 +876,33 @@ function connectionTest(connectionConfig) {
                 "result": "Pass"
             },
             {
-                "test": " Check the account read database permission.",
+                "test": " Check that the account uses Salesforce API permissions.",
                 "code": 1,
                 "result": "Pass"
             }
         ];
-    } else {
+    } else if (invoke.httpCode === 401 || (invoke.result && invoke.result.errorCode === "INVALID_SESSION_ID")) {
         return [{
-            "test": " Check the account read database permission.",
+            "test": " Check the Authorization.",
             "code": -1,
-            "result": "Not pass"
+            "result": "The access token has expired."
+        }];
+    } else if (invoke.httpCode === 403 || (invoke.result && invoke.result.errorCode === "FUNCTIONALITY_NOT_ENABLED")) {
+        return [{
+            "test": " Check the Authorization.",
+            "code": 1,
+            "result": "Pass"
+        },
+        {
+            "test": " Check that the account uses Salesforce API permissions.",
+            "code": -1,
+            "result": "This feature is not currently enabled for this user. Please refer to this link for relevant documentation: https://help.salesforce.com/s/articleView?id=000385436&type=1 "
+        }];
+    }  else {
+        return [{
+            "test": " Check the Authorization.",
+            "code": -1,
+            "result": "Please regrant the token."
         }];
     }
 }

@@ -9,3 +9,9 @@
 點擊“授予令牌”按鈕後您將跳轉到Salesforce登錄界面，輸入賬號密碼登陸成功後將跳轉回本頁面，即可認證成功。
 
 授予令牌成功後您可以進行連接測試和保存連接。
+
+### 3、其他細節
+
+如果您使用的Salesforce版本不是：企業版、無線版、開發者版、專業版的其中之一版本，將無法在Tapdata使用Salesforce同步數據。
+詳情請參考Salesforce相關文檔：
+https://help.salesforce.com/s/articleView?id=000385436&type=1

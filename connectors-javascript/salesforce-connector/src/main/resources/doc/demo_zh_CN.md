@@ -9,3 +9,8 @@
 点击“授予令牌”按钮后您将跳转到Salesforce登录界面，输入账号密码登陆成功后将跳转回本页面，即可认证成功。
 授予令牌成功后您可以进行连接测试和保存连接。
 
+### 3、其他细节
+
+如果您使用的Salesforce版本不是：企业版、无线版、开发者版、专业版的其中之一版本，将无法在Tapdata使用Salesforce同步数据。
+详情请参考Salesforce相关文档：
+https://help.salesforce.com/s/articleView?id=000385436&type=1
