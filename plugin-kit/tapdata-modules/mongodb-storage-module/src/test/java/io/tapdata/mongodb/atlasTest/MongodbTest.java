@@ -1,6 +1,5 @@
-package io.tapdata.mongodb.test;
+package io.tapdata.mongodb.atlasTest;
 
-import com.google.common.collect.MapDifference;
 import com.google.common.collect.Sets;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.modules.api.net.entity.NodeHealth;

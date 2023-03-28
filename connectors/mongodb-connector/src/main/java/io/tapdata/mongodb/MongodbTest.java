@@ -22,10 +22,10 @@ import static io.tapdata.base.ConnectorBase.testItem;
 
 public class MongodbTest extends CommonDbTest {
 
-    private final MongodbConfig mongodbConfig;
-    private final MongoClient mongoClient;
+    protected final MongodbConfig mongodbConfig;
+    protected final MongoClient mongoClient;
 
-    private static final Set<String> READ_PRIVILEGE_ACTIONS = new HashSet<>();
+    protected static final Set<String> READ_PRIVILEGE_ACTIONS = new HashSet<>();
     private static final Set<String> READ_WRITE_PRIVILEGE_ACTIONS = new HashSet<>();
 
     private static final String CONFIG_DATABASE_SHARDS_COLLECTION = "config.shards";
@@ -188,7 +188,7 @@ public class MongodbTest extends CommonDbTest {
     }
 
 
-    private boolean validateReadOrWriteDatabase(Document connectionStatus, String database, Set<String> expectActions) {
+    protected boolean validateReadOrWriteDatabase(Document connectionStatus, String database, Set<String> expectActions) {
         Document nodeAuthInfo = connectionStatus.get("authInfo", Document.class);
         List authUserPrivileges = nodeAuthInfo.get("authenticatedUserPrivileges", List.class);
 
@@ -210,7 +210,7 @@ public class MongodbTest extends CommonDbTest {
     }
 
 
-    private Map<String, Set<String>> adaptResourcePrivilegesMap(List<Document> authUserPrivileges) {
+    protected Map<String, Set<String>> adaptResourcePrivilegesMap(List<Document> authUserPrivileges) {
         Map<String, Set<String>> resourcePrivilegesMap = new HashMap<>();
         if (CollectionUtils.isNotEmpty(authUserPrivileges)) {
             for (Document authUserPrivilege : authUserPrivileges) {
@@ -234,7 +234,7 @@ public class MongodbTest extends CommonDbTest {
         return resourcePrivilegesMap;
     }
 
-    private boolean isOpenAuth() {
+    protected boolean isOpenAuth() {
         String databaseUri = mongodbConfig.getUri();
         String username = mongodbConfig.getUser();
         String password = mongodbConfig.getPassword();
@@ -254,7 +254,7 @@ public class MongodbTest extends CommonDbTest {
     }
 
 
-    private boolean validateMongodb(Document connectionStatus) {
+    protected boolean validateMongodb(Document connectionStatus) {
         Document nodeAuthInfo = connectionStatus.get("authInfo", Document.class);
         List authUserPrivileges = nodeAuthInfo.get("authenticatedUserPrivileges", List.class);
 
@@ -298,7 +298,7 @@ public class MongodbTest extends CommonDbTest {
     }
 
 
-    private boolean validateAuthDB(Document connectionStatus) {
+    protected boolean validateAuthDB(Document connectionStatus) {
         Document nodeAuthInfo = connectionStatus.get("authInfo", Document.class);
         List nodeAuthenticatedUsers = nodeAuthInfo.get("authenticatedUsers", List.class);
         if (CollectionUtils.isNotEmpty(nodeAuthenticatedUsers)) {
