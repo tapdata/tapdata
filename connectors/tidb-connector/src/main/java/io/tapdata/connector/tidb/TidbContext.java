@@ -326,24 +326,24 @@ public class TidbContext extends JdbcContext {
         }
         return sb.append(":").append(split[1]).toString();
     }
+
     public DataMap getTableInfo(String tableName) throws Throwable {
-        DataMap  dataMap = DataMap.create();
-        List  list  = new ArrayList();
+        DataMap dataMap = DataMap.create();
+        List list = new ArrayList();
         list.add("TABLE_ROWS");
         list.add("DATA_LENGTH");
         try {
-            query(String.format(GET_TABLE_INFO_SQL, getConfig().getDatabase(), tableName),resultSet -> {
+            query(String.format(GET_TABLE_INFO_SQL, getConfig().getDatabase(), tableName), resultSet -> {
                 while (resultSet.next()) {
                     dataMap.putAll(DbKit.getRowFromResultSet(resultSet, list));
                 }
             });
 
-        }catch (Throwable e) {
+        } catch (Throwable e) {
             TapLogger.error(TAG, "Execute getTableInfo failed, error: " + e.getMessage(), e);
         }
         return dataMap;
     }
-
 
 
     public void queryWithStream(String sql, ResultSetConsumer resultSetConsumer) throws Throwable {
@@ -369,11 +369,6 @@ public class TidbContext extends JdbcContext {
             throw new Exception("Execute steaming query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
         }
     }
-
-    public static void main(String[] args) {
-        System.out.println(formatTimezone("07:59:59"));
-    }
-
 
     public TapConnectionContext getTapConnectionContext() {
         return tapConnectionContext;

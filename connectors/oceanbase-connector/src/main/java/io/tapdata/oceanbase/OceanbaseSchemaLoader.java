@@ -19,7 +19,6 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
@@ -66,7 +65,7 @@ public class OceanbaseSchemaLoader {
         this.tapConnectionContext = oceanbaseJdbcContext.getTapConnectionContext();
     }
 
-    public void discoverSchema(List<String> filterTable, Consumer<List<TapTable>> consumer, int tableSize) throws Throwable {
+    public void discoverSchema(List<String> filterTable, Consumer<List<TapTable>> consumer, int tableSize) {
         if (null == consumer) {
             throw new IllegalArgumentException("Consumer cannot be null");
         }
@@ -118,7 +117,7 @@ public class OceanbaseSchemaLoader {
             });
 
         } catch (Exception e) {
-            throw new Exception(e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -129,7 +128,7 @@ public class OceanbaseSchemaLoader {
         if (CollectionUtils.isEmpty(columnList)) {
             return;
         }
-        columnList.forEach( dataMap -> {
+        columnList.forEach(dataMap -> {
             String columnName = dataMap.getString("COLUMN_NAME");
             String columnType = dataMap.getString("COLUMN_TYPE");
             TapField field = TapSimplify.field(columnName, columnType);

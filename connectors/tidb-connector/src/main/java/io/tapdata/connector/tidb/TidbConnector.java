@@ -3,8 +3,6 @@ package io.tapdata.connector.tidb;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import io.tapdata.common.CommonDbConnector;
-import io.tapdata.common.DataSourcePool;
-import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.kafka.config.KafkaConfig;
 import io.tapdata.connector.mysql.SqlMaker;
@@ -44,6 +42,7 @@ import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
+import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -317,7 +316,7 @@ public class TidbConnector extends CommonDbConnector {
         return tidbSqlMaker.addColumn(tapConnectorContext, tapNewFieldEvent);
     }
 
-    protected void createIndex(TapConnectorContext tapConnectorContext, TapTable tapTable, TapCreateIndexEvent tapCreateIndexEvent) throws Throwable {
+    protected void createIndex(TapConnectorContext tapConnectorContext, TapTable tapTable, TapCreateIndexEvent tapCreateIndexEvent) {
         List<TapIndex> indexList = tapCreateIndexEvent.getIndexList();
         SqlMaker sqlMaker = new TidbSqlMaker();
         for (TapIndex tapIndex : indexList) {
@@ -341,7 +340,7 @@ public class TidbConnector extends CommonDbConnector {
     }
 
     @Override
-    public int tableCount(TapConnectionContext connectionContext) throws Throwable {
+    public int tableCount(TapConnectionContext connectionContext) throws SQLException {
         DataMap connectionConfig = connectionContext.getConnectionConfig();
         String database = connectionConfig.getString("database");
         AtomicInteger count = new AtomicInteger(0);
@@ -378,7 +377,7 @@ public class TidbConnector extends CommonDbConnector {
         }
     }
 
-    private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws Throwable {
+    protected void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
         try {
             if (tidbContext.queryAllTables(Collections.singletonList(tapClearTableEvent.getTableId())).size() == 1) {
                 tidbContext.clearTable(tapClearTableEvent.getTableId());
@@ -389,7 +388,7 @@ public class TidbConnector extends CommonDbConnector {
         }
     }
 
-    private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) throws Throwable {
+    protected void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
         try {
             tidbContext.dropTable(tapDropTableEvent.getTableId());
 
@@ -399,7 +398,7 @@ public class TidbConnector extends CommonDbConnector {
         }
     }
 
-    private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws Throwable {
+    protected CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
         CreateTableOptions createTableOptions = new CreateTableOptions();
         try {
             TapTable tapTable = tapCreateTableEvent.getTable();
@@ -415,7 +414,7 @@ public class TidbConnector extends CommonDbConnector {
                 }
             }
         } catch (Throwable t) {
-            throw new Exception("Create table failed, message: " + t.getMessage(), t);
+            throw new RuntimeException("Create table failed, message: " + t.getMessage(), t);
         }
         createTableOptions.setTableExists(false);
         return createTableOptions;
@@ -428,7 +427,7 @@ public class TidbConnector extends CommonDbConnector {
 
 
     @Override
-    public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
+    public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) {
         List<DataMap> tableList = tidbContext.queryAllTables(tables);
         List<List<DataMap>> tableLists = Lists.partition(tableList, tableSize);
         TableFieldTypesGenerator instance = InstanceFactory.instance(TableFieldTypesGenerator.class);
@@ -516,6 +515,7 @@ public class TidbConnector extends CommonDbConnector {
             consumer.accept(filterResults);
         }
     }
+
     private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
         DataMap dataMap = tidbContext.getTableInfo(tableName);
         TableInfo tableInfo = TableInfo.create();

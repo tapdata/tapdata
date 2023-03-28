@@ -189,7 +189,7 @@ public class OceanbaseJdbcContext extends JdbcContext {
         return exists.get();
     }
 
-    public void dropTable(String tableName) throws Throwable {
+    public void dropTable(String tableName) throws SQLException {
         String database = getDatabase();
         String sql = String.format(DROP_TABLE_IF_EXISTS_SQL, database, tableName);
         execute(sql);

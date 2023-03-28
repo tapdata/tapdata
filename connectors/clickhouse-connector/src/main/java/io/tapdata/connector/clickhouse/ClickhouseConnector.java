@@ -1,7 +1,6 @@
 package io.tapdata.connector.clickhouse;
 
 import com.google.common.collect.Lists;
-import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonDbConnector;
 import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.SqlExecuteCommandFunction;
@@ -81,7 +80,7 @@ public class ClickhouseConnector extends CommonDbConnector {
 
     }
 
-    private List<String> dropField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+    protected List<String> dropField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapDropFieldEvent)) {
             return null;
         }
@@ -89,7 +88,7 @@ public class ClickhouseConnector extends CommonDbConnector {
         return ddlSqlMaker.dropColumn(tapConnectorContext, tapDropFieldEvent);
     }
 
-    private List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+    protected List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapNewFieldEvent)) {
             return null;
         }
@@ -97,7 +96,7 @@ public class ClickhouseConnector extends CommonDbConnector {
         return ddlSqlMaker.addColumn(tapConnectorContext, tapNewFieldEvent);
     }
 
-    private List<String> alterFieldName(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+    protected List<String> alterFieldName(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapAlterFieldNameEvent)) {
             return null;
         }
@@ -105,7 +104,7 @@ public class ClickhouseConnector extends CommonDbConnector {
         return ddlSqlMaker.alterColumnName(tapConnectorContext, tapAlterFieldNameEvent);
     }
 
-    private List<String> alterFieldAttr(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+    protected List<String> alterFieldAttr(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapAlterFieldAttributesEvent)) {
             return null;
         }
@@ -128,7 +127,7 @@ public class ClickhouseConnector extends CommonDbConnector {
     }
 
     @Override
-    public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
+    public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) {
         List<DataMap> tableList = clickhouseJdbcContext.queryAllTables(tables);
         List<List<DataMap>> tableLists = Lists.partition(tableList, tableSize);
         try {
@@ -291,7 +290,7 @@ public class ClickhouseConnector extends CommonDbConnector {
         }
     }
 
-    private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
+    protected void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
         List<String> sqls = fieldDDLHandlers.handle(tapFieldBaseEvent, tapConnectorContext);
         if (null == sqls) {
             return;
@@ -320,7 +319,7 @@ public class ClickhouseConnector extends CommonDbConnector {
     }
 
     //需要改写成ck的创建索引方式
-    private void createIndex(TapConnectorContext connectorContext, TapTable tapTable, TapCreateIndexEvent createIndexEvent) {
+    protected void createIndex(TapConnectorContext connectorContext, TapTable tapTable, TapCreateIndexEvent createIndexEvent) {
         try {
             List<String> sqls = TapSimplify.list();
             if (EmptyKit.isNotEmpty(createIndexEvent.getIndexList())) {
@@ -401,14 +400,14 @@ public class ClickhouseConnector extends CommonDbConnector {
 
     }
 
-    private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
+    protected long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
         AtomicLong count = new AtomicLong(0);
         String sql = "SELECT COUNT(1) FROM " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapTable.getId());
         clickhouseJdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
         return count.get();
     }
 
-    private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
+    protected void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
         try {
             if (clickhouseJdbcContext.queryAllTables(Collections.singletonList(tapClearTableEvent.getTableId())).size() == 1) {
                 clickhouseJdbcContext.execute("TRUNCATE TABLE " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapClearTableEvent.getTableId()));
@@ -419,7 +418,7 @@ public class ClickhouseConnector extends CommonDbConnector {
         }
     }
 
-    private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
+    protected void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
         try {
             if (clickhouseJdbcContext.queryAllTables(Collections.singletonList(tapDropTableEvent.getTableId())).size() == 1) {
                 clickhouseJdbcContext.execute("DROP TABLE IF EXISTS " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapDropTableEvent.getTableId()));
@@ -444,7 +443,7 @@ public class ClickhouseConnector extends CommonDbConnector {
     }
 
     @Override
-    public int tableCount(TapConnectionContext connectionContext) throws Throwable {
+    public int tableCount(TapConnectionContext connectionContext) {
         return clickhouseJdbcContext.queryAllTables(null).size();
     }
 
@@ -455,7 +454,6 @@ public class ClickhouseConnector extends CommonDbConnector {
         tableInfo.setStorageSize(Long.valueOf(dataMap.getString("AVG_ROW_LEN")));
         return tableInfo;
     }
-
 
 
 }

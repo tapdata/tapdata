@@ -145,7 +145,7 @@ public class MysqlReader implements Closeable {
 								mysqlSnapshotOffset.getOffset().put(columnName, value);
 							}
 						} catch (Exception e) {
-							throw new Exception("Read column value failed, row: " + row.get() + ", column name: " + columnName + ", data: " + data + "; Error: " + e.getMessage(), e);
+							throw new RuntimeException("Read column value failed, row: " + row.get() + ", column name: " + columnName + ", data: " + data + "; Error: " + e.getMessage(), e);
 						}
 					}
 					consumer.accept(data, mysqlSnapshotOffset);
@@ -190,7 +190,7 @@ public class MysqlReader implements Closeable {
 							}
 							data.put(columnName, value);
 						} catch (Exception e) {
-							throw new Exception("Read column value failed, row: " + row.get() + ", column name: " + columnName + ", data: " + data + "; Error: " + e.getMessage(), e);
+							throw new RuntimeException("Read column value failed, row: " + row.get() + ", column name: " + columnName + ", data: " + data + "; Error: " + e.getMessage(), e);
 						}
 					}
 					consumer.accept(data);

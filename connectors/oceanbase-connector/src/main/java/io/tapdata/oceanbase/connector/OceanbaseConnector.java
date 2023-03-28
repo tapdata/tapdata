@@ -54,7 +54,7 @@ public class OceanbaseConnector extends CommonDbConnector {
      * @param consumer
      */
     @Override
-    public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
+    public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws SQLException {
         OceanbaseSchemaLoader oceanbaseSchemaLoader = new OceanbaseSchemaLoader(oceanbaseJdbcContext);
         oceanbaseSchemaLoader.discoverSchema(tables, consumer, tableSize);
     }
@@ -198,7 +198,7 @@ public class OceanbaseConnector extends CommonDbConnector {
      * @param filters          Multple fitlers, need return multiple filter results
      * @param listConsumer     tell incremental engine the filter results according to filters
      */
-    protected void queryByFilter(TapConnectorContext connectorContext, List<TapFilter> filters, TapTable tapTable, Consumer<List<FilterResult>> listConsumer) throws Throwable {
+    protected void queryByFilter(TapConnectorContext connectorContext, List<TapFilter> filters, TapTable tapTable, Consumer<List<FilterResult>> listConsumer) {
         //Filter is exactly match.
         //If query by the filter, no value is in database, please still create a FilterResult with null value in it. So that incremental engine can understand the filter has no value.
         this.oceanbaseJdbcContext.queryByFilter(connectorContext, filters, tapTable, listConsumer);
