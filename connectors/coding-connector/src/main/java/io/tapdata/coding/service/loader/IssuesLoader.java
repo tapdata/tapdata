@@ -252,7 +252,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
 
     @Override
     public Long streamReadTime() {
-        return 5 * 60 * 1000l;
+        return 2 * 60 * 1000L;
     }
 
     @Override

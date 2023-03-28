@@ -35,10 +35,7 @@ import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -145,8 +142,8 @@ public class CodingConnector extends ConnectorBase {
     }
 
     private CommandResult handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
-        tapConnectionContext.setConnectionConfig(new DataMap(){{putAll(commandInfo.getConnectionConfig());}});
-        tapConnectionContext.setNodeConfig(new DataMap(){{putAll(commandInfo.getNodeConfig());}});
+        tapConnectionContext.setConnectionConfig(new DataMap(){{Optional.ofNullable(commandInfo.getConnectionConfig()).ifPresent(this::putAll);}});
+        tapConnectionContext.setNodeConfig(new DataMap(){{Optional.ofNullable(commandInfo.getNodeConfig()).ifPresent(this::putAll); }});
         IssuesLoader loader = new IssuesLoader(tapConnectionContext, accessToken);
         CodingHttp.interceptor = (http, request, hasIgnore) -> {
             if (hasIgnore) return request;
