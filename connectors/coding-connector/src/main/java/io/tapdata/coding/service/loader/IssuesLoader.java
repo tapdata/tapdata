@@ -2,6 +2,7 @@ package io.tapdata.coding.service.loader;
 
 import cn.hutool.http.HttpRequest;
 import cn.hutool.json.JSONArray;
+import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.IssueParam;
@@ -52,7 +53,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
     private final long streamExecutionGap = 5000;//util: ms
     private int batchReadPageSize = 500;//coding page 1~500,
     private Long lastTimePoint;
-    private List<Integer> lastTimeSplitIssueCode = new ArrayList<>();//hash code list
+    private Set<String> lastTimeSplitIssueCode = new HashSet<>();//hash code list
     int tableSize;
     private AtomicBoolean stopRead = new AtomicBoolean(false);
 
@@ -61,6 +62,16 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         this.codingConfig = this.veryContextConfigAndNodeConfig();
     }
 
+    public CodingStarter connectorInit(CodingConnector codingConnector){
+        super.connectorInit(codingConnector);
+        this.lastTimeSplitIssueCode.addAll(codingConnector.lastTimeSplitIssueCode());
+        return this;
+    }
+
+    public CodingStarter connectorOut(){
+        this.codingConnector.lastTimeSplitIssueCode(this.lastTimeSplitIssueCode);
+        return this;
+    }
     public IssuesLoader setTableSize(int tableSize) {
         this.tableSize = tableSize;
         return this;
@@ -678,8 +689,9 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             if (Checker.isEmptyCollection(issueDetail)) continue;
 
             Long referenceTime = (Long) issueDetail.get("CreatedAt");
+            Long updateAt = (Long) issueDetail.get("UpdatedAt");
             Long currentTimePoint = referenceTime - referenceTime % (24 * 60 * 60 * 1000);//时间片段
-            Integer issueDetailHash = MapUtil.create().hashCode(issueDetail);
+            String issueDetailHash = this.key(issueDetail, referenceTime, updateAt);
             //issueDetial的更新时间字段值是否属于当前时间片段，并且issueDetail的hashcode是否在上一次批量读取同一时间段内
             //如果不在，说明时全新增加或修改的数据，需要在本次读取这条数据
             //如果在，说明上一次批量读取中以及读取了这条数据，本次不在需要读取 !currentTimePoint.equals(lastTimePoint) &&
@@ -689,7 +701,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 //eventCount.getAndAdd(1);
                 if (!currentTimePoint.equals(lastTimePoint)) {
                     lastTimePoint = currentTimePoint;
-                    lastTimeSplitIssueCode = new ArrayList<Integer>();
+                    lastTimeSplitIssueCode = new HashSet<>();
                 }
                 lastTimeSplitIssueCode.add(issueDetailHash);
             }
@@ -940,11 +952,11 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                     Long referenceTime = (Long) issueDetail.get("UpdatedAt");
                     Long createdAt = (Long) issueDetail.get("CreatedAt");
                     Long currentTimePoint = referenceTime - referenceTime % (24 * 60 * 60 * 1000);//时间片段
-                    Integer issueDetialHash = MapUtil.create().hashCode(issueDetail);
-                    //issueDetial的更新时间字段值是否属于当前时间片段，并且issueDiteal的hashcode是否在上一次批量读取同一时间段内
+                    String issueDetailHash = this.key(issueDetail, createdAt, referenceTime);
+                    //issueDetailHash的更新时间字段值是否属于当前时间片段，并且issueDetailHash的hashcode是否在上一次批量读取同一时间段内
                     //如果不在，说明时全新增加或修改的数据，需要在本次读取这条数据
                     //如果在，说明上一次批量读取中以及读取了这条数据，本次不在需要读取 !currentTimePoint.equals(lastTimePoint) &&
-                    if (!lastTimeSplitIssueCode.contains(issueDetialHash)) {
+                    if (!lastTimeSplitIssueCode.contains(issueDetailHash)) {
                         if(referenceTime > createdAt){
                             events[0].add(TapSimplify.updateDMLEvent(null,issueDetail, TABLE_NAME).referenceTime(referenceTime));
                         }else {
@@ -953,9 +965,9 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                         totalCount += 1;
                         if (!currentTimePoint.equals(this.lastTimePoint)) {
                             this.lastTimePoint = currentTimePoint;
-                            lastTimeSplitIssueCode = new ArrayList<>();
+                            lastTimeSplitIssueCode = new HashSet<>();
                         }
-                        lastTimeSplitIssueCode.add(issueDetialHash);
+                        lastTimeSplitIssueCode.add(issueDetailHash);
                     }
                     if (Checker.isEmpty(offsetState)) {
                         offsetState = new CodingOffset();
@@ -982,5 +994,12 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                     readEnd - readStart,
                     totalCount);
         }
+    }
+
+    public String key(Map<String, Object> issue, Long createTime, Long updateTime){
+        String code = String.valueOf(issue.get("Code"));
+        String projectName = String.valueOf(issue.get("ProjectName"));
+        String teamName = String.valueOf(issue.get("TeamName"));
+        return code + projectName + teamName + createTime + updateTime;
     }
 }

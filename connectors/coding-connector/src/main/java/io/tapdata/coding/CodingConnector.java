@@ -50,7 +50,14 @@ public class CodingConnector extends ConnectorBase {
     private int batchReadPageSize = 500;//coding page 1~500,
 
     private Long lastTimePoint;
-    private List<Integer> lastTimeSplitIssueCode = new ArrayList<>();//hash code list
+    private Set<String> lastTimeSplitIssueCode = new HashSet<>();//hash code list
+
+    public Set<String> lastTimeSplitIssueCode(){
+        return this.lastTimeSplitIssueCode;
+    }
+    public void lastTimeSplitIssueCode(Set<String> set){
+        this.lastTimeSplitIssueCode = set;
+    }
 
     private LastData lastCommandResult;
     private final AtomicReference<String> accessToken = new AtomicReference<>();
