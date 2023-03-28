@@ -27,12 +27,14 @@ public class DocumentMode implements ConnectionMode {
     TapConnectionContext connectionContext;
     IssuesLoader loader;
     ContextConfig contextConfig;
+    AtomicReference<String> accessToken;
 
     @Override
     public ConnectionMode config(TapConnectionContext connectionContext, AtomicReference<String> accessToken) {
         this.connectionContext = connectionContext;
         this.loader = IssuesLoader.create(connectionContext, accessToken);
         this.contextConfig = loader.veryContextConfigAndNodeConfig();
+        this.accessToken = accessToken;
         return this;
     }
 
@@ -90,7 +92,7 @@ public class DocumentMode implements ConnectionMode {
          );
          }
          */
-        List<SchemaStart> schemaStart = SchemaStart.getAllSchemas(connectionContext);
+        List<SchemaStart> schemaStart = SchemaStart.getAllSchemas(connectionContext, accessToken);
         if (tables == null || tables.isEmpty()) {
             List<TapTable> tapTables = list();
             schemaStart.forEach(schema -> {
@@ -107,7 +109,7 @@ public class DocumentMode implements ConnectionMode {
     @Override
     public Map<String, Object> attributeAssignment(Map<String, Object> stringObjectMap) {
         Object code = stringObjectMap.get("Code");
-        HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", contextConfig.getToken());
+        HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", accessToken.get());
         String projectName = contextConfig.getProjectName();
         HttpEntity<String, Object> issueDetialBody = HttpEntity.create()
                 .builder("Action", "DescribeIssue")

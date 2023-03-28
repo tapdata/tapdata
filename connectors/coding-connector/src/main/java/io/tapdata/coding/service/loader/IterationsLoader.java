@@ -101,8 +101,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
     private List<Map> queryAllIteration(int tableSize) throws Exception {
         DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
         String projectName = connectionConfig.getString("projectName");
-        String token = connectionConfig.getString("token");
-        token = this.tokenSetter(token);
+        String token = this.accessToken().get();
         String teamName = connectionConfig.getString("teamName");
 
         int currentQueryCount = 0, queryIndex = 0;
@@ -128,7 +127,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
                     queryIndex -= 1;
                     break;
                 } else {
-                    throw new Exception("discover error");
+                    throw new Exception("discover error. " + Optional.ofNullable(responseMap.get(CodingHttp.ERROR_KEY)).orElse(""));
                 }
             }
 
@@ -163,7 +162,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
         Map<String, Object> resultMap = http.post();
         Object response = resultMap.get("Response");
         if (null == response) {
-            throw new CoreException("can not get iteration list, the 'Response' is empty.");
+            throw new CoreException("can not get iteration list, the 'Response' is empty. " + Optional.ofNullable(resultMap.get(CodingHttp.ERROR_KEY)).orElse(""));
         }
         Map<String, Object> responseMap = (Map<String, Object>) response;
         Object dataObj = responseMap.get("data");
@@ -201,7 +200,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
         final int maxLimit = 500;//@TODO 最大分页数
         if (param.limit() > maxLimit) param.limit(maxLimit);
         HttpEntity<String, String> header = HttpEntity.create()
-                .builder("Authorization", contextConfig.getToken());
+                .builder("Authorization", this.accessToken().get());
         HttpEntity<String, Object> body = HttpEntity.create()
                 .builderIfNotAbsent("Action", "DescribeIterationList")
                 .builder("ProjectName", contextConfig.getProjectName())
@@ -342,7 +341,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
         }
         Map<String, Object> iteration = (Map<String, Object>) iterationObj;
 
-        Map<String, Object> iterationMap = SchemaStart.getSchemaByName(TABLE_NAME).autoSchema(iteration);
+        Map<String, Object> iterationMap = SchemaStart.getSchemaByName(TABLE_NAME, accessToken()).autoSchema(iteration);
 
         Object referenceTimeObj = iterationMap.get("UpdatedAt");
         Long referenceTime = Checker.isEmpty(referenceTimeObj) ? System.currentTimeMillis() : (Long) referenceTimeObj;

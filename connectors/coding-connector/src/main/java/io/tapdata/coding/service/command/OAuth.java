@@ -78,6 +78,7 @@ public class OAuth implements Command {
             connectionConfig.put("token",dataResult.get("access_token"));
             connectionConfig.put("refreshToken",dataResult.get("refresh_token"));
             connectionConfig.put("teamName",dataResult.get("team"));
+            connectionConfig.put("isOAuth",true);
             return new CommandResult().result(connectionConfig);
         }catch (Exception e){
             return new CommandResult().result(Collections.EMPTY_MAP);

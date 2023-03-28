@@ -33,9 +33,9 @@ public class TestCoding extends CodingStarter {
     public TestItem testItemConnection() {
         try {
             DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
-            String token = connectionConfig.getString("token");
+
             CodingHttp.create(
-                    HttpEntity.create().builder("Authorization", this.tokenSetter(token)).getEntity(),
+                    HttpEntity.create().builder("Authorization", this.accessToken().get()).getEntity(),
                     HttpEntity.create().builder("Action", "DescribeCodingCurrentUser").getEntity(),
                     String.format(OPEN_API_URL, connectionConfig.get("teamName"))
             ).post();
@@ -65,7 +65,7 @@ public class TestCoding extends CodingStarter {
 //              throw new Exception("Incorrect token entered!");
 //          }
             try {
-                EnabledSchemas.getAllSchemas(tapConnectionContext, null);
+                EnabledSchemas.getAllSchemas(tapConnectionContext, null, accessToken());
             } catch (Exception e) {
                 return testItem(CodingTestItem.TOKEN_TEST.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN, e.getMessage());
             }
@@ -79,12 +79,12 @@ public class TestCoding extends CodingStarter {
     public TestItem testProject() {
         try {
             DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
-            String token = connectionConfig.getString("token");
+            String projectName = String.valueOf(connectionConfig.get("projectName"));
             Map<String, Object> resultMap = CodingHttp.create(
-                    HttpEntity.create().builder("Authorization", this.tokenSetter(token)).getEntity(),
+                    HttpEntity.create().builder("Authorization", this.accessToken().get()).getEntity(),
                     HttpEntity.create()
                             .builder("Action", "DescribeProjectByName")
-                            .builder("ProjectName", connectionConfig.get("projectName"))
+                            .builder("ProjectName", projectName)
                             .getEntity(),
                     String.format(OPEN_API_URL, connectionConfig.get("teamName"))
             ).post();
@@ -92,7 +92,7 @@ public class TestCoding extends CodingStarter {
             Map<String, Object> responseMap =
                     null != resultMap.get("Response") ? JSONUtil.parseObj(resultMap.get("Response")) : null;
             if (null == responseMap || null == responseMap.get("Project")) {
-                throw new Exception("Incorrect project name entered!");
+                throw new Exception("Incorrect project entered which name is "+ projectName +".");
             }
             return testItem(CodingTestItem.PROJECT_TEST.getContent(), TestItem.RESULT_SUCCESSFULLY);
         } catch (Exception e) {

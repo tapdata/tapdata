@@ -16,6 +16,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
@@ -42,7 +43,7 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
     public List<Map<String, Object>> userProjectList(Integer userId) {
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
         HttpEntity<String, String> header = HttpEntity.create()
-                .builder("Authorization", contextConfig.getToken());
+                .builder("Authorization", this.accessToken().get());
         HttpEntity<String, Object> body = HttpEntity.create()
                 .builderIfNotAbsent("Action", "DescribeUserProjects")
                 .builder("userId", userId);
@@ -55,7 +56,7 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
         }
         Object responseObj = post.get("Response");
         if (Checker.isEmptyCollection(responseObj))
-            throw new RuntimeException(FormatUtils.format("Response can not be parsed"));
+            throw new RuntimeException(String.format("Response can not be parsed. %s.", Optional.ofNullable(post.get(CodingHttp.ERROR_KEY)).orElse("")));
 
         Object projectListObj = ((Map<String, Object>) responseObj).get("ProjectList");
         if (Checker.isNotEmptyCollection(projectListObj)) {
@@ -69,7 +70,7 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
     public Map<String, Object> myselfInfo() {
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
         HttpEntity<String, String> header = HttpEntity.create()
-                .builder("Authorization", contextConfig.getToken());
+                .builder("Authorization", this.accessToken().get());
         HttpEntity<String, Object> body = HttpEntity.create()
                 .builderIfNotAbsent("Action", "DescribeCodingCurrentUser");
         Map<String, Object> post = CodingHttp.create(
@@ -77,11 +78,11 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
                 body.getEntity(),
                 String.format(OPEN_API_URL, contextConfig.getTeamName())).post();
         if (Checker.isEmptyCollection(post)) {
-            throw new RuntimeException(FormatUtils.format("Coding request return empty body, url {}", String.format(OPEN_API_URL, contextConfig.getTeamName())));
+            throw new RuntimeException(String.format("Coding request return empty body, url %s", String.format(OPEN_API_URL, contextConfig.getTeamName())));
         }
         Object responseObj = post.get("Response");
         if (Checker.isEmptyCollection(responseObj))
-            throw new RuntimeException(FormatUtils.format("Response can not be parsed"));
+            throw new RuntimeException(String.format("Response can not be parsed. %s.", Optional.ofNullable(post.get(CodingHttp.ERROR_KEY)).orElse("")));
 
         Object userObj = ((Map<String, Object>) responseObj).get("User");
         if (Checker.isNotEmptyCollection(userObj)) {
@@ -101,12 +102,12 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
         Map<String, Object> resultMap = this.codingHttp(param).post();
         Object response = resultMap.get("Response");
         if (null == response) {
-            throw new RuntimeException(FormatUtils.format("Response can not be parsed"));
+            throw new RuntimeException(String.format("Response can not be parsed. %s.", Optional.ofNullable(resultMap.get(CodingHttp.ERROR_KEY)).orElse("")));
         }
         Map<String, Object> responseMap = (Map<String, Object>) response;
         Object dataObj = responseMap.get("Data");
         if (null == dataObj) {
-            throw new RuntimeException(FormatUtils.format("Data can not be parsed"));
+            throw new RuntimeException(FormatUtils.format("Data can not be parsed."));
         }
         Map<String, Object> data = (Map<String, Object>) dataObj;
         Object listObj = data.get("ProjectList");
@@ -119,7 +120,7 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
     public Map<String, Object> get(ProjectParam param) {
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
         HttpEntity<String, String> header = HttpEntity.create()
-                .builder("Authorization", contextConfig.getToken());
+                .builder("Authorization", this.accessToken().get());
         HttpEntity<String, Object> body = HttpEntity.create()
                 .builderIfNotAbsent("Action", "DescribeProjectByName")
                 .builder("ProjectName", contextConfig.getProjectName());
@@ -129,7 +130,7 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
                 String.format(OPEN_API_URL, contextConfig.getTeamName())).post();
         Object response = resultMap.get("Response");
         if (null == response) {
-            throw new RuntimeException(FormatUtils.format("Response can not be parsed"));
+            throw new RuntimeException(String.format("Response can not be parsed. %s.", Optional.ofNullable(resultMap.get(CodingHttp.ERROR_KEY)).orElse("")));
         }
         Map<String, Object> responseMap = (Map<String, Object>) response;
         Object dataObj = responseMap.get("Project");
@@ -149,7 +150,7 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
         if (param.limit() > maxLimit) param.limit(maxLimit);
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
         HttpEntity<String, String> header = HttpEntity.create()
-                .builder("Authorization", contextConfig.getToken());
+                .builder("Authorization", this.accessToken().get());
         HttpEntity<String, Object> body = HttpEntity.create()
                 .builderIfNotAbsent("Action", "DescribeCodingProjects")
                 .builder("ProjectName", contextConfig.getProjectName())
@@ -200,7 +201,7 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
             Map<String, Object> resultMap = codingHttp.buildBody("Offset", startPage).post();
             Object response = resultMap.get("Response");
             if (null == response) {
-                throw new RuntimeException(FormatUtils.format("Response can not be parsed"));
+                throw new RuntimeException(String.format("Response can not be parsed %s.", Optional.ofNullable(resultMap.get(CodingHttp.ERROR_KEY)).orElse("")));
             }
             Map<String, Object> responseMap = (Map<String, Object>) response;
             Object dataObj = responseMap.get("Data");

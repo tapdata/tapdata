@@ -32,10 +32,10 @@ public interface CodingLoader<T extends Param> {
     public CodingStarter connectorOut();
 
     public static CodingLoader<Param> loader(TapConnectionContext tapConnectionContext, String tableName, AtomicReference<String> accessToken) {
-        Class clz = null;
+        Class<?> clz = null;
         try {
             clz = Class.forName("io.tapdata.coding.service.loader." + tableName + "Loader");//CodingLoader.class.getPackage().getName()
-            Constructor com = clz.getConstructor(TapConnectionContext.class, AtomicReference.class);
+            Constructor<?> com = clz.getConstructor(TapConnectionContext.class, AtomicReference.class);
             return (CodingLoader) com.newInstance(tapConnectionContext, accessToken);
         } catch (ClassNotFoundException e0) {
             TapLogger.debug(TAG, "ClassNotFoundException for Schema {}", tableName);

@@ -15,10 +15,7 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.StringJoiner;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -27,7 +24,7 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 
 public class Issues implements SchemaStart {
     public final Boolean use = true;
-
+    AtomicReference<String> accessToken;
     @Override
     public Boolean use() {
         return use;
@@ -36,6 +33,12 @@ public class Issues implements SchemaStart {
     @Override
     public String tableName() {
         return "Issues";
+    }
+
+    public Issues(){ }
+
+    public Issues(AtomicReference<String> accessToken){
+        this.accessToken = accessToken;
     }
 
     @Override
@@ -96,7 +99,7 @@ public class Issues implements SchemaStart {
 
 
     @Override
-    public TapTable csv(TapConnectionContext connectionContext, AtomicReference<String> accessToken) {
+    public TapTable csv(TapConnectionContext connectionContext) {
         TapTable tapTable = table(tableName())
                 .add(field("Code", "Integer").isPrimaryKey(true).primaryKeyPos(3))        //事项 Code
                 .add(field("ProjectName", "StringMinor").isPrimaryKey(true).primaryKeyPos(2))    //项目名称
@@ -190,7 +193,7 @@ public class Issues implements SchemaStart {
     }
 
     private Map<Integer, Map<String, Object>> getIssueCustomFieldMap(String issueType, ContextConfig contextConfig) {
-        HttpEntity<String, String> heard = HttpEntity.create().builder("Authorization", contextConfig.getToken());
+        HttpEntity<String, String> heard = HttpEntity.create().builder("Authorization", accessToken.get());
         HttpEntity<String, Object> body = HttpEntity.create()
                 .builder("Action", "DescribeProjectIssueFieldList")
                 .builder("ProjectName", contextConfig.getProjectName())
@@ -199,7 +202,7 @@ public class Issues implements SchemaStart {
         Object response = post.get("Response");
         Map<String, Object> responseMap = (Map<String, Object>) response;
         if (null == response) {
-            throw new CoreException("HTTP request exception, Issue CustomField acquisition failed: " + CodingStarter.OPEN_API_URL + "?Action=DescribeProjectIssueFieldList");
+            throw new CoreException("HTTP request exception, Issue CustomField acquisition failed: " + CodingStarter.OPEN_API_URL + "?Action=DescribeProjectIssueFieldList. " + Optional.ofNullable(post.get(CodingHttp.ERROR_KEY)).orElse(""));
         }
         Object data = responseMap.get("ProjectIssueFieldList");
         if (null != data && data instanceof JSONArray) {

@@ -7,14 +7,12 @@ import io.tapdata.coding.utils.http.HttpEntity;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.base.ConnectorBase.entry;
@@ -24,9 +22,7 @@ public class DescribeIterationList implements Command {
     @Override
     public CommandResult commandResult(TapConnectionContext tapConnectionContext, CommandInfo commandInfo, AtomicReference<String> accessToken) {
         String command = commandInfo.getCommand();
-        String action = commandInfo.getAction();
         Map<String, Object> argMap = commandInfo.getArgMap();
-        String token = null;
         String teamName = null;
         String projectName = null;
 
@@ -34,12 +30,7 @@ public class DescribeIterationList implements Command {
         if (Checker.isEmpty(connectionConfig)) {
             throw new IllegalArgumentException("ConnectionConfig cannot be null");
         }
-
-        Object tokenObj = connectionConfig.get("token");
         Object teamNameObj = connectionConfig.get("teamName");
-        if (Checker.isNotEmpty(tokenObj)) {
-            token = (tokenObj instanceof String) ? (String) tokenObj : String.valueOf(tokenObj);
-        }
         if (Checker.isNotEmpty(teamNameObj)) {
             teamName = (teamNameObj instanceof String) ? (String) teamNameObj : String.valueOf(teamNameObj);
         }
@@ -51,20 +42,14 @@ public class DescribeIterationList implements Command {
         if ("DescribeIterationList".equals(command) && Checker.isEmpty(projectName)) {
             throw new CoreException("ProjectName must be not Empty or not null.");
         }
-        if (Checker.isEmpty(token)) {
-            TapLogger.warn(TAG, "token must be not null or not empty.");
-            throw new CoreException("token must be not null or not empty.");
-        }
         if (Checker.isEmpty(teamName)) {
             TapLogger.warn(TAG, "teamName must be not null or not empty.");
             throw new CoreException("teamName must be not null or not empty.");
         }
-
-        String upToken = token.toUpperCase();
-        token = (upToken.startsWith("TOKEN ") ? token : "token " + token);
-        HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", token);
-        HttpEntity<String, Object> body = IterationsLoader.create(tapConnectionContext, accessToken, argMap)
-                .commandSetter(command, HttpEntity.create());
+        IterationsLoader loader = IterationsLoader.create(tapConnectionContext, accessToken, argMap);
+        loader.verifyConnectionConfig();
+        HttpEntity<String, Object> body = loader.commandSetter(command, HttpEntity.create());
+        HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", accessToken.get());
         if ("DescribeIterationList".equals(command) && Checker.isNotEmpty(projectName)) {
             body.builder("ProjectName", projectName);
         }
@@ -76,8 +61,7 @@ public class DescribeIterationList implements Command {
         Object response = postResult.get("Response");
         Map<String, Object> responseMap = (Map<String, Object>) response;
         if (Checker.isEmpty(response)) {
-            //TapLogger.info(TAG, "HTTP request exception, list acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action="+command);
-            throw new RuntimeException("Get list failed: " + url + "?Action=" + command);
+            throw new RuntimeException("Get list failed: " + url + "?Action=" + command+ ". " + Optional.ofNullable(postResult.get(CodingHttp.ERROR_KEY)).orElse(""));
         }
 
         Map<String, Object> pageResult = new HashMap<>();

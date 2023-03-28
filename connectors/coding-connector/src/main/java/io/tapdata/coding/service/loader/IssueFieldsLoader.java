@@ -15,6 +15,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
@@ -43,7 +44,7 @@ public class IssueFieldsLoader extends CodingStarter implements CodingLoader<Iss
         Map<String, Object> resultMap = this.codingHttp(param).post();
         Object response = resultMap.get("Response");
         if (Checker.isEmpty(response)) {
-            throw new CoreException("Can't get issues fields list, the http response is empty.");
+            throw new CoreException("Can't get issues fields list, the http response is empty." + Optional.ofNullable(resultMap.get(CodingHttp.ERROR_KEY)).orElse(""));
         }
         Object fieldsMapObj = ((Map<String, Object>) response).get("ProjectIssueFieldList");
         if (Checker.isEmpty(fieldsMapObj)) {
@@ -74,7 +75,7 @@ public class IssueFieldsLoader extends CodingStarter implements CodingLoader<Iss
     public CodingHttp codingHttp(IssueFieldParam param) {
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
         HttpEntity<String, String> header = HttpEntity.create()
-                .builder("Authorization", contextConfig.getToken());
+                .builder("Authorization", this.accessToken().get());
         HttpEntity<String, Object> body = HttpEntity.create()
                 .builderIfNotAbsent("Action", "DescribeProjectIssueFieldList")
                 .builder("ProjectName", contextConfig.getProjectName())

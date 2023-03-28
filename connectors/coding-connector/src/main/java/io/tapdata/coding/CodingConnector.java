@@ -6,11 +6,13 @@ import io.tapdata.coding.entity.param.Param;
 import io.tapdata.coding.service.command.Command;
 import io.tapdata.coding.service.connectionMode.ConnectionMode;
 import io.tapdata.coding.service.loader.CodingLoader;
+import io.tapdata.coding.service.loader.CodingStarter;
 import io.tapdata.coding.service.loader.IssuesLoader;
 import io.tapdata.coding.service.loader.TestCoding;
 import io.tapdata.coding.service.schema.SchemaStart;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.ErrorHttpException;
+import io.tapdata.coding.utils.http.InterceptorHttp;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
@@ -73,12 +75,23 @@ public class CodingConnector extends ConnectorBase {
             case "Polling":
                 this.connectorFunctions.supportRawDataCallbackFilterFunctionV2(null);
                 break;
-//			default:
-//				throw new CoreException("Error in connection parameters [streamReadType],just be [WebHook] or [Polling], please go to verify");
+            //default:
+            //	throw new CoreException("Error in connection parameters [streamReadType],just be [WebHook] or [Polling], please go to verify");
         }
         CodingHttp.interceptor = (http, request, hasIgnore) -> {
             if (hasIgnore) return request;
-            return http.header("Authorization", loader.refreshTokenByOAuth2()).execute();
+            try {
+                Map<String,Object> body = (Map<String,Object>)fromJson(request.body());
+                Map<String, Object> response = (Map<String, Object>)body.get("Response");
+                response = (Map<String, Object>)response.get("Error");
+                String code = (String)response.get("Code");
+                String message = (String)response.get("Message");
+                if ("ResourceNotFound".equals(code)|| " User not found, authorization invalid".equals(message)) {
+                    return http.header("Authorization", loader.refreshTokenByOAuth2()).execute();
+                }
+            }catch (Exception ignored){
+            }
+            return request;
         };
     }
 
@@ -132,6 +145,24 @@ public class CodingConnector extends ConnectorBase {
     }
 
     private CommandResult handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
+        tapConnectionContext.setConnectionConfig(new DataMap(){{putAll(commandInfo.getConnectionConfig());}});
+        tapConnectionContext.setNodeConfig(new DataMap(){{putAll(commandInfo.getNodeConfig());}});
+        IssuesLoader loader = new IssuesLoader(tapConnectionContext, accessToken);
+        CodingHttp.interceptor = (http, request, hasIgnore) -> {
+            if (hasIgnore) return request;
+            try {
+                Map<String,Object> body = (Map<String,Object>)fromJson(request.body());
+                Map<String, Object> response = (Map<String, Object>)body.get("Response");
+                response = (Map<String, Object>)response.get("Error");
+                String code = (String)response.get("Code");
+                String message = (String)response.get("Message");
+                if ("ResourceNotFound".equals(code)|| " User not found, authorization invalid".equals(message)) {
+                    return http.header("Authorization", loader.refreshTokenByOAuth2()).execute();
+                }
+            }catch (Exception ignored){
+            }
+            return request;
+        };
         return LastData.traceLastData(() -> Command.command(tapConnectionContext, commandInfo, accessToken), lastData -> this.lastCommandResult = lastData);
     }
 
@@ -181,7 +212,7 @@ public class CodingConnector extends ConnectorBase {
 
     private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long time) {
         Long date = time != null ? time : System.currentTimeMillis();
-        List<SchemaStart> allSchemas = SchemaStart.getAllSchemas(tapConnectorContext);
+        List<SchemaStart> allSchemas = SchemaStart.getAllSchemas(tapConnectorContext, accessToken);
         return CodingOffset.create(allSchemas.stream().collect(Collectors.toMap(
                 schema -> ((SchemaStart) schema).tableName(),
                 schema -> date
@@ -249,13 +280,24 @@ public class CodingConnector extends ConnectorBase {
 
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
+        TestCoding testConnection = TestCoding.create(connectionContext, accessToken);
+        testConnection.veryContextConfigAndNodeConfig();
         CodingHttp.interceptor = (http, request, hasIgnore) -> {
             if (hasIgnore) return request;
+            try {
+                Map<String,Object> body = (Map<String,Object>)fromJson(request.body());
+                Map<String, Object> response = (Map<String, Object>)body.get("Response");
+                response = (Map<String, Object>)response.get("Error");
+                String code = (String)response.get("Code");
+                String message = (String)response.get("Message");
+                if ("ResourceNotFound".equals(code)|| " User not found, authorization invalid".equals(message)) {
+                    return http.header("Authorization", testConnection.refreshTokenByOAuth2()).execute();
+                }
+            }catch (Exception ignored){
+            }
             return request;
         };
         ConnectionOptions connectionOptions = ConnectionOptions.create();
-
-        TestCoding testConnection = TestCoding.create(connectionContext, accessToken);
         TestItem testItem = testConnection.testItemConnection();
         consumer.accept(testItem);
         if (testItem.getResult() == TestItem.RESULT_FAILED) {
@@ -275,7 +317,7 @@ public class CodingConnector extends ConnectorBase {
 
     @Override
     public int tableCount(TapConnectionContext connectionContext) throws Throwable {
-        List<SchemaStart> allSchemas = SchemaStart.getAllSchemas(connectionContext);
+        List<SchemaStart> allSchemas = SchemaStart.getAllSchemas(connectionContext, accessToken);
         return allSchemas.size();
     }
 }

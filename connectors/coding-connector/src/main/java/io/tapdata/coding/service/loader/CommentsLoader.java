@@ -70,7 +70,7 @@ public class CommentsLoader extends CodingStarter implements CodingLoader<Commen
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
         param.action("DescribeIterationList");
         HttpEntity<String, String> header = HttpEntity.create()
-                .builder("Authorization", contextConfig.getToken());
+                .builder("Authorization", this.accessToken().get());
         HttpEntity<String, Object> body = HttpEntity.create()
                 .builderIfNotAbsent("Action", "DescribeIssueCommentList")
                 .builder("ProjectName", contextConfig.getProjectName())

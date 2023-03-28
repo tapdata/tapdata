@@ -15,6 +15,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
@@ -43,7 +44,7 @@ public class IssueTypesLoader extends CodingStarter implements CodingLoader<Issu
         Map<String, Object> resultMap = this.codingHttp(param).post();
         Object response = resultMap.get("Response");
         if (Checker.isEmpty(response)) {
-            throw new CoreException("can not get issue type list, the 'Response' is empty.");
+            throw new CoreException("can not get issue type list, the 'Response' is empty. " + Optional.ofNullable(resultMap.get(CodingHttp.ERROR_KEY)).orElse(""));
         }
         Object IssueTypesObj = ((Map<String, Object>) response).get("IssueTypes");
         if (Checker.isEmpty(IssueTypesObj)) {
@@ -61,7 +62,7 @@ public class IssueTypesLoader extends CodingStarter implements CodingLoader<Issu
     public CodingHttp codingHttp(IssueTypeParam param) {
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
         HttpEntity<String, String> header = HttpEntity.create()
-                .builder("Authorization", contextConfig.getToken());
+                .builder("Authorization", this.accessToken().get());
         HttpEntity<String, Object> body = HttpEntity.create()
                 .builderIfNotAbsent("Action", "DescribeProjectIssueTypeList")
                 .builder("ProjectName", contextConfig.getProjectName());

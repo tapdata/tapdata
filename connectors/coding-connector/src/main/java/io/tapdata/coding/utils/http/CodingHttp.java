@@ -23,12 +23,13 @@ public class CodingHttp {
     private boolean needRetry = false;
     private AtomicBoolean isAlive = new AtomicBoolean(true);
     private boolean hasIgnore = Boolean.FALSE;
+    public static final String ERROR_KEY = "ERROR";
 
     public static CodingHttp create(Map<String, String> heads, Map<String, Object> body, String url) {
         return new CodingHttp(heads, body, url);
     }
 
-    public CodingHttp hasIgnore(boolean hasIgnore){
+    public CodingHttp hasIgnore(boolean hasIgnore) {
         this.hasIgnore = hasIgnore;
         return this;
     }
@@ -81,6 +82,7 @@ public class CodingHttp {
         if (null != heads) {
             request.addHeaders(this.heads.entrySet()
                     .stream()
+                    .filter(entry -> Objects.nonNull(entry.getValue()))
                     .collect(Collectors.toMap(Map.Entry::getKey, e -> (String) e.getValue()))
             );
         }
@@ -123,14 +125,14 @@ public class CodingHttp {
         String retryMsg = retryTimes > 0 ? "The " + retryTimes + " retry has been performed, but" : "";
         if (Objects.isNull(result)) {
             HashMap<String, Object> errorMap = new HashMap<>();
-            errorMap.put(this.errorKey, String.format("%s cannot get the http response result, request url - %s, request body - %s", retryMsg, request.getUrl(), toJson(this.body)));
+            errorMap.put(this.ERROR_KEY, String.format("%s cannot get the http response result, request url - %s, request body - %s", retryMsg, request.getUrl(), toJson(this.body)));
             return errorMap;
         }
         Object error = result.get("Error");
         if (Objects.nonNull(error)) {
             String errorMessage = String.valueOf(((Map<String, Object>) error).get("Message"));
             HashMap<String, Object> errorMap = new HashMap<>();
-            errorMap.put(this.errorKey, String.format("%s Coding request error - response message: %s, request url:%s, request body: %s.", retryMsg, errorMessage, request.getUrl(), toJson(this.body)));
+            errorMap.put(this.ERROR_KEY, String.format("%s Coding request error - response message: %s, request url:%s, request body: %s.", retryMsg, errorMessage, request.getUrl(), toJson(this.body)));
             return errorMap;
         }
         Object responseObj = result.get("Response");
@@ -142,7 +144,7 @@ public class CodingHttp {
         if (Objects.nonNull(error = response.get("Error"))) {
             String errorMessage = String.valueOf(((Map<String, Object>) error).get("Message"));
             HashMap<String, Object> errorMap = new HashMap<>();
-            errorMap.put(this.errorKey, String.format("%s Coding request error - response message: %s, response body:%s , request url:%s, request body: %s.", retryMsg, errorMessage, toJson(response), request.getUrl(), toJson(this.body)));
+            errorMap.put(this.ERROR_KEY, String.format("%s Coding request error - response message: %s, response body:%s , request url:%s, request body: %s.", retryMsg, errorMessage, toJson(response), request.getUrl(), toJson(this.body)));
             return errorMap;
         }
         return result;
@@ -180,12 +182,10 @@ public class CodingHttp {
         return JSONUtil.parseObj(execute.body());
     }
 
-    private final String errorKey = "ERROR";
-
     public String errorMsg(Map<String, Object> responseMap) {
         Object error = responseMap.get("Error");
         if (Checker.isNotEmpty(error)) return String.valueOf(error);
-        return String.valueOf(responseMap.get(errorKey));
+        return String.valueOf(responseMap.get(ERROR_KEY));
     }
 
     public CodingHttp buildBody(String key, Object value) {

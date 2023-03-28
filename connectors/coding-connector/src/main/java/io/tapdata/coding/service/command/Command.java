@@ -44,7 +44,6 @@ public interface Command {
         try {
             clz = Class.forName("io.tapdata.coding.service.command." + command);
             CommandResult result = ((Command) clz.newInstance()).commandResult(tapConnectionContext, commandInfo, accessToken);
-            TapLogger.info(TAG, "Command result {}", result);
             return result;
         } catch (Throwable e) {
             throw new RuntimeException(e.getMessage());

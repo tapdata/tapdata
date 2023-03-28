@@ -15,10 +15,7 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
@@ -51,7 +48,7 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
         Map<String, Object> resultMap = this.codingHttp(param).post();
         Object response = resultMap.get("Response");
         if (null == response) {
-            throw new CoreException("can not get project members list, the 'Response' is empty.");
+            throw new CoreException("can not get project members list, the 'Response' is empty. " + Optional.ofNullable(resultMap.get(CodingHttp.ERROR_KEY)).orElse(""));
         }
         Map<String, Object> responseMap = (Map<String, Object>) response;
         Object dataObj = responseMap.get("Data");
@@ -74,7 +71,7 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
         if (param.limit() > maxLimit) param.limit(maxLimit);
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
         HttpEntity<String, String> header = HttpEntity.create()
-                .builder("Authorization", contextConfig.getToken());
+                .builder("Authorization", this.accessToken().get());
         HttpEntity<String, Object> body = HttpEntity.create()
                 .builder("Action", "DescribeProjectMembers")
                 .builder("ProjectId", this.currentProjectId)
@@ -122,7 +119,7 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
             Map<String, Object> resultMap = codingHttp.buildBody("PageNumber", startPage).post();
             Object response = resultMap.get("Response");
             if (null == response) {
-                throw new CoreException("can not get the project members's page which 'PageNumber' is " + startPage + ", the 'Response' is empty.");
+                throw new CoreException("can not get the project members's page which 'PageNumber' is " + startPage + ", the 'Response' is empty. " + Optional.ofNullable(resultMap.get(CodingHttp.ERROR_KEY)).orElse(""));
             }
             Map<String, Object> responseMap = (Map<String, Object>) response;
             Object dataObj = responseMap.get("Data");
@@ -202,7 +199,7 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
             member.put("team_id", teamId);
         }
         member.put("project_id", this.currentProjectId);
-        Map<String, Object> schemaMap = SchemaStart.getSchemaByName(TABLE_NAME).autoSchema(member);
+        Map<String, Object> schemaMap = SchemaStart.getSchemaByName(TABLE_NAME, accessToken()).autoSchema(member);
         Object referenceTimeObj = schemaMap.get("UpdatedAt");
         Long referenceTime = Checker.isEmpty(referenceTimeObj) ? System.currentTimeMillis() : (Long) referenceTimeObj;
 
