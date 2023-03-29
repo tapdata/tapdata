@@ -308,6 +308,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 			List<Document> list = entry.getValue();
 			if (CollectionUtils.isNotEmpty(list)) {
 				insertMany(tableId);
+				writeListResult.incrementInserted(batchCacheData.get(tableId).size());
 			}
 		}
 		batchCacheData.clear();
