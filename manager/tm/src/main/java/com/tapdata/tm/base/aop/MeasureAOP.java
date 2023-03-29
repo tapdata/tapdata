@@ -63,7 +63,7 @@ public class MeasureAOP {
                 TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId));
                 // task alarm
                 Map<String, List<AlarmRuleDto>> ruleMap = alarmService.getAlarmRuleDtos(taskDto);
-                if (!ruleMap.isEmpty()) {
+                if (null != ruleMap && !ruleMap.isEmpty()) {
                     UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
                     if ("task".equals(type)) {
 
