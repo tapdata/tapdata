@@ -17,6 +17,7 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.SourceCDCDelayAspect;
+import io.tapdata.aspect.SourceJoinHeartbeatAspect;
 import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.taskmilestones.CDCReadBeginAspect;
