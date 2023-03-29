@@ -857,53 +857,25 @@ function updateToken(connectionConfig, nodeConfig, apiResponse) {
 
 function connectionTest(connectionConfig) {
     let invoke;
+    let httpCode;
     try {
         invoke = invoker.invoke('Opportunity', clientInfo);
+        httpCode = invoke.httpCode;
+        return [
+            {
+                "test": "Permission check",
+                "code": exceptionUtil.statusCode(httpCode),
+                "result": result(invoke, httpCode)
+            }
+        ];
     } catch (e) {
         return [
             {
                 "test": "Authorization failed",
                 "code": -1,
-                "result": "Api exec fail, api name or url is [Opportunity], method is [POST]"
+                "result": exceptionUtil.eMessage(e)
             }
         ];
-    }
-    if (invoke.result.data) {
-        return [
-            {
-                "test": " Check the Authorization.",
-                "code": 1,
-                "result": "Pass"
-            },
-            {
-                "test": " Check that the account uses Salesforce API permissions.",
-                "code": 1,
-                "result": "Pass"
-            }
-        ];
-    } else if (invoke.httpCode === 401 || (invoke.result && invoke.result.errorCode === "INVALID_SESSION_ID")) {
-        return [{
-            "test": " Check the Authorization.",
-            "code": -1,
-            "result": "The access token has expired."
-        }];
-    } else if (invoke.httpCode === 403 || (invoke.result && invoke.result.errorCode === "FUNCTIONALITY_NOT_ENABLED")) {
-        return [{
-            "test": " Check the Authorization.",
-            "code": 1,
-            "result": "Pass"
-        },
-        {
-            "test": " Check that the account uses Salesforce API permissions.",
-            "code": -1,
-            "result": "This feature is not currently enabled for this user. Please refer to this link for relevant documentation: https://help.salesforce.com/s/articleView?id=000385436&type=1 "
-        }];
-    }  else {
-        return [{
-            "test": " Check the Authorization.",
-            "code": -1,
-            "result": "Please regrant the token."
-        }];
     }
 }
 

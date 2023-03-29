@@ -11,7 +11,7 @@ var OptionalUtil = {
     }
 }
 
-function commandAndConvertData(apiName, params, call){
+function commandAndConvertData(apiName, params, call) {
     if (OptionalUtil.isEmpty(apiName)) {
         log.error("Please specify the corresponding paging API name or URL .");
     }
@@ -23,7 +23,7 @@ function checkParam(param) {
     return 'undefined' !== param && null != param;
 }
 
-function disassemblyData(resultData,result) {
+function disassemblyData(resultData, result) {
     for (let j = 0; j < resultData.length; j++) {
         if (!isAlive()) break;
         let resultItem = resultData[j];
@@ -48,3 +48,12 @@ function sendData(nod) {
     return nod;
 }
 
+function result(invoke, httpCode) {
+    if (httpCode >= 200 && httpCode < 300) {
+        return "Pass";
+    } else if (invoke.result[0] && invoke.result[0].errorCode && invoke.result[0].message) {
+        return "Error: " + invoke.result[0].message + " Code: " + invoke.result[0].errorCode + " HttpCode: " + httpCode ;
+    } else {
+        return "Error: Unknown. HttpCode: " + httpCode
+    }
+}
