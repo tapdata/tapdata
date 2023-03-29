@@ -4,6 +4,7 @@ import com.google.common.collect.HashBiMap;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
@@ -17,6 +18,8 @@ import io.tapdata.observable.metric.handler.*;
 
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_CONN_HEARTBEAT, TaskDto.SYNC_TYPE_LOG_COLLECTOR})
 public class ObservableAspectTask extends AspectTask {
@@ -33,6 +36,7 @@ public class ObservableAspectTask extends AspectTask {
 		observerClassHandlers.register(PDKNodeInitAspect.class, this::handlePDKNodeInit);
 		observerClassHandlers.register(DataNodeCloseAspect.class, this::handleDataNodeClose);
 		// source data node aspects
+		observerClassHandlers.register(SourceJoinHeartbeatAspect.class, this::handleSourceJoinHeartbeat);
 		observerClassHandlers.register(TableCountFuncAspect.class, this::handleTableCount);
 		observerClassHandlers.register(BatchReadFuncAspect.class, this::handleBatchReadFunc);
 		observerClassHandlers.register(StreamReadFuncAspect.class, this::handleStreamReadFunc);
@@ -118,6 +122,13 @@ public class ObservableAspectTask extends AspectTask {
 	}
 
 	// source data node related
+
+	private final Map<String, Boolean> joinHeartbeatMap = new ConcurrentHashMap<>();
+	public Void handleSourceJoinHeartbeat(SourceJoinHeartbeatAspect aspect) {
+		Node<?> node = aspect.getDataProcessorContext().getNode();
+		joinHeartbeatMap.put(node.getId(), aspect.getJoinHeartbeat());
+		return null;
+	}
 
 	Map<String, Map<String, Number>> taskRetrievedTableValues;
 	public Void handleTableCount(TableCountFuncAspect aspect) {
@@ -208,7 +219,12 @@ public class ObservableAspectTask extends AspectTask {
 
 		switch (aspect.getState()) {
 			case StreamReadFuncAspect.STATE_START:
-				List<String> tables = aspect.getTables();
+				List<String> tables = aspect.getTables().stream().filter(t -> {
+					if (Boolean.TRUE.equals(joinHeartbeatMap.get(nodeId))) {
+						if (ConnHeartbeatUtils.TABLE_NAME.equals(t)) return false;
+					}
+					return true;
+				}).collect(Collectors.toList());
 				taskSampleHandler.handleStreamReadStart(tables);
 				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 						handler -> handler.handleStreamReadStreamStart(tables, aspect.getStreamStartedTime())
