@@ -83,8 +83,8 @@
       "doc": "doc/demo_en_US.md",
       "owner": "GitHub owner",
       "repo": "GitHub repo",
-      "code": "Grant Token",
-      "OAuthButtonTitle": "Grant Token",
+      "code": "Authorise",
+      "OAuthButtonTitle": "Authorise",
       "OAuthButton": "Must be successfully authorized to save",
       "OAuthButtonOK": "Authorization successful"
     },
@@ -92,19 +92,19 @@
       "doc": "doc/demo_zh_CN.md",
       "owner": "GitHub owner",
       "repo": "GitHub repo",
-      "code": "授予令牌",
-      "OAuthButtonTitle": "授予令牌",
+      "code": "授权",
+      "OAuthButtonTitle": "授权",
       "OAuthButton": "必须要成功授权才能保存",
-      "OAuthButtonOK": "成功授予"
+      "OAuthButtonOK": "成功授权"
     },
     "zh_TW": {
       "doc": "doc/demo_zh_TW.md",
       "owner": "GitHub owner",
       "repo": "GitHub repo",
-      "code": "授予權杖",
-      "OAuthButtonTitle": "授予權杖",
+      "code": "授權",
+      "OAuthButtonTitle": "授權",
       "OAuthButton": "必須要成功授權才能保存",
-      "OAuthButtonOK": "成功授予"
+      "OAuthButtonOK": "成功授權"
     }
   }
 }
