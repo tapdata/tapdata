@@ -98,6 +98,28 @@
           "x-index": 30,
           "required": true
         },
+        "projectName": {
+          "title": "${projectName}",
+          "type": "string",
+          "required": true,
+          "x-decorator": "FormItem",
+          "x-component": "AsyncSelect",
+          "x-component-props": {
+            "method": "{{loadCommandList}}",
+            "params": "{{ {$values: $values, command: \"DescribeUserProjects\"} }}"
+          },
+          "x-index": 40,
+          "x-reactions": [
+            {
+              "dependencies": ["teamName", "token"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0]&&$deps[1] ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
+        },
         "line": {
           "type": "void",
           "x-component": "Space",
@@ -111,7 +133,11 @@
               }
             }
           ],
-          "title": "${oauth_a_title}",
+          "x-decorator": "FormItem",
+          "title": " ",
+          "x-decorator-props": {
+            "colon": false
+          },
           "properties": {
             "authButton": {
               "type": "void",
@@ -121,6 +147,7 @@
               "title": "",
               "x-index": 40,
               "x-component-props": {
+                "type": "primary",
                 "onClick": "{{useAsyncDataSourceByConfig({service: goToAuthorized, withoutField: true}, { target: 'https://redirect.tapdata.io/oauth/complete', pdkId: 'coding', oauthUrl: 'https://@{teamName}@.coding.net/oauth_authorize.html?client_id=f62b86d98192df7d72f286fa086d3d85&redirect_uri=https://redirect.tapdata.io/oauth/complete/coding&response_type=code&scope=user,user:email,project,project:issue,project:members'})}}"
               },
               "x-decorator-props":{"style":{"width":"120px"}}
@@ -135,33 +162,11 @@
               "required": true,
               "x-component-props": {
                 "content": "{{$values.code ? '${oauth_ok}' : '${oauth_msg}'}}",
-                "style": {"color": "{{ $values.code ? 'green' : 'red' }}"}
+                "style": {"color": "{{ $values.code ? 'green' : 'rgb(83, 95, 114)' }}"}
               }
             }
           },
-          "x-index": 40
-        },
-        "projectName": {
-          "title": "${projectName}",
-          "type": "string",
-          "required": true,
-          "x-decorator": "FormItem",
-          "x-component": "AsyncSelect",
-          "x-component-props": {
-            "method": "{{loadCommandList}}",
-            "params": "{{ {$values: $values, command: \"DescribeUserProjects\"} }}"
-          },
-          "x-index": 50,
-          "x-reactions": [
-            {
-              "dependencies": ["teamName", "token"],
-              "fulfill": {
-                "state": {
-                  "display": "{{$deps[0]&&$deps[1] ? \"visible\":\"hidden\"}}"
-                }
-              }
-            }
-          ]
+          "x-index": 50
         },
         "connectionMode": {
           "type": "String",
@@ -203,6 +208,7 @@
           "title": "${hookButton}",
           "x-decorator": "FormItem",
           "x-component-props": {
+            "type": "primary",
             "onClick": "{{useAsyncDataSourceByConfig({service: getToken, withoutField: true}, {name:'hookText'}, $values, $form)}}"
           },
           "x-reactions": {
@@ -213,7 +219,7 @@
               }
             }
           },
-          "x-content": "hookButton",
+          "x-content": "${HookLabel}",
           "x-component": "Button",
           "x-index": 80
         },
@@ -262,7 +268,8 @@
       "projectName": "Project name",
       "teamName": "Team name",
       "webHook": "Service Hook",
-      "hookButton": "Generate Service URL",
+      "hookButton": "Generate service URL",
+      "HookLabel": "Generate",
       "iterationCodes": "Iteration",
       "issueType": "Issue type",
       "allIssueType": "All issues",
@@ -277,11 +284,10 @@
       "webHookRead": "Webhook",
       "pollingRead": "Polling Read",
       "doc": "docs/coding_en_US.md",
-      "oauth_a_title": "OAuth2.0",
-      "oauth_code": "Authorise",
-      "oauth_title": "Authorise",
-      "oauth_ok": "Authorization succeeded",
-      "oauth_msg": "Please authorise before connection test and save"
+      "oauth_code": "Authorize",
+      "oauth_title": "Authorize",
+      "oauth_ok": "Authorization successfully",
+      "oauth_msg": "Please authorize before connection test and save"
     },
     "zh_CN": {
       "token": "令牌",
@@ -289,6 +295,7 @@
       "teamName": "团队名称",
       "webHook": "Service Hook",
       "hookButton": "生成服务 URL",
+      "HookLabel": "生成",
       "iterationCodes": "迭代",
       "issueType": "事项类型",
       "allIssueType": "全部事项",
@@ -304,7 +311,6 @@
       "pollingRead": "轮询式",
 
       "doc": "docs/coding_zh_CN.md",
-      "oauth_a_title": "OAuth2.0",
       "oauth_code": "授权",
       "oauth_title": "授权",
       "oauth_ok": "授权成功",
@@ -316,6 +322,7 @@
       "teamName": "團隊名稱",
       "webHook": "Service Hook",
       "hookButton": "生成服務URL",
+      "HookLabel": "生成",
       "iterationCodes": "迭代",
       "issueType": "事項类型",
       "allIssueType": "全部事項",
@@ -331,7 +338,6 @@
       "pollingRead": "輪詢式",
       "doc": "docs/coding_zh_TW.md",
 
-      "oauth_a_title": "OAuth2.0",
       "oauth_code": "授權",
       "oauth_title": "授權",
       "oauth_ok": "授權成功",
