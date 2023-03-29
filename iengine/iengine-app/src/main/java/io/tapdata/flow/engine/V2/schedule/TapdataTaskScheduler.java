@@ -1,10 +1,6 @@
 package io.tapdata.flow.engine.V2.schedule;
 
-import com.tapdata.constant.CollectionUtil;
-import com.tapdata.constant.ConfigurationCenter;
-import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.JSONUtil;
-import com.tapdata.constant.Log4jUtil;
+import com.tapdata.constant.*;
 import com.tapdata.entity.AppType;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.dataflow.DataFlow;
@@ -41,16 +37,8 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -65,6 +53,10 @@ public class TapdataTaskScheduler {
 	public static final String TAG = TapdataTaskScheduler.class.getSimpleName();
 	private Logger logger = LogManager.getLogger(TapdataTaskScheduler.class);
 	private Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
+	/**
+	 * Tasks that need to be stopped internally
+	 */
+	private final Map<String, TaskClient<TaskDto>> internalStopTaskClientMap = new ConcurrentHashMap<>();
 	private String instanceNo;
 	@Autowired
 	private ClientMongoOperator clientMongoOperator;
@@ -123,7 +115,8 @@ public class TapdataTaskScheduler {
 					query.fields().include("id").include("status");
 					final List<TaskDto> subTaskDtos = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 					if (CollectionUtil.isNotEmpty(subTaskDtos)) {
-						stopTaskCallAssignApi(subTaskDtoTaskClient, StopTaskResource.STOPPED);
+						internalStopTaskClientMap.put(taskId, subTaskDtoTaskClient);
+						removeTask(taskId);
 					} else {
 						TmStatusService.setAllowReport(taskId);
 					}
@@ -417,6 +410,35 @@ public class TapdataTaskScheduler {
 			}
 		} catch (Exception e) {
 			logger.error("Scan force stopping data flow failed {}", e.getMessage(), e);
+		}
+	}
+
+	@Scheduled(fixedDelay = 10000L)
+	public void internalStopTask() {
+		if (appType.isDaas()) {
+			return;
+		}
+		Thread.currentThread().setName(String.format(ConnectorConstant.CLOUD_INTERNAL_STOP_TASK_THREAD, instanceNo));
+		try {
+			Iterator<Map.Entry<String, TaskClient<TaskDto>>> iterator = internalStopTaskClientMap.entrySet().iterator();
+			while (iterator.hasNext()) {
+				Map.Entry<String, TaskClient<TaskDto>> entry = iterator.next();
+				TaskClient<TaskDto> taskClient = entry.getValue();
+				final String taskId = taskClient.getTask().getId().toHexString();
+				final boolean stop = taskClient.stop();
+				if (stop) {
+					try {
+						destroyCache(taskClient);
+						logger.info(String.format("Destroy memory task client cache succeed, task: %s[%s]", taskClient.getTask().getName(), taskId));
+					} catch (Exception e) {
+						throw new RuntimeException(String.format("Destroy memory task client cache failed, task: %s[%s]", taskClient.getTask().getName(), taskId), e);
+					} finally {
+						iterator.remove();
+					}
+				}
+			}
+		} catch (Exception e) {
+			logger.error("Scan internal stopping data flow failed {}", e.getMessage(), e);
 		}
 	}
 

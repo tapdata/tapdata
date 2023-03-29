@@ -284,6 +284,7 @@ public class ConnectorConstant {
 	public final static String START_TASK_THREAD = "Start Task Scheduler[%s]";
 	public final static String STOP_TASK_THREAD = "Stop Task Scheduler[%s]";
 	public final static String INTERNAL_STOP_TASK_THREAD = "Internal Stop Task Scheduler[%s]";
+	public final static String CLOUD_INTERNAL_STOP_TASK_THREAD = "Cloud Internal Stop Task Scheduler[%s]";
 
 	/**
 	 * ================== stats status ==================
