@@ -15,7 +15,6 @@ import io.tapdata.flow.engine.V2.common.HazelcastStatusMappingEnum;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
-import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
 import io.tapdata.flow.engine.V2.util.SupplierImpl;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
@@ -38,6 +37,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	public static final String TAG = HazelcastTaskClient.class.getSimpleName();
 	public static final int MAX_RETRY_TIME = 3;
 	public static final long RESET_RETRY_DURATION_HOUR = TimeUnit.HOURS.toMillis(2L);
+	public static final int WAIT_JET_JOB_RUNNING_WHEN_STARTING_STATUS_TIME = 5;
 	private Logger logger = LogManager.getLogger(HazelcastTaskClient.class);
 
 	private Job job;
@@ -123,6 +123,17 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 
 	@Override
 	public synchronized boolean stop() {
+		for (int i = 0; i < WAIT_JET_JOB_RUNNING_WHEN_STARTING_STATUS_TIME; i++) {
+			if (job.getStatus() == JobStatus.STARTING) {
+				try {
+					TimeUnit.SECONDS.sleep(1L);
+				} catch (InterruptedException e) {
+					break;
+				}
+			} else {
+				break;
+			}
+		}
 		if (job.getStatus() == JobStatus.RUNNING) {
 			job.suspend();
 		}
@@ -177,7 +188,8 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 
 	@Override
 	public boolean isRunning() {
-		return job.getStatus() == JobStatus.RUNNING;
+		JobStatus status = job.getStatus();
+		return status == JobStatus.STARTING || status == JobStatus.RUNNING;
 	}
 
 	@Override
