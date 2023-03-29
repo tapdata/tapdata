@@ -22,16 +22,9 @@ import com.tapdata.tm.roleMapping.service.RoleMappingService;
 import com.tapdata.tm.tcm.dto.UserInfoDto;
 import com.tapdata.tm.tcm.service.TcmService;
 import com.tapdata.tm.user.dto.*;
-import com.tapdata.tm.user.entity.Connected;
-import com.tapdata.tm.user.entity.ConnectionInterrupted;
-import com.tapdata.tm.user.entity.Notification;
-import com.tapdata.tm.user.entity.StoppedByError;
-import com.tapdata.tm.user.entity.User;
+import com.tapdata.tm.user.entity.*;
 import com.tapdata.tm.user.param.ResetPasswordParam;
 import com.tapdata.tm.user.repository.UserRepository;
-
-import static com.tapdata.tm.utils.MongoUtils.toObjectId;
-
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
@@ -50,7 +43,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Component;
 
@@ -279,7 +271,7 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
      *                                                                                                                                                               {\"guideData\":{\"noShow\":false,\"updateTime\":1632380823831,\"action\":false}}"
      * @return
      */
-    public UserDto updateUserSetting(String id, String settingJson) {
+    public UserDto updateUserSetting(String id, String settingJson, UserDetail userDetail) {
         JSONObject jsonObject = new JSONObject(settingJson);
         Iterator<String> iterator = jsonObject.keySet().iterator();
         while (iterator.hasNext()) {
@@ -298,6 +290,8 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
             UpdateResult updateResult = repository.getMongoOperations().updateMulti(query, update, User.class);
         }
         UserDto userDto = findById(toObjectId(id));
+        List<RoleMappingDto> roleMappingDtos = updateRoleMapping(id, userDto.getRoleusers(), userDetail);
+        userDto.setRoleMappings(roleMappingDtos);
         return userDto;
     }
 
@@ -363,7 +357,29 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
         Notification notification = new Notification();
         user.setNotification(notification);
         User save = repository.save(user, userDetail);
-        return convertToDto(save, dtoClass);
+        UserDto result = convertToDto(save, dtoClass);
+        List<RoleMappingDto> roleMappingDtos = updateRoleMapping(save.getId().toHexString(), request.getRoleusers(), userDetail);
+        result.setRoleMappings(roleMappingDtos);
+        return result;
+    }
+    private List<RoleMappingDto> updateRoleMapping(String userId, List<Object> roleusers, UserDetail userDetail) {
+        // delete old role mapping
+        long deleted = roleMappingService.deleteAll(Query.query(Criteria.where("principalId").is(userId).and("principalType").is("USER")));
+        log.info("delete old role mapping for userId {}, deleted: {}", userId, deleted);
+        // add new role mapping
+        if (CollectionUtils.isNotEmpty(roleusers)) {
+            List<RoleMappingDto> roleMappingDtos = roleusers.stream().map(r -> (String) r).map(roleId -> {
+                RoleMappingDto roleMappingDto = new RoleMappingDto();
+                roleMappingDto.setPrincipalType("USER");
+                roleMappingDto.setPrincipalId(userId);
+                roleMappingDto.setRoleId(new ObjectId(roleId));
+                return roleMappingDto;
+            }).collect(Collectors.toList());
+            if (CollectionUtils.isNotEmpty(roleMappingDtos)) {
+                return roleMappingService.save(roleMappingDtos, userDetail);
+            }
+        }
+        return null;
     }
 
     private String randomHexString() {

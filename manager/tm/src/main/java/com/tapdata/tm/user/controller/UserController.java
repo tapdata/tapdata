@@ -108,21 +108,7 @@ public class UserController extends BaseController {
     @PatchMapping("{id}")
     public ResponseMessage<UserDto> updateUserInfo(@PathVariable("id") String id,
                                                    @RequestBody String settingJson) {
-        UserDto userDto = userService.updateUserSetting(id, settingJson);
-        if (userDto != null) {
-            List<RoleMappingDto> roleMappingDtos = roleMappingService.findAll(Query.query(Criteria.where("principalId").is(userDto.getId().toHexString())));
-            if (CollectionUtils.isNotEmpty(roleMappingDtos)) {
-                List<ObjectId> objectIds = roleMappingDtos.stream().map(RoleMappingDto::getRoleId).collect(Collectors.toList());
-                List<RoleDto> roleDtos = roleService.findAll(Query.query(Criteria.where("_id").in(objectIds)));
-                if (CollectionUtils.isNotEmpty(roleDtos)) {
-                    roleDtos.forEach(roleDto -> roleMappingDtos.stream()
-                            .filter(roleMappingDto -> roleDto.getId().toHexString().equals(roleMappingDto.getRoleId().toHexString()))
-                            .findFirst().ifPresent(roleMappingDto -> roleMappingDto.setRole(roleDto)));
-                }
-                userDto.setRoleMappings(roleMappingDtos);
-            }
-        }
-        return success(userDto);
+        return success(userService.updateUserSetting(id, settingJson, getLoginUser()));
     }
 
     /**
@@ -256,9 +242,9 @@ public class UserController extends BaseController {
                 List<ObjectId> objectIds = roleMappingDtos.stream().map(RoleMappingDto::getRoleId).collect(Collectors.toList());
                 List<RoleDto> roleDtos = roleService.findAll(Query.query(Criteria.where("_id").in(objectIds)));
                 if (CollectionUtils.isNotEmpty(roleDtos)) {
-                    roleDtos.forEach(roleDto -> roleMappingDtos.stream()
-                            .filter(roleMappingDto -> roleDto.getId().toHexString().equals(roleMappingDto.getRoleId().toHexString()))
-                            .findFirst().ifPresent(roleMappingDto -> roleMappingDto.setRole(roleDto)));
+                    roleMappingDtos.forEach(roleMappingDto -> roleDtos.stream()
+                            .filter(roleDto -> roleDto.getId().toHexString().equals(roleMappingDto.getRoleId().toHexString()))
+                            .findFirst().ifPresent(roleMappingDto::setRole));
                 }
                 items.forEach(userDto -> {
                     if (userDto.getRoleMappings() == null) {
