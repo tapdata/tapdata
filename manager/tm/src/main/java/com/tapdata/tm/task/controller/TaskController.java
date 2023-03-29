@@ -135,7 +135,7 @@ public class TaskController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        if (!filterJson.contains("limit") && isAgentReq()) {
+        if ((null == filterJson || !filterJson.contains("limit")) && isAgentReq()) {
             filter.setLimit(10000);
         }
 
