@@ -719,7 +719,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 		if (streamReadFunction != null || rawDataCallbackFilterFunction != null || rawDataCallbackFilterFunctionV2 != null) {
 			logger.info("Starting stream read, table list: " + tapTableMap.keySet() + ", offset: " + syncProgress.getStreamOffsetObj());
 			List<String> tables = new ArrayList<>(tapTableMap.keySet());
-			cdcDelayCalculation.addHeartbeatTable(tables);
+			Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 			int batchSize = dataProcessorContext.getTaskDto().getReadBatchSize();
 			String streamReadFunctionName = null;
 			if (rawDataCallbackFilterFunctionV2 != null)
@@ -873,7 +873,8 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 		if (!isRunning()) {
 			return;
 		}
-		cdcDelayCalculation.addHeartbeatTable(new ArrayList<>(dataProcessorContext.getTapTableMap().keySet()));
+		Optional.of(cdcDelayCalculation.addHeartbeatTable(new ArrayList<>(dataProcessorContext.getTapTableMap().keySet())))
+				.map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 		ShareCdcTaskContext shareCdcTaskContext = new ShareCdcTaskPdkContext(getCdcStartTs(), processorBaseContext.getConfigurationCenter(),
 				dataProcessorContext.getTaskDto(), dataProcessorContext.getNode(), dataProcessorContext.getSourceConn(), getConnectorNode());
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
