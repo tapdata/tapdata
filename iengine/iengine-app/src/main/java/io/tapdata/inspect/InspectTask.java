@@ -356,7 +356,7 @@ public abstract class InspectTask implements Runnable {
 
 	private ConnectorNode initConnectorNode(String nodeId, Connections connection) {
 		DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
-		String associateId = InspectTask.class.getSimpleName();
+		String associateId = InspectTask.class.getSimpleName() + "-" + UUID.randomUUID();
 		KVReadOnlyMap<TapTable> tapTableMap;
 		if (null == nodeId || nodeId.isEmpty()) {
 			associateId += "-conn-" + connection.getId();

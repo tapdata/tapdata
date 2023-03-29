@@ -1,18 +1,23 @@
 package io.tapdata.kit;
 
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
-import sun.security.provider.MD5;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Reader;
 import java.sql.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
+
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 /**
  * tools for ResultSet
@@ -55,8 +60,16 @@ public class DbKit {
         DataMap map = DataMap.create();
         try {
             if (EmptyKit.isNotNull(resultSet) && resultSet.getRow() > 0) {
+                String errorCol = null;
                 for (String col : columnNames) {
-                    map.put(col, resultSet.getObject(col));
+                    try {
+                        map.put(col, resultSet.getObject(col));
+                    } catch (Exception e) {
+                        errorCol = col;
+                    }
+                }
+                if (EmptyKit.isNotNull(errorCol)) {
+                    TapLogger.warn("JDBC ERROR", "row: {}, skip {}", toJson(map), errorCol);
                 }
                 return map;
             }
