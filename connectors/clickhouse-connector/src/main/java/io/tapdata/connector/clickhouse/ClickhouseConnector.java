@@ -264,12 +264,14 @@ public class ClickhouseConnector extends CommonDbConnector {
         sql.append(TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapTable.getId()));
         sql.append("(").append(ClickhouseDDLSqlMaker.buildColumnDefinition(tapTable, true));
         sql.setLength(sql.length() - 1);
-        sql.append(") ENGINE = ReplacingMergeTree");
 
         // 主键
         Collection<String> primaryKeys = tapTable.primaryKeys(true);
         if (EmptyKit.isNotEmpty(primaryKeys)) {
+            sql.append(") ENGINE = ReplacingMergeTree");
             sql.append(" PRIMARY KEY (").append(TapTableWriter.sqlQuota(",", primaryKeys)).append(")");
+        } else {
+            sql.append(") ENGINE = MergeTree");
         }
 
         // 关联键排序
