@@ -3269,7 +3269,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void pause(TaskDto taskDto, UserDetail user, boolean force, boolean restart) {
 
         //重启的特殊处理，共享挖掘的比较多
-        if (TaskDto.STATUS_STOP.equals(taskDto.getStatus()) && restart) {
+        if ((TaskDto.STATUS_STOP.equals(taskDto.getStatus()) || TaskDto.STATUS_STOPPING.equals(taskDto.getStatus())) && restart) {
             Update update = Update.update("restartFlag", true).set("restartUserId", user.getUserId());
             Query query = new Query(Criteria.where("_id").is(taskDto.getId()));
             update(query, update, user);
@@ -3409,7 +3409,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public String stopped(ObjectId id, UserDetail user) {
         //判断子任务是否存在。
-        TaskDto taskDto = checkExistById(id, user, "dag", "name", "status", "_id", "taskRecordId", "agentId", "stopedDate");
+        TaskDto taskDto = checkExistById(id, user, "dag", "name", "status", "_id", "taskRecordId", "agentId", "stopedDate", "restartFlag");
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.STOPPED, user);
 
@@ -3427,6 +3427,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             updateById(id, update, user);
 
             logCollectorService.endConnHeartbeat(user, taskDto); // 尝试停止心跳任务
+        }
+
+
+        //对于需要重启的任务，直接拉起来。
+        if (taskDto.getResetFlag() != null && taskDto.getResetFlag()) {
+            start(id, user);
         }
         return id.toHexString();
     }
