@@ -278,7 +278,7 @@
       "pollingRead": "Polling Read",
       "doc": "docs/coding_en_US.md",
       "oauth_a_title": "OAuth2.0",
-      "oauth_code": " One click authentication",
+      "oauth_code": "Authorise",
       "oauth_title": "OAuth authentication",
       "oauth_ok": "OAuth certification successful ",
       "oauth_msg": "Please pass OAuth authentication successfully before clicking on the connection test or save"
@@ -305,7 +305,7 @@
 
       "doc": "docs/coding_zh_CN.md",
       "oauth_a_title": "OAuth2.0",
-      "oauth_code": "一键认证",
+      "oauth_code": "授权",
       "oauth_title": "OAuth认证",
       "oauth_ok": "OAuth认证成功",
       "oauth_msg": "请先通过OAuth认证成功再点击连接测试或保存"
@@ -332,7 +332,7 @@
       "doc": "docs/coding_zh_TW.md",
 
       "oauth_a_title": "OAuth2.0",
-      "oauth_code": "一件認證",
+      "oauth_code": "授權",
       "oauth_title": "OAuth認證",
       "oauth_ok": "OAuth認證成功",
       "oauth_msg": "請先通過OAuth認證成功再點擊鏈接測試或保存"
