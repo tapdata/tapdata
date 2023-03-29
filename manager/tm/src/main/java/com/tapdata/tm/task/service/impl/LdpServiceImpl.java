@@ -3,6 +3,7 @@ package com.tapdata.tm.task.service.impl;
 import com.google.common.collect.Lists;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Element;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -10,9 +11,7 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.Tag;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -357,8 +356,16 @@ public class LdpServiceImpl implements LdpService {
             if (StringUtils.isNotBlank(tagId)) {
                 tagCache.set(tagId);
             }
+
+
+            boolean hasPrimaryKey = checkNoPrimaryKey(task, user);
             //create sync task
-            task = taskService.confirmStart(task, user, true);
+            if (hasPrimaryKey) {
+                task = taskService.confirmStart(task, user, true);
+            } else {
+                task = taskService.confirmById(task, user, true);
+                throw new BizException("Ldp.MdmTargetNoPrimaryKey", task);
+            }
         } finally {
             tagCache.remove();
         }
@@ -371,6 +378,71 @@ public class LdpServiceImpl implements LdpService {
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), user);
         taskService.updateAfter(taskDto, user);
         createLdpMetaByTask(taskDto, user);
+    }
+
+    private boolean checkNoPrimaryKey(TaskDto taskDto, UserDetail user) {
+        if (!TaskDto.LDP_TYPE_MDM.equals(taskDto.getLdpType())) {
+            return true;
+        }
+
+        DAG dag = taskDto.getDag();
+        if (dag == null) {
+            return true;
+        }
+
+        List<Node> sources = dag.getSources();
+
+        if (CollectionUtils.isEmpty(sources)) {
+            return true;
+        }
+
+
+        for (Node node : sources) {
+            if (node instanceof TableNode) {
+                TableNode source = (TableNode) node;
+                Criteria criteria = Criteria.where("source._id").is(source.getConnectionId()).and("original_name").is(source.getTableName())
+                        .and("taskId").exists(false).and("is_deleted").ne(true)
+                        .and("sourceType").is(SourceTypeEnum.SOURCE.name());
+                Query query = new Query(criteria);
+                query.fields().include("fields", "indices");
+
+                MetadataInstancesDto meta = metadataInstancesService.findOne(query, user);
+
+                boolean hasPrimaryKey = false;
+                List<Field> fields = meta.getFields();
+                if (CollectionUtils.isNotEmpty(fields)) {
+                    for (Field field : fields) {
+                        Boolean primaryKey = field.getPrimaryKey();
+                        if (primaryKey != null && primaryKey) {
+                            hasPrimaryKey = true;
+                            break;
+                        }
+                    }
+                } else {
+                    hasPrimaryKey = true;
+                }
+
+                if (!hasPrimaryKey) {
+                    List<TableIndex> indices = meta.getIndices();
+                    if (CollectionUtils.isNotEmpty(indices)) {
+                        for (TableIndex index : indices) {
+                            String primaryKey = index.getPrimaryKey();
+                            boolean unique = index.isUnique();
+                            if (StringUtils.isNotBlank(primaryKey) || unique) {
+                                hasPrimaryKey = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!hasPrimaryKey) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     private void createLdpMetaByTask(TaskDto task, UserDetail user) {

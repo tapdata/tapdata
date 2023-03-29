@@ -5,6 +5,9 @@ import java.util.*;
 public class Collector {
     public static final String[] ignore = new String[]{"java.util"};
 
+    /**
+     * @deprecated for test
+     * */
     private static boolean needIgnore(Object obj) {
         if (null == obj) return true;
         for (String ig : ignore) {
@@ -65,6 +68,9 @@ public class Collector {
         }
     }
 
+    /**
+     * @deprecated for test
+     * */
     public static List<?> listSimple(int num) {
         List<Object> list = new ArrayList<>();
         for (int i = 0; i < num; i++) {
@@ -73,6 +79,9 @@ public class Collector {
         return list;
     }
 
+    /**
+     * @deprecated for test
+     * */
     public static Map<?, ?> mapSimple(int num) {
         Map<Object, Object> map = new HashMap<>();
         for (int i = 0; i < num; i++) {
@@ -81,6 +90,9 @@ public class Collector {
         return map;
     }
 
+    /**
+     * @deprecated for test
+     * */
     public static Object[] arrSimple(int num) {
         Object[] arr = new Object[num];
         for (int i1 = 0; i1 < num; i1++) {
@@ -91,20 +103,20 @@ public class Collector {
 
     public static void main(String[] args) {
         List<Object> testList = new ArrayList<>();
-        for (int i = 1; i < 1000; i++) {
+        for (int i = 1; i < 1000000; i++) {
             if (i % 5 == 0) {
-                testList.add(mapSimple(100));
+                testList.add(mapSimple(5));
             } else if (i % 3 == 0) {
-                testList.add(listSimple(100));
+                testList.add(listSimple(12));
             } else if (i % 4 == 0) {
-                testList.add(arrSimple(100));
+                testList.add(arrSimple(24));
             } else if (i % 7 == 0) {
                 testList.add(i);
             } else {
                 testList.add(UUID.randomUUID().toString());
             }
         }
-
+        System.out.println("start convert...");
         long start = System.currentTimeMillis();
         List<?> convertList = (List<?>) Collector.convertObj(testList);
         long end = System.currentTimeMillis();

@@ -1,0 +1,42 @@
+{
+  "classConfigurations": [
+    {
+      "target": [{
+        "type": "extends",
+        "path": "java.io.Closeable",
+        "scanPackage": "*"
+      }],
+      "method": [
+        {
+          "isCreate": true,
+          "createWith": "{super.close();}",
+          "name": "close",
+          "args:": [],
+          "returnType": "void",
+          "code": [
+            {
+              "type": "after",
+              "line": "((io.tapdata.supervisor.ClassLifeCircleMonitor)io.tapdata.entity.utils.InstanceFactory.instance(io.tapdata.supervisor.ClassLifeCircleMonitor.class)).instanceEnded($0);",
+              "isFinally": true,
+              "isRedundant": false
+            }
+          ]
+        }
+      ],
+      "constructor": [
+        {
+          "isCreate": false,
+          "args": "*",
+          "type": [ "void"],
+          "returnType": "void",
+          "code": [
+            {
+              "type": "before",
+              "line": "((io.tapdata.supervisor.ClassLifeCircleMonitor)io.tapdata.entity.utils.InstanceFactory.instance(io.tapdata.supervisor.ClassLifeCircleMonitor.class)).instanceStarted($0);"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

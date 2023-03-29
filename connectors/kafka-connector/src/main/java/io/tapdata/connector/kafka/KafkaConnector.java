@@ -2,6 +2,8 @@ package io.tapdata.connector.kafka;
 
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonDbConfig;
+import io.tapdata.common.ddl.DDLFactory;
+import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.kafka.config.KafkaConfig;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;

@@ -11,25 +11,31 @@ public class ThreadFactory implements java.util.concurrent.ThreadFactory {
     private final AtomicInteger threadNum = new AtomicInteger(1);
     //set name
     private final String prefix;
-    private final boolean daemoThread;
+    private final boolean daemonThread;
     private final ThreadGroup threadGroup;
     public ThreadFactory(){
         this(null);
     }
     public ThreadFactory(String prefix){
-        this(prefix, false);
+        this(prefix, false, null);
     }
-    public ThreadFactory(String prefix, boolean daemo){
-        this.prefix = (prefix != null ? prefix : "StarFish_Thread") + "-" + poolNum.incrementAndGet() + "-thread-";
-        daemoThread = daemo;
-        SecurityManager s = System.getSecurityManager();
-        threadGroup = (s == null) ? Thread.currentThread().getThreadGroup() : s.getThreadGroup();
+    public ThreadFactory(String prefix, ThreadGroup threadGroup){
+        this(prefix, false, threadGroup);
+    }
+    public ThreadFactory(String prefix, boolean daemon, ThreadGroup threadGroup){
+        this.prefix = (prefix != null ? prefix : "Thread") + "-" + poolNum.incrementAndGet() + "-thread-";
+        daemonThread = daemon;
+        this.threadGroup = (threadGroup == null) ? Thread.currentThread().getThreadGroup() : threadGroup;
     }
     @Override
     public Thread newThread(Runnable runnable) {
         String name = prefix + threadNum.getAndIncrement();
         Thread thread = new Thread(threadGroup, runnable, name, 0);
-        thread.setDaemon(daemoThread);
+        thread.setDaemon(daemonThread);
         return thread;
+    }
+
+    public ThreadGroup getThreadGroup() {
+        return threadGroup;
     }
 }

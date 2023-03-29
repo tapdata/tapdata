@@ -15,12 +15,17 @@ public class CommonColumn {
     protected String nullable;
     protected String remarks;
     protected String columnDefaultValue;
+    protected String autoInc;
 
     public CommonColumn() {
     }
 
     protected Boolean isNullable() {
         return "1".equals(this.nullable);
+    }
+
+    protected Boolean isAutoInc() {
+        return "1".equals(this.autoInc);
     }
 
     public TapField getTapField() {

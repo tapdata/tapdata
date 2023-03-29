@@ -618,6 +618,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         metadataInstancesDto.setFindPossibleDataTypes(schema.getFindPossibleDataTypes());
 
         AtomicBoolean hasPrimayKey = new AtomicBoolean(false);
+
+        final Map<String, PossibleDataTypes> findPossibleDataTypes = metadataInstancesDto.getFindPossibleDataTypes();
         metadataInstancesDto.getFields().forEach(field -> {
             if (field.getId() == null) {
                 field.setId(new ObjectId().toHexString());
@@ -626,6 +628,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             if (databaseType.equalsIgnoreCase(field.getSourceDbType())) {
                 if (originalField != null && originalField.getDataTypeTemp() != null) {
                     field.setDataType(originalField.getDataTypeTemp());
+                    if (findPossibleDataTypes != null) {
+                        findPossibleDataTypes.remove(field.getFieldName());
+                    }
                 }
             }
 

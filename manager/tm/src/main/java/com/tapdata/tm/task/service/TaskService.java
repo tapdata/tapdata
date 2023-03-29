@@ -56,6 +56,7 @@ import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.service.InspectResultService;
 import com.tapdata.tm.inspect.service.InspectService;
+import com.tapdata.tm.lock.service.LockControlService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.service.MessageService;
@@ -192,6 +193,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
 
     private CustomSqlService customSqlService;
+
+
+    private LockControlService lockControlService;
     public TaskService(@NonNull TaskRepository repository) {
         super(repository, TaskDto.class, TaskEntity.class);
     }
@@ -3087,6 +3091,18 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      *                  第二位 是否开启打点任务      1 是   0 否
      */
     public void start(TaskDto taskDto, UserDetail user, String startFlag) {
+
+        if (taskDto.getShareCdcEnable() && !TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(taskDto.getSyncType())) {
+            //如果是共享挖掘任务给一个队列，避免混乱
+            lockControlService.logCollectorStartQueue(user);
+        }
+
+
+        if (TaskDto.LDP_TYPE_FDM.equals(taskDto.getLdpType())) {
+            //如果是共享挖掘任务给一个队列，避免混乱
+            lockControlService.fdmStartQueue(user);
+        }
+
         Update update = Update.update("lastStartDate", System.currentTimeMillis());
         if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
             String taskRecordId = new ObjectId().toHexString();

@@ -11,17 +11,42 @@
 ##### **1.3.1 WebHook**
 - 此模式需要在創建任務前配寘好ServiceHook:
 - 配寘web Hook的流程如下：
+
 ```
-進入您的團隊->
-選擇一個項目->
-進入項目設定->
-點擊開發者選項->
-點擊ServerHook ->
-右上角點擊新建ServerHook ->
-選擇HttpWebHook，點擊下一步->
-選擇您需要的觸發事件，點擊下一步->
-此時按您的需求設定配寘，同時把之前的生成的URL粘貼到服務URL中。
+ 1. 一鍵生成服務URL，並複製到剪切板
 ```
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/coding/generate.PNG)
+
+```
+ 2. 進入您的團隊並選擇對應的項目 
+```
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/coding/init.PNG)
+
+```
+ 3. 進入項目設定後，找到開發者選項 
+```
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/coding/developer.PNG)
+
+```
+ 4. 找到ServerHook，再找到右上角點的新建ServerHook按鈕並點擊 
+```
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/coding/init-webhook.PNG)
+
+```
+ 5. 進入Webhook配寘，第一步我們選擇Http Webhook後點擊下一步 
+```
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/coding/webhook.PNG)
+
+```
+ 6. 配寘我們需要的監聽的事件類型 
+```
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/coding/monitor.PNG)
+
+```
+ 7. 粘貼我們最開始在創建資料來源頁面生成的服務URL到此
+```
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/coding/url.PNG)
+
 - 一鍵前往配寘web Hook： https://tapdata.coding.net/p/testissue/setting/webhook
 ---
 特別說明：**創建新的Coding連接，如果選擇WebHook模式，一定要記得前往Coding為此連接節點配寘ServiceHook哦！**

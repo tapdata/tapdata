@@ -3,16 +3,14 @@ package io.tapdata.common;
 import com.zaxxer.hikari.HikariDataSource;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 
-import java.lang.reflect.Proxy;
 import java.sql.*;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static io.tapdata.entity.simplify.TapSimplify.toJson;
+import static io.tapdata.entity.simplify.TapSimplify.list;
 
 /**
  * abstract jdbc context
@@ -20,22 +18,15 @@ import static io.tapdata.entity.simplify.TapSimplify.toJson;
  * @author Jarad
  * @date 2022/5/30
  */
-public abstract class JdbcContext {
+public abstract class JdbcContext implements AutoCloseable {
 
     private final static String TAG = JdbcContext.class.getSimpleName();
     private final HikariDataSource hikariDataSource;
-    private boolean isFinish = false;
     private final CommonDbConfig config;
-    private final List<String> connectorIds = new ArrayList<>(); //number of initialization
 
-    public JdbcContext incrementConnector(String connectorId) {
-        connectorIds.add(connectorId);
-        return this;
-    }
-
-    public JdbcContext(CommonDbConfig config, HikariDataSource hikariDataSource) {
+    public JdbcContext(CommonDbConfig config) {
         this.config = config;
-        this.hikariDataSource = hikariDataSource;
+        this.hikariDataSource = HikariConnection.getHikariDataSource(config);
     }
 
     public CommonDbConfig getConfig() {
@@ -49,20 +40,7 @@ public abstract class JdbcContext {
      * @throws SQLException SQLException
      */
     public Connection getConnection() throws SQLException {
-        final Connection connectionProxy = (Connection) Proxy.newProxyInstance(Connection.class.getClassLoader(),
-                new Class[]{Connection.class},
-                new JdbcConnectionProxy(hikariDataSource.getConnection()));
-
-        return connectionProxy;
-    }
-
-    public boolean testValid() {
-        try {
-            getConnection().close();
-            return true;
-        } catch (SQLException e) {
-            return false;
-        }
+        return hikariDataSource.getConnection();
     }
 
     /**
@@ -70,23 +48,21 @@ public abstract class JdbcContext {
      *
      * @return version description
      */
-    public String queryVersion() {
-        AtomicReference<String> version = new AtomicReference<>("");
-        try {
-            queryWithNext("SELECT VERSION()", resultSet -> version.set(resultSet.getString(1)));
-        } catch (Throwable e) {
-            e.printStackTrace();
+    public String queryVersion() throws SQLException {
+        try (
+                Connection connection = getConnection()
+        ) {
+            DatabaseMetaData databaseMetaData = connection.getMetaData();
+            return databaseMetaData.getDatabaseMajorVersion() + "." + databaseMetaData.getDatabaseMinorVersion();
         }
-        return version.get();
     }
 
-    public void queryWithNext(String sql, ResultSetConsumer resultSetConsumer) throws Throwable {
-        TapLogger.debug(TAG, "Execute query, sql: " + sql);
+    public void queryWithNext(String sql, ResultSetConsumer resultSetConsumer) throws SQLException {
         try (
                 Connection connection = getConnection();
                 Statement statement = connection.createStatement()
         ) {
-            statement.setFetchSize(1000); //protected from OM
+            statement.setFetchSize(2000); //protected from OM
             try (
                     ResultSet resultSet = statement.executeQuery(sql)
             ) {
@@ -95,26 +71,26 @@ public abstract class JdbcContext {
                     resultSetConsumer.accept(resultSet);
                 }
             }
-        } catch (SQLException e) {
-            throw new SQLException("Execute query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + ")", e);
         }
     }
 
-    public void query(String sql, ResultSetConsumer resultSetConsumer) throws Throwable {
-        TapLogger.debug(TAG, "Execute query, sql: " + sql);
+    public void query(String sql, ResultSetConsumer resultSetConsumer) throws SQLException {
         try (
                 Connection connection = getConnection();
                 Statement statement = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
         ) {
-            statement.setFetchSize(5000); //protected from OM
-            ResultSet resultSet = statement.executeQuery(sql);
-            resultSetConsumer.accept(resultSet);
-            resultSet.close();
-        } catch (SQLException e) {
-            throw new SQLException("Execute query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
+            statement.setFetchSize(2000); //protected from OM
+            try (
+                    ResultSet resultSet = statement.executeQuery(sql)
+            ) {
+                if (EmptyKit.isNotNull(resultSet)) {
+                    resultSetConsumer.accept(resultSet);
+                }
+            }
         }
     }
 
+    @Deprecated
     public void query(PreparedStatement preparedStatement, ResultSetConsumer resultSetConsumer) throws Throwable {
         TapLogger.debug(TAG, "Execute query, sql: " + preparedStatement);
         try (
@@ -129,8 +105,7 @@ public abstract class JdbcContext {
         }
     }
 
-    public void prepareQuery(String prepareSql, List<Object> params, ResultSetConsumer resultSetConsumer) throws Throwable {
-        System.out.println("[SQL]" + prepareSql + ":[params]" + toJson(params));
+    public void prepareQuery(String prepareSql, List<Object> params, ResultSetConsumer resultSetConsumer) throws SQLException {
         try (
                 Connection connection = getConnection();
                 PreparedStatement preparedStatement = connection.prepareStatement(prepareSql)
@@ -146,53 +121,49 @@ public abstract class JdbcContext {
                     resultSetConsumer.accept(resultSet);
                 }
             }
-        } catch (SQLException e) {
-            throw new SQLException("Execute query failed, sql: " + prepareSql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
         }
     }
 
     public void execute(String sql) throws SQLException {
-        TapLogger.debug(TAG, "Execute sql: " + sql);
         try (
                 Connection connection = getConnection();
                 Statement statement = connection.createStatement()
         ) {
             statement.execute(sql);
             connection.commit();
-        } catch (SQLException e) {
-            throw new SQLException("Execute sql failed, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
         }
     }
 
-    public void batchExecute(List<String> sqls) throws SQLException {
-        TapLogger.debug(TAG, "batchExecute sqls: " + sqls);
+    public void batchExecute(List<String> sqlList) throws SQLException {
         try (
                 Connection connection = getConnection();
                 Statement statement = connection.createStatement()
         ) {
-            for (String sql : sqls) {
+            for (String sql : sqlList) {
                 statement.execute(sql);
             }
             connection.commit();
-        } catch (SQLException e) {
-            throw new SQLException("batchExecute sql failed, sqls: " + sqls + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
         }
     }
 
-    public boolean isFinish() {
-        return isFinish;
-    }
-
-    public void setFinish(boolean finish) {
-        isFinish = finish;
-    }
-
-    public void finish(String connectorId) {
-        connectorIds.remove(connectorId);
-        if (EmptyKit.isEmpty(connectorIds)) {
-            this.hikariDataSource.close();
-            setFinish(true);
-            DataSourcePool.removeJdbcContext(config);
+    public void queryAllTables(List<String> tableNames, int batchSize, Consumer<List<String>> consumer) throws SQLException {
+        List<String> temp = list();
+        query(queryAllTablesSql(getConfig().getSchema(), tableNames),
+                resultSet -> {
+                    while (resultSet.next()) {
+                        String tableName = resultSet.getString("tableName");
+                        if (EmptyKit.isNotBlank(tableName)) {
+                            temp.add(tableName);
+                        }
+                        if (temp.size() >= batchSize) {
+                            consumer.accept(temp);
+                            temp.clear();
+                        }
+                    }
+                });
+        if (EmptyKit.isNotEmpty(temp)) {
+            consumer.accept(temp);
+            temp.clear();
         }
     }
 
@@ -202,9 +173,14 @@ public abstract class JdbcContext {
      * @param tableNames some tables(all tables if tableName is empty or null)
      * @return List<TableName and Comments>
      */
-    public abstract List<DataMap> queryAllTables(List<String> tableNames);
+    public List<DataMap> queryAllTables(List<String> tableNames) throws SQLException {
+        List<DataMap> tableList = list();
+        query(queryAllTablesSql(getConfig().getSchema(), tableNames),
+                resultSet -> tableList.addAll(DbKit.getDataFromResultSet(resultSet)));
+        return tableList;
+    }
 
-    public void queryAllTables(List<String> tableNames, int batchSize, Consumer<List<String>> consumer) {
+    protected String queryAllTablesSql(String schema, List<String> tableNames) {
         throw new UnsupportedOperationException();
     }
 
@@ -214,7 +190,16 @@ public abstract class JdbcContext {
      * @param tableNames some tables(all tables if tableName is empty or null)
      * @return List<column info>
      */
-    public abstract List<DataMap> queryAllColumns(List<String> tableNames);
+    public List<DataMap> queryAllColumns(List<String> tableNames) throws SQLException {
+        List<DataMap> columnList = list();
+        query(queryAllColumnsSql(getConfig().getSchema(), tableNames),
+                resultSet -> columnList.addAll(DbKit.getDataFromResultSet(resultSet)));
+        return columnList;
+    }
+
+    protected String queryAllColumnsSql(String schema, List<String> tableNames) {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * query all index info from some tables
@@ -222,9 +207,47 @@ public abstract class JdbcContext {
      * @param tableNames some tables(all tables if tableName is empty or null)
      * @return List<index info>
      */
-    public abstract List<DataMap> queryAllIndexes(List<String> tableNames);
+    public List<DataMap> queryAllIndexes(List<String> tableNames) throws SQLException {
+        List<DataMap> columnList = list();
+        query(queryAllIndexesSql(getConfig().getSchema(), tableNames),
+                resultSet -> columnList.addAll(DbKit.getDataFromResultSet(resultSet)));
+        return columnList;
+    }
 
-    public HikariDataSource getHikariDataSource() {
-        return hikariDataSource;
+    protected String queryAllIndexesSql(String schema, List<String> tableNames) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void close() {
+        if (EmptyKit.isNotNull(hikariDataSource)) {
+            hikariDataSource.close();
+        }
+    }
+
+    //static Hikari connection
+    static class HikariConnection {
+        public static HikariDataSource getHikariDataSource(CommonDbConfig config) throws IllegalArgumentException {
+            HikariDataSource hikariDataSource;
+            if (EmptyKit.isNull(config)) {
+                throw new IllegalArgumentException("Config cannot be null");
+            }
+            hikariDataSource = new HikariDataSource();
+            //need 4 attributes
+            hikariDataSource.setDriverClassName(config.getJdbcDriver());
+            hikariDataSource.setJdbcUrl(config.getDatabaseUrl());
+            hikariDataSource.setUsername(config.getUser());
+            hikariDataSource.setPassword(config.getPassword());
+            if (EmptyKit.isNotNull(config.getProperties())) {
+                hikariDataSource.setDataSourceProperties(config.getProperties());
+            }
+            hikariDataSource.setMinimumIdle(1);
+            hikariDataSource.setMaximumPoolSize(20);
+            hikariDataSource.setAutoCommit(false);
+            hikariDataSource.setIdleTimeout(60 * 1000L);
+            hikariDataSource.setKeepaliveTime(60 * 1000L);
+            hikariDataSource.setMaxLifetime(600 * 1000L);
+            return hikariDataSource;
+        }
     }
 }

@@ -1,6 +1,5 @@
 package io.tapdata.connector.tidb;
 
-import com.zaxxer.hikari.HikariDataSource;
 import io.tapdata.common.JdbcContext;
 import io.tapdata.connector.tidb.config.TidbConfig;
 import io.tapdata.entity.logger.TapLogger;
@@ -22,8 +21,8 @@ import java.util.function.Consumer;
 public class TidbJdbcRunner extends JdbcContext {
     private static final String TAG = TidbJdbcRunner.class.getSimpleName();
 
-    public TidbJdbcRunner(TidbConfig config, HikariDataSource hikariDataSource) {
-        super(config, hikariDataSource);
+    public TidbJdbcRunner(TidbConfig config) {
+        super(config);
     }
 
     @Override
