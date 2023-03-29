@@ -430,6 +430,9 @@ public class TapdataTaskScheduler {
 		Query query = Query.query(where("_id").is(taskId));
 		query.fields().include("attrs.syncProgress").include("type");
 		TaskDto findTask = clientMongoOperator.findOne(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+		if (null == findTask) {
+			return false;
+		}
 		Map<String, Object> attrs = findTask.getAttrs();
 		if (MapUtils.isNotEmpty(attrs) && attrs.containsKey("syncProgress")) {
 			// Check task sync progress
