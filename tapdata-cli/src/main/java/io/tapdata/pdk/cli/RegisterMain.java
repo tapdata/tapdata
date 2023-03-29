@@ -67,6 +67,7 @@ public class RegisterMain {
         Databend(BASE_PATH + "connectors/dist/databend-connector-v1.0-SNAPSHOT.jar", "all", "databend"),
         Hazelcast(BASE_PATH + "connectors/dist/hazelcast-connector-v1.0-SNAPSHOT.jar", "all", "hazelcast"),
         ZohoCRM(BASE_PATH + "connectors/dist/zoho-crm-connector-v1.0-SNAPSHOT.jar", "all", "zoho-crm"),
+        GitHubCRM(BASE_PATH + "connectors/dist/github-connector-v1.0-SNAPSHOT.jar", "all", "github"),
         LarkTask(BASE_PATH + "connectors/dist/lark-task-connector-v1.0-SNAPSHOT.jar", "all", "lark-task"),
         OpenGauss(BASE_PATH + "connectors/dist/openGauss-connector-v1.0-SNAPSHOT.jar", "all", "open-gauss", "basic", "jdbc"),
         Salesforce(BASE_PATH + "connectors/dist/salesforce-connector-v1.0-SNAPSHOT.jar", "all", "salesforce"),
