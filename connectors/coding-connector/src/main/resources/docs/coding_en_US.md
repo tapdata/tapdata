@@ -11,17 +11,43 @@ After filling in your team name, directly click the authorization button, jump t
 ##### **1.3.1 WebHook**
 - In this mode, you need to configure ServiceHook before creating tasks:
 - The process of configuring web hooks is as follows:
+
 ```
-    Enter your team ->
-    Select an item ->
-    Enter project settings ->
-    Click Developer Options ->
-    Click ServerHook ->
-    Click Create ServerHook in the upper right corner ->
-    Select HttpWebHook and click Next ->
-    Select the trigger event you want and click Next ->
-    At this time, set the configuration according to your needs, and paste the previously generated URL into the service URL.
+ 1. Generate a service URL with one click and copy it to the clipboard
 ```
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/coding/generate.PNG)
+
+```
+ 2. Enter your team and select the corresponding project
+```
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/coding/init.PNG)
+
+```
+ 3. After entering the project settings, find the developer options
+```
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/coding/developer.PNG)
+
+```
+ 4. Locate the ServerHook, locate the New ServerHook button in the upper right corner, and click
+```
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/coding/init-webhook.PNG)
+
+```
+ 5. Enter the Webhook configuration. The first step is to select Http Webhook and click Next
+```
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/coding/webhook.PNG)
+
+```
+ 6. Configure the event types we need to listen to
+```
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/coding/monitor.PNG)
+
+```
+ 7. Paste the service URL we first generated on the Create Data Source page here
+```
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/coding/url.PNG)
+
+
 - One click to configure WebHook：https://tapdata.coding.net/p/testissue/setting/webhook
 
 ---
