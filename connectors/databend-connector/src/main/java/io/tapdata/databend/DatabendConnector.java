@@ -25,6 +25,7 @@ import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -54,9 +55,7 @@ public class DatabendConnector extends ConnectorBase {
 
     private void initConnection(TapConnectionContext connectionContext) throws Throwable {
         databendConfig = new DatabendConfig().load(connectionContext.getConnectionConfig());
-        if (EmptyKit.isNull(databendJdbcContext)) {
-            databendJdbcContext = new DatabendJdbcContext(databendConfig);
-        }
+        databendJdbcContext = new DatabendJdbcContext(databendConfig);
         this.connectionTimezone = connectionContext.getConnectionConfig().getString("timezone");
         if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
             this.connectionTimezone = databendJdbcContext.timezone();
@@ -277,9 +276,7 @@ public class DatabendConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
-        if (EmptyKit.isNotNull(databendJdbcContext)) {
-            databendJdbcContext.close();
-        }
+        ErrorKit.ignoreAnyError(databendJdbcContext::close);
         JdbcUtil.closeQuietly(databendBatchWriter);
     }
 
