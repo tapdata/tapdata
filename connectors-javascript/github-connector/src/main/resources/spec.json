@@ -46,6 +46,11 @@
         "line": {
           "type": "void",
           "x-component": "Space",
+          "x-decorator": "FormItem",
+          "title": " ",
+          "x-decorator-props": {
+            "colon": false
+          },
           "properties": {
             "authButton": {
               "type": "void",
@@ -55,6 +60,7 @@
               "title": "",
               "x-index": 20,
               "x-component-props": {
+                "type": "primary",
                 "onClick": "{{useAsyncDataSourceByConfig({service: goToAuthorized, withoutField: true}, { target: 'https://redirect.tapdata.io/oauth/complete', pdkId: 'github', oauthUrl: 'https://github.com/login/oauth/authorize?scope=user repo public_repo read:project read:user read:org&client_id=3befd8286de3bc48e082&redirect_uri=https%3A%2F%2Fredirect.tapdata.io%2Foauth%2Fcomplete%2Fgithub&state=1' })}}"
               },
               "x-decorator-props":{"style":{"width":"120px"}}
@@ -65,11 +71,11 @@
               "x-decorator": "FormItem",
               "x-component": "Text",
               "apiServerKey": "AAA",
-              "x-index": 400,
+              "x-index": 30,
               "required": true,
               "x-component-props": {
                 "content": "{{$values.code ? '${OAuthButtonOK}' : '${OAuthButton}'}}",
-                "style": {"color": "{{ $values.code ? 'green' : 'red' }}"}
+                "style": {"color": "{{ $values.code ? 'green' : 'rgb(83, 95, 114)' }}"}
               }
             }
           }
@@ -83,9 +89,9 @@
       "doc": "doc/demo_en_US.md",
       "owner": "GitHub owner",
       "repo": "GitHub repo",
-      "code": "Authorise",
-      "OAuthButtonTitle": "Authorise",
-      "OAuthButton": "Must be successfully authorized to save",
+      "code": "Authorize",
+      "OAuthButtonTitle": "Authorize",
+      "OAuthButton": "Please authorize API access to continue",
       "OAuthButtonOK": "Authorization successful"
     },
     "zh_CN": {
@@ -94,7 +100,7 @@
       "repo": "GitHub repo",
       "code": "授权",
       "OAuthButtonTitle": "授权",
-      "OAuthButton": "必须要成功授权才能保存",
+      "OAuthButton": "请先授权成功再点击连接测试或保存",
       "OAuthButtonOK": "成功授权"
     },
     "zh_TW": {
@@ -103,7 +109,7 @@
       "repo": "GitHub repo",
       "code": "授權",
       "OAuthButtonTitle": "授權",
-      "OAuthButton": "必須要成功授權才能保存",
+      "OAuthButton": "請先授權成功再點擊鏈接測試或保存",
       "OAuthButtonOK": "成功授權"
     }
   }
