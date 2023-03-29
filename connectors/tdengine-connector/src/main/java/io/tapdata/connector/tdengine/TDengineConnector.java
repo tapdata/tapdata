@@ -25,6 +25,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -63,12 +64,10 @@ public class TDengineConnector extends ConnectorBase {
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Exception {
         tdengineConfig = (TDengineConfig) new TDengineConfig().load(connectionContext.getConnectionConfig());
-        if (EmptyKit.isNull(tdengineJdbcContext)) {
-            tdengineJdbcContext = new TDengineJdbcContext(tdengineConfig);
-            this.connectionTimezone = connectionContext.getConnectionConfig().getString("timezone");
-            if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
-                this.connectionTimezone = tdengineJdbcContext.timezone();
-            }
+        tdengineJdbcContext = new TDengineJdbcContext(tdengineConfig);
+        this.connectionTimezone = connectionContext.getConnectionConfig().getString("timezone");
+        if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
+            this.connectionTimezone = tdengineJdbcContext.timezone();
         }
 
         fieldDDLHandlers = new BiClassHandlers<>();
@@ -83,9 +82,7 @@ public class TDengineConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
-        if (EmptyKit.isNotNull(tdengineJdbcContext)) {
-            tdengineJdbcContext.close();
-        }
+        ErrorKit.ignoreAnyError(tdengineJdbcContext::close);
     }
 
     @Override

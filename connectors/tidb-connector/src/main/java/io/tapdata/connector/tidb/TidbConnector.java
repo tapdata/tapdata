@@ -30,6 +30,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -72,9 +73,7 @@ public class TidbConnector extends ConnectorBase {
         tidbConnectionTest = new TidbConnectionTest(tidbConfig, testItem -> {
         }, null);
         tidbConnectionTest.setKafkaConfig(kafkaConfig);
-        if (EmptyKit.isNull(tidbContext)) {
-            tidbContext = new TidbContext(tidbConfig);
-        }
+        tidbContext = new TidbContext(tidbConfig);
         this.tidbReader = new TidbReader(tidbContext);
         this.version = tidbContext.queryVersion();
         this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
@@ -349,15 +348,9 @@ public class TidbConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Exception {
-        if (EmptyKit.isNotNull(tidbContext)) {
-            tidbContext.close();
-        }
-        if (EmptyKit.isNotNull(tidbConnectionTest)) {
-            tidbConnectionTest.close();
-        }
-        if (EmptyKit.isNotNull(ticdcKafkaService)) {
-            ticdcKafkaService.close();
-        }
+        ErrorKit.ignoreAnyError(tidbContext::close);
+        ErrorKit.ignoreAnyError(tidbConnectionTest::close);
+        ErrorKit.ignoreAnyError(ticdcKafkaService::close);
         if (EmptyKit.isNotNull(httpUtil)) {
             if (!httpUtil.isChangeFeedClosed()) {
                 httpUtil.pauseChangefeed(changeFeedId, tidbConfig.getTicdcUrl());
