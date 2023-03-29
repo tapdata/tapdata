@@ -349,9 +349,8 @@ public class MariadbConnector extends ConnectorBase {
     private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long startTime) throws Throwable {
         if (null == startTime) {
             return this.mysqlJdbcContext.readBinlogPosition();
-        } else {
-            throw new NotSupportedException();
         }
+        return startTime;
     }
 }
 
