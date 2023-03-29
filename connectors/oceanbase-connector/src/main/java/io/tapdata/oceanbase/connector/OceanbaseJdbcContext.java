@@ -1,7 +1,6 @@
 package io.tapdata.oceanbase.connector;
 
 import com.google.common.collect.Lists;
-import com.zaxxer.hikari.HikariDataSource;
 import io.tapdata.common.JdbcContext;
 import io.tapdata.common.ResultSetConsumer;
 import io.tapdata.entity.logger.TapLogger;
@@ -54,8 +53,8 @@ public class OceanbaseJdbcContext extends JdbcContext {
         add("NO_ZERO_DATE");
     }};
 
-    public OceanbaseJdbcContext(OceanbaseConfig config, HikariDataSource hikariDataSource) {
-        super(config, hikariDataSource);
+    public OceanbaseJdbcContext(OceanbaseConfig config) {
+        super(config);
     }
 
     public static void tryCommit(Connection connection) {
@@ -124,7 +123,7 @@ public class OceanbaseJdbcContext extends JdbcContext {
         return null;
     }
 
-    public void query(String sql, ResultSetConsumer resultSetConsumer) throws Throwable {
+    public void query(String sql, ResultSetConsumer resultSetConsumer) {
         TapLogger.debug(TAG, "Execute query, sql: " + sql);
         try (
                 Connection connection = getConnection();
@@ -136,7 +135,7 @@ public class OceanbaseJdbcContext extends JdbcContext {
                 resultSetConsumer.accept(resultSet);
             }
         } catch (SQLException e) {
-            throw new Exception("Execute query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
+            throw new RuntimeException("Execute query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
         }
     }
 
@@ -190,7 +189,7 @@ public class OceanbaseJdbcContext extends JdbcContext {
         return exists.get();
     }
 
-    public void dropTable(String tableName) throws Throwable {
+    public void dropTable(String tableName) throws SQLException {
         String database = getDatabase();
         String sql = String.format(DROP_TABLE_IF_EXISTS_SQL, database, tableName);
         execute(sql);

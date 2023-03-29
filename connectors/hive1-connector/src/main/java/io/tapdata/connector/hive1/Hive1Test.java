@@ -1,7 +1,6 @@
 package io.tapdata.connector.hive1;
 
 import io.tapdata.common.CommonDbTest;
-import io.tapdata.common.DataSourcePool;
 import io.tapdata.connector.hive1.config.Hive1Config;
 import io.tapdata.connector.hive1.dml.Hive1Writer;
 import io.tapdata.pdk.apis.entity.TestItem;
@@ -19,7 +18,7 @@ public class Hive1Test extends CommonDbTest {
 
     public Hive1Test(Hive1Config hive1Config, Consumer<TestItem> consumer) {
         super(hive1Config, consumer);
-        jdbcContext = DataSourcePool.getJdbcContext(hive1Config, Hive1JdbcContext.class, uuid);
+        jdbcContext = new Hive1JdbcContext(hive1Config);
     }
 
     @Override

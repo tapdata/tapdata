@@ -2,6 +2,7 @@ package io.tapdata.construct.constructImpl;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
+import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
@@ -69,7 +70,7 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 
 	@Override
 	public void clear() throws Exception {
-		iMap.clear();
+		PersistenceStorage.getInstance().clear(ConstructType.IMAP, name);
 	}
 
 	@Override
@@ -96,6 +97,9 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 
 	@Override
 	public void destroy() throws Exception {
-		this.iMap.destroy();
+		PersistenceStorage.getInstance().destroy(ConstructType.IMAP, name);
+		if (null != iMap) {
+			iMap.destroy();
+		}
 	}
 }

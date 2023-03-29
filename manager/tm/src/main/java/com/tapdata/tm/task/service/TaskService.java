@@ -56,6 +56,7 @@ import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.service.InspectResultService;
 import com.tapdata.tm.inspect.service.InspectService;
+import com.tapdata.tm.lock.service.LockControlService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.service.MessageService;
@@ -192,6 +193,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
 
     private CustomSqlService customSqlService;
+
+
+    private LockControlService lockControlService;
     public TaskService(@NonNull TaskRepository repository) {
         super(repository, TaskDto.class, TaskEntity.class);
     }
@@ -3087,6 +3091,18 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      *                  第二位 是否开启打点任务      1 是   0 否
      */
     public void start(TaskDto taskDto, UserDetail user, String startFlag) {
+
+        if (taskDto.getShareCdcEnable() && !TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(taskDto.getSyncType())) {
+            //如果是共享挖掘任务给一个队列，避免混乱
+            lockControlService.logCollectorStartQueue(user);
+        }
+
+
+        if (TaskDto.LDP_TYPE_FDM.equals(taskDto.getLdpType())) {
+            //如果是共享挖掘任务给一个队列，避免混乱
+            lockControlService.fdmStartQueue(user);
+        }
+
         Update update = Update.update("lastStartDate", System.currentTimeMillis());
         if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
             String taskRecordId = new ObjectId().toHexString();
@@ -3253,7 +3269,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void pause(TaskDto taskDto, UserDetail user, boolean force, boolean restart) {
 
         //重启的特殊处理，共享挖掘的比较多
-        if (TaskDto.STATUS_STOP.equals(taskDto.getStatus()) && restart) {
+        if ((TaskDto.STATUS_STOP.equals(taskDto.getStatus()) || TaskDto.STATUS_STOPPING.equals(taskDto.getStatus())) && restart) {
             Update update = Update.update("restartFlag", true).set("restartUserId", user.getUserId());
             Query query = new Query(Criteria.where("_id").is(taskDto.getId()));
             update(query, update, user);
@@ -3393,7 +3409,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public String stopped(ObjectId id, UserDetail user) {
         //判断子任务是否存在。
-        TaskDto taskDto = checkExistById(id, user, "dag", "name", "status", "_id", "taskRecordId", "agentId", "stopedDate");
+        TaskDto taskDto = checkExistById(id, user, "dag", "name", "status", "_id", "taskRecordId", "agentId", "stopedDate", "restartFlag");
 
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.STOPPED, user);
 
@@ -3411,6 +3427,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             updateById(id, update, user);
 
             logCollectorService.endConnHeartbeat(user, taskDto); // 尝试停止心跳任务
+        }
+
+
+        //对于需要重启的任务，直接拉起来。
+        if (taskDto.getResetFlag() != null && taskDto.getResetFlag()) {
+            start(id, user);
         }
         return id.toHexString();
     }

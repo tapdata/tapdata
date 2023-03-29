@@ -3,7 +3,6 @@ package io.tapdata.connector.tidb;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import io.tapdata.common.CommonDbConnector;
-import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.kafka.config.KafkaConfig;
 import io.tapdata.connector.mysql.SqlMaker;
@@ -43,6 +42,7 @@ import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
+import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -65,7 +65,7 @@ public class TidbConnector extends CommonDbConnector {
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
     private static final int MAX_FILTER_RESULT_SIZE = 100;
     private HttpUtil httpUtil;
-    private  String changeFeedId;
+    private String changeFeedId;
 
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
@@ -74,8 +74,8 @@ public class TidbConnector extends CommonDbConnector {
         tidbConnectionTest = new TidbConnectionTest(tidbConfig, testItem -> {
         }, null);
         tidbConnectionTest.setKafkaConfig(kafkaConfig);
-        if (EmptyKit.isNull(tidbContext) || tidbContext.isFinish()) {
-            tidbContext = (TidbContext) DataSourcePool.getJdbcContext(tidbConfig, TidbContext.class, tapConnectionContext.getId());
+        if (EmptyKit.isNull(tidbContext)) {
+            tidbContext = new TidbContext(tidbConfig);
         }
         commonDbConfig = tidbConfig;
         jdbcContext = tidbContext;
@@ -160,18 +160,18 @@ public class TidbConnector extends CommonDbConnector {
         changeFeedId = (String) nodeContext.getStateMap().get("changeFeedId");
         Changefeed changefeed = new Changefeed();
         if (EmptyKit.isNull(changeFeedId)) {
-                changeFeedId  = UUID.randomUUID().toString().replaceAll("-","");
-                if (Pattern.matches("^[a-zA-Z0-9]+(-[a-zA-Z0-9]+)*$", changeFeedId)) {
-                    nodeContext.getStateMap().put("changeFeedId", changeFeedId);
-                    changefeed.setSinkUri("kafka://" + kafkaConfig.getNameSrvAddr() + "/" + tidbConfig.getMqTopic() + "?" + "kafka-version=2.4.0&partition-num=1&max-message-bytes=67108864&replication-factor=1&protocol=canal-json&auto-create-topic=true");
-                    changefeed.setChangeFeedId(changeFeedId);
-                    changefeed.setForceReplicate(true);
-                    changefeed.setSyncDdl(true);
-                    if(httpUtil.createChangefeed(changefeed, tidbConfig.getTicdcUrl())) {
-                        ticdcKafkaService = new TicdcKafkaService(kafkaConfig, tidbConfig);
-                        ticdcKafkaService.streamConsume(tableList, recordSize, consumer);
-                    }
+            changeFeedId = UUID.randomUUID().toString().replaceAll("-", "");
+            if (Pattern.matches("^[a-zA-Z0-9]+(-[a-zA-Z0-9]+)*$", changeFeedId)) {
+                nodeContext.getStateMap().put("changeFeedId", changeFeedId);
+                changefeed.setSinkUri("kafka://" + kafkaConfig.getNameSrvAddr() + "/" + tidbConfig.getMqTopic() + "?" + "kafka-version=2.4.0&partition-num=1&max-message-bytes=67108864&replication-factor=1&protocol=canal-json&auto-create-topic=true");
+                changefeed.setChangeFeedId(changeFeedId);
+                changefeed.setForceReplicate(true);
+                changefeed.setSyncDdl(true);
+                if (httpUtil.createChangefeed(changefeed, tidbConfig.getTicdcUrl())) {
+                    ticdcKafkaService = new TicdcKafkaService(kafkaConfig, tidbConfig);
+                    ticdcKafkaService.streamConsume(tableList, recordSize, consumer);
                 }
+            }
 
         } else {
             if (httpUtil.resumeChangefeed(changeFeedId, tidbConfig.getTicdcUrl())) {
@@ -254,7 +254,7 @@ public class TidbConnector extends CommonDbConnector {
         return tapRecordEvent;
     }
 
-    private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
+    protected long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
         int count;
         try {
             count = tidbContext.count(tapTable.getName());
@@ -265,11 +265,11 @@ public class TidbConnector extends CommonDbConnector {
     }
 
 
-    private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
+    protected void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
         tidbContext.queryAllTables(list(), batchSize, listConsumer);
     }
 
-    private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
+    protected void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
         List<String> sqls = fieldDDLHandlers.handle(tapFieldBaseEvent, tapConnectorContext);
         if (null == sqls) {
             return;
@@ -284,7 +284,7 @@ public class TidbConnector extends CommonDbConnector {
         }
     }
 
-    private List<String> alterFieldAttr(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+    protected List<String> alterFieldAttr(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapAlterFieldAttributesEvent)) {
             return null;
         }
@@ -292,7 +292,7 @@ public class TidbConnector extends CommonDbConnector {
         return tidbSqlMaker.alterColumnAttr(tapConnectorContext, tapAlterFieldAttributesEvent);
     }
 
-    private List<String> dropField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+    protected List<String> dropField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapDropFieldEvent)) {
             return null;
         }
@@ -300,7 +300,7 @@ public class TidbConnector extends CommonDbConnector {
         return tidbSqlMaker.dropColumn(tapConnectorContext, tapDropFieldEvent);
     }
 
-    private List<String> alterFieldName(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+    protected List<String> alterFieldName(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapAlterFieldNameEvent)) {
             return null;
         }
@@ -308,7 +308,7 @@ public class TidbConnector extends CommonDbConnector {
         return tidbSqlMaker.alterColumnName(tapConnectorContext, tapAlterFieldNameEvent);
     }
 
-    private List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+    protected List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapNewFieldEvent)) {
             return null;
         }
@@ -316,7 +316,7 @@ public class TidbConnector extends CommonDbConnector {
         return tidbSqlMaker.addColumn(tapConnectorContext, tapNewFieldEvent);
     }
 
-    private void createIndex(TapConnectorContext tapConnectorContext, TapTable tapTable, TapCreateIndexEvent tapCreateIndexEvent) throws Throwable {
+    protected void createIndex(TapConnectorContext tapConnectorContext, TapTable tapTable, TapCreateIndexEvent tapCreateIndexEvent) {
         List<TapIndex> indexList = tapCreateIndexEvent.getIndexList();
         SqlMaker sqlMaker = new TidbSqlMaker();
         for (TapIndex tapIndex : indexList) {
@@ -340,7 +340,7 @@ public class TidbConnector extends CommonDbConnector {
     }
 
     @Override
-    public int tableCount(TapConnectionContext connectionContext) throws Throwable {
+    public int tableCount(TapConnectionContext connectionContext) throws SQLException {
         DataMap connectionConfig = connectionContext.getConnectionConfig();
         String database = connectionConfig.getString("database");
         AtomicInteger count = new AtomicInteger(0);
@@ -355,7 +355,7 @@ public class TidbConnector extends CommonDbConnector {
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Exception {
         if (EmptyKit.isNotNull(tidbContext)) {
-            tidbContext.finish(connectionContext.getId());
+            tidbContext.close();
         }
         if (EmptyKit.isNotNull(tidbConnectionTest)) {
             tidbConnectionTest.close();
@@ -365,7 +365,7 @@ public class TidbConnector extends CommonDbConnector {
         }
         if (EmptyKit.isNotNull(httpUtil)) {
             if (!httpUtil.isChangeFeedClosed()) {
-                httpUtil.pauseChangefeed(changeFeedId,tidbConfig.getTicdcUrl());
+                httpUtil.pauseChangefeed(changeFeedId, tidbConfig.getTicdcUrl());
             }
             httpUtil.close();
         }
@@ -377,7 +377,7 @@ public class TidbConnector extends CommonDbConnector {
         }
     }
 
-    private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws Throwable {
+    protected void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
         try {
             if (tidbContext.queryAllTables(Collections.singletonList(tapClearTableEvent.getTableId())).size() == 1) {
                 tidbContext.clearTable(tapClearTableEvent.getTableId());
@@ -388,7 +388,7 @@ public class TidbConnector extends CommonDbConnector {
         }
     }
 
-    private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) throws Throwable {
+    protected void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
         try {
             tidbContext.dropTable(tapDropTableEvent.getTableId());
 
@@ -398,7 +398,7 @@ public class TidbConnector extends CommonDbConnector {
         }
     }
 
-    private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws Throwable {
+    protected CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
         CreateTableOptions createTableOptions = new CreateTableOptions();
         try {
             TapTable tapTable = tapCreateTableEvent.getTable();
@@ -414,7 +414,7 @@ public class TidbConnector extends CommonDbConnector {
                 }
             }
         } catch (Throwable t) {
-            throw new Exception("Create table failed, message: " + t.getMessage(), t);
+            throw new RuntimeException("Create table failed, message: " + t.getMessage(), t);
         }
         createTableOptions.setTableExists(false);
         return createTableOptions;
@@ -427,7 +427,7 @@ public class TidbConnector extends CommonDbConnector {
 
 
     @Override
-    public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
+    public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) {
         List<DataMap> tableList = tidbContext.queryAllTables(tables);
         List<List<DataMap>> tableLists = Lists.partition(tableList, tableSize);
         TableFieldTypesGenerator instance = InstanceFactory.instance(TableFieldTypesGenerator.class);
@@ -515,6 +515,7 @@ public class TidbConnector extends CommonDbConnector {
             consumer.accept(filterResults);
         }
     }
+
     private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
         DataMap dataMap = tidbContext.getTableInfo(tableName);
         TableInfo tableInfo = TableInfo.create();

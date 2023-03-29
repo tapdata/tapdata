@@ -3,6 +3,8 @@ package io.tapdata.coding.service.schema;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 import static io.tapdata.entity.simplify.TapSimplify.field;
 import static io.tapdata.entity.simplify.TapSimplify.table;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
@@ -13,6 +15,9 @@ public class Projects implements SchemaStart {
     @Override
     public Boolean use() {
         return use;
+    }
+
+    public Projects(AtomicReference<String> accessToken){
     }
 
     @Override

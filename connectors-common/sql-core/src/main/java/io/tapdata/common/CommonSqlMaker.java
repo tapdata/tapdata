@@ -57,7 +57,7 @@ public class CommonSqlMaker {
         }).collect(Collectors.joining(", "));
     }
 
-    private void buildNullDefinition(StringBuilder builder, TapField tapField) {
+    protected void buildNullDefinition(StringBuilder builder, TapField tapField) {
         if ((EmptyKit.isNotNull(tapField.getNullable()) && !tapField.getNullable()) || tapField.getPrimaryKey()) {
             builder.append("NOT NULL").append(' ');
         }

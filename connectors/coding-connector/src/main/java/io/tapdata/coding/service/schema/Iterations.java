@@ -5,6 +5,7 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Integer;
@@ -16,6 +17,9 @@ public class Iterations implements SchemaStart {
     @Override
     public Boolean use() {
         return use;
+    }
+
+    public Iterations(AtomicReference<String> accessToken){
     }
 
     @Override

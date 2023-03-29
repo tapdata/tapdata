@@ -78,8 +78,8 @@ public class MongodbConnector extends ConnectorBase {
 	public static final String TAG = MongodbConnector.class.getSimpleName();
 	private final AtomicLong counter = new AtomicLong();
 	private final AtomicBoolean isShutDown = new AtomicBoolean(false);
-	private MongodbConfig mongoConfig;
-	private MongoClient mongoClient;
+	protected  MongodbConfig mongoConfig;
+	protected  MongoClient mongoClient;
 	private MongoDatabase mongoDatabase;
 	private final int[] lock = new int[0];
 	MongoCollection<Document> mongoCollection;
@@ -424,7 +424,7 @@ public class MongodbConnector extends ConnectorBase {
 		connectorFunctions.supportBatchRead(this::batchRead);
 		connectorFunctions.supportBatchCount(this::batchCount);
 		connectorFunctions.supportCreateIndex(this::createIndex);
-		connectorFunctions.supportCreateTableV2(this::createTableV2);
+//		connectorFunctions.supportCreateTableV2(this::createTableV2);
 		connectorFunctions.supportStreamRead(this::streamRead);
 		connectorFunctions.supportTimestampToStreamOffset(this::streamOffset);
 		connectorFunctions.supportErrorHandleFunction(this::errorHandle);

@@ -16,10 +16,8 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.StringJoiner;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
@@ -34,18 +32,20 @@ public class CSVMode implements ConnectionMode {
     TapConnectionContext connectionContext;
     IssuesLoader loader;
     ContextConfig contextConfig;
+    AtomicReference<String> accessToken;
 
     @Override
-    public ConnectionMode config(TapConnectionContext connectionContext) {
+    public ConnectionMode config(TapConnectionContext connectionContext, AtomicReference<String> accessToken) {
         this.connectionContext = connectionContext;
-        this.loader = IssuesLoader.create(connectionContext);
+        this.loader = IssuesLoader.create(connectionContext, accessToken);
         this.contextConfig = loader.veryContextConfigAndNodeConfig();
+        this.accessToken = accessToken;
         return this;
     }
 
     @Override
-    public List<TapTable> discoverSchema(List<String> tables, int tableSize) {
-        List<SchemaStart> schemaStart = SchemaStart.getAllSchemas(connectionContext);
+    public List<TapTable> discoverSchema(List<String> tables, int tableSize, AtomicReference<String> accessToken) {
+        List<SchemaStart> schemaStart = SchemaStart.getAllSchemas(connectionContext, accessToken);
         if (tables == null || tables.isEmpty()) {
             List<TapTable> tapTables = list();
             schemaStart.forEach(schema -> {
@@ -125,7 +125,7 @@ public class CSVMode implements ConnectionMode {
     @Override
     public Map<String, Object> attributeAssignment(Map<String, Object> stringObjectMap) {
         Object code = stringObjectMap.get("Code");
-        HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", contextConfig.getToken());
+        HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", accessToken.get());
         String projectName = contextConfig.getProjectName();
         HttpEntity<String, Object> issueDetialBody = HttpEntity.create()
                 .builder("Action", "DescribeIssue")
@@ -176,7 +176,7 @@ public class CSVMode implements ConnectionMode {
     }
 
     private Map<Integer, Map<String, Object>> getIssueCustomFieldMap(String issueType, ContextConfig contextConfig) {
-        HttpEntity<String, String> heard = HttpEntity.create().builder("Authorization", contextConfig.getToken());
+        HttpEntity<String, String> heard = HttpEntity.create().builder("Authorization", accessToken.get());
         HttpEntity<String, Object> body = HttpEntity.create()
                 .builder("Action", "DescribeProjectIssueFieldList")
                 .builder("ProjectName", contextConfig.getProjectName())
@@ -185,7 +185,7 @@ public class CSVMode implements ConnectionMode {
         Object response = post.get("Response");
         Map<String, Object> responseMap = (Map<String, Object>) response;
         if (null == response) {
-            throw new CoreException("HTTP request exception, Issue CustomField acquisition failed: " + CodingStarter.OPEN_API_URL + "?Action=DescribeProjectIssueFieldList");
+            throw new CoreException("HTTP request exception, Issue CustomField acquisition failed: " + CodingStarter.OPEN_API_URL + "?Action=DescribeProjectIssueFieldList. " + Optional.ofNullable(post.get(CodingHttp.ERROR_KEY)).orElse(""));
         }
         Object data = responseMap.get("ProjectIssueFieldList");
         if (null != data && data instanceof JSONArray) {

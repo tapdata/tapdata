@@ -1,6 +1,5 @@
 package io.tapdata.connector.postgres;
 
-import com.zaxxer.hikari.HikariDataSource;
 import io.tapdata.common.JdbcContext;
 import io.tapdata.connector.postgres.config.PostgresConfig;
 import io.tapdata.entity.logger.TapLogger;
@@ -20,8 +19,8 @@ public class PostgresJdbcContext extends JdbcContext {
 
     private final static String TAG = PostgresJdbcContext.class.getSimpleName();
 
-    public PostgresJdbcContext(PostgresConfig config, HikariDataSource hikariDataSource) {
-        super(config, hikariDataSource);
+    public PostgresJdbcContext(PostgresConfig config) {
+        super(config);
     }
 
     /**

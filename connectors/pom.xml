@@ -11,7 +11,8 @@
         <module>dummy-connector</module>
         <module>tdd-connector</module>
         <module>mongodb-connector</module>
-        <module>mysql-connector</module>
+		<module>mongodb-atlas-connector</module>
+		<module>mysql-connector</module>
         <module>postgres-connector</module>
 		<module>elasticsearch-connector</module>
         <module>doris-connector</module>

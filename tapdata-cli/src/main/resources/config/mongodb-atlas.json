@@ -1,0 +1,11 @@
+{
+  "connection": {
+    "uri": "mongodb+srv://shikun:******@atlascluster.bo1rp4b.mongodb.net/sample_mflix?retryWrites=true&w=majority"
+  },
+  "node": {
+  },
+  "tdd": {
+    "streamReadDelaySec": 10,
+    "deleteRecordAfterCreateTable": false
+  }
+}

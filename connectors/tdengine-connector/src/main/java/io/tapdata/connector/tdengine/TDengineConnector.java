@@ -3,7 +3,6 @@ package io.tapdata.connector.tdengine;
 import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonSqlMaker;
-import io.tapdata.common.DataSourcePool;
 import io.tapdata.connector.tdengine.bean.TDengineColumn;
 import io.tapdata.connector.tdengine.bean.TDengineOffset;
 import io.tapdata.connector.tdengine.config.TDengineConfig;
@@ -23,7 +22,6 @@ import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
@@ -34,9 +32,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
-import io.tapdata.util.DateUtil;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.time.DateFormatUtils;
 
 import java.sql.Timestamp;
 import java.util.*;
@@ -67,8 +63,8 @@ public class TDengineConnector extends ConnectorBase {
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Exception {
         tdengineConfig = (TDengineConfig) new TDengineConfig().load(connectionContext.getConnectionConfig());
-        if (EmptyKit.isNull(tdengineJdbcContext) || tdengineJdbcContext.isFinish()) {
-            tdengineJdbcContext = (TDengineJdbcContext) DataSourcePool.getJdbcContext(tdengineConfig, TDengineJdbcContext.class, connectionContext.getId());
+        if (EmptyKit.isNull(tdengineJdbcContext)) {
+            tdengineJdbcContext = new TDengineJdbcContext(tdengineConfig);
             this.connectionTimezone = connectionContext.getConnectionConfig().getString("timezone");
             if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
                 this.connectionTimezone = tdengineJdbcContext.timezone();
@@ -88,7 +84,7 @@ public class TDengineConnector extends ConnectorBase {
     @Override
     public void onStop(TapConnectionContext connectionContext) {
         if (EmptyKit.isNotNull(tdengineJdbcContext)) {
-            tdengineJdbcContext.finish(connectionContext.getId());
+            tdengineJdbcContext.close();
         }
     }
 

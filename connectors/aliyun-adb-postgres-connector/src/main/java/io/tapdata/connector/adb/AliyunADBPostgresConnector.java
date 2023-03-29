@@ -1,6 +1,5 @@
 package io.tapdata.connector.adb;
 
-import io.tapdata.common.DataSourcePool;
 import io.tapdata.connector.postgres.PostgresConnector;
 import io.tapdata.connector.postgres.PostgresJdbcContext;
 import io.tapdata.connector.postgres.config.PostgresConfig;
@@ -34,11 +33,12 @@ public class AliyunADBPostgresConnector extends PostgresConnector {
     public void onStart(TapConnectionContext connectorContext) {
         super.onStart(connectorContext);
         adbPostgresConfig = (PostgresConfig) new PostgresConfig().load(connectorContext.getConnectionConfig());
-        if (EmptyKit.isNull(adbPostgresJdbcContext) || adbPostgresJdbcContext.isFinish()) {
-            adbPostgresJdbcContext = (PostgresJdbcContext) DataSourcePool.getJdbcContext(adbPostgresConfig, PostgresJdbcContext.class, connectorContext.getId());
+        if (EmptyKit.isNull(adbPostgresJdbcContext)) {
+            adbPostgresJdbcContext = new PostgresJdbcContext(adbPostgresConfig);
         }
         adbPostgresVersion = adbPostgresJdbcContext.queryVersion();
     }
+
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
         super.registerCapabilities(connectorFunctions, codecRegistry);

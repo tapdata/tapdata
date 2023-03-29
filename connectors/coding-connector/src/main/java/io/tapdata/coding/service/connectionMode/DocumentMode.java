@@ -13,6 +13,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
@@ -26,17 +27,19 @@ public class DocumentMode implements ConnectionMode {
     TapConnectionContext connectionContext;
     IssuesLoader loader;
     ContextConfig contextConfig;
+    AtomicReference<String> accessToken;
 
     @Override
-    public ConnectionMode config(TapConnectionContext connectionContext) {
+    public ConnectionMode config(TapConnectionContext connectionContext, AtomicReference<String> accessToken) {
         this.connectionContext = connectionContext;
-        this.loader = IssuesLoader.create(connectionContext);
+        this.loader = IssuesLoader.create(connectionContext, accessToken);
         this.contextConfig = loader.veryContextConfigAndNodeConfig();
+        this.accessToken = accessToken;
         return this;
     }
 
     @Override
-    public List<TapTable> discoverSchema(List<String> tables, int tableSize) {
+    public List<TapTable> discoverSchema(List<String> tables, int tableSize, AtomicReference<String> accessToken) {
         /**
          if(tables == null || tables.isEmpty()) {
          return list(
@@ -89,7 +92,7 @@ public class DocumentMode implements ConnectionMode {
          );
          }
          */
-        List<SchemaStart> schemaStart = SchemaStart.getAllSchemas(connectionContext);
+        List<SchemaStart> schemaStart = SchemaStart.getAllSchemas(connectionContext, accessToken);
         if (tables == null || tables.isEmpty()) {
             List<TapTable> tapTables = list();
             schemaStart.forEach(schema -> {
@@ -106,7 +109,7 @@ public class DocumentMode implements ConnectionMode {
     @Override
     public Map<String, Object> attributeAssignment(Map<String, Object> stringObjectMap) {
         Object code = stringObjectMap.get("Code");
-        HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", contextConfig.getToken());
+        HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", accessToken.get());
         String projectName = contextConfig.getProjectName();
         HttpEntity<String, Object> issueDetialBody = HttpEntity.create()
                 .builder("Action", "DescribeIssue")

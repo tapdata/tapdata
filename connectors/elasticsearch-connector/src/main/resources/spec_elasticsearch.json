@@ -5,7 +5,7 @@
     "doc" : "${doc}",
     "id": "elasticsearch",
     "authentication": "Beta",
-    "tags": ["Database"]
+    "tags": ["Database", "schema-free"]
   },
   "configOptions": {
     "connection": {

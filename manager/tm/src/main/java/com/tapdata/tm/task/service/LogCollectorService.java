@@ -975,7 +975,7 @@ public class LogCollectorService {
                 tableNames.addAll(oldTableNames);
                 tableNames = tableNames.stream().distinct().collect(Collectors.toList());
                 logCollectorNode.setTableNames(tableNames);
-                taskService.confirmById(oldLogCollectorTask, user, true);
+                taskService.updateById(oldLogCollectorTask, user);
                 updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
 
                 FunctionUtils.ignoreAnyError(() -> {

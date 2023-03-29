@@ -3,6 +3,8 @@ package io.tapdata.coding.service.schema;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 import static io.tapdata.entity.simplify.TapSimplify.field;
 import static io.tapdata.entity.simplify.TapSimplify.table;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Boolean;
@@ -12,6 +14,9 @@ public class IssueTypes implements SchemaStart {
     @Override
     public Boolean use() {
         return false;
+    }
+
+    public IssueTypes(AtomicReference<String> accessToken){
     }
 
     @Override

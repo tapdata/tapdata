@@ -2,7 +2,6 @@ package io.tapdata.connector.postgres;
 
 import com.google.common.collect.Lists;
 import io.tapdata.common.CommonDbTest;
-import io.tapdata.common.DataSourcePool;
 import io.tapdata.connector.postgres.config.PostgresConfig;
 import io.tapdata.constant.DbTestItem;
 import io.tapdata.entity.simplify.TapSimplify;
@@ -30,7 +29,7 @@ public class PostgresTest extends CommonDbTest {
     }
 
     public PostgresTest initContext() {
-        jdbcContext = DataSourcePool.getJdbcContext(commonDbConfig, PostgresJdbcContext.class, uuid);
+        jdbcContext = new PostgresJdbcContext((PostgresConfig) commonDbConfig);
         return this;
     }
 
@@ -86,14 +85,6 @@ public class PostgresTest extends CommonDbTest {
         AtomicInteger tableCount = new AtomicInteger();
         jdbcContext.queryWithNext(PG_TABLE_NUM, resultSet -> tableCount.set(resultSet.getInt(1)));
         return tableCount.get();
-    }
-
-    @Override
-    public void close() {
-        try {
-            jdbcContext.finish(uuid);
-        } catch (Exception ignored) {
-        }
     }
 
     private final static String PG_TABLE_NUM = "SELECT COUNT(*) FROM pg_tables WHERE schemaname='%s'";

@@ -1,10 +1,8 @@
 package io.tapdata.connector.clickhouse;
 
 import com.google.common.collect.Lists;
-import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonDbConnector;
 import io.tapdata.common.CommonSqlMaker;
-import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.clickhouse.config.ClickhouseConfig;
 import io.tapdata.connector.clickhouse.ddl.sqlmaker.ClickhouseDDLSqlMaker;
@@ -33,7 +31,6 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 
 import java.sql.SQLException;
 import java.util.*;
@@ -59,7 +56,7 @@ public class ClickhouseConnector extends CommonDbConnector {
 
 //    private String connectionTimezone;
 
-    private  ClickhouseDDLSqlMaker ddlSqlMaker;
+    private ClickhouseDDLSqlMaker ddlSqlMaker;
 
     private final ClickhouseBatchWriter clickhouseWriter = new ClickhouseBatchWriter(TAG);
 
@@ -82,38 +79,43 @@ public class ClickhouseConnector extends CommonDbConnector {
         }
 
     }
-    private List<String> dropField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+
+    protected List<String> dropField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapDropFieldEvent)) {
             return null;
         }
         TapDropFieldEvent tapDropFieldEvent = (TapDropFieldEvent) tapFieldBaseEvent;
         return ddlSqlMaker.dropColumn(tapConnectorContext, tapDropFieldEvent);
     }
-    private List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+
+    protected List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapNewFieldEvent)) {
             return null;
         }
         TapNewFieldEvent tapNewFieldEvent = (TapNewFieldEvent) tapFieldBaseEvent;
         return ddlSqlMaker.addColumn(tapConnectorContext, tapNewFieldEvent);
     }
-    private List<String> alterFieldName(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+
+    protected List<String> alterFieldName(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapAlterFieldNameEvent)) {
             return null;
         }
         TapAlterFieldNameEvent tapAlterFieldNameEvent = (TapAlterFieldNameEvent) tapFieldBaseEvent;
         return ddlSqlMaker.alterColumnName(tapConnectorContext, tapAlterFieldNameEvent);
     }
-    private List<String> alterFieldAttr(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+
+    protected List<String> alterFieldAttr(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapAlterFieldAttributesEvent)) {
             return null;
         }
         TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent = (TapAlterFieldAttributesEvent) tapFieldBaseEvent;
         return ddlSqlMaker.alterColumnAttr(tapConnectorContext, tapAlterFieldAttributesEvent);
     }
+
     private void initConnection(TapConnectionContext connectionContext) throws Throwable {
         clickhouseConfig = (ClickhouseConfig) new ClickhouseConfig().load(connectionContext.getConnectionConfig());
-        if (EmptyKit.isNull(clickhouseJdbcContext) || clickhouseJdbcContext.isFinish()) {
-            clickhouseJdbcContext = (ClickhouseJdbcContext) DataSourcePool.getJdbcContext(clickhouseConfig, ClickhouseJdbcContext.class, connectionContext.getId());
+        if (EmptyKit.isNull(clickhouseJdbcContext)) {
+            clickhouseJdbcContext = new ClickhouseJdbcContext(clickhouseConfig);
         }
         commonDbConfig = clickhouseConfig;
         jdbcContext = clickhouseJdbcContext;
@@ -125,7 +127,7 @@ public class ClickhouseConnector extends CommonDbConnector {
     }
 
     @Override
-    public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
+    public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) {
         List<DataMap> tableList = clickhouseJdbcContext.queryAllTables(tables);
         List<List<DataMap>> tableLists = Lists.partition(tableList, tableSize);
         try {
@@ -179,9 +181,9 @@ public class ClickhouseConnector extends CommonDbConnector {
 
 
     @Override
-    public void onStop(TapConnectionContext connectionContext) throws Throwable {
+    public void onStop(TapConnectionContext connectionContext) {
         if (EmptyKit.isNotNull(clickhouseJdbcContext)) {
-            clickhouseJdbcContext.finish(connectionContext.getId());
+            clickhouseJdbcContext.close();
         }
         JdbcUtil.closeQuietly(clickhouseWriter);
     }
@@ -262,12 +264,14 @@ public class ClickhouseConnector extends CommonDbConnector {
         sql.append(TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapTable.getId()));
         sql.append("(").append(ClickhouseDDLSqlMaker.buildColumnDefinition(tapTable, true));
         sql.setLength(sql.length() - 1);
-        sql.append(") ENGINE = ReplacingMergeTree");
 
         // 主键
         Collection<String> primaryKeys = tapTable.primaryKeys(true);
         if (EmptyKit.isNotEmpty(primaryKeys)) {
+            sql.append(") ENGINE = ReplacingMergeTree");
             sql.append(" PRIMARY KEY (").append(TapTableWriter.sqlQuota(",", primaryKeys)).append(")");
+        } else {
+            sql.append(") ENGINE = MergeTree");
         }
 
         // 关联键排序
@@ -288,7 +292,7 @@ public class ClickhouseConnector extends CommonDbConnector {
         }
     }
 
-    private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
+    protected void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
         List<String> sqls = fieldDDLHandlers.handle(tapFieldBaseEvent, tapConnectorContext);
         if (null == sqls) {
             return;
@@ -317,7 +321,7 @@ public class ClickhouseConnector extends CommonDbConnector {
     }
 
     //需要改写成ck的创建索引方式
-    private void createIndex(TapConnectorContext connectorContext, TapTable tapTable, TapCreateIndexEvent createIndexEvent) {
+    protected void createIndex(TapConnectorContext connectorContext, TapTable tapTable, TapCreateIndexEvent createIndexEvent) {
         try {
             List<String> sqls = TapSimplify.list();
             if (EmptyKit.isNotEmpty(createIndexEvent.getIndexList())) {
@@ -398,14 +402,14 @@ public class ClickhouseConnector extends CommonDbConnector {
 
     }
 
-    private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
+    protected long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
         AtomicLong count = new AtomicLong(0);
         String sql = "SELECT COUNT(1) FROM " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapTable.getId());
         clickhouseJdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
         return count.get();
     }
 
-    private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
+    protected void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
         try {
             if (clickhouseJdbcContext.queryAllTables(Collections.singletonList(tapClearTableEvent.getTableId())).size() == 1) {
                 clickhouseJdbcContext.execute("TRUNCATE TABLE " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapClearTableEvent.getTableId()));
@@ -416,7 +420,7 @@ public class ClickhouseConnector extends CommonDbConnector {
         }
     }
 
-    private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
+    protected void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
         try {
             if (clickhouseJdbcContext.queryAllTables(Collections.singletonList(tapDropTableEvent.getTableId())).size() == 1) {
                 clickhouseJdbcContext.execute("DROP TABLE IF EXISTS " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapDropTableEvent.getTableId()));
@@ -441,7 +445,7 @@ public class ClickhouseConnector extends CommonDbConnector {
     }
 
     @Override
-    public int tableCount(TapConnectionContext connectionContext) throws Throwable {
+    public int tableCount(TapConnectionContext connectionContext) {
         return clickhouseJdbcContext.queryAllTables(null).size();
     }
 
@@ -452,7 +456,6 @@ public class ClickhouseConnector extends CommonDbConnector {
         tableInfo.setStorageSize(Long.valueOf(dataMap.getString("AVG_ROW_LEN")));
         return tableInfo;
     }
-
 
 
 }

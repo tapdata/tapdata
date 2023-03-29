@@ -10,23 +10,8 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.BatchReadFuncAspect;
-import io.tapdata.aspect.SourceCDCDelayAspect;
-import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
-import io.tapdata.aspect.SourceStateAspect;
-import io.tapdata.aspect.StreamReadFuncAspect;
-import io.tapdata.aspect.TaskMilestoneFuncAspect;
-import io.tapdata.aspect.taskmilestones.CDCReadBeginAspect;
-import io.tapdata.aspect.taskmilestones.CDCReadEndAspect;
-import io.tapdata.aspect.taskmilestones.CDCReadErrorAspect;
-import io.tapdata.aspect.taskmilestones.CDCReadStartedAspect;
-import io.tapdata.aspect.taskmilestones.Snapshot2CDCAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadBeginAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadEndAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadErrorAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadTableBeginAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadTableEndAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadTableErrorAspect;
+import io.tapdata.aspect.*;
+import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
@@ -282,7 +267,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																Map<String, Object> customCommand = tableNode.getCustomCommand();
 																customCommand.put("batchSize", readBatchSize);
 																executeCommandFunction.execute(getConnectorNode().getConnectorContext(), TapExecuteCommand.create()
-																				.command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params")), executeResult -> {
+																		.command((String) customCommand.get("command")).params((Map<String, Object>) customCommand.get("params")), executeResult -> {
 																	if (executeResult.getError() != null) {
 																		throw new NodeException("Execute error: " + executeResult.getError().getMessage(), executeResult.getError());
 																	}
@@ -450,7 +435,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (streamReadFunction != null || rawDataCallbackFilterFunction != null || rawDataCallbackFilterFunctionV2 != null) {
 			obsLogger.info("Starting stream read, table list: " + tapTableMap.keySet() + ", offset: " + syncProgress.getStreamOffsetObj());
 			List<String> tables = new ArrayList<>(tapTableMap.keySet());
-			cdcDelayCalculation.addHeartbeatTable(tables);
+			Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 			int batchSize = 1;
 			String streamReadFunctionName = null;
 			if (rawDataCallbackFilterFunctionV2 != null)
@@ -587,7 +572,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (!isRunning()) {
 			return;
 		}
-		cdcDelayCalculation.addHeartbeatTable(new ArrayList<>(dataProcessorContext.getTapTableMap().keySet()));
+		Optional.of(cdcDelayCalculation.addHeartbeatTable(new ArrayList<>(dataProcessorContext.getTapTableMap().keySet())))
+				.map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 		ShareCdcTaskContext shareCdcTaskContext = new ShareCdcTaskPdkContext(getCdcStartTs(), processorBaseContext.getConfigurationCenter(),
 				dataProcessorContext.getTaskDto(), dataProcessorContext.getNode(), dataProcessorContext.getSourceConn(), getConnectorNode());
 		shareCdcTaskContext.setObsLogger(obsLogger);
