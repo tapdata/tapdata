@@ -1,7 +1,6 @@
 package io.tapdata.oceanbase.connector;
 
 import io.tapdata.base.ConnectorBase;
-import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -235,8 +234,8 @@ public class OceanbaseConnector extends ConnectorBase {
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
         oceanbaseConfig = new OceanbaseConfig().load(tapConnectionContext.getConnectionConfig());
-        if (EmptyKit.isNull(oceanbaseJdbcContext) || oceanbaseJdbcContext.isFinish()) {
-            oceanbaseJdbcContext = (OceanbaseJdbcContext) DataSourcePool.getJdbcContext(oceanbaseConfig, OceanbaseJdbcContext.class, tapConnectionContext.getId());
+        if (EmptyKit.isNull(oceanbaseJdbcContext)) {
+            oceanbaseJdbcContext = new OceanbaseJdbcContext(oceanbaseConfig);
             oceanbaseJdbcContext.setTapConnectionContext(tapConnectionContext);
         }
 

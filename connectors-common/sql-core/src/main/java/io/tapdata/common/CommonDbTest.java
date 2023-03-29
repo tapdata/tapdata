@@ -184,7 +184,7 @@ public class CommonDbTest implements AutoCloseable {
     @Override
     public void close() {
         try {
-            jdbcContext.finish(uuid);
+            jdbcContext.close();
         } catch (Exception ignored) {
         }
     }

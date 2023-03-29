@@ -1,6 +1,7 @@
 package io.tapdata.common;
 
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.TestItem;
@@ -31,6 +32,8 @@ public interface MqService extends AutoCloseable {
     void loadTables(int tableSize, Consumer<List<TapTable>> consumer) throws Throwable;
 
     void produce(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer, Supplier<Boolean> isAlive) throws Throwable;
+
+    void produce(TapFieldBaseEvent tapFieldBaseEvent);
 
     void consumeOne(TapTable tapTable, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable;
 

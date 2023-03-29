@@ -1,6 +1,5 @@
 package io.tapdata.connector.clickhouse;
 
-import com.zaxxer.hikari.HikariDataSource;
 import io.tapdata.common.JdbcContext;
 import io.tapdata.common.ResultSetConsumer;
 import io.tapdata.connector.clickhouse.config.ClickhouseConfig;
@@ -29,8 +28,8 @@ public class ClickhouseJdbcContext extends JdbcContext {
     private final static String CK_ALL_COLUMN = "select * from system.columns where database='%s'";
     private final static String CK_ALL_INDEX = "";//从异构数据源 同步到clickhouse 索引对应不上
 
-    public ClickhouseJdbcContext(ClickhouseConfig config, HikariDataSource hikariDataSource) {
-        super(config, hikariDataSource);
+    public ClickhouseJdbcContext(ClickhouseConfig config) {
+        super(config);
     }
 
     public static void tryCommit(Connection connection) {
@@ -56,7 +55,7 @@ public class ClickhouseJdbcContext extends JdbcContext {
     public String queryVersion() {
         AtomicReference<String> version = new AtomicReference<>("");
         try {
-            queryWithNext("show server_version_num",resulSet->version.set(resulSet.getString(1)));
+            queryWithNext("show server_version_num", resulSet -> version.set(resulSet.getString(1)));
         } catch (Throwable e) {
             e.printStackTrace();
         }
@@ -65,11 +64,11 @@ public class ClickhouseJdbcContext extends JdbcContext {
 
     @Override
     public List<DataMap> queryAllTables(List<String> tableNames) {
-        TapLogger.debug(TAG,"CK Query some tables,schema:"+getConfig().getSchema());
+        TapLogger.debug(TAG, "CK Query some tables,schema:" + getConfig().getSchema());
         List<DataMap> tableList = TapSimplify.list();
         String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
         try {
-            query(String.format(CK_ALL_TABLE, getConfig().getDatabase())+ tableSql,
+            query(String.format(CK_ALL_TABLE, getConfig().getDatabase()) + tableSql,
                     resultSet -> tableList.addAll(DbKit.getDataFromResultSet(resultSet)));
         } catch (Throwable e) {
             TapLogger.error(TAG, "CK Execute queryAllTables failed, error: " + e.getMessage(), e);
@@ -77,7 +76,7 @@ public class ClickhouseJdbcContext extends JdbcContext {
         return tableList;
     }
 
-//    @Override
+    //    @Override
     public void queryAllTables(List<String> tableNames, int batchSize, Consumer<List<String>> consumer) {
 
     }
@@ -112,7 +111,7 @@ public class ClickhouseJdbcContext extends JdbcContext {
     }
 
 
-    public void query(String sql, ResultSetConsumer resultSetConsumer) throws Throwable {
+    public void query(String sql, ResultSetConsumer resultSetConsumer) throws SQLException {
         TapLogger.debug(TAG, "Execute query, sql: " + sql);
         try (
                 Connection connection = getConnection();
