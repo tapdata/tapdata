@@ -88,11 +88,13 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
 
         try {
             cacheNumbers.clear();
+            cacheNumbers.destroy();
         } catch (Exception e) {
             throw new RuntimeException("Clear aggregate cache failed, name: " + cacheNumbers.getName() + "(" + cacheNumbers.getType() + "), error: " + e.getMessage(), e);
         }
         try {
             cacheList.clear();
+            cacheNumbers.destroy();
         } catch (Exception e) {
             throw new RuntimeException("Clear aggregate cache list failed, name: " + cacheList.getName() + "(" + cacheList.getType() + "), error: " + e.getMessage(), e);
         }
