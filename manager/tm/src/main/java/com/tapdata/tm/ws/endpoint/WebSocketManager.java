@@ -16,6 +16,8 @@ import com.tapdata.tm.ws.dto.WebSocketResult;
 import com.tapdata.tm.ws.handler.*;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,13 +49,30 @@ public class WebSocketManager {
 	}
 
 	public static void checkAlive(Function<WebSocketInfo, Boolean> consumer) {
-		wsCache.keySet().forEach(key -> {
+
+		HashSet<String> set = new HashSet<>(wsCache.keySet());
+		for (String key : set) {
 			Boolean alive = consumer.apply(wsCache.get(key));
 			if (!alive) {
 				log.warn("Websocket client offline, will be remove session.");
 				removeSession(key);
 			}
-		});
+		}
+	}
+
+
+	public static void autoCloseAgentSession() {
+		HashSet<String> set = new HashSet<>(wsCache.keySet());
+		for (String k : set) {
+			WebSocketInfo v = wsCache.get(k);
+			if (StringUtils.isNotBlank(v.getAgentId())) {
+				removeSession(k);
+				try {
+					v.getSession().close();
+				} catch (IOException ignore) {
+				}
+			}
+		}
 	}
 
 	/**
