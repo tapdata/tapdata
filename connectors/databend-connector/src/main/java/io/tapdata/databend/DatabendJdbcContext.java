@@ -1,9 +1,11 @@
 package io.tapdata.databend;
 
-import com.zaxxer.hikari.HikariDataSource;
 import io.tapdata.common.JdbcContext;
 import io.tapdata.common.ResultSetConsumer;
 import io.tapdata.databend.config.DatabendConfig;
+import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
@@ -16,12 +18,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-
-import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.simplify.TapSimplify;
-import io.tapdata.entity.utils.DataMap;
-import io.tapdata.kit.StringKit;
-
 public class DatabendJdbcContext extends JdbcContext {
 
     private final static String TAG = DatabendJdbcContext.class.getSimpleName();
@@ -31,8 +27,8 @@ public class DatabendJdbcContext extends JdbcContext {
     private final static String Databend_ALL_COLUMN = "select * from system.columns where database='%s'";
 //    private final static String CK_ALL_INDEX = "";
 
-    public DatabendJdbcContext(DatabendConfig config, HikariDataSource hikariDataSource) {
-        super(config, hikariDataSource);
+    public DatabendJdbcContext(DatabendConfig config) {
+        super(config);
     }
 
 
@@ -87,7 +83,7 @@ public class DatabendJdbcContext extends JdbcContext {
     }
 
 
-    public void query(String sql, ResultSetConsumer resultSetConsumer) throws Throwable {
+    public void query(String sql, ResultSetConsumer resultSetConsumer) throws SQLException {
         TapLogger.debug(TAG, "Execute query, sql: " + sql);
         try (Connection connection = getConnection(); Statement statement = connection.createStatement()) {
             statement.setFetchSize(1000); //protected from OM

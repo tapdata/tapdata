@@ -238,6 +238,7 @@ public abstract class TaskCleaner {
 				if (stateMap != null) {
 					startTs = System.currentTimeMillis();
 					try {
+						stateMap.clear();
 						stateMap.reset();
 						succeed(node, NodeResetDesc.task_reset_pdk_node_state, (System.currentTimeMillis() - startTs));
 					} catch (Throwable e) {

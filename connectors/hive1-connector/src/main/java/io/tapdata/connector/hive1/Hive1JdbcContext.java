@@ -1,7 +1,5 @@
 package io.tapdata.connector.hive1;
 
-import com.zaxxer.hikari.HikariDataSource;
-import io.tapdata.common.CommonDbConfig;
 import io.tapdata.common.JdbcContext;
 import io.tapdata.common.ResultSetConsumer;
 import io.tapdata.connector.hive1.config.Hive1Config;
@@ -12,6 +10,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
+
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -32,8 +31,8 @@ public class Hive1JdbcContext extends JdbcContext {
 
     private final static String CK_ALL_INDEX = "";//从异构数据源 同步到clickhouse 索引对应不上
 
-    public Hive1JdbcContext(Hive1Config config, HikariDataSource hikariDataSource) {
-        super(config, hikariDataSource);
+    public Hive1JdbcContext(Hive1Config config) {
+        super(config);
     }
 
     public static void tryRollBack(Connection connection) {
@@ -49,7 +48,7 @@ public class Hive1JdbcContext extends JdbcContext {
     public String queryVersion() {
         AtomicReference<String> version = new AtomicReference<>("");
         try {
-            queryWithNext("show server_version_num",resulSet->version.set(resulSet.getString(1)));
+            queryWithNext("show server_version_num", resulSet -> version.set(resulSet.getString(1)));
         } catch (Throwable e) {
             e.printStackTrace();
         }
@@ -58,7 +57,7 @@ public class Hive1JdbcContext extends JdbcContext {
 
     @Override
     public List<DataMap> queryAllTables(List<String> tableNames) {
-        TapLogger.debug(TAG,"Hive1 Query some tables,schema:"+getConfig().getSchema());
+        TapLogger.debug(TAG, "Hive1 Query some tables,schema:" + getConfig().getSchema());
         List<DataMap> tableList = TapSimplify.list();
         String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
         try {
@@ -73,7 +72,7 @@ public class Hive1JdbcContext extends JdbcContext {
         return tableList;
     }
 
-//    @Override
+    //    @Override
     public void queryAllTables(List<String> tableNames, int batchSize, Consumer<List<String>> consumer) {
 
     }
@@ -124,7 +123,7 @@ public class Hive1JdbcContext extends JdbcContext {
     }
 
 
-    public void query(String sql, ResultSetConsumer resultSetConsumer) throws Throwable {
+    public void query(String sql, ResultSetConsumer resultSetConsumer) throws SQLException {
         TapLogger.debug(TAG, "Execute query, sql: " + sql);
         try (
                 Connection connection = getConnection((Hive1Config) getConfig());
@@ -135,7 +134,7 @@ public class Hive1JdbcContext extends JdbcContext {
             resultSetConsumer.accept(resultSet);
             resultSet.close();
         } catch (SQLException e) {
-            TapLogger.error("query error","error is:{}",e.getMessage(),e);
+            TapLogger.error("query error", "error is:{}", e.getMessage(), e);
             throw new SQLException("Execute query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
         }
 
