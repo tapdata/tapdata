@@ -3,7 +3,6 @@ package io.tapdata.connector.opengauss;
 import com.google.common.collect.Lists;
 import io.tapdata.common.CommonDbConnector;
 import io.tapdata.common.CommonSqlMaker;
-import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.common.ddl.DDLSqlGenerator;
 import io.tapdata.connector.postgres.PostgresJdbcContext;
@@ -116,7 +115,7 @@ public class OpenGaussConnector extends CommonDbConnector {
         });
     }
 
-    private TapIndex makeTapIndex(String key, List<DataMap> value) {
+    protected TapIndex makeTapIndex(String key, List<DataMap> value) {
         TapIndex index = index(key);
         value.forEach(v -> index.indexField(indexField(v.getString("column_name")).fieldAsc("A".equals(v.getString("asc_or_desc")))));
         index.setUnique(value.stream().anyMatch(v -> (boolean) v.get("is_unique")));
@@ -228,11 +227,11 @@ public class OpenGaussConnector extends CommonDbConnector {
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
     }
 
-    private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
+    protected void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
         postgresJdbcContext.queryAllTables(TapSimplify.list(), batchSize, listConsumer);
     }
 
-    private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) throws SQLException {
+    protected void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) throws SQLException {
         List<String> sqls = fieldDDLHandlers.handle(tapFieldBaseEvent, tapConnectorContext);
         if (null == sqls) {
             return;
@@ -240,7 +239,7 @@ public class OpenGaussConnector extends CommonDbConnector {
         postgresJdbcContext.batchExecute(sqls);
     }
 
-    private List<String> alterFieldAttr(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+    protected List<String> alterFieldAttr(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapAlterFieldAttributesEvent)) {
             return null;
         }
@@ -248,7 +247,7 @@ public class OpenGaussConnector extends CommonDbConnector {
         return ddlSqlGenerator.alterColumnAttr(postgresConfig, tapAlterFieldAttributesEvent);
     }
 
-    private List<String> dropField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+    protected List<String> dropField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapDropFieldEvent)) {
             return null;
         }
@@ -256,7 +255,7 @@ public class OpenGaussConnector extends CommonDbConnector {
         return ddlSqlGenerator.dropColumn(postgresConfig, tapDropFieldEvent);
     }
 
-    private List<String> alterFieldName(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+    protected List<String> alterFieldName(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapAlterFieldNameEvent)) {
             return null;
         }
@@ -264,7 +263,7 @@ public class OpenGaussConnector extends CommonDbConnector {
         return ddlSqlGenerator.alterColumnName(postgresConfig, tapAlterFieldNameEvent);
     }
 
-    private List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+    protected List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapNewFieldEvent)) {
             return null;
         }
@@ -313,7 +312,7 @@ public class OpenGaussConnector extends CommonDbConnector {
             postgresTest = null;
         }
         if (EmptyKit.isNotNull(postgresJdbcContext)) {
-            postgresJdbcContext.finish(connectionContext.getId());
+            postgresJdbcContext.close();
         }
     }
 
@@ -322,8 +321,8 @@ public class OpenGaussConnector extends CommonDbConnector {
         postgresConfig = (PostgresConfig) new PostgresConfig().load(connectorContext.getConnectionConfig());
         postgresTest = new PostgresTest(postgresConfig, testItem -> {
         }).initContext();
-        if (EmptyKit.isNull(postgresJdbcContext) || postgresJdbcContext.isFinish()) {
-            postgresJdbcContext = (PostgresJdbcContext) DataSourcePool.getJdbcContext(postgresConfig, PostgresJdbcContext.class, connectorContext.getId());
+        if (EmptyKit.isNull(postgresJdbcContext)) {
+            postgresJdbcContext = new PostgresJdbcContext(postgresConfig);
         }
         commonDbConfig = postgresConfig;
         jdbcContext = postgresJdbcContext;
@@ -338,7 +337,7 @@ public class OpenGaussConnector extends CommonDbConnector {
     }
 
     //one filter can only match one record
-    private void queryByFilter(TapConnectorContext connectorContext, List<TapFilter> filters, TapTable tapTable, Consumer<List<FilterResult>> listConsumer) {
+    protected void queryByFilter(TapConnectorContext connectorContext, List<TapFilter> filters, TapTable tapTable, Consumer<List<FilterResult>> listConsumer) {
         Set<String> columnNames = tapTable.getNameFieldMap().keySet();
         List<FilterResult> filterResults = new LinkedList<>();
         for (TapFilter filter : filters) {
@@ -387,7 +386,7 @@ public class OpenGaussConnector extends CommonDbConnector {
     }
 
     //create table with info which comes from tapTable
-    private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
+    protected CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
         TapTable tapTable = tapCreateTableEvent.getTable();
         CreateTableOptions createTableOptions = new CreateTableOptions();
         if (postgresJdbcContext.queryAllTables(Collections.singletonList(tapTable.getId())).size() > 0) {
@@ -424,7 +423,7 @@ public class OpenGaussConnector extends CommonDbConnector {
         return createTableOptions;
     }
 
-    private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
+    protected void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
         try {
             if (postgresJdbcContext.queryAllTables(Collections.singletonList(tapClearTableEvent.getTableId())).size() == 1) {
                 postgresJdbcContext.execute("TRUNCATE TABLE \"" + postgresConfig.getSchema() + "\".\"" + tapClearTableEvent.getTableId() + "\"");
@@ -435,7 +434,7 @@ public class OpenGaussConnector extends CommonDbConnector {
         }
     }
 
-    private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
+    protected void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
         try {
             if (postgresJdbcContext.queryAllTables(Collections.singletonList(tapDropTableEvent.getTableId())).size() == 1) {
                 postgresJdbcContext.execute("DROP TABLE IF EXISTS \"" + postgresConfig.getSchema() + "\".\"" + tapDropTableEvent.getTableId() + "\"");
@@ -446,7 +445,7 @@ public class OpenGaussConnector extends CommonDbConnector {
         }
     }
 
-    private void createIndex(TapConnectorContext connectorContext, TapTable tapTable, TapCreateIndexEvent createIndexEvent) {
+    protected void createIndex(TapConnectorContext connectorContext, TapTable tapTable, TapCreateIndexEvent createIndexEvent) {
         try {
             List<String> sqls = TapSimplify.list();
             List<TapIndex> indexList = createIndexEvent.getIndexList().stream().filter(v -> discoverIndex(tapTable.getId()).stream()
@@ -495,7 +494,7 @@ public class OpenGaussConnector extends CommonDbConnector {
                 .write(tapRecordEvents, writeListResultConsumer);
     }
 
-    private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
+    protected long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
         AtomicLong count = new AtomicLong(0);
         String sql = "SELECT COUNT(1) FROM \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\"";
         postgresJdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));

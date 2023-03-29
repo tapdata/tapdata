@@ -4,18 +4,19 @@ import io.tapdata.base.ConnectorBase;
 import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.param.Param;
 import io.tapdata.coding.service.command.Command;
-import io.tapdata.coding.service.loader.*;
 import io.tapdata.coding.service.connectionMode.ConnectionMode;
+import io.tapdata.coding.service.loader.CodingLoader;
+import io.tapdata.coding.service.loader.CodingStarter;
+import io.tapdata.coding.service.loader.IssuesLoader;
+import io.tapdata.coding.service.loader.TestCoding;
 import io.tapdata.coding.service.schema.SchemaStart;
+import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.ErrorHttpException;
+import io.tapdata.coding.utils.http.InterceptorHttp;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
-import io.tapdata.entity.event.dml.TapInsertRecordEvent;
-import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.memory.LastData;
 import io.tapdata.entity.schema.TapTable;
@@ -28,7 +29,6 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
-import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
@@ -36,14 +36,12 @@ import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static io.tapdata.entity.simplify.TapSimplify.list;
-import static io.tapdata.entity.simplify.TapSimplify.map;
-
-@TapConnectorClass("spec.json")
+@TapConnectorClass("spec-oauth.json")
 public class CodingConnector extends ConnectorBase {
     private static final String TAG = CodingConnector.class.getSimpleName();
 
@@ -52,13 +50,17 @@ public class CodingConnector extends ConnectorBase {
     private int batchReadPageSize = 500;//coding page 1~500,
 
     private Long lastTimePoint;
-    private List<Integer> lastTimeSplitIssueCode = new ArrayList<>();//hash code list
+    private Set<String> lastTimeSplitIssueCode = new HashSet<>();//hash code list
+    private Set<String> lastTimeSplitIterationCode = new HashSet<>();//hash code list
+    private Set<String> lastTimeProjectMembersCode = new HashSet<>();//hash code list
 
     private LastData lastCommandResult;
+    private final AtomicReference<String> accessToken = new AtomicReference<>();
 
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
-        IssuesLoader.create(connectionContext).verifyConnectionConfig();
+        IssuesLoader loader = IssuesLoader.create(connectionContext, accessToken);
+        loader.verifyConnectionConfig();
         DataMap connectionConfig = connectionContext.getConnectionConfig();
         String streamReadType = connectionConfig.getString("streamReadType");
         if (Checker.isEmpty(streamReadType)) {
@@ -72,9 +74,24 @@ public class CodingConnector extends ConnectorBase {
             case "Polling":
                 this.connectorFunctions.supportRawDataCallbackFilterFunctionV2(null);
                 break;
-//			default:
-//				throw new CoreException("Error in connection parameters [streamReadType],just be [WebHook] or [Polling], please go to verify");
+            //default:
+            //	throw new CoreException("Error in connection parameters [streamReadType],just be [WebHook] or [Polling], please go to verify");
         }
+        CodingHttp.interceptor = (http, request, hasIgnore) -> {
+            if (hasIgnore) return request;
+            try {
+                Map<String,Object> body = (Map<String,Object>)fromJson(request.body());
+                Map<String, Object> response = (Map<String, Object>)body.get("Response");
+                response = (Map<String, Object>)response.get("Error");
+                String code = (String)response.get("Code");
+                String message = (String)response.get("Message");
+                if ("ResourceNotFound".equals(code)|| " User not found, authorization invalid".equals(message)) {
+                    return http.header("Authorization", loader.refreshTokenByOAuth2()).execute();
+                }
+            }catch (Exception ignored){
+            }
+            return request;
+        };
     }
 
     @Override
@@ -102,15 +119,15 @@ public class CodingConnector extends ConnectorBase {
 
     private RetryOptions error(TapConnectionContext context, PDKMethod pdkMethod, Throwable throwable) {
         Throwable lastCause = ErrorKit.getLastCause(throwable);
-        if (lastCause instanceof ErrorHttpException || lastCause instanceof IOException){
-            return RetryOptions.create().needRetry(true).beforeRetryMethod(()->{
+        if (lastCause instanceof ErrorHttpException || lastCause instanceof IOException) {
+            return RetryOptions.create().needRetry(true).beforeRetryMethod(() -> {
                 try {
                     synchronized (this.streamReadLock) {
                         this.onStop(context);
                         this.onStart(context);
                     }
-                }catch (Throwable e){
-                    TapLogger.warn("Cannot stop and start Coding connector when occur an http error or IOException. {}",e.getMessage());
+                } catch (Throwable e) {
+                    TapLogger.warn("Cannot stop and start Coding connector when occur an http error or IOException. {}", e.getMessage());
                 }
             });
         }
@@ -127,13 +144,31 @@ public class CodingConnector extends ConnectorBase {
     }
 
     private CommandResult handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
-        return LastData.traceLastData(() -> Command.command(tapConnectionContext, commandInfo), lastData -> this.lastCommandResult = lastData);
+        tapConnectionContext.setConnectionConfig(new DataMap(){{Optional.ofNullable(commandInfo.getConnectionConfig()).ifPresent(this::putAll);}});
+        tapConnectionContext.setNodeConfig(new DataMap(){{Optional.ofNullable(commandInfo.getNodeConfig()).ifPresent(this::putAll); }});
+        IssuesLoader loader = new IssuesLoader(tapConnectionContext, accessToken);
+        CodingHttp.interceptor = (http, request, hasIgnore) -> {
+            if (hasIgnore) return request;
+            try {
+                Map<String,Object> body = (Map<String,Object>)fromJson(request.body());
+                Map<String, Object> response = (Map<String, Object>)body.get("Response");
+                response = (Map<String, Object>)response.get("Error");
+                String code = (String)response.get("Code");
+                String message = (String)response.get("Message");
+                if ("ResourceNotFound".equals(code)|| " User not found, authorization invalid".equals(message)) {
+                    return http.header("Authorization", loader.refreshTokenByOAuth2()).execute();
+                }
+            }catch (Exception ignored){
+            }
+            return request;
+        };
+        return LastData.traceLastData(() -> Command.command(tapConnectionContext, commandInfo, accessToken), lastData -> this.lastCommandResult = lastData);
     }
 
     private List<TapEvent> rawDataCallbackFilterFunctionV2(TapConnectorContext connectorContext, List<String> tableList, Map<String, Object> issueEventData) {
         //CodingLoader<Param> loader = CodingLoader.loader(connectorContext, "");
         //return Checker.isNotEmpty(loader) ? loader.rawDataCallbackFilterFunction(issueEventData) : null;
-        List<CodingLoader<Param>> loaders = CodingLoader.loader(connectorContext, tableList);
+        List<CodingLoader<Param>> loaders = CodingLoader.loader(connectorContext, tableList, accessToken);
         if (Checker.isNotEmpty(loaders) && !loaders.isEmpty()) {
             List<TapEvent> events = new ArrayList<TapEvent>() {{
                 for (CodingLoader<Param> loader : loaders) {
@@ -154,7 +189,7 @@ public class CodingConnector extends ConnectorBase {
             Object offsetState,
             int recordSize,
             StreamReadConsumer consumer) {
-        List<CodingLoader<Param>> loaders = CodingLoader.loader(nodeContext, tableList);
+        List<CodingLoader<Param>> loaders = CodingLoader.loader(nodeContext, tableList, accessToken);
         if (Checker.isEmpty(loaders) || loaders.isEmpty()) {
             throw new CoreException("can not load CodingLoad, please sure your table name is accurate.");
         }
@@ -162,13 +197,16 @@ public class CodingConnector extends ConnectorBase {
         while (isAlive()) {
             synchronized (this) {
                 try {
-                    this.wait(loaders.get(0).streamReadTime());
+                    this.wait(2 * 60 * 1000L);
+//                    this.wait(loaders.get(0).streamReadTime());
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
             }
             for (CodingLoader<Param> loader : loaders) {
+                loader.connectorInit(this);
                 loader.streamRead(tableList, offsetState, recordSize, consumer);
+                loader.connectorOut();
             }
         }
     }
@@ -176,7 +214,7 @@ public class CodingConnector extends ConnectorBase {
 
     private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long time) {
         Long date = time != null ? time : System.currentTimeMillis();
-        List<SchemaStart> allSchemas = SchemaStart.getAllSchemas(tapConnectorContext);
+        List<SchemaStart> allSchemas = SchemaStart.getAllSchemas(tapConnectorContext, accessToken);
         return CodingOffset.create(allSchemas.stream().collect(Collectors.toMap(
                 schema -> ((SchemaStart) schema).tableName(),
                 schema -> date
@@ -199,7 +237,7 @@ public class CodingConnector extends ConnectorBase {
                           int batchCount,
                           BiConsumer<List<TapEvent>, Object> consumer) {
         TapLogger.debug(TAG, "start {} batch read", table.getName());
-        CodingLoader<Param> loader = CodingLoader.loader(connectorContext, table.getId());
+        CodingLoader<Param> loader = CodingLoader.loader(connectorContext, table.getId(), accessToken);
         if (Checker.isNotEmpty(loader)) {
             loader.connectorInit(this);
             loader.batchRead(offset, batchCount, consumer);
@@ -209,7 +247,7 @@ public class CodingConnector extends ConnectorBase {
     }
 
     private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
-        CodingLoader<Param> loader = CodingLoader.loader(tapConnectorContext, tapTable.getId());
+        CodingLoader<Param> loader = CodingLoader.loader(tapConnectorContext, tapTable.getId(), accessToken);
         if (Checker.isNotEmpty(loader)) {
             int count = loader.batchCount();
             return Long.parseLong(String.valueOf(count));
@@ -223,11 +261,11 @@ public class CodingConnector extends ConnectorBase {
         //return TapTable for each project. Issue
         //IssueLoader.create(connectionContext).setTableSize(tableSize).discoverIssue(tables,consumer);
         String modeName = connectionContext.getConnectionConfig().getString("connectionMode");
-        ConnectionMode connectionMode = ConnectionMode.getInstanceByName(connectionContext, modeName);
+        ConnectionMode connectionMode = ConnectionMode.getInstanceByName(connectionContext, accessToken, modeName);
         if (null == connectionMode) {
             throw new CoreException("Connection Mode is not empty or not null.");
         }
-        List<TapTable> tapTables = connectionMode.discoverSchema(tables, tableSize);
+        List<TapTable> tapTables = connectionMode.discoverSchema(tables, tableSize, accessToken);
         List<TapTable> tablesFinal = new ArrayList<>();
         if (null != tapTables && !tapTables.isEmpty()) {
             tapTables.stream().filter(Objects::nonNull).forEach(tab -> {
@@ -244,9 +282,24 @@ public class CodingConnector extends ConnectorBase {
 
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
+        TestCoding testConnection = TestCoding.create(connectionContext, accessToken);
+        testConnection.veryContextConfigAndNodeConfig();
+        CodingHttp.interceptor = (http, request, hasIgnore) -> {
+            if (hasIgnore) return request;
+            try {
+                Map<String,Object> body = (Map<String,Object>)fromJson(request.body());
+                Map<String, Object> response = (Map<String, Object>)body.get("Response");
+                response = (Map<String, Object>)response.get("Error");
+                String code = (String)response.get("Code");
+                String message = (String)response.get("Message");
+                if ("ResourceNotFound".equals(code)|| " User not found, authorization invalid".equals(message)) {
+                    return http.header("Authorization", testConnection.refreshTokenByOAuth2()).execute();
+                }
+            }catch (Exception ignored){
+            }
+            return request;
+        };
         ConnectionOptions connectionOptions = ConnectionOptions.create();
-
-        TestCoding testConnection = TestCoding.create(connectionContext);
         TestItem testItem = testConnection.testItemConnection();
         consumer.accept(testItem);
         if (testItem.getResult() == TestItem.RESULT_FAILED) {
@@ -266,7 +319,26 @@ public class CodingConnector extends ConnectorBase {
 
     @Override
     public int tableCount(TapConnectionContext connectionContext) throws Throwable {
-        List<SchemaStart> allSchemas = SchemaStart.getAllSchemas(connectionContext);
+        List<SchemaStart> allSchemas = SchemaStart.getAllSchemas(connectionContext, accessToken);
         return allSchemas.size();
+    }
+
+    public Set<String> lastTimeSplitIssueCode(){
+        return this.lastTimeSplitIssueCode;
+    }
+    public void lastTimeSplitIssueCode(Set<String> set){
+        this.lastTimeSplitIssueCode = set;
+    }
+    public Set<String> lastTimeSplitIterationCode(){
+        return this.lastTimeSplitIterationCode;
+    }
+    public void lastTimeSplitIterationCode(Set<String> set){
+        this.lastTimeSplitIterationCode = set;
+    }
+    public Set<String> lastTimeProjectMembersCode(){
+        return this.lastTimeProjectMembersCode;
+    }
+    public void lastTimeProjectMembersCode(Set<String> set){
+        this.lastTimeProjectMembersCode = set;
     }
 }

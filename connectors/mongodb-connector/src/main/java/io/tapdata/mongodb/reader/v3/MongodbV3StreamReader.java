@@ -11,6 +11,7 @@ import com.mongodb.client.model.Filters;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.mongodb.MongodbConnector;
 import io.tapdata.mongodb.MongodbUtil;
@@ -324,9 +325,21 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 												return null;
 										}
 										tapBaseEvent = updateDMLEvent(null, after, collectionName);
-										Map<String, Boolean> unset = o.get("$unset", Map.class);
+										Map<String, Object> originUnset = o.get("$unset", Map.class);
+										Map<String, Object> finalUnset = new DataMap();
+										if (originUnset != null) {
+											Iterator<Map.Entry<String, Object>> entryIterator = originUnset.entrySet().iterator();
+											while (entryIterator.hasNext()) {
+												Map.Entry<String, Object> entry = entryIterator.next();
+												if (!after.containsKey(entry.getKey())) {
+													finalUnset.put(entry.getKey(), true);
+												}
+											}
+										}
 										Map<String, Object> info = new HashMap<>();
-										info.put("$unset", unset);
+										if (finalUnset.size() > 0) {
+											info.put("$unset", finalUnset);
+										}
 										tapBaseEvent.setInfo(info);
 								} else if ("i".equalsIgnoreCase(event.getString("op"))) {
 										tapBaseEvent = insertRecordEvent(o, collectionName);

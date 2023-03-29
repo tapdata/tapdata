@@ -1,14 +1,26 @@
 package io.tapdata.coding.service.loader;
 
+import cn.hutool.http.HttpRequest;
+import cn.hutool.http.HttpResponse;
+import cn.hutool.http.HttpUtil;
 import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.enums.IssueType;
+import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.tool.Checker;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.Entry;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static io.tapdata.entity.simplify.TapSimplify.fromJson;
 
 
 public abstract class CodingStarter {
@@ -18,10 +30,20 @@ public abstract class CodingStarter {
     public static final String OPEN_API_URL = "https://%s.coding.net/open-api";//%{s}---》teamName
     public static final String TOKEN_URL = "https://%s.coding.net/api/me";
     public static final String TOKEN_PREF = "token ";
+    public static final String TOKEN_PREF_OAUTH = "Bearer ";
+
+    private final AtomicReference<String> accessToken;
 
     protected TapConnectionContext tapConnectionContext;
 
     CodingConnector codingConnector;
+
+    ContextConfig codingConfig;
+
+    public synchronized AtomicReference<String> accessToken(){
+        return this.accessToken;
+    }
+
 
     public CodingStarter connectorInit(CodingConnector codingConnector) {
         this.codingConnector = codingConnector;
@@ -41,8 +63,9 @@ public abstract class CodingStarter {
 
     protected boolean isVerify;
 
-    CodingStarter(TapConnectionContext tapConnectionContext) {
+    CodingStarter(TapConnectionContext tapConnectionContext, AtomicReference<String> accessToken) {
         this.tapConnectionContext = tapConnectionContext;
+        this.accessToken = accessToken;
         this.isVerify = Boolean.FALSE;
     }
 
@@ -51,14 +74,31 @@ public abstract class CodingStarter {
     }
 
     public String tokenSetter(String token) {
-        return Checker.isNotEmpty(token) ?
-                (token.startsWith(TOKEN_PREF) ? token : TOKEN_PREF + token)
-                : token;
+        DataMap connectionConfig = this.tapConnectionContext.getConnectionConfig();
+        Object isOAuth = connectionConfig.get("isOAuth");
+        if (Objects.isNull(isOAuth) || !"true".equals(String.valueOf(isOAuth))) {
+            return Checker.isNotEmpty(token) ?
+                    (token.startsWith(TOKEN_PREF) ? token : TOKEN_PREF + token)
+                    : token;
+        }else {
+            return Checker.isNotEmpty(token) ?
+                    (token.startsWith(TOKEN_PREF_OAUTH) ? token : TOKEN_PREF_OAUTH + token)
+                    : token;
+        }
     }
 
     public ContextConfig veryContextConfigAndNodeConfig() {
+        if (Objects.nonNull(codingConfig)){
+            return codingConfig;
+        }
         this.verifyConnectionConfig();
         DataMap connectionConfigConfigMap = this.tapConnectionContext.getConnectionConfig();
+
+        String loginMode = connectionConfigConfigMap.getString("loginMode");
+        String clientId = connectionConfigConfigMap.getString("clientId");
+        String clientSecret = connectionConfigConfigMap.getString("clientSecret");
+        String refreshToken = connectionConfigConfigMap.getString("refreshToken");
+
         String projectName = connectionConfigConfigMap.getString("projectName");
         String token = connectionConfigConfigMap.getString("token");
         token = this.tokenSetter(token);
@@ -66,13 +106,17 @@ public abstract class CodingStarter {
         String streamReadType = connectionConfigConfigMap.getString("streamReadType");
         String connectionMode = connectionConfigConfigMap.getString("connectionMode");
         ContextConfig config = ContextConfig.create()
+                .loginMode(loginMode)
+                .clientId(clientId)
+                .clientSecret(clientSecret)
+                .refreshToken(refreshToken)
                 .projectName(projectName)
                 .teamName(teamName)
                 .token(token)
                 .streamReadType(streamReadType)
                 .connectionMode(connectionMode);
         if (this.tapConnectionContext instanceof TapConnectorContext) {
-            DataMap nodeConfigMap = ((TapConnectorContext) this.tapConnectionContext).getNodeConfig();
+            DataMap nodeConfigMap = this.tapConnectionContext.getNodeConfig();
             if (null == nodeConfigMap) {
                 config.issueType(IssueType.ALL);
                 config.iterationCodes("-1");
@@ -87,7 +131,7 @@ public abstract class CodingStarter {
                 config.issueType(issueType).iterationCodes(iterationCodeArr).issueCodes(issueCodes);
             }
         }
-        return config;
+        return codingConfig = config;
     }
 
     /**
@@ -115,6 +159,11 @@ public abstract class CodingStarter {
         if (null == token || "".equals(token)) {
             TapLogger.debug(TAG, "Connection parameter exception: {} ", token);
         }
+
+        if (null == accessToken().get() || accessToken().get().trim().equals("")){
+           accessToken().set(this.tokenSetter(token));
+        }
+
         if (null == teamName || "".equals(teamName)) {
             TapLogger.debug(TAG, "Connection parameter exception: {} ", teamName);
         }
@@ -125,5 +174,39 @@ public abstract class CodingStarter {
             TapLogger.info(TAG, "Connection parameter connectionMode exception: {} ", teamName);
         }
         this.isVerify = Boolean.TRUE;
+    }
+
+    public String refreshTokenByOAuth2(){
+        HttpRequest request = HttpUtil.createPost(String.format(
+                "https://%s.coding.net/api/oauth/access_token?refresh_token=%s&client_id=%s&client_secret=%s&grant_type=refresh_token",
+                codingConfig.getTeamName(),
+                codingConfig.refreshToken(),
+                codingConfig.clientId(),
+                codingConfig.clientSecret()
+        ));
+        request.contentLength(253);
+        request.header("Content-Type","application/x-www-form-urlencoded");
+        request.header("Host","muo.suuuy.dev.coding.io");
+        HttpResponse execute = request.execute();
+        StringBuilder errorMsg = new StringBuilder();
+        if (Objects.nonNull(execute)) {
+            String body = execute.body();
+            if (Objects.nonNull(body)) {
+                Map<String,Object> json = (Map<String,Object>)fromJson(body);
+                if (Objects.nonNull(json)){
+                    Object token = json.get("access_token");
+                    if (Objects.nonNull(token)) {
+                        accessToken().set(String.format("Bearer %s", token));
+                        codingConfig.token(accessToken().get());
+                        return accessToken().get();
+                    }else {
+                        errorMsg.append("Cannot get refresh token from response body. ").append(Optional.ofNullable(json.get(CodingHttp.ERROR_KEY)).orElse(""));
+                    }
+                }
+            }
+        }else {
+            errorMsg.append("Cannot get refresh token from response body, body content is empty. ");
+        }
+        throw new CoreException(errorMsg.toString());
     }
 }

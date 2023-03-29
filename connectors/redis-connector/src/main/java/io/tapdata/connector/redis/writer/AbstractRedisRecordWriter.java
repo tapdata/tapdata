@@ -50,14 +50,23 @@ public abstract class AbstractRedisRecordWriter {
             for (TapRecordEvent recordEvent : tapRecordEvents) {
                 if (recordEvent instanceof TapInsertRecordEvent) {
                     TapInsertRecordEvent tapInsertRecordEvent = (TapInsertRecordEvent) recordEvent;
+                    if (EmptyKit.isNull(tapInsertRecordEvent.getAfter())) {
+                        continue;
+                    }
                     handleInsertEvent(tapInsertRecordEvent, pipelined);
                     insert++;
                 } else if (recordEvent instanceof TapUpdateRecordEvent) {
                     TapUpdateRecordEvent tapUpdateRecordEvent = (TapUpdateRecordEvent) recordEvent;
+                    if (EmptyKit.isNull(tapUpdateRecordEvent.getAfter())) {
+                        continue;
+                    }
                     handleUpdateEvent(tapUpdateRecordEvent, pipelined);
                     update++;
                 } else {
                     TapDeleteRecordEvent tapDeleteRecordEvent = (TapDeleteRecordEvent) recordEvent;
+                    if (EmptyKit.isNull(tapDeleteRecordEvent.getBefore())) {
+                        continue;
+                    }
                     handleDeleteEvent(tapDeleteRecordEvent, pipelined);
                     delete++;
                 }
@@ -109,7 +118,8 @@ public abstract class AbstractRedisRecordWriter {
 
     protected String getTextValue(Map<String, Object> value) {
         return fieldList.stream().map(v -> {
-            String str = String.valueOf(value.get(v));
+            Object obj = value.get(v);
+            String str = EmptyKit.isNull(obj) ? "null" : String.valueOf(obj);
             if (redisConfig.getCsvFormat()) {
                 return csvFormat(str, redisConfig.getValueJoinString());
             } else {
