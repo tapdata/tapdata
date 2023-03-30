@@ -969,6 +969,10 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             param.setRange("currentAndChild");
         }
 
+        if (param.getRegUnion() == null) {
+            param.setRegUnion(true);
+        }
+
         Page<DataDirectoryDto> page = new Page<>();
         page.setItems(Lists.newArrayList());
         page.setTotal(0);
@@ -993,12 +997,18 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
 
         if (StringUtils.isNotBlank(param.getQueryKey())) {
-            metadataCriteria.orOperator(
-                    Criteria.where("original_name").regex(param.getQueryKey()),
-                    Criteria.where("name").regex(param.getQueryKey()),
-                    Criteria.where("comment").regex(param.getQueryKey()),
-                    Criteria.where("source.name").regex(param.getQueryKey()),
-                    Criteria.where("alias_name").regex(param.getQueryKey()));
+
+            if (param.getRegUnion()) {
+                metadataCriteria.orOperator(
+                        Criteria.where("original_name").regex(param.getQueryKey()),
+                        Criteria.where("name").regex(param.getQueryKey()),
+                        Criteria.where("comment").regex(param.getQueryKey()),
+                        Criteria.where("source.name").regex(param.getQueryKey()),
+                        Criteria.where("alias_name").regex(param.getQueryKey()));
+            } else {
+                metadataCriteria.orOperator(
+                        Criteria.where("original_name").regex(param.getQueryKey()));
+            }
 
             taskCriteria.orOperator(
                     Criteria.where("name").regex(param.getQueryKey()),
