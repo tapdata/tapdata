@@ -324,7 +324,7 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
 
     public <T extends BaseDto> UserDto save(CreateUserRequest request, UserDetail userDetail) {
 
-        UserDto userDto = findOne(Query.query(Criteria.where("email").is(request.getEmail())));
+        UserDto userDto = findOne(Query.query(Criteria.where("email").is(request.getEmail()).orOperator(Criteria.where("isDeleted").is(false), Criteria.where("isDeleted").exists(false))));
         if (userDto != null) {
             throw new BizException("User.Already.Exists");
         }
