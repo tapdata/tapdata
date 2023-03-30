@@ -3,6 +3,7 @@ package com.tapdata.tm.task.controller;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.task.bean.LdpFuzzySearchVo;
 import com.tapdata.tm.task.service.LdpService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -61,6 +62,14 @@ public class LdpController extends BaseController {
     @PostMapping("fdm/task/byTags")
     public ResponseMessage<Map<String, TaskDto>> queryFdmTaskByTags(@RequestParam("tags") List<String> tags) {
         return success(ldpService.queryFdmTaskByTags(tags, getLoginUser()));
+    }
+
+
+    @Operation(summary = "Query fdm task by tags")
+    @GetMapping("fuzzy/search")
+    public ResponseMessage<List<LdpFuzzySearchVo>> fuzzySearch(@RequestParam("key") String key,
+                                                               @RequestParam(value = "connectType", required = false) String connectType) {
+        return success(ldpService.fuzzySearch(key, connectType, getLoginUser()));
     }
 
 }
