@@ -11,7 +11,7 @@
 
 ### 3、其他細節
 
-如果您連接測試未能通過，報錯信息提示 “Error: This feature is not currently enabled for this user. Code: FUNCTIONALITY_NOT_ENABLED HttpCode: 403”。 您使用的Salesforce版本可能不是：企業版、無線版、開發者版、專業版的其中之一版本，將無法在Tapdata使用Salesforce同步數據。
+如果您連接測試未能通過，報錯信息提示 “Error: This feature is not currently enabled for this user. Code: FUNCTIONALITY_NOT_ENABLED HttpCode: 403”。 您使用的Salesforce版本可能不是：企業版、無限版、開發者版、專業版的其中之一版本，將無法在Tapdata使用Salesforce同步數據。
 詳情請參考Salesforce相關文檔：
 
 ```
