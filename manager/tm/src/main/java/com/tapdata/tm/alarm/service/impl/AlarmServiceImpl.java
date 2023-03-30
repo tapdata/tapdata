@@ -89,7 +89,10 @@ public class AlarmServiceImpl implements AlarmService {
             info.setId(one.getId());
             info.setTally(one.getTally() + 1);
             info.setLastUpdAt(date);
-            info.setFirstOccurrenceTime(one.getFirstOccurrenceTime());
+            FunctionUtils.isTureOrFalse(Lists.of(AlarmStatusEnum.CLOESE, AlarmStatusEnum.RECOVER).contains(one.getStatus())).trueOrFalseHandle(
+                    () -> info.setFirstOccurrenceTime(date),
+                    () -> info.setFirstOccurrenceTime(one.getFirstOccurrenceTime())
+            );
             info.setLastOccurrenceTime(date);
             if (Objects.nonNull(one.getLastNotifyTime()) && Objects.isNull(info.getLastNotifyTime())) {
                 AlarmSettingDto alarmSettingDto = alarmSettingService.findByKey(info.getMetric());
@@ -97,6 +100,8 @@ public class AlarmServiceImpl implements AlarmService {
                     DateTime lastNotifyTime = DateUtil.offset(one.getLastNotifyTime(), parseDateUnit(alarmSettingDto.getUnit()), alarmSettingDto.getInterval());
                     if (date.after(lastNotifyTime)) {
                         info.setLastNotifyTime(date);
+                    }else {
+                        info.setLastNotifyTime(one.getLastNotifyTime());
                     }
                 }
             } else {
@@ -170,11 +175,9 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public void notifyAlarm() {
-        Criteria criteria = Criteria.where("status").ne(AlarmStatusEnum.CLOESE);
-        criteria.andOperator(Criteria.where("lastNotifyTime").ne(null),
-                Criteria.where("lastNotifyTime").lt(DateUtil.date()),
-                Criteria.where("lastNotifyTime").gt(DateUtil.offsetSecond(DateUtil.date(), -30))
-        );
+        Criteria criteria = Criteria.where("status").ne(AlarmStatusEnum.CLOESE)
+                .and("lastNotifyTime").lt(DateUtil.date()).gt(DateUtil.offsetSecond(DateUtil.date(), -30)
+                );
         Query needNotifyQuery = new Query(criteria);
         List<AlarmInfo> alarmInfos = mongoTemplate.find(needNotifyQuery, AlarmInfo.class);
 
@@ -429,6 +432,9 @@ public class AlarmServiceImpl implements AlarmService {
         });
 
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+        if (Objects.isNull(taskDto)) {
+            return TaskAlarmInfoVo.builder().build();
+        }
         List<TaskAlarmNodeInfoVo> taskAlarmNodeInfoVos = taskDto.getDag().getNodes().stream().map(t ->
                 TaskAlarmNodeInfoVo.builder()
                         .nodeId(t.getId())

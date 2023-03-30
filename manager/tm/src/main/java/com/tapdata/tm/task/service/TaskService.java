@@ -2518,6 +2518,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     .unset("currentEventTimestamp")
                     .unset("scheduleDate")
                     .unset("stopedDate")
+                    .unset("snapshotDoneAt")
                     .set("needCreateRecord", taskDto.isNeedCreateRecord());
             String nameSuffix = RandomStringUtils.randomAlphanumeric(6);
 
