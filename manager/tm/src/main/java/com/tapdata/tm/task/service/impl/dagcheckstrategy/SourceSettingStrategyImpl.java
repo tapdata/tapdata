@@ -33,6 +33,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import javax.xml.crypto.dsig.keyinfo.KeyName;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -126,7 +127,16 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                     boolean batchReadNotMatch = taskDto.getType().contains("initial_sync") && !capList.contains("batch_read_function");
 
                     if (streamReadNotMatch || batchReadNotMatch) {
-                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_TYPE"), name, JSON.toJSONString(capList), taskDto.getType());
+                        List<String> caps = capList.stream().map(keyName -> MessageUtil.getDagCheckMsg(locale, StringUtils.upperCase(keyName))).collect(Collectors.toList());
+                        List<String> syncType = Lists.newArrayList();
+                        if (taskDto.getType().contains("initial_sync")) {
+                            syncType.add(MessageUtil.getDagCheckMsg(locale, "BATCH_READ_FUNCTION"));
+                        }
+                        if (taskDto.getType().contains("cdc")) {
+                            syncType.add(MessageUtil.getDagCheckMsg(locale, "STREAM_READ_FUNCTION"));
+                        }
+
+                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_TYPE"), name, JSON.toJSONString(caps), StringUtils.join(syncType, "+"));
                         result.add(log);
                     }
                 }
