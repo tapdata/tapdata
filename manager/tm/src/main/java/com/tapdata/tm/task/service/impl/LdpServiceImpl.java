@@ -700,10 +700,10 @@ public class LdpServiceImpl implements LdpService {
 
 
     @Override
-    public List<LdpFuzzySearchVo> fuzzySearch(String key, String connectType, UserDetail user) {
+    public List<LdpFuzzySearchVo> fuzzySearch(String key, List<String> connectType, UserDetail user) {
         Criteria criteria = Criteria.where("original_name").regex(key).and("sourceType").is(SourceTypeEnum.SOURCE.name());
-        if (StringUtils.isNotBlank(connectType)) {
-            criteria.and("source.connection_type").is(connectType);
+        if (CollectionUtils.isNotEmpty(connectType)) {
+            criteria.and("source.connection_type").in(connectType);
         }
 
         Query query = new Query(criteria);

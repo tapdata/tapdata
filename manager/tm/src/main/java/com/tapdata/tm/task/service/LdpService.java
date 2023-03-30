@@ -19,5 +19,5 @@ public interface LdpService {
 
     Map<String, TaskDto> queryFdmTaskByTags(List<String> tagIds, UserDetail user);
 
-    List<LdpFuzzySearchVo> fuzzySearch(String key, String connectType, UserDetail loginUser);
+    List<LdpFuzzySearchVo> fuzzySearch(String key, List<String> connectType, UserDetail loginUser);
 }
