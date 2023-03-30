@@ -3,6 +3,7 @@ package com.tapdata.tm.user.controller;
 import cn.hutool.crypto.digest.BCrypt;
 import com.mongodb.BasicDBObject;
 import com.tapdata.tm.Permission.dto.PermissionDto;
+import com.tapdata.tm.Permission.entity.PermissionEntity;
 import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.accessToken.dto.AccessTokenDto;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
@@ -396,6 +397,8 @@ public class UserController extends BaseController {
         UserDetail userDetail = getLoginUser();
         if (CollectionUtils.isNotEmpty(dto.getDeletes())) {
             List<RoleMappingDto> deletes = dto.getDeletes();
+            List<RoleMappingDto> childRoleMappingDto = getChildRoleMappingDto(deletes.stream().map(RoleMappingDto::getPrincipalId).collect(Collectors.toSet()), deletes.get(0).getRoleId());
+            deletes.addAll(childRoleMappingDto);
             List<Criteria> deleteCriteria = new ArrayList<>();
             for (RoleMappingDto delete : deletes) {
                 Criteria criteria = Criteria.where("roleId").is(delete.getRoleId()).and("principalId").is(delete.getPrincipalId()).and("principalType").is("PERMISSION");
@@ -403,11 +406,38 @@ public class UserController extends BaseController {
             }
             roleMappingService.deleteAll(Query.query(new Criteria().orOperator(deleteCriteria)));
         }
-        if (CollectionUtils.isNotEmpty(dto.getAdds())) {
-            roleMappingService.save(dto.getAdds(), userDetail);
+        List<RoleMappingDto> adds = dto.getAdds();
+        if (CollectionUtils.isNotEmpty(adds)) {
+            List<RoleMappingDto> childRoleMappingDto = getChildRoleMappingDto(adds.stream().map(RoleMappingDto::getPrincipalId).collect(Collectors.toSet()), adds.get(0).getRoleId());
+            adds.addAll(childRoleMappingDto);
+            roleMappingService.save(adds, userDetail);
         }
         return success();
 
+    }
+    private List<RoleMappingDto> getChildRoleMappingDto(Set<String> parentIds, ObjectId roleId) {
+        Filter filter = new Filter(Where.where("name", new HashMap<String, Object>() {{
+            put("$in", parentIds);
+        }}).and("parentId", new HashMap<String, Object>() {{
+            put("$ne", null);
+        }}).and("parentId", new HashMap<String, Object>() {{
+            put("$ne", "");
+        }}));
+        List<PermissionEntity> parentPermissions = permissionService.find(filter);
+        List<String> parentCodes = parentPermissions.stream().map(PermissionEntity::getName).collect(Collectors.toList());
+        List<PermissionEntity> childPermissions = permissionService.find(new Filter(Where.where("parentId", new HashMap<String, Object>() {{
+            put("$in", parentCodes);
+        }})));
+        if (CollectionUtils.isNotEmpty(childPermissions)) {
+            return childPermissions.stream().map(p -> {
+                RoleMappingDto roleMappingDto = new RoleMappingDto();
+                roleMappingDto.setRoleId(roleId);
+                roleMappingDto.setPrincipalId(p.getName());
+                roleMappingDto.setPrincipalType(PrincipleType.PERMISSION.getValue());
+                return roleMappingDto;
+            }).collect(Collectors.toList());
+        }
+        return new ArrayList<>();
     }
 
     @Operation(summary = "Count instances of the model matched by where from the data source")

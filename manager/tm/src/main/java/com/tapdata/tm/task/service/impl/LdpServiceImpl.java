@@ -707,9 +707,19 @@ public class LdpServiceImpl implements LdpService {
         }
 
         Query query = new Query(criteria);
+        /*query.fields().include("qualified_name", "meta_type", "is_deleted", "original_name", "ancestorsName", "dev_version", "databaseId",
+                "schemaVersion", "version", "comment", "name", )*/
         List<MetadataInstancesDto> metadatas = metadataInstancesService.findAllDto(query, user);
 
 
+        for (MetadataInstancesDto metadata : metadatas) {
+            if (metadata.getSource() != null) {
+                SourceDto sourceDto = new SourceDto();
+                sourceDto.setId(metadata.getSource().getId());
+                sourceDto.set_id(metadata.getSource().get_id());
+                metadata.setSource(sourceDto);
+            }
+        }
         List<LdpFuzzySearchVo> fuzzySearchList = new ArrayList<>();
         List<String> conIds = new ArrayList<>();
         for (MetadataInstancesDto metadata : metadatas) {
