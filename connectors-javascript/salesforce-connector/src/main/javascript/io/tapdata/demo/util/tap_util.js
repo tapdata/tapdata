@@ -47,6 +47,15 @@ function sendData(nod) {
     }
     return nod;
 }
+function checkAuthority(invoke, httpCode) {
+    if (httpCode === 400 || (invoke.result.error_description && invoke.result.error_description === "expired access/refresh token")){
+        throw ("Error: " + invoke.result.error_description + " HttpCode: " + httpCode );
+    }else if (invoke.result[0] && invoke.result[0].errorCode && invoke.result[0].message) {
+        throw "Error: " + invoke.result[0].message + " Code: " + invoke.result[0].errorCode + " HttpCode: " + httpCode ;
+    } else if (!invoke.result.data || !invoke.result.data.uiapi ) {
+        throw ("Error: Failed to query the data. Please check the connection." + "HttpCode: " +  httpCode );
+    }
+}
 
 function result(invoke, httpCode) {
     if (httpCode >= 200 && httpCode < 300) {

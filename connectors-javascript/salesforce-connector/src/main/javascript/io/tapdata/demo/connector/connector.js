@@ -742,9 +742,6 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
         } catch (e) {
             throw ("Failed to query the data. Please check the connection." + JSON.stringify(invoke));
         }
-        if (!invoke.result.data || !invoke.result.data.uiapi) {
-            return;
-        }
         uiApi = invoke.result.data.uiapi;
         if (!(uiApi.query[tableName + ""] && uiApi.query[tableName + ""].edges[0])) return;
         pageInfo = uiApi.query[tableName + ""].pageInfo;
@@ -777,10 +774,6 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
                 }
             } catch (e) {
                 throw ("Failed to query the data. Please check the connection." + JSON.stringify(invoke));
-                break;
-            }
-            if (!invoke.result.data || !invoke.result.data.uiapi) {
-                break;
             }
             let resultMap = invoke.result.data.uiapi.query[tableNameList[index] + ""];
             let resultData = resultMap.edges;
@@ -843,6 +836,8 @@ function updateToken(connectionConfig, nodeConfig, apiResponse) {
         // clientInfo.refresh_token1 = connectionConfig.refresh_token1;
         try {
             let getToken = invoker.invokeWithoutIntercept("refresh token", clientInfo);
+            let httpCode = getToken.httpCode
+            checkAuthority(getToken, httpCode);
             if (getToken && getToken.result && getToken.result.access_token) {
                 connectionConfig.access_token = getToken.result.access_token;
                 connectionConfig.Authorization = getToken.result.access_token;
