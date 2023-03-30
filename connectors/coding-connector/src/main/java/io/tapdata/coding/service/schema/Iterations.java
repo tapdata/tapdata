@@ -19,7 +19,7 @@ public class Iterations implements SchemaStart {
         return use;
     }
 
-    public Iterations(AtomicReference<String> accessToken){
+    public Iterations(AtomicReference<String> accessToken) {
     }
 
     @Override
@@ -34,27 +34,6 @@ public class Iterations implements SchemaStart {
 
     @Override
     public TapTable document(TapConnectionContext connectionContext) {
-        /**
-         * {
-         *           "CreatedAt": 1599027192000,
-         *           "UpdatedAt": 1599027192000,
-         *           "Name": "demo iteration",
-         *           "Code": 8,
-         *           "Goal": "",
-         *           "StartAt": -28800000,
-         *           "EndAt": -28800000,
-         *           "Assignee": 0,
-         *           "Creator": 1,
-         *           "Deleter": 0,
-         *           "Starter": 0,
-         *           "Completer": 0,
-         *           "Status": "WAIT_PROCESS",
-         *           "WaitProcessCount": 0,
-         *           "ProcessingCount": 0,
-         *           "CompletedCount": 0,
-         *           "CompletedPercent": 0
-         *         }
-         * */
         return table(tableName())
                 .add(field("Code", JAVA_Integer).isPrimaryKey(true).primaryKeyPos(1))        //事项 Code
                 .add(field("CreatedAt", JAVA_Long))                                             //创建时间

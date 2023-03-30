@@ -13,7 +13,7 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
 public class Comments implements SchemaStart {
     public final Boolean use = false;
 
-    public Comments(AtomicReference<String> accessToken){
+    public Comments(AtomicReference<String> accessToken) {
 
     }
 

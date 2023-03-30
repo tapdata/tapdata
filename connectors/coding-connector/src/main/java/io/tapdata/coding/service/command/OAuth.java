@@ -4,63 +4,69 @@ import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import cn.hutool.http.HttpUtil;
 import io.tapdata.coding.utils.tool.Checker;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
 
-import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.entity.simplify.TapSimplify.fromJson;
 
 
 public class OAuth implements Command {
+    static final String TAG = OAuth.class.getSimpleName();
     @Override
     public CommandResult commandResult(TapConnectionContext tapConnectionContext, CommandInfo commandInfo, AtomicReference<String> accessToken) {
         Map<String, Object> connectionConfig = commandInfo.getConnectionConfig();
-        Object tapdataConfig = connectionConfig.get("__TAPDATA_CONFIG");
+        Object tapConfig = connectionConfig.get("__TAPDATA_CONFIG");
         if (Checker.isEmpty(connectionConfig)) {
-            throw new IllegalArgumentException("ConnectionConfig cannot be null");
+            TapLogger.info(TAG,"ConnectionConfig cannot be null");
+            return new CommandResult().result(connectionConfig);
         }
         Object codeObj = connectionConfig.get("code");
         if (Checker.isEmpty(codeObj)) {
-            throw new IllegalArgumentException("OAuth' code cannot be null");
+            TapLogger.info(TAG,"OAuth' code cannot be null");
+            return new CommandResult().result(connectionConfig);
         }
         Object teamNameObj = connectionConfig.get("teamName");
         if (Checker.isEmpty(teamNameObj)) {
-            if (tapdataConfig instanceof Map){
-                Map<String, Object> config = (Map<String, Object>) tapdataConfig;
+            if (tapConfig instanceof Map){
+                Map<?, ?> config = (Map<?, ?>) tapConfig;
                 teamNameObj = config.get("teamName");
             }
             if (Checker.isEmpty(teamNameObj)){
-                throw new IllegalArgumentException("Team name cannot be null");
+                TapLogger.info(TAG,"Team name cannot be null");
             }
         }
         Object clientIdObj = connectionConfig.get("clientId");
         if (Checker.isEmpty(clientIdObj)) {
-            if (tapdataConfig instanceof Map){
-                Map<String, Object> config = (Map<String, Object>) tapdataConfig;
+            if (tapConfig instanceof Map){
+                Map<?, ?> config = (Map<?, ?>) tapConfig;
                 clientIdObj = config.get("clientId");
             }
             if (Checker.isEmpty(clientIdObj)){
-                throw new IllegalArgumentException("App client_id cannot be null");
+                TapLogger.info(TAG,"App client_id cannot be null");
+                return new CommandResult().result(connectionConfig);
             }
         }
         Object clientSecretObj = connectionConfig.get("clientSecret");
         if (Checker.isEmpty(clientSecretObj)) {
-            if (tapdataConfig instanceof Map){
-                Map<String, Object> config = (Map<String, Object>) tapdataConfig;
+            if (tapConfig instanceof Map){
+                Map<?, ?> config = (Map<?, ?>) tapConfig;
                 clientSecretObj = config.get("clientSecret");
             }
             if (Checker.isEmpty(clientSecretObj)){
-                throw new IllegalArgumentException("App client_secret cannot be null");
+                TapLogger.info(TAG,"App client_secret cannot be null");
+                return new CommandResult().result(connectionConfig);
             }
         }
         String clientId = (String) clientIdObj;
         String clientSecret = (String) clientSecretObj;
         String code = (String) codeObj;
-        String teamName = (String) teamNameObj;
+        String teamName = (String) Optional.ofNullable(teamNameObj).orElse("login");
         String url = String.format("https://%s.coding.net/api/oauth/access_token?" +
                 "client_id=%s" +
                 "&code=%s" +
@@ -74,14 +80,14 @@ public class OAuth implements Command {
         try {
             HttpResponse execute = request.execute();
             String body = execute.body();
-            Map<String, Object> dataResult = (Map<String, Object>) fromJson(body);
+            Map<?, ?> dataResult = fromJson(body, Map.class);
             connectionConfig.put("token",dataResult.get("access_token"));
             connectionConfig.put("refreshToken",dataResult.get("refresh_token"));
             connectionConfig.put("teamName",dataResult.get("team"));
             connectionConfig.put("isOAuth",true);
             return new CommandResult().result(connectionConfig);
         }catch (Exception e){
-            return new CommandResult().result(Collections.EMPTY_MAP);
+            return new CommandResult().result(connectionConfig);
         }
     }
 }

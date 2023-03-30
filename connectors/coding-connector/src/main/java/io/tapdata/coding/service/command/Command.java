@@ -18,7 +18,7 @@ public interface Command {
 
     public static Command command(String command) {
         if (Checker.isEmpty(command)) return null;
-        Class clz = null;
+        Class<?> clz = null;
         try {
             clz = Class.forName("io.tapdata.coding.service.command." + command);
             return ((Command) clz.newInstance());
@@ -43,8 +43,7 @@ public interface Command {
         Class<?> clz = null;
         try {
             clz = Class.forName("io.tapdata.coding.service.command." + command);
-            CommandResult result = ((Command) clz.newInstance()).commandResult(tapConnectionContext, commandInfo, accessToken);
-            return result;
+            return ((Command) clz.newInstance()).commandResult(tapConnectionContext, commandInfo, accessToken);
         } catch (Throwable e) {
             throw new RuntimeException(e.getMessage());
         }

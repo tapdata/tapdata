@@ -262,4 +262,14 @@ public class StringKit {
             return new String(buf);
         }
     }
+
+    public static String removeLastReturn(String str) {
+        if (str.endsWith("\r\n")) {
+            return str.substring(0, str.length() - 2);
+        } else if (str.endsWith("\r") || str.endsWith("\n")) {
+            return str.substring(0, str.length() - 1);
+        } else {
+            return str;
+        }
+    }
 }

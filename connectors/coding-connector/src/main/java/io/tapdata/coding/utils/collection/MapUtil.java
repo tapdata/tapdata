@@ -24,18 +24,6 @@ public class MapUtil<K, V> {
         return jsonObject.toString();
     }
 
-
-    //public static void main(String[] args) {
-    //    Map<String, Object> issueMap = JSONUtil.parseObj(issue);
-    //    Map<String, Object> filedMap = JSONUtil.parseObj(fileds, false, true);
-    //    System.out.println(CSVTitle(filedMap));
-    //    String line = CSVLine(issueMap, filedMap);
-    //    System.out.println(line);
-    //}
-    //public static Map<String, Object> fileds() {
-    //    return JSONUtil.parseObj(fileds, false, true);
-    //}
-
     public static String CSVTitle(Map<String, Object> filedMap) {
         StringJoiner joiner = new StringJoiner(Constants.SPLIT_CHAR);
         title(joiner, filedMap, null);

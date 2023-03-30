@@ -44,7 +44,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
     }
 
     @Override
-    public CodingStarter connectorOut(){
+    public CodingStarter connectorOut() {
         this.codingConnector.lastTimeSplitIterationCode(this.lastTimeSplitIterationCode);
         return super.connectorOut();
     }
@@ -318,7 +318,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
                 .startDate(readStartTime)
                 .endDate(readEndTime)
                 .limit(batchCount)
-                .offset((int)startPage);
+                .offset((int) startPage);
         CodingHttp codingHttp = this.codingHttp((IterationParam) param);
         List<TapEvent> events = new ArrayList<>();
         while (this.sync()) {
@@ -344,7 +344,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
                     if (!lastTimeSplitIterationCode.contains(iterationHash)) {
                         if (referenceTime > createdAt) {
                             events.add(TapSimplify.updateDMLEvent(null, iteration, TABLE_NAME).referenceTime(System.currentTimeMillis()));
-                        }else {
+                        } else {
                             events.add(TapSimplify.insertRecordEvent(iteration, TABLE_NAME).referenceTime(System.currentTimeMillis()));
                         }
                         if (!currentTimePoint.equals(this.lastTimePoint)) {
@@ -364,7 +364,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
                 if (result.size() < param.limit()) {
                     break;
                 }
-                startPage ++;
+                startPage++;
                 offset.getTableUpdateTimeMap().put(TABLE_NAME, startPage);
             } else {
                 break;

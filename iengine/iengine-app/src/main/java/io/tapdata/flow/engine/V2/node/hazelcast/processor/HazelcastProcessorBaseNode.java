@@ -7,6 +7,7 @@ import io.tapdata.aspect.ProcessorNodeProcessAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
+import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.ThreadContext;
@@ -66,7 +67,10 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 							return;
 						}
 						if (tapdataEvent.isDML()) {
-							if (null != processResult && null != processResult.getTableId()) {
+							if (processResult == null) {
+								processResult = getProcessResult(TapEventUtil.getTableId(tapdataEvent.getTapEvent()));
+							}
+							if (null != processResult.getTableId()) {
 								transformToTapValue(event, processorBaseContext.getTapTableMap(), processResult.getTableId(), tapValueTransform.get());
 							} else {
 								transformToTapValue(event, processorBaseContext.getTapTableMap(), getNode().getId(), tapValueTransform.get());

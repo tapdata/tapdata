@@ -68,7 +68,7 @@ public class LdpController extends BaseController {
     @Operation(summary = "Query fdm task by tags")
     @GetMapping("fuzzy/search")
     public ResponseMessage<List<LdpFuzzySearchVo>> fuzzySearch(@RequestParam("key") String key,
-                                                               @RequestParam(value = "connectType", required = false) String connectType) {
+                                                               @RequestParam(value = "connectType", required = false) List<String> connectType) {
         return success(ldpService.fuzzySearch(key, connectType, getLoginUser()));
     }
 
