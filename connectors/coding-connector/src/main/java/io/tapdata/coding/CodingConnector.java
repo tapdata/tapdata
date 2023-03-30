@@ -80,9 +80,9 @@ public class CodingConnector extends ConnectorBase {
         CodingHttp.interceptor = (http, request, hasIgnore) -> {
             if (hasIgnore) return request;
             try {
-                Map<String,Object> body = (Map<String,Object>)fromJson(request.body());
-                Map<String, Object> response = (Map<String, Object>)body.get("Response");
-                response = (Map<String, Object>)response.get("Error");
+                Map<?,?> body = fromJson(request.body(),Map.class);
+                Map<?, ?> response = (Map<?, ?>)body.get("Response");
+                response = (Map<?, ?>)response.get("Error");
                 String code = (String)response.get("Code");
                 String message = (String)response.get("Message");
                 if ("ResourceNotFound".equals(code)|| " User not found, authorization invalid".equals(message)) {
@@ -150,9 +150,9 @@ public class CodingConnector extends ConnectorBase {
         CodingHttp.interceptor = (http, request, hasIgnore) -> {
             if (hasIgnore) return request;
             try {
-                Map<String,Object> body = (Map<String,Object>)fromJson(request.body());
-                Map<String, Object> response = (Map<String, Object>)body.get("Response");
-                response = (Map<String, Object>)response.get("Error");
+                Map<?,?> body = fromJson(request.body(), Map.class);
+                Map<?, ?> response = (Map<?, ?>)body.get("Response");
+                response = (Map<?, ?>)response.get("Error");
                 String code = (String)response.get("Code");
                 String message = (String)response.get("Message");
                 if ("ResourceNotFound".equals(code)|| " User not found, authorization invalid".equals(message)) {
@@ -287,9 +287,9 @@ public class CodingConnector extends ConnectorBase {
         CodingHttp.interceptor = (http, request, hasIgnore) -> {
             if (hasIgnore) return request;
             try {
-                Map<String,Object> body = (Map<String,Object>)fromJson(request.body());
-                Map<String, Object> response = (Map<String, Object>)body.get("Response");
-                response = (Map<String, Object>)response.get("Error");
+                Map<?,?> body = fromJson(request.body(), Map.class);
+                Map<?, ?> response = (Map<?, ?>)body.get("Response");
+                response = (Map<?, ?>)response.get("Error");
                 String code = (String)response.get("Code");
                 String message = (String)response.get("Message");
                 if ("ResourceNotFound".equals(code)|| " User not found, authorization invalid".equals(message)) {

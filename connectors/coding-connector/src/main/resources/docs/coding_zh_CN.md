@@ -1,16 +1,26 @@
 ## **连接配置帮助**
+
 ### **1. 先决条件（作为源）**
+
 #### **1.1 填写团队名称**
-在您的Coding链接中也可以直观地获取，比如：https://{teamName}.coding.net/,那么他的团队名称就是teamName
+
+在您的Coding链接中也可以直观地获取，比如：**https://team_name.coding.net/** ，那么团队名称就是 team_name。
+
 #### **1.2 点击OAuth2.0 按钮进行访问授权**
+
 填写完您的团队名称后直接点击授权按钮，跳转到授权按钮后点击授权后页面自动返回
-#### **1.3 选择增量方式**
-- 此时此刻，有Coding支持的web hook形式，也有普通按时轮询的增量方式。
-- 当然，如果您选择了比较节约处理器性能的WebHook模式，那么您就需要前往Coding配置web Hook（点击 ’生成服务 URL‘ 右侧的 ‘生成’ 按钮,您可以看到一行简洁明了的URL，在此，需要您复制前往Coding粘贴到WebHook配置页面的服务URL输入框）
-##### **1.3.1 轮询式**
-##### **1.3.2 WebHook**
-- 此模式需要在创建任务前配置好ServiceHook:
-- 配置web Hook的流程如下：
+
+### **1.3 选择项目**
+
+#### **1.4 选择增量方式**
+
+- 此时此刻，有Coding支持的Webhook形式，也有普通按时轮询的增量方式。
+- 当然，如果您选择了比较节约处理器性能的Webhook模式，那么您就需要前往Coding配置Webhook（点击 ’生成服务 URL‘ 右侧的 ‘生成’ 按钮,您可以看到一行简洁明了的URL，在此，需要您复制前往Coding粘贴到Webhook配置页面的服务URL输入框）
+
+##### **1.3.1 Webhook**
+
+- 此模式需要在创建任务前配置好ServiceHook：
+- 配置Webhook的流程如下：
 
 ```
  1. 一键生成服务URL，并复制到剪切板
@@ -48,24 +58,33 @@
 ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/coding/url.PNG)
 
 
-- 一键前往配置web Hook：https://tapdata.coding.net/p/testissue/setting/webhook
----
-特别说明：**创建新的Coding连接，如果选择WebHook模式，一定要记得前往Coding为此连接节点配置ServiceHook哦！**
----
-### **2. 先决条件（作为目标）**
+- 一键前往配置Webhook：https://tapdata.coding.net/p/testissue/setting/webhook
+
+##### **1.3.2 轮询式**
 ...
 
-### **3. 数据说明**
-支持增量轮询的任何表在执行增量轮询时都无法监听并处理删除事件（所有修改事件都以插入事件处理），如需要具体的事件区分请选择WebHook增量方式（局限于SaaS平台，并不是所有表都支持webHook增量）
-#### **3.1 事项表-Issues**
+---
+
+特别说明：**创建新的Coding连接，如果选择Webhook模式，一定要记得前往Coding为此连接节点配置ServiceHook哦！**
+
+---
+
+### **2. 数据说明**
+
+支持增量轮询的任何表在执行增量轮询时都无法监听并处理删除事件（所有修改事件都以插入事件处理），如需要具体的事件区分请选择Webhook增量方式（局限于SaaS平台，并不是所有表都支持Webhook增量）
+
+#### **2.1 事项表-Issues**
+
 事项表包含全部类型包括需求、迭代、任务、史诗以及自定义的类型。
 其增量方式在轮询式下无法准确知道增量事件，统一作为新增事件处理。
 
-#### **3.2 迭代表-Iterations**
+#### **2.2 迭代表-Iterations**
+
 迭代表包含所有迭代。
 受限于Coding的OpenAPI，其轮询式增量采取从头覆盖，意味着任务开始后监控上显示的增量事件数存在误差，但不会造成真实数据误差。
 
-#### **3.3 项目成员表-ProjectMembers**
+#### **2.3 项目成员表-ProjectMembers**
+
 此表包含当前选中的项目下的全部项目成员。
 
 ### 注意事项

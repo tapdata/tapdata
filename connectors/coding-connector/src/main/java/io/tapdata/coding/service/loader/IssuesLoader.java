@@ -62,16 +62,17 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         this.codingConfig = this.veryContextConfigAndNodeConfig();
     }
 
-    public CodingStarter connectorInit(CodingConnector codingConnector){
+    public CodingStarter connectorInit(CodingConnector codingConnector) {
         super.connectorInit(codingConnector);
         this.lastTimeSplitIssueCode.addAll(codingConnector.lastTimeSplitIssueCode());
         return this;
     }
 
-    public CodingStarter connectorOut(){
+    public CodingStarter connectorOut() {
         this.codingConnector.lastTimeSplitIssueCode(this.lastTimeSplitIssueCode);
         return super.connectorOut();
     }
+
     public IssuesLoader setTableSize(int tableSize) {
         this.tableSize = tableSize;
         return this;
@@ -804,9 +805,9 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                     //如果不在，说明时全新增加或修改的数据，需要在本次读取这条数据
                     //如果在，说明上一次批量读取中以及读取了这条数据，本次不在需要读取 !currentTimePoint.equals(lastTimePoint) &&
                     if (!lastTimeSplitIssueCode.contains(issueDetailHash)) {
-                        if(referenceTime > createdAt){
+                        if (referenceTime > createdAt) {
                             events[0].add(TapSimplify.updateDMLEvent(null, issueDetail, TABLE_NAME).referenceTime(referenceTime));
-                        }else {
+                        } else {
                             events[0].add(TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(createdAt));
                         }
                         totalCount += 1;
@@ -843,7 +844,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         }
     }
 
-    public String key(Map<String, Object> issue, Long createTime, Long updateTime){
+    public String key(Map<String, Object> issue, Long createTime, Long updateTime) {
         String code = String.valueOf(issue.get("Code"));
         String projectName = String.valueOf(issue.get("ProjectName"));
         String teamName = String.valueOf(issue.get("TeamName"));

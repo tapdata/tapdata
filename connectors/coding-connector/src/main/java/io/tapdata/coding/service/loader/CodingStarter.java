@@ -40,7 +40,7 @@ public abstract class CodingStarter {
 
     ContextConfig codingConfig;
 
-    public synchronized AtomicReference<String> accessToken(){
+    public synchronized AtomicReference<String> accessToken() {
         return this.accessToken;
     }
 
@@ -80,7 +80,7 @@ public abstract class CodingStarter {
             return Checker.isNotEmpty(token) ?
                     (token.startsWith(TOKEN_PREF) ? token : TOKEN_PREF + token)
                     : token;
-        }else {
+        } else {
             return Checker.isNotEmpty(token) ?
                     (token.startsWith(TOKEN_PREF_OAUTH) ? token : TOKEN_PREF_OAUTH + token)
                     : token;
@@ -88,7 +88,7 @@ public abstract class CodingStarter {
     }
 
     public ContextConfig veryContextConfigAndNodeConfig() {
-        if (Objects.nonNull(codingConfig)){
+        if (Objects.nonNull(codingConfig)) {
             return codingConfig;
         }
         this.verifyConnectionConfig();
@@ -160,8 +160,8 @@ public abstract class CodingStarter {
             TapLogger.debug(TAG, "Connection parameter exception: {} ", token);
         }
 
-        if (null == accessToken().get() || accessToken().get().trim().equals("")){
-           accessToken().set(this.tokenSetter(token));
+        if (null == accessToken().get() || accessToken().get().trim().equals("")) {
+            accessToken().set(this.tokenSetter(token));
         }
 
         if (null == teamName || "".equals(teamName)) {
@@ -176,7 +176,7 @@ public abstract class CodingStarter {
         this.isVerify = Boolean.TRUE;
     }
 
-    public String refreshTokenByOAuth2(){
+    public String refreshTokenByOAuth2() {
         HttpRequest request = HttpUtil.createPost(String.format(
                 "https://%s.coding.net/api/oauth/access_token?refresh_token=%s&client_id=%s&client_secret=%s&grant_type=refresh_token",
                 codingConfig.getTeamName(),
@@ -185,26 +185,26 @@ public abstract class CodingStarter {
                 codingConfig.clientSecret()
         ));
         request.contentLength(253);
-        request.header("Content-Type","application/x-www-form-urlencoded");
-        request.header("Host","muo.suuuy.dev.coding.io");
+        request.header("Content-Type", "application/x-www-form-urlencoded");
+        request.header("Host", "muo.suuuy.dev.coding.io");
         HttpResponse execute = request.execute();
         StringBuilder errorMsg = new StringBuilder();
         if (Objects.nonNull(execute)) {
             String body = execute.body();
             if (Objects.nonNull(body)) {
-                Map<String,Object> json = (Map<String,Object>)fromJson(body);
-                if (Objects.nonNull(json)){
+                Map<?, ?> json = fromJson(body, Map.class);
+                if (Objects.nonNull(json)) {
                     Object token = json.get("access_token");
                     if (Objects.nonNull(token)) {
                         accessToken().set(String.format("Bearer %s", token));
                         codingConfig.token(accessToken().get());
                         return accessToken().get();
-                    }else {
-                        errorMsg.append("Cannot get refresh token from response body. ").append(Optional.ofNullable(json.get(CodingHttp.ERROR_KEY)).orElse(""));
+                    } else {
+                        errorMsg.append("Cannot get refresh token from response body. ").append(Optional.ofNullable((String) json.get(CodingHttp.ERROR_KEY)).orElse(""));
                     }
                 }
             }
-        }else {
+        } else {
             errorMsg.append("Cannot get refresh token from response body, body content is empty. ");
         }
         throw new CoreException(errorMsg.toString());

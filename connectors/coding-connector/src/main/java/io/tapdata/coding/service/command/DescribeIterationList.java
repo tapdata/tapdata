@@ -59,7 +59,7 @@ public class DescribeIterationList implements Command {
         Map<String, Object> postResult = http.post();
 
         Object response = postResult.get("Response");
-        Map<String, Object> responseMap = (Map<String, Object>) response;
+        Map<?, ?> responseMap = (Map<?, ?>) response;
         if (Checker.isEmpty(response)) {
             throw new RuntimeException("Get list failed: " + url + "?Action=" + command+ ". " + Optional.ofNullable(postResult.get(CodingHttp.ERROR_KEY)).orElse(""));
         }
@@ -69,7 +69,7 @@ public class DescribeIterationList implements Command {
         if (Checker.isEmpty(dataObj)) {
             return Command.emptyResult();
         }
-        Map<String, Object> data = (Map<String, Object>) dataObj;
+        Map<?, ?> data = (Map<?, ?>) dataObj;
         if ("DescribeIterationList".equals(command)) {
             Object listObj = data.get("List");
             List<Map<String, Object>> searchList = new ArrayList<>();

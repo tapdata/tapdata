@@ -17,7 +17,7 @@ public class Projects implements SchemaStart {
         return use;
     }
 
-    public Projects(AtomicReference<String> accessToken){
+    public Projects(AtomicReference<String> accessToken) {
     }
 
     @Override
@@ -32,27 +32,6 @@ public class Projects implements SchemaStart {
 
     @Override
     public TapTable document(TapConnectionContext connectionContext) {
-        /**
-         *     {
-         *           "Id": 1,
-         *           "CreatedAt": 1619580482000,
-         *           "UpdatedAt": 1619580482000,
-         *           "Status": 1,
-         *           "Type": 2,
-         *           "MaxMember": 0,
-         *           "Name": "empty",
-         *           "DisplayName": "empty",
-         *           "Description": "",
-         *           "Icon": "https://e.coding.net/static/project_icon/scenery-version-2-4.svg",
-         *           "TeamOwnerId": 1,
-         *           "UserOwnerId": 0,
-         *           "StartDate": 0,
-         *           "EndDate": 0,
-         *           "TeamId": 1,
-         *           "IsDemo": false,
-         *           "Archived": false
-         *         }
-         * */
         return table(tableName())
                 .add(field("Id", JAVA_Integer).isPrimaryKey(true).primaryKeyPos(3))
                 .add(field("CreatedAt", JAVA_Long).isPrimaryKey(true).primaryKeyPos(2))

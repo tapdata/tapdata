@@ -85,7 +85,7 @@ public class DescribeCodingProjects implements Command {
         if (Checker.isEmpty(dataObj)) {
             return Command.emptyResult();
         }
-        Map<String, Object> data = (Map<String, Object>) dataObj;
+        Map<?, ?> data = (Map<?, ?>) dataObj;
         if ("DescribeIterationList".equals(command)) {
             Object listObj = data.get("List");
             List<Map<String, Object>> searchList = new ArrayList<>();

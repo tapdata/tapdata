@@ -42,12 +42,8 @@ public interface SchemaStart {
             TapLogger.debug(TAG, "ClassNotFoundException for Schema {}", schemaName);
         } catch (InstantiationException e1) {
             TapLogger.debug(TAG, "InstantiationException for Schema {}", schemaName);
-        } catch (IllegalAccessException e2) {
+        } catch (IllegalAccessException | NoSuchMethodException | InvocationTargetException e2) {
             TapLogger.debug(TAG, "IllegalAccessException for Schema {}, {}", schemaName, e2.getMessage());
-        } catch (NoSuchMethodException methodException) {
-            TapLogger.debug(TAG, "IllegalAccessException for Schema {}, {}", schemaName, methodException.getMessage());
-        } catch (InvocationTargetException e) {
-            TapLogger.debug(TAG, "IllegalAccessException for Schema {}, {}", schemaName, e.getMessage());
         }
         return null;
     }

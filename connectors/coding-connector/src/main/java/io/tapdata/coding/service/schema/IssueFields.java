@@ -21,7 +21,7 @@ public class IssueFields implements SchemaStart {
     }
 
 
-    public IssueFields(AtomicReference<String> accessToken){
+    public IssueFields(AtomicReference<String> accessToken) {
     }
 
     @Override
@@ -41,36 +41,4 @@ public class IssueFields implements SchemaStart {
     public boolean connection(TapConnectionContext tapConnectionContext) {
         return false;
     }
-    /**
-     * {
-     *         "IssueFieldId": 1,
-     *         "NeedDefault": false,
-     *         "ValueString": "",
-     *         "IssueType": "REQUIREMENT",
-     *         "Required": false,
-     *         "IssueField": {
-     *           "Id": 1,
-     *           "TeamId": 1,
-     *           "Name": "处理人",
-     *           "IconUrl": "",
-     *           "Type": "ASSIGNEE",
-     *           "ComponentType": "SELECT_MEMBER_SINGLE",
-     *           "Description": "",
-     *           "Options": [
-     *
-     *           ],
-     *           "Unit": "",
-     *           "Selectable": false,
-     *           "Required": false,
-     *           "Editable": false,
-     *           "Deletable": false,
-     *           "Sortable": true,
-     *           "CreatedBy": 0,
-     *           "CreatedAt": 1597283395000,
-     *           "UpdatedAt": 1597283395000
-     *         },
-     *         "CreatedAt": 1597283400000,
-     *         "UpdatedAt": 1597283400000
-     *       }
-     * */
 }

@@ -1,7 +1,6 @@
 package io.tapdata.coding.service.loader;
 
 import io.tapdata.coding.CodingConnector;
-import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.Param;
 import io.tapdata.coding.entity.param.ProjectMemberParam;
@@ -38,13 +37,13 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
         }
     }
 
-    public CodingStarter connectorInit(CodingConnector codingConnector){
+    public CodingStarter connectorInit(CodingConnector codingConnector) {
         super.connectorInit(codingConnector);
         this.lastTimeProjectMembersCode.addAll(codingConnector.lastTimeProjectMembersCode());
         return this;
     }
 
-    public CodingStarter connectorOut(){
+    public CodingStarter connectorOut() {
         this.codingConnector.lastTimeProjectMembersCode(this.lastTimeProjectMembersCode);
         return super.connectorOut();
     }
@@ -146,7 +145,7 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
             if (Checker.isNotEmpty(teamMembersObj)) {
                 List<Map<String, Object>> teamMembers = (List<Map<String, Object>>) teamMembersObj;
                 for (Map<String, Object> teamMember : teamMembers) {
-                    Long updatedAt = System.currentTimeMillis() ;
+                    Long updatedAt = System.currentTimeMillis();
                     Long currentTimePoint = updatedAt - updatedAt % (24 * 60 * 60 * 1000);//时间片段
                     String membersHash = this.key(teamMember, null, updatedAt);
                     if (!lastTimeProjectMembersCode.contains(membersHash)) {

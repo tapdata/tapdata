@@ -64,7 +64,7 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
         } else {
             throw new RuntimeException(FormatUtils.format("Project List can not be parsed"));
         }
-//        return Checker.isNotEmptyCollection(projectListObj)?(List<Map<String, Object>>)projectListObj:null;
+        //return Checker.isNotEmptyCollection(projectListObj)?(List<Map<String, Object>>)projectListObj:null;
     }
 
     public Map<String, Object> myselfInfo() {
@@ -193,10 +193,10 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
                 .offset(startPage);
         CodingHttp codingHttp = this.codingHttp((ProjectParam) param);
         List<TapEvent> events = new ArrayList<>();
-//        List<Integer> issueCodes = contextConfig.issueCodes();
-//        if (Checker.isEmpty(issueCodes)){
-//            throw new RuntimeException(FormatUtils.format("issueCodes is empty"));
-//        }
+        //List<Integer> issueCodes = contextConfig.issueCodes();
+        //if (Checker.isEmpty(issueCodes)){
+        //    throw new RuntimeException(FormatUtils.format("issueCodes is empty"));
+        //}
         while (this.sync()) {
             Map<String, Object> resultMap = codingHttp.buildBody("Offset", startPage).post();
             Object response = resultMap.get("Response");

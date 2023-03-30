@@ -20,7 +20,7 @@ public interface ConnectionMode {
 
     public static ConnectionMode getInstanceByName(TapConnectionContext connectionContext, AtomicReference<String> accessToken, String name) {
         if (Checker.isEmpty(name)) return null;
-        Class clz = null;
+        Class<?> clz = null;
         try {
             clz = Class.forName("io.tapdata.coding.service.connectionMode." + name);//ConnectionMode.class.getPackage().getName()
             return ((ConnectionMode) clz.newInstance()).config(connectionContext, accessToken);
