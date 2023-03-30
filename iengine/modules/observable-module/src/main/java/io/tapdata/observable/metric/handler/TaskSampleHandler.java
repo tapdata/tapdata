@@ -109,7 +109,17 @@ public class TaskSampleHandler extends AbstractHandler {
     }
 
     public void doInit(Map<String, Number> values) {
-        collector.addSampler(TABLE_TOTAL, () -> CollectionUtils.isNotEmpty(taskTables) ? taskTables.size() : null);
+        collector.addSampler(TABLE_TOTAL, () -> {
+            if (CollectionUtils.isNotEmpty(taskTables)) {
+                if (Objects.nonNull(snapshotTableTotal.value())) {
+                    return Math.max(snapshotTableTotal.value().longValue(), taskTables.size());
+                } else {
+                    return taskTables.size();
+                }
+            } else {
+                return null;
+            }
+        });
 
         inputDdlCounter = getCounterSampler(values, Constants.INPUT_DDL_TOTAL);
         inputInsertCounter = getCounterSampler(values, Constants.INPUT_INSERT_TOTAL);
