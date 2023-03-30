@@ -491,6 +491,8 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
      * @param id
      */
     public void delete(String id) {
+        //delete role mapping
+        roleMappingService.deleteAll(Query.query(Criteria.where("principalId").is(id).and("principalType").is("USER")));
         Update update = new Update().set("isDeleted", true);
         Query query = Query.query(Criteria.where("id").is(id));
         UpdateResult updateResult = repository.getMongoOperations().updateFirst(query, update, User.class);
