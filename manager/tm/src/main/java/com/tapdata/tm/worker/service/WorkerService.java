@@ -574,7 +574,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         return worker;
     }
 
-    public void setHostName(TaskDto dto) {
+    public TaskDto setHostName(TaskDto dto) {
         String agentId = dto.getAgentId();
         Query query = new Query(Criteria.where("process_id").is(agentId));
         WorkerDto one = findOne(query);
@@ -584,6 +584,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                 dto.setAgentName(info.getAgentName());
             });
         }
+        return dto;
     }
 
     public String checkTaskUsedAgent(String taskId, UserDetail user) {
