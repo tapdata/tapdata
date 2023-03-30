@@ -12,8 +12,6 @@ import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,7 +23,6 @@ import java.util.Map;
  **/
 public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 
-	private Logger logger = LoggerFactory.getLogger(HazelcastDataBaseNode.class);
 	protected SyncTypeEnum syncType;
 	protected DataProcessorContext dataProcessorContext;
 	protected Throwable offsetFromTimeError;
@@ -104,7 +101,7 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 				}
 			} else {
 				if (null == syncProgressObj) {
-					logger.info("Sync progress not exists, will run task as first time");
+					obsLogger.info("Sync progress not exists, will run task as first time");
 				} else {
 					throw new RuntimeException("Unrecognized sync progress type: " + syncProgressObj.getClass().getName() + ", should be a map");
 				}
