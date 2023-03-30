@@ -120,7 +120,6 @@ public class PartitionConcurrentProcessor {
 		this.flushOffset = flushOffset;
 		this.executorService.submit(() -> {
 			while (isRunning()) {
-				Log4jUtil.setThreadContext(taskDto);
 				Thread.currentThread().setName(taskDto.getId().toHexString() + "-" + taskDto.getName() + "-watermark-event-process");
 				try {
 					final WatermarkEvent watermarkEvent = watermarkQueue.poll(3, TimeUnit.SECONDS);
@@ -155,7 +154,6 @@ public class PartitionConcurrentProcessor {
 			int finalPartition = partition;
 			executorService.submit(() -> {
 				try {
-					Log4jUtil.setThreadContext(taskDto);
 					Thread.currentThread().setName(concurrentProcessThreadNamePrefix + finalPartition);
 					List<TapdataEvent> processEvents = new ArrayList<>();
 					while (isRunning()) {

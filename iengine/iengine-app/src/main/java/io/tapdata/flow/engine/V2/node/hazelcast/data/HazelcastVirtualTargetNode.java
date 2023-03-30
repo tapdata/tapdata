@@ -2,7 +2,6 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data;
 
 
 import com.hazelcast.jet.core.Inbox;
-import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import org.apache.logging.log4j.LogManager;
@@ -30,7 +29,6 @@ public class HazelcastVirtualTargetNode extends HazelcastDataBaseNode {
 	@Override
 	public void process(int ordinal, @NotNull Inbox inbox) {
 		try {
-			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			if (!inbox.isEmpty()) {
 				while (isRunning()) {
 					List<TapdataEvent> tapdataEvents = new ArrayList<>();

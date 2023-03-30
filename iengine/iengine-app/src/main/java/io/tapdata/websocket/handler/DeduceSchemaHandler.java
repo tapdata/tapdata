@@ -124,7 +124,6 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 			}
 
 			private TaskClient<TaskDto> execTask(TaskDto taskDto) {
-				Log4jUtil.setThreadContext(taskDto);
 				taskDto.setType(ParentTaskDto.TYPE_INITIAL_SYNC);
 				TaskClient<TaskDto> taskClient = taskService.startTestTask(taskDto);
 				taskClient.join();

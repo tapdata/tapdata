@@ -22,4 +22,7 @@ public interface TaskProcessorExCode_11 {
 			solutionCN = "1. 在挖掘任务监控界面，找到外部缓存的配置。检查该配置的数据库是否正常"
 	)
 	String WRITE_ONE_SHARE_LOG_FAILED = "11002";
+
+	@TapExCode
+	String CREATE_PROCESSOR_FAILED = "11003";
 }

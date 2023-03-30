@@ -414,7 +414,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         try {
             TaskDto taskDto = dataProcessorContext.getTaskDto();
             if (firstComplete) {
-                Log4jUtil.setThreadContext(taskDto);
                 Thread.currentThread().setName(String.format("Source-Complete-%s[%s]", getNode().getName(), getNode().getId()));
                 firstComplete = false;
             }
@@ -479,7 +478,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
     private void handleTableMonitorResult() {
         Thread.currentThread().setName("Handle-Table-Monitor-Result-" + this.associateId);
         try {
-            Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
             // Handle dynamic table change
             Object tableMonitor = monitorManager.getMonitorByType(MonitorManager.MonitorType.TABLE_MONITOR);
             if (tableMonitor instanceof TableMonitor) {
@@ -848,7 +846,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 String name = String.format("Snapshot-Row-Size-Query-Thread-%s(%s)-%s(%s)",
                         task.get().getName(), task.get().getId().toHexString(), node.get().getName(), node.get().getId());
                 Thread.currentThread().setName(name);
-                Log4jUtil.setThreadContext(task.get());
 
                 doCountSynchronously(batchCountFunction, tableList);
             }, snapshotRowSizeThreadPool)

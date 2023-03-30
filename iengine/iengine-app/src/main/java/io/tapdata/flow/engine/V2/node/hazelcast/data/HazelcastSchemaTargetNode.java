@@ -3,8 +3,6 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data;
 
 import com.hazelcast.jet.core.Inbox;
 import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
-import com.tapdata.constant.Log4jUtil;
-import com.tapdata.constant.StringUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.schema.SchemaApplyResult;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -39,7 +37,12 @@ import org.jetbrains.annotations.NotNull;
 import org.voovan.tools.collection.CacheMap;
 
 import javax.script.Invocable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
 
@@ -111,7 +114,6 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	@Override
 	public void process(int ordinal, @NotNull Inbox inbox) {
 		try {
-			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			if (!inbox.isEmpty()) {
 				while (isRunning()) {
 					List<TapdataEvent> tapdataEvents = new ArrayList<>();
