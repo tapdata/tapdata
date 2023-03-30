@@ -1448,7 +1448,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 						typeMappings = typeMapping.get(cacheKey);
 					}
 					if (typeMappings == null || typeMappings.size() == 0) {
-						log.error("Not found tap type mapping rule for databaseType={}, dbVersion={}, dbFieldType={}",
+						log.warn("Not found tap type mapping rule for databaseType={}, dbVersion={}, dbFieldType={}",
 								oldConnectionDto.getDatabase_type(), finalDbVersion, originalDataType);
 						return;
 					}
