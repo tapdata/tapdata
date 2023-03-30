@@ -119,13 +119,13 @@ public class RedisConnector extends ConnectorBase {
     }
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
-        cleanOneKey(redisConfig.getKeyTableName());
+        if (redisConfig.getOneKey()) {
+            cleanOneKey(tapClearTableEvent.getTableId());
+        }
     }
 
     private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
-        if (EmptyKit.isNotBlank(redisConfig.getKeyTableName())) {
-            cleanOneKey(redisConfig.getKeyTableName());
-        } else {
+        if (redisConfig.getOneKey()) {
             cleanOneKey(tapDropTableEvent.getTableId());
         }
     }
@@ -153,12 +153,11 @@ public class RedisConnector extends ConnectorBase {
         try (Jedis jedis = redisContext.getJedis()) {
             List<String> fieldList = createTableEvent.getTable().getNameFieldMap().entrySet().stream().sorted(Comparator.comparing(v ->
                     EmptyKit.isNull(v.getValue().getPos()) ? 99999 : v.getValue().getPos())).map(Map.Entry::getKey).collect(Collectors.toList());
-            String keyName = createTableEvent.getTableId();
-            if (EmptyKit.isNotBlank(redisConfig.getKeyTableName())) {
-                keyName = redisConfig.getKeyTableName();
+            if (redisConfig.getOneKey()) {
+                String keyName = createTableEvent.getTableId();
+                jedis.del(keyName);
+                jedis.rpush(keyName, String.join(EmptyKit.isEmpty(redisConfig.getValueJoinString()) ? "," : redisConfig.getValueJoinString(), fieldList));
             }
-            jedis.del(keyName);
-            jedis.rpush(keyName, String.join(EmptyKit.isEmpty(redisConfig.getValueJoinString()) ? "," : redisConfig.getValueJoinString(), fieldList));
         }
     }
 }
