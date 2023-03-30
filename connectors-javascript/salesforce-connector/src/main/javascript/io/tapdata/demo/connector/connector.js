@@ -845,6 +845,7 @@ function updateToken(connectionConfig, nodeConfig, apiResponse) {
             let getToken = invoker.invokeWithoutIntercept("refresh token", clientInfo);
             if (getToken && getToken.result && getToken.result.access_token) {
                 connectionConfig.access_token = getToken.result.access_token;
+                connectionConfig.Authorization = getToken.result.access_token;
                 return {"access_token": getToken.result.access_token};
             }
         } catch (e) {
