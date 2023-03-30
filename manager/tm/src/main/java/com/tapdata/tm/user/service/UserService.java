@@ -324,7 +324,7 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
 
     public <T extends BaseDto> UserDto save(CreateUserRequest request, UserDetail userDetail) {
 
-        UserDto userDto = findOne(Query.query(Criteria.where("email").is(request.getEmail())));
+        UserDto userDto = findOne(Query.query(Criteria.where("email").is(request.getEmail()).orOperator(Criteria.where("isDeleted").is(false), Criteria.where("isDeleted").exists(false))));
         if (userDto != null) {
             throw new BizException("User.Already.Exists");
         }
@@ -491,6 +491,8 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
      * @param id
      */
     public void delete(String id) {
+        //delete role mapping
+        roleMappingService.deleteAll(Query.query(Criteria.where("principalId").is(id).and("principalType").is("USER")));
         Update update = new Update().set("isDeleted", true);
         Query query = Query.query(Criteria.where("id").is(id));
         UpdateResult updateResult = repository.getMongoOperations().updateFirst(query, update, User.class);
