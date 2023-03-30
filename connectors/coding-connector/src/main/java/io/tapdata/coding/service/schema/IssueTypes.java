@@ -16,7 +16,7 @@ public class IssueTypes implements SchemaStart {
         return false;
     }
 
-    public IssueTypes(AtomicReference<String> accessToken){
+    public IssueTypes(AtomicReference<String> accessToken) {
     }
 
     @Override

@@ -69,8 +69,6 @@ public class EnabledSchemas {
     public Class<? extends SchemaStart> projectMember(TapConnectionContext tapConnectionContext) {
         DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
         HashMap<String, String> headers = new HashMap<>();//存放请求头，可以存放多个请求头
-//        String token = connectionConfig.getString("token");
-//        token = tokenSetter(token);
         headers.put("Authorization", accessToken.get());
         connectionConfig.put("token", accessToken.get());
         Map<String, Object> resultMap = CodingHttp.create(
@@ -99,9 +97,7 @@ public class EnabledSchemas {
     public Class<? extends SchemaStart> iteration(TapConnectionContext tapConnectionContext) {
         DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
         HashMap<String, String> headers = new HashMap<>();//存放请求头，可以存放多个请求头
-//        String token = connectionConfig.getString("token");
         Object projectName = connectionConfig.get("projectName");
-//        token = tokenSetter(token);
         headers.put("Authorization", accessToken.get());
         connectionConfig.put("token", accessToken.get());
         Map<String, Object> resultMap = CodingHttp.create(
@@ -132,9 +128,6 @@ public class EnabledSchemas {
     public Class<? extends SchemaStart> issue(TapConnectionContext tapConnectionContext) {
         DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
         HashMap<String, String> headers = new HashMap<>();//存放请求头，可以存放多个请求头
-
-//        String token = connectionConfig.getString("token");
-//        token = tokenSetter(token);
         Object projectName = connectionConfig.get("projectName");
         headers.put("Authorization", accessToken.get());
         connectionConfig.put("token", accessToken.get());

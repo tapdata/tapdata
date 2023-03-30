@@ -25,6 +25,7 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 public class Issues implements SchemaStart {
     public final Boolean use = true;
     AtomicReference<String> accessToken;
+
     @Override
     public Boolean use() {
         return use;
@@ -35,9 +36,10 @@ public class Issues implements SchemaStart {
         return "Issues";
     }
 
-    public Issues(){ }
+    public Issues() {
+    }
 
-    public Issues(AtomicReference<String> accessToken){
+    public Issues(AtomicReference<String> accessToken) {
         this.accessToken = accessToken;
     }
 
