@@ -141,7 +141,8 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
         Criteria criteria = Criteria.where("worker_type").is("connector")
                 .and("ping_time").gte(System.currentTimeMillis() - (overTime * 1000L))
-                .and("isDeleted").ne(true).and("stopping").ne(true);
+                .and("isDeleted").ne(true).and("stopping").ne(true)
+                .and("agentTags").ne("disabledScheduleTask");
         return criteria;
     }
 
@@ -356,6 +357,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                 .and("ping_time").gte(findTime)
                 .and("isDeleted").ne(true)
                 .and("stopping").ne(true)
+                .and("agentTags").ne("disabledScheduleTask")
                 .and("process_id").is(entity.getUserId());
         Worker selfWorkers = repository.findOne(Query.query(whereSelf)).orElse(null);
         ArrayList<BasicDBObject> threadLog = new ArrayList<>();
@@ -386,7 +388,13 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                         agentTags.add(s);
                     }
                 }
-                where.and("agentTags").all(agentTags);
+                if (CollectionUtils.isNotEmpty(agentTags)) {
+                    where.and("agentTags").all(agentTags);
+                } else {
+                    where.and("agentTags").ne("disabledScheduleTask");
+                }
+            } else {
+                where.and("agentTags").ne("disabledScheduleTask");
             }
 
             Query query = Query.query(where);
