@@ -37,6 +37,7 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -125,6 +126,9 @@ public class TapdataTaskScheduler {
 				logger.error("Scan reschedule task failed {}", e.getMessage(), e);
 			}
 		});
+		if (appType.isCloud()) {
+			taskScheduler.scheduleAtFixedRate(this::internalStopTask, Duration.ofSeconds(10));
+		}
 		taskOperationThreadPool.submit(() -> {
 			Thread.currentThread().setName("Task-Operation-Consumer");
 			while (true) {
@@ -413,11 +417,7 @@ public class TapdataTaskScheduler {
 		}
 	}
 
-	@Scheduled(fixedDelay = 10000L)
-	public void internalStopTask() {
-		if (appType.isDaas()) {
-			return;
-		}
+	private void internalStopTask() {
 		Thread.currentThread().setName(String.format(ConnectorConstant.CLOUD_INTERNAL_STOP_TASK_THREAD, instanceNo));
 		try {
 			Iterator<Map.Entry<String, TaskClient<TaskDto>>> iterator = internalStopTaskClientMap.entrySet().iterator();
@@ -432,9 +432,8 @@ public class TapdataTaskScheduler {
 						logger.info(String.format("Destroy memory task client cache succeed, task: %s[%s]", taskClient.getTask().getName(), taskId));
 					} catch (Exception e) {
 						throw new RuntimeException(String.format("Destroy memory task client cache failed, task: %s[%s]", taskClient.getTask().getName(), taskId), e);
-					} finally {
-						iterator.remove();
 					}
+					iterator.remove();
 				}
 			}
 		} catch (Exception e) {
