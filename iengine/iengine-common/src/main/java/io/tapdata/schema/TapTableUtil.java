@@ -76,8 +76,11 @@ public class TapTableUtil {
 
 		Object schema = node.getSchema();
 		if (schema == null) {
-			List inputSchema = node.getInputSchema();
-			schema = node.mergeSchema(inputSchema, null);
+			schema = node.getOutputSchema();
+			if (schema == null) {
+				List inputSchema = node.getInputSchema();
+				schema = node.mergeSchema(inputSchema, null);
+			}
 		}
 		List<Schema> schemaList = null;
 		if (schema != null) {

@@ -207,7 +207,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			} else {
 				AspectUtils.executeAspect(DataNodeInitAspect.class, () -> new DataNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 			}
-			monitorManager.startMonitor(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR, context.hazelcastInstance().getJet().getJob(context.jobId()), processorBaseContext.getNode().getId());
+			if (!StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
+							TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
+				monitorManager.startMonitor(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR, context.hazelcastInstance().getJet().getJob(context.jobId()), processorBaseContext.getNode().getId());
+			}
 			jetJobStatusMonitor = (JetJobStatusMonitor) monitorManager.getMonitorByType(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR);
 			doInit(context);
 		} catch (Throwable e) {
