@@ -41,6 +41,7 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
         if (Objects.nonNull(taskNodeInfo)){
             taskNodeInfo.setNodeThreadGroup(null);
             taskNodeInfo.setSupervisorAspectTask(null);
+            taskNodeInfo.setNode(null);
             taskNodeInfos.remove(taskNodeInfo);
         }
     }
@@ -54,6 +55,7 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
         if (Objects.nonNull(nodeInfo)) {
             nodeInfo.setNodeThreadGroup(null);
             nodeInfo.setAspectConnector(null);
+            nodeInfo.setNodeMap(null);
         }
         disposableThreadGroupMap.remove(threadGroup);
     }

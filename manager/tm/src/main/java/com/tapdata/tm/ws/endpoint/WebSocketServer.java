@@ -89,6 +89,17 @@ public class WebSocketServer extends TextWebSocketHandler {
 		});
 	}
 
+
+	/**
+	 * @author Berry
+	 * 每十分钟自动断联一次agent的ws session.
+	 */
+	@Scheduled(fixedDelay = 1000 * 60 * 10)
+	public void autoCloseSession() {
+		log.info("auto close all agent ws session within ten minutes");
+		WebSocketManager.autoCloseAgentSession();
+	}
+
 	/**
 	 * 握手后建立成功
 	 */

@@ -3269,6 +3269,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void pause(TaskDto taskDto, UserDetail user, boolean force, boolean restart) {
 
         //重启的特殊处理，共享挖掘的比较多
+        Field field = new Field();
+        field.put("status", true);
+        TaskDto statusTask = findById(taskDto.getId(), field);
+        taskDto.setStatus(statusTask.getStatus());
         if ((TaskDto.STATUS_STOP.equals(taskDto.getStatus()) || TaskDto.STATUS_STOPPING.equals(taskDto.getStatus())) && restart) {
             Update update = Update.update("restartFlag", true).set("restartUserId", user.getUserId());
             Query query = new Query(Criteria.where("_id").is(taskDto.getId()));
