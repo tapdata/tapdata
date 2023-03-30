@@ -34,6 +34,7 @@ public class SupervisorAspectDisposable implements AspectObserver<DisposableThre
                 nodeInfo.setHasLaked(Boolean.FALSE);
                 nodeInfo.setAspectConnector(null);
                 nodeInfo.setNodeThreadGroup(null);
+                nodeInfo.setNodeMap(null);
                 taskResourceSupervisorManager.removeDisposableSubscribeInfo(group);
             } catch (Exception e) {
                 nodeInfo.setHasLaked(Boolean.TRUE);

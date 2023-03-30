@@ -137,7 +137,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	@Override
 	public void startSourceRunner() {
 		try {
-			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 			try {
 				if (need2InitialSync(syncProgress)) {

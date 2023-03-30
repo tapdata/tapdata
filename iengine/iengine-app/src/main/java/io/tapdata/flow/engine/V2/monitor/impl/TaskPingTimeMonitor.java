@@ -8,6 +8,8 @@ import com.tapdata.tm.commons.ping.PingDto;
 import com.tapdata.tm.commons.ping.PingType;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.flow.engine.V2.util.SupplierImpl;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.websocket.ManagementWebsocketHandler;
 import io.tapdata.websocket.WebSocketEvent;
@@ -37,11 +39,10 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  * @create 2022-03-08 18:53
  **/
 public class TaskPingTimeMonitor extends TaskMonitor<Object> {
-	private static final Logger logger = LogManager.getLogger(TaskPingTimeMonitor.class);
-
 	private final static long PING_INTERVAL_MS = 5000L;
 	public static final String TAG = TaskPingTimeMonitor.class.getSimpleName();
 
+	private ObsLogger logger;
 	private ScheduledExecutorService executorService;
 	private HttpClientMongoOperator clientMongoOperator;
 	private Supplier<Boolean> stopTask;
@@ -51,6 +52,7 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 		this.executorService = new ScheduledThreadPoolExecutor(1);
 		this.clientMongoOperator = clientMongoOperator;
 		this.stopTask = stopTask;
+		this.logger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
 	}
 
 	@Override
@@ -59,7 +61,6 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 		executorService.scheduleWithFixedDelay(
 				() -> {
 					Thread.currentThread().setName("Task-PingTime-" + taskDto.getId().toHexString());
-					Log4jUtil.setThreadContext(taskDto);
 
 					Query query = new Query(where("_id").is(taskDto.getId())
 							.and("status").nin(TaskDto.STATUS_ERROR, TaskDto.STATUS_SCHEDULE_FAILED)

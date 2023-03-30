@@ -1,6 +1,5 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
-import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -10,8 +9,6 @@ import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 
@@ -27,7 +24,6 @@ import java.util.function.BiConsumer;
  **/
 public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	private static final String TAG = HazelcastProcessorBaseNode.class.getSimpleName();
-	private final Logger logger = LogManager.getLogger(HazelcastProcessorBaseNode.class);
 
 	/**
 	 * Ignore process
@@ -41,7 +37,6 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	@Override
 	protected final boolean tryProcess(int ordinal, @NotNull Object item) throws Exception {
 		try {
-			Log4jUtil.setThreadContext(processorBaseContext.getTaskDto());
 			if (!isRunning()) {
 				return true;
 			}

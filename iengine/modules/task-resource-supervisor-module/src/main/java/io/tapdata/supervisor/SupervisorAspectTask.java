@@ -87,6 +87,7 @@ public class SupervisorAspectTask extends AbstractAspectTask {
                     info.setHasLeaked(Boolean.FALSE);
                     info.setSupervisorAspectTask(null);
                     info.setNodeThreadGroup(null);
+                    info.setNode(null);
                     threadGroupMap.remove(group);
                 } catch (Exception e) {
                     info.hasLaked = Boolean.TRUE;

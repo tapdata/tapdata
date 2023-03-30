@@ -48,12 +48,11 @@ public final class ObsLoggerFactory {
 		this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 		this.scheduleExecutorService = new ScheduledThreadPoolExecutor(1);
 		scheduleExecutorService.scheduleAtFixedRate(this::renewTaskLogSetting, 0L, PERIOD_SECOND, TimeUnit.SECONDS);
-		scheduleExecutorService.scheduleWithFixedDelay(this::removeTaskLogger, LOGGER_REMOVE_WAIT_AFTER_MILLIS, LOGGER_REMOVE_WAIT_AFTER_MILLIS, TimeUnit.HOURS);
+		scheduleExecutorService.scheduleWithFixedDelay(this::removeTaskLogger, LOGGER_REMOVE_WAIT_AFTER_MILLIS, LOGGER_REMOVE_WAIT_AFTER_MILLIS, TimeUnit.MILLISECONDS);
 	}
 
 	private static final long PERIOD_SECOND = 10L;
 	private static final long LOGGER_REMOVE_WAIT_AFTER_MILLIS = TimeUnit.HOURS.toMillis(1L);
-
 	private final SettingService settingService;
 	private final ClientMongoOperator clientMongoOperator;
 	private final Map<String, TaskLogger> taskLoggersMap = new ConcurrentHashMap<>();

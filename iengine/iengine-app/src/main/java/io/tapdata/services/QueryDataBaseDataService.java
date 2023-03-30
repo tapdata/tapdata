@@ -9,6 +9,8 @@ import com.tapdata.mongo.HttpClientMongoOperator;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.flow.engine.V2.entity.EmptyMap;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
@@ -28,7 +30,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 
-import java.util.*;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.entity.simplify.TapSimplify.entry;
@@ -42,9 +50,25 @@ public class QueryDataBaseDataService {
 
     private TapCodecsFilterManager originCodecsFilterManager;
     public QueryDataBaseDataService() {
-        originCodecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
+        TapCodecsRegistry codecsRegistry = TapCodecsRegistry.create();
+        codecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
+            return formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss");
+        });
+        originCodecsFilterManager = TapCodecsFilterManager.create(codecsRegistry);
     }
 
+
+    public static String formatTapDateTime(DateTime dateTime, String pattern) {
+        try {
+            DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(pattern);
+            final ZoneId zoneId = dateTime.getTimeZone() != null ? dateTime.getTimeZone().toZoneId() : ZoneId.of("GMT");
+            LocalDateTime localDateTime = LocalDateTime.ofInstant(dateTime.toInstant(), zoneId);
+            return dateTimeFormatter.format(localDateTime);
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
     public Map<String, Object> getData(String connectionId, String tableName) throws Throwable {
         String associateId = "queryRecords_" + connectionId + "_" + tableName + "_" + UUID.randomUUID();
         try {

@@ -600,7 +600,6 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 						String name = String.format("Snapshot-Row-Size-Query-Thread-%s(%s)-%s(%s)",
 								task.get().getName(), task.get().getId().toHexString(), node.get().getName(), node.get().getId());
 						Thread.currentThread().setName(name);
-						Log4jUtil.setThreadContext(task.get());
 
 						doCountSynchronously(batchCountFunction, tableList);
 					}, snapshotRowSizeThreadPool)
