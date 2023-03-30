@@ -4,23 +4,23 @@ import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
-import io.tapdata.ErrorCodeConfig;
-import io.tapdata.ErrorCodeEntity;
-import io.tapdata.entity.simplify.TapSimplify;
-import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
+import io.tapdata.observable.logging.appender.Appender;
 import io.tapdata.observable.logging.appender.AppenderFactory;
+import io.tapdata.observable.logging.appender.BaseTaskAppender;
 import io.tapdata.observable.logging.appender.FileAppender;
 import io.tapdata.observable.logging.appender.ObsHttpTMAppender;
 import lombok.Getter;
-import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.function.BiConsumer;
 
@@ -30,44 +30,41 @@ import java.util.function.BiConsumer;
 class TaskLogger extends ObsLogger implements Serializable {
 	private static final Long RECORD_CEILING_DEFAULT = 500L;
 	private static final Long INTERVAL_CEILING_DEFAULT = 500L;
-
-	private static AppenderFactory logAppendFactory = null;
-	private static FileAppender fileAppender = null;
-	private ObsHttpTMAppender obsHttpTMAppender = null;
-	private static BiConsumer<String, LogLevel> closeDebugConsumer;
-
+	public static final String LOGGER_NAME_PREFIX = "job-log";
+	private final List<io.tapdata.observable.logging.appender.Appender<?>> tapObsAppenders = new ArrayList<>();
+	private final AppenderFactory logAppendFactory;
+	private final BiConsumer<String, LogLevel> closeDebugConsumer;
 	@Getter
 	private String taskId;
 	@Getter
 	private String taskRecordId;
 	@Getter
 	private String taskName;
-
 	private LogLevel level;
 	private LogLevel formerLevel;
 	private Long recordCeiling;
 	private Long intervalCeiling;
 
-	TaskLogger(BiConsumer<String, LogLevel> consumer) {
-		if (null != logAppendFactory && null != fileAppender && closeDebugConsumer != null) {
-			return;
-		}
+	private TaskLogger(String taskId, String taskName, String taskRecordId, BiConsumer<String, LogLevel> consumer) {
+		this.taskId = taskId;
+		this.taskName = taskName;
+		this.taskRecordId = taskRecordId;
+		this.logAppendFactory = AppenderFactory.getInstance();
 
-		logAppendFactory = AppenderFactory.getInstance();
 		// add file appender
-		fileAppender = new FileAppender(GlobalConstant.getInstance().getConfigurationCenter().getConfig(ConfigurationCenter.WORK_DIR).toString());
-		logAppendFactory.register(fileAppender);
+		String workDir = GlobalConstant.getInstance().getConfigurationCenter().getConfig(ConfigurationCenter.WORK_DIR).toString();
+		BaseTaskAppender<MonitoringLogsDto> fileAppender = FileAppender.create(workDir, taskId);
+		tapObsAppenders.add(fileAppender);
+		this.logAppendFactory.addTaskAppender(fileAppender);
 
 		// add tm appender
 		ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
-//		TMAppender tmAppender = new TMAppender(clientMongoOperator);
-//		logAppendFactory.register(tmAppender);
-
-		obsHttpTMAppender = ObsHttpTMAppender.create(clientMongoOperator);
-		logAppendFactory.register(obsHttpTMAppender);
+		BaseTaskAppender<MonitoringLogsDto> obsHttpTMAppender = ObsHttpTMAppender.create(clientMongoOperator, taskId);
+		tapObsAppenders.add(obsHttpTMAppender);
+		this.logAppendFactory.addTaskAppender(obsHttpTMAppender);
 
 		// add close debug consumer
-		closeDebugConsumer = consumer;
+		this.closeDebugConsumer = consumer;
 	}
 
 	TaskLogger withTask(String taskId, String taskName, String taskRecordId) {
@@ -76,6 +73,10 @@ class TaskLogger extends ObsLogger implements Serializable {
 		this.taskRecordId = taskRecordId;
 
 		return this;
+	}
+
+	static TaskLogger create(String taskId, String taskName, String taskRecordId, BiConsumer<String, LogLevel> consumer) {
+		return new TaskLogger(taskId, taskName, taskRecordId, consumer);
 	}
 
 	TaskLogger withTaskLogSetting(String level, Long recordCeiling, Long intervalCeiling) {
@@ -102,26 +103,6 @@ class TaskLogger extends ObsLogger implements Serializable {
 		this.recordCeiling = null;
 		this.intervalCeiling = null;
 		return this;
-	}
-
-	void registerTaskFileAppender(String taskId) {
-		fileAppender.addRollingFileAppender(taskId);
-	}
-
-	void registerTaskTmAppender(String taskId) {
-		if (null != obsHttpTMAppender) {
-			obsHttpTMAppender.start(taskId);
-		}
-	}
-
-	void unregisterTaskFileAppender(String taskId) {
-		fileAppender.removeRollingFileAppender(taskId);
-	}
-
-	void unregisterTaskTmAppender() {
-		if (null != obsHttpTMAppender) {
-			obsHttpTMAppender.stop();
-		}
 	}
 
 	private String formatMessage(String message, Object... params) {
@@ -266,7 +247,21 @@ class TaskLogger extends ObsLogger implements Serializable {
 				.timestamp(date.getTime())
 				.taskId(taskId)
 				.taskName(taskName)
-				.taskRecordId(taskRecordId)
-				;
+				.taskRecordId(taskRecordId);
+	}
+
+	public void start() {
+		if (CollectionUtils.isNotEmpty(tapObsAppenders)) {
+			for (io.tapdata.observable.logging.appender.Appender<?> tapObsAppender : tapObsAppenders) {
+				tapObsAppender.start();
+			}
+		}
+	}
+
+	public void close() throws Exception {
+		if (null != logAppendFactory) {
+			this.logAppendFactory.removeAppenders(taskId);
+		}
+		tapObsAppenders.forEach(Appender::stop);
 	}
 }
