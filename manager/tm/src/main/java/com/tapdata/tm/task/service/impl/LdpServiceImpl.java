@@ -22,6 +22,7 @@ import com.tapdata.tm.livedataplatform.service.LiveDataPlatformService;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.task.bean.LdpFuzzySearchVo;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.task.service.TaskSaveService;
 import com.tapdata.tm.task.service.TaskService;
@@ -88,12 +89,19 @@ public class LdpServiceImpl implements LdpService {
 
 
         List<String> oldTableNames = new ArrayList<>();
+        List<String> oldTargetTableNames = new ArrayList<>();
         if (oldTask != null) {
             flushPrefix(task.getDag(), oldTask.getDag());
 
             DatabaseNode oldSourceNode = (DatabaseNode) oldTask.getDag().getSources().get(0);
             List<String> tableNames = oldSourceNode.getTableNames();
             oldTableNames.addAll(tableNames);
+            DatabaseNode oldTarget = (DatabaseNode) oldTask.getDag().getTargets().get(0);
+            List<SyncObjects> syncObjects = oldTarget.getSyncObjects();
+            if (CollectionUtils.isNotEmpty(syncObjects)) {
+                SyncObjects syncObjects1 = syncObjects.get(0);
+                oldTargetTableNames.addAll(syncObjects1.getObjectNames());
+            }
             if (StringUtils.isNotBlank(oldSourceNode.getTableExpression())) {
                 mergeAllTable(user, connectionId, oldTask, oldTableNames);
                 task = oldTask;
@@ -120,6 +128,7 @@ public class LdpServiceImpl implements LdpService {
         if (CollectionUtils.isNotEmpty(syncObjects)) {
             SyncObjects syncObjects1 = syncObjects.get(0);
             targetTableNames = syncObjects1.getObjectNames();
+            targetTableNames.removeAll(oldTargetTableNames);
         }
 
         repeatTable(targetTableNames, task.getId() == null ? null : task.getId().toHexString(), fdmConnId, user);
@@ -686,5 +695,38 @@ public class LdpServiceImpl implements LdpService {
         if (count > 0) {
             throw new BizException("Ldp.RepeatTableName");
         }
+    }
+
+
+    @Override
+    public List<LdpFuzzySearchVo> fuzzySearch(String key, String connectType, UserDetail user) {
+        Criteria criteria = Criteria.where("original_name").regex(key).and("sourceType").is(SourceTypeEnum.SOURCE.name());
+        if (StringUtils.isNotBlank(connectType)) {
+            criteria.and("source.connection_type").is(connectType);
+        }
+
+        Query query = new Query(criteria);
+        List<MetadataInstancesDto> metadatas = metadataInstancesService.findAllDto(query, user);
+
+
+        List<LdpFuzzySearchVo> fuzzySearchList = new ArrayList<>();
+        List<String> conIds = new ArrayList<>();
+        for (MetadataInstancesDto metadata : metadatas) {
+            if ("table".equals(metadata.getMetaType())) {
+                fuzzySearchList.add(new LdpFuzzySearchVo(LdpFuzzySearchVo.FuzzyType.metadata, metadata, metadata.getSource().get_id()));
+            } else if ("database".equals(metadata.getMetaType())) {
+              conIds.add(metadata.getSource().get_id());
+            }
+        }
+
+        Criteria criteriaCon = Criteria.where("_id").in(conIds);
+        Query queryCon = new Query(criteriaCon);
+        List<DataSourceConnectionDto> connections = dataSourceService.findAllDto(queryCon, user);
+
+        for (DataSourceConnectionDto connection : connections) {
+            fuzzySearchList.add(new LdpFuzzySearchVo(LdpFuzzySearchVo.FuzzyType.connection, connection, connection.getId().toHexString()));
+        }
+
+        return fuzzySearchList;
     }
 }
