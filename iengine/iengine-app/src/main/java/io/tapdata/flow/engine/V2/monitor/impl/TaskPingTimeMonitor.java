@@ -1,15 +1,16 @@
 package io.tapdata.flow.engine.V2.monitor.impl;
 
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.constant.*;
+import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.JSONUtil;
+import com.tapdata.constant.UUIDGenerator;
 import com.tapdata.entity.AppType;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.ping.PingDto;
 import com.tapdata.tm.commons.ping.PingType;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.flow.engine.V2.util.SupplierImpl;
-import io.tapdata.observable.logging.ObsLogger;
-import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.websocket.ManagementWebsocketHandler;
 import io.tapdata.websocket.WebSocketEvent;
@@ -42,7 +43,7 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 	private final static long PING_INTERVAL_MS = 5000L;
 	public static final String TAG = TaskPingTimeMonitor.class.getSimpleName();
 
-	private ObsLogger logger;
+	private Logger logger = LogManager.getLogger(TaskPingTimeMonitor.class);
 	private ScheduledExecutorService executorService;
 	private HttpClientMongoOperator clientMongoOperator;
 	private Supplier<Boolean> stopTask;
@@ -52,7 +53,6 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 		this.executorService = new ScheduledThreadPoolExecutor(1);
 		this.clientMongoOperator = clientMongoOperator;
 		this.stopTask = stopTask;
-		this.logger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
 	}
 
 	@Override
