@@ -6,7 +6,7 @@ It can also be obtained intuitively in your coding link, such as：https://{team
 After filling in your team name, directly click the authorization button, jump to the authorization button, and click the authorization button to automatically return to the page
 #### **1.3 Select Incremental Method**
 - At this moment, there are web hooks supported by Coding, and there are also incremental methods of regular polling on time.
-- Of course, if you choose the WebHook mode that saves processor performance, you need to go to Coding to configure the web hook (click the HookButton and you can see a line of concise URLs. Here, you need to copy the URL input box that goes to Coding and pastes to the WebHook configuration page.)
+- Of course, if you choose the WebHook mode that saves processor performance, you need to go to Coding to configure the web hook (click the "Generate" button on the right side of "Generate Service URL". Here, You are required to copy and paste the service URL input box from Coding to the WebHook configuration page)
 ##### **1.3.1 polled**
 ##### **1.3.1 WebHook**
 - In this mode, you need to configure ServiceHook before creating tasks:
