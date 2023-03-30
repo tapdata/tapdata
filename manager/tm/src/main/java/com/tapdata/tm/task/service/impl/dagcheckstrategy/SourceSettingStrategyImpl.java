@@ -168,7 +168,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                                 fields.forEach(k -> {
                                     TapType tapType = JSON.parseObject(k.getTapType(), TapType.class);
                                     if (TapType.TYPE_RAW == tapType.getType()) {
-                                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_FIELD"), node.getName(), tableName, k);
+                                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_FIELD"), node.getName(), tableName, k.getFieldName());
                                         result.add(log);
                                     }
                                 });
