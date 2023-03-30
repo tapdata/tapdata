@@ -45,7 +45,7 @@
               "x-index": 20,
               "x-component-props": {
                 "type": "primary",
-                "onClick": "{{useAsyncDataSourceByConfig({service: goToAuthorized, withoutField: true}, { target: 'https://redirect.tapdata.io/oauth/complete', pdkId: 'salesforce', oauthUrl: 'https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=3MVG9n_HvETGhr3Brv_TokDiPcVsfa0TubCszRjXdeqnY0z7cBUmaW0I9eTZtnz0oIC4zMLOxcUaCiEMpwr57&redirect_uri=https://redirect.tapdata.io/oauth/complete/salesforce&scope=full refresh_token'})}}"
+                "onClick": "{{useAsyncDataSourceByConfig({service: goToAuthorized, withoutField: true}, { target: 'https://redirect.tapdata.io/oauth/complete', pdkId: 'salesforce', oauthUrl: 'https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=3MVG9n_HvETGhr3Brv_TokDiPcVsfa0TubCszRjXdeqnY0z7cBUmaW0I9eTZtnz0oIC4zMLOxcUaCiEMpwr57&redirect_uri=https://redirect.tapdata.io/oauth/complete/salesforce&scope=api refresh_token'})}}"
               },
               "x-decorator-props":{"style":{"width":"120px"}}
             },

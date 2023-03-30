@@ -52,8 +52,6 @@ function checkAuthority(invoke, httpCode) {
         throw ("Error: " + invoke.result.error_description + " HttpCode: " + httpCode );
     }else if (invoke.result[0] && invoke.result[0].errorCode && invoke.result[0].message) {
         throw "Error: " + invoke.result[0].message + " Code: " + invoke.result[0].errorCode + " HttpCode: " + httpCode ;
-    } else if (!invoke.result.data || !invoke.result.data.uiapi ) {
-        throw ("Error: Failed to query the data. Please check the connection." + "HttpCode: " +  httpCode );
     }
 }
 
