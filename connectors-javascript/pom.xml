@@ -13,7 +13,7 @@
 <!--		<module>coding-demo-connector</module>-->
 		<module>lark-im-connector</module>
 		<module>github-connector</module>
-<!--		<module>zoho-crm-connector</module>-->
+		<module>zoho-crm-connector</module>
 		<module>metabase-connector</module>
 		<module>lark-task-connector</module>
 		<module>salesforce-connector</module>

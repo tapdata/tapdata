@@ -16,104 +16,54 @@
     "connection": {
       "type": "object",
       "properties": {
-        "client_id": {
-          "type": "String",
-          "title": "${clientId}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "client_id",
-          "x-index": 10,
-          "required": true
-        },
-        "client_secret": {
-          "type": "String",
-          "title": "${clientSecret}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "client_secret",
-          "x-index": 20,
-          "required": true
-        },
         "code": {
           "type": "String",
           "title": "${code}",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "x-decorator-props": {
+            "style": {"display": "none"}
+          },
           "apiServerKey": "code",
           "x-index": 30,
           "required": true
         },
-        "getTokenButton": {
+        "line": {
           "type": "void",
-          "title": "${tokenButton}",
+          "x-component": "Space",
           "x-decorator": "FormItem",
-          "extra": true,
-          "x-component-props": {
-            "onClick": "{{useAsyncDataSourceByConfig({service: getCommandAndSetValue, withoutField: true}, $form, { command: 'TokenCommand' })}}"
-          },
-          "x-reactions": [{
-            "dependencies": ["code"],
-            "fulfill": {
-              "state": {
-                "display": "{{$deps[0] ? \"visible\" : \"hidden\"}}"
-              }
-            }
-          },{
-            "dependencies": ["refreshToken"],
-            "fulfill": {
-              "state": {
-                "content": "{{$deps[0] ? \"${getTokenButtonMsgA}\" : \"${getTokenButtonMsgB}\"}}"
-              }
-            }
-          }],
-          "x-content": "${hookButton}",
-          "x-component": "Button",
-          "x-index": 41
-        },
-        "getTokenMsg": {
-          "type": "String",
           "title": " ",
-          "x-decorator": "FormItem",
           "x-decorator-props": {
             "colon": false
           },
-          "x-component": "PreviewText.Input",
-          "x-component-props": {
-            "content": "{{$self.value || \"-\"}}"
-          },
-          "x-reactions": [{
-            "dependencies": ["code"],
-            "fulfill": {
-              "state": {
-                "display": "{{$deps[0]&&$self.value ? \"visible\" : \"hidden\"}}"
+          "properties": {
+            "authButton": {
+              "type": "void",
+              "x-decorator": "FormItem",
+              "x-component": "Button",
+              "x-content": "${OAuthButtonTitle}",
+              "title": "",
+              "x-index": 20,
+              "x-component-props": {
+                "type": "primary",
+                "onClick": "{{useAsyncDataSourceByConfig({service: goToAuthorized, withoutField: true}, { target: 'https://redirect.tapdata.io/oauth/complete', pdkId: 'zoho-crm', oauthUrl: 'https://accounts.zoho.com.cn/oauth/v2/auth?scope=ZohoCRM.modules.ALL&client_id=1000.HUROTBTBLYFWDUE4JHFDCS2Q28EP9V&response_type=code&access_type=offline&redirect_uri=https://redirect.tapdata.io/oauth/complete/zoho-crm' })}}"
+              },
+              "x-decorator-props":{"style":{"width":"120px"}}
+            },
+            "OAuthStatus": {
+              "type": "void",
+              "title": "",
+              "x-decorator": "FormItem",
+              "x-component": "Text",
+              "apiServerKey": "AAA",
+              "x-index": 30,
+              "required": true,
+              "x-component-props": {
+                "content": "{{$values.code ? '${OAuthButtonOK}' : '${OAuthButton}'}}",
+                "style": {"color": "{{ $values.code ? 'green' : 'rgb(83, 95, 114)' }}"}
               }
             }
-          }],
-          "x-index": 42
-        },
-        "refreshToken": {
-          "type": "String",
-          "title": "${refreshToken}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "x-component-props": {
-            "readOnly": true
-          },
-          "apiServerKey": "database_host",
-          "x-index": 50,
-          "x-display": "hidden"
-        },
-        "accessToken": {
-          "type": "String",
-          "title": "${accessToken}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "x-component-props": {
-            "readOnly": true
-          },
-          "apiServerKey": "database_host",
-          "x-index": 60,
-          "x-display": "hidden"
+          }
         }
       }
     }
@@ -124,31 +74,40 @@
       "doc": "doc/demo_en_US.md",
       "clientId": "client Id",
       "clientSecret": "client Secret",
-      "code": "Grant Token",
       "accessTokenButton": "Refresh token",
       "tokenButton": "Get access rights and tokens",
       "getTokenButtonMsgA": "Authorized, click to retrieve",
-      "getTokenButtonMsgB": "Please click to get"
+      "getTokenButtonMsgB": "Please click to get",
+      "code": "Authorize",
+      "OAuthButtonTitle": "Authorize",
+      "OAuthButton": "Please authorize API access to continue",
+      "OAuthButtonOK": "Authorization successful"
     },
     "zh_CN": {
       "doc": "doc/demo_zh_CN.md",
       "clientId": "client Id",
       "clientSecret": "client Secret",
-      "code": "授予令牌",
       "accessTokenButton": "刷新令牌",
       "tokenButton": "获取访问权限和令牌",
       "getTokenButtonMsgA": "已授权，点击将会重新获取",
-      "getTokenButtonMsgB": "请点击获取"
+      "getTokenButtonMsgB": "请点击获取",
+      "code": "授权",
+      "OAuthButtonTitle": "授权",
+      "OAuthButton": "请先授权成功再点击连接测试或保存",
+      "OAuthButtonOK": "成功授权"
     },
     "zh_TW": {
       "doc": "doc/demo_zh_TW.md",
       "clientId": "client Id",
       "clientSecret": "client Secret",
-      "code": "授予權杖",
       "accessTokenButton": "重繪權杖",
       "tokenButton": "獲取存取權限和權杖",
       "getTokenButtonMsgA": "已授權，點擊將會重新獲取",
-      "getTokenButtonMsgB": "請點擊獲取"
+      "getTokenButtonMsgB": "請點擊獲取",
+      "code": "授權",
+      "OAuthButtonTitle": "授權",
+      "OAuthButton": "請先授權成功再點擊鏈接測試或保存",
+      "OAuthButtonOK": "成功授權"
     }
   }
 }
