@@ -12,7 +12,7 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=3MVG9n_HvETGhr3Brv_TokDiPcVsfa0TubCszRjXdeqnY0z7cBUmaW0I9eTZtnz0oIC4zMLOxcUaCiEMpwr57&redirect_uri=https://redirect.tapdata.io/oauth/complete/salesforce&scope=full refresh_token",
+          "raw": "https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=3MVG9n_HvETGhr3Ai83SSfHGaxjpZakxMv8ZB8yl5vP.6NMlgXFAhVcuqtruP9ehJxEGrmZnH6fvlhHA6yjE.&redirect_uri=https://redirect.tapdata.io/oauth/complete/salesforce&scope=api refresh_token",
           "protocol": "https",
           "host": [
             "login",
@@ -31,7 +31,7 @@
             },
             {
               "key": "client_id",
-              "value": "3MVG9n_HvETGhr3Brv_TokDiPcVsfa0TubCszRjXdeqnY0z7cBUmaW0I9eTZtnz0oIC4zMLOxcUaCiEMpwr57"
+              "value": "3MVG9n_HvETGhr3Ai83SSfHGaxjpZakxMv8ZB8yl5vP.6NMlgXFAhVcuqtruP9ehJxEGrmZnH6fvlhHA6yjE."
             },
             {
               "key": "redirect_uri",
@@ -39,7 +39,7 @@
             },
             {
               "key": "scope",
-              "value": "full refresh_token"
+              "value": "api refresh_token"
             }
           ]
         }
@@ -129,7 +129,7 @@
             },
             {
               "key": "refresh_token",
-              "value": "{{refresh_token1}}"
+              "value": "{{refresh_token}}"
             }
           ]
         }
@@ -692,7 +692,7 @@
   "variable": [
     {
       "key": "Authorization",
-      "value": "00D2w00000RIjat!AQYAQHLbMWC1AcI8jdqyUOYtMgOx9dzaR1Z9iP16XsRuFF2iH1zBOjuuQlyZGTKZAt2mOKmYikdPePepHY8ZsQj_58tOh59e",
+      "value": "",
       "type": "string"
     },
     {
@@ -722,12 +722,12 @@
     },
     {
       "key": "client_id",
-      "value": "3MVG9n_HvETGhr3Brv_TokDiPcVsfa0TubCszRjXdeqnY0z7cBUmaW0I9eTZtnz0oIC4zMLOxcUaCiEMpwr57",
+      "value": "3MVG9n_HvETGhr3Ai83SSfHGaxjpZakxMv8ZB8yl5vP.6NMlgXFAhVcuqtruP9ehJxEGrmZnH6fvlhHA6yjE.",
       "type": "string"
     },
     {
       "key": "client_secret",
-      "value": "3ACD5F530CE58AFA0A5224D2CD04A0A97D2495D60575E4592B00348D8D0C55BA",
+      "value": "BD2C1E4178343B85CAEEAA574528F8B5EFFC8C36DEC0139D31097CA1DE7A5751",
       "type": "string"
     },
     {
@@ -737,7 +737,7 @@
     },
     {
       "key": "refresh_token",
-      "value": "5Aep861ZBQbtA4s3JXVv9faqjrqFvXs0QOQ551Ho2GaM8skkFZabZJmxNyqeGysF3SE0yyKX5_8xNzaeaxYB4GS",
+      "value": "",
       "type": "string"
     }
   ]

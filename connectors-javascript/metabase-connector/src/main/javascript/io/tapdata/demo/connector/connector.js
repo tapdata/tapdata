@@ -59,7 +59,7 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
             }
             batchReadSender.send(result, tableName, offset);
         } else {
-            log.warn("{} read {} :{}", thisCard.name,  temp.status, temp.error);
+            log.warn("{} read {} :{}", thisCard.name, temp.status, temp.error);
             return;
         }
     } catch (e) {
@@ -69,43 +69,33 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
 }
 
 function connectionTest(connectionConfig) {
+    let HttpCode;
+    let res = [];
     try {
         let sessionToken = invoker.invoke('TAP_GET_TOKEN session api');
-        if (sessionToken.result === 'undefined'
-            || sessionToken.result === null
-            || sessionToken.result.id === null
-            || sessionToken.result.id === 'undefined'
-            || sessionToken.result.errors != null) {
-            return [{
-                "test": "Please check whether the account or secret or HTTP address is correct. ",
-                "code": -1,
-                "result": "Please check whether the account or secret or HTTP address is correct. "
-            }];
+        HttpCode = sessionToken.httpCode;
+        res.push({
+            "test": "Check whether the account or secret or HTTP address is correct. ",
+            "code": exceptionUtil.statusCode(HttpCode),
+            "result": result(sessionToken, HttpCode)
+        })
+        if (exceptionUtil.statusCode(HttpCode) === -1) {
+            return res;
         }
         let invoke = invoker.invoke('TAP_TABLE[allCard](PAGE_NONE)allCard',
             {"sessionToken": sessionToken.result.id});
-        let nameItem = invoke.result;
-        let idItem = invoke.result[0].id;
-        if (nameItem === 'undefined'
-            || nameItem === null
-            || idItem === null
-            || idItem === 'undefined') {
-            return [{
-                "test": " Please check whether the account or secret or HTTP address is correct",
-                "code": -1,
-                "result": "Please check whether the HTTP connection is correct. "
-            }];
-        }
-        return [{
+        HttpCode = invoke.httpCode;
+        res.push({
             "test": " Check the account read database permission.",
-            "code": invoke ? 1 : -1,
-            "result": invoke ? "Pass" : "Please check whether the account or secret or HTTP address is correct. "
-        }];
+            "code": exceptionUtil.statusCode(HttpCode),
+            "result": result(invoke, HttpCode)
+        })
+        return res;
     } catch (e) {
         return [{
-            "test": " Check the account, password, and HTTP address",
+            "test": " Check whether the account or secret or HTTP address is correct.",
             "code": -1,
-            "result": "Please check whether the HTTP connection is correct. "
+            "result": exceptionUtil.eMessage(e)
         }];
     }
 }
