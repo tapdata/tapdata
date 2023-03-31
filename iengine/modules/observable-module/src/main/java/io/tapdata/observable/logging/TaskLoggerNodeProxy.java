@@ -3,14 +3,14 @@ package io.tapdata.observable.logging;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.Serializable;
 import java.util.Date;
 import java.util.concurrent.Callable;
 
 /**
  * @author Dexter
  **/
-class TaskLoggerNodeProxy extends ObsLogger implements Serializable {
+class TaskLoggerNodeProxy extends ObsLogger {
+	private static final long serialVersionUID = 1049697486049209441L;
 	private TaskLogger taskLogger;
 	private String nodeId;
 	private String nodeName;
@@ -46,6 +46,36 @@ class TaskLoggerNodeProxy extends ObsLogger implements Serializable {
 	@Override
 	public void fatal(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params) {
 		taskLogger.fatal(callable, throwable, message, params);
+	}
+
+	@Override
+	public boolean isEnabled(LogLevel logLevel) {
+		return taskLogger.isEnabled(logLevel);
+	}
+
+	@Override
+	public boolean isInfoEnabled() {
+		return taskLogger.isInfoEnabled();
+	}
+
+	@Override
+	public boolean isWarnEnabled() {
+		return taskLogger.isWarnEnabled();
+	}
+
+	@Override
+	public boolean isErrorEnabled() {
+		return taskLogger.isErrorEnabled();
+	}
+
+	@Override
+	public boolean isDebugEnabled() {
+		return taskLogger.isDebugEnabled();
+	}
+
+	@Override
+	public boolean isFatalEnabled() {
+		return taskLogger.isFatalEnabled();
 	}
 
 	@NotNull

@@ -17,7 +17,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -27,10 +26,10 @@ import java.util.function.BiConsumer;
 /**
  * @author Dexter
  **/
-class TaskLogger extends ObsLogger implements Serializable {
+class TaskLogger extends ObsLogger {
 	private static final Long RECORD_CEILING_DEFAULT = 500L;
 	private static final Long INTERVAL_CEILING_DEFAULT = 500L;
-	public static final String LOGGER_NAME_PREFIX = "job-log";
+	private static final long serialVersionUID = -5640539419072201312L;
 	private final List<io.tapdata.observable.logging.appender.Appender<?>> tapObsAppenders = new ArrayList<>();
 	private final AppenderFactory logAppendFactory;
 	private final BiConsumer<String, LogLevel> closeDebugConsumer;
@@ -224,6 +223,36 @@ class TaskLogger extends ObsLogger implements Serializable {
 		buildErrorMessage(throwable, parameterizedMessage, builder);
 
 		logAppendFactory.appendLog(builder.build());
+	}
+
+	@Override
+	public boolean isInfoEnabled() {
+		return isEnabled(LogLevel.INFO);
+	}
+
+	@Override
+	public boolean isWarnEnabled() {
+		return isEnabled(LogLevel.WARN);
+	}
+
+	@Override
+	public boolean isErrorEnabled() {
+		return isEnabled(LogLevel.ERROR);
+	}
+
+	@Override
+	public boolean isFatalEnabled() {
+		return isEnabled(LogLevel.FATAL);
+	}
+
+	@Override
+	public boolean isDebugEnabled() {
+		return isEnabled(LogLevel.DEBUG);
+	}
+
+	@Override
+	public boolean isEnabled(LogLevel logLevel) {
+		return !noNeedLog(logLevel.getLevel());
 	}
 
 	@Nullable
