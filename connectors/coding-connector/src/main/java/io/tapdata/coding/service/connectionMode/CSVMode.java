@@ -16,10 +16,8 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.StringJoiner;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
@@ -34,18 +32,20 @@ public class CSVMode implements ConnectionMode {
     TapConnectionContext connectionContext;
     IssuesLoader loader;
     ContextConfig contextConfig;
+    AtomicReference<String> accessToken;
 
     @Override
-    public ConnectionMode config(TapConnectionContext connectionContext) {
+    public ConnectionMode config(TapConnectionContext connectionContext, AtomicReference<String> accessToken) {
         this.connectionContext = connectionContext;
-        this.loader = IssuesLoader.create(connectionContext);
+        this.loader = IssuesLoader.create(connectionContext, accessToken);
         this.contextConfig = loader.veryContextConfigAndNodeConfig();
+        this.accessToken = accessToken;
         return this;
     }
 
     @Override
-    public List<TapTable> discoverSchema(List<String> tables, int tableSize) {
-        List<SchemaStart> schemaStart = SchemaStart.getAllSchemas(connectionContext);
+    public List<TapTable> discoverSchema(List<String> tables, int tableSize, AtomicReference<String> accessToken) {
+        List<SchemaStart> schemaStart = SchemaStart.getAllSchemas(connectionContext, accessToken);
         if (tables == null || tables.isEmpty()) {
             List<TapTable> tapTables = list();
             schemaStart.forEach(schema -> {
@@ -56,76 +56,13 @@ public class CSVMode implements ConnectionMode {
             });
             return tapTables;
         }
-        /**
-         * ContextConfig contextConfig = IssueLoader.create(connectionContext).veryContextConfigAndNodeConfig();
-         if(tables == null || tables.isEmpty()) {
-         //ID,事项类型,
-         //标题,描述,状态,创建时间,创建人,更新时间,所属迭代,处理人,
-         //缺陷类型,优先级,开始日期,截止日期,模块,标签,关注人,预估工时,进度,已登记工时,分数,次数,页面链接
-         TapTable tapTable = table("Issues")
-         .add(field("Code",              "Integer").isPrimaryKey(true).primaryKeyPos(3))        //事项 Code
-         .add(field("ProjectName",       "StringMinor").isPrimaryKey(true).primaryKeyPos(2))    //项目名称
-         .add(field("TeamName",          "StringMinor").isPrimaryKey(true).primaryKeyPos(1))    //团队名称
-         .add(field("Type",              "StringMinor"))                                        //事项类型：DEFECT - 缺陷;REQUIREMENT - 需求;MISSION - 任务;EPIC - 史诗;SUB_TASK - 子工作项
-         .add(field("Name",              "StringMinor"))                                        //名称
-         .add(field("Description",       "StringLonger"))                                       //描述
-         .add(field("IssueStatusName",   "StringMinor"))                                        //事项状态名称
-         .add(field("CreatedAt",               JAVA_Long))                                             //创建时间
-         .add(field("CreatorId",         "Integer"))                                            //创建人Id
-         .add(field("UpdatedAt",               JAVA_Long))                                             //修改时间
-         .add(field("IterationName",     "StringNormal"))                                       //所属迭代
-         .add(field("AssigneeName",      "StringNormal"))                                       //处理人
-         .add(field("DefectTypeName",    "StringNormal"))                                       //缺陷类型
-         .add(field("ParentCode",        "Integer"))                                            //缺陷类型
-         .add(field("StartDate",               JAVA_Long))                                             //开始日期时间戳
-         .add(field("DueDate",                 JAVA_Long))                                             //截止日期时间戳
-         .add(field("Priority",          "StringNormal"))                                       //优先级
-         .add(field("ProjectModuleName", "StringNormal"))                                       //项目模块
-         .add(field("LabelName",         "StringNormal"))                                       //标签s
-         .add(field("WatcherName",       "StringNormal"))                                       //关注人s
-         .add(field("WorkingHours",      "WorkingHours"))                                       //工时（小时）
-         ;
-         // 查询自定义属性列表
-         Map<Integer,Map<String,Object>> customFields = new HashMap<>();
-         List<Map<String, Object>> allIssueType = IssueLoader.create(connectionContext).getAllIssueType();
-         if (Checker.isEmpty(allIssueType)){
-         throw new CoreException("Get issue type list error.");
-         }
-         //查询全部事项类型，根据事项类型获取全部自定义属性
-         for (Map<String, Object> issueType : allIssueType) {
-         Object type = issueType.get("IssueType");
-         if (Checker.isNotEmpty(type)) {
-         Map<Integer, Map<String, Object>> issueCustomFieldMap = this.getIssueCustomFieldMap(String.valueOf(type), contextConfig);
-         if (null != issueCustomFieldMap) {
-         customFields.putAll(issueCustomFieldMap);
-         }
-         }
-         }
-         customFields.forEach((fieldId,obj)->{
-         Object issueFieldObj = obj.get("IssueField");
-         if (null != issueFieldObj && issueFieldObj instanceof JSONObject) {
-         Map<String, Object> issueField = (Map<String, Object>) obj.get("IssueField");
-         Object filedName = issueField.get("Name");
-         if (Checker.isNotEmpty(filedName)) {
-         //@TODO 根据ComponentType属性匹配对应tapdata类型
-         Object componentTypeObj = issueField.get("ComponentType");
-         tapTable.add(field(
-         Constants.CUSTOM_FIELD_SUFFIX + String.valueOf(filedName),
-         CustomFieldType.type(Checker.isEmpty(componentTypeObj)?null:String.valueOf(componentTypeObj))));
-         }
-         }
-         });
-         return list(tapTable);
-         }
-         */
-
         return null;
     }
 
     @Override
     public Map<String, Object> attributeAssignment(Map<String, Object> stringObjectMap) {
         Object code = stringObjectMap.get("Code");
-        HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", contextConfig.getToken());
+        HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", accessToken.get());
         String projectName = contextConfig.getProjectName();
         HttpEntity<String, Object> issueDetialBody = HttpEntity.create()
                 .builder("Action", "DescribeIssue")
@@ -176,7 +113,7 @@ public class CSVMode implements ConnectionMode {
     }
 
     private Map<Integer, Map<String, Object>> getIssueCustomFieldMap(String issueType, ContextConfig contextConfig) {
-        HttpEntity<String, String> heard = HttpEntity.create().builder("Authorization", contextConfig.getToken());
+        HttpEntity<String, String> heard = HttpEntity.create().builder("Authorization", accessToken.get());
         HttpEntity<String, Object> body = HttpEntity.create()
                 .builder("Action", "DescribeProjectIssueFieldList")
                 .builder("ProjectName", contextConfig.getProjectName())
@@ -185,7 +122,7 @@ public class CSVMode implements ConnectionMode {
         Object response = post.get("Response");
         Map<String, Object> responseMap = (Map<String, Object>) response;
         if (null == response) {
-            throw new CoreException("HTTP request exception, Issue CustomField acquisition failed: " + CodingStarter.OPEN_API_URL + "?Action=DescribeProjectIssueFieldList");
+            throw new CoreException("HTTP request exception, Issue CustomField acquisition failed: " + CodingStarter.OPEN_API_URL + "?Action=DescribeProjectIssueFieldList. " + Optional.ofNullable(post.get(CodingHttp.ERROR_KEY)).orElse(""));
         }
         Object data = responseMap.get("ProjectIssueFieldList");
         if (null != data && data instanceof JSONArray) {
