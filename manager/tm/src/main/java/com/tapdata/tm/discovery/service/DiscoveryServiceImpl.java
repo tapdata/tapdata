@@ -956,6 +956,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
     @Override
     public Page<DataDirectoryDto> findDataDirectory(DirectoryQueryParam param, UserDetail user) {
+        long time1 = System.currentTimeMillis();
         if (param.getPage() == null) {
             param.setPage(1);
         }
@@ -1019,7 +1020,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     Criteria.where("tableName").regex(param.getQueryKey()));
         }
 
-
+        long time2 = System.currentTimeMillis();
         if (StringUtils.isNotBlank(param.getTagId())) {
             MetadataDefinitionDto definitionDto = metadataDefinitionService.findById(MongoUtils.toObjectId(param.getTagId()));
             if (definitionDto != null) {
@@ -1088,124 +1089,156 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 }
             }
         }
-
+        long time3 = System.currentTimeMillis();
         long total;
-        long metaTotal;
-        long taskTotal;
+        long metaTotal = 0;
+        long taskTotal = 0;
+        long apiTotal = 0;
 
         metaTotal = metadataInstancesService.count(new Query(metadataCriteria), user);
         taskTotal = taskRepository.count(new Query(taskCriteria), user);
-        long apiTotal = modulesService.count(new Query(apiCriteria), user);
+        apiTotal = modulesService.count(new Query(apiCriteria), user);
         total = metaTotal + taskTotal + apiTotal;
 
         long skip = (long) (param.getPage() - 1) * param.getPageSize();
-
+        long time4 = System.currentTimeMillis();
         List<UnionQueryResult> unionQueryResults = new ArrayList<>();
         if (metaTotal >= skip + param.getPageSize()) {
-            Query query = new Query(metadataCriteria);
-            metaDataRepository.applyUserDetail(query, user);
-            query.skip(skip);
-            query.limit(param.getPageSize());
-            query.with(Sort.by("createTime").descending());
-            List<UnionQueryResult> metaUnionQueryResults = metaDataRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
-            unionQueryResults.addAll(metaUnionQueryResults);
-        } else if (metaTotal + taskTotal >=  skip + param.getPageSize()) {
-            if (metaTotal <= skip) {
-                //只需要查询task
-                Query query = new Query(taskCriteria);
-                taskRepository.applyUserDetail(query, user);
-                query.skip(skip - metaTotal);
-                query.limit(param.getPageSize());
-                query.with(Sort.by("createTime").descending());
-                List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "TaskCollectionObj");
-                unionQueryResults.addAll(taskUnionQueryResults);
-            } else {
-                //需要两个表
+            if (metaTotal != 0) {
                 Query query = new Query(metadataCriteria);
                 metaDataRepository.applyUserDetail(query, user);
                 query.skip(skip);
                 query.limit(param.getPageSize());
                 query.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> metaUnionQueryResults = metaDataRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
-
-                Query queryTask = new Query(taskCriteria);
-                taskRepository.applyUserDetail(queryTask, user);
-                queryTask.skip(skip - metaTotal);
-                queryTask.limit(param.getPageSize() - metaUnionQueryResults.size());
-                queryTask.with(Sort.by("createTime").descending());
-                List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "TaskCollectionObj");
                 unionQueryResults.addAll(metaUnionQueryResults);
-                unionQueryResults.addAll(taskUnionQueryResults);
+            }
+        } else if (metaTotal + taskTotal >=  skip + param.getPageSize()) {
+            if (metaTotal <= skip) {
+                if (taskTotal != 0) {
+                    //只需要查询task
+                    Query query = new Query(taskCriteria);
+                    taskRepository.applyUserDetail(query, user);
+                    query.skip(skip - metaTotal);
+                    query.limit(param.getPageSize());
+                    query.with(Sort.by("createTime").descending());
+                    List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "TaskCollectionObj");
+                    unionQueryResults.addAll(taskUnionQueryResults);
+                }
+            } else {
+                //需要两个表
+                List<UnionQueryResult> metaUnionQueryResults = new ArrayList<>();
+                if (metaTotal != 0) {
+                    Query query = new Query(metadataCriteria);
+                    metaDataRepository.applyUserDetail(query, user);
+                    query.skip(skip);
+                    query.limit(param.getPageSize());
+                    query.with(Sort.by("createTime").descending());
+                    metaUnionQueryResults = metaDataRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
+                    unionQueryResults.addAll(metaUnionQueryResults);
+                }
+
+                if (taskTotal != 0) {
+                    Query queryTask = new Query(taskCriteria);
+                    taskRepository.applyUserDetail(queryTask, user);
+                    queryTask.skip(skip - metaTotal);
+                    queryTask.limit(param.getPageSize() - metaUnionQueryResults.size());
+                    queryTask.with(Sort.by("createTime").descending());
+                    List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "TaskCollectionObj");
+                    unionQueryResults.addAll(taskUnionQueryResults);
+                }
             }
 
         } else {
             if (metaTotal + taskTotal <= skip) {
-                //只需要查询api
-                Query query = new Query(apiCriteria);
-                taskRepository.applyUserDetail(query, user);
-                query.skip(skip- metaTotal - taskTotal);
-                query.limit(param.getPageSize());
-                query.with(Sort.by("createTime").descending());
-                List<UnionQueryResult> apiUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "Modules");
-                unionQueryResults.addAll(apiUnionQueryResults);
+
+                if (apiTotal != 0) {
+                    //只需要查询api
+                    Query query = new Query(apiCriteria);
+                    taskRepository.applyUserDetail(query, user);
+                    query.skip(skip - metaTotal - taskTotal);
+                    query.limit(param.getPageSize());
+                    query.with(Sort.by("createTime").descending());
+                    List<UnionQueryResult> apiUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "Modules");
+                    unionQueryResults.addAll(apiUnionQueryResults);
+                }
             } else if (metaTotal <= skip) {
                 //需要查询task+api
+                List<UnionQueryResult> taskUnionQueryResults = new ArrayList<>();
+                if (taskTotal != 0) {
+                    Query query = new Query(taskCriteria);
+                    taskRepository.applyUserDetail(query, user);
+                    query.skip(skip - metaTotal);
+                    query.limit(param.getPageSize());
+                    query.with(Sort.by("createTime").descending());
+                    taskUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "TaskCollectionObj");
+                    unionQueryResults.addAll(taskUnionQueryResults);
+                }
 
-                Query query = new Query(taskCriteria);
-                taskRepository.applyUserDetail(query, user);
-                query.skip(skip - metaTotal);
-                query.limit(param.getPageSize());
-                query.with(Sort.by("createTime").descending());
-                List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "TaskCollectionObj");
-
-                Query queryTask = new Query(apiCriteria);
-                taskRepository.applyUserDetail(queryTask, user);
-                queryTask.skip(skip - metaTotal - taskTotal);
-                queryTask.limit(param.getPageSize() - taskUnionQueryResults.size());
-                queryTask.with(Sort.by("createTime").descending());
-                List<UnionQueryResult> apiUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "Modules");
-                unionQueryResults.addAll(taskUnionQueryResults);
-                unionQueryResults.addAll(apiUnionQueryResults);
+                if (apiTotal != 0) {
+                    Query queryTask = new Query(apiCriteria);
+                    taskRepository.applyUserDetail(queryTask, user);
+                    queryTask.skip(skip - metaTotal - taskTotal);
+                    queryTask.limit(param.getPageSize() - taskUnionQueryResults.size());
+                    queryTask.with(Sort.by("createTime").descending());
+                    List<UnionQueryResult> apiUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "Modules");
+                    unionQueryResults.addAll(apiUnionQueryResults);
+                }
             } else {
                 //需要查询meta task api
+                List<UnionQueryResult> metaUnionQueryResults = new ArrayList<>();
+                if (metaTotal != 0) {
+                    Query query = new Query(metadataCriteria);
+                    taskRepository.applyUserDetail(query, user);
+                    query.skip(skip);
+                    query.limit(param.getPageSize());
+                    query.with(Sort.by("createTime").descending());
 
-                Query query = new Query(metadataCriteria);
-                taskRepository.applyUserDetail(query, user);
-                query.skip(skip);
-                query.limit(param.getPageSize());
-                query.with(Sort.by("createTime").descending());
+                    metaUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
+                    unionQueryResults.addAll(metaUnionQueryResults);
+                }
 
-                List<UnionQueryResult> metaUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
+                List<UnionQueryResult> taskUnionQueryResults = new ArrayList<>();
+                if (taskTotal != 0) {
+                    Query queryTask = new Query(taskCriteria);
+                    taskRepository.applyUserDetail(queryTask, user);
+                    queryTask.skip(skip - metaTotal);
+                    queryTask.limit(param.getPageSize() - metaUnionQueryResults.size());
+                    queryTask.with(Sort.by("createTime").descending());
+                    taskUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "TaskCollectionObj");
+                    unionQueryResults.addAll(taskUnionQueryResults);
+                }
 
-                Query queryTask = new Query(taskCriteria);
-                taskRepository.applyUserDetail(queryTask, user);
-                queryTask.skip(skip - metaTotal);
-                queryTask.limit(param.getPageSize() - metaUnionQueryResults.size());
-                queryTask.with(Sort.by("createTime").descending());
-                List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "TaskCollectionObj");
+                if (apiTotal != 0) {
 
-                Query queryApi = new Query(apiCriteria);
-                taskRepository.applyUserDetail(queryApi, user);
-                queryApi.skip(skip - metaTotal - taskTotal);
-                queryApi.limit(param.getPageSize() - metaUnionQueryResults.size() + taskUnionQueryResults.size());
-                queryApi.with(Sort.by("createTime").descending());
-                List<UnionQueryResult> apiUnionQueryResults = taskRepository.getMongoOperations().find(queryApi, UnionQueryResult.class, "Modules");
-                unionQueryResults.addAll(metaUnionQueryResults);
-                unionQueryResults.addAll(taskUnionQueryResults);
-                unionQueryResults.addAll(apiUnionQueryResults);
+                    Query queryApi = new Query(apiCriteria);
+                    taskRepository.applyUserDetail(queryApi, user);
+                    queryApi.skip(skip - metaTotal - taskTotal);
+                    queryApi.limit(param.getPageSize() - metaUnionQueryResults.size() + taskUnionQueryResults.size());
+                    queryApi.with(Sort.by("createTime").descending());
+                    List<UnionQueryResult> apiUnionQueryResults = taskRepository.getMongoOperations().find(queryApi, UnionQueryResult.class, "Modules");
+                    unionQueryResults.addAll(apiUnionQueryResults);
+                }
             }
 
         }
-
+        long time5 = System.currentTimeMillis();
         if (CollectionUtils.isEmpty(unionQueryResults)) {
             return page;
         }
 
 
-        List<DataDirectoryDto> items = unionQueryResults.stream().map(this::convertToDataDirectory).collect(Collectors.toList());
+        List<DataDirectoryDto> items = unionQueryResults.parallelStream().map(this::convertToDataDirectory).collect(Collectors.toList());
 
         page.setItems(items);
         page.setTotal(total);
+        long time6 = System.currentTimeMillis();
+
+        System.out.println("time 1 花费时间" + (time2 - time1) + "毫秒");
+        System.out.println("time 2 花费时间" + (time3 - time2) + "毫秒");
+        System.out.println("time 3 花费时间" + (time4 - time3) + "毫秒");
+        System.out.println("time 4 花费时间" + (time5 - time4) + "毫秒");
+        System.out.println("time 5 花费时间" + (time6 - time5) + "毫秒");
         return page;
     }
 
