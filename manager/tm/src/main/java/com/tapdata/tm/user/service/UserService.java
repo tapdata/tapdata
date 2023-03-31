@@ -325,7 +325,8 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
     }
 
     public User findOneByEmail(String email) {
-        Optional<User> userOptional = repository.findOne(Query.query(Criteria.where("email").is(email)));
+        Optional<User> userOptional = repository.findOne(Query.query(Criteria.where("email").is(email)
+                .orOperator(Criteria.where("isDeleted").is(false), Criteria.where("isDeleted").exists(false))));
         if (!userOptional.isPresent()) {
             throw new BizException("User.email.Found");
         }
