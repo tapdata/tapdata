@@ -2389,6 +2389,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     .and("is_deleted").ne(true);
             if (StringUtils.isNotBlank(status)) {
                 criteria.and("status").is(status);
+            } else {
+                criteria.and("status").nin(Lists.of(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED));
             }
             Query query = new Query(criteria);
             query.fields().include("dag");
