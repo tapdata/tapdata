@@ -15,10 +15,8 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.StringJoiner;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
@@ -26,6 +24,7 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 
 public class Issues implements SchemaStart {
     public final Boolean use = true;
+    AtomicReference<String> accessToken;
 
     @Override
     public Boolean use() {
@@ -35,6 +34,13 @@ public class Issues implements SchemaStart {
     @Override
     public String tableName() {
         return "Issues";
+    }
+
+    public Issues() {
+    }
+
+    public Issues(AtomicReference<String> accessToken) {
+        this.accessToken = accessToken;
     }
 
     @Override
@@ -121,11 +127,11 @@ public class Issues implements SchemaStart {
                 ;
         // 查询自定义属性列表
         Map<Integer, Map<String, Object>> customFields = new HashMap<>();
-        List<Map<String, Object>> allIssueType = IssuesLoader.create(connectionContext).getAllIssueType();
+        List<Map<String, Object>> allIssueType = IssuesLoader.create(connectionContext, accessToken).getAllIssueType();
         if (Checker.isEmpty(allIssueType)) {
             throw new CoreException("Get issue type list error.");
         }
-        ContextConfig contextConfig = IssuesLoader.create(connectionContext).veryContextConfigAndNodeConfig();
+        ContextConfig contextConfig = IssuesLoader.create(connectionContext, accessToken).veryContextConfigAndNodeConfig();
         //查询全部事项类型，根据事项类型获取全部自定义属性
         for (Map<String, Object> issueType : allIssueType) {
             Object type = issueType.get("IssueType");
@@ -189,7 +195,7 @@ public class Issues implements SchemaStart {
     }
 
     private Map<Integer, Map<String, Object>> getIssueCustomFieldMap(String issueType, ContextConfig contextConfig) {
-        HttpEntity<String, String> heard = HttpEntity.create().builder("Authorization", contextConfig.getToken());
+        HttpEntity<String, String> heard = HttpEntity.create().builder("Authorization", accessToken.get());
         HttpEntity<String, Object> body = HttpEntity.create()
                 .builder("Action", "DescribeProjectIssueFieldList")
                 .builder("ProjectName", contextConfig.getProjectName())
@@ -198,7 +204,7 @@ public class Issues implements SchemaStart {
         Object response = post.get("Response");
         Map<String, Object> responseMap = (Map<String, Object>) response;
         if (null == response) {
-            throw new CoreException("HTTP request exception, Issue CustomField acquisition failed: " + CodingStarter.OPEN_API_URL + "?Action=DescribeProjectIssueFieldList");
+            throw new CoreException("HTTP request exception, Issue CustomField acquisition failed: " + CodingStarter.OPEN_API_URL + "?Action=DescribeProjectIssueFieldList. " + Optional.ofNullable(post.get(CodingHttp.ERROR_KEY)).orElse(""));
         }
         Object data = responseMap.get("ProjectIssueFieldList");
         if (null != data && data instanceof JSONArray) {

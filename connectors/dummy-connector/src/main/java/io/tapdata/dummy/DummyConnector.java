@@ -210,7 +210,7 @@ public class DummyConnector extends ConnectorBase {
             AtomicLong update = new AtomicLong();
             AtomicLong delete = new AtomicLong();
             for (TapRecordEvent e : recordEvents) {
-                if (!(isAlive() && writeRate.addReturn())) return;
+                if (!(isAlive() && (!writeLog || writeRate.addReturn()))) return;
 
                 delayCalculation.log(e.getTime());
 

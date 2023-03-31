@@ -2,7 +2,6 @@ package io.tapdata.connector.selectdb;
 
 import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
-import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.connector.selectdb.bean.SelectDbColumn;
 import io.tapdata.connector.selectdb.config.SelectDbConfig;
@@ -22,6 +21,7 @@ import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -33,6 +33,7 @@ import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import io.tapdata.write.WriteValve;
 
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -65,15 +66,13 @@ public class SelectDbConnector extends ConnectorBase {
     private WriteValve valve;
 
     @Override
-    public void onStart(TapConnectionContext connectorContext) {
+    public void onStart(TapConnectionContext connectorContext) throws SQLException {
         this.copyIntoUtils = new CopyIntoUtils(connectorContext);
         this.selectDbContext = new SelectDbContext(connectorContext);
         this.selectDbConfig = new SelectDbConfig().load(connectorContext.getConnectionConfig());
         this.selectDbTest = new SelectDbTest(selectDbConfig, testItem -> {
         }).initContext();
-        if (EmptyKit.isNull(selectDbJdbcContext) || selectDbJdbcContext.isFinish()) {
-            selectDbJdbcContext = (SelectDbJdbcContext) DataSourcePool.getJdbcContext(selectDbConfig, SelectDbJdbcContext.class, connectorContext.getId());
-        }
+        selectDbJdbcContext = new SelectDbJdbcContext(selectDbConfig);
         this.selectDbVersion = selectDbJdbcContext.queryVersion();
         this.selectDbStreamLoader = new SelectDbStreamLoader(selectDbContext, new HttpUtil().getHttpClient());
         this.selectDbStreamLoader = new SelectDbStreamLoader(new HttpUtil().getHttpClient(), selectDbConfig);
@@ -88,12 +87,9 @@ public class SelectDbConnector extends ConnectorBase {
     }
 
     @Override
-    public void onStop(TapConnectionContext connectionContext) throws Throwable {
-        try {
-            this.selectDbStreamLoader.shutdown();
-        } catch (Exception e) {
-            TapLogger.error(TAG, "selectDbStreamLoader shutdown failed, {}", e.getMessage());
-        }
+    public void onStop(TapConnectionContext connectionContext) {
+        ErrorKit.ignoreAnyError(selectDbJdbcContext::close);
+        ErrorKit.ignoreAnyError(selectDbStreamLoader::shutdown);
         Optional.ofNullable(this.valve).ifPresent(WriteValve::close);
     }
 
@@ -164,6 +160,7 @@ public class SelectDbConnector extends ConnectorBase {
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
     }
+
     private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
         List<String> sqls = fieldDDLHandlers.handle(tapFieldBaseEvent, tapConnectorContext);
         if (null == sqls) {

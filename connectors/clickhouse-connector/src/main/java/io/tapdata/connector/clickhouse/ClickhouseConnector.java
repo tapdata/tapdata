@@ -3,7 +3,6 @@ package io.tapdata.connector.clickhouse;
 import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonSqlMaker;
-import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.clickhouse.config.ClickhouseConfig;
 import io.tapdata.connector.clickhouse.ddl.sqlmaker.ClickhouseDDLSqlMaker;
@@ -24,6 +23,7 @@ import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -31,7 +31,6 @@ import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 
 import java.sql.SQLException;
 import java.util.*;
@@ -57,7 +56,7 @@ public class ClickhouseConnector extends ConnectorBase {
 
 //    private String connectionTimezone;
 
-    private  ClickhouseDDLSqlMaker ddlSqlMaker;
+    private ClickhouseDDLSqlMaker ddlSqlMaker;
 
     private final ClickhouseBatchWriter clickhouseWriter = new ClickhouseBatchWriter(TAG);
 
@@ -80,6 +79,7 @@ public class ClickhouseConnector extends ConnectorBase {
         }
 
     }
+
     private List<String> dropField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapDropFieldEvent)) {
             return null;
@@ -87,6 +87,7 @@ public class ClickhouseConnector extends ConnectorBase {
         TapDropFieldEvent tapDropFieldEvent = (TapDropFieldEvent) tapFieldBaseEvent;
         return ddlSqlMaker.dropColumn(tapConnectorContext, tapDropFieldEvent);
     }
+
     private List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapNewFieldEvent)) {
             return null;
@@ -94,6 +95,7 @@ public class ClickhouseConnector extends ConnectorBase {
         TapNewFieldEvent tapNewFieldEvent = (TapNewFieldEvent) tapFieldBaseEvent;
         return ddlSqlMaker.addColumn(tapConnectorContext, tapNewFieldEvent);
     }
+
     private List<String> alterFieldName(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapAlterFieldNameEvent)) {
             return null;
@@ -101,6 +103,7 @@ public class ClickhouseConnector extends ConnectorBase {
         TapAlterFieldNameEvent tapAlterFieldNameEvent = (TapAlterFieldNameEvent) tapFieldBaseEvent;
         return ddlSqlMaker.alterColumnName(tapConnectorContext, tapAlterFieldNameEvent);
     }
+
     private List<String> alterFieldAttr(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (!(tapFieldBaseEvent instanceof TapAlterFieldAttributesEvent)) {
             return null;
@@ -108,11 +111,10 @@ public class ClickhouseConnector extends ConnectorBase {
         TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent = (TapAlterFieldAttributesEvent) tapFieldBaseEvent;
         return ddlSqlMaker.alterColumnAttr(tapConnectorContext, tapAlterFieldAttributesEvent);
     }
+
     private void initConnection(TapConnectionContext connectionContext) throws Throwable {
         clickhouseConfig = (ClickhouseConfig) new ClickhouseConfig().load(connectionContext.getConnectionConfig());
-        if (EmptyKit.isNull(clickhouseJdbcContext) || clickhouseJdbcContext.isFinish()) {
-            clickhouseJdbcContext = (ClickhouseJdbcContext) DataSourcePool.getJdbcContext(clickhouseConfig, ClickhouseJdbcContext.class, connectionContext.getId());
-        }
+        clickhouseJdbcContext = new ClickhouseJdbcContext(clickhouseConfig);
 //        clickhouseVersion = clickhouseJdbcContext.queryVersion();
 //        this.connectionTimezone = connectionContext.getConnectionConfig().getString("timezone");
 //        if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
@@ -175,10 +177,8 @@ public class ClickhouseConnector extends ConnectorBase {
 
 
     @Override
-    public void onStop(TapConnectionContext connectionContext) throws Throwable {
-        if (EmptyKit.isNotNull(clickhouseJdbcContext)) {
-            clickhouseJdbcContext.finish(connectionContext.getId());
-        }
+    public void onStop(TapConnectionContext connectionContext) {
+        ErrorKit.ignoreAnyError(clickhouseJdbcContext::close);
         JdbcUtil.closeQuietly(clickhouseWriter);
     }
 

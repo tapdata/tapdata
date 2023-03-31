@@ -1,7 +1,6 @@
 package io.tapdata.oceanbase.connector;
 
 import io.tapdata.base.ConnectorBase;
-import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -11,7 +10,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.oceanbase.*;
 import io.tapdata.oceanbase.bean.OceanbaseConfig;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
@@ -235,10 +234,8 @@ public class OceanbaseConnector extends ConnectorBase {
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
         oceanbaseConfig = new OceanbaseConfig().load(tapConnectionContext.getConnectionConfig());
-        if (EmptyKit.isNull(oceanbaseJdbcContext) || oceanbaseJdbcContext.isFinish()) {
-            oceanbaseJdbcContext = (OceanbaseJdbcContext) DataSourcePool.getJdbcContext(oceanbaseConfig, OceanbaseJdbcContext.class, tapConnectionContext.getId());
-            oceanbaseJdbcContext.setTapConnectionContext(tapConnectionContext);
-        }
+        oceanbaseJdbcContext = new OceanbaseJdbcContext(oceanbaseConfig);
+        oceanbaseJdbcContext.setTapConnectionContext(tapConnectionContext);
 
         if (tapConnectionContext instanceof TapConnectorContext) {
             this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
@@ -258,10 +255,7 @@ public class OceanbaseConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
-        try {
-            oceanbaseWriter.close();
-        } catch (Exception e) {
-            TapLogger.warn(TAG, "close writer failed: {}", e.getMessage());
-        }
+        ErrorKit.ignoreAnyError(oceanbaseJdbcContext::close);
+        ErrorKit.ignoreAnyError(oceanbaseWriter::close);
     }
 }

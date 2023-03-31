@@ -53,8 +53,24 @@ import java.net.URLDecoder;
 import java.nio.ByteBuffer;
 import java.sql.ResultSetMetaData;
 import java.time.Instant;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.TimeZone;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -77,6 +93,7 @@ public class MysqlReader implements Closeable {
 	private static final String SOURCE_RECORD_DDL_KEY = "ddl";
 	public static final String FIRST_TIME_KEY = "FIRST_TIME";
 	private static final DDLWrapperConfig DDL_WRAPPER_CONFIG = CCJBaseDDLWrapper.CCJDDLWrapperConfig.create().split("`");
+	public static final long SAVE_DEBEZIUM_SCHEMA_HISTORY_INTERVAL_SEC = 2L;
 	private String serverName;
 	private AtomicBoolean running;
 	private MysqlJdbcContext mysqlJdbcContext;
@@ -132,7 +149,7 @@ public class MysqlReader implements Closeable {
 								mysqlSnapshotOffset.getOffset().put(columnName, value);
 							}
 						} catch (Exception e) {
-							throw new Exception("Read column value failed, row: " + row.get() + ", column name: " + columnName + ", data: " + data + "; Error: " + e.getMessage(), e);
+							throw new RuntimeException("Read column value failed, row: " + row.get() + ", column name: " + columnName + ", data: " + data + "; Error: " + e.getMessage(), e);
 						}
 					}
 					consumer.accept(data, mysqlSnapshotOffset);
@@ -177,7 +194,7 @@ public class MysqlReader implements Closeable {
 							}
 							data.put(columnName, value);
 						} catch (Exception e) {
-							throw new Exception("Read column value failed, row: " + row.get() + ", column name: " + columnName + ", data: " + data + "; Error: " + e.getMessage(), e);
+							throw new RuntimeException("Read column value failed, row: " + row.get() + ", column name: " + columnName + ", data: " + data + "; Error: " + e.getMessage(), e);
 						}
 					}
 					consumer.accept(data);
@@ -236,7 +253,7 @@ public class MysqlReader implements Closeable {
 			initMysqlSchemaHistory(tapConnectorContext);
 			this.mysqlSchemaHistoryMonitor = new ScheduledThreadPoolExecutor(1);
 			this.mysqlSchemaHistoryMonitor.scheduleAtFixedRate(() -> saveMysqlSchemaHistory(tapConnectorContext),
-					10L, 10L, TimeUnit.SECONDS);
+					SAVE_DEBEZIUM_SCHEMA_HISTORY_INTERVAL_SEC, SAVE_DEBEZIUM_SCHEMA_HISTORY_INTERVAL_SEC, TimeUnit.SECONDS);
 			Configuration.Builder builder = Configuration.create()
 					.with("name", serverName)
 					.with("connector.class", "io.debezium.connector.mysql.MySqlConnector")

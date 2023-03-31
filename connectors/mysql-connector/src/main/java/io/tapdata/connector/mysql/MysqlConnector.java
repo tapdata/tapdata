@@ -68,9 +68,14 @@ public class MysqlConnector extends ConnectorBase {
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
     private DDLSqlMaker ddlSqlMaker;
 
+    public synchronized MysqlJdbcContext initMysqlJdbcContext(TapConnectionContext tapConnectionContext) {
+        onStop(tapConnectionContext);
+        return new MysqlJdbcContext(tapConnectionContext);
+    }
+
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
-        this.mysqlJdbcContext = new MysqlJdbcContext(tapConnectionContext);
+        this.mysqlJdbcContext = initMysqlJdbcContext(tapConnectionContext);
         if (tapConnectionContext instanceof TapConnectorContext) {
             this.mysqlWriter = new MysqlSqlBatchWriter(mysqlJdbcContext);
             this.mysqlReader = new MysqlReader(mysqlJdbcContext);
@@ -94,22 +99,13 @@ public class MysqlConnector extends ConnectorBase {
         codecRegistry.registerFromTapValue(TapArrayValue.class, "json", tapValue -> toJson(tapValue.getValue()));
 
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
-            if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
-                tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
-            }
             return formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS");
         });
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> {
-            if (tapDateValue.getValue() != null && tapDateValue.getValue().getTimeZone() == null) {
-                tapDateValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
-            }
             return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
         });
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTimeStr());
         codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
-            if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
-                tapYearValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
-            }
             return formatTapDateTime(tapYearValue.getValue(), "yyyy");
         });
 
@@ -188,11 +184,13 @@ public class MysqlConnector extends ConnectorBase {
     protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
         RetryOptions retryOptions = RetryOptions.create();
         retryOptions.setNeedRetry(true);
-        retryOptions.beforeRetryMethod(()->{
+        retryOptions.beforeRetryMethod(() -> {
             try {
-                this.onStop(tapConnectionContext);
-                if (isAlive()) {
-                    this.onStart(tapConnectionContext);
+                synchronized (this) {
+                    this.onStop(tapConnectionContext);
+                    if (isAlive()) {
+                        this.onStart(tapConnectionContext);
+                    }
                 }
             } catch (Throwable ignore) {
             }
@@ -310,10 +308,13 @@ public class MysqlConnector extends ConnectorBase {
             Optional.ofNullable(this.mysqlWriter).ifPresent(MysqlWriter::onDestroy);
         } catch (Exception ignored) {
         }
-        try {
-            this.mysqlJdbcContext.close();
-        } catch (Exception e) {
-            TapLogger.error(TAG, "Release connector failed, error: " + e.getMessage() + "\n" + getStackString(e));
+        if (null != mysqlJdbcContext) {
+            try {
+                this.mysqlJdbcContext.close();
+                this.mysqlJdbcContext = null;
+            } catch (Exception e) {
+                TapLogger.error(TAG, "Release connector failed, error: " + e.getMessage() + "\n" + getStackString(e));
+            }
         }
     }
 

@@ -2,7 +2,6 @@ package io.tapdata.connector.hive1;
 
 import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
-import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.hive1.config.Hive1Config;
 import io.tapdata.connector.hive1.ddl.DDLSqlMaker;
@@ -26,6 +25,7 @@ import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -75,10 +75,7 @@ public class Hive1Connector extends ConnectorBase {
         hive1Config = (Hive1Config) new Hive1Config().load(connectionContext.getConnectionConfig());
 //        String hiveConnType = hive1Config.getHiveConnType();
 //        if (StringUtils.isBlank(hiveConnType) || hiveConnType.equals("jdbc")) {
-        if (EmptyKit.isNull(hive1JdbcContext) || hive1JdbcContext.isFinish()) {
-            hive1JdbcContext = (Hive1JdbcContext) DataSourcePool.getJdbcContext(hive1Config, Hive1JdbcContext.class, connectionContext.getId());
-//            hive1JdbcContext.setHive1Config(hive1Config);
-        }
+        hive1JdbcContext = new Hive1JdbcContext(hive1Config);
         this.connectionTimezone = connectionContext.getConnectionConfig().getString("timezone");
         if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
             this.connectionTimezone = "08:00:00";
@@ -134,9 +131,7 @@ public class Hive1Connector extends ConnectorBase {
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
         TapLogger.info("线程debug", "onStop当前线程为:{}", Thread.currentThread().getName());
-        if (EmptyKit.isNotNull(hive1JdbcContext)) {
-            hive1JdbcContext.finish(connectionContext.getId());
-        }
+        ErrorKit.ignoreAnyError(hive1JdbcContext::close);
         Optional.ofNullable(this.hive1Writer).ifPresent(Hive1Writer::onDestroy);
     }
 
