@@ -1,3 +1,4 @@
+config.setStreamReadIntervalSeconds(10);
 /**
  * @return The returned result cannot be empty and must conform to one of the following forms:
  *      (1)Form one:  A string (representing only one table name)
@@ -1220,6 +1221,7 @@ var batchStart = dateUtils.nowDate();
 var startTime = new Date();
 function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
     if (!isParam(offset) || null == offset || typeof(offset) != 'object') offset = {};
+    let now = new Date();
     for(let x in tableNameList) {
       let tableName = tableNameList[x];
       let isFirst = false;
@@ -1229,10 +1231,8 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
       }
         let condition = arrayUtils.firstElement(offset[tableName].Conditions);
         offset[tableName].Conditions = [{Key:"UPDATED_AT",Value: isParam(condition) && null != condition ? arrayUtils.firstElement(condition.Value.split('_')) + '_' + dateUtils.nowDate(): batchStart + '_' + dateUtils.nowDate()}];
-        if(isFirst){
-        offset[tableName]['If-Modified-Since'] = dateUtils.timeStamp2Date((startTime.getTime() - 60000)+"", "yyyy-MM-dd'T'HH:mm:ssXXX");
-        } else {
-        offset[tableName]['If-Modified-Since'] = dateUtils.timeStamp2Date((new Date().getTime() - 60000)+"", "yyyy-MM-dd'T'HH:mm:ssXXX");
+        if(!offset[tableName]['If-Modified-Since']) {
+            offset[tableName]['If-Modified-Since'] = dateUtils.timeStamp2Date((startTime.getTime() - 5000)+"", "yyyy-MM-dd'T'HH:mm:ssXXX");//new Date(startTime.getTime() - 5000).toISOString();
         }
         iterateAllData('getDataA', offset[tableName], (result, offsetNext, error) => {
             let haveNext = false;
@@ -1252,7 +1252,7 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
                         "afterData": handleData(result.data[x]),
                         "referenceTime":  Number(new Date())
                     };
-                    if (result[x].Created_Time === result[x].Modified_Time) {
+                    if (result.data[x].Created_Time === result.data[x].Modified_Time) {
                         item.eventType = 'i';
                     } else {
                         item.eventType = 'u';
@@ -1261,6 +1261,7 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
                 }
                 streamReadSender.send(arr,tableName,offset);
                 if(!haveNext){
+                    offset[tableName]['If-Modified-Since'] = dateUtils.timeStamp2Date((now.getTime() - 5000)+"", "yyyy-MM-dd'T'HH:mm:ssXXX");//new Date(now.getTime() - 5000).toISOString();
                     return false
                 }
             }
