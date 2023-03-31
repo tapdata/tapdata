@@ -162,7 +162,7 @@ public class JoinProcessorNode extends ProcessorNode {
                             (field.getPrimaryKeyPosition() != null && field.getPrimaryKeyPosition() > 0)) {
                         field.setPrimaryKey(false);
                         field.setPrimaryKeyPosition(0);
-                        basePrimaryKey.add(field.getOriginalFieldName());
+                        basePrimaryKey.add(field.getFieldName());
                     }
                 }
             }
@@ -184,7 +184,7 @@ public class JoinProcessorNode extends ProcessorNode {
                         (field.getPrimaryKeyPosition() != null && field.getPrimaryKeyPosition() > 0) ) {
                     field.setPrimaryKey(false);
                     field.setPrimaryKeyPosition(0);
-                    joinPrimaryKey.add(field.getOriginalFieldName());
+                    joinPrimaryKey.add(field.getFieldName());
                 }
 
                 field.setIsNullable(true);
@@ -241,7 +241,7 @@ public class JoinProcessorNode extends ProcessorNode {
         for (Field field : fields) {
             if ((field.getPrimaryKey() != null && field.getPrimaryKey()) ||
                     (field.getPrimaryKeyPosition() != null && field.getPrimaryKeyPosition() > 0) ) {
-                primaryKeys.add(field.getOriginalFieldName());
+                primaryKeys.add(field.getFieldName());
             }
         }
         return primaryKeys;
