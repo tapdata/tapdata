@@ -3936,7 +3936,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         // tableName 不为空根据表查询。否则根据连接查询
         criteria.and("dag.nodes.connectionId").is(connectionId);
         criteria.orOperator(new Criteria().and("dag.nodes.tableName").is(tableName),
-                new Criteria().and("dag.nodes.tableNames").in(tableName));
+                new Criteria().and("dag.nodes.tableNames").in(tableName),
+                new Criteria().and("dag.nodes.tableNames.currentTableName").is(tableName));
         Query query = Query.query(criteria);
         List<TaskDto> list = findAll(query);
         String taskSuccessStatus = "";
