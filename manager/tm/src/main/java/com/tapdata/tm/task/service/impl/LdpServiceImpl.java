@@ -84,7 +84,7 @@ public class LdpServiceImpl implements LdpService {
         Criteria criteria = Criteria.where("ldpType").is(TaskDto.LDP_TYPE_FDM)
                 .and("dag.nodes.connectionId").is(connectionId)
                 .and("is_deleted").ne(true)
-                .and("status").in(Lists.newArrayList(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED));
+                .and("status").nin(Lists.newArrayList(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED));
         Query query = new Query(criteria);
         TaskDto oldTask = taskService.findOne(query, user);
 
