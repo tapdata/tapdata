@@ -438,7 +438,7 @@
       "queryOnly": true
     },
     "NULL": {
-      "to": "TapRaw"
+      "to": "TapString"
     }
   }
 }
