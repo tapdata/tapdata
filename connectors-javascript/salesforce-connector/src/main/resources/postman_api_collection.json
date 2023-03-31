@@ -12,7 +12,7 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=3MVG9n_HvETGhr3Brv_TokDiPcVsfa0TubCszRjXdeqnY0z7cBUmaW0I9eTZtnz0oIC4zMLOxcUaCiEMpwr57&redirect_uri=https://redirect.tapdata.io/oauth/complete/salesforce&scope=full refresh_token",
+          "raw": "https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=3MVG9n_HvETGhr3Brv_TokDiPcVsfa0TubCszRjXdeqnY0z7cBUmaW0I9eTZtnz0oIC4zMLOxcUaCiEMpwr57&redirect_uri=https://redirect.tapdata.io/oauth/complete/salesforce&scope=api refresh_token",
           "protocol": "https",
           "host": [
             "login",
@@ -39,7 +39,7 @@
             },
             {
               "key": "scope",
-              "value": "full refresh_token"
+              "value": "api refresh_token"
             }
           ]
         }
@@ -129,7 +129,7 @@
             },
             {
               "key": "refresh_token",
-              "value": "{{refresh_token1}}"
+              "value": "{{refresh_token}}"
             }
           ]
         }
@@ -692,7 +692,7 @@
   "variable": [
     {
       "key": "Authorization",
-      "value": "00D2w00000RIjat!AQYAQHLbMWC1AcI8jdqyUOYtMgOx9dzaR1Z9iP16XsRuFF2iH1zBOjuuQlyZGTKZAt2mOKmYikdPePepHY8ZsQj_58tOh59e",
+      "value": "",
       "type": "string"
     },
     {
@@ -737,7 +737,7 @@
     },
     {
       "key": "refresh_token",
-      "value": "5Aep861ZBQbtA4s3JXVv9faqjrqFvXs0QOQ551Ho2GaM8skkFZabZJmxNyqeGysF3SE0yyKX5_8xNzaeaxYB4GS",
+      "value": "",
       "type": "string"
     }
   ]
