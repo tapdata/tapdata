@@ -52,6 +52,10 @@ public abstract class FileSchema {
         return sampleResult;
     }
 
+    public Map<String, Object> sampleFixedFileData(Map<String, TapFile> csvFileMap) throws Exception {
+        throw new UnsupportedOperationException();
+    }
+
     protected abstract void sampleOneFile(Map<String, Object> sampleResult, TapFile tapFile) throws Exception;
 
     protected synchronized TapFile getOutFile(ConcurrentMap<String, TapFile> fileMap) {
