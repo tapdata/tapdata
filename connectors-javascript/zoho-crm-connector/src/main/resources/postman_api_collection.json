@@ -10,38 +10,8 @@
 			"request": {
 				"method": "POST",
 				"header": [],
-				"body": {
-					"mode": "urlencoded",
-					"urlencoded": [
-						{
-							"key": "grant_type",
-							"value": "authorization_code",
-							"type": "text"
-						},
-						{
-							"key": "client_id",
-							"value": "{{client_id}}",
-							"type": "text"
-						},
-						{
-							"key": "client_secret",
-							"value": "{{client_secret}}",
-							"type": "text"
-						},
-						{
-							"key": "redirect_uri",
-							"value": "http://www.tapdata.net/",
-							"type": "text"
-						},
-						{
-							"key": "code",
-							"value": "{{code}}",
-							"type": "text"
-						}
-					]
-				},
 				"url": {
-					"raw": "https://accounts.zoho.com.cn/oauth/v2/token?grant_type=authorization_code&client_id={{client_id}}&client_secret={{client_secret}}&redirect_uri=http://www.tapdata.net/&code={{code}}",
+					"raw": "https://accounts.zoho.com.cn/oauth/v2/token?grant_type=authorization_code&client_id={{client_id}}&client_secret={{client_secret}}&redirect_uri=https://redirect.tapdata.io/oauth/complete/zoho-crm&code={{code}}",
 					"protocol": "https",
 					"host": [
 						"accounts",
@@ -69,7 +39,7 @@
 						},
 						{
 							"key": "redirect_uri",
-							"value": "http://www.tapdata.net/"
+							"value": "https://redirect.tapdata.io/oauth/complete/zoho-crm"
 						},
 						{
 							"key": "code",
@@ -86,7 +56,7 @@
 				"method": "POST",
 				"header": [],
 				"url": {
-					"raw": "https://accounts.zoho.com.cn/oauth/v2/token?refresh_token={{refreshToken}}&client_id={{client_id}}&client_secret={{client_secret}}&grant_type=refresh_token",
+					"raw": "https://accounts.zoho.com.cn/oauth/v2/token?refresh_token={{refreshToken}}&client_id={{client_id}}&client_secret={{client_secret}}&grant_type=refreshToken",
 					"protocol": "https",
 					"host": [
 						"accounts",
@@ -128,7 +98,7 @@
 				"header": [
 					{
 						"key": "Authorization",
-						"value": "Zoho-oauthtoken {{accessToken}}",
+						"value": "Zoho-oauthtoken {{access_token}}",
 						"type": "default"
 					},
 					{
@@ -169,7 +139,7 @@
 				"header": [
 					{
 						"key": "Authorization",
-						"value": "Zoho-oauthtoken {{accessToken}}",
+						"value": "Zoho-oauthtoken {{access_token}}",
 						"type": "default"
 					},
 					{
@@ -255,7 +225,7 @@
 			"type": "default"
 		},
 		{
-			"key": "accessToken",
+			"key": "access_token",
 			"value": "",
 			"type": "default"
 		},
