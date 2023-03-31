@@ -12,12 +12,14 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class EnabledSchemas {
     public static final String TAG = EnabledSchemas.class.getSimpleName();
-
-    public static void getAllSchemas(TapConnectionContext tapConnectionContext, Set<Class<? extends SchemaStart>> allImplClass) {
+    AtomicReference<String> accessToken;
+    public static void getAllSchemas(TapConnectionContext tapConnectionContext, Set<Class<? extends SchemaStart>> allImplClass, AtomicReference<String> accessToken) {
         EnabledSchemas enabledSchemas = new EnabledSchemas();
+        enabledSchemas.accessToken = accessToken;
         StringBuilder errorMessage = new StringBuilder();
         try {
             Class<? extends SchemaStart> issue = enabledSchemas.issue(tapConnectionContext);
@@ -67,10 +69,8 @@ public class EnabledSchemas {
     public Class<? extends SchemaStart> projectMember(TapConnectionContext tapConnectionContext) {
         DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
         HashMap<String, String> headers = new HashMap<>();//存放请求头，可以存放多个请求头
-        String token = connectionConfig.getString("token");
-        token = tokenSetter(token);
-        headers.put("Authorization", token);
-        connectionConfig.put("token", token);
+        headers.put("Authorization", accessToken.get());
+        connectionConfig.put("token", accessToken.get());
         Map<String, Object> resultMap = CodingHttp.create(
                 headers,
                 HttpEntity.create().builderIfNotAbsent("Action", "DescribeTeamMembers").builder("PageNumber", 1).builder("PageSize", 1).getEntity(),
@@ -97,11 +97,9 @@ public class EnabledSchemas {
     public Class<? extends SchemaStart> iteration(TapConnectionContext tapConnectionContext) {
         DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
         HashMap<String, String> headers = new HashMap<>();//存放请求头，可以存放多个请求头
-        String token = connectionConfig.getString("token");
         Object projectName = connectionConfig.get("projectName");
-        token = tokenSetter(token);
-        headers.put("Authorization", token);
-        connectionConfig.put("token", token);
+        headers.put("Authorization", accessToken.get());
+        connectionConfig.put("token", accessToken.get());
         Map<String, Object> resultMap = CodingHttp.create(
                 headers,
                 HttpEntity.create()
@@ -130,12 +128,9 @@ public class EnabledSchemas {
     public Class<? extends SchemaStart> issue(TapConnectionContext tapConnectionContext) {
         DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
         HashMap<String, String> headers = new HashMap<>();//存放请求头，可以存放多个请求头
-
-        String token = connectionConfig.getString("token");
-        token = tokenSetter(token);
         Object projectName = connectionConfig.get("projectName");
-        headers.put("Authorization", token);
-        connectionConfig.put("token", token);
+        headers.put("Authorization", accessToken.get());
+        connectionConfig.put("token", accessToken.get());
         Map<String, Object> resultMap = CodingHttp.create(
                 headers,
                 HttpEntity.create().builderIfNotAbsent("Action", "DescribeIssueListWithPage")
