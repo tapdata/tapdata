@@ -65,11 +65,13 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
     public CodingStarter connectorInit(CodingConnector codingConnector) {
         super.connectorInit(codingConnector);
         this.lastTimeSplitIssueCode.addAll(codingConnector.lastTimeSplitIssueCode());
+        this.lastTimePoint = codingConnector.issuesLastTimePoint();
         return this;
     }
 
     public CodingStarter connectorOut() {
         this.codingConnector.lastTimeSplitIssueCode(this.lastTimeSplitIssueCode);
+        this.codingConnector.issuesLastTimePoint(this.lastTimePoint);
         return super.connectorOut();
     }
 
@@ -390,7 +392,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                         //选择的迭代编号不需要验证
                         body.builder(
                                 "Conditions",
-                                TapSimplify.list(map(entry("Key", "ITERATION"), entry("Value", iterationCodes)))
+                                io.tapdata.entity.simplify.TapSimplify.list(map(entry("Key", "ITERATION"), entry("Value", iterationCodes)))
                         );
                     }
                 } else {
@@ -529,7 +531,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                                      HttpEntity<String, String> header,
                                      HttpEntity<String, Object> pageBody,
                                      boolean isStreamRead) {
-        List<Map<String, Object>> coditions = TapSimplify.list(map(
+        List<Map<String, Object>> coditions = io.tapdata.entity.simplify.TapSimplify.list(map(
                 entry("Key", this.sortKey(isStreamRead)),
                 entry("Value", this.longToDateStr(readStartTime) + "_" + this.longToDateStr(readEndTime)))
         );
@@ -557,7 +559,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
     }
 
     public void defineHttpAttributesV2(int readSize, HttpEntity<String, String> header, HttpEntity<String, Object> pageBody, boolean isStreamRead) {
-        List<Map<String, Object>> coditions = TapSimplify.list();
+        List<Map<String, Object>> coditions = io.tapdata.entity.simplify.TapSimplify.list();
         header.builder("Authorization", this.accessToken().get());
         String projectName = codingConfig.getProjectName();
         String iterationCodes = codingConfig.getIterationCodes();
@@ -753,7 +755,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         } else {
             pageBody.builder("IssueType", "ALL");
         }
-        List<Map<String, Object>> coditions = TapSimplify.list(map(
+        List<Map<String, Object>> coditions = io.tapdata.entity.simplify.TapSimplify.list(map(
                 entry("Key", "UPDATED_AT"),
                 entry("Value", this.longToDateStr(readStartTime) + "_" + this.longToDateStr(readEndTime)))
         );
@@ -804,7 +806,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                     //issueDetailHash的更新时间字段值是否属于当前时间片段，并且issueDetailHash的hashcode是否在上一次批量读取同一时间段内
                     //如果不在，说明时全新增加或修改的数据，需要在本次读取这条数据
                     //如果在，说明上一次批量读取中以及读取了这条数据，本次不在需要读取 !currentTimePoint.equals(lastTimePoint) &&
-                    if (!lastTimeSplitIssueCode.contains(issueDetailHash)) {
+                    if (currentTimePoint >= this.lastTimePoint && !lastTimeSplitIssueCode.contains(issueDetailHash)) {
                         if (referenceTime > createdAt) {
                             events[0].add(TapSimplify.updateDMLEvent(null, issueDetail, TABLE_NAME).referenceTime(referenceTime));
                         } else {
