@@ -157,20 +157,15 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
                 return toJson(tapValue.getValue());
             return "null";
         });
-        codecRegistry.registerFromTapValue(TapTimeValue.class, "datetime", tapValue -> {
-            if (tapValue != null && tapValue.getValue() != null)
-                return toJson(tapValue.getValue());
-            return "null";
-        });
 
         //TapTimeValue, TapDateTimeValue and TapDateValue's value is DateTime, need convert into Date object.
-        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
-            if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
-                tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+        codecRegistry.registerFromTapValue(TapTimeValue.class, "varchar(10)", tapValue -> {
+            if (tapValue != null && tapValue.getValue() != null) {
+                return tapValue.getValue().toTimeStr();
             }
-            return formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS");
+            return "null";
         });
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
         connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);

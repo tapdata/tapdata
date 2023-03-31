@@ -10,7 +10,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.oceanbase.*;
 import io.tapdata.oceanbase.bean.OceanbaseConfig;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
@@ -237,12 +237,11 @@ public class OceanbaseConnector extends CommonDbConnector {
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
         oceanbaseConfig = new OceanbaseConfig().load(tapConnectionContext.getConnectionConfig());
-        if (EmptyKit.isNull(oceanbaseJdbcContext)) {
-            oceanbaseJdbcContext = new OceanbaseJdbcContext(oceanbaseConfig);
-            oceanbaseJdbcContext.setTapConnectionContext(tapConnectionContext);
-        }
+        oceanbaseJdbcContext = new OceanbaseJdbcContext(oceanbaseConfig);
+        oceanbaseJdbcContext.setTapConnectionContext(tapConnectionContext);
         commonDbConfig = oceanbaseConfig;
         jdbcContext = oceanbaseJdbcContext;
+
         if (tapConnectionContext instanceof TapConnectorContext) {
             this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
             if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
@@ -261,11 +260,8 @@ public class OceanbaseConnector extends CommonDbConnector {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
-        try {
-            oceanbaseWriter.close();
-        } catch (Exception e) {
-            TapLogger.warn(TAG, "close writer failed: {}", e.getMessage());
-        }
+        ErrorKit.ignoreAnyError(oceanbaseJdbcContext::close);
+        ErrorKit.ignoreAnyError(oceanbaseWriter::close);
     }
 
     private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {

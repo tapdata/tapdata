@@ -31,6 +31,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import javax.print.DocFlavor;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -95,9 +96,9 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
                 .first("currentEventTime").as("currentEventTime")
                 .first("count").as("count")
                 .first("allCount").as("allCount");
-        long count = mongoTemplate.count(Query.query(criteria), ShareCdcTableMetricsEntity.class);
+        List<String> tableNameList = mongoTemplate.findDistinct(Query.query(criteria), "tableName", ShareCdcTableMetricsEntity.class, String.class);
 
-        if (count == 0) {
+        if (CollectionUtils.isEmpty(tableNameList)) {
             return new Page<>(0, Lists.newArrayList());
         }
         SkipOperation skip = Aggregation.skip(page - 1);
@@ -117,7 +118,7 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
             return copy;
         }).collect(Collectors.toList());
 
-        return new Page<>(count, result);
+        return new Page<>(tableNameList.size(), result);
     }
 
     public List<ShareCdcTableMetricsVo> getCollectInfoByTaskId(String taskId) {

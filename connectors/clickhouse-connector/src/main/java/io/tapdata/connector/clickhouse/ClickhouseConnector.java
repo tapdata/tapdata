@@ -23,6 +23,7 @@ import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -114,9 +115,7 @@ public class ClickhouseConnector extends CommonDbConnector {
 
     private void initConnection(TapConnectionContext connectionContext) throws Throwable {
         clickhouseConfig = (ClickhouseConfig) new ClickhouseConfig().load(connectionContext.getConnectionConfig());
-        if (EmptyKit.isNull(clickhouseJdbcContext)) {
-            clickhouseJdbcContext = new ClickhouseJdbcContext(clickhouseConfig);
-        }
+        clickhouseJdbcContext = new ClickhouseJdbcContext(clickhouseConfig);
         commonDbConfig = clickhouseConfig;
         jdbcContext = clickhouseJdbcContext;
 //        clickhouseVersion = clickhouseJdbcContext.queryVersion();
@@ -182,9 +181,7 @@ public class ClickhouseConnector extends CommonDbConnector {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
-        if (EmptyKit.isNotNull(clickhouseJdbcContext)) {
-            clickhouseJdbcContext.close();
-        }
+        ErrorKit.ignoreAnyError(clickhouseJdbcContext::close);
         JdbcUtil.closeQuietly(clickhouseWriter);
     }
 

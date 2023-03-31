@@ -550,7 +550,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             } else {
                 Collection<String> logicUniqueKey = tapTable.primaryKeys(true);
                 if (CollectionUtils.isEmpty(logicUniqueKey)) {
-                    tapTable.setLogicPrimaries(tapTable.getNameFieldMap().keySet());
+                    tapTable.setLogicPrimaries(Collections.emptyList());
                 }
             }
         } else if (writeStrategy.equals(com.tapdata.tm.commons.task.dto.MergeTableProperties.MergeType.appendWrite.name())) {

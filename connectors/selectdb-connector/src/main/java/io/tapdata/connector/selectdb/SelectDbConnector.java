@@ -21,6 +21,7 @@ import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -71,9 +72,7 @@ public class SelectDbConnector extends ConnectorBase {
         this.selectDbConfig = new SelectDbConfig().load(connectorContext.getConnectionConfig());
         this.selectDbTest = new SelectDbTest(selectDbConfig, testItem -> {
         }).initContext();
-        if (EmptyKit.isNull(selectDbJdbcContext)) {
-            selectDbJdbcContext = new SelectDbJdbcContext(selectDbConfig);
-        }
+        selectDbJdbcContext = new SelectDbJdbcContext(selectDbConfig);
         this.selectDbVersion = selectDbJdbcContext.queryVersion();
         this.selectDbStreamLoader = new SelectDbStreamLoader(selectDbContext, new HttpUtil().getHttpClient());
         this.selectDbStreamLoader = new SelectDbStreamLoader(new HttpUtil().getHttpClient(), selectDbConfig);
@@ -88,12 +87,9 @@ public class SelectDbConnector extends ConnectorBase {
     }
 
     @Override
-    public void onStop(TapConnectionContext connectionContext) throws Throwable {
-        try {
-            this.selectDbStreamLoader.shutdown();
-        } catch (Exception e) {
-            TapLogger.error(TAG, "selectDbStreamLoader shutdown failed, {}", e.getMessage());
-        }
+    public void onStop(TapConnectionContext connectionContext) {
+        ErrorKit.ignoreAnyError(selectDbJdbcContext::close);
+        ErrorKit.ignoreAnyError(selectDbStreamLoader::shutdown);
         Optional.ofNullable(this.valve).ifPresent(WriteValve::close);
     }
 
