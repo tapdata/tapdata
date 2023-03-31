@@ -733,7 +733,6 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
         let uiApi;
         try {
             if (isFirst) {
-                clientInfo.Authorization = connectionConfig.access_token;
                 invoke = invoker.invoke(tableName, clientInfo);
             } else {
                 clientInfo.after = afterData;
@@ -757,6 +756,7 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
 
 function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
     if (!checkParam(tableNameList)) return;
+
     for (let index = 0; index < tableNameList.length; index++) {
         if (!isAlive()) break;
         let pageInfo = {"hasNextPage": true};
@@ -816,11 +816,10 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
 
 function commandCallback(connectionConfig, nodeConfig, commandInfo) {
     if (commandInfo.command === 'OAuth') {
-        //clientInfo.code1 = connectionConfig.code1;
         let getToken = invoker.invokeWithoutIntercept("get access token", clientInfo);
         if (getToken.result) {
-            connectionConfig.access_token = getToken.result.access_token;
-            connectionConfig.refresh_token1 = getToken.result.refresh_token;
+            // connectionConfig.access_token = getToken.result.access_token;
+            connectionConfig.refresh_token = getToken.result.refresh_token;
             connectionConfig.Authorization = getToken.result.access_token;
             connectionConfig._endpoint = getToken.result.instance_url;
         }
@@ -833,13 +832,11 @@ function updateToken(connectionConfig, nodeConfig, apiResponse) {
         throw (apiResponse.result[0].message)
     }
     if (apiResponse.httpCode === 401 || (apiResponse.result && apiResponse.result.length > 0 && apiResponse.result[0].errorCode && apiResponse.result[0].errorCode === 'INVALID_SESSION_ID')) {
-        // clientInfo.refresh_token1 = connectionConfig.refresh_token1;
         try {
             let getToken = invoker.invokeWithoutIntercept("refresh token", clientInfo);
             let httpCode = getToken.httpCode
             checkAuthority(getToken, httpCode);
             if (getToken && getToken.result && getToken.result.access_token) {
-                connectionConfig.access_token = getToken.result.access_token;
                 connectionConfig.Authorization = getToken.result.access_token;
                 return {"access_token": getToken.result.access_token};
             }
