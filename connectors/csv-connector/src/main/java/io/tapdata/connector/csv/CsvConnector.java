@@ -4,6 +4,7 @@ import com.opencsv.CSVReader;
 import com.opencsv.CSVReaderBuilder;
 import io.tapdata.common.FileConnector;
 import io.tapdata.common.FileOffset;
+import io.tapdata.common.FileSchema;
 import io.tapdata.common.util.MatchUtil;
 import io.tapdata.connector.csv.config.CsvConfig;
 import io.tapdata.connector.csv.writer.DateCsvRecordWriter;
@@ -25,6 +26,8 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.util.Collections;
@@ -40,10 +43,13 @@ import java.util.stream.Collectors;
 @TapConnectorClass("spec_csv.json")
 public class CsvConnector extends FileConnector {
 
+    private OffStandardFilter offStandardFilter;
+
     @Override
     protected void initConnection(TapConnectionContext connectorContext) throws Exception {
         fileConfig = new CsvConfig();
         super.initConnection(connectorContext);
+        offStandardFilter = new OffStandardFilter(((CsvConfig) fileConfig).getLineExpression());
     }
 
     @Override
@@ -78,7 +84,12 @@ public class CsvConnector extends FileConnector {
         }
         TapTable tapTable = table(fileConfig.getModelName());
         ConcurrentMap<String, TapFile> csvFileMap = getFilteredFiles();
-        CsvSchema csvSchema = new CsvSchema((CsvConfig) fileConfig, storage);
+        FileSchema csvSchema;
+        if (((CsvConfig) fileConfig).getOffStandard()) {
+            csvSchema = new OffStandardCsvSchema((CsvConfig) fileConfig, storage);
+        } else {
+            csvSchema = new CsvSchema((CsvConfig) fileConfig, storage);
+        }
         Map<String, Object> sample;
         //csv has column header
         if (EmptyKit.isNotBlank(fileConfig.getHeader())) {
@@ -100,6 +111,18 @@ public class CsvConnector extends FileConnector {
                                int eventBatchSize,
                                BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer,
                                AtomicReference<List<TapEvent>> tapEvents) throws Exception {
+        if (((CsvConfig) fileConfig).getOffStandard()) {
+            readOffStandardCsv(fileOffset, tapTable, eventBatchSize, eventsOffsetConsumer, tapEvents);
+        } else {
+            readStandardCsv(fileOffset, tapTable, eventBatchSize, eventsOffsetConsumer, tapEvents);
+        }
+    }
+
+    private void readStandardCsv(FileOffset fileOffset,
+                                 TapTable tapTable,
+                                 int eventBatchSize,
+                                 BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer,
+                                 AtomicReference<List<TapEvent>> tapEvents) throws Exception {
         Map<String, String> dataTypeMap = tapTable.getNameFieldMap().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getDataType()));
         long lastModified = storage.getFile(fileOffset.getPath()).getLastModified();
         storage.readFile(fileOffset.getPath(), is -> {
@@ -148,6 +171,71 @@ public class CsvConnector extends FileConnector {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    private void readOffStandardCsv(FileOffset fileOffset,
+                                    TapTable tapTable,
+                                    int eventBatchSize,
+                                    BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer,
+                                    AtomicReference<List<TapEvent>> tapEvents) throws Exception {
+        Map<String, String> dataTypeMap = tapTable.getNameFieldMap().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getDataType()));
+        long lastModified = storage.getFile(fileOffset.getPath()).getLastModified();
+        storage.readFile(fileOffset.getPath(), is -> {
+            try (
+                    Reader reader = new InputStreamReader(is, fileConfig.getFileEncoding());
+                    BufferedReader bufferedReader = new BufferedReader(reader)
+            ) {
+                String[] headers;
+                int skip = 0;
+                if (EmptyKit.isNotBlank(fileConfig.getHeader())) {
+                    headers = fileConfig.getHeader().split(",");
+                } else {
+                    if (fileConfig.getHeaderLine() > 0) {
+                        skipRead(bufferedReader, fileConfig.getHeaderLine() - 1);
+                        skip += fileConfig.getHeaderLine() - 1;
+                        headers = offStandardFilter.filter(bufferedReader.readLine());
+                    } else {
+                        skipRead(bufferedReader, fileConfig.getDataStartLine() - 1);
+                        skip += fileConfig.getDataStartLine() - 1;
+                        String[] data = offStandardFilter.filter(bufferedReader.readLine());
+                        headers = new String[data.length];
+                        for (int j = 0; j < headers.length; j++) {
+                            headers[j] = "column" + (j + 1);
+                        }
+                    }
+                }
+                if (EmptyKit.isNotEmpty(headers)) {
+                    skipRead(bufferedReader, fileOffset.getDataLine() - 2 - skip);
+                    String[] data;
+                    int blankSkip = 0;
+                    while (isAlive() && (data = offStandardFilter.filter(bufferedReader.readLine())) != null) {
+                        Map<String, Object> after = new HashMap<>();
+                        putIntoMap(after, headers, data, dataTypeMap);
+                        if (after.entrySet().stream().allMatch(v -> EmptyKit.isNull(v.getValue()))) {
+                            blankSkip++;
+                            continue;
+                        }
+                        tapEvents.get().add(insertRecordEvent(after, tapTable.getId()).referenceTime(lastModified));
+                        if (tapEvents.get().size() == eventBatchSize) {
+                            fileOffset.setDataLine(fileOffset.getDataLine() + eventBatchSize + blankSkip);
+                            blankSkip = 0;
+                            fileOffset.setPath(fileOffset.getPath());
+                            eventsOffsetConsumer.accept(tapEvents.get(), fileOffset);
+                            tapEvents.set(list());
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private void skipRead(BufferedReader bufferedReader, int skip) throws IOException {
+        while (skip > 0) {
+            bufferedReader.readLine();
+            skip--;
+        }
     }
 
     private void putIntoMap(Map<String, Object> after, String[] headers, String[] data, Map<String, String> dataTypeMap) {
