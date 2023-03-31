@@ -23,10 +23,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.bson.Document;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -158,7 +155,6 @@ public class MongodbWriter {
 			final Document pkFilter = getPkFilter(pks, before);
 
 			writeModel = new DeleteOneModel<>(pkFilter);
-			collection.deleteOne(new Document(before));
 			deleted.incrementAndGet();
 		}
 
@@ -178,7 +174,10 @@ public class MongodbWriter {
 	private Document getPkFilter(Collection<String> pks, Map<String, Object> record) {
 		Document filter = new Document();
 		for (String pk : pks) {
-			filter.append(pk, record.get(pk));
+			Optional.ofNullable(record.get(pk)).map(v -> {
+				filter.append(pk, v);
+				return null;
+			});
 		}
 
 		return filter;
