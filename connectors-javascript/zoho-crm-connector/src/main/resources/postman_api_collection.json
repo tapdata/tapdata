@@ -56,7 +56,7 @@
 				"method": "POST",
 				"header": [],
 				"url": {
-					"raw": "https://accounts.zoho.com.cn/oauth/v2/token?refresh_token={{refreshToken}}&client_id={{client_id}}&client_secret={{client_secret}}&grant_type=refreshToken",
+					"raw": "https://accounts.zoho.com.cn/oauth/v2/token?refresh_token={{refreshToken}}&client_id={{client_id}}&client_secret={{client_secret}}&grant_type=refresh_token",
 					"protocol": "https",
 					"host": [
 						"accounts",
