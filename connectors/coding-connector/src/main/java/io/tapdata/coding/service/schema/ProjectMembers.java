@@ -5,6 +5,7 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Array;
@@ -16,6 +17,9 @@ public class ProjectMembers implements SchemaStart {
     @Override
     public Boolean use() {
         return use;
+    }
+
+    public ProjectMembers(AtomicReference<String> accessToken) {
     }
 
     @Override
@@ -30,31 +34,6 @@ public class ProjectMembers implements SchemaStart {
 
     @Override
     public TapTable document(TapConnectionContext connectionContext) {
-        /**
-         "ProjectMembers": [
-         {
-         "Id": 6,
-         "TeamId": 1,
-         "Name": "blockuser",
-         "NamePinYin": "blockuser",
-         "Avatar": "http://e.coding.net/static/fruit_avatar/Fruit-4.png",
-         "Email": "blockuser@gmail.com",
-         "Phone": "13800138006",
-         "EmailValidation": 1,
-         "PhoneValidation": 1,
-         "Status": -1,
-         "GlobalKey": "GK",
-         "Roles": [
-         {
-         "RoleType": "ProjectMember",
-         "RoleId": 1,
-         "RoleTypeName": "开发"
-         }
-         ]
-         }
-         ]
-         }
-         * */
         return table(tableName())
                 .add(field("Id", JAVA_Integer).isPrimaryKey(true).primaryKeyPos(1))
                 .add(field("TeamId", JAVA_Integer))
@@ -72,17 +51,6 @@ public class ProjectMembers implements SchemaStart {
 
     }
 
-    /**
-     * "member":{
-     * *         "id": 8647278,
-     * *         "login": "vMBtGCrzEP",
-     * *         "avatar_url": "https://coding-net-production-static-ci.codehub.cn/a0835321-9657-48ce-950a-d196b75e4ed3.png?imageView2/1/w/0/h/0",
-     * *         "url": "https://testhookgavin.coding.net/api/user/key/vMBtGCrzEP",
-     * *         "html_url": "https://testhookgavin.coding.net/u/vMBtGCrzEP",
-     * *         "name": "邱迎豪",
-     * *         "name_pinyin": "qyh|qiuyinghao"
-     * }
-     */
     @Override
     public Map<String, Object> autoSchema(Map<String, Object> eventData) {
         return eventMapToSchemaMap(eventData, TapSimplify.map(
