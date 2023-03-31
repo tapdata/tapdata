@@ -1176,7 +1176,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 monitoringLogsService.startTaskErrorLog(task, user, e, Level.ERROR);
                 if (e instanceof BizException) {
                     mutiResponseMessage.setCode(((BizException) e).getErrorCode());
-                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
+                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode(), ((BizException) e).getArgs()));
                 } else {
                     try {
                         ResponseMessage<?> responseMessage = exceptionHandler.handlerException(e, request, response);
