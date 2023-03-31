@@ -24,7 +24,6 @@ public class Main {
         csvConfig.setIncludeRegString("*.csv");
         csvConfig.setExcludeRegString(null);
         csvConfig.setRecursive(true);
-        csvConfig.setDelimiter(",");
         csvConfig.setHeaderLine(1);
         csvConfig.setDataStartLine(1);
         csvConfig.setModelName("GG");
