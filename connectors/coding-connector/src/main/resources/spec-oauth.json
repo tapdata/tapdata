@@ -389,7 +389,7 @@
     },
     "Array": {"to" : "TapArray"},
     "NULL": {
-      "to": "TapRaw"
+      "to": "TapString"
     }
   }
 }
