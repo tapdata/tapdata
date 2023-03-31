@@ -2,8 +2,8 @@ config.setStreamReadIntervalSeconds(60);
 var batchStart = Date.parse(new Date());
 var afterData;
 var clientInfo = {
-    "client_id": "3MVG9n_HvETGhr3Brv_TokDiPcVsfa0TubCszRjXdeqnY0z7cBUmaW0I9eTZtnz0oIC4zMLOxcUaCiEMpwr57",
-    "client_secret": "3ACD5F530CE58AFA0A5224D2CD04A0A97D2495D60575E4592B00348D8D0C55BA",
+    "client_id": "3MVG9n_HvETGhr3Ai83SSfHGaxjpZakxMv8ZB8yl5vP.6NMlgXFAhVcuqtruP9ehJxEGrmZnH6fvlhHA6yjE.",
+    "client_secret": "BD2C1E4178343B85CAEEAA574528F8B5EFFC8C36DEC0139D31097CA1DE7A5751",
     "url": "https://login.salesforce.com",
     "version": "57.0"
 }
