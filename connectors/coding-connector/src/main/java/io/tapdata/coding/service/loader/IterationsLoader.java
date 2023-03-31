@@ -226,7 +226,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
         codingOffset.setTableUpdateTimeMap(new HashMap<String, Long>() {{
             put(TABLE_NAME, readEnd);
         }});
-        this.read(offset, null, readEnd, batchCount, consumer);
+        this.read(offset, null, readEnd, batchCount, consumer, false);
     }
 
     @Override
@@ -260,7 +260,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
         consumer.streamReadStarted();
         long current = tableUpdateTimeMap.get(currentTable);
         Long last = Long.MAX_VALUE;
-        this.read(codingOffset, current, last, recordSize, consumer);
+        this.read(codingOffset, current, last, recordSize, consumer, true);
     }
 
     @Override
@@ -308,7 +308,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
                       Long readStartTime,
                       Long readEndTime,
                       int batchCount,
-                      BiConsumer<List<TapEvent>, Object> consumer) {
+                      BiConsumer<List<TapEvent>, Object> consumer, boolean isStreamRead) {
         if (Checker.isEmpty(offsetState)) {
             offsetState = new CodingOffset();
         }
@@ -342,7 +342,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
                     Long currentTimePoint = referenceTime - referenceTime % (24 * 60 * 60 * 1000);//时间片段
                     String iterationHash = this.key(iteration, createdAt, referenceTime);
                     if (!lastTimeSplitIterationCode.contains(iterationHash)) {
-                        if (referenceTime > createdAt) {
+                        if (isStreamRead && referenceTime > createdAt) {
                             events.add(TapSimplify.updateDMLEvent(null, iteration, TABLE_NAME).referenceTime(System.currentTimeMillis()));
                         } else {
                             events.add(TapSimplify.insertRecordEvent(iteration, TABLE_NAME).referenceTime(System.currentTimeMillis()));

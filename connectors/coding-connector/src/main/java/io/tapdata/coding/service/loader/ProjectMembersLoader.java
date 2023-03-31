@@ -122,7 +122,7 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
         return (Integer) totalCountObj;
     }
 
-    private void read(Object offsetState, int recordSize, BiConsumer<List<TapEvent>, Object> consumer, boolean batchFlag) {
+    private void read(Object offsetState, int recordSize, BiConsumer<List<TapEvent>, Object> consumer, boolean isStreamRead) {
         int startPage = 1;
         Param param = ProjectMemberParam.create()
                 .limit(recordSize)
