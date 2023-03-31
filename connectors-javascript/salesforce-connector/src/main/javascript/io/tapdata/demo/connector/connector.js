@@ -4,7 +4,6 @@ var afterData;
 var clientInfo = {
     "client_id": "3MVG9n_HvETGhr3Brv_TokDiPcVsfa0TubCszRjXdeqnY0z7cBUmaW0I9eTZtnz0oIC4zMLOxcUaCiEMpwr57",
     "client_secret": "3ACD5F530CE58AFA0A5224D2CD04A0A97D2495D60575E4592B00348D8D0C55BA",
-    "_endpoint": "https://163com-8a-dev-ed.develop.my.salesforce.com",
     "url": "https://login.salesforce.com",
     "version": "57.0"
 }
@@ -734,17 +733,13 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
         let uiApi;
         try {
             if (isFirst) {
-            clientInfo.Authorization = connectionConfig.access_token;
                 invoke = invoker.invoke(tableName, clientInfo);
-        } else {
-            clientInfo.after = afterData;
+            } else {
+                clientInfo.after = afterData;
                 invoke = invoker.invoke(tableName + " by after", clientInfo);
             }
         } catch (e) {
             throw ("Failed to query the data. Please check the connection." + JSON.stringify(invoke));
-        }
-        if (!invoke.result.data || !invoke.result.data.uiapi) {
-            return;
         }
         uiApi = invoke.result.data.uiapi;
         if (!(uiApi.query[tableName + ""] && uiApi.query[tableName + ""].edges[0])) return;
@@ -761,6 +756,7 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
 
 function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
     if (!checkParam(tableNameList)) return;
+
     for (let index = 0; index < tableNameList.length; index++) {
         if (!isAlive()) break;
         let pageInfo = {"hasNextPage": true};
@@ -778,10 +774,6 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
                 }
             } catch (e) {
                 throw ("Failed to query the data. Please check the connection." + JSON.stringify(invoke));
-                break;
-            }
-            if (!invoke.result.data || !invoke.result.data.uiapi) {
-                break;
             }
             let resultMap = invoke.result.data.uiapi.query[tableNameList[index] + ""];
             let resultData = resultMap.edges;
@@ -798,14 +790,14 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
                                 "eventType": "i",
                                 "tableName": tableNameList[index],
                                 "afterData": sendData(nod),
-                                "referenceTime":  Number(new Date())
+                                "referenceTime": Number(new Date())
                             };
                         } else {
                             arr[j] = {
                                 "eventType": "u",
                                 "tableName": tableNameList[index],
                                 "afterData": sendData(nod),
-                                "referenceTime":  Number(new Date())
+                                "referenceTime": Number(new Date())
                             };
                         }
                         batchStart = Date.parse(new Date());
@@ -824,11 +816,12 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
 
 function commandCallback(connectionConfig, nodeConfig, commandInfo) {
     if (commandInfo.command === 'OAuth') {
-        //clientInfo.code1 = connectionConfig.code1;
         let getToken = invoker.invokeWithoutIntercept("get access token", clientInfo);
         if (getToken.result) {
-            connectionConfig.access_token = getToken.result.access_token;
-            connectionConfig.refresh_token1 = getToken.result.refresh_token;
+            // connectionConfig.access_token = getToken.result.access_token;
+            connectionConfig.refresh_token = getToken.result.refresh_token;
+            connectionConfig.Authorization = getToken.result.access_token;
+            connectionConfig._endpoint = getToken.result.instance_url;
         }
         return connectionConfig;
     }
@@ -839,11 +832,12 @@ function updateToken(connectionConfig, nodeConfig, apiResponse) {
         throw (apiResponse.result[0].message)
     }
     if (apiResponse.httpCode === 401 || (apiResponse.result && apiResponse.result.length > 0 && apiResponse.result[0].errorCode && apiResponse.result[0].errorCode === 'INVALID_SESSION_ID')) {
-        // clientInfo.refresh_token1 = connectionConfig.refresh_token1;
         try {
             let getToken = invoker.invokeWithoutIntercept("refresh token", clientInfo);
+            let httpCode = getToken.httpCode
+            checkAuthority(getToken, httpCode);
             if (getToken && getToken.result && getToken.result.access_token) {
-                connectionConfig.access_token = getToken.result.access_token;
+                connectionConfig.Authorization = getToken.result.access_token;
                 return {"access_token": getToken.result.access_token};
             }
         } catch (e) {
@@ -856,37 +850,25 @@ function updateToken(connectionConfig, nodeConfig, apiResponse) {
 
 function connectionTest(connectionConfig) {
     let invoke;
-    clientInfo.Authorization = connectionConfig.access_token;
+    let httpCode;
     try {
         invoke = invoker.invoke('Opportunity', clientInfo);
+        httpCode = invoke.httpCode;
+        return [
+            {
+                "test": "Permission check",
+                "code": exceptionUtil.statusCode(httpCode),
+                "result": result(invoke, httpCode)
+            }
+        ];
     } catch (e) {
         return [
             {
                 "test": "Authorization failed",
                 "code": -1,
-                "result": "Api exec fail, api name or url is [Opportunity], method is [POST]"
+                "result": exceptionUtil.eMessage(e)
             }
         ];
-    }
-    if (invoke.result.data) {
-        return [
-            {
-                "test": " Check the Authorization.",
-                "code": 1,
-                "result": "Pass"
-            },
-            {
-                "test": " Check the account read database permission.",
-                "code": 1,
-                "result": "Pass"
-            }
-        ];
-    } else {
-        return [{
-            "test": " Check the account read database permission.",
-            "code": -1,
-            "result": "Not pass"
-        }];
     }
 }
 
