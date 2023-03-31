@@ -15,7 +15,6 @@ import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.mongodb.MongodbUtil;
 import io.tapdata.mongodb.entity.MongodbConfig;
 import io.tapdata.mongodb.reader.MongodbV4StreamReader;
-import io.tapdata.mongodb.util.MongodbLookupUtil;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
@@ -23,10 +22,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.bson.Document;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
