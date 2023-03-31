@@ -3,6 +3,8 @@ package io.tapdata.coding.service.schema;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 import static io.tapdata.entity.simplify.TapSimplify.field;
 import static io.tapdata.entity.simplify.TapSimplify.table;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
@@ -13,6 +15,9 @@ public class Projects implements SchemaStart {
     @Override
     public Boolean use() {
         return use;
+    }
+
+    public Projects(AtomicReference<String> accessToken) {
     }
 
     @Override
@@ -27,27 +32,6 @@ public class Projects implements SchemaStart {
 
     @Override
     public TapTable document(TapConnectionContext connectionContext) {
-        /**
-         *     {
-         *           "Id": 1,
-         *           "CreatedAt": 1619580482000,
-         *           "UpdatedAt": 1619580482000,
-         *           "Status": 1,
-         *           "Type": 2,
-         *           "MaxMember": 0,
-         *           "Name": "empty",
-         *           "DisplayName": "empty",
-         *           "Description": "",
-         *           "Icon": "https://e.coding.net/static/project_icon/scenery-version-2-4.svg",
-         *           "TeamOwnerId": 1,
-         *           "UserOwnerId": 0,
-         *           "StartDate": 0,
-         *           "EndDate": 0,
-         *           "TeamId": 1,
-         *           "IsDemo": false,
-         *           "Archived": false
-         *         }
-         * */
         return table(tableName())
                 .add(field("Id", JAVA_Integer).isPrimaryKey(true).primaryKeyPos(3))
                 .add(field("CreatedAt", JAVA_Long).isPrimaryKey(true).primaryKeyPos(2))

@@ -13,8 +13,8 @@
       "type": "object",
       "properties": {
         "DescribeIterationList":  {
-            "type": "string",
-            "x-display": "hidden"
+          "type": "string",
+          "x-display": "hidden"
         },
         "DescribeIterationArray":{
           "x-decorator": "FormItem",
@@ -83,6 +83,19 @@
           "x-component": "Input",
           "apiServerKey": "database_host",
           "x-index": 20,
+          "required": true,
+          "x-display": "hidden"
+        },
+        "code": {
+          "type": "String",
+          "title": "${oauth_code}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-decorator-props": {
+            "style": {"display": "none"}
+          },
+          "apiServerKey": "code",
+          "x-index": 30,
           "required": true
         },
         "projectName": {
@@ -95,7 +108,7 @@
             "method": "{{loadCommandList}}",
             "params": "{{ {$values: $values, command: \"DescribeUserProjects\"} }}"
           },
-          "x-index": 30,
+          "x-index": 40,
           "x-reactions": [
             {
               "dependencies": ["teamName", "token"],
@@ -106,6 +119,54 @@
               }
             }
           ]
+        },
+        "line": {
+          "type": "void",
+          "x-component": "Space",
+          "x-reactions": [
+            {
+              "dependencies": ["teamName"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0] ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ],
+          "x-decorator": "FormItem",
+          "title": " ",
+          "x-decorator-props": {
+            "colon": false
+          },
+          "properties": {
+            "authButton": {
+              "type": "void",
+              "x-decorator": "FormItem",
+              "x-component": "Button",
+              "x-content": "${oauth_title}",
+              "title": "",
+              "x-index": 40,
+              "x-component-props": {
+                "type": "primary",
+                "onClick": "{{useAsyncDataSourceByConfig({service: goToAuthorized, withoutField: true}, { target: 'https://redirect.tapdata.io/oauth/complete', pdkId: 'coding', oauthUrl: 'https://@{teamName}@.coding.net/oauth_authorize.html?client_id=f62b86d98192df7d72f286fa086d3d85&redirect_uri=https://redirect.tapdata.io/oauth/complete/coding&response_type=code&scope=user,user:email,project,project:issue,project:members'})}}"
+              },
+              "x-decorator-props":{"style":{"width":"120px"}}
+            },
+            "OAuthStatus": {
+              "type": "void",
+              "title": "",
+              "x-decorator": "FormItem",
+              "x-component": "Text",
+              "apiServerKey": "AAA",
+              "x-index": 50,
+              "required": true,
+              "x-component-props": {
+                "content": "{{$values.code ? '${oauth_ok}' : '${oauth_msg}'}}",
+                "style": {"color": "{{ $values.code ? 'green' : 'rgb(83, 95, 114)' }}"}
+              }
+            }
+          },
+          "x-index": 50
         },
         "connectionMode": {
           "type": "String",
@@ -119,12 +180,13 @@
               "value": "DocumentMode"
             }
           ],
-          "x-index": 40,
+          "x-display": "hidden",
+          "x-index": 60,
           "required": false
         },
         "streamReadType": {
           "type": "String",
-          "default": "WebHook",
+          "default": "Polling",
           "title": "${streamReadType}",
           "x-decorator": "FormItem",
           "x-component": "Select",
@@ -138,7 +200,7 @@
               "value": "Polling"
             }
           ],
-          "x-index": 50,
+          "x-index": 70,
           "required": false
         },
         "hookButton": {
@@ -146,6 +208,7 @@
           "title": "${hookButton}",
           "x-decorator": "FormItem",
           "x-component-props": {
+            "type": "primary",
             "onClick": "{{useAsyncDataSourceByConfig({service: getToken, withoutField: true}, {name:'hookText'}, $values, $form)}}"
           },
           "x-reactions": {
@@ -156,9 +219,9 @@
               }
             }
           },
-          "x-content": "hookButton",
+          "x-content": "${HookLabel}",
           "x-component": "Button",
-          "x-index": 60
+          "x-index": 80
         },
         "hookText": {
           "type": "string",
@@ -176,8 +239,24 @@
             }
           },
           "x-component": "Input",
-          "x-index": 70,
+          "x-index": 90,
           "actionOnCopy" : "NEW_WEB_HOOK_URL"
+        },
+        "clientId": {
+          "type": "String",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "f62b86d98192df7d72f286fa086d3d85",
+          "x-display": "hidden",
+          "index": 998
+        },
+        "clientSecret":{
+          "type": "String",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "b76e9308d43810ed775d953d8b3a33c1ad2fd5db",
+          "x-display": "hidden",
+          "index": 999
         }
       }
     }
@@ -186,13 +265,14 @@
     "default": "en_US",
     "en_US": {
       "token": "Token",
-      "projectName": "project name",
+      "projectName": "Project name",
       "teamName": "Team name",
       "webHook": "Service Hook",
-      "hookButton": "Generate Service URL",
+      "hookButton": "Generate service URL",
+      "HookLabel": "Generate",
       "iterationCodes": "Iteration",
-      "issueType": "Issue Type",
-      "allIssueType": "All Issue",
+      "issueType": "Issue type",
+      "allIssueType": "All issues",
       "defectIssue": "Defect",
       "requirementIssue": "Requirement",
       "missionIssue": "Mission",
@@ -201,9 +281,13 @@
       "document": "General document",
       "csv": "CSV format",
       "streamReadType": "Incremental mode",
-      "webHookRead": "Web Hook",
+      "webHookRead": "Webhook",
       "pollingRead": "Polling Read",
-      "doc": "docs/coding_en_US.md"
+      "doc": "docs/coding_en_US.md",
+      "oauth_code": "Authorize",
+      "oauth_title": "Authorize",
+      "oauth_ok": "Authorization successfully",
+      "oauth_msg": "Please authorize before connection test and save"
     },
     "zh_CN": {
       "token": "令牌",
@@ -211,6 +295,7 @@
       "teamName": "团队名称",
       "webHook": "Service Hook",
       "hookButton": "生成服务 URL",
+      "HookLabel": "生成",
       "iterationCodes": "迭代",
       "issueType": "事项类型",
       "allIssueType": "全部事项",
@@ -222,10 +307,14 @@
       "document": "普通文档格式",
       "csv": "CSV格式",
       "streamReadType": "增量方式",
-      "webHookRead": "Web Hook",
+      "webHookRead": "Webhook",
       "pollingRead": "轮询式",
 
-      "doc": "docs/coding_zh_CN.md"
+      "doc": "docs/coding_zh_CN.md",
+      "oauth_code": "授权",
+      "oauth_title": "授权",
+      "oauth_ok": "授权成功",
+      "oauth_msg": "请先授权成功再点击连接测试或保存"
     },
     "zh_TW": {
       "token": "權杖",
@@ -233,6 +322,7 @@
       "teamName": "團隊名稱",
       "webHook": "Service Hook",
       "hookButton": "生成服務URL",
+      "HookLabel": "生成",
       "iterationCodes": "迭代",
       "issueType": "事項类型",
       "allIssueType": "全部事項",
@@ -244,9 +334,14 @@
       "document": "普通文檔格式",
       "csv": "CSV格式",
       "streamReadType": "增量方式",
-      "webHookRead": "Web Hook",
+      "webHookRead": "Webhook",
       "pollingRead": "輪詢式",
-      "doc": "docs/coding_zh_TW.md"
+      "doc": "docs/coding_zh_TW.md",
+
+      "oauth_code": "授權",
+      "oauth_title": "授權",
+      "oauth_ok": "授權成功",
+      "oauth_msg": "請先授權成功再點擊鏈接測試或保存"
     }
   },
   "dataTypes": {
@@ -294,7 +389,7 @@
     },
     "Array": {"to" : "TapArray"},
     "NULL": {
-      "to": "TapRaw"
+      "to": "TapString"
     }
   }
 }
