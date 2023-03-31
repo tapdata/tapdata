@@ -78,8 +78,6 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
     @Autowired
     private UserLogService userLogService;
     @Autowired
-    private UserService userService;
-    @Autowired
     private SettingsService settingsService;
     @Autowired
     private ScheduleTasksService scheduleTasksService;
@@ -580,9 +578,13 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         WorkerDto one = findOne(query);
         if (Objects.nonNull(one)) {
             dto.setHostName(one.getHostname());
-            Optional.ofNullable(one.getTcmInfo()).ifPresent(info -> {
-                dto.setAgentName(info.getAgentName());
-            });
+            dto.setAgentName(one.getHostname());
+
+            if (settingsService.isCloud()) {
+                Optional.ofNullable(one.getTcmInfo()).ifPresent(info -> {
+                    dto.setAgentName(info.getAgentName());
+                });
+            }
         }
         return dto;
     }
