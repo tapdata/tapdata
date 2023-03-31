@@ -104,7 +104,11 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             metadataMap.put(metadataInstancesDto.getQualifiedName(), metadataInstancesDto);
         }
         if (!"database".equals(metadataInstancesDto.getMetaType()) && metadataInstancesDto.getSource() != null && !metadataInstancesDto.getQualifiedName().startsWith("PN")) {
-            metadataMap.put(metadataInstancesDto.getSource().get_id() + metadataInstancesDto.getName(), metadataInstancesDto);
+            String sourceId = metadataInstancesDto.getSource().get_id();
+            if (StringUtils.isBlank(sourceId)) {
+                sourceId = metadataInstancesDto.getSource().getId().toHexString();
+            }
+            metadataMap.put(sourceId + metadataInstancesDto.getName(), metadataInstancesDto);
         }
     }
 

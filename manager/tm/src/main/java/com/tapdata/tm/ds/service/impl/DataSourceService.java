@@ -1701,6 +1701,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 		Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
 		for (DataSourceConnectionDto connectionDto : connectionDtos) {
+			String connId = connectionDto.getId().toHexString();
 			Query query = new Query(Criteria.where("_id").is(connectionDto.getId()));
 			query.fields().include("_id");
 			DataSourceConnectionDto connection = findOne(query);
@@ -1726,7 +1727,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				}
 			}
 
-			conMap.put(connectionDto.getId().toHexString(), connection);
+			conMap.put(connId, connection);
 
 		}
 		return conMap;
