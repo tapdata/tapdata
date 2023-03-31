@@ -28,7 +28,6 @@ public class FileAppender extends BaseTaskAppender<MonitoringLogsDto> {
 	public static final String ONE_GB = "1G";
 	private final Logger logger;
 	private final String workDir;
-	private RollingFileAppender rollingFileAppender;
 
 	private FileAppender(String workDir, String taskId) {
 		super(taskId);
@@ -92,7 +91,7 @@ public class FileAppender extends BaseTaskAppender<MonitoringLogsDto> {
 		DefaultRolloverStrategy strategy = DefaultRolloverStrategy.newBuilder()
 				.withConfig(config).build();
 
-		rollingFileAppender = RollingFileAppender.newBuilder()
+		RollingFileAppender rollingFileAppender = RollingFileAppender.newBuilder()
 				.setName("rollingFileAppender-" + taskId)
 				.withFileName(logsPath + File.separator + taskId + ".log")
 				.withFilePattern(logsPath + File.separator + taskId + ".log.%d{yyyyMMdd}-%i.gz")
