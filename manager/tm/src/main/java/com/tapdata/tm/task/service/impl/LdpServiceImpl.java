@@ -145,6 +145,10 @@ public class LdpServiceImpl implements LdpService {
 
         TaskDto taskDto;
         if (oldTask != null) {
+            sourceTableNames.removeAll(oldTableNames);
+            if (CollectionUtils.isNotEmpty(sourceTableNames)) {
+                task.setLdpNewTables(sourceTableNames);
+            }
             taskDto = taskService.updateById(task, user);
         } else {
             taskDto = taskService.confirmById(task, user, true);
@@ -153,10 +157,6 @@ public class LdpServiceImpl implements LdpService {
         createFdmTags(taskDto, user);
 
         if (oldTask != null) {
-            sourceTableNames.removeAll(oldTableNames);
-            if (CollectionUtils.isNotEmpty(sourceTableNames)) {
-                taskDto.setLdpNewTables(sourceTableNames);
-            }
             if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
                 taskService.pause(taskDto, user, false, true);
             } else {
