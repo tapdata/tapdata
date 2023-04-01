@@ -105,11 +105,14 @@ public class DataSourceController extends BaseController {
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping("{id}")
     public ResponseMessage<DataSourceConnectionDto> updateById(@PathVariable("id") String id, @RequestBody(required = false) DataSourceConnectionDto dataSource) {
+        UserDetail userDetail = getLoginUser();
         if (dataSource == null) {
             dataSource = new DataSourceConnectionDto();
+        } else if (Boolean.FALSE.equals(dataSource.getHeartbeatEnable())) {
+            taskService.deleteHeartbeatByConnId(userDetail, id);
         }
         dataSource.setId(MongoUtils.toObjectId(id));
-        return success(dataSourceService.update(getLoginUser(), dataSource, !(
+        return success(dataSourceService.update(userDetail, dataSource, !(
                 DataSourceEntity.STATUS_TESTING.equals(dataSource.getStatus()) || "loading".equals(dataSource.getLoadFieldsStatus()) // 界面连接测试和加载模型不修改时间
         )));
     }

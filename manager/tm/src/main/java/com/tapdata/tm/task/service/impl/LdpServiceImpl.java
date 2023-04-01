@@ -103,6 +103,15 @@ public class LdpServiceImpl implements LdpService {
                 SyncObjects syncObjects1 = syncObjects.get(0);
                 oldTargetTableNames.addAll(syncObjects1.getObjectNames());
             }
+
+            List<String> newTableNames = databaseNode.getTableNames();
+            if (CollectionUtils.isNotEmpty(newTableNames)) {
+                if (new HashSet<>(oldTableNames).containsAll(newTableNames)) {
+                    throw new BizException("Ldp.FdmSourceTableTaskExist");
+                }
+            }
+
+
             if (StringUtils.isNotBlank(oldSourceNode.getTableExpression())) {
                 mergeAllTable(user, connectionId, oldTask, oldTableNames);
                 task = oldTask;
@@ -469,7 +478,7 @@ public class LdpServiceImpl implements LdpService {
         Node node = targets.get(0);
         String connectionId = ((DataParentNode) node).getConnectionId();
 
-        Criteria metaCriteria = Criteria.where("taskId").is(task.getId().toHexString()).and("source._id").is(connectionId);
+        Criteria metaCriteria = Criteria.where("taskId").is(task.getId().toHexString()).and("source._id").is(connectionId).and("nodeId").is(node.getId());
         Query query = new Query(metaCriteria);
         List<MetadataInstancesDto> metaDatas = metadataInstancesService.findAllDto(query, user);
         if (CollectionUtils.isEmpty(metaDatas)) {

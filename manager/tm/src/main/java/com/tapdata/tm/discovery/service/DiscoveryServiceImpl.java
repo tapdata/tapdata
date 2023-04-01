@@ -956,7 +956,6 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
     @Override
     public Page<DataDirectoryDto> findDataDirectory(DirectoryQueryParam param, UserDetail user) {
-        long time1 = System.currentTimeMillis();
         if (param.getPage() == null) {
             param.setPage(1);
         }
@@ -1020,7 +1019,6 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     Criteria.where("tableName").regex(param.getQueryKey()));
         }
 
-        long time2 = System.currentTimeMillis();
         if (StringUtils.isNotBlank(param.getTagId())) {
             MetadataDefinitionDto definitionDto = metadataDefinitionService.findById(MongoUtils.toObjectId(param.getTagId()));
             if (definitionDto != null) {
@@ -1089,7 +1087,6 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 }
             }
         }
-        long time3 = System.currentTimeMillis();
         long total;
         long metaTotal = 0;
         long taskTotal = 0;
@@ -1101,7 +1098,6 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         total = metaTotal + taskTotal + apiTotal;
 
         long skip = (long) (param.getPage() - 1) * param.getPageSize();
-        long time4 = System.currentTimeMillis();
         List<UnionQueryResult> unionQueryResults = new ArrayList<>();
         if (metaTotal >= skip + param.getPageSize()) {
             if (metaTotal != 0) {
@@ -1222,7 +1218,6 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             }
 
         }
-        long time5 = System.currentTimeMillis();
         if (CollectionUtils.isEmpty(unionQueryResults)) {
             return page;
         }
@@ -1232,13 +1227,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
         page.setItems(items);
         page.setTotal(total);
-        long time6 = System.currentTimeMillis();
 
-        System.out.println("time 1 花费时间" + (time2 - time1) + "毫秒");
-        System.out.println("time 2 花费时间" + (time3 - time2) + "毫秒");
-        System.out.println("time 3 花费时间" + (time4 - time3) + "毫秒");
-        System.out.println("time 4 花费时间" + (time5 - time4) + "毫秒");
-        System.out.println("time 5 花费时间" + (time6 - time5) + "毫秒");
         return page;
     }
 

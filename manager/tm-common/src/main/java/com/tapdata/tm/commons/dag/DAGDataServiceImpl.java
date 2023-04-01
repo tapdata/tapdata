@@ -957,20 +957,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
 
                 update2.setHistories(hisModels);
-                update2.setFields(metadataInstancesDto.getFields());
-                update2.setIndexes(metadataInstancesDto.getIndexes());
-                update2.setIndices(metadataInstancesDto.getIndices());
-                update2.setDeleted(false);
-                update2.setCreateSource(metadataInstancesDto.getCreateSource());
-                update2.setVersion(newVersion);
-                update2.setSourceType(metadataInstancesDto.getSourceType());
-                update2.setQualifiedName(metadataInstancesDto.getQualifiedName());
-                update2.setHasPrimaryKey(metadataInstancesDto.isHasPrimaryKey());
-                update2.setHasUnionIndex(metadataInstancesDto.isHasUnionIndex());
-                update2.setFindPossibleDataTypes(metadataInstancesDto.getFindPossibleDataTypes());
-                update2.setHasUpdateField(metadataInstancesDto.isHasUpdateField());
-                update2.setHasTransformEx(metadataInstancesDto.isHasTransformEx());
-                if (existsMetadataInstance != null && existsMetadataInstance.getId() != null) {
+                BeanUtils.copyProperties(metadataInstancesDto, update2);
+                if (existsMetadataInstance.getId() != null) {
                     metadataInstancesDto.setId(existsMetadataInstance.getId());
                     metadataUpdateMap.put(existsMetadataInstance.getId().toHexString(), update2);
                 }
