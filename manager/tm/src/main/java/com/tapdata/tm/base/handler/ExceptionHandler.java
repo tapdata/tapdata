@@ -136,6 +136,17 @@ public class ExceptionHandler extends BaseController {
 			return listWarnMessage(e, request);
 		}
 
+
+		if ("Ldp.MdmTargetNoPrimaryKey".equals(e.getErrorCode())) {
+			String message = MessageUtil.getMessage(WebUtils.getLocale(request), e.getErrorCode());
+			ResponseMessage<Object> failed = failed(e.getErrorCode(), message);
+			Object[] args = e.getArgs();
+			if (args != null && args.length != 0) {
+				failed.setData(args[0]);
+			}
+			return failed;
+		}
+
 		String message = MessageUtil.getMessage(WebUtils.getLocale(request), e.getErrorCode(), e.getArgs());
 
 
@@ -146,12 +157,6 @@ public class ExceptionHandler extends BaseController {
 
 			failed = failed(e.getErrorCode(), e);
 
-		}
-		if ("Ldp.MdmTargetNoPrimaryKey".equals(e.getErrorCode())) {
-			Object[] args = e.getArgs();
-			if (args != null && args.length != 0) {
-				failed.setData(args[0]);
-			}
 		}
 
 		return failed;
