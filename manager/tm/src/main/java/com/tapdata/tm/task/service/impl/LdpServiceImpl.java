@@ -469,7 +469,7 @@ public class LdpServiceImpl implements LdpService {
         Node node = targets.get(0);
         String connectionId = ((DataParentNode) node).getConnectionId();
 
-        Criteria metaCriteria = Criteria.where("taskId").is(task.getId().toHexString()).and("source._id").is(connectionId);
+        Criteria metaCriteria = Criteria.where("taskId").is(task.getId().toHexString()).and("source._id").is(connectionId).and("nodeId").is(node.getId());
         Query query = new Query(metaCriteria);
         List<MetadataInstancesDto> metaDatas = metadataInstancesService.findAllDto(query, user);
         if (CollectionUtils.isEmpty(metaDatas)) {
