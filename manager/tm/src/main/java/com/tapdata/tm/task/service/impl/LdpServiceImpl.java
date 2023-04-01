@@ -103,6 +103,15 @@ public class LdpServiceImpl implements LdpService {
                 SyncObjects syncObjects1 = syncObjects.get(0);
                 oldTargetTableNames.addAll(syncObjects1.getObjectNames());
             }
+
+            List<String> newTableNames = databaseNode.getTableNames();
+            if (CollectionUtils.isNotEmpty(newTableNames)) {
+                if (new HashSet<>(oldTableNames).containsAll(newTableNames)) {
+                    throw new BizException("Ldp.FdmSourceTableTaskExist");
+                }
+            }
+
+
             if (StringUtils.isNotBlank(oldSourceNode.getTableExpression())) {
                 mergeAllTable(user, connectionId, oldTask, oldTableNames);
                 task = oldTask;
