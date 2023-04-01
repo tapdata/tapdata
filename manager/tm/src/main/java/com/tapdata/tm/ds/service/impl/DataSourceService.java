@@ -649,6 +649,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		}
 	}
 
+
 	/**
 	 * 删除数据源连接
 	 *
@@ -664,28 +665,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		}
 
 		// 如果有心跳任务，先停止后删除
-		List<TaskDto> heartbeatTasks = taskService.findHeartbeatByConnectionId(id, "_id", "status", "is_deleted");
-		if (null != heartbeatTasks) {
-			TaskDto statusDto;
-			for (TaskDto dto : heartbeatTasks) {
-				statusDto = dto;
-				do {
-					if (TaskDto.STATUS_RUNNING.equals(statusDto.getStatus())) {
-						taskService.pause(statusDto.getId(), user, false);
-					} else if (!TaskDto.STATUS_STOPPING.equals(statusDto.getStatus())) {
-						break;
-					}
-					try {
-						Thread.sleep(500);
-					} catch (InterruptedException e) {
-						throw new RuntimeException("Delete heartbeat task failed");
-					}
-					statusDto = taskService.findByTaskId(dto.getId(), "status");
-				} while (null != statusDto);
-
-				taskService.remove(dto.getId(), user);
-			}
-		}
+		taskService.deleteHeartbeatByConnId(user, id);
 
 		//根据数据源id查询所有的jobModel, ModulesModel, dataFlowsModel， 如果存在，则不允许删除connection
 		//将数据源连接删除

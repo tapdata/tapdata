@@ -113,6 +113,7 @@ public class TaskSampleHandler extends AbstractHandler {
                 SNAPSHOT_TABLE_TOTAL,
                 SNAPSHOT_ROW_TOTAL,
                 SNAPSHOT_INSERT_ROW_TOTAL,
+                SNAPSHOT_START_AT,
                 SNAPSHOT_DONE_AT,
                 SNAPSHOT_DONE_COST,
                 CURR_SNAPSHOT_TABLE,
@@ -199,6 +200,7 @@ public class TaskSampleHandler extends AbstractHandler {
         if (retrieveSnapshotDoneAt != null) {
             snapshotDoneAt = retrieveSnapshotDoneAt.longValue();
         }
+
         collector.addSampler(SNAPSHOT_DONE_AT, () -> {
             if (Objects.isNull(snapshotDoneAt)) {
                 sourceNodeHandlers.values().stream()
