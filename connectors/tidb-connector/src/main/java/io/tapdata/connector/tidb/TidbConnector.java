@@ -355,7 +355,9 @@ public class TidbConnector extends CommonDbConnector {
     public void onStop(TapConnectionContext connectionContext) throws Exception {
         ErrorKit.ignoreAnyError(tidbContext::close);
         ErrorKit.ignoreAnyError(tidbConnectionTest::close);
-        ErrorKit.ignoreAnyError(ticdcKafkaService::close);
+				if (EmptyKit.isNotNull(ticdcKafkaService)) {
+					ErrorKit.ignoreAnyError(ticdcKafkaService::close);
+				}
         if (EmptyKit.isNotNull(httpUtil)) {
             if (!httpUtil.isChangeFeedClosed()) {
                 httpUtil.pauseChangefeed(changeFeedId, tidbConfig.getTicdcUrl());
