@@ -93,6 +93,7 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
                 .first("connectionId").as("connectionId")
                 .first("tableName").as("tableName")
                 .first("startCdcTime").as("startCdcTime")
+                .first("firstEventTime").as("firstEventTime")
                 .first("currentEventTime").as("currentEventTime")
                 .first("count").as("count")
                 .first("allCount").as("allCount");
