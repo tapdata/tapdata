@@ -5,7 +5,6 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.dag.service.DAGService;
 import com.tapdata.tm.metadatainstance.dto.MigrateResetTableDto;
 import com.tapdata.tm.metadatainstance.dto.MigrateTableInfoDto;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
@@ -36,7 +35,6 @@ import java.util.stream.Collectors;
 @Setter(onMethod_ = {@Autowired})
 public class MetaMigrateServiceImpl implements MetaMigrateService {
 
-    private DAGService dagService;
     private TaskService taskService;
     private MetadataInstancesService metadataInstancesService;
     private MongoTemplate mongoTemplate;
@@ -61,8 +59,6 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
         if (CollectionUtils.isEmpty(databaseNodes)) {
             return;
         }
-        DatabaseNode sourceNode = dag.getSourceNode(nodeId);
-        DatabaseNode targetNode = dag.getTargetNode(nodeId);
 
         Map<String, MigrateTableInfoDto.Field> fieldMap = tableInfo.getFields().stream()
                 .collect(Collectors.toMap(MigrateTableInfoDto.Field::getFieldName, Function.identity()));
