@@ -49,7 +49,7 @@ public class PermissionController extends BaseController {
 			Locale locale = WebUtils.getLocale(request);
 			entities.forEach(e -> {
 				String message = MessageUtil.getMessage(locale, e.getName());
-				if (!StringUtils.equals(message, e.getName())) {
+				if (StringUtils.isNotEmpty(message) && !StringUtils.equals(message, e.getName())) {
 					e.setDescription(message);
 				}
 			});
