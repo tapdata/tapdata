@@ -321,7 +321,9 @@ public class PostgresConnector extends CommonDbConnector {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
-        ErrorKit.ignoreAnyError(cdcRunner::closeCdcRunner);
+				if (EmptyKit.isNotNull(cdcRunner)) {
+					ErrorKit.ignoreAnyError(cdcRunner::closeCdcRunner);
+				}
         ErrorKit.ignoreAnyError(postgresTest::close);
         ErrorKit.ignoreAnyError(postgresJdbcContext::close);
     }
