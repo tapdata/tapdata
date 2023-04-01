@@ -93,6 +93,9 @@ public class ConnHeartbeatUtils {
             put("pdkHash", heartbeatPdkHash);
         }});
         sourceNode.setName(TABLE_NAME);
+        sourceNode.setNodeConfig(new HashMap<String, Object>() {{
+            put("connId", connectionId);
+        }});
 
         TableNode targetNode = new TableNode();
         targetNode.setId(UUID.randomUUID().toString());
@@ -130,7 +133,6 @@ public class ConnHeartbeatUtils {
         heartbeatConnection.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
         heartbeatConnection.setConfig(new LinkedHashMap<String, Object>() {{
             this.put("mode", MODE);
-            this.put("connId", dataSourceId);
             this.put("initial_totals", 1);
             this.put("incremental_interval", 1000);
             this.put("incremental_interval_totals", 1);
@@ -141,7 +143,6 @@ public class ConnHeartbeatUtils {
                     this.put("pri", true);
                     this.put("name", "id");
                     this.put("type", "string(64)");
-                    this.put("def", dataSourceId);
                 }});
                 add(new HashMap<String, Object>() {{
                     this.put("pri", false);
