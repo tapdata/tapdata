@@ -3938,7 +3938,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         criteria.and("dag.nodes.connectionId").is(connectionId);
         criteria.orOperator(new Criteria().and("dag.nodes.tableName").is(tableName),
                 new Criteria().and("dag.nodes.tableNames").in(tableName),
-                new Criteria().and("dag.nodes.tableNames.currentTableName").is(tableName));
+                new Criteria().and("dag.nodes.syncObjects.objectNames").in(tableName));
         Query query = Query.query(criteria);
         List<TaskDto> list = findAll(query);
         String taskSuccessStatus = "";
