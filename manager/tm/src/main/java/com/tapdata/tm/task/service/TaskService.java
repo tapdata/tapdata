@@ -1202,7 +1202,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 log.warn("stop task exception, task id = {}, e = {}", taskId, e);
                 if (e instanceof BizException) {
                     mutiResponseMessage.setCode(((BizException) e).getErrorCode());
-                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
+                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode(), ((BizException) e).getArgs()));
                 } else {
                     try {
                         ResponseMessage<?> responseMessage = exceptionHandler.handlerException(e, request, response);
@@ -1240,7 +1240,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     if("Clear.Slot".equals((((BizException) e).getErrorCode()))){
                         mutiResponseMessage.setMessage(e.getMessage());
                     }else{
-                        mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
+                        mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode(), ((BizException) e).getArgs()));
                     }
                 } else {
                     try {
@@ -1272,7 +1272,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 log.warn("renew task exception, task id = {}, e = {}", taskId, e);
                 if (e instanceof BizException) {
                     mutiResponseMessage.setCode(((BizException) e).getErrorCode());
-                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
+                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode(), ((BizException) e).getArgs()));
                 } else {
                     try {
                         ResponseMessage<?> responseMessage = exceptionHandler.handlerException(e, request, response);
