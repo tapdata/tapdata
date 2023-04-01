@@ -1,5 +1,6 @@
 package io.tapdata.dummy.po;
 
+import io.tapdata.dummy.utils.TapEventBuilder;
 import io.tapdata.entity.utils.DataMap;
 
 /**
@@ -11,8 +12,18 @@ import io.tapdata.entity.utils.DataMap;
 public class HeartbeatDummyConfig extends DummyConfig {
     public static final String MODE = "ConnHeartbeat";
 
+    private final String connId;
     public HeartbeatDummyConfig(DataMap config) {
         super(config);
+        this.connId = config.getString("connId");
+        if (null == this.connId) {
+            throw new IllegalArgumentException("connection config.connId is null");
+        }
+    }
+
+    @Override
+    public TapEventBuilder getTapEventBuilder() {
+        return new TapEventBuilder(data -> data.put("id", connId));
     }
 
     /**

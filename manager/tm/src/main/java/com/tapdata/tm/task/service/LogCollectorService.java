@@ -76,14 +76,14 @@ public class LogCollectorService {
     private final DataSourceService dataSourceService;
     private final WorkerService workerService;
     private final SettingsService settingsService;
-	@Autowired
+    @Autowired
     private DataSourceDefinitionService dataSourceDefinitionService;
-	@Autowired
+    @Autowired
     private MetadataInstancesService metadataInstancesService;
     @Autowired
     private MonitoringLogsService monitoringLogsService;
-	@Autowired
-	private ExternalStorageService externalStorageService;
+    @Autowired
+    private ExternalStorageService externalStorageService;
 
     public LogCollectorService(TaskService taskService, DataSourceService dataSourceService,
                                WorkerService workerService, SettingsService settingsService) {
@@ -1213,9 +1213,15 @@ public class LogCollectorService {
     }
 
     private List<DataSourceConnectionDto> getConnectionByDag(UserDetail user, DAG dag) {
-        List<Node> sources = dag.getSources();
+        Set<String> connectionIds = new HashSet<>();
+        for (Node n :  dag.getSources()) {
+            if (n instanceof DataParentNode) {
+                Optional.ofNullable(((DataParentNode<?>) n).getConnectionId()).ifPresent(connectionIds::add);
+            } else if (n instanceof LogCollectorNode) {
+                Optional.ofNullable(((LogCollectorNode) n).getConnectionIds()).ifPresent(connectionIds::addAll);
+            }
+        }
 
-        Set<String> connectionIds = sources.stream().map(n -> ((DataParentNode) n).getConnectionId()).collect(Collectors.toSet());
         //查询获取所有源的数据源连接
         Criteria criteria = Criteria.where("_id").in(connectionIds);
         Query query = new Query(criteria);

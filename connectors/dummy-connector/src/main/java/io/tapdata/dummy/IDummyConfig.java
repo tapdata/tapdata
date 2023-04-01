@@ -3,11 +3,13 @@ package io.tapdata.dummy;
 import io.tapdata.dummy.constants.RecordOperators;
 import io.tapdata.dummy.po.DummyConfig;
 import io.tapdata.dummy.po.HeartbeatDummyConfig;
+import io.tapdata.dummy.utils.TapEventBuilder;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -80,6 +82,8 @@ public interface IDummyConfig {
      */
     Boolean isWriteLog();
 
+    TapEventBuilder getTapEventBuilder();
+
     /**
      * Get and check connection config
      *
@@ -92,6 +96,10 @@ public interface IDummyConfig {
         }
 
         if (HeartbeatDummyConfig.isHeartbeat(config)) {
+            Optional.ofNullable(connectionContext.getNodeConfig())
+                    .map(c -> c.getString("connId"))
+                    .map(cid -> config.put("connId", cid));
+
             return new HeartbeatDummyConfig(config);
         } else {
             return new DummyConfig(config);

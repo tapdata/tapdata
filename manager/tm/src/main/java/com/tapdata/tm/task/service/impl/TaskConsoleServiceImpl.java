@@ -56,16 +56,14 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
         //} else if (RelationTaskRequest.type_inspect.equals(request.getType())) {
         } else if (RelationTaskRequest.type_task_by_collector.equals(request.getType())) {
             getTaskByCollector(result, request, taskDto);
-        } else if (RelationTaskRequest.type_ConnHeartbeat.equals(request.getType())) {
-            getHeartbeat(result, request, taskDto);
         } else {
             getLogCollector(connectionIds, result, request, taskDto);
-            getHeartbeat(result, request, taskDto);
 //            getShareCache(connectionIds, result, request, nodes);
 
             result = result.stream().sorted(Comparator.nullsFirst(Comparator.comparing(RelationTaskInfoVo::getStartTime).reversed()))
                     .collect(Collectors.toList());
         }
+        getHeartbeat(result, request, taskDto);
         return result;
     }
 
@@ -136,18 +134,20 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
             return;
         }
 
-        if (StringUtils.isBlank(request.getType()) || TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(request.getType())) {
-                TaskDto heartbeatTaskDto = taskService.findHeartbeatByTaskId(taskDto.getId().toHexString(), "_id", "name", "status", "startTime", "syncType");
-                if (null == heartbeatTaskDto) return;
+        if (StringUtils.isBlank(request.getType())
+                || RelationTaskRequest.type_ConnHeartbeat.equals(request.getType())
+                || RelationTaskRequest.type_task_by_collector.equals(request.getType())) {
+            TaskDto heartbeatTaskDto = taskService.findHeartbeatByTaskId(taskDto.getId().toHexString(), "_id", "name", "status", "startTime", "syncType");
+            if (null == heartbeatTaskDto) return;
 
-                result.add(RelationTaskInfoVo.builder()
-                        .id(heartbeatTaskDto.getId().toHexString())
-                        .name(heartbeatTaskDto.getName())
-                        .status(heartbeatTaskDto.getStatus())
-                        .startTime(Objects.nonNull(heartbeatTaskDto.getStartTime()) ? heartbeatTaskDto.getStartTime().getTime() : null)
-                        .type(heartbeatTaskDto.getSyncType())
-                        .build()
-                );
+            result.add(RelationTaskInfoVo.builder()
+                    .id(heartbeatTaskDto.getId().toHexString())
+                    .name(heartbeatTaskDto.getName())
+                    .status(heartbeatTaskDto.getStatus())
+                    .startTime(Objects.nonNull(heartbeatTaskDto.getStartTime()) ? heartbeatTaskDto.getStartTime().getTime() : null)
+                    .type(heartbeatTaskDto.getSyncType())
+                    .build()
+            );
         }
     }
 
