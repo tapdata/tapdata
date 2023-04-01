@@ -93,6 +93,7 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
                 .first("connectionId").as("connectionId")
                 .first("tableName").as("tableName")
                 .first("startCdcTime").as("startCdcTime")
+                .first("firstEventTime").as("firstEventTime")
                 .first("currentEventTime").as("currentEventTime")
                 .first("count").as("count")
                 .first("allCount").as("allCount");
@@ -178,6 +179,7 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
                     if (null == shareCdcTableMetricsDto.getCurrentEventTime()) {
                         shareCdcTableMetricsDto.setCurrentEventTime(lastShareCdcTableMetrics.getCurrentEventTime());
                     }
+                    shareCdcTableMetricsDto.setFirstEventTime(lastShareCdcTableMetrics.getFirstEventTime());
                 } else {
                     shareCdcTableMetricsDto.setAllCount(shareCdcTableMetricsDto.getCount());
                     if (null == shareCdcTableMetricsDto.getCurrentEventTime()) {
@@ -201,6 +203,9 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
                 Update update = new Update().set("count", shareCdcTableMetricsDto.getCount())
                         .set("allCount", shareCdcTableMetricsDto.getAllCount())
                         .set("currentEventTime", shareCdcTableMetricsDto.getCurrentEventTime());
+                if (null == lastShareCdcTableMetrics.getFirstEventTime() || lastShareCdcTableMetrics.getFirstEventTime() <= 0L) {
+                    update.set("firstEventTime", shareCdcTableMetricsDto.getCurrentEventTime());
+                }
                 repository.update(query, update, userDetail);
                 if (log.isDebugEnabled()) {
                     log.debug("Update share cdc table metrics, query: {}, update: {}", query.getQueryObject().toJson(), update.getUpdateObject().toJson());
