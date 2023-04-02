@@ -79,7 +79,7 @@ public class TaskSettingStrategyImpl implements DagLogStrategy {
                 .collect(Collectors.toMap(con -> con.getId().toHexString(), dto -> dto.getConfig().get("timezone"), (pre, after) -> pre));
         if (!timeZoneMap.isEmpty()) {
             List<Object> sourceTimeZoneList = sourceList.stream().map(timeZoneMap::get).distinct().collect(Collectors.toList());
-            List<Object> targetTimeZoneList = sourceList.stream().map(timeZoneMap::get).distinct().collect(Collectors.toList());
+            List<Object> targetTimeZoneList = targetList.stream().map(timeZoneMap::get).distinct().collect(Collectors.toList());
 
             if (CollectionUtils.isNotEmpty(sourceTimeZoneList)) {
                 sourceTimeZoneList.removeAll(targetTimeZoneList);

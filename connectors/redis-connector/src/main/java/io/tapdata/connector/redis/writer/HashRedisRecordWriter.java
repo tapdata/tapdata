@@ -14,14 +14,11 @@ import java.util.Map;
 
 public class HashRedisRecordWriter extends AbstractRedisRecordWriter {
 
-    private String keyName;
+    private final String keyName;
 
     public HashRedisRecordWriter(RedisContext redisContext, TapTable tapTable) {
         super(redisContext, tapTable);
         keyName = tapTable.getId();
-        if (redisConfig.getOneKey() && EmptyKit.isNotBlank(redisConfig.getKeyTableName())) {
-            keyName = redisConfig.getKeyTableName();
-        }
     }
 
     @Override
@@ -70,7 +67,7 @@ public class HashRedisRecordWriter extends AbstractRedisRecordWriter {
 
     private Map<String, String> toStringMap(Map<String, Object> map) {
         Map<String, String> newMap = new HashMap<>();
-        map.forEach((k, v) -> newMap.put(k, String.valueOf(v)));
+        map.forEach((k, v) -> newMap.put(k, EmptyKit.isNull(v) ? "null" : String.valueOf(v)));
         return newMap;
     }
 

@@ -33,6 +33,11 @@ public class MysqlSqlBatchWriter extends MysqlJdbcWriter {
 		this.mysqlJdbcOneByOneWriter = new MysqlJdbcOneByOneWriter(mysqlJdbcContext, jdbcCacheMap);
 	}
 
+	public void onDestroy() {
+		mysqlJdbcOneByOneWriter.onDestroy();
+		super.onDestroy();
+	}
+
 	@Override
 	public WriteListResult<TapRecordEvent> write(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) throws Throwable {
 		AtomicReference<WriteListResult<TapRecordEvent>> writeListResult = new AtomicReference<>(new WriteListResult<>(0L, 0L, 0L, new HashMap<>()));

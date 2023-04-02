@@ -118,7 +118,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		);
 		try {
 			leftJoinCache.clear();
-			PersistenceStorage.getInstance().destroy(leftJoinCacheMapName);
+			leftJoinCache.destroy();
 		} catch (Exception e) {
 			throw new RuntimeException(String.format("Clear left join cache map occur an error: %s\n map name: %s", e.getMessage(), leftJoinCacheMapName), e);
 		}
@@ -130,7 +130,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		);
 		try {
 			rightJoinCache.clear();
-			PersistenceStorage.getInstance().destroy(rightJoinCacheMapName);
+			rightJoinCache.destroy();
 		} catch (Exception e) {
 			throw new RuntimeException(String.format("Clear right join cache map occur an error: %s\n map name: %s", e.getMessage(), rightJoinCacheMapName), e);
 		}

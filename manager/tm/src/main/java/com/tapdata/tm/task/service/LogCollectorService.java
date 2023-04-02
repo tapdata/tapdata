@@ -61,6 +61,7 @@ import org.springframework.stereotype.Service;
 import javax.annotation.Nullable;
 import java.text.MessageFormat;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -75,14 +76,14 @@ public class LogCollectorService {
     private final DataSourceService dataSourceService;
     private final WorkerService workerService;
     private final SettingsService settingsService;
-	@Autowired
+    @Autowired
     private DataSourceDefinitionService dataSourceDefinitionService;
-	@Autowired
+    @Autowired
     private MetadataInstancesService metadataInstancesService;
     @Autowired
     private MonitoringLogsService monitoringLogsService;
-	@Autowired
-	private ExternalStorageService externalStorageService;
+    @Autowired
+    private ExternalStorageService externalStorageService;
 
     public LogCollectorService(TaskService taskService, DataSourceService dataSourceService,
                                WorkerService workerService, SettingsService settingsService) {
@@ -851,7 +852,7 @@ public class LogCollectorService {
         //查询获取所有源的数据源连接
         Criteria criteria = Criteria.where("_id").in(group.keySet());
         Query query = new Query(criteria);
-        query.fields().include("_id", "shareCdcEnable", "shareCdcTTL", "uniqueName", "database_type", "name", "pdkHash");
+        query.fields().include("_id", "shareCdcEnable", "shareCdcTTL", "uniqueName", "database_type", "name", "pdkHash","shareCDCExternalStorageId");
         List<DataSourceConnectionDto> dataSourceDtos = dataSourceService.findAllDto(query, user);
 
         //根据数据源连接
@@ -974,7 +975,7 @@ public class LogCollectorService {
                 tableNames.addAll(oldTableNames);
                 tableNames = tableNames.stream().distinct().collect(Collectors.toList());
                 logCollectorNode.setTableNames(tableNames);
-                taskService.confirmById(oldLogCollectorTask, user, true);
+                taskService.updateById(oldLogCollectorTask, user);
                 updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
 
                 FunctionUtils.ignoreAnyError(() -> {
@@ -992,7 +993,7 @@ public class LogCollectorService {
             logCollectorNode.setId(UUIDUtil.getUUID());
             logCollectorNode.setConnectionIds(connectionIds);
             logCollectorNode.setDatabaseType(v.get(0).getDatabase_type());
-            logCollectorNode.setName("Shared Mining Source");
+            logCollectorNode.setName(v.get(0).getName());
             logCollectorNode.setTableNames(tableNames);
             logCollectorNode.setSelectType(LogCollectorNode.SELECT_TYPE_RESERVATION);
             Map<String, Object> attr = Maps.newHashMap();
@@ -1001,7 +1002,12 @@ public class LogCollectorService {
 
             HazelCastImdgNode hazelCastImdgNode = new HazelCastImdgNode();
             hazelCastImdgNode.setId(UUIDUtil.getUUID());
-            hazelCastImdgNode.setName("Shared Mining Target");
+            AtomicReference<String> targetName = new AtomicReference<>("Shared Mining Target");
+            Optional.ofNullable(externalStorageService.findById(MongoUtils.toObjectId(dataSource.getShareCDCExternalStorageId()))).ifPresent(externalStorageDto -> {
+                hazelCastImdgNode.setExternaltype(externalStorageDto.getType());
+                targetName.set(externalStorageDto.getName());
+            });
+            hazelCastImdgNode.setName(targetName.get());
 
             List<Node> nodes = Lists.newArrayList(logCollectorNode, hazelCastImdgNode);
 
@@ -1207,9 +1213,15 @@ public class LogCollectorService {
     }
 
     private List<DataSourceConnectionDto> getConnectionByDag(UserDetail user, DAG dag) {
-        List<Node> sources = dag.getSources();
+        Set<String> connectionIds = new HashSet<>();
+        for (Node n :  dag.getSources()) {
+            if (n instanceof DataParentNode) {
+                Optional.ofNullable(((DataParentNode<?>) n).getConnectionId()).ifPresent(connectionIds::add);
+            } else if (n instanceof LogCollectorNode) {
+                Optional.ofNullable(((LogCollectorNode) n).getConnectionIds()).ifPresent(connectionIds::addAll);
+            }
+        }
 
-        Set<String> connectionIds = sources.stream().map(n -> ((DataParentNode) n).getConnectionId()).collect(Collectors.toSet());
         //查询获取所有源的数据源连接
         Criteria criteria = Criteria.where("_id").in(connectionIds);
         Query query = new Query(criteria);

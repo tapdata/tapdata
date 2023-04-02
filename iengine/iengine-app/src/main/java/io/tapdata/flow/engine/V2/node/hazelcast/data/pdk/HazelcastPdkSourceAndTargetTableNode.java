@@ -41,7 +41,6 @@ public class HazelcastPdkSourceAndTargetTableNode extends HazelcastPdkBaseNode {
 
 	@Override
 	public void doInit(@NotNull Context context) throws Exception {
-		Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 		super.doInit(context);
 		this.target.init(context);
 		this.source.init(context);
@@ -52,7 +51,6 @@ public class HazelcastPdkSourceAndTargetTableNode extends HazelcastPdkBaseNode {
 		while (isRunning()) {
 			try {
 				TaskDto taskDto = dataProcessorContext.getTaskDto();
-				Log4jUtil.setThreadContext(taskDto);
 				TapdataEvent dataEvent;
 				AtomicBoolean isPending = new AtomicBoolean();
 				if (pendingEvent != null) {
@@ -91,7 +89,6 @@ public class HazelcastPdkSourceAndTargetTableNode extends HazelcastPdkBaseNode {
 
 	@Override
 	public void doClose() throws Exception {
-		Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 		this.source.close();
 		Optional.ofNullable(this.sourceConsumer).ifPresent(ExecutorService::shutdownNow);
 		this.target.close();
@@ -100,7 +97,6 @@ public class HazelcastPdkSourceAndTargetTableNode extends HazelcastPdkBaseNode {
 
 	@Override
 	public void process(int ordinal, @NotNull Inbox inbox) {
-		Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 		if (null != error) {
 			throw new RuntimeException(error);
 		}

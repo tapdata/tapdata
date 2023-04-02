@@ -238,8 +238,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 item.setSinkQulifiedName(instance.getQualifiedName());
 
                 List<FieldsMapping> fieldsMapping = Lists.newArrayList();
-                if (CollectionUtils.isNotEmpty(instance.getFields())) {
-                    for (Field field : instance.getFields()) {
+                List<Field> fields = instance.getFields().stream().sorted(Comparator.comparing(Field::getColumnPosition)).collect(Collectors.toList());
+                if (CollectionUtils.isNotEmpty(fields)) {
+                    for (Field field : fields) {
                         String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
                         int primaryKey = Objects.isNull(field.getPrimaryKeyPosition()) ? 0 : field.getPrimaryKeyPosition();
 
@@ -356,7 +357,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             }
             item.setSinkObjectName(sinkTableName);
 
-            List<FieldsMapping> fieldsMapping = Lists.newArrayList();
+            List<FieldsMapping> fieldsMapping = new LinkedList<>();
             // set qualifiedName
             String sinkQualifiedName = null;
             if (Objects.nonNull(targetDataSource)) {
@@ -369,7 +370,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
             // || CollectionUtils.isEmpty(metaMap.get(tableName).getFields())
 
-            List<Field> fields = metadataInstancesDto.getFields();
+            List<Field> fields = metadataInstancesDto.getFields().stream().sorted(Comparator.comparing(Field::getColumnPosition)).collect(Collectors.toList());
 
             // TableRenameProcessNode not need fields
             if (!(currentNode instanceof TableRenameProcessNode)) {

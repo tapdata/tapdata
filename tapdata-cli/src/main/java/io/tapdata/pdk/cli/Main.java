@@ -27,6 +27,7 @@ public class Main {
         commandLine.addSubcommand("jar", new JarHijackerCli());
         commandLine.addSubcommand("capabilities", new TapCapabilitiesCli());
         commandLine.addSubcommand("run", new TapPDKRunnerCli());
+        commandLine.addSubcommand("supervisor", new SupervisorCli());
         return commandLine;
     }
 }

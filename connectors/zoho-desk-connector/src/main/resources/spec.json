@@ -3,9 +3,8 @@
     "name": "Zoho-Desk",
     "icon": "icons/zoho.png",
     "doc" : "${doc}",
-    "id": "zoho-desk"
-    "id": "zoho",
-    "authentication": "beta",
+    "id": "zoho-desk",
+    "authentication": "Beta",
     "tags": ["SaaS"]
   },
   "configOptions": {
@@ -484,7 +483,7 @@
     },
     "Array": {"to" : "TapArray"},
     "NULL": {
-      "to": "TapRaw"
+      "to": "TapString"
     }
   }
 }

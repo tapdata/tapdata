@@ -1,6 +1,7 @@
 package io.tapdata.construct.constructImpl;
 
 import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
 import com.hazelcast.ringbuffer.OverflowPolicy;
 import com.hazelcast.ringbuffer.Ringbuffer;
@@ -60,7 +61,10 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> {
 
 	@Override
 	public void destroy() throws Exception {
-		this.ringbuffer.destroy();
+		PersistenceStorage.getInstance().destroy(ConstructType.RINGBUFFER, name);
+		if (null != ringbuffer) {
+			ringbuffer.destroy();
+		}
 	}
 
 	@Override

@@ -447,6 +447,7 @@ public class Connections implements Serializable {
 	private Map<String, Object> extParam;
 
 	private String shareCDCExternalStorageId;
+	private Boolean heartbeatEnable;
 
 	public Connections() {
 	}
@@ -2297,6 +2298,14 @@ public class Connections implements Serializable {
 
 	public void setShareCDCExternalStorageId(String shareCDCExternalStorageId) {
 		this.shareCDCExternalStorageId = shareCDCExternalStorageId;
+	}
+
+	public Boolean getHeartbeatEnable() {
+		return heartbeatEnable;
+	}
+
+	public void setHeartbeatEnable(Boolean heartbeatEnable) {
+		this.heartbeatEnable = heartbeatEnable;
 	}
 }
 

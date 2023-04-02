@@ -7,9 +7,12 @@ import io.tapdata.common.ddl.type.WrapperType;
 import io.tapdata.common.ddl.wrapper.DDLWrapper;
 import io.tapdata.common.ddl.wrapper.DDLWrapperConfig;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
+import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.StringKit;
 import io.tapdata.pdk.apis.entity.Capability;
 
 import java.util.ArrayList;
@@ -51,13 +54,18 @@ public class DDLFactory {
     }
 
     public static <E> void ddlToTapDDLEvent(DDLParserType ddlParserType, String ddl, DDLWrapperConfig config, KVReadOnlyMap<TapTable> tableMap, Consumer<TapDDLEvent> consumer) throws Throwable {
-        DDLType ddlType = DDLFilter.testAndGetType(ddlParserType, ddl);
+        if (EmptyKit.isBlank(ddl)) {
+            return;
+        }
+        String formatDDL = StringKit.removeLastReturn(ddl.trim());
+        DDLType ddlType = DDLFilter.testAndGetType(ddlParserType, formatDDL);
         if (null == ddlType) {
+            TapLogger.warn("DDLFactory", "DDLParser not supported: [{}]", formatDDL);
             return;
         }
         Class<? extends DDLParser<E>> parserClz = (Class<? extends DDLParser<E>>) ddlParserType.getParserClz();
         DDLParser<E> ddlParser = InstanceFactory.bean(parserClz);
-        E parseResult = ddlParser.parse(ddl);
+        E parseResult = ddlParser.parse(formatDDL);
         Class<? extends DDLWrapper<E>>[] ddlWrappers = (Class<? extends DDLWrapper<E>>[]) ddlType.getDdlWrappers();
         for (Class<? extends DDLWrapper<E>> ddlWrapper : ddlWrappers) {
             DDLWrapper<E> ddlWrapperBean = InstanceFactory.bean(ddlWrapper);

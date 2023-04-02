@@ -15,6 +15,8 @@ import com.tapdata.tm.dataflowinsight.entity.DataFlowInsightEntity;
 import com.tapdata.tm.dataflowinsight.repository.DataFlowInsightRepository;
 import com.tapdata.tm.utils.MapUtils;
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
+
+import java.math.BigInteger;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
@@ -33,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -533,83 +536,6 @@ public class DataFlowInsightService extends BaseService<DataFlowInsightDto, Data
                 .limit(21);
 //        return userDetail != null ? convertToDto(findAll(query, userDetail), DataFlowInsightDto.class) : findAll(query);
         return findAll(query);
-    }
-
-    /**
-     * 当日：按照小时的粒度来展示，当日每小时的输入数据量
-     * 最近一周：按照天的粒度来展示，最近一周（当前日期往后推7天）每天的输入数据量
-     * 最近一月：按照天的粒度来展示，最近一个月（当前日期往后推30天）每天的输入数据量
-     *
-     * @param type 当日:day, 最近一周:week, 最近一月:month
-     **/
-    public DataFlowInsightStatisticsDto statistics(String type, UserDetail userDetail) {
-
-        DataFlowInsightStatisticsDto dataFlowInsightStatisticsDto = new DataFlowInsightStatisticsDto();
-        dataFlowInsightStatisticsDto.setGranularity(type);
-        String granularity;
-        DateTimeFormatter formatter, dateTimeFormatter;
-        LocalDate localDate = LocalDate.now();
-        int size;
-        ChronoUnit chronoUnit;
-        switch (type) {
-            case "day":
-                granularity = "hour";
-                localDate = localDate.minusDays(1);
-                formatter = DateTimeFormatter.ofPattern("yyyyMMddHH0000");
-                dateTimeFormatter = DateTimeFormatter.ofPattern("HH:00");
-                size = 24;
-                chronoUnit = ChronoUnit.HOURS;
-                break;
-            case "week":
-                granularity = "day";
-                localDate = localDate.minusDays(7);
-                formatter = DateTimeFormatter.ofPattern("yyyyMMdd000000");
-                dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-                size = 7;
-                chronoUnit = ChronoUnit.DAYS;
-                break;
-            case "month":
-                granularity = "day";
-                localDate = localDate.minusDays(30);
-                formatter = DateTimeFormatter.ofPattern("yyyyMMdd000000");
-                dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-                size = 30;
-                chronoUnit = ChronoUnit.DAYS;
-                break;
-            default:
-                return dataFlowInsightStatisticsDto;
-        }
-
-        Query query = new Query();
-        query.fields().include("stats.input.rows");
-        List<DataFlow> dataFlows = dataFlowService.findAll(query, userDetail);
-        List<String> dataFlowIdList = new ArrayList<>();
-        AtomicLong totalInputDataCount = new AtomicLong();
-        // dataFlow的stats中input.rows为0的不需要统计
-        dataFlows.stream().filter(dataFlow -> dataFlow.getStats() != null).forEach(dataFlow -> {
-            String rows = MapUtils.getAsStringByPath(dataFlow.getStats(), "/input/rows");
-            if (StringUtils.isBlank(rows) || Long.parseLong(rows) == 0) {
-                return;
-            }
-            totalInputDataCount.addAndGet(Long.parseLong(rows));
-            dataFlowIdList.add(dataFlow.getId().toHexString());
-        });
-        Map<String, Long> dataStatistics = new HashMap<>();
-        double ceil = Math.ceil(dataFlowIdList.size() / 50.0);
-        for (int i = 0; i < ceil; i++) {
-            setInputDataStatistics(dataFlowIdList.subList(i * 50, Math.min((i + 1) * 50, dataFlowIdList.size())), localDate, granularity, size, dataStatistics);
-        }
-
-        LocalDateTime localDateTime = LocalDateTime.of(LocalDate.now(), LocalTime.MAX);
-        List<DataFlowInsightStatisticsDto.DataStatisticInfo> dataStatisticInfos = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            dataStatisticInfos.add(new DataFlowInsightStatisticsDto.DataStatisticInfo(localDateTime.format(dateTimeFormatter), dataStatistics.getOrDefault(localDateTime.format(formatter), 0L)));
-            localDateTime = localDateTime.minus(1, chronoUnit);
-        }
-        dataStatisticInfos.sort(Comparator.comparing(DataFlowInsightStatisticsDto.DataStatisticInfo::getTime));
-        dataFlowInsightStatisticsDto.setInputDataStatistics(dataStatisticInfos);
-        dataFlowInsightStatisticsDto.setTotalInputDataCount(totalInputDataCount.get());
-        return dataFlowInsightStatisticsDto;
     }
 
     private void setInputDataStatistics(List<String> dataFlowIdList, LocalDate localDate, String granularity, int size, Map<String, Long> dataStatistics){

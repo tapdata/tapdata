@@ -73,11 +73,6 @@ public class BytesIMap<T> extends ConstructIMap<T> {
     }
 
     @Override
-    public void clear() throws Exception {
-        iMap.clear();
-    }
-
-    @Override
     public boolean isEmpty() {
         if (null == this.iMap) {
             return true;

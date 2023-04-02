@@ -31,6 +31,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import javax.print.DocFlavor;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -62,6 +63,8 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
     }
 
     public Page<ShareCdcTableMetricsDto> getPageInfo(String taskId, String nodeId, String tableTaskId, String keyword, int page, int size) {
+        size = Math.min(size, 100);
+
         Criteria criteria = Criteria.where("taskId").is(taskId);
         if (StringUtils.isNotBlank(nodeId)) {
             criteria.and("nodeId").is(nodeId);
@@ -90,16 +93,18 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
                 .first("connectionId").as("connectionId")
                 .first("tableName").as("tableName")
                 .first("startCdcTime").as("startCdcTime")
+                .first("firstEventTime").as("firstEventTime")
                 .first("currentEventTime").as("currentEventTime")
                 .first("count").as("count")
                 .first("allCount").as("allCount");
-        AggregationResults<ShareCdcTableMetricsVo> tableMetrics = mongoTemplate.aggregate(Aggregation.newAggregation(match, sort, group), "ShareCdcTableMetrics", ShareCdcTableMetricsVo.class);
-        if (CollectionUtils.isEmpty(tableMetrics.getMappedResults())) {
+        List<String> tableNameList = mongoTemplate.findDistinct(Query.query(criteria), "tableName", ShareCdcTableMetricsEntity.class, String.class);
+
+        if (CollectionUtils.isEmpty(tableNameList)) {
             return new Page<>(0, Lists.newArrayList());
         }
         SkipOperation skip = Aggregation.skip(page - 1);
         LimitOperation limit = Aggregation.limit(size);
-        Aggregation aggregation = Aggregation.newAggregation(match, sort, group, skip, limit);
+        Aggregation aggregation = Aggregation.newAggregation(match, sort, group, sort, skip, limit);
         AggregationResults<ShareCdcTableMetricsVo> metrics = mongoTemplate.aggregate(aggregation, "ShareCdcTableMetrics", ShareCdcTableMetricsVo.class);
         List<ShareCdcTableMetricsVo> list = metrics.getMappedResults();
 
@@ -114,7 +119,7 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
             return copy;
         }).collect(Collectors.toList());
 
-        return new Page<>(tableMetrics.getMappedResults().size(), result);
+        return new Page<>(tableNameList.size(), result);
     }
 
     public List<ShareCdcTableMetricsVo> getCollectInfoByTaskId(String taskId) {
@@ -174,6 +179,7 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
                     if (null == shareCdcTableMetricsDto.getCurrentEventTime()) {
                         shareCdcTableMetricsDto.setCurrentEventTime(lastShareCdcTableMetrics.getCurrentEventTime());
                     }
+                    shareCdcTableMetricsDto.setFirstEventTime(lastShareCdcTableMetrics.getFirstEventTime());
                 } else {
                     shareCdcTableMetricsDto.setAllCount(shareCdcTableMetricsDto.getCount());
                     if (null == shareCdcTableMetricsDto.getCurrentEventTime()) {
@@ -197,6 +203,9 @@ public class ShareCdcTableMetricsService extends BaseService<ShareCdcTableMetric
                 Update update = new Update().set("count", shareCdcTableMetricsDto.getCount())
                         .set("allCount", shareCdcTableMetricsDto.getAllCount())
                         .set("currentEventTime", shareCdcTableMetricsDto.getCurrentEventTime());
+                if (null == lastShareCdcTableMetrics.getFirstEventTime() || lastShareCdcTableMetrics.getFirstEventTime() <= 0L) {
+                    update.set("firstEventTime", shareCdcTableMetricsDto.getCurrentEventTime());
+                }
                 repository.update(query, update, userDetail);
                 if (log.isDebugEnabled()) {
                     log.debug("Update share cdc table metrics, query: {}, update: {}", query.getQueryObject().toJson(), update.getUpdateObject().toJson());

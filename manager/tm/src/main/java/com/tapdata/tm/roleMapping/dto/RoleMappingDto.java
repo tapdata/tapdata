@@ -25,4 +25,13 @@ public class RoleMappingDto extends BaseDto {
 
     @JsonProperty("self_only")
     private Boolean selfOnly;
+
+    public RoleMappingDto() {
+    }
+
+    public RoleMappingDto(String principalType, String principalId, ObjectId roleId) {
+        this.principalType = principalType;
+        this.principalId = principalId;
+        this.roleId = roleId;
+    }
 }

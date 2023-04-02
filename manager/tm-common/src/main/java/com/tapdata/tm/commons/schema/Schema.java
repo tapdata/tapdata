@@ -109,7 +109,7 @@ public class Schema implements Cloneable, Serializable {
 
     private boolean hasPrimaryKey;
     private boolean hasUnionIndex;
-    private List<ResultItem> resultItems;
+    private boolean hasTransformEx;
     private Map<String, PossibleDataTypes> findPossibleDataTypes;
     private boolean hasUpdateField;
 

@@ -21,6 +21,8 @@
         <sql.core.version>1.0-SNAPSHOT</sql.core.version>
         <debezium.version>1.5.4.Final</debezium.version>
         <postgres.core.version>1.0-SNAPSHOT</postgres.core.version>
+        <tapdata.pdk.api.verison>1.2.2-SNAPSHOT</tapdata.pdk.api.verison>
+
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -61,6 +63,7 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-api</artifactId>
+            <version>${tapdata.pdk.api.verison}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>

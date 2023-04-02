@@ -1,7 +1,6 @@
 package io.tapdata.oceanbase.connector;
 
 import io.tapdata.common.CommonDbConnector;
-import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -11,7 +10,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.oceanbase.*;
 import io.tapdata.oceanbase.bean.OceanbaseConfig;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
@@ -19,8 +18,10 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import org.apache.commons.lang3.StringUtils;
 
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -53,7 +54,7 @@ public class OceanbaseConnector extends CommonDbConnector {
      * @param consumer
      */
     @Override
-    public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
+    public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws SQLException {
         OceanbaseSchemaLoader oceanbaseSchemaLoader = new OceanbaseSchemaLoader(oceanbaseJdbcContext);
         oceanbaseSchemaLoader.discoverSchema(tables, consumer, tableSize);
     }
@@ -167,7 +168,7 @@ public class OceanbaseConnector extends CommonDbConnector {
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
-        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> oceanbaseJdbcContext.getConnection(), c));
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> oceanbaseJdbcContext.getConnection(), this::isAlive, c));
         connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
     }
 
@@ -197,13 +198,13 @@ public class OceanbaseConnector extends CommonDbConnector {
      * @param filters          Multple fitlers, need return multiple filter results
      * @param listConsumer     tell incremental engine the filter results according to filters
      */
-    private void queryByFilter(TapConnectorContext connectorContext, List<TapFilter> filters, TapTable tapTable, Consumer<List<FilterResult>> listConsumer) throws Throwable {
+    protected void queryByFilter(TapConnectorContext connectorContext, List<TapFilter> filters, TapTable tapTable, Consumer<List<FilterResult>> listConsumer) {
         //Filter is exactly match.
         //If query by the filter, no value is in database, please still create a FilterResult with null value in it. So that incremental engine can understand the filter has no value.
         this.oceanbaseJdbcContext.queryByFilter(connectorContext, filters, tapTable, listConsumer);
     }
 
-    private void dropTable(TapConnectorContext connectorContext, TapDropTableEvent dropTableEvent) throws Throwable {
+    protected void dropTable(TapConnectorContext connectorContext, TapDropTableEvent dropTableEvent) throws SQLException {
         oceanbaseJdbcContext.dropTable(dropTableEvent.getTableId());
     }
 
@@ -236,12 +237,11 @@ public class OceanbaseConnector extends CommonDbConnector {
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
         oceanbaseConfig = new OceanbaseConfig().load(tapConnectionContext.getConnectionConfig());
-        if (EmptyKit.isNull(oceanbaseJdbcContext) || oceanbaseJdbcContext.isFinish()) {
-            oceanbaseJdbcContext = (OceanbaseJdbcContext) DataSourcePool.getJdbcContext(oceanbaseConfig, OceanbaseJdbcContext.class, tapConnectionContext.getId());
-            oceanbaseJdbcContext.setTapConnectionContext(tapConnectionContext);
-        }
+        oceanbaseJdbcContext = new OceanbaseJdbcContext(oceanbaseConfig);
+        oceanbaseJdbcContext.setTapConnectionContext(tapConnectionContext);
         commonDbConfig = oceanbaseConfig;
         jdbcContext = oceanbaseJdbcContext;
+
         if (tapConnectionContext instanceof TapConnectorContext) {
             this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
             if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
@@ -260,10 +260,15 @@ public class OceanbaseConnector extends CommonDbConnector {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
-        try {
-            oceanbaseWriter.close();
-        } catch (Exception e) {
-            TapLogger.warn(TAG, "close writer failed: {}", e.getMessage());
-        }
+        ErrorKit.ignoreAnyError(oceanbaseJdbcContext::close);
+        ErrorKit.ignoreAnyError(oceanbaseWriter::close);
+    }
+
+    private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
+        DataMap dataMap = oceanbaseJdbcContext.getTableInfo(tableName);
+        TableInfo tableInfo = TableInfo.create();
+        tableInfo.setNumOfRows(Long.valueOf(dataMap.getString("TABLE_ROWS")));
+        tableInfo.setStorageSize(Long.valueOf(dataMap.getString("DATA_LENGTH")));
+        return tableInfo;
     }
 }

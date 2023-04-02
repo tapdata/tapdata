@@ -39,7 +39,7 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
 	private static final String REPLACE_INTO_SQL_TEMPLATE = "REPLACE INTO `%s`.`%s`(%s) values %s";
 	private static final DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSSSS");
 	private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS");
-	protected Map<String, JdbcCache> jdbcCacheMap;
+	protected final Map<String, JdbcCache> jdbcCacheMap;
 
 	public MysqlJdbcWriter(MysqlJdbcContext mysqlJdbcContext) throws Throwable {
 		super(mysqlJdbcContext);
@@ -356,6 +356,11 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
 			this.updateMap.clear();
 			this.deleteMap.clear();
 			this.checkExistsMap.clear();
+			try {
+				connection.close();
+			} catch (Throwable e) {
+				TapLogger.warn(TAG, "Close JdbcCache connection failed: " + e.getMessage());
+			}
 		}
 	}
 }

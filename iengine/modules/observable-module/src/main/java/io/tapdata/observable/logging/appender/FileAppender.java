@@ -16,58 +16,64 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 
 import java.io.File;
-import java.io.Serializable;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author jackin
  * @date 2022/6/21 18:36
  **/
-public class FileAppender implements Appender<MonitoringLogsDto>, Serializable {
-	private final static String LOGGER_NAME_PREFIX = "observe-logger-name";
+public class FileAppender extends BaseTaskAppender<MonitoringLogsDto> {
+	public static final String LOGGER_NAME_PREFIX = "job-file-log-";
 	public static final String LOG_PATH = "logs" + File.separator + "jobs";
 	public static final String ONE_GB = "1G";
+	private final Logger logger;
+	private final String workDir;
 
-	private Logger logger;
-	private String workDir;
-	private Map<String, RollingFileAppender> rollingFileAppenderMap;
-
-	public FileAppender(String workDir) {
+	private FileAppender(String workDir, String taskId) {
+		super(taskId);
 		this.workDir = workDir;
-		this.logger = LogManager.getLogger(LOGGER_NAME_PREFIX);
+		this.logger = LogManager.getLogger(LOGGER_NAME_PREFIX + taskId);
 		Configurator.setLevel(LOGGER_NAME_PREFIX, Level.DEBUG);
+	}
+
+	public static FileAppender create(String workDir, String taskId) {
+		return new FileAppender(workDir, taskId);
+	}
+
+	@Override
+	public void append(MonitoringLogsDto log) {
+		final String level = log.getLevel();
+		switch (level) {
+			case "DEBUG":
+				logger.debug(log.formatMonitoringLogMessage());
+				break;
+			case "INFO":
+				logger.info(log.formatMonitoringLogMessage());
+				break;
+			case "WARN":
+				logger.warn(log.formatMonitoringLogMessage());
+				break;
+			case "ERROR":
+				logger.error(log.formatMonitoringLogMessage());
+				break;
+			case "FATAL":
+				logger.fatal(log.formatMonitoringLogMessage());
+				break;
+		}
 	}
 
 	@Override
 	public void append(List<MonitoringLogsDto> logs) {
 		for (MonitoringLogsDto log : logs) {
-			final String level = log.getLevel();
-			switch (level) {
-				case "DEBUG":
-					logger.debug(log.formatMonitoringLogMessage());
-					break;
-				case "INFO":
-					logger.info(log.formatMonitoringLogMessage());
-					break;
-				case "WARN":
-					logger.warn(log.formatMonitoringLogMessage());
-					break;
-				case "ERROR":
-					logger.error(log.formatMonitoringLogMessage());
-					break;
-				case "FATAL":
-					logger.fatal(log.formatMonitoringLogMessage());
-					break;
-			}
+			append(log);
 		}
 	}
 
-	public void addRollingFileAppender(String taskId) {
+	@Override
+	public void start() {
 		StringBuilder logsPath = new StringBuilder();
 		if (StringUtils.isNotBlank(workDir)) {
-			logsPath.append(workDir).append(LOG_PATH);
+			logsPath.append(workDir).append(File.separator).append(LOG_PATH);
 		} else {
 			logsPath.append(LOG_PATH);
 		}
@@ -87,8 +93,8 @@ public class FileAppender implements Appender<MonitoringLogsDto>, Serializable {
 
 		RollingFileAppender rollingFileAppender = RollingFileAppender.newBuilder()
 				.setName("rollingFileAppender-" + taskId)
-				.withFileName(logsPath + "/observe-log-" + taskId + ".log")
-				.withFilePattern(logsPath + "/observe-log-" + taskId + ".log.%d{yyyyMMdd}-%i.gz")
+				.withFileName(logsPath + File.separator + taskId + ".log")
+				.withFilePattern(logsPath + File.separator + taskId + ".log.%d{yyyyMMdd}-%i.gz")
 				.setLayout(patternLayout)
 				.withPolicy(compositeTriggeringPolicy)
 				.withStrategy(strategy)
@@ -97,22 +103,12 @@ public class FileAppender implements Appender<MonitoringLogsDto>, Serializable {
 		org.apache.logging.log4j.core.Logger coreLogger = (org.apache.logging.log4j.core.Logger) logger;
 		coreLogger.addAppender(rollingFileAppender);
 //		coreLogger.setAdditive(false);
-
-		if (null == rollingFileAppenderMap) {
-			rollingFileAppenderMap = new ConcurrentHashMap<>();
-		}
-		rollingFileAppenderMap.putIfAbsent(taskId, rollingFileAppender);
 	}
 
-	public void removeRollingFileAppender(String taskId) {
-		rollingFileAppenderMap.computeIfPresent(taskId, (k, v) -> {
-			org.apache.logging.log4j.core.Logger coreLogger = (org.apache.logging.log4j.core.Logger) logger;
-			RollingFileAppender appender = rollingFileAppenderMap.get(k);
-			appender.stop();
-			appender.getManager().close();
-			coreLogger.removeAppender(appender);
-
-			return null;
-		});
+	@Override
+	public void stop() {
+		if (null != logger) {
+			removeAppenders((org.apache.logging.log4j.core.Logger) logger);
+		}
 	}
 }

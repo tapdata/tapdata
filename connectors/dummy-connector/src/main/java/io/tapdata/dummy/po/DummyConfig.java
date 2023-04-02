@@ -3,9 +3,9 @@ package io.tapdata.dummy.po;
 import io.tapdata.dummy.IDummyConfig;
 import io.tapdata.dummy.constants.RecordOperators;
 import io.tapdata.dummy.utils.DummyUtils;
+import io.tapdata.dummy.utils.TapEventBuilder;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 
 import java.util.*;
@@ -127,5 +127,10 @@ public class DummyConfig implements IDummyConfig {
     public Boolean isWriteLog() {
         Object val = config.getObject("write_log");
         return Boolean.TRUE.equals(val);
+    }
+
+    @Override
+    public TapEventBuilder getTapEventBuilder() {
+        return new TapEventBuilder();
     }
 }

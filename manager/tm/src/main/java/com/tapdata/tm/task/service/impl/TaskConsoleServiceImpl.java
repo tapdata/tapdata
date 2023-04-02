@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @Setter(onMethod_ = {@Autowired})
@@ -55,16 +56,14 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
         //} else if (RelationTaskRequest.type_inspect.equals(request.getType())) {
         } else if (RelationTaskRequest.type_task_by_collector.equals(request.getType())) {
             getTaskByCollector(result, request, taskDto);
-        } else if (RelationTaskRequest.type_ConnHeartbeat.equals(request.getType())) {
-            getHeartbeat(result, request, taskDto);
         } else {
             getLogCollector(connectionIds, result, request, taskDto);
-            getHeartbeat(result, request, taskDto);
 //            getShareCache(connectionIds, result, request, nodes);
 
             result = result.stream().sorted(Comparator.nullsFirst(Comparator.comparing(RelationTaskInfoVo::getStartTime).reversed()))
                     .collect(Collectors.toList());
         }
+        getHeartbeat(result, request, taskDto);
         return result;
     }
 
@@ -135,18 +134,20 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
             return;
         }
 
-        if (StringUtils.isBlank(request.getType()) || TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(request.getType())) {
-                TaskDto heartbeatTaskDto = taskService.findHeartbeatByTaskId(taskDto.getId().toHexString(), "_id", "name", "status", "startTime", "syncType");
-                if (null == heartbeatTaskDto) return;
+        if (StringUtils.isBlank(request.getType())
+                || RelationTaskRequest.type_ConnHeartbeat.equals(request.getType())
+                || RelationTaskRequest.type_task_by_collector.equals(request.getType())) {
+            TaskDto heartbeatTaskDto = taskService.findHeartbeatByTaskId(taskDto.getId().toHexString(), "_id", "name", "status", "startTime", "syncType");
+            if (null == heartbeatTaskDto) return;
 
-                result.add(RelationTaskInfoVo.builder()
-                        .id(heartbeatTaskDto.getId().toHexString())
-                        .name(heartbeatTaskDto.getName())
-                        .status(heartbeatTaskDto.getStatus())
-                        .startTime(Objects.nonNull(heartbeatTaskDto.getStartTime()) ? heartbeatTaskDto.getStartTime().getTime() : null)
-                        .type(heartbeatTaskDto.getSyncType())
-                        .build()
-                );
+            result.add(RelationTaskInfoVo.builder()
+                    .id(heartbeatTaskDto.getId().toHexString())
+                    .name(heartbeatTaskDto.getName())
+                    .status(heartbeatTaskDto.getStatus())
+                    .startTime(Objects.nonNull(heartbeatTaskDto.getStartTime()) ? heartbeatTaskDto.getStartTime().getTime() : null)
+                    .type(heartbeatTaskDto.getSyncType())
+                    .build()
+            );
         }
     }
 
@@ -155,12 +156,10 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
             return;
         }
 
-        Map<String, List<ShareCdcTableMetricsVo>> collectMap;
+        List<String> tableNames = null;
         List<ShareCdcTableMetricsVo> collectList = shareCdcTableMetricsService.getCollectInfoByTaskId(request.getTaskId());
         if (CollectionUtils.isNotEmpty(collectList)) {
-            collectMap = collectList.stream().collect(Collectors.groupingBy(ShareCdcTableMetricsVo::getConnectionId));
-        } else {
-            collectMap = null;
+            tableNames = collectList.stream().map(ShareCdcTableMetricsVo::getTableName).collect(Collectors.toList());
         }
 
         List<String> connectionIds = taskDto.getDag().getSources().stream().filter(s -> s instanceof LogCollectorNode)
@@ -196,12 +195,23 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
                 logRelation.setCreateDate(taskInfo.getCreateAt());
                 logRelation.setSyncType(taskInfo.getSyncType());
 
-                if (Objects.isNull(collectMap)) {
+                if (Objects.isNull(tableNames)) {
                     logRelation.setTableNum(0);
                 } else {
-                    long count = taskInfo.getDag().getSourceNodes().stream()
-                            .filter(node -> collectMap.containsKey(((DataParentNode) node).getConnectionId()))
-                            .mapToLong(node -> collectMap.get(((DataParentNode) node).getConnectionId()).size()).sum();
+                    List<String> finalTableNames = tableNames;
+                    Integer count = taskInfo.getDag().getSourceNodes().stream()
+                            .map(node -> {
+                                if (node instanceof TableNode) {
+                                    if (finalTableNames.contains(((TableNode) node).getTableName())) {
+                                        return 1;
+                                    }
+                                } else if (node instanceof DatabaseNode) {
+                                    List<String> names = ((DatabaseNode) node).getTableNames();
+                                    names.retainAll(finalTableNames);
+                                    return names.size();
+                                }
+                                return 0;
+                            }).reduce(0, Integer::sum);
                     logRelation.setTableNum(count);
                 }
             }

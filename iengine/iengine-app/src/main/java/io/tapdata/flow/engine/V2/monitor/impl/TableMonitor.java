@@ -8,6 +8,8 @@ import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.node.pdk.ConnectorNodeService;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
@@ -35,8 +37,7 @@ import java.util.stream.Collectors;
  * @Description
  * @create 2022-07-21 16:04
  **/
-public class TableMonitor implements Monitor<TableMonitor.TableResult> {
-	private final Logger logger = LogManager.getLogger(TableMonitor.class);
+public class TableMonitor extends TaskMonitor<TableMonitor.TableResult> {
 	public static final long AWAIT_SECOND = 10L;
 	public static final long PERIOD_SECOND = 60L;
 	public static final String TAG = TableMonitor.class.getSimpleName();
@@ -46,13 +47,13 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 	private ReentrantLock lock;
 	private ScheduledExecutorService threadPool;
 	private TableResult tableResult;
-	private TaskDto taskDto;
 	private Set<String> removeTables;
 	private Connections connections;
 
 	private Predicate<String> dynamicTableFilter;
 
 	public TableMonitor(TapTableMap<String, TapTable> tapTableMap, String associateId, TaskDto taskDto, Connections connections, Predicate<String> dynamicTableFilter) {
+		super(taskDto);
 		if (null == tapTableMap) {
 			throw new RuntimeException("Missing Tap Table Map");
 		}
@@ -61,7 +62,6 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 		}
 		this.tapTableMap = tapTableMap;
 		this.associateId = associateId;
-		this.taskDto = taskDto;
 		this.connections = connections;
 		this.lock = new ReentrantLock();
 		this.threadPool = new ScheduledThreadPoolExecutor(1);
@@ -90,7 +90,6 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 		threadPool.scheduleAtFixedRate(() -> {
 			ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
 			Thread.currentThread().setName("Table-Monitor-" + connectorNode.getAssociateId());
-			Log4jUtil.setThreadContext(taskDto);
 			try {
 				while (true) {
 					try {

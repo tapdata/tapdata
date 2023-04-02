@@ -15,6 +15,7 @@ import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.FullDocument;
 import com.mongodb.client.model.changestream.OperationType;
+import com.mongodb.client.model.changestream.UpdateDescription;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -38,6 +39,7 @@ import org.bson.codecs.DecoderContext;
 import org.bson.codecs.DocumentCodec;
 import org.bson.conversions.Bson;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -165,15 +167,33 @@ public class MongodbV4StreamReader implements MongodbStreamReader {
 								continue;
 							}
 						}
+
 						if (event.getDocumentKey() != null) {
 							after.putAll(fullDocument);
 
 							TapUpdateRecordEvent recordEvent = updateDMLEvent(null, after, collectionName);
+							Map<String, Object> info = new DataMap();
+							Map<String, Object> unset = new DataMap();
+							UpdateDescription updateDescription = event.getUpdateDescription();
+							if (updateDescription != null) {
+								for (String f:updateDescription.getRemovedFields()) {
+									if (!after.containsKey(f)) {
+										unset.put(f, true);
+									}
+								}
+								if (unset.size() > 0) {
+									info.put("$unset", unset);
+								}
+							}
+							recordEvent.setInfo(info);
 							recordEvent.setReferenceTime((long) (event.getClusterTime().getTime()) * 1000);
 							tapEvents.add(recordEvent);
 						} else {
 							throw new RuntimeException(String.format("Document key is null, failed to update. %s", event));
 						}
+
+
+
 
 						// The default mode FullDocument.DEFAULT indicates that the reverse lookup phase is entered
 						// and need to switch to FullDocument.UPDATE_LOOKUP

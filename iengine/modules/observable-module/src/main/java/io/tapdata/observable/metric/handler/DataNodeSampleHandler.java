@@ -1,9 +1,7 @@
 package io.tapdata.observable.metric.handler;
 
+import com.tapdata.entity.TapdataEvent;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.executor.ExecutorsManager;
@@ -12,6 +10,7 @@ import io.tapdata.common.sample.sampler.AverageSampler;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.NumberSampler;
 import io.tapdata.common.sample.sampler.WriteCostAvgSampler;
+import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.observable.metric.aspect.ConnectionPingAspect;
@@ -33,6 +32,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -60,6 +60,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		super(task, node);
 	}
 
+	private final AtomicLong tableTotal = new AtomicLong();
 	private CounterSampler snapshotTableCounter;
 	private CounterSampler snapshotRowCounter;
 	private CounterSampler snapshotInsertRowCounter;
@@ -70,7 +71,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	private final Set<String> nodeTables = new HashSet<>();
 
 	private String currentSnapshotTable = null;
-	private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
+	private Long currentSnapshotTableRowTotal = null;
 	private Long currentSnapshotTableInsertRowTotal = null;
 
 	private Long snapshotStartAt = null;
@@ -99,7 +100,17 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		super.doInit(values);
 
 		// table samples for node
-		collector.addSampler(TABLE_TOTAL, nodeTables::size);
+		collector.addSampler(TABLE_TOTAL, () -> {
+			if (CollectionUtils.isNotEmpty(nodeTables)) {
+				if (Objects.nonNull(snapshotTableCounter.value())) {
+					tableTotal.set(Math.max(snapshotTableCounter.value().longValue(), nodeTables.size()));
+				} else {
+					tableTotal.set(nodeTables.size());
+				}
+			}
+			return tableTotal.get();
+		});
+
 		snapshotTableCounter = getCounterSampler(values, SNAPSHOT_TABLE_TOTAL);
 		snapshotRowCounter = getCounterSampler(values, SNAPSHOT_ROW_TOTAL);
 		snapshotInsertRowCounter = getCounterSampler(values, SNAPSHOT_INSERT_ROW_TOTAL);
@@ -122,19 +133,8 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 			Collection<Long> timeList = tableSnapshotDoneAtMap.values();
 			timeList.removeAll(Collections.singleton(null));
 
-			int tableSize = 0;
-			if (node instanceof DatabaseNode) {
-				DatabaseNode databaseNode= (DatabaseNode) node;
-				if (CollectionUtils.isNotEmpty(databaseNode.getSyncObjects())) {
-					tableSize = databaseNode.getSyncObjects().get(0).getObjectNames().size();
-				} else if (CollectionUtils.isNotEmpty(databaseNode.getTableNames())) {
-					tableSize = databaseNode.getTableNames().size();
-				}
-			} else if (node instanceof TableNode) {
-				tableSize = 1;
-			}
-
-			if (CollectionUtils.isNotEmpty(timeList) && timeList.size() == tableSize) {
+			if (CollectionUtils.isNotEmpty(timeList) && ObjectUtils.allNotNull(tableTotal.get(), snapshotTableCounter.value()) &&
+					tableTotal.get() == snapshotTableCounter.value().longValue()) {
 				snapshotDoneAt = Collections.max(timeList);
 			}
 			return snapshotDoneAt;
@@ -144,11 +144,12 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		collector.addSampler(CURR_SNAPSHOT_TABLE, () -> null);
 		collector.addSampler(CURR_SNAPSHOT_TABLE_ROW_TOTAL, () -> {
 			if (null == currentSnapshotTable) return null;
-			return currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
+			return currentSnapshotTableRowTotal;
 		});
 		collector.addSampler(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL, () -> {
-			if (ObjectUtils.allNotNull(currentSnapshotTable, snapshotDoneAt)) {
-				currentSnapshotTableInsertRowTotal = currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
+			if (Objects.nonNull(snapshotTableCounter.value()) && CollectionUtils.isNotEmpty(nodeTables) &&
+					snapshotTableCounter.value().intValue() == nodeTables.size()) {
+				return currentSnapshotTableRowTotal;
 			}
 			return currentSnapshotTableInsertRowTotal;
 		});
@@ -167,10 +168,10 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		batchAcceptLastTs = startAt;
 		currentSnapshotTable = table;
 		currentSnapshotTableInsertRowTotal = 0L;
-		if (firstBatchRead.get()) {
-			snapshotTableCounter.reset();
-			firstBatchRead.set(false);
-		}
+//		if (firstBatchRead.get()) {
+//			snapshotTableCounter.reset();
+//			firstBatchRead.set(false);
+//		}
 	}
 
 	public void handleBatchReadReadComplete(Long readCompleteAt, long size) {
@@ -350,6 +351,36 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		Optional.ofNullable(inputSpeed).ifPresent(speed -> speed.add(recorder.getTotal()));
 	}
 
+	public void handleCDCHeartbeatWriteAspect(List<TapdataEvent> tapdataEvents) {
+		TapBaseEvent tapBaseEvent;
+		AtomicLong counts = new AtomicLong(0);
+		AtomicLong timesTotals = new AtomicLong(0);
+		AtomicLong lastTime = new AtomicLong(0);
+		for (TapdataEvent tapdataEvent : tapdataEvents) {
+			if (tapdataEvent.getTapEvent() instanceof TapBaseEvent) {
+				tapBaseEvent = (TapBaseEvent) tapdataEvent.getTapEvent();
+				Optional.ofNullable(tapBaseEvent.getReferenceTime()).ifPresent(t -> {
+					if (t > lastTime.get()) lastTime.set(t);
+					counts.addAndGet(1);
+					timesTotals.addAndGet(System.currentTimeMillis() - t);
+				});
+			} else {
+				Optional.ofNullable(tapdataEvent.getSourceTime()).ifPresent(t -> {
+					if (t > lastTime.get()) lastTime.set(t);
+					counts.addAndGet(1);
+					timesTotals.addAndGet(System.currentTimeMillis() - t);
+				});
+			}
+		}
+
+		Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(lastTime.get()));
+		Optional.ofNullable(replicateLag).ifPresent(speed -> {
+			if (counts.get() > 0) {
+				speed.setValue(counts.get(), timesTotals.get());
+			}
+		});
+	}
+
 	public void handleWriteRecordAccept(Long acceptTime, WriteListResult<TapRecordEvent> result, HandlerUtil.EventTypeRecorder recorder) {
 		long inserted = result.getInsertedCount();
 		long updated = result.getModifiedCount();
@@ -362,26 +393,17 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		Optional.ofNullable(outputSpeed).ifPresent(speed -> speed.add(total));
 
 		Optional.ofNullable(targetWriteTimeCostAvg).ifPresent(average -> average.add(total, acceptTime));
-
-
-
-		Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(recorder.getNewestEventTimestamp()));
-		Optional.ofNullable(replicateLag).ifPresent(speed -> {
-			if (null != recorder.getReplicateLagTotal()) {
-				speed.setValue(recorder.getTotal(), recorder.getReplicateLagTotal());
-			}
-		});
 	}
 
 	AtomicBoolean firstTableCount = new AtomicBoolean(true);
 
 	public void handleTableCountAccept(String table, long count) {
-		if (firstTableCount.get()) {
-			Optional.ofNullable(snapshotRowCounter).ifPresent(CounterSampler::reset);
-			firstTableCount.set(false);
-		}
+//		if (firstTableCount.get()) {
+//			Optional.ofNullable(snapshotRowCounter).ifPresent(CounterSampler::reset);
+//			firstTableCount.set(false);
+//		}
 
-		currentSnapshotTableRowTotalMap.put(table, count > 0 ? count : null);
+		currentSnapshotTableRowTotal = count;
 		Optional.ofNullable(snapshotRowCounter).ifPresent(counter -> counter.inc(count));
 	}
 

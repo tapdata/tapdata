@@ -132,10 +132,10 @@ public class CustomConnector extends ConnectorBase {
         CountDownLatch countDownLatch = new CountDownLatch(1);
         Map<String, Object> argMap = commandInfo.getArgMap();
         String threadName = "CustomConnector-Test-Runner";
+        TapConnectionContext newTapConnectionContext = new TapConnectionContext(tapConnectionContext.getSpecification(),
+                DataMap.create(commandInfo.getConnectionConfig()), DataMap.create(commandInfo.getNodeConfig()), logger);
         Runnable runnable = () -> {
             Thread.currentThread().setName(threadName);
-            TapConnectionContext newTapConnectionContext = new TapConnectionContext(tapConnectionContext.getSpecification(),
-                    DataMap.create(commandInfo.getConnectionConfig()), DataMap.create(commandInfo.getNodeConfig()), logger);
             try {
                 init(newTapConnectionContext);
                 String tableName = (String) commandInfo.getConnectionConfig().get("collectionName");
@@ -189,8 +189,9 @@ public class CustomConnector extends ConnectorBase {
             }
         };
 
+        Thread thread = null;
         try {
-            Thread thread = new Thread(runnable);
+            thread = new Thread(runnable);
             thread.start();
             Integer timeout = (Integer) argMap.get("timeout");
             if (timeout == null || timeout <= 0) {
@@ -201,13 +202,17 @@ public class CustomConnector extends ConnectorBase {
             }
             boolean threadFinished = countDownLatch.await(timeout, TimeUnit.SECONDS);
             if (!threadFinished) {
-                logger.error("Execution has timed out and will terminate.");
-                thread.interrupt();
+                logger.warn("Execution has timed out and will terminate.");
+                stop(newTapConnectionContext);
             }
         } catch (InterruptedException e) {
             logger.error("Thread [{}] interrupted, {}", threadName, e);
         } catch (Throwable throwable) {
             logger.error("[{}] execution failure， {}", throwable);
+        } finally {
+            if (thread != null && thread.isAlive()) {
+                thread.stop();
+            }
         }
 
         return logger.getLogs();
@@ -283,7 +288,7 @@ public class CustomConnector extends ConnectorBase {
 
         private final List<LogRecord> logRecords = new LinkedList<CollectLog.LogRecord>() {
 
-            private static final int MAX_SIZE = 200;
+            private static final int MAX_SIZE = 100;
             private boolean overflow = false;
 
             @Override

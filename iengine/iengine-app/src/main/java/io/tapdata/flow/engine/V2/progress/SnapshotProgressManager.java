@@ -102,7 +102,6 @@ public class SnapshotProgressManager implements Closeable {
 			CompletableFuture.runAsync(() -> {
 						Thread.currentThread().setName("Init-Snapshot-Edge-Progress-" + taskDto.getName() + "(" + taskDto.getId().toHexString() + ")"
 								+ "-" + srcNode.getId());
-						Log4jUtil.setThreadContext(taskDto);
 						writeEdgeSnapshotProgresses();
 						countAndUpdateEdgeSnapshotProgresses();
 					}, progressThreadPool)

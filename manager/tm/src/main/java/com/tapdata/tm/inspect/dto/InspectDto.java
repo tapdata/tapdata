@@ -18,9 +18,6 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class InspectDto extends SchedulableDto {
-    public static final String WAITING_STATUS = "waiting";
-    public static final String WAITING_SCHEDULING = "scheduling";
-
     /**
      *
      */

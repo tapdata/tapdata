@@ -600,7 +600,6 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 						String name = String.format("Snapshot-Row-Size-Query-Thread-%s(%s)-%s(%s)",
 								task.get().getName(), task.get().getId().toHexString(), node.get().getName(), node.get().getId());
 						Thread.currentThread().setName(name);
-						Log4jUtil.setThreadContext(task.get());
 
 						doCountSynchronously(batchCountFunction, tableList);
 					}, snapshotRowSizeThreadPool)
@@ -719,7 +718,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 		if (streamReadFunction != null || rawDataCallbackFilterFunction != null || rawDataCallbackFilterFunctionV2 != null) {
 			logger.info("Starting stream read, table list: " + tapTableMap.keySet() + ", offset: " + syncProgress.getStreamOffsetObj());
 			List<String> tables = new ArrayList<>(tapTableMap.keySet());
-			cdcDelayCalculation.addHeartbeatTable(tables);
+			Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 			int batchSize = dataProcessorContext.getTaskDto().getReadBatchSize();
 			String streamReadFunctionName = null;
 			if (rawDataCallbackFilterFunctionV2 != null)
@@ -751,7 +750,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 												if (streamReadFuncAspect != null)
 													executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAM_STARTED).streamStartedTime(System.currentTimeMillis()));
 												executeAspect(new CDCReadStartedAspect().dataProcessorContext(dataProcessorContext));
-												obsLogger.info("Connector start stream read succeed: {}", connectorNode);
+												obsLogger.info("Connector {} incremental start succeed, tables: {}, data change syncing", connectorNode.getTapNodeInfo().getTapNodeSpecification().getName(), tables);
 
 												//start pending partition reader workers as stream read is started.
 												streamReadStarted.compareAndSet(false, true);
@@ -873,7 +872,8 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkBase
 		if (!isRunning()) {
 			return;
 		}
-		cdcDelayCalculation.addHeartbeatTable(new ArrayList<>(dataProcessorContext.getTapTableMap().keySet()));
+		Optional.of(cdcDelayCalculation.addHeartbeatTable(new ArrayList<>(dataProcessorContext.getTapTableMap().keySet())))
+				.map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 		ShareCdcTaskContext shareCdcTaskContext = new ShareCdcTaskPdkContext(getCdcStartTs(), processorBaseContext.getConfigurationCenter(),
 				dataProcessorContext.getTaskDto(), dataProcessorContext.getNode(), dataProcessorContext.getSourceConn(), getConnectorNode());
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();

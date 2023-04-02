@@ -25,6 +25,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
@@ -53,23 +54,16 @@ public class AppenderFactory implements Serializable {
 
 	private final Logger logger = LogManager.getLogger(AppenderFactory.class);
 	public final static int BATCH_SIZE = 100;
-	private final static int BATCH_INTERVAL = 500;
-	private final static String APPEND_LOG_THREAD_NAME = "Observe-Logs-Appender";
+	private final static String APPEND_LOG_THREAD_NAME = "";
 	private final static String CACHE_QUEUE_DIR = "CacheObserveLogs";
-
-	private Long lastFlushAt;
-	private ChronicleQueue cacheLogsQueue;
-
-	private final List<Appender<MonitoringLogsDto>> appenders = new ArrayList<>();
-
+	private final ChronicleQueue cacheLogsQueue;
+	private final Map<String, List<Appender<MonitoringLogsDto>>> appenderMap = new ConcurrentHashMap<>();
 	private final Semaphore emptyWaiting = new Semaphore(1);
-
 	private final ExecutorService executorService = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<>(1),
 			r -> new Thread(r, APPEND_LOG_THREAD_NAME)
 	);
 
 	private AppenderFactory() {
-
 		String cacheLogsDir = "." + File.separator + CACHE_QUEUE_DIR;
 		cacheLogsQueue = ChronicleQueue.singleBuilder(cacheLogsDir)
 				.rollCycle(RollCycles.HUGE_DAILY)
@@ -77,47 +71,58 @@ public class AppenderFactory implements Serializable {
 					logger.info("Delete chronic released store file: {}, cycle: {}", file, cycle);
 					FileUtils.deleteQuietly(file);
 				}).build();
-
 		executorService.submit(() -> {
 			ExcerptTailer tailer = cacheLogsQueue.createTailer(OBS_LOGGER_TAILER_ID);
-			List<MonitoringLogsDto> logsDtos = new ArrayList<>();
-			if (null == lastFlushAt) {
-				lastFlushAt = System.currentTimeMillis();
-			}
 			while (true) {
 				try {
 					final MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
-
 					boolean success = tailer.readDocument(r -> decodeFromWireIn(r.getValueIn(), builder));
 					if (success) {
-						logsDtos.add(builder.build());
+						MonitoringLogsDto monitoringLogsDto = builder.build();
+						String taskId = monitoringLogsDto.getTaskId();
+						appenderMap.computeIfPresent(taskId, (id, appenders) -> {
+							if (CollectionUtils.isEmpty(appenders)) {
+								return null;
+							}
+							for (Appender<MonitoringLogsDto> appender : appenders) {
+								if (null == appender) {
+									continue;
+								}
+								appender.append(monitoringLogsDto);
+							}
+							return appenders;
+						});
 					} else {
 						emptyWaiting.tryAcquire(1, 200, TimeUnit.MILLISECONDS);
 					}
-					if (logsDtos.size() >= BATCH_SIZE || System.currentTimeMillis() - lastFlushAt >= BATCH_INTERVAL) {
-						if (logsDtos.size() == 0) {
-							lastFlushAt = System.currentTimeMillis();
-							continue;
-						}
-
-						for (Appender<MonitoringLogsDto> appender : appenders) {
-							if (null == appender) {
-								continue;
-							}
-							appender.append(logsDtos);
-						}
-						logsDtos.clear();
-						lastFlushAt = System.currentTimeMillis();
-					}
-				} catch (Exception e) {
+				} catch (Throwable e) {
 					logger.warn("failed to append task logs, error: {}", e.getMessage(), e);
 				}
 			}
 		});
 	}
 
-	public void register(Appender logAppender) {
-		appenders.add(logAppender);
+	public void addTaskAppender(BaseTaskAppender<MonitoringLogsDto> taskAppender) {
+		if (null == taskAppender) {
+			return;
+		}
+		String taskId = taskAppender.getTaskId();
+		if (StringUtils.isBlank(taskId)) {
+			return;
+		}
+		addAppender(taskId, taskAppender);
+	}
+
+	public void addAppender(String key, Appender<MonitoringLogsDto> appender) {
+		this.appenderMap.computeIfAbsent(key, k -> new ArrayList<>());
+		this.appenderMap.computeIfPresent(key, (k, v) -> {
+			v.add(appender);
+			return v;
+		});
+	}
+
+	public void removeAppenders(String key) {
+		this.appenderMap.remove(key);
 	}
 
 	public void appendLog(MonitoringLogsDto logsDto) {

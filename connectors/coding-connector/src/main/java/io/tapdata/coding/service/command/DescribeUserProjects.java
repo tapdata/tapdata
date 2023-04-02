@@ -9,10 +9,8 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.base.ConnectorBase.entry;
 import static io.tapdata.base.ConnectorBase.map;
@@ -21,14 +19,23 @@ public class DescribeUserProjects implements Command {
     private static final String TAG = DescribeUserProjects.class.getSimpleName();
 
     @Override
-    public CommandResult commandResult(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
+    public CommandResult commandResult(TapConnectionContext tapConnectionContext, CommandInfo commandInfo, AtomicReference<String> accessToken) {
         Map<String, Object> connectionConfig = commandInfo.getConnectionConfig();
         if (Checker.isEmptyCollection(connectionConfig)) {
             throw new CoreException("Connection Config must be null or empty.");
         }
         tapConnectionContext.setConnectionConfig(DataMap.create(connectionConfig));
-        ProjectsLoader loader = ProjectsLoader.create(tapConnectionContext);
-        List<Map<String, Object>> maps = loader.myProjectList();
+        ProjectsLoader loader = ProjectsLoader.create(tapConnectionContext, accessToken);
+        List<Map<String, Object>> maps = null;
+        try {
+            maps = loader.myProjectList();
+        }catch (Exception e){
+            String msg  = e.getMessage();
+            if (Objects.nonNull(msg) && msg.contains("\"Error\":{\"Message\":\"\",\"Code\":\"InvalidParameterValue\"}")){
+                throw new CoreException("OAuth authorization information has expired, please re authorize.");
+            }else
+                throw new CoreException(msg);
+        }
         Map<String, Object> pageResult = new HashMap<>();
         if (Checker.isEmptyCollection(maps)) {
             TapLogger.debug(TAG, "Command not get result.");

@@ -1,6 +1,5 @@
 package io.tapdata.connector.selectdb;
 
-import com.zaxxer.hikari.HikariDataSource;
 import io.tapdata.common.JdbcContext;
 import io.tapdata.common.ResultSetConsumer;
 import io.tapdata.connector.selectdb.config.SelectDbConfig;
@@ -30,12 +29,13 @@ import java.util.stream.Collectors;
  **/
 public class SelectDbJdbcContext extends JdbcContext {
     private static final String TAG = SelectDbJdbcContext.class.getSimpleName();
+    protected static final String TEST_SELECTDB_VERSION = "show variables where Variable_name = 'version_comment';";
 
-    public SelectDbJdbcContext(SelectDbConfig config, HikariDataSource hikariDataSource) {
-        super(config, hikariDataSource);
+    public SelectDbJdbcContext(SelectDbConfig config) {
+        super(config);
     }
 
-    public void query(String sql, ResultSetConsumer resultSetConsumer) throws Throwable {
+    public void query(String sql, ResultSetConsumer resultSetConsumer) throws SQLException {
         TapLogger.debug(TAG, "Execute query, sql: " + sql);
         try (
                 Connection connection = getConnection();
@@ -47,18 +47,17 @@ public class SelectDbJdbcContext extends JdbcContext {
                 resultSetConsumer.accept(resultSet);
             }
         } catch (SQLException e) {
-            throw new Exception("Execute query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
+            throw new RuntimeException("Execute query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
         }
     }
 
-    @Override
-    public String queryVersion() {
-        AtomicReference<String> version = new AtomicReference<>("");
-        try {
-            queryWithNext("show variables where variable_name = 'version'", resultSet -> version.set(resultSet.getString(1)));
-        } catch (Throwable e) {
-            throw new RuntimeException(e);
-        }
+    public String getSelectDBVersion() throws Throwable {
+        AtomicReference<String> version = new AtomicReference<>();
+        query(TEST_SELECTDB_VERSION, resultSet -> {
+            if (resultSet.next()) {
+                version.set(resultSet.getString(2));
+            }
+        });
         return version.get();
     }
 
@@ -82,7 +81,7 @@ public class SelectDbJdbcContext extends JdbcContext {
         List<String> tableList = TapSimplify.list();
         String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND table_name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
         try {
-            query(String.format(SDB_ALL_TABLE, getConfig().getDatabase(), getConfig().getSchema(), tableSql),
+            query(String.format(SDB_ALL_TABLE, getConfig().getDatabase(), tableSql),
                     resultSet -> {
                         while (resultSet.next()) {
                             String tableName = resultSet.getString("table_name");

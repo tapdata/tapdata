@@ -96,7 +96,7 @@ public class SchemaNameAdjusterTest {
         adjuster.adjust("some-invalid-fullname$");
         adjuster.adjust("some-invalid%fullname_");
         assertThat(counter.get()).isEqualTo(2);
-        assertThat(conflicts.get()).isEqualTo(1);
+        assertThat(conflicts.get()).isEqualTo(0);
     }
 
     protected void assertValidFullname(String fullname) {
