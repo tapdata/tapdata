@@ -1261,7 +1261,7 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
                 }
                 streamReadSender.send(arr,tableName,offset);
                 if(!haveNext){
-                    offset[tableName]['If-Modified-Since'] = dateUtils.timeStamp2Date((now.getTime() - 5000)+"", "yyyy-MM-dd'T'HH:mm:ssXXX");//new Date(now.getTime() - 5000).toISOString();
+                    offset[tableName]['If-Modified-Since'] = dateUtils.timeStamp2Date((now.getTime())+"", "yyyy-MM-dd'T'HH:mm:ssXXX");//new Date(now.getTime() - 5000).toISOString();
                     return false
                 }
             }
