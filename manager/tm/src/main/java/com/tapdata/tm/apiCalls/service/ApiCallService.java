@@ -129,11 +129,15 @@ public class ApiCallService {
 //            moduleIdToModule=  modulesDtoList.stream().collect(Collectors.toMap(ModulesDto::getId, a -> a, (k1, k2) -> k1));
         } else {
             modulesDtoList = modulesService.getByUserId(userDetail.getUserId());
-            currentUserApiCallList = findByUser(modulesDtoList);
-            currentUserApiCallId = currentUserApiCallList.stream().map(ApiCallEntity::getId).collect(Collectors.toList())
-                    .stream().map(ObjectId::toString).collect(Collectors.toList());
-            criteria.and("id").in(currentUserApiCallId);
+            if (CollectionUtils.isNotEmpty(modulesDtoList)) {
+                currentUserApiCallList = findByUser(modulesDtoList);
+                if (CollectionUtils.isNotEmpty(currentUserApiCallList)) {
+                    currentUserApiCallId = currentUserApiCallList.stream().map(ApiCallEntity::getId).collect(Collectors.toList())
+                            .stream().map(ObjectId::toString).collect(Collectors.toList());
+                    criteria.and("id").in(currentUserApiCallId);
 //            moduleIdToModule=  modulesDtoList.stream().collect(Collectors.toMap(ModulesDto::getId, a -> a, (k1, k2) -> k1));
+                }
+            }
         }
 
 
@@ -145,9 +149,11 @@ public class ApiCallService {
         if (StringUtils.isNotEmpty(name)) {
             Query queryModule = Query.query(Criteria.where("user_id").is(userDetail.getUserId()).and("is_deleted").ne(true).and("name").regex(name));
             nameModulesList = mongoOperations.find(queryModule, ModulesEntity.class);
-            List<String> nameAllPathID = nameModulesList.stream().map(ModulesEntity::getId).collect(Collectors.toList())
-                    .stream().map(ObjectId::toString).collect(Collectors.toList());
-            nameOrIdCriteriaList.add(Criteria.where("allPathId").in(nameAllPathID));
+            if (CollectionUtils.isNotEmpty(nameModulesList)) {
+                List<String> nameAllPathID = nameModulesList.stream().map(ModulesEntity::getId).collect(Collectors.toList())
+                        .stream().map(ObjectId::toString).collect(Collectors.toList());
+                nameOrIdCriteriaList.add(Criteria.where("allPathId").in(nameAllPathID));
+            }
         }
         //如果要根据 id  查找
         if (StringUtils.isNotEmpty(id)) {
@@ -206,7 +212,10 @@ public class ApiCallService {
         List<ApiCallDetailVo> apiCallDetailVoList = new ArrayList<>();
 
 
-        List<Map> userInfoList = apiCallEntityList.stream().map(ApiCallEntity::getUserInfo).collect(Collectors.toList());
+        List<Map> userInfoList = new ArrayList<>();
+        if (CollectionUtils.isNotEmpty(apiCallEntityList)) {
+            apiCallEntityList.stream().map(ApiCallEntity::getUserInfo).collect(Collectors.toList());
+        }
         List<String> clientIdList = new ArrayList<>();
         for (Map userInfo : userInfoList) {
             if (null != userInfo.get("clientId")) {
@@ -215,14 +224,19 @@ public class ApiCallService {
         }
 
         List<ApplicationDto> applicationDtoList = applicationService.findByIds(clientIdList);
-        Map<ObjectId, ApplicationDto> clientIdToApplication = applicationDtoList.stream().collect(Collectors.toMap(ApplicationDto::getId, a -> a, (k1, k2) -> k1));
-
+        Map<ObjectId, ApplicationDto> clientIdToApplication = new HashMap<>();
+        if (CollectionUtils.isNotEmpty(applicationDtoList)) {
+            clientIdToApplication = applicationDtoList.stream().collect(Collectors.toMap(ApplicationDto::getId, a -> a, (k1, k2) -> k1));
+        }
 
         //查询api名称
         List<String> allPathIdList = apiCallEntityList.stream().filter(apiCallEntity -> StringUtils.isNotEmpty(apiCallEntity.getAllPathId())).collect(Collectors.toList())
                 .stream().map(ApiCallEntity::getAllPathId).collect(Collectors.toList());
         List<ModulesDto> hitModuledtoList = modulesService.findAll(Query.query(Criteria.where("id").in(allPathIdList)));
-        Map<ObjectId, ModulesDto> moduleIdToModule = hitModuledtoList.stream().collect(Collectors.toMap(ModulesDto::getId, a -> a, (k1, k2) -> k1));
+        Map<ObjectId, ModulesDto> moduleIdToModule = new HashMap<>();
+        if (CollectionUtils.isNotEmpty(hitModuledtoList)) {
+            hitModuledtoList.stream().collect(Collectors.toMap(ModulesDto::getId, a -> a, (k1, k2) -> k1));
+        }
 
 
         for (ApiCallEntity apiCallEntity : apiCallEntityList) {
