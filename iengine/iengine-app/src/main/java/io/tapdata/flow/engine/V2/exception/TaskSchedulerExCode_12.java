@@ -8,10 +8,8 @@ import io.tapdata.exception.TapExCode;
  * @Description
  * @create 2023-03-16 10:27
  **/
-@TapExClass(code = 12, module = "Task Scheduler", prefix = "TSD", describe = "Error code for iengine task scheduler")
+@TapExClass(code = 12, module = "Task Scheduler", prefix = "TSD", describe = "Schedule task start, stop")
 public interface TaskSchedulerExCode_12 {
-	@TapExCode(
-			describe = ""
-	)
-	String CALL_STOP_TASK_API = "11001";
+	@TapExCode
+	String UNKNOWN_ERROR = "12001";
 }

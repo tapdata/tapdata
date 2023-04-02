@@ -4,7 +4,7 @@
     "icon": "icons/hive1.png",
     "id": "hive1",
     "doc": "${doc}",
-    "authentication": "beta",
+    "authentication": "Beta",
     "tags": ["Database"]
   },
   "configOptions": {

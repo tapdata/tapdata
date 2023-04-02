@@ -23,6 +23,8 @@ import java.util.List;
 @ToString(callSuper = true)
 @Slf4j
 public class HazelCastImdgNode extends Node<Object> {
+
+    private String externaltype;
     public HazelCastImdgNode() {
         super("hazelcastIMDG");
     }

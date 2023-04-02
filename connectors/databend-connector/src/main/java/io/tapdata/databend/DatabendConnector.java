@@ -3,7 +3,6 @@ package io.tapdata.databend;
 import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonSqlMaker;
-import io.tapdata.common.DataSourcePool;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.databend.config.DatabendConfig;
@@ -12,8 +11,6 @@ import io.tapdata.databend.dml.DatabendBatchWriter;
 import io.tapdata.databend.dml.TapTableWriter;
 import io.tapdata.databend.util.JdbcUtil;
 import io.tapdata.entity.codec.TapCodecsRegistry;
-import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
@@ -28,6 +25,7 @@ import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -37,12 +35,9 @@ import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import javax.xml.crypto.Data;
-import java.sql.SQLException;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -59,10 +54,8 @@ public class DatabendConnector extends ConnectorBase {
     private final DatabendBatchWriter databendBatchWriter = new DatabendBatchWriter(TAG);
 
     private void initConnection(TapConnectionContext connectionContext) throws Throwable {
-        databendConfig = (DatabendConfig) new DatabendConfig().load(connectionContext.getConnectionConfig());
-        if (EmptyKit.isNull(databendJdbcContext) || databendJdbcContext.isFinish()) {
-            databendJdbcContext = (DatabendJdbcContext) DataSourcePool.getJdbcContext(databendConfig, DatabendJdbcContext.class, connectionContext.getId());
-        }
+        databendConfig = new DatabendConfig().load(connectionContext.getConnectionConfig());
+        databendJdbcContext = new DatabendJdbcContext(databendConfig);
         this.connectionTimezone = connectionContext.getConnectionConfig().getString("timezone");
         if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
             this.connectionTimezone = databendJdbcContext.timezone();
@@ -171,7 +164,7 @@ public class DatabendConnector extends ConnectorBase {
         connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilter);
 
 
-        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> databendJdbcContext.getConnection(), c));
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> databendJdbcContext.getConnection(), this::isAlive, c));
     }
 
     private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
@@ -283,9 +276,7 @@ public class DatabendConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
-        if (EmptyKit.isNotNull(databendJdbcContext)) {
-            databendJdbcContext.finish(connectionContext.getId());
-        }
+        ErrorKit.ignoreAnyError(databendJdbcContext::close);
         JdbcUtil.closeQuietly(databendBatchWriter);
     }
 

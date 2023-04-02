@@ -13,10 +13,10 @@
         <module>file-storages</module>
         <module>manager</module>
         <module>iengine</module>
-        <module>connectors-common</module>
-<!--        <module>connectors</module>-->
-        <module>connectors-javascript</module>
         <module>tapdata-cli</module>
+        <module>connectors-common</module>
+        <module>connectors</module>
+        <module>connectors-javascript</module>
     </modules>
 
     <build>

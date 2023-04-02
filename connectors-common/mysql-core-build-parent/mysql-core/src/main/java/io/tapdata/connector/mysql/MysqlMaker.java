@@ -89,9 +89,9 @@ public class MysqlMaker implements SqlMaker {
                 String key = entry.getKey();
                 Object value = entry.getValue();
                 if (value instanceof Number) {
-                    whereList.add(key + ">=" + value);
+                    whereList.add(String.format(MysqlJdbcContext.FIELD_TEMPLATE, key) + ">=" + value);
                 } else {
-                    whereList.add(key + ">='" + value + "'");
+                    whereList.add(String.format(MysqlJdbcContext.FIELD_TEMPLATE, key) + ">='" + value + "'");
                 }
                 orderList.add(String.format(MysqlJdbcContext.FIELD_TEMPLATE, key) + " ASC");
             }
@@ -138,11 +138,11 @@ public class MysqlMaker implements SqlMaker {
                 String key = entry.getKey();
                 Object value = entry.getValue();
                 if (value instanceof Number) {
-                    whereList.add(key + "<=>" + value);
+                    whereList.add(String.format(MysqlJdbcContext.FIELD_TEMPLATE, key) + "<=>" + value);
                 } else if (value instanceof DateTime) {
-                    whereList.add(key + "<=>'" + dateTimeToStr((DateTime) value, "yyyy-MM-dd HH:mm:ss") + "'");
+                    whereList.add(String.format(MysqlJdbcContext.FIELD_TEMPLATE, key) + "<=>'" + dateTimeToStr((DateTime) value, "yyyy-MM-dd HH:mm:ss") + "'");
                 } else {
-                    whereList.add(key + "<=>'" + value + "'");
+                    whereList.add(String.format(MysqlJdbcContext.FIELD_TEMPLATE, key) + "<=>'" + value + "'");
                 }
             }
         }
@@ -155,11 +155,11 @@ public class MysqlMaker implements SqlMaker {
                 QueryOperatorEnum queryOperatorEnum = QueryOperatorEnum.fromOp(op);
                 String opStr = queryOperatorEnum.getOpStr();
                 if (value instanceof Number) {
-                    whereList.add(key + opStr + value);
+                    whereList.add(String.format(MysqlJdbcContext.FIELD_TEMPLATE, key) + opStr + value);
                 }else if (value instanceof DateTime) {
-                    whereList.add(key + opStr + "'" + dateTimeToStr((DateTime) value, "yyyy-MM-dd HH:mm:ss") + "'");
+                    whereList.add(String.format(MysqlJdbcContext.FIELD_TEMPLATE, key) + opStr + "'" + dateTimeToStr((DateTime) value, "yyyy-MM-dd HH:mm:ss") + "'");
                 } else {
-                    whereList.add(key + opStr + "'" + value + "'");
+                    whereList.add(String.format(MysqlJdbcContext.FIELD_TEMPLATE, key) + opStr + "'" + value + "'");
                 }
             }
         }
@@ -173,9 +173,9 @@ public class MysqlMaker implements SqlMaker {
                 String key = sortOn.getKey();
                 int sort = sortOn.getSort();
                 if (sort == SortOn.ASCENDING) {
-                    orderList.add(key + " ASC");
+                    orderList.add(String.format(MysqlJdbcContext.FIELD_TEMPLATE, key) + " ASC");
                 } else if (sort == SortOn.DESCENDING) {
-                    orderList.add(key + " DESC");
+                    orderList.add(String.format(MysqlJdbcContext.FIELD_TEMPLATE, key) + " DESC");
                 }
             }
             sql += " ORDER BY " + String.join(",", orderList);

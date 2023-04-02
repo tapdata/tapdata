@@ -16,4 +16,5 @@ public class DataDirectoryDto {
     private String desc;
     private List<Tag> listtags;
     private List<Tag> allTags;
+    private String sourceConId;
 }

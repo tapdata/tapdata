@@ -1,0 +1,14 @@
+[
+  {
+	"createIndexes": "ShareCdcTableMetrics",
+	"indexes": [
+	  {
+		"key": {
+		  "currentEventTime": -1
+		},
+		"name": "currentEventTime_-1",
+		"background": true
+	  }
+	]
+  }
+]

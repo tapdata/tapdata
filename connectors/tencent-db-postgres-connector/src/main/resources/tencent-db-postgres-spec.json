@@ -4,7 +4,7 @@
     "icon": "icons/tencent_db_postgres.png",
     "doc" : "${doc}",
     "id": "tencent-db-postgres",
-    "authentication": "beta",
+    "authentication": "Beta",
     "tags": ["Database"]
   },
   "configOptions": {

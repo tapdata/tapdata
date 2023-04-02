@@ -36,38 +36,27 @@ public class TapRunScriptEngine implements ScriptEngine, Invocable, Closeable {
     private ScriptEngine initScriptEngine(String jsEngineName) {
         EngineType jsEngineEnum = EngineType.getByEngineName(jsEngineName);
         ScriptEngine scriptEngine;
-        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        while (classLoader != null) {
-            TapLogger.debug("TapRunScriptEngine","class loader: {}", classLoader);
-            if (classLoader instanceof URLClassLoader) {
-                TapLogger.debug("TapRunScriptEngine", "url:  {}", Arrays.asList(((URLClassLoader) classLoader).getURLs()));
-            }
-            classLoader = classLoader.getParent();
-        }
-        try {
-            if (jsEngineEnum == EngineType.GRAALVM_JS) {
-                scriptEngine = GraalJSScriptEngine
-                        .create(Engine.newBuilder()
-                                        .allowExperimentalOptions(true)
-                                        .option("engine.WarnInterpreterOnly", "false")
-                                        .build(),
-                                Context.newBuilder("js")
-                                        .allowAllAccess(true)
-                                        .allowHostAccess(HostAccess.newBuilder(HostAccess.ALL)
-                                                .targetTypeMapping(Value.class, Object.class
-                                                        , v -> v.hasArrayElements() && v.hasMembers()
-                                                        , v -> v.as(List.class)
-                                                ).build()
-                                        )
-                        );
-                SimpleScriptContext scriptContext = new SimpleScriptContext();
-                scriptEngine.setContext(scriptContext);
-            } else {
-                scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.engineName());
-            }
-        } finally {
-            //return pdk classLoader
-            Thread.currentThread().setContextClassLoader(classLoader);
+
+//        TapLogger.warn("TAG", "current context class loader {}", Thread.currentThread().getContextClassLoader());
+        if (jsEngineEnum == EngineType.GRAALVM_JS) {
+            scriptEngine = GraalJSScriptEngine
+                    .create(Engine.newBuilder()
+                                    .allowExperimentalOptions(true)
+                                    .option("engine.WarnInterpreterOnly", "false")
+                                    .build(),
+                            Context.newBuilder("js")
+                                    .allowAllAccess(true)
+                                    .allowHostAccess(HostAccess.newBuilder(HostAccess.ALL)
+                                            .targetTypeMapping(Value.class, Object.class
+                                                    , v -> v.hasArrayElements() && v.hasMembers()
+                                                    , v -> v.as(List.class)
+                                            ).build()
+                                    )
+                    );
+            SimpleScriptContext scriptContext = new SimpleScriptContext();
+            scriptEngine.setContext(scriptContext);
+        } else {
+            scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.engineName());
         }
         return scriptEngine;
     }

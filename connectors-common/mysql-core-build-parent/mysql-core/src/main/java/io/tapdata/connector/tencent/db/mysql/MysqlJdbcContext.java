@@ -8,6 +8,7 @@ import io.tapdata.connector.mysql.entity.MysqlBinlogPosition;
 import io.tapdata.connector.mysql.util.JdbcUtil;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import org.apache.commons.lang3.StringUtils;
@@ -63,6 +64,7 @@ public class MysqlJdbcContext implements AutoCloseable {
 
 	public MysqlJdbcContext(TapConnectionContext tapConnectionContext) {
 		this.tapConnectionContext = tapConnectionContext;
+
 		this.jdbcUrl = jdbcUrl();
 		this.hikariDataSource = HikariConnection.getHikariDataSource(tapConnectionContext, jdbcUrl);
 	}
@@ -138,6 +140,8 @@ public class MysqlJdbcContext implements AutoCloseable {
 				properties.put("serverTimezone", serverTimezone);
 			} catch (Exception ignored) {
 			}
+		}else {
+			properties.put("serverTimezone", "GMT");
 		}
 		StringBuilder propertiesString = new StringBuilder();
 		properties.forEach((k, v) -> propertiesString.append("&").append(k).append("=").append(v));
@@ -310,6 +314,26 @@ public class MysqlJdbcContext implements AutoCloseable {
 			}
 		});
 		return serverId.get();
+	}
+
+	public DataMap getTableInfo(String tableName) throws Throwable {
+		DataMap  dataMap = DataMap.create();
+		DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
+		String database = connectionConfig.getString("database");
+		List  list  = new ArrayList();
+		list.add("TABLE_ROWS");
+		list.add("DATA_LENGTH");
+		try {
+			query(String.format(CHECK_TABLE_EXISTS_SQL, database, tableName),resultSet -> {
+				while (resultSet.next()) {
+					dataMap.putAll(DbKit.getRowFromResultSet(resultSet, list));
+				}
+			});
+
+		}catch (Throwable e) {
+			TapLogger.error(TAG, "Execute getTableInfo failed, error: " + e.getMessage(), e);
+		}
+		return dataMap;
 	}
 
 	public String timezone() throws Exception {

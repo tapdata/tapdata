@@ -4,7 +4,7 @@
     "icon": "icons/oceanbase.png",
     "id": "oceanbase",
     "doc": "${doc}",
-    "authentication": "beta",
+    "authentication": "Beta",
     "tags": ["Database"]
   },
   "configOptions": {

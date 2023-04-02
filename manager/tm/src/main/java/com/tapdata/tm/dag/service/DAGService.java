@@ -590,7 +590,7 @@ public class DAGService implements DAGDataService {
             }
             if (typeMappings == null || typeMappings.size() == 0) {
                 //schema.getInvalidFields().add(field.getFieldName());
-                log.error("Not found tap type mapping rule for databaseType={}, dbVersion={}, dbFieldType={}", databaseType, finalDbVersion, originalDataType);
+                log.warn("Not found tap type mapping rule for databaseType={}, dbVersion={}, dbFieldType={}", databaseType, finalDbVersion, originalDataType);
             } else if (typeMappings.size() == 1) {
                 field.setDataType(typeMappings.get(0).getTapType());
                 field.setTapType(typeMappings.get(0).getTapType());

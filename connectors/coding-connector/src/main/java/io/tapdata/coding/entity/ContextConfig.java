@@ -3,10 +3,7 @@ package io.tapdata.coding.entity;
 import io.tapdata.coding.enums.IssueType;
 import io.tapdata.coding.utils.tool.Checker;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class ContextConfig {
     public static ContextConfig create() {
@@ -22,7 +19,48 @@ public class ContextConfig {
     private String connectionMode;
     private String streamReadType;
 
+    private String loginMode;
+    private String refreshToken;
+    private String clientId;
+    private String clientSecret;
+
     private List<Integer> issueCodes;
+
+    public String loginMode() {
+        return this.loginMode;
+    }
+
+    public ContextConfig loginMode(String loginMode) {
+        this.loginMode = loginMode;
+        return this;
+    }
+
+    public String refreshToken() {
+        return this.refreshToken;
+    }
+
+    public ContextConfig refreshToken(String refreshToken) {
+        this.refreshToken = refreshToken;
+        return this;
+    }
+
+    public String clientId() {
+        return this.clientId;
+    }
+
+    public ContextConfig clientId(String clientId) {
+        this.clientId = clientId;
+        return this;
+    }
+
+    public String clientSecret() {
+        return this.clientSecret;
+    }
+
+    public ContextConfig clientSecret(String clientSecret) {
+        this.clientSecret = clientSecret;
+        return this;
+    }
 
     public ContextConfig projectName(String projectName) {
         this.projectName = projectName;
@@ -113,10 +151,6 @@ public class ContextConfig {
     public String getIterationCodes() {
         return iterationCodes;
     }
-//    public List<String> getIterationCodes() {
-//        List<String> result = new ArrayList<>();
-//        return null==iterationCodes ? result: new ArrayList<String>(){{Arrays.asList(iterationCodes.split(","));}};
-//    }
 
     public Long getProjectId() {
         return projectId;

@@ -38,7 +38,6 @@ import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
 import com.tapdata.tm.metadatainstance.repository.MetadataInstancesRepository;
 import com.tapdata.tm.metadatainstance.vo.*;
 import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.task.service.TransformSchemaService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
@@ -70,6 +69,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.utils.MongoUtils.*;
@@ -1357,32 +1357,42 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return kv;
     }
 
-    public String findQualifiedNameByNodeId(Filter filter, UserDetail user) {
+    public String findHeartbeatQualifiedNameByNodeId(Filter filter, UserDetail user) {
         Where where = filter.getWhere();
         if (where == null) {
             return null;
         }
-        String nodeId = (String) where.get("nodeId");
-        return findQualifiedNameByNode(nodeId, user);
-    }
 
-    public String findQualifiedNameByNode(String nodeId, UserDetail user) {
-        Criteria criteria = Criteria.where("dag.nodes.id").is(nodeId);
-        Query query = new Query(criteria);
-        query.fields().include("dag");
-        TaskDto taskDto = taskService.findOne(query, user);
-
-        if (taskDto != null && taskDto.getDag() != null) {
-            DAG dag = taskDto.getDag();
-            Node<?> node = dag.getNode(nodeId);
+        final String nodeId = (String) where.get("nodeId");
+        AtomicReference<String> taskId = new AtomicReference<>();
+        return Optional.ofNullable(nodeId).map(nid -> {
+            // find running task
+            Query query = new Query(Criteria.where("dag.nodes.id").is(nid));
+            query.fields().include("_id");
+            return taskService.findOne(query, user);
+        }).map(task -> task.getId().toHexString()).map(tid -> {
+            // get heartbeat task dag of the connection node
+            Query query = new Query(Criteria.where(ConnHeartbeatUtils.TASK_RELATION_FIELD).is(tid));
+            query.fields().include("_id", "dag");
+            return taskService.findOne(query, user);
+        }).map(taskDto -> {
+            taskId.set(taskDto.getId().toHexString());
+            return taskDto.getDag();
+        }).map(DAG::getTargets).map(targets -> {
+            // if target size is not only one to be fix the logic
+            if (targets.size() == 1) {
+                return targets.get(0);
+            }
+            return null;
+        }).map(node -> {
             if (node instanceof DataNode) {
                 DataNode dataNode = (DataNode) node;
                 String connectionId = dataNode.getConnectionId();
                 DataSourceConnectionDto dataSource = dataSourceService.findById(MongoUtils.toObjectId(connectionId));
-                return MetaDataBuilderUtils.generatePdkQualifiedName(dataNode.getType(), connectionId, ConnHeartbeatUtils.TABLE_NAME, dataSource.getDefinitionPdkId(), dataSource.getDefinitionGroup(), dataSource.getDefinitionVersion(), taskDto.getId().toHexString());
+                return MetaDataBuilderUtils.generatePdkQualifiedName(dataNode.getType(), connectionId, ConnHeartbeatUtils.TABLE_NAME, dataSource.getDefinitionPdkId(), dataSource.getDefinitionGroup(), dataSource.getDefinitionVersion(), taskId.get());
             }
-        }
-        return null;
+            return null;
+        }).orElse(null);
     }
 
     public String getQualifiedNameByNodeId(Node node, UserDetail user, DataSourceConnectionDto dataSource, DataSourceDefinitionDto definitionDto, String taskId) {
@@ -1596,14 +1606,14 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                                     .and("hasUnionIndex").is(false)
                                     .and("hasUpdateField").is(false);
                         } else if ("transformEx".equals(filterType)) {
-                            criteriaTable.and("resultItems").ne(null);
+                            criteriaTable.and("hasTransformEx").is(true);
                         }
                     }
 
                     if (CollectionUtils.isEmpty(tableNames)) {
                         metadatas = Lists.newArrayList();
                     } else{
-                        criteriaTable.and("source._id").is(tableNode.getConnectionId())
+                        criteriaTable.and("nodeId").is(nodeId)
                                 .and("originalName").in(tableNames)
                                 .and("taskId").is(taskId)
                                 .and("is_deleted").ne(true);
@@ -2130,7 +2140,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 .where("is_deleted").ne(true)
                 .and("nodeId").is(nodeId)
                 .and("sourceType").is(SourceTypeEnum.VIRTUAL)
-                .and("resultItems").ne(null);
+                .and("resultItems").is(true);
         return count(Query.query(criteria));
     }
 
@@ -2140,6 +2150,18 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 .and("nodeId").is(nodeId)
                 .and("sourceType").is(SourceTypeEnum.VIRTUAL);
         return count(Query.query(criteria));
+    }
+
+
+    public void updateTableDesc(MetadataInstancesDto metadataInstances,UserDetail userDetail){
+        if(org.springframework.util.StringUtils.isEmpty(metadataInstances.getId())){
+            throw new BizException("IllegalArgument", "Id");
+        }
+
+        Criteria criteria = Criteria.where("_id").is(metadataInstances.getId());
+        Query query = new Query(criteria);
+        Update update = Update.update("description",metadataInstances.getDescription());
+        update(query,update,userDetail);
     }
 
     public MetadataInstancesDto importEntity(MetadataInstancesDto metadataInstancesDto, UserDetail userDetail) {

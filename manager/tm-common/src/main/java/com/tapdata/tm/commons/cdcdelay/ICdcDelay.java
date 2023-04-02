@@ -16,7 +16,7 @@ public interface ICdcDelay {
      *
      * @param tables cdc tables
      */
-    void addHeartbeatTable(@NonNull List<String> tables);
+    boolean addHeartbeatTable(@NonNull List<String> tables);
 
     /**
      * filter heartbeat event and calc delay times

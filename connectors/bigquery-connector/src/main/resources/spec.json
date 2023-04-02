@@ -1,10 +1,10 @@
 {
   "properties": {
     "name": "BigQuery",
-    "icon": "icons/logo.png",
+    "icon": "icons/bigquery.png",
     "doc" : "${doc}",
     "id": "bigquery",
-    "authentication": "beta",
+    "authentication": "Beta",
     "tags": [""]
   },
   "configOptions": {

@@ -1,7 +1,7 @@
 package io.tapdata.js.connector.base;
 
 public class TapConfigContext {
-    private Long streamReadIntervalSecond = 3000L;
+    private Long streamReadIntervalSecond = 60 * 1000L;
 
     public Long getStreamReadIntervalSeconds() {
         return this.streamReadIntervalSecond;

@@ -3,10 +3,8 @@ package com.tapdata.tm.metadatainstance.service.impl;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.dag.service.DAGService;
 import com.tapdata.tm.metadatainstance.dto.MigrateResetTableDto;
 import com.tapdata.tm.metadatainstance.dto.MigrateTableInfoDto;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
@@ -14,7 +12,6 @@ import com.tapdata.tm.metadatainstance.service.MetaMigrateService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.FunctionUtils;
-import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -38,7 +35,6 @@ import java.util.stream.Collectors;
 @Setter(onMethod_ = {@Autowired})
 public class MetaMigrateServiceImpl implements MetaMigrateService {
 
-    private DAGService dagService;
     private TaskService taskService;
     private MetadataInstancesService metadataInstancesService;
     private MongoTemplate mongoTemplate;
@@ -63,15 +59,14 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
         if (CollectionUtils.isEmpty(databaseNodes)) {
             return;
         }
-        DatabaseNode sourceNode = dag.getSourceNode(nodeId);
-        DatabaseNode targetNode = dag.getTargetNode(nodeId);
 
         Map<String, MigrateTableInfoDto.Field> fieldMap = tableInfo.getFields().stream()
                 .collect(Collectors.toMap(MigrateTableInfoDto.Field::getFieldName, Function.identity()));
 
-        MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findBySourceIdAndTableName(targetNode.getConnectionId(), tableName, taskId, userDetail);
-        if (Objects.nonNull(metadataInstancesDto)) {
-            metadataInstancesDto.getFields().forEach(f -> {
+        List<MetadataInstancesDto> instancesDtos = metadataInstancesService.findByNodeId(nodeId, userDetail);
+        Optional<MetadataInstancesDto> first = instancesDtos.stream().filter(meta -> tableName.equals(meta.getName())).findFirst();
+        first.ifPresent(schema -> {
+            schema.getFields().forEach(f -> {
                 if (fieldMap.containsKey(f.getOriginalFieldName())) {
                     MigrateTableInfoDto.Field field = fieldMap.get(f.getOriginalFieldName());
 //                    f.setDefaultValue(field.getDefaultValue());
@@ -86,27 +81,8 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
                             () -> f.setDefaultValue(null));
                 }
             });
-            metadataInstancesService.save(metadataInstancesDto, userDetail);
-        } else {
-            Schema schema = dagService.loadSchema(userDetail.getUserId(), MongoUtils.toObjectId(sourceNode.getConnectionId()), tableName);
-
-            schema.getFields().forEach(f -> {
-                if (fieldMap.containsKey(f.getFieldName())) {
-                    MigrateTableInfoDto.Field field = fieldMap.get(f.getFieldName());
-                    f.setDataType(field.getFieldType());
-                    f.setUseDefaultValue(field.isUseDefaultValue());
-                    FunctionUtils.isTureOrFalse(field.isUseDefaultValue()).trueOrFalseHandle(
-                            () -> {
-                                f.setDefaultValue(f.getOriginalDefaultValue());
-                                f.setSource("manual");
-                            },
-                            () -> f.setDefaultValue(null));
-                }
-            });
-
-            dagService.createOrUpdateSchema(userDetail.getUserId(), MongoUtils.toObjectId(targetNode.getConnectionId()),
-                    Lists.newArrayList(schema), null, targetNode);
-        }
+            metadataInstancesService.save(schema, userDetail);
+        });
     }
 
     @Override

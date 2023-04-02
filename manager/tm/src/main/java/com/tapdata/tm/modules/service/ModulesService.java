@@ -307,10 +307,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
      * @return
      */
     public ApiDefinitionVo apiDefinition(UserDetail userDetail) {
+        List<ConnectionVo> connectionVos = new ArrayList<>();
         ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
         //查找已发布的api
         List<ModulesDto> apis = findAllActiveApi(ModuleStatusEnum.ACTIVE);
-
         if (CollectionUtils.isNotEmpty(apis)) {
             List<ObjectId> connections = apis.stream().map(ModulesDto::getConnection).collect(Collectors.toList());
             Query query = Query.query(Criteria.where("id").in(connections));
@@ -367,24 +367,34 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
                         config.put("uri", uri);
 
                     }
-
                 }
                 DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(dataSourceConnectionDto.getDatabase_type(), userDetail);
                 Map<String, Object> properties = definitionDto.getProperties();
                 LinkedHashMap connection = (LinkedHashMap) properties.get("connection");
                 analyzeApiServerKey(dataSourceConnectionDto, connection, null);
-            }
 
-            List<ConnectionVo> connectionVos = com.tapdata.tm.utils.BeanUtil.deepCloneList(dataSourceConnectionDtoList, ConnectionVo.class);
-            if (CollectionUtils.isNotEmpty(connectionVos)) {
-                connectionVos.forEach(connectionVo -> {
+                ConnectionVo connectionVo = com.tapdata.tm.utils.BeanUtil.deepClone(dataSourceConnectionDto, ConnectionVo.class);
+                if (null != connectionVo) {
                     String plainPassword = AES256Util.Aes256Decode(connectionVo.getDatabase_password());
                     connectionVo.setDatabase_password(plainPassword);
-                });
+
+                    switch (dataSourceConnectionDto.getDatabase_type().toLowerCase(Locale.ROOT)) {
+                        case "oracle":
+                            if ("SID".equals(config.get("thinType"))) {
+                                Optional.ofNullable(config.get("sid")).map(o -> {
+                                    connectionVo.setDatabase_name(o.toString());
+                                    return o;
+                                });
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                connectionVos.add(connectionVo);
             }
             apiDefinitionVo.setConnections(connectionVos);
             apiDefinitionVo.setApis(apis);
-
         }
         return apiDefinitionVo;
     }

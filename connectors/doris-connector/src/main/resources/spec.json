@@ -4,7 +4,7 @@
     "icon": "icons/doris.png",
     "id": "doris",
     "docs": "${docs}",
-    "authentication": "beta",
+    "authentication": "Beta",
     "tags": ["Database"]
   },
   "configOptions": {

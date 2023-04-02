@@ -30,6 +30,11 @@
         "line": {
           "type": "void",
           "x-component": "Space",
+          "x-decorator": "FormItem",
+          "title": " ",
+          "x-decorator-props": {
+            "colon": false
+          },
           "properties": {
             "authButton": {
               "type": "void",
@@ -39,7 +44,8 @@
               "title": "",
               "x-index": 20,
               "x-component-props": {
-                "onClick": "{{useAsyncDataSourceByConfig({service: goToAuthorized, withoutField: true}, { target: 'https://redirect.tapdata.io/oauth/complete', pdkId: 'salesforce', oauthUrl: 'https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=3MVG9n_HvETGhr3Brv_TokDiPcVsfa0TubCszRjXdeqnY0z7cBUmaW0I9eTZtnz0oIC4zMLOxcUaCiEMpwr57&redirect_uri=https://redirect.tapdata.io/oauth/complete/salesforce&scope=full refresh_token'})}}"
+                "type": "primary",
+                "onClick": "{{useAsyncDataSourceByConfig({service: goToAuthorized, withoutField: true}, { target: 'https://redirect.tapdata.io/oauth/complete', pdkId: 'salesforce', oauthUrl: 'https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=3MVG9n_HvETGhr3Ai83SSfHGaxjpZakxMv8ZB8yl5vP.6NMlgXFAhVcuqtruP9ehJxEGrmZnH6fvlhHA6yjE.&redirect_uri=https://redirect.tapdata.io/oauth/complete/salesforce&scope=api refresh_token'})}}"
               },
               "x-decorator-props":{"style":{"width":"120px"}}
             },
@@ -49,14 +55,15 @@
               "x-decorator": "FormItem",
               "x-component": "Text",
               "apiServerKey": "AAA",
-              "x-index": 50,
+              "x-index": 30,
               "required": true,
               "x-component-props": {
                 "content": "{{$values.code ? '${OAuthButtonOK}' : '${OAuthButton}'}}",
-                "style": {"color": "{{ $values.code ? 'green' : 'red' }}"}
+                "style": {"color": "{{ $values.code ? 'green' : 'rgb(83, 95, 114)' }}"}
               }
             }
-          }
+          },
+          "x-index": 20
         }
       }
     }
@@ -65,24 +72,24 @@
     "default": "en_US",
     "en_US": {
       "doc": "doc/demo_en_US.md",
-      "code": "Grant Token",
-      "OAuthButtonTitle": "Grant Token",
-      "OAuthButton": "Please grant the token successfully before clicking Test Connection or Save",
-      "OAuthButtonOK": "Account authorization successful"
+      "code": "Authorize",
+      "OAuthButtonTitle": "Authorize",
+      "OAuthButton": "Please authorize before connection test and save",
+      "OAuthButtonOK": "Authorization successfully"
     },
     "zh_CN": {
       "doc": "doc/demo_zh_CN.md",
-      "code": "授予令牌",
-      "OAuthButtonTitle": "授予令牌",
-      "OAuthButton": "请先授予令牌成功再点击连接测试或保存",
-      "OAuthButtonOK": "账户授权成功"
+      "code": "授权",
+      "OAuthButtonTitle": "授权",
+      "OAuthButton": "请先授权成功再点击连接测试或保存",
+      "OAuthButtonOK": "授权成功"
     },
     "zh_TW": {
       "doc": "doc/demo_zh_TW.md",
-      "code": "授予權杖",
-      "OAuthButtonTitle": "授予權杖",
-      "OAuthButton": "請先授予令牌成功再點擊連接測試或保存",
-      "OAuthButtonOK": "賬戶授權成功"
+      "code": "授權",
+      "OAuthButtonTitle": "授權",
+      "OAuthButton": "請先授權成功再點擊鏈接測試或保存",
+      "OAuthButtonOK": "授權成功"
     }
   }
 }

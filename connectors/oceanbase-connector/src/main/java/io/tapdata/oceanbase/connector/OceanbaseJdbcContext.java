@@ -1,16 +1,14 @@
 package io.tapdata.oceanbase.connector;
 
 import com.google.common.collect.Lists;
-import com.zaxxer.hikari.HikariDataSource;
 import io.tapdata.common.JdbcContext;
 import io.tapdata.common.ResultSetConsumer;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.kit.DbKit;
 import io.tapdata.oceanbase.OceanbaseMaker;
 import io.tapdata.oceanbase.bean.OceanbaseConfig;
-import io.tapdata.oceanbase.util.ConnectionUtil;
-import io.tapdata.oceanbase.util.JdbcUtil;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.FilterResult;
@@ -19,20 +17,9 @@ import io.tapdata.pdk.apis.entity.TapFilter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.sql.*;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /**
@@ -66,8 +53,8 @@ public class OceanbaseJdbcContext extends JdbcContext {
         add("NO_ZERO_DATE");
     }};
 
-    public OceanbaseJdbcContext(OceanbaseConfig config, HikariDataSource hikariDataSource) {
-        super(config, hikariDataSource);
+    public OceanbaseJdbcContext(OceanbaseConfig config) {
+        super(config);
     }
 
     public static void tryCommit(Connection connection) {
@@ -136,7 +123,7 @@ public class OceanbaseJdbcContext extends JdbcContext {
         return null;
     }
 
-    public void query(String sql, ResultSetConsumer resultSetConsumer) throws Throwable {
+    public void query(String sql, ResultSetConsumer resultSetConsumer) {
         TapLogger.debug(TAG, "Execute query, sql: " + sql);
         try (
                 Connection connection = getConnection();
@@ -148,7 +135,7 @@ public class OceanbaseJdbcContext extends JdbcContext {
                 resultSetConsumer.accept(resultSet);
             }
         } catch (SQLException e) {
-            throw new Exception("Execute query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
+            throw new RuntimeException("Execute query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
         }
     }
 
@@ -202,7 +189,7 @@ public class OceanbaseJdbcContext extends JdbcContext {
         return exists.get();
     }
 
-    public void dropTable(String tableName) throws Throwable {
+    public void dropTable(String tableName) throws SQLException {
         String database = getDatabase();
         String sql = String.format(DROP_TABLE_IF_EXISTS_SQL, database, tableName);
         execute(sql);
@@ -251,6 +238,25 @@ public class OceanbaseJdbcContext extends JdbcContext {
         return advanceFilter;
     }
 
+    public DataMap getTableInfo(String tableName) throws Throwable {
+        DataMap  dataMap = DataMap.create();
+        String database = getDatabase();
+        List  list  = new ArrayList();
+        list.add("TABLE_ROWS");
+        list.add("DATA_LENGTH");
+        try {
+            query(String.format(CHECK_TABLE_EXISTS_SQL, database, tableName),resultSet -> {
+                while (resultSet.next()) {
+                    dataMap.putAll(DbKit.getRowFromResultSet(resultSet, list));
+                }
+            });
+
+        }catch (Throwable e) {
+            TapLogger.error(TAG, "Execute getTableInfo failed, error: " + e.getMessage(), e);
+        }
+        return dataMap;
+    }
+
     public String timezone() throws Exception {
 
         String formatTimezone = null;
@@ -267,6 +273,8 @@ public class OceanbaseJdbcContext extends JdbcContext {
         }
         return formatTimezone;
     }
+
+
 
     private static String formatTimezone(String timezone) {
         StringBuilder sb = new StringBuilder("GMT");

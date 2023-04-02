@@ -112,7 +112,9 @@ public class MetadataInstancesEntity extends BaseEntity {
     private String taskId;
 
     private String nodeId;
-    private List<ResultItem> resultItems;
+    private boolean hasTransformEx;
     private Map<String, PossibleDataTypes> findPossibleDataTypes;
     private boolean hasUpdateField;
+
+    private String description;
 }

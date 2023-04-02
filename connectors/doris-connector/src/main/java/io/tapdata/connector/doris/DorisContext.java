@@ -93,6 +93,9 @@ public class DorisContext implements AutoCloseable {
         }
     }
 
+
+
+
     @Override
     public void close() throws Exception {
         if (!connection.isClosed()) {

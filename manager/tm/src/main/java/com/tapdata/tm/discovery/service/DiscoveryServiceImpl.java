@@ -672,7 +672,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
      */
     @Override
     public DiscoveryStorageOverviewDto storageOverview(String id, UserDetail user) {
-        MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(id), user);
+        MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(id));
         DiscoveryStorageOverviewDto dto = new DiscoveryStorageOverviewDto();
         dto.setCreateAt(metadataInstancesDto.getCreateAt());
         dto.setVersion(metadataInstancesDto.getSchemaVersion());
@@ -687,12 +687,14 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dto.setSourceType(source.getDatabase_type());
 
         }
+        dto.setComment(metadataInstancesDto.getComment());
         dto.setId(metadataInstancesDto.getId().toHexString());
         dto.setName(metadataInstancesDto.getOriginalName());
         dto.setCategory(DataObjCategoryEnum.storage);
         dto.setType(metadataInstancesDto.getMetaType());
         dto.setSourceCategory(DataSourceCategoryEnum.connection);
         dto.setSourceInfo(getConnectInfo(metadataInstancesDto.getSource(), metadataInstancesDto.getOriginalName()));
+        dto.setDescription(metadataInstancesDto.getDescription());
         //dto.setSourceInfo();
         //dto.setBusinessName();
         //dto.setBusinessDesc();
@@ -967,6 +969,10 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             param.setRange("currentAndChild");
         }
 
+        if (param.getRegUnion() == null) {
+            param.setRegUnion(true);
+        }
+
         Page<DataDirectoryDto> page = new Page<>();
         page.setItems(Lists.newArrayList());
         page.setTotal(0);
@@ -991,12 +997,18 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
 
         if (StringUtils.isNotBlank(param.getQueryKey())) {
-            metadataCriteria.orOperator(
-                    Criteria.where("original_name").regex(param.getQueryKey()),
-                    Criteria.where("name").regex(param.getQueryKey()),
-                    Criteria.where("comment").regex(param.getQueryKey()),
-                    Criteria.where("source.name").regex(param.getQueryKey()),
-                    Criteria.where("alias_name").regex(param.getQueryKey()));
+
+            if (param.getRegUnion()) {
+                metadataCriteria.orOperator(
+                        Criteria.where("original_name").regex(param.getQueryKey()),
+                        Criteria.where("name").regex(param.getQueryKey()),
+                        Criteria.where("comment").regex(param.getQueryKey()),
+                        Criteria.where("source.name").regex(param.getQueryKey()),
+                        Criteria.where("alias_name").regex(param.getQueryKey()));
+            } else {
+                metadataCriteria.orOperator(
+                        Criteria.where("original_name").regex(param.getQueryKey()));
+            }
 
             taskCriteria.orOperator(
                     Criteria.where("name").regex(param.getQueryKey()),
@@ -1006,7 +1018,6 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     Criteria.where("name").regex(param.getQueryKey()),
                     Criteria.where("tableName").regex(param.getQueryKey()));
         }
-
 
         if (StringUtils.isNotBlank(param.getTagId())) {
             MetadataDefinitionDto definitionDto = metadataDefinitionService.findById(MongoUtils.toObjectId(param.getTagId()));
@@ -1076,124 +1087,147 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 }
             }
         }
-
         long total;
-        long metaTotal;
-        long taskTotal;
+        long metaTotal = 0;
+        long taskTotal = 0;
+        long apiTotal = 0;
 
         metaTotal = metadataInstancesService.count(new Query(metadataCriteria), user);
         taskTotal = taskRepository.count(new Query(taskCriteria), user);
-        long apiTotal = modulesService.count(new Query(apiCriteria), user);
+        apiTotal = modulesService.count(new Query(apiCriteria), user);
         total = metaTotal + taskTotal + apiTotal;
 
         long skip = (long) (param.getPage() - 1) * param.getPageSize();
-
         List<UnionQueryResult> unionQueryResults = new ArrayList<>();
         if (metaTotal >= skip + param.getPageSize()) {
-            Query query = new Query(metadataCriteria);
-            metaDataRepository.applyUserDetail(query, user);
-            query.skip(skip);
-            query.limit(param.getPageSize());
-            query.with(Sort.by("createTime").descending());
-            List<UnionQueryResult> metaUnionQueryResults = metaDataRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
-            unionQueryResults.addAll(metaUnionQueryResults);
-        } else if (metaTotal + taskTotal >=  skip + param.getPageSize()) {
-            if (metaTotal <= skip) {
-                //只需要查询task
-                Query query = new Query(taskCriteria);
-                taskRepository.applyUserDetail(query, user);
-                query.skip(skip - metaTotal);
-                query.limit(param.getPageSize());
-                query.with(Sort.by("createTime").descending());
-                List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "TaskCollectionObj");
-                unionQueryResults.addAll(taskUnionQueryResults);
-            } else {
-                //需要两个表
+            if (metaTotal != 0) {
                 Query query = new Query(metadataCriteria);
                 metaDataRepository.applyUserDetail(query, user);
                 query.skip(skip);
                 query.limit(param.getPageSize());
                 query.with(Sort.by("createTime").descending());
                 List<UnionQueryResult> metaUnionQueryResults = metaDataRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
-
-                Query queryTask = new Query(taskCriteria);
-                taskRepository.applyUserDetail(queryTask, user);
-                queryTask.skip(skip - metaTotal);
-                queryTask.limit(param.getPageSize() - metaUnionQueryResults.size());
-                queryTask.with(Sort.by("createTime").descending());
-                List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "TaskCollectionObj");
                 unionQueryResults.addAll(metaUnionQueryResults);
-                unionQueryResults.addAll(taskUnionQueryResults);
+            }
+        } else if (metaTotal + taskTotal >=  skip + param.getPageSize()) {
+            if (metaTotal <= skip) {
+                if (taskTotal != 0) {
+                    //只需要查询task
+                    Query query = new Query(taskCriteria);
+                    taskRepository.applyUserDetail(query, user);
+                    query.skip(skip - metaTotal);
+                    query.limit(param.getPageSize());
+                    query.with(Sort.by("createTime").descending());
+                    List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "TaskCollectionObj");
+                    unionQueryResults.addAll(taskUnionQueryResults);
+                }
+            } else {
+                //需要两个表
+                List<UnionQueryResult> metaUnionQueryResults = new ArrayList<>();
+                if (metaTotal != 0) {
+                    Query query = new Query(metadataCriteria);
+                    metaDataRepository.applyUserDetail(query, user);
+                    query.skip(skip);
+                    query.limit(param.getPageSize());
+                    query.with(Sort.by("createTime").descending());
+                    metaUnionQueryResults = metaDataRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
+                    unionQueryResults.addAll(metaUnionQueryResults);
+                }
+
+                if (taskTotal != 0) {
+                    Query queryTask = new Query(taskCriteria);
+                    taskRepository.applyUserDetail(queryTask, user);
+                    queryTask.skip(skip - metaTotal);
+                    queryTask.limit(param.getPageSize() - metaUnionQueryResults.size());
+                    queryTask.with(Sort.by("createTime").descending());
+                    List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "TaskCollectionObj");
+                    unionQueryResults.addAll(taskUnionQueryResults);
+                }
             }
 
         } else {
             if (metaTotal + taskTotal <= skip) {
-                //只需要查询api
-                Query query = new Query(apiCriteria);
-                taskRepository.applyUserDetail(query, user);
-                query.skip(skip- metaTotal - taskTotal);
-                query.limit(param.getPageSize());
-                query.with(Sort.by("createTime").descending());
-                List<UnionQueryResult> apiUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "Modules");
-                unionQueryResults.addAll(apiUnionQueryResults);
+
+                if (apiTotal != 0) {
+                    //只需要查询api
+                    Query query = new Query(apiCriteria);
+                    taskRepository.applyUserDetail(query, user);
+                    query.skip(skip - metaTotal - taskTotal);
+                    query.limit(param.getPageSize());
+                    query.with(Sort.by("createTime").descending());
+                    List<UnionQueryResult> apiUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "Modules");
+                    unionQueryResults.addAll(apiUnionQueryResults);
+                }
             } else if (metaTotal <= skip) {
                 //需要查询task+api
+                List<UnionQueryResult> taskUnionQueryResults = new ArrayList<>();
+                if (taskTotal != 0) {
+                    Query query = new Query(taskCriteria);
+                    taskRepository.applyUserDetail(query, user);
+                    query.skip(skip - metaTotal);
+                    query.limit(param.getPageSize());
+                    query.with(Sort.by("createTime").descending());
+                    taskUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "TaskCollectionObj");
+                    unionQueryResults.addAll(taskUnionQueryResults);
+                }
 
-                Query query = new Query(taskCriteria);
-                taskRepository.applyUserDetail(query, user);
-                query.skip(skip - metaTotal);
-                query.limit(param.getPageSize());
-                query.with(Sort.by("createTime").descending());
-                List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "TaskCollectionObj");
-
-                Query queryTask = new Query(apiCriteria);
-                taskRepository.applyUserDetail(queryTask, user);
-                queryTask.skip(skip - metaTotal - taskTotal);
-                queryTask.limit(param.getPageSize() - taskUnionQueryResults.size());
-                queryTask.with(Sort.by("createTime").descending());
-                List<UnionQueryResult> apiUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "Modules");
-                unionQueryResults.addAll(taskUnionQueryResults);
-                unionQueryResults.addAll(apiUnionQueryResults);
+                if (apiTotal != 0) {
+                    Query queryTask = new Query(apiCriteria);
+                    taskRepository.applyUserDetail(queryTask, user);
+                    queryTask.skip(skip - metaTotal - taskTotal);
+                    queryTask.limit(param.getPageSize() - taskUnionQueryResults.size());
+                    queryTask.with(Sort.by("createTime").descending());
+                    List<UnionQueryResult> apiUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "Modules");
+                    unionQueryResults.addAll(apiUnionQueryResults);
+                }
             } else {
                 //需要查询meta task api
+                List<UnionQueryResult> metaUnionQueryResults = new ArrayList<>();
+                if (metaTotal != 0) {
+                    Query query = new Query(metadataCriteria);
+                    taskRepository.applyUserDetail(query, user);
+                    query.skip(skip);
+                    query.limit(param.getPageSize());
+                    query.with(Sort.by("createTime").descending());
 
-                Query query = new Query(metadataCriteria);
-                taskRepository.applyUserDetail(query, user);
-                query.skip(skip);
-                query.limit(param.getPageSize());
-                query.with(Sort.by("createTime").descending());
+                    metaUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
+                    unionQueryResults.addAll(metaUnionQueryResults);
+                }
 
-                List<UnionQueryResult> metaUnionQueryResults = taskRepository.getMongoOperations().find(query, UnionQueryResult.class, "MetadataInstances");
+                List<UnionQueryResult> taskUnionQueryResults = new ArrayList<>();
+                if (taskTotal != 0) {
+                    Query queryTask = new Query(taskCriteria);
+                    taskRepository.applyUserDetail(queryTask, user);
+                    queryTask.skip(skip - metaTotal);
+                    queryTask.limit(param.getPageSize() - metaUnionQueryResults.size());
+                    queryTask.with(Sort.by("createTime").descending());
+                    taskUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "TaskCollectionObj");
+                    unionQueryResults.addAll(taskUnionQueryResults);
+                }
 
-                Query queryTask = new Query(taskCriteria);
-                taskRepository.applyUserDetail(queryTask, user);
-                queryTask.skip(skip - metaTotal);
-                queryTask.limit(param.getPageSize() - metaUnionQueryResults.size());
-                queryTask.with(Sort.by("createTime").descending());
-                List<UnionQueryResult> taskUnionQueryResults = taskRepository.getMongoOperations().find(queryTask, UnionQueryResult.class, "TaskCollectionObj");
+                if (apiTotal != 0) {
 
-                Query queryApi = new Query(apiCriteria);
-                taskRepository.applyUserDetail(queryApi, user);
-                queryApi.skip(skip - metaTotal - taskTotal);
-                queryApi.limit(param.getPageSize() - metaUnionQueryResults.size() + taskUnionQueryResults.size());
-                queryApi.with(Sort.by("createTime").descending());
-                List<UnionQueryResult> apiUnionQueryResults = taskRepository.getMongoOperations().find(queryApi, UnionQueryResult.class, "Modules");
-                unionQueryResults.addAll(metaUnionQueryResults);
-                unionQueryResults.addAll(taskUnionQueryResults);
-                unionQueryResults.addAll(apiUnionQueryResults);
+                    Query queryApi = new Query(apiCriteria);
+                    taskRepository.applyUserDetail(queryApi, user);
+                    queryApi.skip(skip - metaTotal - taskTotal);
+                    queryApi.limit(param.getPageSize() - metaUnionQueryResults.size() + taskUnionQueryResults.size());
+                    queryApi.with(Sort.by("createTime").descending());
+                    List<UnionQueryResult> apiUnionQueryResults = taskRepository.getMongoOperations().find(queryApi, UnionQueryResult.class, "Modules");
+                    unionQueryResults.addAll(apiUnionQueryResults);
+                }
             }
 
         }
-
         if (CollectionUtils.isEmpty(unionQueryResults)) {
             return page;
         }
 
 
-        List<DataDirectoryDto> items = unionQueryResults.stream().map(this::convertToDataDirectory).collect(Collectors.toList());
+        List<DataDirectoryDto> items = unionQueryResults.parallelStream().map(this::convertToDataDirectory).collect(Collectors.toList());
 
         page.setItems(items);
         page.setTotal(total);
+
         return page;
     }
 
@@ -1769,6 +1803,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dataDirectoryDto.setName(unionQueryResult.getOriginal_name());
             dataDirectoryDto.setDesc(unionQueryResult.getComment());
             dataDirectoryDto.setCategory(DataObjCategoryEnum.storage);
+            dataDirectoryDto.setSourceConId(unionQueryResult.getSource() == null ? null : unionQueryResult.getSource().get_id());
             dataDirectoryDto.setListtags(unionQueryResult.getListtags());
         } else if (StringUtils.isNotBlank(unionQueryResult.getSyncType())) {
             dataDirectoryDto.setType(unionQueryResult.getSyncType());

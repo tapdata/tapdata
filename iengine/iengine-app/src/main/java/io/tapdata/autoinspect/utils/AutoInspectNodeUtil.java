@@ -24,7 +24,7 @@ public class AutoInspectNodeUtil {
 
     public static AutoInspectNode firstAutoInspectNode(TaskDto task) {
         if (task.isAutoInspect()) {
-            if (!task.isCanOpenInspect()) {
+            if (task.getCanOpenInspect() == null || !task.getCanOpenInspect()) {
                 throw AutoInspectException.canNotOpen(task.getName());
             }
             if (task.getIsOpenAutoDDL()) {

@@ -104,7 +104,7 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
     }
 
     protected void beforeSave(InspectDto inspect, UserDetail user) {
-        if (InspectDto.WAITING_STATUS.equals(inspect.getStatus())) {
+        if (InspectStatusEnum.WAITING.getValue().equals(inspect.getStatus())) {
             inspect.setScheduleTimes(0);
         }
 
@@ -414,8 +414,8 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
         inspectDto = findById(objectId);
 
         InspectStatusEnum inspectStatus = InspectStatusEnum.of(inspectDto.getStatus());
-        if (inspectStatus == InspectStatusEnum.RUNNING || inspectStatus == InspectStatusEnum.WAITING) {
-            throw new BizException("Inspect.Start.Failed", (inspectStatus == InspectStatusEnum.RUNNING ? "" : "等待") + "运行中的任务不能再次启动");
+        if (inspectStatus == InspectStatusEnum.RUNNING) {
+            throw new BizException("Inspect.Start.Failed", "运行中的任务不能再次启动");
         }
 
         inspectDto.setStatus(InspectStatusEnum.SCHEDULING.getValue());

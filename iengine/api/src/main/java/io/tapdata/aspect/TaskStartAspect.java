@@ -5,9 +5,15 @@ import io.tapdata.entity.aspect.Aspect;
 
 public class TaskStartAspect extends Aspect {
 	private TaskDto task;
+	private ThreadGroup threadGroup;
 
 	public TaskStartAspect task(TaskDto task) {
 		this.task = task;
+		return this;
+	}
+
+	public TaskStartAspect threadGroup(ThreadGroup threadGroup){
+		this.threadGroup = threadGroup;
 		return this;
 	}
 

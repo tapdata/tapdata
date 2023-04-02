@@ -80,12 +80,12 @@ public class MonitorThread<T extends PushChannel> extends Thread implements Memo
             } else {
                 pushChannel.selfCheck();
             }
-            TapLogger.info(TAG, "MonitorThread already started, notify or self check");
+            TapLogger.debug(TAG, "MonitorThread already started, notify or self check");
         } else if(status == STATUS_IDLE) {
             status = STATUS_STARTED;
             if(!this.isAlive()) {
                 super.start();
-                TapLogger.info(TAG, "MonitorThread started");
+                TapLogger.debug(TAG, "MonitorThread started");
             }
         }
     }
@@ -119,7 +119,7 @@ public class MonitorThread<T extends PushChannel> extends Thread implements Memo
     }
 
     public void restartChannel(boolean hurry) {
-        TapLogger.info(TAG, "MonitorThread restart channel, " + (hurry ? "" : "no ") + "hurry");
+        TapLogger.debug(TAG, "MonitorThread restart channel, " + (hurry ? "" : "no ") + "hurry");
         if(pushChannel != null) {
             pushChannel.stop();
             synchronized (channelLock) {

@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.dag;
 
+import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -22,6 +23,8 @@ import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapRaw;
+import io.tapdata.entity.schema.type.TapType;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
@@ -103,7 +106,11 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             metadataMap.put(metadataInstancesDto.getQualifiedName(), metadataInstancesDto);
         }
         if (!"database".equals(metadataInstancesDto.getMetaType()) && metadataInstancesDto.getSource() != null && !metadataInstancesDto.getQualifiedName().startsWith("PN")) {
-            metadataMap.put(metadataInstancesDto.getSource().get_id() + metadataInstancesDto.getName(), metadataInstancesDto);
+            String sourceId = metadataInstancesDto.getSource().get_id();
+            if (StringUtils.isBlank(sourceId)) {
+                sourceId = metadataInstancesDto.getSource().getId().toHexString();
+            }
+            metadataMap.put(sourceId + metadataInstancesDto.getName(), metadataInstancesDto);
         }
     }
 
@@ -276,7 +283,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
             // 这里需要将 data_type 字段根据字段类型映射规则转换为 数据库类型
             //   需要 根据 所有可匹配条件，尽量缩小匹配结果，选择最优字段类型
-            metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource);
+            metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource, false);
 
             metadataInstancesDto.setMetaType(_metaType);
             metadataInstancesDto.setDeleted(false);
@@ -331,6 +338,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             return Collections.emptyList();
         }
 
+        boolean needPossibleDataTypes = Node.SourceType.target.equals(node.sourceType());
+
         if (DataSourceDefinitionDto.PDK_TYPE.equals(dataSource.getPdkType())) {
             DataSourceDefinitionDto definitionDto = definitionDtoMap.get(dataSource.getDatabase_type());
             if (definitionDto != null) {
@@ -375,7 +384,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
             // 这里需要将 data_type 字段根据字段类型映射规则转换为 数据库类型
             //   需要 根据 所有可匹配条件，尽量缩小匹配结果，选择最优字段类型
-            metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource);
+            metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource, needPossibleDataTypes);
 
             metadataInstancesDto.getFields().forEach(field -> {
                 field.setSourceDbType(dataSource.getDatabase_type());
@@ -538,8 +547,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
      * @param schema 包含通用字段类型的模型
      * @param metadataInstancesDto 将映射后的字段类型保存到这里
      * @param dataSourceConnectionDto 数据库类型
+     * @param needPossibleDataTypes 是否需要类型映射数据
      */
-    private MetadataInstancesDto processFieldToDB(Schema schema, MetadataInstancesDto metadataInstancesDto, DataSourceConnectionDto dataSourceConnectionDto) {
+    private MetadataInstancesDto processFieldToDB(Schema schema, MetadataInstancesDto metadataInstancesDto, DataSourceConnectionDto dataSourceConnectionDto, boolean needPossibleDataTypes) {
 
         if (metadataInstancesDto == null || schema == null ||
                 metadataInstancesDto.getFields() == null || dataSourceConnectionDto == null){
@@ -590,10 +600,25 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
             TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create().withTapTypeDataTypeMap(tapMap));
             Map<String, PossibleDataTypes> findPossibleDataTypes = Maps.newHashMap();
-            TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.getTargetTypesGenerator().convert(nameFieldMap
-                    , DefaultExpressionMatchingMap.map(expression), codecsFilterManager, findPossibleDataTypes);
+            TapResult<LinkedHashMap<String, TapField>> convert;
+            if (needPossibleDataTypes) {
+                convert = PdkSchemaConvert.getTargetTypesGenerator().convert(nameFieldMap, DefaultExpressionMatchingMap.map(expression), codecsFilterManager, findPossibleDataTypes);
+            } else {
+                convert = PdkSchemaConvert.getTargetTypesGenerator().convert(nameFieldMap, DefaultExpressionMatchingMap.map(expression), codecsFilterManager);
+            }
             LinkedHashMap<String, TapField> data = convert.getData();
-            schema.setResultItems(convert.getResultItems());
+
+            if (!findPossibleDataTypes.isEmpty()) {
+                boolean anyMatch = findPossibleDataTypes.values().stream().anyMatch(dataType -> dataType.getLastMatchedDataType() == null);
+                if (anyMatch) {
+                    schema.setHasTransformEx(true);
+                }
+
+                List<String> fieldNameList = schema.getFields().stream()
+                        .filter(l -> !l.isDeleted())
+                        .map(Field::getFieldName).collect(Collectors.toList());
+                findPossibleDataTypes.entrySet().removeIf(map -> !fieldNameList.contains(map.getKey()));
+            }
             schema.setFindPossibleDataTypes(findPossibleDataTypes);
 
             data.forEach((k, v) -> {
@@ -610,10 +635,12 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         metadataInstancesDto.setOldId(oldId);
         metadataInstancesDto.setAncestorsName(schema.getAncestorsName());
         metadataInstancesDto.setNodeId(schema.getNodeId());
-        metadataInstancesDto.setResultItems(schema.getResultItems());
+        metadataInstancesDto.setHasTransformEx(schema.isHasTransformEx());
         metadataInstancesDto.setFindPossibleDataTypes(schema.getFindPossibleDataTypes());
 
         AtomicBoolean hasPrimayKey = new AtomicBoolean(false);
+
+        final Map<String, PossibleDataTypes> findPossibleDataTypes = metadataInstancesDto.getFindPossibleDataTypes();
         metadataInstancesDto.getFields().forEach(field -> {
             if (field.getId() == null) {
                 field.setId(new ObjectId().toHexString());
@@ -622,6 +649,10 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             if (databaseType.equalsIgnoreCase(field.getSourceDbType())) {
                 if (originalField != null && originalField.getDataTypeTemp() != null) {
                     field.setDataType(originalField.getDataTypeTemp());
+                    TapType tapType = JSON.parseObject(field.getTapType(), TapType.class);
+                    if (findPossibleDataTypes != null && TapRaw.TYPE_RAW != tapType.getType()) {
+                        findPossibleDataTypes.remove(field.getFieldName());
+                    }
                 }
             }
 
@@ -926,20 +957,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
 
                 update2.setHistories(hisModels);
-                update2.setFields(metadataInstancesDto.getFields());
-                update2.setIndexes(metadataInstancesDto.getIndexes());
-                update2.setIndices(metadataInstancesDto.getIndices());
-                update2.setDeleted(false);
-                update2.setCreateSource(metadataInstancesDto.getCreateSource());
-                update2.setVersion(newVersion);
-                update2.setSourceType(metadataInstancesDto.getSourceType());
-                update2.setQualifiedName(metadataInstancesDto.getQualifiedName());
-                update2.setHasPrimaryKey(metadataInstancesDto.isHasPrimaryKey());
-                update2.setHasUnionIndex(metadataInstancesDto.isHasUnionIndex());
-                update2.setResultItems(metadataInstancesDto.getResultItems());
-                update2.setFindPossibleDataTypes(metadataInstancesDto.getFindPossibleDataTypes());
-                update2.setHasUpdateField(metadataInstancesDto.isHasUpdateField());
-                if (existsMetadataInstance != null && existsMetadataInstance.getId() != null) {
+                BeanUtils.copyProperties(metadataInstancesDto, update2);
+                if (existsMetadataInstance.getId() != null) {
                     metadataInstancesDto.setId(existsMetadataInstance.getId());
                     metadataUpdateMap.put(existsMetadataInstance.getId().toHexString(), update2);
                 }

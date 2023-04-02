@@ -71,12 +71,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (node instanceof TableNode) {
 				TableNode tableNode = (TableNode) node;
 				lastTableName = tableNode.getTableName();
-				updateConditionFieldsMap = new HashMap<>();
 				updateConditionFieldsMap.put(lastTableName, tableNode.getUpdateConditionFields());
 				writeStrategy = tableNode.getWriteStrategy();
 			} else if (node instanceof DatabaseNode) {
 				DatabaseNode dbNode = (DatabaseNode) node;
-				updateConditionFieldsMap = Optional.ofNullable(dbNode.getUpdateConditionFieldMap()).orElse(new HashMap<>());
+				Optional.ofNullable(dbNode.getUpdateConditionFieldMap()).ifPresent(m -> updateConditionFieldsMap.putAll(m));
 			}
 			initTargetDB();
 		} catch (Exception e) {
@@ -695,7 +694,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			currentProperty.setMergeType(MergeTableProperties.MergeType.valueOf(writeStrategy));
 		}
 		if (currentProperty.getMergeType() == MergeTableProperties.MergeType.appendWrite) return;
-		List<String> updateConditionFields = updateConditionFieldsMap.get(currentProperty.getTableName());
+		final String tgtTableName = getTgtTableNameFromTapEvent(tapEvent);
+		List<String> updateConditionFields = updateConditionFieldsMap.get(tgtTableName);
 		if (CollectionUtils.isEmpty(updateConditionFields)) return;
 		if (CollectionUtils.isEmpty(currentProperty.getJoinKeys())) {
 			List<Map<String, String>> joinKeys = new ArrayList<>();

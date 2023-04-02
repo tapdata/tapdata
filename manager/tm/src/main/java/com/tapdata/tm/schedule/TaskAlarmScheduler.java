@@ -101,7 +101,13 @@ public class TaskAlarmScheduler {
         Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
 
         for (TaskDto data : taskList) {
-            List<Worker> workerList = workerService.findAvailableAgentBySystem(userDetailMap.get(data.getUserId()));;
+            UserDetail userDetail = userDetailMap.get(data.getUserId());
+            boolean checkOpen = alarmService.checkOpen(data, null, AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN, null, userDetail);
+            if (!checkOpen) {
+                continue;
+            }
+
+            List<Worker> workerList = workerService.findAvailableAgentBySystem(userDetail);;
             if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.getName().equals(data.getAccessNodeType())) {
                 List<String> processIdList = data.getAccessNodeProcessIdList();
                 workerList = workerList.stream().filter(w -> processIdList.contains(w.getProcessId())).collect(Collectors.toList());
@@ -124,7 +130,7 @@ public class TaskAlarmScheduler {
                     summary.set("SYSTEM_FLOW_EGINGE_DOWN_CLOUD");
                 } else {
                     data.setAgentId(null);
-                    CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(data, userDetailMap.get(data.getUserId()), "task", data.getName());
+                    CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(data, userDetail, "task", data.getName());
                     param.put("number", workerList.size());
                     param.put("otherAgentName", calculationEngineVo.getProcessId());
                     summary.set("SYSTEM_FLOW_EGINGE_DOWN_CHANGE_AGENT");
@@ -132,7 +138,7 @@ public class TaskAlarmScheduler {
                 }
 
                 if (!isCloud) {
-                    taskService.start(data, userDetailMap.get(data.getUserId()), "11");
+                    taskService.start(data, userDetail, "11");
                 }
             }
 

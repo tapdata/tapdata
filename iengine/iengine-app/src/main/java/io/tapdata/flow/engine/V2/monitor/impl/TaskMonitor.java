@@ -1,10 +1,9 @@
 package io.tapdata.flow.engine.V2.monitor.impl;
 
-import com.tapdata.constant.Log4jUtil;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.flow.engine.V2.monitor.Monitor;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 
 /**
  * @author samuel
@@ -17,13 +16,13 @@ public abstract class TaskMonitor<T> implements Monitor<T> {
 
 	protected Long intervalMs;
 	protected TaskDto taskDto;
-	protected Logger logger = LogManager.getLogger(TaskMonitor.class);
+	protected ObsLogger logger;
 
 	public TaskMonitor(TaskDto taskDto) {
 		assert null != taskDto;
 		this.taskDto = taskDto;
-		Log4jUtil.setThreadContext(taskDto);
 		this.intervalMs = INTERVAL_MS;
+		this.logger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
 	}
 
 	@Override

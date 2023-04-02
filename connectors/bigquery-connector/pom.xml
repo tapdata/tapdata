@@ -141,8 +141,8 @@
                             <Build-Java>Java ${java.version}</Build-Java>
                             <PDK-Runner-Version>${tapdata.pdk.runner.version}</PDK-Runner-Version>
                             <PDK-API-Version>${tapdata.pdk.api.version}</PDK-API-Version>
-                            <Tapdata-API-Version>${tapdata.api.version}</Tapdata-API-Version>
-                            <Version>${version}</Version>
+                            <Tapdata-API-Version>${tapdata.pdk.api.version}</Tapdata-API-Version>
+                            <Version>${project.version}</Version>
                             <Authentication>Beta</Authentication>
                             <Git-Build-Time>${git.build.time}</Git-Build-Time>
                             <Git-Branch>${git.branch}</Git-Branch>
@@ -201,7 +201,7 @@
                             <outputDirectory>../dist</outputDirectory>
                             <resources>
                                 <resource>
-                                    <directory>${basedir}/target/</directory>
+                                    <directory>${project.basedir}/target/</directory>
                                     <includes>
                                         <include>${connector.file.name}.jar</include>
                                     </includes>

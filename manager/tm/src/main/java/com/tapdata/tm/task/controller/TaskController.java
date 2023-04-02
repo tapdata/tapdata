@@ -135,7 +135,7 @@ public class TaskController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        if (!filterJson.contains("limit") && isAgentReq()) {
+        if ((null == filterJson || !filterJson.contains("limit")) && isAgentReq()) {
             filter.setLimit(10000);
         }
 
@@ -275,7 +275,7 @@ public class TaskController extends BaseController {
             taskNodeService.checkFieldNode(taskDto, user);
 
             // set hostName;
-            workerService.setHostName(taskDto);
+            taskDto = workerService.setHostName(taskDto);
 
             // supplement startTime
             if (Objects.isNull(taskDto.getStartTime())) {
@@ -1072,4 +1072,15 @@ public class TaskController extends BaseController {
         return success(taskMap);
     }
 
+    @GetMapping("/stats/task")
+    public ResponseMessage<List<TaskDto>> getTaskStatsByTableNameOrConnectionId(@RequestParam("connectionId") String connectionId,
+                                                                                @RequestParam("tableName") String tableName) {
+        return success(taskService.getTaskStatsByTableNameOrConnectionId(connectionId, tableName, getLoginUser()));
+    }
+
+    @GetMapping("/table/status")
+    public ResponseMessage<TableStatusInfoDto> getTableStatus(@RequestParam("connectionId") String connectionId,
+                                                              @RequestParam("tableName") String tableName) {
+        return success(taskService.getTableStatus(connectionId, tableName,  getLoginUser()));
+    }
 }

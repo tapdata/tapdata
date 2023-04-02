@@ -88,20 +88,22 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
 //                }
 
                 tableNames.set(Lists.newArrayList(tableNode.getTableName()));
-                List<String> updateConditionFields = tableNode.getUpdateConditionFields();
-                if (CollectionUtils.isEmpty(updateConditionFields)) {
-                    TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_UPDATE_ERROR"), name);
-                    result.add(log);
-                } else {
-                    List<MetadataInstancesDto> nodeSchemas = metadataInstancesService.findByNodeId(nodeId, userDetail);
-                    Optional.ofNullable(nodeSchemas).flatMap(list -> list.stream().filter(i -> tableNode.getTableName().equals(i.getName())).findFirst()).ifPresent(schema -> {
-                        List<String> fields = schema.getFields().stream().map(Field::getFieldName).collect(Collectors.toList());
-                        List<String> noExistsFields = updateConditionFields.stream().filter(d -> !fields.contains(d)).collect(Collectors.toList());
-                        if (CollectionUtils.isNotEmpty(noExistsFields)) {
-                            TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_UPDATE_NOT_EXISTS"), name, JSON.toJSON(noExistsFields));
-                            result.add(log);
-                        }
-                    });
+                if ("updateOrInsert".equals(tableNode.getWriteStrategy())) {
+                    List<String> updateConditionFields = tableNode.getUpdateConditionFields();
+                    if (CollectionUtils.isEmpty(updateConditionFields)) {
+                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_UPDATE_ERROR"), name);
+                        result.add(log);
+                    } else {
+                        List<MetadataInstancesDto> nodeSchemas = metadataInstancesService.findByNodeId(nodeId, userDetail);
+                        Optional.ofNullable(nodeSchemas).flatMap(list -> list.stream().filter(i -> tableNode.getTableName().equals(i.getName())).findFirst()).ifPresent(schema -> {
+                            List<String> fields = schema.getFields().stream().map(Field::getFieldName).collect(Collectors.toList());
+                            List<String> noExistsFields = updateConditionFields.stream().filter(d -> !fields.contains(d)).collect(Collectors.toList());
+                            if (CollectionUtils.isNotEmpty(noExistsFields)) {
+                                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_UPDATE_NOT_EXISTS"), name, JSON.toJSON(noExistsFields));
+                                result.add(log);
+                            }
+                        });
+                    }
                 }
             }
 
@@ -143,10 +145,10 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
             }
 
             String databaseType = dataParentNode.getDatabaseType();
-            if (Lists.newArrayList("Oracle", "Clickhouse").contains(databaseType)) {
-                List<MetadataInstancesDto> schemaList = metadataInstancesService.findByNodeId(nodeId, userDetail);
-                Optional.of(schemaList).ifPresent(list -> {
-                    for (MetadataInstancesDto metadata : list) {
+            List<MetadataInstancesDto> schemaList = metadataInstancesService.findByNodeId(nodeId, userDetail);
+            if (CollectionUtils.isNotEmpty(schemaList)) {
+                for (MetadataInstancesDto metadata : schemaList) {
+                    if (Lists.newArrayList("Oracle", "Clickhouse").contains(databaseType)) {
                         for (Field field : metadata.getFields()) {
                             switch (databaseType) {
                                 case "Oracle":
@@ -166,30 +168,27 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                                     break;
                             }
                         }
-                        // check source schema field not support
-                        Map<String, PossibleDataTypes> findPossibleDataTypes = metadata.getFindPossibleDataTypes();
-                        if (Objects.nonNull(findPossibleDataTypes)) {
-                            findPossibleDataTypes.forEach((k, v) -> {
-                                if (Objects.isNull(v.getLastMatchedDataType())) {
-                                    TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_FIELD"), node.getName(), metadata.getName(), k);
-                                    result.add(log);
-                                } else {
-                                    Map<String, String> dataTypeMap = metadata.getFields().stream().collect(Collectors.toMap(Field::getFieldName, Field::getDataType, (pre, aft) -> pre));
-//                                    Map<String, String> selectTypeMap = metadata.getFields().stream()
-//                                            .filter(field -> StringUtils.isNotBlank(field.getSelectDataType()))
-//                                            .collect(Collectors.toMap(Field::getFieldName, Field::getSelectDataType, (pre, aft) -> pre));
-                                    int passingGrade = v.getDataTypes().indexOf(v.getLastMatchedDataType());
-                                    int currentGrade = v.getDataTypes().indexOf(dataTypeMap.get(k));
-
-                                    if ( 0 <= currentGrade && currentGrade < passingGrade) {
-                                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_SELECT_FIELD"), node.getName(), metadata.getName(), k);
-                                        result.add(log);
-                                    }
-                                }
-                            });
-                        }
                     }
-                });
+                    // check source schema field not support
+                    Map<String, PossibleDataTypes> findPossibleDataTypes = metadata.getFindPossibleDataTypes();
+                    if (Objects.nonNull(findPossibleDataTypes)) {
+                        findPossibleDataTypes.forEach((k, v) -> {
+                            if (Objects.isNull(v.getLastMatchedDataType())) {
+                                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_FIELD"), node.getName(), metadata.getName(), k);
+                                result.add(log);
+                            } else {
+                                Map<String, String> dataTypeMap = metadata.getFields().stream().collect(Collectors.toMap(Field::getFieldName, Field::getDataType, (pre, aft) -> pre));
+                                int passingGrade = v.getDataTypes().indexOf(v.getLastMatchedDataType());
+                                int currentGrade = v.getDataTypes().indexOf(dataTypeMap.get(k));
+
+                                if (0 <= currentGrade && currentGrade < passingGrade) {
+                                    TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_SELECT_FIELD"), node.getName(), metadata.getName(), k);
+                                    result.add(log);
+                                }
+                            }
+                        });
+                    }
+                }
             }
 
             String template;

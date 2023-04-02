@@ -54,6 +54,11 @@
             <artifactId>mysql-core</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>class-supervisor</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
     </dependencies>
     <build>
         <plugins>
@@ -75,7 +80,7 @@
                                 <Build-Java>Java ${java.version}</Build-Java>
                                 <PDK-Runner-Version>${tapdata.pdk.runner.version}</PDK-Runner-Version>
                                 <PDK-API-Version>${tapdata.pdk.api.version}</PDK-API-Version>
-                                <Tapdata-API-Version>${tapdata.api.version}</Tapdata-API-Version>
+                                <Tapdata-API-Version>${tapdata.pdk.api.version}</Tapdata-API-Version>
                                 <Version>${project.version}</Version>
                                 <Authentication>GA</Authentication>
                                 <Git-Build-Time>${git.build.time}</Git-Build-Time>
@@ -200,6 +205,31 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.0.0</version>
+                <executions>
+                    <execution>
+                        <phase>install</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <executable>java</executable>
+                    <arguments>
+                        <argument>-jar</argument>
+                        <argument>${basedir}/../../tapdata-cli/target/pdk.jar</argument>
+                        <argument>supervisor</argument>
+                        <argument>${basedir}/../dist/${project.artifactId}-v${project.version}.jar</argument>
+                    </arguments>
+                    <environmentVariables>
+                        <LANG>en_US</LANG>
+                    </environmentVariables>
+                </configuration>
             </plugin>
         </plugins>
     </build>

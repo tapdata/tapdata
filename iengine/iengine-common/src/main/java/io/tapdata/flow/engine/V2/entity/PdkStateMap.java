@@ -92,9 +92,6 @@ public class PdkStateMap implements KVMap<Object> {
 					ConnectorConstant.TASK_COLLECTION
 			);
 		}
-		if (null != taskDto && null != node) {
-			logger.info("Task {} node {} state map external storage: {}", taskDto.getName(), node.getName(), externalStorage);
-		}
 	}
 
 	@NotNull

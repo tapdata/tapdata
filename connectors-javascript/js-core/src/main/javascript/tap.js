@@ -47,6 +47,7 @@ class TapApi {
     /**
      * @description 设置API执行的HTTP配置
      * @param configMap API执行的HTTP配置，Object
+     * @deprecated
      * */
     httpConfigAsGlobal(configMap) {
         if ('undefined' === configMap || null == configMap) return this;
@@ -121,6 +122,7 @@ class TapApi {
 
     /**
      * 禁止外部使用
+     * @deprecated
      * */
     invokeMemberPrivate(uriOrNameStr, paramsMap, methodStr, needIntercept) {
         this.config = _tapConfig_;
