@@ -246,7 +246,10 @@ public class ApiCallService {
             Map userInfo = apiCallEntity.getUserInfo();
             if (null != userInfo && null != userInfo.get("clientId")) {
                 String clientId = (String) userInfo.getOrDefault("clientId", "");
-                apiCallDetailVo.setClientName(clientIdToApplication.get(MongoUtils.toObjectId(clientId)).getName());
+                ApplicationDto applicationDto = clientIdToApplication.get(MongoUtils.toObjectId(clientId));
+                if (applicationDto != null) {
+                    apiCallDetailVo.setClientName(applicationDto.getName());
+                }
             }
             if (StringUtils.isNotEmpty(allPathId) && null != moduleIdToModule.get(MongoUtils.toObjectId(allPathId))) {
                 apiCallDetailVo.setName(moduleIdToModule.get(MongoUtils.toObjectId(allPathId)).getName());
