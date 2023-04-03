@@ -198,11 +198,7 @@ public class MysqlSchemaLoader {
 
         List<DataMap> tableList = TapSimplify.list();
         try {
-            mysqlJdbcContext.query(sql, resultSet -> {
-                while (resultSet.next()) {
-                    tableList.addAll(DbKit.getDataFromResultSet(resultSet));
-                }
-            });
+            mysqlJdbcContext.query(sql, resultSet -> tableList.addAll(DbKit.getDataFromResultSet(resultSet)));
         } catch (Throwable e) {
             TapLogger.error(TAG, "Execute queryAllTables failed, error: " + e.getMessage(), e);
         }

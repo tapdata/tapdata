@@ -4,18 +4,26 @@ import io.tapdata.common.FileConfig;
 
 public class CsvConfig extends FileConfig {
 
-    private String delimiter;
+    private Boolean offStandard = false;
+    private String lineExpression;
 
     public CsvConfig() {
         setFileType("csv");
     }
 
-    public String getDelimiter() {
-        return delimiter;
+    public Boolean getOffStandard() {
+        return offStandard;
     }
 
-    public void setDelimiter(String delimiter) {
-        this.delimiter = delimiter;
+    public void setOffStandard(Boolean offStandard) {
+        this.offStandard = offStandard;
     }
 
+    public String getLineExpression() {
+        return lineExpression;
+    }
+
+    public void setLineExpression(String lineExpression) {
+        this.lineExpression = lineExpression;
+    }
 }

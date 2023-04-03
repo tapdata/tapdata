@@ -10,4 +10,6 @@ import io.tapdata.exception.TapExCode;
  **/
 @TapExClass(code = 12, module = "Task Scheduler", prefix = "TSD", describe = "Schedule task start, stop")
 public interface TaskSchedulerExCode_12 {
+	@TapExCode
+	String UNKNOWN_ERROR = "12001";
 }

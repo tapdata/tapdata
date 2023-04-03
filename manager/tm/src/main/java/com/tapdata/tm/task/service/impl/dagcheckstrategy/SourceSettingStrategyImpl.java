@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
+import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Sets;
 import com.tapdata.tm.commons.dag.DAG;
@@ -7,6 +8,7 @@ import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -22,6 +24,8 @@ import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import io.tapdata.entity.conversion.PossibleDataTypes;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.pdk.apis.entity.Capability;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
@@ -29,6 +33,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import javax.xml.crypto.dsig.keyinfo.KeyName;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -122,7 +127,16 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                     boolean batchReadNotMatch = taskDto.getType().contains("initial_sync") && !capList.contains("batch_read_function");
 
                     if (streamReadNotMatch || batchReadNotMatch) {
-                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_TYPE"), name, JSON.toJSONString(capList), taskDto.getType());
+                        List<String> caps = capList.stream().map(keyName -> MessageUtil.getDagCheckMsg(locale, StringUtils.upperCase(keyName))).collect(Collectors.toList());
+                        List<String> syncType = Lists.newArrayList();
+                        if (taskDto.getType().contains("initial_sync")) {
+                            syncType.add(MessageUtil.getDagCheckMsg(locale, "BATCH_READ_FUNCTION"));
+                        }
+                        if (taskDto.getType().contains("cdc")) {
+                            syncType.add(MessageUtil.getDagCheckMsg(locale, "STREAM_READ_FUNCTION"));
+                        }
+
+                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_TYPE"), name, JSON.toJSONString(caps), StringUtils.join(syncType, "+"));
                         result.add(log);
                     }
                 }
@@ -149,11 +163,12 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                         // check source schema field not support
                         schemaList.forEach(sch -> {
                             String tableName = sch.getName();
-                            Map<String, PossibleDataTypes> findPossibleDataTypes = sch.getFindPossibleDataTypes();
-                            if (Objects.nonNull(findPossibleDataTypes)) {
-                                findPossibleDataTypes.forEach((k, v) -> {
-                                    if (Objects.isNull(v.getLastMatchedDataType())) {
-                                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_FIELD"), node.getName(), tableName, k);
+                            List<Field> fields = sch.getFields();
+                            if (CollectionUtils.isNotEmpty(fields)) {
+                                fields.forEach(k -> {
+                                    TapType tapType = JSON.parseObject(k.getTapType(), TapType.class);
+                                    if (TapType.TYPE_RAW == tapType.getType()) {
+                                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_FIELD"), node.getName(), tableName, k.getFieldName());
                                         result.add(log);
                                     }
                                 });

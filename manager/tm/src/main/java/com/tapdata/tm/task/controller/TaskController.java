@@ -275,7 +275,7 @@ public class TaskController extends BaseController {
             taskNodeService.checkFieldNode(taskDto, user);
 
             // set hostName;
-            workerService.setHostName(taskDto);
+            taskDto = workerService.setHostName(taskDto);
 
             // supplement startTime
             if (Objects.isNull(taskDto.getStartTime())) {

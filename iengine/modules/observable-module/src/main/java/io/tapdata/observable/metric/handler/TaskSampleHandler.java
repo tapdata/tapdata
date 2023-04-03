@@ -12,6 +12,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.kafka.common.metrics.stats.Max;
 import org.springframework.util.ObjectUtils;
 
 import java.util.*;
@@ -112,6 +113,7 @@ public class TaskSampleHandler extends AbstractHandler {
                 SNAPSHOT_TABLE_TOTAL,
                 SNAPSHOT_ROW_TOTAL,
                 SNAPSHOT_INSERT_ROW_TOTAL,
+                SNAPSHOT_START_AT,
                 SNAPSHOT_DONE_AT,
                 SNAPSHOT_DONE_COST,
                 CURR_SNAPSHOT_TABLE,
@@ -123,7 +125,17 @@ public class TaskSampleHandler extends AbstractHandler {
     }
 
     public void doInit(Map<String, Number> values) {
-        collector.addSampler(TABLE_TOTAL, () -> CollectionUtils.isNotEmpty(taskTables) ? taskTables.size() : null);
+        collector.addSampler(TABLE_TOTAL, () -> {
+            if (CollectionUtils.isNotEmpty(taskTables)) {
+                if (Objects.nonNull(snapshotTableTotal.value())) {
+                    return Math.max(snapshotTableTotal.value().longValue(), taskTables.size());
+                } else {
+                    return taskTables.size();
+                }
+            } else {
+                return null;
+            }
+        });
 
         inputDdlCounter = getCounterSampler(values, Constants.INPUT_DDL_TOTAL);
         inputInsertCounter = getCounterSampler(values, Constants.INPUT_INSERT_TOTAL);
@@ -188,6 +200,7 @@ public class TaskSampleHandler extends AbstractHandler {
         if (retrieveSnapshotDoneAt != null) {
             snapshotDoneAt = retrieveSnapshotDoneAt.longValue();
         }
+
         collector.addSampler(SNAPSHOT_DONE_AT, () -> {
             if (Objects.isNull(snapshotDoneAt)) {
                 sourceNodeHandlers.values().stream()

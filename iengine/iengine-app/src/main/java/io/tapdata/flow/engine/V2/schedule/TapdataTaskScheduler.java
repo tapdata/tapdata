@@ -3,7 +3,6 @@ package io.tapdata.flow.engine.V2.schedule;
 import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.AppType;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -334,7 +333,6 @@ public class TapdataTaskScheduler {
 //				logger.warn(checkTaskCanStart);
 //				return;
 //			}
-			Log4jUtil.setThreadContext(taskDto);
 			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
 			TmStatusService.addNewTask(taskId);
 			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);

@@ -9,12 +9,16 @@ import io.tapdata.observable.logging.tag.LogTag;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 
+import java.io.Serializable;
 import java.util.concurrent.Callable;
 
 /**
  * @author Dexter
  **/
-public abstract class ObsLogger {
+public abstract class ObsLogger implements Serializable {
+
+	private static final long serialVersionUID = -2297877575311105139L;
+
 	public abstract MonitoringLogsDto.MonitoringLogsDtoBuilder logBaseBuilder();
 
 	public abstract void debug(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params);
@@ -26,6 +30,16 @@ public abstract class ObsLogger {
 	public abstract void error(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params);
 
 	public abstract void fatal(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params);
+
+	public abstract boolean isEnabled(LogLevel logLevel);
+	public abstract boolean isInfoEnabled();
+
+	public abstract boolean isWarnEnabled();
+
+	public abstract boolean isErrorEnabled();
+	public abstract boolean isDebugEnabled();
+
+	public abstract boolean isFatalEnabled();
 
 	// debug level public logger api
 

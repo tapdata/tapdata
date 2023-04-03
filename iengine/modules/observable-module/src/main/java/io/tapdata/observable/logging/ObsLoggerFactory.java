@@ -6,6 +6,8 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.SettingService;
+import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.entity.utils.DataMap;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,7 +29,7 @@ import java.util.concurrent.TimeUnit;
  * @author Dexter
  **/
 @Slf4j
-public final class ObsLoggerFactory {
+public final class ObsLoggerFactory implements MemoryFetcher {
 	private final Logger logger = LogManager.getLogger(ObsLoggerFactory.class);
 
 	private volatile static ObsLoggerFactory INSTANCE;
@@ -48,12 +50,11 @@ public final class ObsLoggerFactory {
 		this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 		this.scheduleExecutorService = new ScheduledThreadPoolExecutor(1);
 		scheduleExecutorService.scheduleAtFixedRate(this::renewTaskLogSetting, 0L, PERIOD_SECOND, TimeUnit.SECONDS);
-		scheduleExecutorService.scheduleWithFixedDelay(this::removeTaskLogger, LOGGER_REMOVE_WAIT_AFTER_MILLIS, LOGGER_REMOVE_WAIT_AFTER_MILLIS, TimeUnit.HOURS);
+		scheduleExecutorService.scheduleWithFixedDelay(this::removeTaskLogger, PERIOD_SECOND, PERIOD_SECOND, TimeUnit.SECONDS);
 	}
 
 	private static final long PERIOD_SECOND = 10L;
 	private static final long LOGGER_REMOVE_WAIT_AFTER_MILLIS = TimeUnit.HOURS.toMillis(1L);
-
 	private final SettingService settingService;
 	private final ClientMongoOperator clientMongoOperator;
 	private final Map<String, TaskLogger> taskLoggersMap = new ConcurrentHashMap<>();
@@ -90,10 +91,9 @@ public final class ObsLoggerFactory {
 		taskLoggersMap.computeIfPresent(taskId, (k, v) -> v.withTask(taskId, task.getName(), task.getTaskRecordId()));
 		taskLoggersMap.computeIfAbsent(taskId, k -> {
 			loggerToBeRemoved.remove(taskId);
-			TaskLogger taskLogger = new TaskLogger(this::closeDebugForTask).withTask(taskId, task.getName(), task.getTaskRecordId()).withTaskLogSetting(
-					getLogSettingLogLevel(task), getLogSettingRecordCeiling(task), getLogSettingIntervalCeiling(task));
-			taskLogger.registerTaskFileAppender(taskId);
-			taskLogger.registerTaskTmAppender(taskId);
+			TaskLogger taskLogger = TaskLogger.create(taskId, task.getName(), task.getTaskRecordId(), this::closeDebugForTask)
+					.withTaskLogSetting(getLogSettingLogLevel(task), getLogSettingRecordCeiling(task), getLogSettingIntervalCeiling(task));
+			taskLogger.start();
 			return taskLogger;
 		});
 
@@ -139,17 +139,16 @@ public final class ObsLoggerFactory {
 				try {
 					taskLoggerNodeProxyMap.remove(taskId);
 					taskLoggersMap.computeIfPresent(taskId, (key, taskLogger) -> {
-						taskLogger.unregisterTaskFileAppender(taskId);
-						taskLogger.unregisterTaskTmAppender();
-
+						try {
+							taskLogger.close();
+						} catch (Exception e) {
+							throw new RuntimeException(String.format("Close task %s[%s] logger failed, error message: %s", taskLogger.getTaskName(), taskLogger.getTaskId(), e.getMessage()), e);
+						}
 						return null;
 					});
+					removed.add(taskId);
 				} catch (Throwable throwable) {
 					logger.error("Failed when remove the task logger or logger proxy for task node", throwable);
-				} finally {
-					taskLoggerNodeProxyMap.remove(taskId);
-					taskLoggersMap.remove(taskId);
-					removed.add(taskId);
 				}
 			}
 			for (String taskId : removed) {
@@ -199,6 +198,11 @@ public final class ObsLoggerFactory {
 				return ((Integer) logSetting.get(LOG_SETTING_INTERVAL_CEILING)).longValue();
 			}
 		}
+		return null;
+	}
+
+	@Override
+	public DataMap memory(String keyRegex, String memoryLevel) {
 		return null;
 	}
 }

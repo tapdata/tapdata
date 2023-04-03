@@ -35,10 +35,7 @@ import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.commons.task.dto.migrate.MigrateTableDto;
 import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
-import com.tapdata.tm.commons.util.CapitalizedEnum;
-import com.tapdata.tm.commons.util.JsonUtil;
-import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
-import com.tapdata.tm.commons.util.ThrowableUtils;
+import com.tapdata.tm.commons.util.*;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.customNode.dto.CustomNodeDto;
 import com.tapdata.tm.customNode.service.CustomNodeService;
@@ -1176,7 +1173,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 monitoringLogsService.startTaskErrorLog(task, user, e, Level.ERROR);
                 if (e instanceof BizException) {
                     mutiResponseMessage.setCode(((BizException) e).getErrorCode());
-                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
+                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode(), ((BizException) e).getArgs()));
                 } else {
                     try {
                         ResponseMessage<?> responseMessage = exceptionHandler.handlerException(e, request, response);
@@ -1205,7 +1202,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 log.warn("stop task exception, task id = {}, e = {}", taskId, e);
                 if (e instanceof BizException) {
                     mutiResponseMessage.setCode(((BizException) e).getErrorCode());
-                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
+                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode(), ((BizException) e).getArgs()));
                 } else {
                     try {
                         ResponseMessage<?> responseMessage = exceptionHandler.handlerException(e, request, response);
@@ -1243,7 +1240,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     if("Clear.Slot".equals((((BizException) e).getErrorCode()))){
                         mutiResponseMessage.setMessage(e.getMessage());
                     }else{
-                        mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
+                        mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode(), ((BizException) e).getArgs()));
                     }
                 } else {
                     try {
@@ -1275,7 +1272,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 log.warn("renew task exception, task id = {}, e = {}", taskId, e);
                 if (e instanceof BizException) {
                     mutiResponseMessage.setCode(((BizException) e).getErrorCode());
-                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode()));
+                    mutiResponseMessage.setMessage(MessageUtil.getMessage(((BizException) e).getErrorCode(), ((BizException) e).getArgs()));
                 } else {
                     try {
                         ResponseMessage<?> responseMessage = exceptionHandler.handlerException(e, request, response);
@@ -2389,6 +2386,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     .and("is_deleted").ne(true);
             if (StringUtils.isNotBlank(status)) {
                 criteria.and("status").is(status);
+            } else {
+                criteria.and("status").nin(Lists.of(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED));
             }
             Query query = new Query(criteria);
             query.fields().include("dag");
@@ -3913,10 +3912,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         Criteria criteria = new Criteria();
         // tableName 不为空根据表查询。否则根据连接查询
-        criteria.and("dag.nodes.connectionId").is(connectionId).and("is_deleted").is(false);
+        criteria.and("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true);
         if (StringUtils.isNotBlank(tableName)) {
             criteria.orOperator(new Criteria().and("dag.nodes.tableName").is(tableName),
-                    new Criteria().and("dag.nodes.tableNames").in(tableName));
+                    new Criteria().and("dag.nodes.syncObjects.objectNames").is(tableName)
+            );
         }
         Query query = Query.query(criteria);
         return findAllDto(query,userDetail);
@@ -3934,7 +3934,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         // tableName 不为空根据表查询。否则根据连接查询
         criteria.and("dag.nodes.connectionId").is(connectionId);
         criteria.orOperator(new Criteria().and("dag.nodes.tableName").is(tableName),
-                new Criteria().and("dag.nodes.tableNames").in(tableName));
+                new Criteria().and("dag.nodes.tableNames").in(tableName),
+                new Criteria().and("dag.nodes.syncObjects.objectNames").in(tableName));
         Query query = Query.query(criteria);
         List<TaskDto> list = findAll(query);
         String taskSuccessStatus = "";
@@ -4053,9 +4054,18 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (CollectionUtils.isNotEmpty(nodeList)) {
                     for (Node node : nodeList) {
                         if (node instanceof DatabaseNode) {
+                            boolean tableNameExist = false;
                             DatabaseNode nodeTemp = (DatabaseNode) node;
-                            if (CollectionUtils.isNotEmpty(nodeTemp.getTableNames()) &&
-                                    nodeTemp.getTableNames().contains(tableName)
+                            if (nodeTemp.getSyncObjects() != null) {
+                                for (SyncObjects syncObjects : nodeTemp.getSyncObjects()) {
+                                    if (syncObjects.getObjectNames().contains(tableName)) {
+                                        tableNameExist = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (((CollectionUtils.isNotEmpty(nodeTemp.getTableNames()) && nodeTemp.getTableNames().contains(tableName))
+                                    || tableNameExist)
                                     && node.getId().equals(target)) {
                                 return true;
                             }
@@ -4088,7 +4098,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     public TaskDto findHeartbeatByTaskId(String taskId, String... includeFields) {
-        Query query = Query.query(Criteria.where("heartbeatTasks").is(taskId)
+        Query query = Query.query(Criteria.where(ConnHeartbeatUtils.TASK_RELATION_FIELD).is(taskId)
                 .and("syncType").is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
                 .and("is_deleted").is(false)
         );
@@ -4097,5 +4107,33 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         return findOne(query);
+    }
+
+    public int deleteHeartbeatByConnId(UserDetail user, String connId) {
+        int deleteSize = 0;
+        List<TaskDto> heartbeatTasks = findHeartbeatByConnectionId(connId, "_id", "status", "is_deleted");
+        if (null != heartbeatTasks) {
+            TaskDto statusDto;
+            for (TaskDto dto : heartbeatTasks) {
+                statusDto = dto;
+                do {
+                    if (TaskDto.STATUS_RUNNING.equals(statusDto.getStatus())) {
+                        pause(statusDto.getId(), user, false);
+                    } else if (!TaskDto.STATUS_STOPPING.equals(statusDto.getStatus())) {
+                        break;
+                    }
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException("Delete heartbeat task failed");
+                    }
+                    statusDto = findByTaskId(dto.getId(), "status");
+                } while (null != statusDto);
+
+                remove(dto.getId(), user);
+                deleteSize++;
+            }
+        }
+        return deleteSize;
     }
 }

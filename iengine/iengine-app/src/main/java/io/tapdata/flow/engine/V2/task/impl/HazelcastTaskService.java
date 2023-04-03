@@ -49,7 +49,10 @@ import io.tapdata.autoinspect.utils.AutoInspectNodeUtil;
 import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
+import io.tapdata.flow.engine.V2.exception.TaskSchedulerExCode_12;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
@@ -278,7 +281,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
                 TapTableMap<String, TapTable> finalTapTableMap = tapTableMap;
                 Vertex vertex = new Vertex(NodeUtil.getVertexName(node), () -> {
                     try {
-                        Log4jUtil.setThreadContext(taskDtoAtomicReference.get());
                         return createNode(
                                 taskDtoAtomicReference.get(),
                                 nodes,
@@ -294,8 +296,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
                                 taskConfig
                         );
                     } catch (Exception e) {
-                        logger.error("create dag node failed: {}", e.getMessage(), e);
-                        throw e;
+                        throw new TapCodeException(TaskProcessorExCode_11.CREATE_PROCESSOR_FAILED,
+                                String.format("Failed to create processor based on node information, node: %s[%s]", node.getName(), node.getId()), e);
                     }
                 });
                 vertexMap.put(node.getId(), vertex);

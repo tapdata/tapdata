@@ -178,7 +178,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     final public void process(int ordinal, @NotNull Inbox inbox) {
         //threadPoolExecutorEx.submitSync(() -> {
             try {
-                Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
                 Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
                 if (!inbox.isEmpty()) {
                     List<TapdataEvent> tapdataEvents = new ArrayList<>();
@@ -272,7 +271,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             AspectUtils.executeAspect(DataNodeThreadGroupAspect.class, () ->
                     new DataNodeThreadGroupAspect(this.getNode(), associateId, Thread.currentThread().getThreadGroup())
                             .dataProcessorContext(dataProcessorContext));
-            Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
             List<TapdataEvent> tapdataEvents = new ArrayList<>();
             while (isRunning()) {
                 int drain = Queues.drain(tapEventQueue, tapdataEvents, targetBatch, targetBatchIntervalMs, TimeUnit.MILLISECONDS);
@@ -552,7 +550,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             } else {
                 Collection<String> logicUniqueKey = tapTable.primaryKeys(true);
                 if (CollectionUtils.isEmpty(logicUniqueKey)) {
-                    tapTable.setLogicPrimaries(tapTable.getNameFieldMap().keySet());
+                    tapTable.setLogicPrimaries(Collections.emptyList());
                 }
             }
         } else if (writeStrategy.equals(com.tapdata.tm.commons.task.dto.MergeTableProperties.MergeType.appendWrite.name())) {
@@ -573,7 +571,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     @Override
     public boolean saveToSnapshot() {
         try {
-            Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
             if (!flushOffset.get()) return true;
             if (MapUtils.isEmpty(syncProgressMap)) return true;
             Map<String, String> syncProgressJsonMap = new HashMap<>(syncProgressMap.size());

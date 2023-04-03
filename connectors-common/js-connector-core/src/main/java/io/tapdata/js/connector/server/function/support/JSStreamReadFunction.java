@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class JSStreamReadFunction extends FunctionBase implements FunctionSupport<StreamReadFunction> {
     private AtomicBoolean isAlive = new AtomicBoolean(true);
     private final Object lock = new Object();
-    private static final long STREAM_READ_DELAY_SEC = 1 * 60 * 1000L;
+
     ExecuteConfig config;
 
     public JSStreamReadFunction isAlive(AtomicBoolean isAlive) {

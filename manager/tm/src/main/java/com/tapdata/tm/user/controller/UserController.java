@@ -3,6 +3,7 @@ package com.tapdata.tm.user.controller;
 import cn.hutool.crypto.digest.BCrypt;
 import com.mongodb.BasicDBObject;
 import com.tapdata.tm.Permission.dto.PermissionDto;
+import com.tapdata.tm.Permission.entity.PermissionEntity;
 import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.accessToken.dto.AccessTokenDto;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
@@ -392,20 +393,8 @@ public class UserController extends BaseController {
     @Operation(summary = "user updatePermissionRoleMapping")
     @PutMapping("/updatePermissionRoleMapping")
     public ResponseMessage<Page<RoleDto>> updatePermissionRoleMapping(@RequestBody UpdatePermissionRoleMappingDto dto) {
+        userService.updatePermissionRoleMapping(dto, getLoginUser());
 
-        UserDetail userDetail = getLoginUser();
-        if (CollectionUtils.isNotEmpty(dto.getDeletes())) {
-            List<RoleMappingDto> deletes = dto.getDeletes();
-            List<Criteria> deleteCriteria = new ArrayList<>();
-            for (RoleMappingDto delete : deletes) {
-                Criteria criteria = Criteria.where("roleId").is(delete.getRoleId()).and("principalId").is(delete.getPrincipalId()).and("principalType").is("PERMISSION");
-                deleteCriteria.add(criteria);
-            }
-            roleMappingService.deleteAll(Query.query(new Criteria().orOperator(deleteCriteria)));
-        }
-        if (CollectionUtils.isNotEmpty(dto.getAdds())) {
-            roleMappingService.save(dto.getAdds(), userDetail);
-        }
         return success();
 
     }

@@ -1372,7 +1372,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             return taskService.findOne(query, user);
         }).map(task -> task.getId().toHexString()).map(tid -> {
             // get heartbeat task dag of the connection node
-            Query query = new Query(Criteria.where("heartbeatTasks").is(tid));
+            Query query = new Query(Criteria.where(ConnHeartbeatUtils.TASK_RELATION_FIELD).is(tid));
             query.fields().include("_id", "dag");
             return taskService.findOne(query, user);
         }).map(taskDto -> {

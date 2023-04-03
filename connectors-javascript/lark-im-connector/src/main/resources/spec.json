@@ -3,7 +3,9 @@
     "name": "Lark-IM",
     "icon": "icon/lark.png",
     "doc": "${doc}",
-    "id": "lark-im"
+    "id": "lark-im",
+    "authentication": "Beta",
+    "tags": ["SaaS"]
   },
   "configOptions": {
     "pdkExpansion": [],
@@ -397,6 +399,9 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "x-index": 30,
+          "x-decorator-props": {
+            "style": {"display": "none"}
+          },
           "required": false,
           "x-reactions": [
             "{{$values.app_id && $values.app_secret && useAsyncDataSourceByConfig({service: getCommandAndSetValue, withoutField: true}, $form, { command: 'GetAppInfo' })}}",

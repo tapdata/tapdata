@@ -1,6 +1,6 @@
 package com.tapdata.tm.commons.dag;
 
-import com.google.common.collect.Lists;
+import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -23,6 +23,8 @@ import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapRaw;
+import io.tapdata.entity.schema.type.TapType;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
@@ -104,7 +106,11 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             metadataMap.put(metadataInstancesDto.getQualifiedName(), metadataInstancesDto);
         }
         if (!"database".equals(metadataInstancesDto.getMetaType()) && metadataInstancesDto.getSource() != null && !metadataInstancesDto.getQualifiedName().startsWith("PN")) {
-            metadataMap.put(metadataInstancesDto.getSource().get_id() + metadataInstancesDto.getName(), metadataInstancesDto);
+            String sourceId = metadataInstancesDto.getSource().get_id();
+            if (StringUtils.isBlank(sourceId)) {
+                sourceId = metadataInstancesDto.getSource().getId().toHexString();
+            }
+            metadataMap.put(sourceId + metadataInstancesDto.getName(), metadataInstancesDto);
         }
     }
 
@@ -643,7 +649,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             if (databaseType.equalsIgnoreCase(field.getSourceDbType())) {
                 if (originalField != null && originalField.getDataTypeTemp() != null) {
                     field.setDataType(originalField.getDataTypeTemp());
-                    if (findPossibleDataTypes != null) {
+                    TapType tapType = JSON.parseObject(field.getTapType(), TapType.class);
+                    if (findPossibleDataTypes != null && TapRaw.TYPE_RAW != tapType.getType()) {
                         findPossibleDataTypes.remove(field.getFieldName());
                     }
                 }
@@ -950,20 +957,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
 
                 update2.setHistories(hisModels);
-                update2.setFields(metadataInstancesDto.getFields());
-                update2.setIndexes(metadataInstancesDto.getIndexes());
-                update2.setIndices(metadataInstancesDto.getIndices());
-                update2.setDeleted(false);
-                update2.setCreateSource(metadataInstancesDto.getCreateSource());
-                update2.setVersion(newVersion);
-                update2.setSourceType(metadataInstancesDto.getSourceType());
-                update2.setQualifiedName(metadataInstancesDto.getQualifiedName());
-                update2.setHasPrimaryKey(metadataInstancesDto.isHasPrimaryKey());
-                update2.setHasUnionIndex(metadataInstancesDto.isHasUnionIndex());
-                update2.setFindPossibleDataTypes(metadataInstancesDto.getFindPossibleDataTypes());
-                update2.setHasUpdateField(metadataInstancesDto.isHasUpdateField());
-                update2.setHasTransformEx(metadataInstancesDto.isHasTransformEx());
-                if (existsMetadataInstance != null && existsMetadataInstance.getId() != null) {
+                BeanUtils.copyProperties(metadataInstancesDto, update2);
+                if (existsMetadataInstance.getId() != null) {
                     metadataInstancesDto.setId(existsMetadataInstance.getId());
                     metadataUpdateMap.put(existsMetadataInstance.getId().toHexString(), update2);
                 }

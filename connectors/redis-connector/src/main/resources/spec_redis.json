@@ -160,7 +160,7 @@
         "valueType": {
           "type": "string",
           "title": "${valueType}",
-          "default": "String",
+          "default": "List",
           "x-decorator": "FormItem",
           "x-component": "Select",
           "x-index": 1,
@@ -185,31 +185,13 @@
           "x-decorator": "FormItem",
           "x-component": "Switch",
           "x-index": 2,
-          "default": false,
+          "default": true,
           "x-reactions": [
             {
               "dependencies": [".valueType"],
               "fulfill": {
                 "state": {
                   "visible": "{{$deps[0] !== 'String'}}"
-                }
-              }
-            }
-          ]
-        },
-        "keyTableName": {
-          "type": "string",
-          "title": "${keyTableName}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "x-index": 3,
-          "required": true,
-          "x-reactions": [
-            {
-              "dependencies": [".valueType",".oneKey"],
-              "fulfill": {
-                "state": {
-                  "visible": "{{$deps[0] !== 'String' && $deps[1]}}"
                 }
               }
             }
@@ -242,10 +224,62 @@
           "required": true,
           "x-reactions": [
             {
-              "dependencies": [".valueType",".oneKey"],
+              "dependencies": [".valueType",".oneKey","type"],
               "fulfill": {
                 "state": {
-                  "visible": "{{$deps[0] === 'Hash' || !$deps[1]}}"
+                  "visible": "{{($deps[0] === 'Hash' || !$deps[1]) && ($deps[2] !== 'database')}}"
+                }
+              }
+            }
+          ]
+        },
+        "keyPrefix": {
+          "type": "string",
+          "title": "${keyPrefix}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 6,
+          "x-reactions": [
+            {
+              "dependencies": [".valueType",".oneKey","type"],
+              "fulfill": {
+                "state": {
+                  "visible": "{{($deps[0] === 'Hash' || !$deps[1]) && ($deps[2] === 'database')}}"
+                }
+              }
+            }
+          ]
+        },
+        "keyJoin": {
+          "type": "string",
+          "title": "${keyJoin}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "-",
+          "x-index": 7,
+          "x-reactions": [
+            {
+              "dependencies": [".valueType",".oneKey","type"],
+              "fulfill": {
+                "state": {
+                  "visible": "{{($deps[0] === 'Hash' || !$deps[1]) && ($deps[2] === 'database')}}"
+                }
+              }
+            }
+          ]
+        },
+        "keySuffix": {
+          "type": "string",
+          "title": "${keySuffix}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 8,
+          "x-reactions": [
+            {
+              "dependencies": [".valueType",".oneKey","type"],
+              "fulfill": {
+                "state": {
+                  "visible": "{{($deps[0] === 'Hash' || !$deps[1]) && ($deps[2] === 'database')}}"
                 }
               }
             }
@@ -254,10 +288,10 @@
         "valueData": {
           "type": "string",
           "title": "${valueData}",
-          "default": "Json",
+          "default": "Text",
           "x-decorator": "FormItem",
           "x-component": "Select",
-          "x-index": 6,
+          "x-index": 9,
           "enum": [
             {
               "label": "Text",
@@ -283,7 +317,7 @@
           "title": "${valueJoinString}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "x-index": 7,
+          "x-index": 10,
           "default": ",",
           "required": true,
           "x-reactions": [
@@ -302,7 +336,7 @@
           "title": "${csvFormat}",
           "x-decorator": "FormItem",
           "x-component": "Switch",
-          "x-index": 8,
+          "x-index": 11,
           "default": true,
           "x-reactions": [
             {
@@ -336,9 +370,11 @@
       "sentinelPort": "Server port",
       "valueType": "Storage format",
       "oneKey": "Save in one key",
-      "keyTableName": "One key name",
       "listHead": "Include head",
       "keyExpression": "Key expression",
+      "keyPrefix": "Key Prefix",
+      "keyJoin": "Key Join String",
+      "keySuffix": "Key Suffix",
       "valueData": "Value display",
       "valueJoinString": "Value join string",
       "csvFormat": "Csv Format",
@@ -362,9 +398,11 @@
       "sentinelPort": "端口",
       "valueType": "存储格式",
       "oneKey": "单键存储",
-      "keyTableName": "键名",
       "listHead": "包含表头",
       "keyExpression": "键表达式",
+      "keyPrefix": "键前缀",
+      "keyJoin": "关联键连接符",
+      "keySuffix": "键后缀",
       "valueData": "值显示",
       "valueJoinString": "值连接符",
       "csvFormat": "Csv格式化",
@@ -388,9 +426,11 @@
       "sentinelPort": "服務器端口",
       "valueType": "存储格式",
       "oneKey": "單鍵存储",
-      "keyTableName": "鍵名",
       "listHead": "包含表頭",
       "keyExpression": "鍵運算式",
+      "keyPrefix": "鍵首碼",
+      "keyJoin": "關聯鍵連接符",
+      "keySuffix": "鍵尾碼",
       "valueData": "值顯示",
       "valueJoinString": "值連接符",
       "csvFormat": "Csv格式化",

@@ -78,8 +78,6 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
     @Autowired
     private UserLogService userLogService;
     @Autowired
-    private UserService userService;
-    @Autowired
     private SettingsService settingsService;
     @Autowired
     private ScheduleTasksService scheduleTasksService;
@@ -574,16 +572,21 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         return worker;
     }
 
-    public void setHostName(TaskDto dto) {
+    public TaskDto setHostName(TaskDto dto) {
         String agentId = dto.getAgentId();
         Query query = new Query(Criteria.where("process_id").is(agentId));
         WorkerDto one = findOne(query);
         if (Objects.nonNull(one)) {
             dto.setHostName(one.getHostname());
-            Optional.ofNullable(one.getTcmInfo()).ifPresent(info -> {
-                dto.setAgentName(info.getAgentName());
-            });
+            dto.setAgentName(one.getHostname());
+
+            if (settingsService.isCloud()) {
+                Optional.ofNullable(one.getTcmInfo()).ifPresent(info -> {
+                    dto.setAgentName(info.getAgentName());
+                });
+            }
         }
+        return dto;
     }
 
     public String checkTaskUsedAgent(String taskId, UserDetail user) {

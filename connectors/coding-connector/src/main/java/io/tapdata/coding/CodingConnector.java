@@ -49,9 +49,10 @@ public class CodingConnector extends ConnectorBase {
     private final long streamExecutionGap = 5000;//util: ms
     private int batchReadPageSize = 500;//coding page 1~500,
 
-    private Long lastTimePoint;
     private Set<String> lastTimeSplitIssueCode = new HashSet<>();//hash code list
+    private long issuesLastTimePoint;
     private Set<String> lastTimeSplitIterationCode = new HashSet<>();//hash code list
+    private long iterationsLastTimePoint;
     private Set<String> lastTimeProjectMembersCode = new HashSet<>();//hash code list
 
     private LastData lastCommandResult;
@@ -80,9 +81,9 @@ public class CodingConnector extends ConnectorBase {
         CodingHttp.interceptor = (http, request, hasIgnore) -> {
             if (hasIgnore) return request;
             try {
-                Map<String,Object> body = (Map<String,Object>)fromJson(request.body());
-                Map<String, Object> response = (Map<String, Object>)body.get("Response");
-                response = (Map<String, Object>)response.get("Error");
+                Map<?,?> body = fromJson(request.body(),Map.class);
+                Map<?, ?> response = (Map<?, ?>)body.get("Response");
+                response = (Map<?, ?>)response.get("Error");
                 String code = (String)response.get("Code");
                 String message = (String)response.get("Message");
                 if ("ResourceNotFound".equals(code)|| " User not found, authorization invalid".equals(message)) {
@@ -139,7 +140,6 @@ public class CodingConnector extends ConnectorBase {
                 .kv("streamExecutionGap", streamExecutionGap)
                 .kv("batchReadPageSize", batchReadPageSize)
                 .kv("lastCommandResult", lastCommandResult)
-                .kv("lastTimePoint", lastTimePoint)
                 ;
     }
 
@@ -150,9 +150,9 @@ public class CodingConnector extends ConnectorBase {
         CodingHttp.interceptor = (http, request, hasIgnore) -> {
             if (hasIgnore) return request;
             try {
-                Map<String,Object> body = (Map<String,Object>)fromJson(request.body());
-                Map<String, Object> response = (Map<String, Object>)body.get("Response");
-                response = (Map<String, Object>)response.get("Error");
+                Map<?,?> body = fromJson(request.body(), Map.class);
+                Map<?, ?> response = (Map<?, ?>)body.get("Response");
+                response = (Map<?, ?>)response.get("Error");
                 String code = (String)response.get("Code");
                 String message = (String)response.get("Message");
                 if ("ResourceNotFound".equals(code)|| " User not found, authorization invalid".equals(message)) {
@@ -287,9 +287,9 @@ public class CodingConnector extends ConnectorBase {
         CodingHttp.interceptor = (http, request, hasIgnore) -> {
             if (hasIgnore) return request;
             try {
-                Map<String,Object> body = (Map<String,Object>)fromJson(request.body());
-                Map<String, Object> response = (Map<String, Object>)body.get("Response");
-                response = (Map<String, Object>)response.get("Error");
+                Map<?,?> body = fromJson(request.body(), Map.class);
+                Map<?, ?> response = (Map<?, ?>)body.get("Response");
+                response = (Map<?, ?>)response.get("Error");
                 String code = (String)response.get("Code");
                 String message = (String)response.get("Message");
                 if ("ResourceNotFound".equals(code)|| " User not found, authorization invalid".equals(message)) {
@@ -340,5 +340,17 @@ public class CodingConnector extends ConnectorBase {
     }
     public void lastTimeProjectMembersCode(Set<String> set){
         this.lastTimeProjectMembersCode = set;
+    }
+    public long iterationsLastTimePoint(){
+        return this.iterationsLastTimePoint;
+    }
+    public void iterationsLastTimePoint(long iterationsLastTimePoint){
+        this.iterationsLastTimePoint = iterationsLastTimePoint;
+    }
+    public long issuesLastTimePoint(){
+        return this.issuesLastTimePoint;
+    }
+    public void issuesLastTimePoint(long issuesLastTimePoint){
+        this.issuesLastTimePoint = issuesLastTimePoint;
     }
 }

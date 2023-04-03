@@ -78,7 +78,6 @@ import java.util.stream.Collectors;
  * @date 2021/12/7 3:25 PM
  **/
 public abstract class HazelcastBaseNode extends AbstractProcessor {
-	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkDataNode.class);
 	/**
 	 * [sub task id]-[node id]
 	 */
@@ -181,7 +180,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		try {
 			this.jetContext = context;
 			super.init(context);
-			Log4jUtil.setThreadContext(processorBaseContext.getTaskDto());
 			running.compareAndSet(false, true);
 			codecsFilterManager = TapCodecUtil.genericCodecsFilterManager();
 			// execute ProcessorNodeInitAspect before doInit since we need to init the aspect first;

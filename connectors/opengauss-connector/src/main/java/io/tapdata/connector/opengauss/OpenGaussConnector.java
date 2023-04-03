@@ -27,6 +27,7 @@ import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -303,17 +304,9 @@ public class OpenGaussConnector extends CommonDbConnector {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
-        if (EmptyKit.isNotNull(cdcRunner)) {
-            cdcRunner.closeCdcRunner();
-            cdcRunner = null;
-        }
-        if (EmptyKit.isNotNull(postgresTest)) {
-            postgresTest.close();
-            postgresTest = null;
-        }
-        if (EmptyKit.isNotNull(postgresJdbcContext)) {
-            postgresJdbcContext.close();
-        }
+        ErrorKit.ignoreAnyError(cdcRunner::closeCdcRunner);
+        ErrorKit.ignoreAnyError(postgresTest::close);
+        ErrorKit.ignoreAnyError(postgresJdbcContext::close);
     }
 
     //initialize jdbc context, slot name, version
@@ -321,9 +314,7 @@ public class OpenGaussConnector extends CommonDbConnector {
         postgresConfig = (PostgresConfig) new PostgresConfig().load(connectorContext.getConnectionConfig());
         postgresTest = new PostgresTest(postgresConfig, testItem -> {
         }).initContext();
-        if (EmptyKit.isNull(postgresJdbcContext)) {
-            postgresJdbcContext = new PostgresJdbcContext(postgresConfig);
-        }
+        postgresJdbcContext = new PostgresJdbcContext(postgresConfig);
         commonDbConfig = postgresConfig;
         jdbcContext = postgresJdbcContext;
         isConnectorStarted(connectorContext, tapConnectorContext -> slotName = tapConnectorContext.getStateMap().get("tapdata_pg_slot"));
@@ -540,14 +531,12 @@ public class OpenGaussConnector extends CommonDbConnector {
     }
 
     private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
-        if (EmptyKit.isNull(cdcRunner)) {
-            cdcRunner = new PostgresCdcRunner(postgresJdbcContext);
-            if (EmptyKit.isNull(slotName)) {
-                buildSlot();
-                nodeContext.getStateMap().put("tapdata_pg_slot", slotName);
-            }
-            cdcRunner.useSlot(slotName.toString()).watch(tableList).offset(offsetState).registerConsumer(consumer, recordSize);
+        cdcRunner = new PostgresCdcRunner(postgresJdbcContext);
+        if (EmptyKit.isNull(slotName)) {
+            buildSlot();
+            nodeContext.getStateMap().put("tapdata_pg_slot", slotName);
         }
+        cdcRunner.useSlot(slotName.toString()).watch(tableList).offset(offsetState).registerConsumer(consumer, recordSize);
         cdcRunner.startCdcRunner();
         if (EmptyKit.isNotNull(cdcRunner) && EmptyKit.isNotNull(cdcRunner.getThrowable().get())) {
             throw cdcRunner.getThrowable().get();

@@ -48,8 +48,8 @@ public class CommonSqlMaker {
                 return "";
             }
             builder.append('\"').append(tapField.getName()).append("\" ").append(tapField.getDataType()).append(' ');
-            buildNullDefinition(builder, tapField);
             buildDefaultDefinition(builder, tapField);
+            buildNullDefinition(builder, tapField);
             if (needComment) {
                 buildCommentDefinition(builder, tapField);
             }

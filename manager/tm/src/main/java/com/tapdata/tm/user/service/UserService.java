@@ -7,16 +7,22 @@ import cn.hutool.crypto.digest.BCrypt;
 import cn.hutool.json.JSONObject;
 import com.google.common.collect.Sets;
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.Permission.entity.PermissionEntity;
+import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.base.dto.Field;
+import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
+import com.tapdata.tm.commons.function.Bi3Consumer;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.customer.dto.CustomerDto;
 import com.tapdata.tm.customer.service.CustomerService;
 import com.tapdata.tm.role.dto.RoleDto;
 import com.tapdata.tm.role.service.RoleService;
+import com.tapdata.tm.roleMapping.dto.PrincipleType;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 import com.tapdata.tm.roleMapping.service.RoleMappingService;
 import com.tapdata.tm.tcm.dto.UserInfoDto;
@@ -47,6 +53,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -82,6 +89,9 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
 
     @Autowired
     private CustomerService customerService;
+
+    @Autowired
+    PermissionService permissionService;
 
     private final String DEFAULT_MAIL_SUFFIX = "@custom.com";
 
@@ -315,7 +325,8 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
     }
 
     public User findOneByEmail(String email) {
-        Optional<User> userOptional = repository.findOne(Query.query(Criteria.where("email").is(email)));
+        Optional<User> userOptional = repository.findOne(Query.query(Criteria.where("email").is(email)
+                .orOperator(Criteria.where("isDeleted").is(false), Criteria.where("isDeleted").exists(false))));
         if (!userOptional.isPresent()) {
             throw new BizException("User.email.Found");
         }
@@ -324,7 +335,7 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
 
     public <T extends BaseDto> UserDto save(CreateUserRequest request, UserDetail userDetail) {
 
-        UserDto userDto = findOne(Query.query(Criteria.where("email").is(request.getEmail())));
+        UserDto userDto = findOne(Query.query(Criteria.where("email").is(request.getEmail()).orOperator(Criteria.where("isDeleted").is(false), Criteria.where("isDeleted").exists(false))));
         if (userDto != null) {
             throw new BizException("User.Already.Exists");
         }
@@ -491,6 +502,8 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
      * @param id
      */
     public void delete(String id) {
+        //delete role mapping
+        roleMappingService.deleteAll(Query.query(Criteria.where("principalId").is(id).and("principalType").is("USER")));
         Update update = new Update().set("isDeleted", true);
         Query query = Query.query(Criteria.where("id").is(id));
         UpdateResult updateResult = repository.getMongoOperations().updateFirst(query, update, User.class);
@@ -502,5 +515,117 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
 
     public String getServerPort() {
         return serverPort;
+    }
+
+    public void updatePermissionRoleMapping(UpdatePermissionRoleMappingDto dto, UserDetail userDetail) {
+
+        BiConsumer<List<RoleMappingDto>, Bi3Consumer<List<PermissionEntity>, List<RoleMappingDto>, ObjectId>> biConsumer = (roleMappingDtos, consumer) -> {
+           if (CollectionUtils.isNotEmpty(roleMappingDtos)) {
+               Map<ObjectId, List<RoleMappingDto>> roleMappingByRoleIdMap = roleMappingDtos.stream().collect(Collectors.groupingBy(RoleMappingDto::getRoleId));
+               for (Map.Entry<ObjectId, List<RoleMappingDto>> entry : roleMappingByRoleIdMap.entrySet()) {
+                   List<RoleMappingDto> dtos = entry.getValue();
+                   ObjectId roleId = entry.getKey();
+                   //查询当前页面菜单的权限
+                   List<PermissionEntity> permissions = getPermissionsByCodes(dtos.stream().map(RoleMappingDto::getPrincipalId).collect(Collectors.toSet()));
+                   //获取指定的页面菜单的权限及其子权限
+                   List<RoleMappingDto> wholeRoleMappingDto = getWholeRoleMappingDto(permissions.stream().map(PermissionEntity::getName).collect(Collectors.toSet()), roleId);
+                   consumer.accept(permissions, wholeRoleMappingDto, roleId);
+               }
+           }
+        };
+
+        biConsumer.accept(dto.getDeletes(), (permissions, deleteRoleMappingDtos, roleId) -> {
+            List<Criteria> deleteCriteriaList = deleteRoleMappingDtos.stream()
+                    .map(delete -> Criteria.where("roleId").is(delete.getRoleId())
+                            .and("principalId").is(delete.getPrincipalId())
+                            .and("principalType").is(PrincipleType.PERMISSION))
+                    .collect(Collectors.toList());
+            roleMappingService.deleteAll(Query.query(new Criteria().orOperator(deleteCriteriaList)));
+            //删除没有页面菜单的父权限
+            List<RoleMappingDto> toDeleteParentRoleMappingDtos = getTodoParentRoleMappingDtos(roleId, permissions);
+            if (CollectionUtils.isNotEmpty(toDeleteParentRoleMappingDtos)) {
+                roleMappingService.deleteAll(Query.query(new Criteria().orOperator(toDeleteParentRoleMappingDtos.stream()
+                        .map(delete -> Criteria.where("roleId").is(delete.getRoleId())
+                                .and("principalId").is(delete.getPrincipalId())
+                                .and("principalType").is(PrincipleType.PERMISSION))
+                        .collect(Collectors.toList()))));
+            }
+        });
+
+        biConsumer.accept(dto.getAdds(), (permissions, addRoleMappingDtos, roleId) -> {
+            roleMappingService.save(addRoleMappingDtos, userDetail);
+            //添加没有的父权限
+            Set<String> parentPermissionCodes = getParentPermissionCodes(permissions);
+            List<Criteria> queryParentCriteriaList = parentPermissionCodes.stream()
+                    .map(code -> Criteria.where("roleId").is(roleId)
+                            .and("principalId").is(code)
+                            .and("principalType").is(PrincipleType.PERMISSION))
+                    .collect(Collectors.toList());
+            List<RoleMappingDto> alreadyExistsParentRoleMappings = roleMappingService.findAll(Query.query(new Criteria().orOperator(queryParentCriteriaList)));
+            alreadyExistsParentRoleMappings.stream().map(RoleMappingDto::getPrincipalId).forEach(parentPermissionCodes::remove);
+            List<RoleMappingDto> toAddParentRoleMappingDtos = parentPermissionCodes.stream()
+                    .map(code -> new RoleMappingDto(PrincipleType.PERMISSION.getValue(), code, roleId)).collect(Collectors.toList());
+            if (CollectionUtils.isNotEmpty(toAddParentRoleMappingDtos)) {
+                roleMappingService.save(toAddParentRoleMappingDtos, userDetail);
+            }
+        });
+    }
+
+    @NotNull
+    private List<RoleMappingDto> getTodoParentRoleMappingDtos(ObjectId roleId, List<PermissionEntity> permissions) {
+        List<RoleMappingDto> todoParentRoleMappingDtos = new ArrayList<>();
+        Set<String> parentPermissionCodes = getParentPermissionCodes(permissions);
+        for (String parentPermissionCode : parentPermissionCodes) {
+            List<PermissionEntity> allChildPermissions = getChildPermissionsByCodes(Collections.singleton(parentPermissionCode));
+            List<Criteria> queryChildCriteriaList = allChildPermissions.stream().map(p -> Criteria.where("roleId").is(roleId)
+                            .and("principalId").is(p.getName())
+                            .and("principalType").is(PrincipleType.PERMISSION))
+                    .collect(Collectors.toList());
+            long count = roleMappingService.count(Query.query(new Criteria().orOperator(queryChildCriteriaList)));
+            if (count <= 0) {
+                // need to do something
+                todoParentRoleMappingDtos.add(new RoleMappingDto(PrincipleType.PERMISSION.getValue(), parentPermissionCode, roleId));
+            }
+        }
+        return todoParentRoleMappingDtos;
+    }
+
+    private List<RoleMappingDto> getWholeRoleMappingDto(Set<String> permissionCodes, ObjectId roleId) {
+        List<RoleMappingDto> roleMappingDtos = permissionCodes.stream().map(p -> new RoleMappingDto(PrincipleType.PERMISSION.getValue(), p, roleId)).collect(Collectors.toList());
+        List<RoleMappingDto> childRoleMappingDto = getChildRoleMappingDto(permissionCodes, roleId);
+        if (CollectionUtils.isNotEmpty(childRoleMappingDto)) {
+            roleMappingDtos.addAll(childRoleMappingDto);
+        }
+        return roleMappingDtos;
+    }
+
+    private List<RoleMappingDto> getChildRoleMappingDto(Set<String> permissionCodes, ObjectId roleId) {
+        List<PermissionEntity> childPermissions = getChildPermissionsByCodes(permissionCodes);
+        if (CollectionUtils.isNotEmpty(childPermissions)) {
+            return childPermissions.stream()
+                    .map(p -> new RoleMappingDto(PrincipleType.PERMISSION.getValue(), p.getName(), roleId)).collect(Collectors.toList());
+        }
+        return new ArrayList<>();
+    }
+
+    private Set<String> getParentPermissionCodes(List<PermissionEntity> permissions) {
+        return permissions.stream().map(PermissionEntity::getParentId).filter(StringUtils::isNotEmpty).collect(Collectors.toSet());
+    }
+
+    private List<PermissionEntity> getChildPermissionsByCodes(Set<String> permissionCodes) {
+        return permissionService.find(new Filter(Where.where("parentId", new HashMap<String, Object>() {{
+            put("$in", permissionCodes);
+        }})));
+    }
+
+    private List<PermissionEntity> getPermissionsByCodes(Set<String> permissionCodes) {
+        Filter filter = new Filter(Where.where("name", new HashMap<String, Object>() {{
+            put("$in", permissionCodes);
+        }}).and("parentId", new HashMap<String, Object>() {{
+            put("$ne", null);
+        }}).and("parentId", new HashMap<String, Object>() {{
+            put("$ne", "");
+        }}));
+        return permissionService.find(filter);
     }
 }
