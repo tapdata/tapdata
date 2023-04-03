@@ -373,7 +373,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
                 LinkedHashMap connection = (LinkedHashMap) properties.get("connection");
                 analyzeApiServerKey(dataSourceConnectionDto, connection, null);
 
-                ConnectionVo connectionVo = com.tapdata.tm.utils.BeanUtil.deepClone(dataSourceConnectionDto, ConnectionVo.class);
+                ConnectionVo connectionVo = cn.hutool.core.bean.BeanUtil.copyProperties(dataSourceConnectionDto, ConnectionVo.class);
                 if (null != connectionVo) {
                     String plainPassword = AES256Util.Aes256Decode(connectionVo.getDatabase_password());
                     connectionVo.setDatabase_password(plainPassword);
