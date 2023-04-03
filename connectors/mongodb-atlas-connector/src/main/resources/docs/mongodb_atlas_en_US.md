@@ -1,7 +1,7 @@
 ## **Connect configuration help**
 ###  **1. MongoDB Atlas Installation Instructions**
 Follow these instructions to ensure that the MongoDB Atlas database is successfully added and used in Tapdata.
->**Note**：When connecting to MongoDB Atlas, you need to fill in the connection string according to the URI demonstration format of the MongoDB Atlas database connection.
+>**Note**：When connecting to MongoDB Atlas, you need to enter a connection string based on the URI demonstration format of the MongoDB Atlas database connection. The connection string must be specified as user name, password, and database name.
 #### **2. Supported version**
 MongoDB Atlas 5.0.15
 >**Note**：Ensure that both the resource database and the target database are of version 5.0 or later.

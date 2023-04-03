@@ -1,7 +1,7 @@
 ## **连接配置帮助**
 ###  **1. MongoDB Atlas安装说明**
 请遵循以下说明以确保在 Tapdata 中成功添加和使用MongoDB Atlas数据库。
-> **注意**：连接MongoDB Atlas时，需要按照MongoDB Atlas数据库连接的URI示范格式填写连接串。
+> **注意**：连接MongoDB Atlas时，需要按照MongoDB Atlas数据库连接的URI示范格式填写连接串，连接串需要指定：用户名、密码、数据库名。
 #### **2. 支持版本**
 MongoDB Atlas 5.0.15
 > **注意**：请尽量保证资源端数据库和目标数据库都是5.0以上版本。
