@@ -445,7 +445,6 @@ public class ProxyController extends BaseController {
             response.sendError(SC_UNAUTHORIZED);
             return;
         }
-
         if(processId != null) {
             ServiceCaller serviceCaller = new ServiceCaller()
                     .className("MemoryService")
@@ -457,6 +456,47 @@ public class ProxyController extends BaseController {
         } else {
             response.setContentType("application/json");
             response.getOutputStream().write(PDKIntegration.outputMemoryFetchers(splitStrings(keys), null, "Detail").getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    @Operation(summary = "External callback url")
+    @GetMapping("supervisor")
+    public void supervisorInfo(
+            @RequestParam(name = "access_token") String token,
+            @RequestParam(name = "associateIds", required = false) String associateIds,
+            @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
+//        if(token == null || !token.equals(TOKEN)) {
+//            response.sendError(SC_UNAUTHORIZED);
+//            return;
+//        }
+        UserDetail userDetail = getLoginUser();
+        String method = "";
+        String doMain = String.format(
+                "http://%s:%s%s?access_token=%s&pid=%s&associateIds=",
+                request.getLocalAddr(),
+                request.getLocalPort(),
+                request.getRequestURI(),
+                token,
+                processId
+        );
+        if (Objects.isNull(associateIds) || associateIds.trim().equals("")){
+            method = "Summary_" + doMain;
+        }else {
+            method = "Connectors_" + associateIds;
+        }
+        List<String> keys = new ArrayList<>();
+        keys.add("TaskResourceSupervisorManager");
+        if(processId != null) {
+            ServiceCaller serviceCaller = new ServiceCaller()
+                    .className("MemoryService")
+                    .method("memory")
+                    .args(new Object[]{keys, null, method});
+            serviceCaller.subscribeIds("processId_" + processId, "userId_" + userDetail.getUserId());
+            executeServiceCaller(request, response, serviceCaller, null);
+        } else {
+            response.setContentType("application/json");
+            String result = PDKIntegration.outputMemoryFetchers(keys, null, method);
+            response.getOutputStream().write(result.getBytes(StandardCharsets.UTF_8));
         }
     }
 

@@ -1,27 +1,22 @@
 package io.tapdata.databend;
 
 import io.tapdata.common.CommonDbTest;
-import io.tapdata.common.DataSourcePool;
+import io.tapdata.databend.config.DatabendConfig;
 import io.tapdata.pdk.apis.entity.TestItem;
 
-import static io.tapdata.base.ConnectorBase.testItem;
-
-import io.tapdata.databend.config.DatabendConfig;
-
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.regex.Pattern;
+
+import static io.tapdata.base.ConnectorBase.testItem;
 
 
 public class DatabendTest extends CommonDbTest {
 
     public DatabendTest(DatabendConfig databendConfig, Consumer<TestItem> consumer) {
         super(databendConfig, consumer);
-        jdbcContext = DataSourcePool.getJdbcContext(databendConfig, DatabendJdbcContext.class, uuid);
+        jdbcContext = new DatabendJdbcContext(databendConfig);
     }
 
     protected Boolean testVersion() {

@@ -12,11 +12,12 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.task.AbstractAspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
+import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.milestone.constants.MilestoneStatus;
 import io.tapdata.milestone.entity.MilestoneEntity;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -27,23 +28,39 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
+ * 设计要点：
+ * <ul>
+ *     <li>所有指标使用覆盖方式更新，体现当前任务运行状态</li>
+ *     <li>任务重启，初始化不会进入</li>
+ *     <li>任务重启，全量不一定进入</li>
+ *     <li>全量读完，不代表同步完成</li>
+ *     <li>全量迁移完成，不能以同步数据量一样来标识，中间数据可能被过滤</li>
+ *     <li>增量任务，增量阶段不会完成</li>
+ *     <li>增量开始，不是马上读到增量数据（Oracle 开 logminer 会很久）</li>
+ *     <li>合并场景，源节点会有多个</li>
+ * </ul>
+ *
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2023/2/14 15:54 Create
  */
-@AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC})
+@AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_CONN_HEARTBEAT, TaskDto.SYNC_TYPE_LOG_COLLECTOR})
 public class MilestoneAspectTask extends AbstractAspectTask {
     private final static Logger logger = LogManager.getLogger(MilestoneAspectTask.class);
 
     private final static String KPI_TASK = "TASK";
     private final static String KPI_DATA_NODE_INIT = "DATA_NODE_INIT";
     private final static String KPI_NODE = "NODE";
-    private final static String KPI_BATCH_READ = "BATCH_READ";
-    private final static String KPI_STREAM_READ = "STREAM_READ";
-    private final static String KPI_OPEN_STREAM_READ = "OPEN_STREAM_READ";
-    private final static String KPI_WRITE_RECORD = "WRITE_RECORD";
+    private final static String KPI_SNAPSHOT = "SNAPSHOT";
+    private final static String KPI_CDC = "CDC";
+    private final static String KPI_SNAPSHOT_READ = "SNAPSHOT_READ";
+    private final static String KPI_OPEN_CDC_READ = "OPEN_CDC_READ";
+    private final static String KPI_CDC_READ = "CDC_READ";
+    private final static String KPI_SNAPSHOT_WRITE = "SNAPSHOT_WRITE";
+    private final static String KPI_CDC_WRITE = "CDC_WRITE";
     private final static String KPI_TABLE_INIT = "TABLE_INIT";
 
     private final Map<String, MilestoneEntity> milestones = new ConcurrentHashMap<>();
@@ -51,7 +68,6 @@ public class MilestoneAspectTask extends AbstractAspectTask {
 
     private final ScheduledExecutorService executorService = new ScheduledThreadPoolExecutor(1);
     private ClientMongoOperator clientMongoOperator;
-    private ObjectId taskId;
     private final Map<String, MilestoneStatus> dataNodeInitMap = new HashMap<>();
     private final Set<String> targetNodes = new HashSet<>();
 
@@ -61,20 +77,91 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         observerHandlers.register(DataNodeCloseAspect.class, this::handleDataNodeClose);
         observerHandlers.register(ProcessorNodeInitAspect.class, this::handleProcessNodeInit);
         observerHandlers.register(ProcessorNodeCloseAspect.class, this::handleProcessNodeClose);
-
-        observerHandlers.register(BatchReadFuncAspect.class, this::handleBatchRead);
-        observerHandlers.register(StreamReadFuncAspect.class, this::handleStreamRead);
-        observerHandlers.register(WriteRecordFuncAspect.class, this::handleWriteRecord);
         observerHandlers.register(TableInitFuncAspect.class, this::handleTableInit);
+
+        AtomicLong snapshotTableCounts = new AtomicLong(0);
+        AtomicLong snapshotTableProgress = new AtomicLong(0);
+        nodeRegister(SnapshotReadBeginAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> {
+            m.setProgress(0L);
+            m.setTotals((long) aspect.getTables().size());
+            snapshotTableCounts.addAndGet(m.getTotals());
+            setRunning(m);
+            taskMilestone(KPI_SNAPSHOT, (tm) -> {
+                tm.setTotals(snapshotTableCounts.get());
+                setRunning(tm);
+            });
+        });
+        nodeRegister(SnapshotReadEndAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> setFinish(m));
+        nodeRegister(SnapshotReadErrorAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> {
+            setError(aspect, m);
+            taskMilestone(KPI_SNAPSHOT, (tm) -> setError(aspect, tm));
+        });
+        nodeRegister(SnapshotReadTableEndAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> {
+            m.addProgress(1);
+            snapshotTableProgress.addAndGet(1);
+            taskMilestone(KPI_SNAPSHOT, (tm) -> {
+                tm.setProgress(snapshotTableCounts.get());
+            });
+        });
+        nodeRegister(Snapshot2CDCAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> {
+            setFinish(m);
+            taskMilestone(KPI_SNAPSHOT, this::setRunning); // fix status
+        });
+        nodeRegister(CDCReadBeginAspect.class, KPI_OPEN_CDC_READ, (aspect, m) -> {
+            if (hasSnapshot()) {
+                taskMilestone(KPI_SNAPSHOT, this::setFinish); // fix status
+            }
+            setRunning(m);
+            taskMilestone(KPI_CDC, this::setRunning);
+        });
+        nodeRegister(CDCReadStartedAspect.class, (nodeId, aspect) -> {
+            nodeKpi(nodeId, KPI_OPEN_CDC_READ, this::setFinish);
+            nodeKpi(nodeId, KPI_CDC_READ, this::setRunning);
+        });
+        nodeRegister(CDCReadErrorAspect.class, (nodeId, aspect) -> {
+            nodeKpi(nodeId, KPI_OPEN_CDC_READ, (m) -> {
+                if (null == m.getEnd()) {
+                    setError(aspect, m);
+                } else {
+                    nodeKpi(nodeId, KPI_CDC_READ, (m2) -> setError(aspect, m2));
+                }
+            });
+        });
+//        nodeRegister(CDCReadEndAspect.class, KPI_STREAM_READ, (aspect, m) -> setFinish(m));
+        nodeRegister(SnapshotWriteBeginAspect.class, KPI_SNAPSHOT_WRITE, (aspect, m) -> setRunning(m));
+        nodeRegister(SnapshotWriteEndAspect.class, KPI_SNAPSHOT_WRITE, (aspect, m) -> {
+            setFinish(m);
+            taskMilestone(KPI_SNAPSHOT, this::setFinish);
+        });
+        nodeRegister(CDCWriteBeginAspect.class, (nodeId, aspect) -> {
+            if (hasSnapshot()) {
+                nodeKpi(nodeId, KPI_SNAPSHOT_WRITE, this::setFinish); // fix status
+            }
+            nodeKpi(nodeId, KPI_CDC_WRITE, this::setRunning);
+            taskMilestone(KPI_CDC, this::setFinish);
+        });
+        nodeRegister(WriteErrorAspect.class, (nodeId, aspect) -> nodeKpi(nodeId, KPI_SNAPSHOT_WRITE, m -> {
+            if (null == m.getEnd()) {
+                setError(aspect, m);
+            } else {
+                nodeKpi(nodeId, KPI_CDC_WRITE, m2 -> setError(aspect, m2));
+            }
+        }));
     }
 
     @Override
     public void onStart(TaskStartAspect startAspect) {
-        taskId = task.getId();
-        logger.info("Start task milestones: {}({})", taskId.toHexString(), task.getName());
-        taskMilestone(KPI_TASK, this::setFinish);
+        logger.info("Start task milestones: {}({})", task.getId().toHexString(), task.getName());
 
-        for (Node<?> n : startAspect.getTask().getDag().getNodes()) {
+        taskMilestone(KPI_TASK, this::setFinish);
+        if (!TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(task.getSyncType())) {
+            taskMilestone(KPI_TABLE_INIT, null);
+        }
+        taskMilestone(KPI_DATA_NODE_INIT, null);
+        if (hasSnapshot()) taskMilestone(KPI_SNAPSHOT, null);
+        if (hasCdc()) taskMilestone(KPI_CDC, null);
+
+        for (Node<?> n : task.getDag().getNodes()) {
             if (n.isDataNode()) {
                 dataNodeInitMap.put(n.getId(), MilestoneStatus.WAITING);
             }
@@ -86,7 +173,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
 
     @Override
     public void onStop(TaskStopAspect stopAspect) {
-        logger.info("Stop task milestones: {}({}) ", taskId.toHexString(), task.getName());
+        logger.info("Stop task milestones: {}({}) ", task.getId().toHexString(), task.getName());
         try {
             // Release resources
             executorService.shutdown();
@@ -94,6 +181,14 @@ public class MilestoneAspectTask extends AbstractAspectTask {
             // store last status
             storeMilestone();
         }
+    }
+
+    private boolean hasSnapshot() {
+        return ParentTaskDto.TYPE_INITIAL_SYNC_CDC.equals(task.getType()) || ParentTaskDto.TYPE_INITIAL_SYNC.equals(task.getType());
+    }
+
+    private boolean hasCdc() {
+        return ParentTaskDto.TYPE_INITIAL_SYNC_CDC.equals(task.getType()) || ParentTaskDto.TYPE_CDC.equals(task.getType());
     }
 
     private Void handleDataNodeInit(DataNodeInitAspect aspect) {
@@ -126,96 +221,6 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     private Void handlePDKNodeInit(PDKNodeInitAspect aspect) {
         String nodeId = nodeId(aspect.getDataProcessorContext());
         nodeMilestones(nodeId, KPI_NODE, this::setFinish);
-        return null;
-    }
-
-    private Void handleBatchRead(BatchReadFuncAspect aspect) {
-        String nodeId = nodeId(aspect.getDataProcessorContext());
-        switch (aspect.getState()) {
-            case BatchReadFuncAspect.STATE_START:
-                nodeMilestones(nodeId, KPI_BATCH_READ, this::setRunning);
-                break;
-            case BatchReadFuncAspect.STATE_END: {
-                Throwable error = aspect.getThrowable();
-                if (null == error) {
-                    nodeMilestones(nodeId, KPI_BATCH_READ, this::setFinish);
-                } else {
-                    nodeMilestones(nodeId, KPI_BATCH_READ, getErrorConsumer(error.getMessage()));
-                }
-                break;
-            }
-            default:
-                break;
-        }
-        return null;
-    }
-
-    private Void handleStreamRead(StreamReadFuncAspect aspect) {
-        String nodeId = nodeId(aspect.getDataProcessorContext());
-        switch (aspect.getState()) {
-            case StreamReadFuncAspect.STATE_START:
-                taskMilestone(KPI_STREAM_READ, this::setRunning);
-                nodeMilestones(nodeId, KPI_OPEN_STREAM_READ, this::setRunning);
-                break;
-            case StreamReadFuncAspect.STATE_STREAM_STARTED: // has stream data
-                nodeMilestones(nodeId, KPI_OPEN_STREAM_READ, this::setFinish);
-                nodeMilestones(nodeId, KPI_STREAM_READ, this::setRunning);
-                break;
-            case StreamReadFuncAspect.STATE_END: {
-                // stream read never finish
-                nodeMilestones.computeIfPresent(nodeId, (nid, nodeMap) -> {
-                    Throwable error = aspect.getThrowable();
-                    if (null != error) {
-                        taskMilestone(KPI_STREAM_READ, getErrorConsumer(error.getMessage()));
-                        MilestoneEntity m = Optional.ofNullable(nodeMap.get(KPI_STREAM_READ)).orElse(nodeMap.get(KPI_OPEN_STREAM_READ));
-                        if (null != m) {
-                            m.setEnd(System.currentTimeMillis());
-                            m.setStatus(MilestoneStatus.ERROR);
-                            m.setErrorMessage(error.getMessage());
-                        }
-                    }
-                    return nodeMap;
-                });
-                break;
-            }
-            default:
-                break;
-        }
-        return null;
-    }
-
-    private Void handleWriteRecord(WriteRecordFuncAspect aspect) {
-        String nodeId = nodeId(aspect.getDataProcessorContext());
-        switch (aspect.getState()) {
-            case WriteRecordFuncAspect.STATE_START:
-                taskMilestone(KPI_WRITE_RECORD, this::setRunning);
-                nodeMilestones(nodeId, KPI_WRITE_RECORD, this::setRunning);
-                taskMilestone(KPI_TABLE_INIT, milestone -> {
-                    milestone.setProgress(milestone.getTotals());
-                    setFinish(milestone);
-                });
-                nodeMilestones(nodeId, KPI_TABLE_INIT, milestone -> {
-                    milestone.setProgress(milestone.getTotals());
-                    setFinish(milestone);
-                });
-                break;
-            case WriteRecordFuncAspect.STATE_END: {
-                Throwable error = aspect.getThrowable();
-                if (null == error) {
-                    if (ParentTaskDto.TYPE_CDC.equals(task.getType()) || ParentTaskDto.TYPE_INITIAL_SYNC_CDC.equals(task.getType())) {
-                        // write cdc never finish
-                        taskMilestone(KPI_WRITE_RECORD, this::setFinish);
-                        nodeMilestones(nodeId, KPI_WRITE_RECORD, this::setFinish);
-                    }
-                } else {
-                    taskMilestone(KPI_WRITE_RECORD, getErrorConsumer(error.getMessage()));
-                    nodeMilestones(nodeId, KPI_WRITE_RECORD, getErrorConsumer(error.getMessage()));
-                }
-                break;
-            }
-            default:
-                break;
-        }
         return null;
     }
 
@@ -257,36 +262,38 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     private void storeMilestone() {
         try {
             // set task table init
-            taskMilestone(KPI_TABLE_INIT, (milestone) -> {
-                milestone.setStatus(MilestoneStatus.WAITING);
-                if (targetNodes.isEmpty()) return;
+            if (!TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(task.getSyncType())) {
+                taskMilestone(KPI_TABLE_INIT, (milestone) -> {
+                    milestone.setStatus(MilestoneStatus.WAITING);
+                    if (targetNodes.isEmpty()) return;
 
-                milestone.setBegin(System.currentTimeMillis());
-                milestone.setEnd(0L);
-                milestone.setStatus(MilestoneStatus.RUNNING);
-                AtomicLong totals = new AtomicLong(0), completed = new AtomicLong(0);
-                for (String nid : targetNodes) {
-                    nodeMilestones(nid, KPI_TABLE_INIT, (m) -> {
-                        milestone.setBegin(Math.min(milestone.getBegin(), m.getBegin()));
-                        if (null == m.getEnd()) {
-                            milestone.setEnd(null);
-                        } else if (null != milestone.getEnd()) {
-                            milestone.setEnd(Math.max(milestone.getEnd(), m.getEnd()));
-                        }
+                    milestone.setBegin(System.currentTimeMillis());
+                    milestone.setEnd(0L);
+                    milestone.setStatus(MilestoneStatus.RUNNING);
+                    AtomicLong totals = new AtomicLong(0), completed = new AtomicLong(0);
+                    for (String nid : targetNodes) {
+                        nodeMilestones(nid, KPI_TABLE_INIT, (m) -> {
+                            milestone.setBegin(Math.min(milestone.getBegin(), m.getBegin()));
+                            if (null == m.getEnd()) {
+                                milestone.setEnd(null);
+                            } else if (null != milestone.getEnd()) {
+                                milestone.setEnd(Math.max(milestone.getEnd(), m.getEnd()));
+                            }
 
-                        milestone.setTotals(totals.addAndGet(m.getTotals()));
-                        milestone.setProgress(completed.addAndGet(m.getProgress()));
-                        if (null != m.getErrorMessage()) {
-                            milestone.setStatus(MilestoneStatus.ERROR);
-                            milestone.setErrorMessage(m.getErrorMessage());
-                        }
-                    });
-                }
+                            milestone.setTotals(totals.addAndGet(m.getTotals()));
+                            milestone.setProgress(completed.addAndGet(m.getProgress()));
+                            if (null != m.getErrorMessage()) {
+                                milestone.setStatus(MilestoneStatus.ERROR);
+                                milestone.setErrorMessage(m.getErrorMessage());
+                            }
+                        });
+                    }
 
-                if (MilestoneStatus.ERROR != milestone.getStatus() && totals.get() == completed.get()) {
-                    milestone.setStatus(MilestoneStatus.FINISH);
-                }
-            });
+                    if (MilestoneStatus.ERROR != milestone.getStatus() && totals.get() == completed.get()) {
+                        milestone.setStatus(MilestoneStatus.FINISH);
+                    }
+                });
+            }
 
             taskMilestone(KPI_DATA_NODE_INIT, m -> {
                 if (MilestoneStatus.FINISH == m.getStatus()) return; // return if finish
@@ -312,7 +319,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
             });
 
             clientMongoOperator.update(
-                    Query.query(Criteria.where("_id").is(taskId))
+                    Query.query(Criteria.where("_id").is(task.getId()))
                     , Update.update("attrs.milestone", milestones).set("attrs.nodeMilestones", nodeMilestones)
                     , ConnectorConstant.TASK_COLLECTION);
         } catch (Exception e) {
@@ -327,10 +334,40 @@ public class MilestoneAspectTask extends AbstractAspectTask {
                 entity = milestones.computeIfAbsent(code, s -> new MilestoneEntity(code, MilestoneStatus.WAITING));
             }
         }
-        consumer.accept(entity);
+        if (null != consumer) consumer.accept(entity);
     }
 
     private void nodeMilestones(String nodeId, String code, Consumer<MilestoneEntity> consumer) {
+        Map<String, MilestoneEntity> nodeMap = nodeMilestones.get(nodeId);
+        if (null == nodeMap) {
+            synchronized (nodeMilestones) {
+                nodeMap = nodeMilestones.computeIfAbsent(nodeId, s -> new HashMap<>());
+            }
+        }
+
+        MilestoneEntity entity = nodeMap.computeIfAbsent(code, s -> new MilestoneEntity(code, MilestoneStatus.WAITING));
+        consumer.accept(entity);
+    }
+
+    private <T extends DataNodeAspect<T>> void nodeRegister(Class<T> clz, BiConsumer<String, T> consumer) {
+        observerHandlers.register(clz, aspect -> {
+            String nodeId = nodeId(aspect.getDataProcessorContext());
+            consumer.accept(nodeId, aspect);
+            return null;
+        });
+    }
+
+    private <T extends DataNodeAspect<T>> void nodeRegister(Class<T> clz, String code, BiConsumer<T, MilestoneEntity> consumer) {
+        observerHandlers.register(clz, aspect -> {
+            String nodeId = nodeId(aspect.getDataProcessorContext());
+            nodeKpi(nodeId, code, m -> {
+                consumer.accept(aspect, m);
+            });
+            return null;
+        });
+    }
+
+    private void nodeKpi(String nodeId, String code, Consumer<MilestoneEntity> consumer) {
         Map<String, MilestoneEntity> nodeMap = nodeMilestones.get(nodeId);
         if (null == nodeMap) {
             synchronized (nodeMilestones) {
@@ -350,7 +387,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     }
 
     private void setRunning(MilestoneEntity milestone) {
-        if (MilestoneStatus.RUNNING != milestone.getStatus()) {
+        if (null == milestone.getBegin()) {
             milestone.setBegin(System.currentTimeMillis());
             milestone.setStatus(MilestoneStatus.RUNNING);
         }
@@ -359,10 +396,19 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     }
 
     private void setFinish(MilestoneEntity milestone) {
-        if (MilestoneStatus.FINISH != milestone.getStatus()) {
+        if (null == milestone.getBegin()) {
+            milestone.setBegin(System.currentTimeMillis());
+        }
+        if (null == milestone.getEnd()) {
             milestone.setEnd(System.currentTimeMillis());
             milestone.setStatus(MilestoneStatus.FINISH);
         }
+    }
+
+    private <T extends AbsDataNodeErrorAspect<T>> void setError(T aspect, MilestoneEntity m) {
+        m.setEnd(System.currentTimeMillis());
+        m.setStatus(MilestoneStatus.ERROR);
+        m.setErrorMessage(Optional.ofNullable(aspect.getError()).map(Throwable::getMessage).orElse(null));
     }
 
     private Consumer<MilestoneEntity> getErrorConsumer(String errorMessage) {

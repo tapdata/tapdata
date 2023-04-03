@@ -23,10 +23,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.bson.Document;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -88,8 +85,9 @@ public class MongodbWriter {
 		Object pksCache = table.primaryKeys(true);
 		if (null == pksCache) pksCache = table.primaryKeys();
 		final Collection<String> pks = (Collection<String>)pksCache;
+
 		// daas  data will cache local
-		if (!is_cloud) {
+		if (!is_cloud && mongodbConfig.isEnableSaveDeleteData()) {
 			MongodbLookupUtil.lookUpAndSaveDeleteMessage(tapRecordEvents, this.globalStateMap, this.connectionString, pks, collection);
 		}
 		for (TapRecordEvent recordEvent : tapRecordEvents) {
@@ -149,7 +147,15 @@ public class MongodbWriter {
 				options.upsert(false);
 			}
 			MongodbUtil.removeIdIfNeed(pks, after);
-			writeModel = new UpdateManyModel<>(pkFilter, new Document().append("$set", after), options);
+			Document u = new Document().append("$set", after);
+			Map<String, Object> info = recordEvent.getInfo();
+			if (info != null) {
+				Object unset = info.get("$unset");
+				if (unset != null) {
+					u.append("$unset", unset);
+				}
+			}
+			writeModel = new UpdateManyModel<>(pkFilter, u, options);
 			updated.incrementAndGet();
 		} else if (recordEvent instanceof TapDeleteRecordEvent && CollectionUtils.isNotEmpty(pks)) {
 
@@ -158,7 +164,6 @@ public class MongodbWriter {
 			final Document pkFilter = getPkFilter(pks, before);
 
 			writeModel = new DeleteOneModel<>(pkFilter);
-			collection.deleteOne(new Document(before));
 			deleted.incrementAndGet();
 		}
 
@@ -178,7 +183,10 @@ public class MongodbWriter {
 	private Document getPkFilter(Collection<String> pks, Map<String, Object> record) {
 		Document filter = new Document();
 		for (String pk : pks) {
-			filter.append(pk, record.get(pk));
+			Optional.ofNullable(record.get(pk)).map(v -> {
+				filter.append(pk, v);
+				return null;
+			});
 		}
 
 		return filter;

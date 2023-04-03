@@ -4,20 +4,14 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataTaskErrorEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
-import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
-import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.jetbrains.annotations.NotNull;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,12 +23,8 @@ import java.util.Map;
  **/
 public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 
-	private Logger logger = LoggerFactory.getLogger(HazelcastDataBaseNode.class);
-
 	protected SyncTypeEnum syncType;
-
 	protected DataProcessorContext dataProcessorContext;
-
 	protected Throwable offsetFromTimeError;
 
 	public HazelcastDataBaseNode(DataProcessorContext dataProcessorContext) {
@@ -74,7 +64,7 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 		return true;
 	}
 
-	protected SyncProgress initSyncProgress(Map<String, Object> attrs) {
+	protected SyncProgress foundSyncProgress(Map<String, Object> attrs) {
 		SyncProgress syncProgress = null;
 		try {
 			if (MapUtils.isEmpty(attrs)) {
@@ -111,7 +101,7 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 				}
 			} else {
 				if (null == syncProgressObj) {
-					logger.info("Sync progress not exists, will run task as first time");
+					obsLogger.info("Sync progress not exists, will run task as first time");
 				} else {
 					throw new RuntimeException("Unrecognized sync progress type: " + syncProgressObj.getClass().getName() + ", should be a map");
 				}

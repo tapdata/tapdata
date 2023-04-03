@@ -3,7 +3,9 @@
     "name": "SelectDB",
     "icon": "icons/selectdb.png",
     "doc": "${doc}",
-    "id": "selectdb"
+    "id": "selectdb",
+    "authentication": "Beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "capabilities": [

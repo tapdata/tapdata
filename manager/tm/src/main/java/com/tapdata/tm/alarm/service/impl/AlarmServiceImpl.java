@@ -7,6 +7,7 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.cglib.CglibUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import cn.hutool.json.JSONUtil;
+import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
@@ -14,14 +15,15 @@ import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.Settings.service.SettingsService;
-import com.tapdata.tm.alarm.constant.*;
+import com.tapdata.tm.alarm.constant.AlarmMailTemplate;
+import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.dto.*;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
+import com.tapdata.tm.base.aop.MeasureAOP;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -55,6 +57,9 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.expression.ExpressionParser;
+import org.springframework.expression.common.TemplateParserContext;
+import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.stereotype.Service;
 
 import java.text.MessageFormat;
@@ -107,7 +112,7 @@ public class AlarmServiceImpl implements AlarmService {
             info.setId(one.getId());
             info.setTally(one.getTally() + 1);
             info.setLastUpdAt(date);
-            FunctionUtils.isTureOrFalse(AlarmStatusEnum.CLOESE.equals(one.getStatus())).trueOrFalseHandle(
+            FunctionUtils.isTureOrFalse(Lists.of(AlarmStatusEnum.CLOESE, AlarmStatusEnum.RECOVER).contains(one.getStatus())).trueOrFalseHandle(
                     () -> info.setFirstOccurrenceTime(date),
                     () -> info.setFirstOccurrenceTime(one.getFirstOccurrenceTime())
             );
@@ -136,7 +141,8 @@ public class AlarmServiceImpl implements AlarmService {
         }
     }
 
-    private boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type, UserDetail userDetail) {
+    @Override
+    public boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type, UserDetail userDetail) {
         boolean openTask = false;
         if (AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN.equals(key)) {
             openTask = true;
@@ -144,7 +150,7 @@ public class AlarmServiceImpl implements AlarmService {
             List<AlarmSettingDto> alarmSettingDtos = getAlarmSettingDtos(taskDto, nodeId);
             if (CollectionUtils.isNotEmpty(alarmSettingDtos)) {
                 openTask = alarmSettingDtos.stream().anyMatch(t ->
-                        t.getKey().equals(key) && t.isOpen() && t.getNotify().contains(type));
+                        t.getKey().equals(key) && t.isOpen() && (type ==null || t.getNotify().contains(type)));
             }
         }
 
@@ -152,8 +158,9 @@ public class AlarmServiceImpl implements AlarmService {
         List<AlarmSettingDto> all = alarmSettingService.findAllAlarmSetting(userDetail);
         if (CollectionUtils.isNotEmpty(all)) {
             openSys = all.stream().anyMatch(t ->
-                    t.getKey().equals(key) && t.isOpen() && t.getNotify().contains(type));
+                    t.getKey().equals(key) && t.isOpen() && (type == null ||  t.getNotify().contains(type)));
         }
+
         return openTask && openSys;
     }
 
@@ -281,20 +288,26 @@ public class AlarmServiceImpl implements AlarmService {
                     log.info("Current user ({}, {}) can't open system notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
                     return true;
                 }
+                ExpressionParser parser = new SpelExpressionParser();
+                TemplateParserContext parserContext = new TemplateParserContext();
+
+                messageEntity.setTemplate(info.getSummary());
+                String template = MessageUtil.getAlarmMsg(Locale.US, info.getSummary());
+                String content = parser.parseExpression(template, parserContext).getValue(info.getParam(), String.class);
+
                 String taskId = taskDto.getId().toHexString();
                 messageEntity.setLevel(info.getLevel().name());
                 messageEntity.setAgentId(taskDto.getAgentId());
                 messageEntity.setServerName(taskDto.getAgentId());
                 messageEntity.setMsg(MsgTypeEnum.ALARM.getValue());
-                String summary = info.getSummary();
-                summary = summary + ", 通知时间：" + DateUtil.now();
-                String title = StringUtils.replace(summary, "$taskName", info.getName());
-                messageEntity.setTitle(title);
+
+                messageEntity.setTitle(content);
                 MessageMetadata metadata = new MessageMetadata(taskDto.getName(), taskId);
                 messageEntity.setMessageMetadata(metadata);
                 messageEntity.setSystem(SystemEnum.MIGRATION.getValue());
                 messageEntity.setUserId(taskDto.getUserId());
                 messageEntity.setRead(false);
+                messageEntity.setParam(info.getParam());
             } else {
                 String msgType = messageDto.getMsg();
                 AlarmKeyEnum alarmKeyEnum;
@@ -327,7 +340,7 @@ public class AlarmServiceImpl implements AlarmService {
                         content = "您在Tapdata Cloud 上创建的任务:" + metadataName + " 出错，请及时处理";
                     }
                 }
-                String summary = content + ", 通知时间：" + DateUtil.now();
+                String summary = content;
                 messageEntity.setTitle(summary);
                 messageEntity.setMessageMetadata(messageDto.getMessageMetadataObject());
                 messageEntity.setSystem(SystemEnum.AGENT.getValue());
@@ -351,10 +364,10 @@ public class AlarmServiceImpl implements AlarmService {
             if (messageDto == null) {
                  mailAccount = getMailAccount(taskDto.getUserId());
                 if (!checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.EMAIL, userDetail)) {
-                    log.error("Current user ({}, {}) can't bind email, cancel send message.", userDetail.getUsername(), userDetail.getUserId());
+                    log.error("Current user ({}, {}) can't bind email, cancel send message {}.", userDetail.getUsername(), userDetail.getUserId(), JSON.toJSONString(info));
                     return true;
                 }
-                Map<String, String> map = getTaskTitleAndContent(info, taskDto);
+                Map<String, String> map = getTaskTitleAndContent(info);
                 content = map.get("content");
                 title = map.get("title");
             } else {
@@ -407,20 +420,12 @@ public class AlarmServiceImpl implements AlarmService {
     }
 
 
-    public Map<String, String> getTaskTitleAndContent(AlarmInfo info, TaskDto taskDto) {
-        String title = null;
-        String content = null;
+    public Map<String, String> getTaskTitleAndContent(AlarmInfo info) {
+        String title;
+        String content;
         String dateTime = DateUtil.formatDateTime(info.getLastOccurrenceTime());
-        String SmsEvent="";
+        String SmsEvent;
         switch (info.getMetric()) {
-            case TASK_STATUS_STOP:
-                boolean manual = info.getSummary().contains("已被用户");
-                title = manual ? MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL_TITLE, info.getName())
-                        : MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR_TITLE, info.getName());
-                content = manual ? MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL, info.getName(), dateTime, info.getParam().get("updatorName"))
-                        : MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR, info.getName(), info.getLastOccurrenceTime());
-                SmsEvent = "任务停止";
-                break;
             case TASK_STATUS_ERROR:
                 title = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR_TITLE, info.getName());
                 content = MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR, info.getName(), dateTime);
@@ -428,7 +433,7 @@ public class AlarmServiceImpl implements AlarmService {
                 break;
             case TASK_FULL_COMPLETE:
                 title = MessageFormat.format(AlarmMailTemplate.TASK_FULL_COMPLETE_TITLE, info.getName());
-                content = MessageFormat.format(AlarmMailTemplate.TASK_FULL_COMPLETE, info.getName(), info.getParam().get("fullTime"));
+                content = MessageFormat.format(AlarmMailTemplate.TASK_FULL_COMPLETE, info.getName(), info.getParam().get("snapDoneDate"));
                 SmsEvent = "全量结束";
                 break;
             case TASK_INCREMENT_START:
@@ -438,23 +443,18 @@ public class AlarmServiceImpl implements AlarmService {
                 break;
             case TASK_INCREMENT_DELAY:
                 title = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START_TITLE, info.getName());
-                content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START, info.getName(), info.getParam().get("time"));
+                content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START, info.getName(), info.getParam().get("replicateLag"));
                 SmsEvent = "增量延迟";
-                break;
-            case DATANODE_CANNOT_CONNECT:
-                title = MessageFormat.format(AlarmMailTemplate.DATANODE_CANNOT_CONNECT_TITLE, info.getName());
-                content = MessageFormat.format(AlarmMailTemplate.DATANODE_CANNOT_CONNECT, info.getName(), info.getNode(), dateTime);
-                SmsEvent = "任务连接中断";
                 break;
             case DATANODE_AVERAGE_HANDLE_CONSUME:
                 title = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME_TITLE, info.getName());
-                content = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME, info.getName(), info.getNode(), dateTime);
+                content = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME, info.getName(), info.getNode(), info.getParam().get("currentValue"), info.getParam().get("threshold"), dateTime);
                 SmsEvent = "当前任务运行超过阈值";
                 break;
             case PROCESSNODE_AVERAGE_HANDLE_CONSUME:
                 title = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME_TITLE, info.getName());
                 content = MessageFormat.format(AlarmMailTemplate.AVERAGE_HANDLE_CONSUME, info.getName(), info.getNode(),
-                        info.getParam().get("interval"), info.getParam().get("current"), dateTime);
+                        info.getParam().get("threshold"), info.getParam().get("currentValue"), dateTime);
                 SmsEvent = "当前任务运行超过阈值";
                 break;
             default:
@@ -501,7 +501,7 @@ public class AlarmServiceImpl implements AlarmService {
                     log.info("Current user ({}, {}) can't open sms notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
                     return true;
                 }
-                Map<String, String> map = getTaskTitleAndContent(info, taskDto);
+                Map<String, String> map = getTaskTitleAndContent(info);
                 String smsEvent = map.get("smsEvent");
                 if (info.getMetric().equals(AlarmKeyEnum.TASK_FULL_COMPLETE) || info.getMetric().equals(AlarmKeyEnum.TASK_INCREMENT_START)) {
                     smsTemplateCode = SmsService.TASK_NOTICE;
@@ -576,7 +576,7 @@ public class AlarmServiceImpl implements AlarmService {
                     return true;
                 }
                 log.info("sendWeChat");
-                Map<String, String> map = getTaskTitleAndContent(info, taskDto);
+                Map<String, String> map = getTaskTitleAndContent(info);
                 content = map.get("content");
                 title = map.get("title");
             } else {
@@ -650,6 +650,29 @@ public class AlarmServiceImpl implements AlarmService {
         List<ObjectId> collect = Arrays.stream(ids).map(MongoUtils::toObjectId).collect(Collectors.toList());
 
         Query query = new Query(Criteria.where("_id").in(collect));
+        List<AlarmInfo> alarmInfos = mongoTemplate.find(query, AlarmInfo.class);
+        alarmInfos.forEach(info -> {
+            String taskId = info.getTaskId();
+            String nodeId = info.getNodeId();
+            String key = "";
+            if (AlarmKeyEnum.TASK_INCREMENT_DELAY.equals(info.getMetric())) {
+                key = taskId + "-" + "replicateLag";
+            } else if (AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME.equals(info.getMetric())) {
+                if (info.getSummary().contains("TARGET_")) {
+                    key = nodeId + "-targetWriteTimeCostAvg";
+                } else {
+                    key = nodeId + "-snapshotSourceReadTimeCostAvg";
+                }
+
+            } else if (AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME.equals(info.getMetric())) {
+                key = nodeId + "-timeCostAvg";
+            }
+            if (StringUtils.isNotBlank(key)) {
+                SpringUtil.getBean(MeasureAOP.class).removeObsInfoByTaskIdAndKey(taskId, key);
+            }
+        });
+
+
         Update update = new Update().set("status", AlarmStatusEnum.CLOESE.name())
                 .set("closeTime", DateUtil.date())
                 .set("closeBy", userDetail.getUserId());
@@ -657,7 +680,8 @@ public class AlarmServiceImpl implements AlarmService {
     }
 
     @Override
-    public Page<AlarmListInfoVo> list(String status, Long start, Long end, String keyword, Integer page, Integer size, UserDetail userDetail) {
+    public Page<AlarmListInfoVo> list(String status, Long start, Long end, String keyword, Integer page,
+                                      Integer size, UserDetail userDetail, Locale locale) {
         TmPageable pageable = new TmPageable();
         pageable.setPage(page);
         pageable.setSize(size);
@@ -693,20 +717,34 @@ public class AlarmServiceImpl implements AlarmService {
 
         Map<String, TaskDto> taskDtoMap = taskService.findAllTasksByIds(taskIds).stream().collect(Collectors.toMap(t -> t.getId().toHexString(), Function.identity(), (e1, e2) -> e1));
 
+        ExpressionParser parser = new SpelExpressionParser();
+        TemplateParserContext parserContext = new TemplateParserContext();
         List<AlarmListInfoVo> collect = alarmInfos.stream()
-                .map(t -> AlarmListInfoVo.builder()
-                        .id(t.getId().toHexString())
-                        .level(t.getLevel())
-                        .status(t.getStatus())
-                        .name(t.getName())
-                        .summary(StringUtils.replace(t.getSummary(), "$taskName", t.getName()))
-                        .firstOccurrenceTime(t.getFirstOccurrenceTime())
-                        .lastOccurrenceTime(t.getLastOccurrenceTime())
-                        .lastNotifyTime(t.getLastNotifyTime())
-                        .taskId(t.getTaskId())
-                        .metric(t.getMetric())
-                        .syncType(taskDtoMap.get(t.getTaskId()).getSyncType())
-                        .build()).collect(Collectors.toList());
+                .map(t -> {
+                    String template = MessageUtil.getAlarmMsg(locale, t.getSummary());
+                    if (Objects.nonNull(t.getParam())) {
+                        if (t.getParam().containsValue("GREATER")) {
+                            t.getParam().put("flag", MessageUtil.getAlarmMsg(locale, "GREATER"));
+                        } else if (t.getParam().containsValue("LESS")){
+                            t.getParam().put("flag", MessageUtil.getAlarmMsg(locale, "LESS"));
+                        }
+                    }
+
+                    String content = parser.parseExpression(template, parserContext).getValue(t.getParam(), String.class);
+                    return AlarmListInfoVo.builder()
+                            .id(t.getId().toHexString())
+                            .level(t.getLevel())
+                            .status(t.getStatus())
+                            .name(t.getName())
+                            .summary(content)
+                            .firstOccurrenceTime(t.getFirstOccurrenceTime())
+                            .lastOccurrenceTime(t.getLastOccurrenceTime())
+                            .lastNotifyTime(t.getLastNotifyTime())
+                            .taskId(t.getTaskId())
+                            .metric(t.getMetric())
+                            .syncType(taskDtoMap.get(t.getTaskId()).getSyncType())
+                            .build();
+                }).collect(Collectors.toList());
 
         return new Page<>(count, collect);
     }
@@ -736,13 +774,25 @@ public class AlarmServiceImpl implements AlarmService {
 
         Map<String, Integer> nodeNumMap = Maps.newHashMap();
         List<AlarmListInfoVo> collect = Lists.newArrayList();
+        ExpressionParser parser = new SpelExpressionParser();
+        TemplateParserContext parserContext = new TemplateParserContext();
         alarmInfos.forEach(t -> {
+            String template = MessageUtil.getAlarmMsg(dto.getLocale(), t.getSummary());
+            if (Objects.nonNull(t.getParam())) {
+                if (t.getParam().containsValue("GREATER")) {
+                    t.getParam().put("flag", MessageUtil.getAlarmMsg(dto.getLocale(), "GREATER"));
+                } else if (t.getParam().containsValue("LESS")){
+                    t.getParam().put("flag", MessageUtil.getAlarmMsg(dto.getLocale(), "LESS"));
+                }
+            }
+
+            String content = parser.parseExpression(template, parserContext).getValue(t.getParam(), String.class);
             AlarmListInfoVo build = AlarmListInfoVo.builder()
                     .id(t.getId().toHexString())
                     .level(t.getLevel())
                     .status(t.getStatus())
                     .name(t.getName())
-                    .summary(StringUtils.replace(t.getSummary(), "$taskName", t.getName()))
+                    .summary(content)
                     .firstOccurrenceTime(t.getFirstOccurrenceTime())
                     .lastOccurrenceTime(t.getLastOccurrenceTime())
                     .lastNotifyTime(t.getLastNotifyTime())
@@ -763,14 +813,13 @@ public class AlarmServiceImpl implements AlarmService {
             }
         });
 
-        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
-        List<TaskAlarmNodeInfoVo> taskAlarmNodeInfoVos = taskDto.getDag().getNodes().stream().map(t ->
+        List<TaskAlarmNodeInfoVo> taskAlarmNodeInfoVos = Optional.ofNullable(taskService.findById(MongoUtils.toObjectId(taskId))).map(taskDto -> taskDto.getDag().getNodes().stream().map(t ->
                 TaskAlarmNodeInfoVo.builder()
                         .nodeId(t.getId())
                         .nodeName(t.getName())
                         .num(nodeNumMap.get(t.getId()))
                         .build()
-        ).collect(Collectors.toList());
+        ).collect(Collectors.toList())).orElse(new ArrayList<>());
 
         long alert = alarmInfos.stream().filter(t -> !AlarmStatusEnum.CLOESE.equals(t.getStatus())
                 && Lists.of(Level.WARNING).contains(t.getLevel())).count();
@@ -843,113 +892,6 @@ public class AlarmServiceImpl implements AlarmService {
                 .and("key").in("smtp.server.host", "smtp.server.port", "smtp.server.user", "smtp.server.password", "email.send.address")));
         return result != null && result.stream().map(Settings::getValue).filter(Objects::nonNull).map(Object::toString)
                 .map(StringUtils::isNotBlank).reduce(false, (v1, v2) -> v1 || v2);
-    }
-
-    private void connectPassAlarm(String nodeName, String connectId, String response_body, List<TaskDto> taskEntityList) {
-        if (CollectionUtils.isEmpty(taskEntityList)) {
-            return;
-        }
-
-        if (Objects.isNull(nodeName)) {
-            return;
-        }
-
-        String summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT_RECOVER, nodeName, DateUtil.now());
-
-        for (TaskDto task : taskEntityList) {
-            String agentId = task.getAgentId();
-            String taskId = task.getId().toHexString();
-            String taskName = task.getName();
-
-            Node<?> nodeTemp = task.getDag().getNodes().stream()
-                    .filter(node -> node instanceof DataParentNode && connectId.equals(((DataParentNode<?>) node).getConnectionId()))
-                    .findFirst().orElse(null);
-            Optional.ofNullable(nodeTemp).ifPresent(node -> {
-                String nodeId = node.getId();
-
-                HashMap<String, Object> param = Maps.newHashMap();
-                param.put("response_body", response_body);
-
-                List<AlarmInfo> alarmInfos = this.find(taskId, nodeId, AlarmKeyEnum.DATANODE_CANNOT_CONNECT);
-                Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
-                if (first.isPresent()) {
-                    AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.RECOVER).level(Level.RECOVERY).component(AlarmComponentEnum.FE)
-                            .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(agentId).taskId(taskId)
-                            .name(taskName).summary(summary).metric(AlarmKeyEnum.DATANODE_CANNOT_CONNECT)
-                            .nodeId(nodeId).node(nodeName).recoveryTime(DateUtil.date())
-                            .firstOccurrenceTime(first.get().getFirstOccurrenceTime())
-                            .lastOccurrenceTime(DateUtil.date())
-                            .param(param)
-                            .build();
-                    alarmInfo.setId(first.get().getId());
-                    this.save(alarmInfo);
-                }
-            });
-        }
-    }
-
-    private void connectFailAlarm(String nodeName, String connectId, String response_body, List<TaskDto> taskEntityList) {
-        if (CollectionUtils.isEmpty(taskEntityList)) {
-            return;
-        }
-        if (Objects.isNull(nodeName)) {
-            return;
-        }
-
-        for (TaskDto task : taskEntityList) {
-            String agentId = task.getAgentId();
-            String taskId = task.getId().toHexString();
-            String taskName = task.getName();
-
-            List<Node> collect = task.getDag().getNodes().stream()
-                    .filter(node -> node instanceof DataParentNode && connectId.equals(((DataParentNode<?>) node).getConnectionId()))
-                    .collect(Collectors.toList());
-            if (CollectionUtils.isEmpty(collect)) {
-                continue;
-            }
-
-            collect.forEach(nodeTemp -> {
-                String nodeId = nodeTemp.getId();
-
-                HashMap<String, Object> param = Maps.newHashMap();
-                param.put("response_body", response_body);
-
-                AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.CRITICAL).component(AlarmComponentEnum.FE)
-                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(agentId).taskId(taskId)
-                        .name(taskName).metric(AlarmKeyEnum.DATANODE_CANNOT_CONNECT)
-                        .nodeId(nodeId).node(nodeName)
-                        .build();
-
-                List<AlarmInfo> alarmInfos = this.find(taskId, nodeId, AlarmKeyEnum.DATANODE_CANNOT_CONNECT);
-                Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
-                String summary;
-                if (first.isPresent()) {
-                    long between = DateUtil.between(first.get().getLastOccurrenceTime(), DateUtil.date(), DateUnit.MINUTE);
-                    summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT_ALWAYS, nodeName, between, DateUtil.now());
-                    alarmInfo.setId(first.get().getId());
-                    alarmInfo.setFirstOccurrenceTime(first.get().getFirstOccurrenceTime());
-                    alarmInfo.setLastOccurrenceTime(DateUtil.date());
-                } else {
-                    summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT, nodeName, DateUtil.now());
-                }
-                alarmInfo.setSummary(summary);
-                alarmInfo.setParam(param);
-                SpringUtil.getBean(AlarmService.class).save(alarmInfo);
-            });
-        }
-    }
-
-    @Override
-    public void connectAlarm(String nodeName, String connectId, String response_body, boolean pass) {
-        Criteria taskCriteria = Criteria.where("status").is(TaskDto.STATUS_RUNNING)
-                .and("dag.nodes.connectionId").is(connectId);
-        List<TaskDto> taskList = taskService.findAll(Query.query(taskCriteria));
-
-        if (CollectionUtils.isEmpty(taskList)) return;
-        FunctionUtils.isTureOrFalse(pass).trueOrFalseHandle(
-                () -> connectPassAlarm(nodeName, connectId, response_body, taskList),
-                () -> connectFailAlarm(nodeName, connectId, response_body, taskList)
-        );
     }
 
     @Override

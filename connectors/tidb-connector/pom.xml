@@ -19,7 +19,7 @@
         <sql.core.version>1.0-SNAPSHOT</sql.core.version>
         <mysql.core.version>1.0-SNAPSHOT</mysql.core.version>
         <commons-lang3.version>3.12.0</commons-lang3.version>
-        <tapdata.pdk.api.version>1.2.1</tapdata.pdk.api.version>
+        <tapdata.pdk.api.version>1.2.2-SNAPSHOT</tapdata.pdk.api.version>
     </properties>
 
     <dependencies>
@@ -102,7 +102,7 @@
                             <Build-Java>Java ${java.version}</Build-Java>
                             <PDK-Runner-Version>${tapdata.pdk.runner.version}</PDK-Runner-Version>
                             <PDK-API-Version>${tapdata.pdk.api.version}</PDK-API-Version>
-                            <Tapdata-API-Version>${tapdata.api.version}</Tapdata-API-Version>
+                            <Tapdata-API-Version>${tapdata.pdk.api.version}</Tapdata-API-Version>
                             <Version>${version}</Version>
                             <Authentication>Beta</Authentication>
                             <Git-Build-Time>${git.build.time}</Git-Build-Time>

@@ -40,7 +40,7 @@ public class DummyConnector extends ConnectorBase {
     private Boolean writeLog;
     private IRate writeRate;
     private IDummyConfig config;
-    private final TapEventBuilder builder = new TapEventBuilder();
+    private TapEventBuilder builder;
     private DelayCalculation delayCalculation;
 
     @Override
@@ -48,6 +48,7 @@ public class DummyConnector extends ConnectorBase {
         connectionContext.getLog().info("Start dummy connector");
 
         config = IDummyConfig.connectionConfig(connectionContext);
+        builder = config.getTapEventBuilder();
         Integer writeInterval = config.getWriteInterval();
         Integer writeIntervalTotals = config.getWriteIntervalTotals();
         writeRate = IRate.getInstance(writeInterval, writeIntervalTotals);
@@ -210,7 +211,7 @@ public class DummyConnector extends ConnectorBase {
             AtomicLong update = new AtomicLong();
             AtomicLong delete = new AtomicLong();
             for (TapRecordEvent e : recordEvents) {
-                if (!(isAlive() && writeRate.addReturn())) return;
+                if (!(isAlive() && (!writeLog || writeRate.addReturn()))) return;
 
                 delayCalculation.log(e.getTime());
 

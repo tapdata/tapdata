@@ -1,32 +1,41 @@
 package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
+import cn.hutool.json.JSONUtil;
+import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Sets;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
-import com.tapdata.tm.task.constant.DagOutputTemplate;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
+import com.tapdata.tm.task.service.TaskDagCheckLogService;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
+import io.tapdata.entity.conversion.PossibleDataTypes;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.pdk.apis.entity.Capability;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.math.NumberUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.text.MessageFormat;
+import javax.xml.crypto.dsig.keyinfo.KeyName;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Component("sourceSettingStrategy")
 @Setter(onMethod_ = {@Autowired})
@@ -34,11 +43,12 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 
     private DataSourceService dataSourceService;
     private MetadataInstancesService metadataInstancesService;
+    private TaskDagCheckLogService taskDagCheckLogService;
 
     private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.SOURCE_SETTING_CHECK;
 
     @Override
-    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
+    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail, Locale locale) {
         String taskId = taskDto.getId().toHexString();
         Date now = new Date();
 
@@ -58,22 +68,12 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
             DataParentNode dataParentNode = (DataParentNode) node;
 
             if (StringUtils.isEmpty(name)) {
-                TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                        .grade(Level.ERROR).nodeId(nodeId)
-                        .log(MessageFormat.format("$date【$taskName】【源节点设置检测】：源节点{0}节点名称为空。", dataParentNode.getDatabaseType()))
-                        .build();
-                log.setCreateAt(now);
-                log.setCreateUser(userId);
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NAME_EMPTY"), dataParentNode.getDatabaseType());
                 result.add(log);
             }
 
             if (StringUtils.isEmpty(dataParentNode.getConnectionId())) {
-                TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                        .grade(Level.ERROR).nodeId(nodeId)
-                        .log(MessageFormat.format("$date【$taskName】【源节点设置检测】：源节点{0}未选择数据库。", name))
-                        .build();
-                log.setCreateAt(now);
-                log.setCreateUser(userId);
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NOT_SELECT_DB"), name);
                 result.add(log);
             }
 
@@ -92,33 +92,17 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
             if (CollectionUtils.isEmpty(tableNames)) {
                 if ("expression".equals(migrateSelectType)) {
                     if (StringUtils.isEmpty(tableExpression)) {
-                        TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                                .grade(Level.ERROR).nodeId(nodeId)
-                                .log(MessageFormat.format("$date【$taskName】【源节点设置检测】：源节点{0}过滤条件设置异常。", name))
-                                .build();
-                        log.setCreateAt(now);
-                        log.setCreateUser(userId);
+                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_EXP_EMPTY"), name);
                         result.add(log);
                     }
                 } else {
-                    TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                            .grade(Level.ERROR).nodeId(nodeId)
-                            .log(MessageFormat.format("$date【$taskName】【源节点设置检测】：源节点{0}未选择表。", name))
-                            .build();
-                    log.setCreateAt(now);
-                    log.setCreateUser(userId);
+                    TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NOT_SELECT_TB"), name);
                     result.add(log);
                 }
             }
 
             if (nameSet.contains(name)) {
-                TaskDagCheckLog log = TaskDagCheckLog.builder().taskId(taskId).checkType(templateEnum.name())
-                        .log(MessageFormat.format("$date【$taskName】【源节点设置检测】：节点{0}检测未通过，异常项'{节点名称}'，异常原因：节点名称重复，请重新设置", name))
-                        .grade(Level.ERROR)
-                        .nodeId(node.getId()).build();
-
-                log.setCreateAt(now);
-                log.setCreateUser(userId);
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_NAME_REPEAT"), name);
                 result.add(log);
             }
             nameSet.add(name);
@@ -129,41 +113,82 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
             Optional.ofNullable(connectionDto).ifPresent(dto -> {
                 List<String> tables = metadataInstancesService.tables(connectionId, SourceTypeEnum.SOURCE.name());
 
+                if (CollectionUtils.isNotEmpty(dto.getCapabilities())) {
+                    List<String> capList = dto.getCapabilities().stream().map(Capability::getId)
+                            .filter(id -> Lists.of("stream_read_function", "batch_read_function").contains(id)).collect(Collectors.toList());
+
+                    if (Lists.of("Tidb", "Doris").contains(connectionDto.getDatabase_type()) &&
+                            connectionDto.getConfig().containsKey("enableIncrement") &&
+                            !(Boolean) connectionDto.getConfig().get("enableIncrement")) {
+                        capList.remove("stream_read_function");
+                    }
+
+                    boolean streamReadNotMatch = taskDto.getType().contains("cdc") && !capList.contains("stream_read_function");
+                    boolean batchReadNotMatch = taskDto.getType().contains("initial_sync") && !capList.contains("batch_read_function");
+
+                    if (streamReadNotMatch || batchReadNotMatch) {
+                        List<String> caps = capList.stream().map(keyName -> MessageUtil.getDagCheckMsg(locale, StringUtils.upperCase(keyName))).collect(Collectors.toList());
+                        List<String> syncType = Lists.newArrayList();
+                        if (taskDto.getType().contains("initial_sync")) {
+                            syncType.add(MessageUtil.getDagCheckMsg(locale, "BATCH_READ_FUNCTION"));
+                        }
+                        if (taskDto.getType().contains("cdc")) {
+                            syncType.add(MessageUtil.getDagCheckMsg(locale, "STREAM_READ_FUNCTION"));
+                        }
+
+                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_TYPE"), name, JSON.toJSONString(caps), StringUtils.join(syncType, "+"));
+                        result.add(log);
+                    }
+                }
+
                 if (CollectionUtils.isEmpty(tables)) {
-                    TaskDagCheckLog log = TaskDagCheckLog.builder()
-                            .taskId(taskId)
-                            .checkType(templateEnum.name())
-                            .log(MessageFormat.format(DagOutputTemplate.SOURCE_SETTING_ERROR_SCHEMA, name))
-                            .grade(Level.ERROR)
-                            .nodeId(nodeId).build();
-                    log.setCreateAt(now);
-                    log.setCreateUser(userId);
+                    TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_ERROR_SCHEMA"), name);
                     result.add(log);
                 } else {
                     if (!StringUtils.equals("finished", connectionDto.getLoadFieldsStatus())) {
-                        TaskDagCheckLog log = TaskDagCheckLog.builder()
-                                .taskId(taskId)
-                                .checkType(templateEnum.name())
-                                .log(MessageFormat.format(DagOutputTemplate.SOURCE_SETTING_ERROR_SCHEMA_LOAD, name))
-                                .grade(Level.ERROR)
-                                .nodeId(nodeId).build();
-                        log.setCreateAt(now);
-                        log.setCreateUser(userId);
+                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_ERROR_SCHEMA_LOAD"), name);
                         result.add(log);
                     }
+
+                    List<MetadataInstancesDto> schemaList = metadataInstancesService.findSourceSchemaBySourceId(connectionId, tableNames, userDetail);
+                    if (CollectionUtils.isNotEmpty(schemaList)) {
+                        List<String> list = schemaList.stream().map(MetadataInstancesDto::getName).collect(Collectors.toList());
+                        List<String> temp = new ArrayList<>(tableNames);
+                        temp.removeAll(list);
+                        if (CollectionUtils.isNotEmpty(temp)) {
+                            TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_SCHAME"), node.getName(), JSON.toJSONString(temp));
+                            result.add(log);
+                        }
+
+                        // check source schema field not support
+                        schemaList.forEach(sch -> {
+                            String tableName = sch.getName();
+                            List<Field> fields = sch.getFields();
+                            if (CollectionUtils.isNotEmpty(fields)) {
+                                fields.forEach(k -> {
+                                    TapType tapType = JSON.parseObject(k.getTapType(), TapType.class);
+                                    if (TapType.TYPE_RAW == tapType.getType()) {
+                                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_FIELD"), node.getName(), tableName, k.getFieldName());
+                                        result.add(log);
+                                    }
+                                });
+                            }
+                        });
+                    } else {
+                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_SCHAME"), node.getName(), JSON.toJSONString(tableNames));
+                        result.add(log);
+                    }
+                }
+
+                // check mariadb
+                if ("mariadb".equals(dto.getDefinitionPdkId()) && taskDto.getType().contains("cdc")) {
+                    TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_MARIADB"), node.getName());
+                    result.add(log);
                 }
             });
 
             if (CollectionUtils.isEmpty(result) || result.stream().anyMatch(log -> nodeId.equals(log.getNodeId()))) {
-                TaskDagCheckLog log = TaskDagCheckLog.builder()
-                        .taskId(taskId)
-                        .checkType(templateEnum.name())
-                        .log(MessageFormat.format(templateEnum.getInfoTemplate(), node.getName()))
-                        .grade(Level.INFO)
-                        .nodeId(node.getId()).build();
-                log.setCreateAt(now);
-                log.setCreateUser(userId);
-
+                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.INFO, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_INFO"), node.getName());
                 result.add(log);
             }
         });

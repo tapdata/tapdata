@@ -18,11 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -124,7 +120,6 @@ public class PartitionConcurrentProcessor {
 		this.flushOffset = flushOffset;
 		this.executorService.submit(() -> {
 			while (isRunning()) {
-				Log4jUtil.setThreadContext(taskDto);
 				Thread.currentThread().setName(taskDto.getId().toHexString() + "-" + taskDto.getName() + "-watermark-event-process");
 				try {
 					final WatermarkEvent watermarkEvent = watermarkQueue.poll(3, TimeUnit.SECONDS);
@@ -159,7 +154,6 @@ public class PartitionConcurrentProcessor {
 			int finalPartition = partition;
 			executorService.submit(() -> {
 				try {
-					Log4jUtil.setThreadContext(taskDto);
 					Thread.currentThread().setName(concurrentProcessThreadNamePrefix + finalPartition);
 					List<TapdataEvent> processEvents = new ArrayList<>();
 					while (isRunning()) {
@@ -208,8 +202,21 @@ public class PartitionConcurrentProcessor {
 		}
 	}
 
+	private boolean toSingleMode(TapEvent tapEvent, List<Object> partitionValue) {
+		// 如果遇到，删除事件&&关联键有空值，切换成单线程模式
+		if (tapEvent instanceof TapDeleteRecordEvent) {
+			for (Object o : partitionValue) {
+				if (null == o) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	public void process(List<TapdataEvent> tapdataEvents, boolean async) {
 		if (CollectionUtils.isNotEmpty(tapdataEvents)) {
+			AtomicBoolean singleMode = new AtomicBoolean(false);
 			for (TapdataEvent tapdataEvent : tapdataEvents) {
 				if (!isRunning()) {
 					break;
@@ -235,10 +242,29 @@ public class PartitionConcurrentProcessor {
 								row = ((TapUpdateRecordEvent) tapEvent).getAfter();
 							}
 						}
+
+						final int partition;
 						final List<Object> partitionValue = keySelector.select(tapEvent, row);
-						final List<Object> partitionOriginalValues = keySelector.convert2OriginValue(partitionValue);
-						final PartitionResult<TapdataEvent> partitionResult = partitioner.partition(partitionSize, tapdataEvent, partitionOriginalValues);
-						final int partition = partitionResult.getPartition() < 0 ? DEFAULT_PARTITION : partitionResult.getPartition();
+						if (Optional.of(toSingleMode(tapEvent, partitionValue)).map(toSingleMode -> {
+							// 控制单线程模型开与关
+							if (toSingleMode) {
+								if (!singleMode.get()) {
+									generateBarrierEvent();
+									singleMode.set(true);
+								}
+							} else if (singleMode.get()) {
+								generateBarrierEvent();
+								singleMode.set(false);
+							}
+							return singleMode.get();
+						}).get()) {
+							partition = 0;
+						} else {
+							final List<Object> partitionOriginalValues = keySelector.convert2OriginValue(partitionValue);
+							final PartitionResult<TapdataEvent> partitionResult = partitioner.partition(partitionSize, tapdataEvent, partitionOriginalValues);
+							partition = partitionResult.getPartition() < 0 ? DEFAULT_PARTITION : partitionResult.getPartition();
+						}
+
 						final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(partition);
 						final NormalEvent<TapdataEvent> normalEvent = new NormalEvent<>(eventSeq.incrementAndGet(), tapdataEvent);
 						if (!enqueuePartitionEvent(partition, queue, normalEvent)) {
@@ -351,7 +377,7 @@ public class PartitionConcurrentProcessor {
 	public void stop(){
 		waitingForProcessToCurrent();
 		currentRunning.compareAndSet(true, false);
-		ExecutorUtil.shutdownEx(this.executorService, 60L, TimeUnit.SECONDS);
+		ExecutorUtil.shutdown(this.executorService, 60L, TimeUnit.SECONDS);
 	}
 
 

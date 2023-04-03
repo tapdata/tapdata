@@ -22,15 +22,17 @@ public class RedisConfig {
 
     private String valueType = "List";
     private String keyExpression;
+    private String keyPrefix;
+    private String keyJoin;
+    private String keySuffix;
     private String valueData = "Text";
     private String valueJoinString = ",";
     private String valueTransferredString = "";
     private Boolean csvFormat = true;
     private long expireTime;
     private Boolean resetExpire;
-    private String keyTableName;
     private Boolean listHead = true;
-    private Boolean oneKey;
+    private Boolean oneKey = false;
 
     public RedisConfig load(Map<String, Object> map) {
         return beanUtils.mapToBean(map, this);
@@ -156,14 +158,6 @@ public class RedisConfig {
         this.csvFormat = csvFormat;
     }
 
-    public String getKeyTableName() {
-        return keyTableName;
-    }
-
-    public void setKeyTableName(String keyTableName) {
-        this.keyTableName = keyTableName;
-    }
-
     public Boolean getListHead() {
         return listHead;
     }
@@ -178,6 +172,30 @@ public class RedisConfig {
 
     public void setKeyExpression(String keyExpression) {
         this.keyExpression = keyExpression;
+    }
+
+    public String getKeyPrefix() {
+        return keyPrefix;
+    }
+
+    public void setKeyPrefix(String keyPrefix) {
+        this.keyPrefix = keyPrefix;
+    }
+
+    public String getKeyJoin() {
+        return keyJoin;
+    }
+
+    public void setKeyJoin(String keyJoin) {
+        this.keyJoin = keyJoin;
+    }
+
+    public String getKeySuffix() {
+        return keySuffix;
+    }
+
+    public void setKeySuffix(String keySuffix) {
+        this.keySuffix = keySuffix;
     }
 
     public Boolean getOneKey() {

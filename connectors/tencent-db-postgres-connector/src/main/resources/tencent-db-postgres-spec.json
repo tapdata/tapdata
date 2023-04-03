@@ -3,7 +3,9 @@
     "name": "Tencent DB PostgreSQL",
     "icon": "icons/tencent_db_postgres.png",
     "doc" : "${doc}",
-    "id": "tencent-db-postgres"
+    "id": "tencent-db-postgres",
+    "authentication": "Beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "capabilities":[

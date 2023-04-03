@@ -1,9 +1,11 @@
 {
   "properties": {
     "name": "BigQuery",
-    "icon": "icons/logo.png",
+    "icon": "icons/bigquery.png",
     "doc" : "${doc}",
-    "id": "bigquery"
+    "id": "bigquery",
+    "authentication": "Beta",
+    "tags": [""]
   },
   "configOptions": {
     "pdkExpansion": [],

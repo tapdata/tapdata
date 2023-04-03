@@ -47,12 +47,14 @@ class TapApi {
     /**
      * @description 设置API执行的HTTP配置
      * @param configMap API执行的HTTP配置，Object
+     * @deprecated
      * */
     httpConfigAsGlobal(configMap) {
         if ('undefined' === configMap || null == configMap) return this;
         this.httpConfigGlobal = configMap;
         return this;
     }
+
     httpConfig(configMap) {
         if ('undefined' === configMap || null == configMap) return this;
         this.httpConfigParam = configMap;
@@ -117,18 +119,24 @@ class TapApi {
             false
         );
     }
+
     /**
      * 禁止外部使用
+     * @deprecated
      * */
-    invokeMemberPrivate(uriOrNameStr, paramsMap, methodStr, needIntercept){
+    invokeMemberPrivate(uriOrNameStr, paramsMap, methodStr, needIntercept) {
         this.config = _tapConfig_;
         this.invoker.setConfig(null != this.httpConfigParam ? this.httpConfigParam : this.httpConfigGlobal);
         this.invoker.setConnectorConfig(this.config);
         let result = this.invoker.invoke(uriOrNameStr, paramsMap, methodStr, needIntercept);
         this.httpConfigParam = null;
         let hasResult = isParam(result);
+        let resultData = tapUtil.toMap(result.result).data;
+        if (resultData.toJSONString) {
+            resultData = JSON.parse(resultData.toJSONString());
+        }
         return {
-            "result": !hasResult ? {} : tapUtil.toMap(result.result).data,
+            "result": !hasResult ? {} : resultData,
             "httpCode": !hasResult ? -1 : result.httpCode,
             "headers": !hasResult ? {} : tapUtil.toMap(result.headers)
         };
@@ -274,7 +282,7 @@ function sleep(millisecond) {
 
 }
 
-function cloneObj(obj){
+function cloneObj(obj) {
     // let newObj = obj instanceof Array ? [] : {};
     // for(let param in obj){
     //     let item = obj[param];

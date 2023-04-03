@@ -96,7 +96,6 @@ import java.net.URL;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.group;
@@ -227,7 +226,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 			if (((updateDto.getShareCdcEnable() != null && updateDto.getShareCdcEnable())
 					|| (oldConnection.getShareCdcEnable() != null && oldConnection.getShareCdcEnable()))
-					&& updateDto.getShareCDCExternalStorageId() != null && !oldConnection.getShareCDCExternalStorageId().equals(updateDto.getShareCDCExternalStorageId())) {
+					&& updateDto.getShareCDCExternalStorageId() != null && !updateDto.getShareCDCExternalStorageId().equals(oldConnection.getShareCDCExternalStorageId())) {
 				//查询当前数据源存在的运行中的任务，存在则不允许修改，给出报错。
 				Boolean canUpdate = logCollectorService.checkUpdateConfig(updateDto.getId().toHexString(), user);
 				if (!canUpdate) {
@@ -480,6 +479,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				item.setDefinitionVersion(definitionDto.getVersion());
 				item.setDefinitionScope(definitionDto.getScope());
 				item.setDefinitionBuildNumber(String.valueOf(definitionDto.getBuildNumber()));
+				item.setDefinitionTags(definitionDto.getTags());
             }
 
 			desensitizeMongoConnection(item);
@@ -649,6 +649,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		}
 	}
 
+
 	/**
 	 * 删除数据源连接
 	 *
@@ -662,6 +663,9 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		if (connectionDto == null) {
 			throw new BizException("Datasource.NotFound", "connections not found or not belong to current user");
 		}
+
+		// 如果有心跳任务，先停止后删除
+		taskService.deleteHeartbeatByConnId(user, id);
 
 		//根据数据源id查询所有的jobModel, ModulesModel, dataFlowsModel， 如果存在，则不允许删除connection
 		//将数据源连接删除
@@ -1008,6 +1012,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		connection.setDefinitionGroup(definitionDto.getGroup());
 		connection.setDefinitionScope(definitionDto.getScope());
 		connection.setDefinitionPdkId(definitionDto.getPdkId());
+		connection.setDefinitionTags(definitionDto.getTags());
 		connection.setCapabilities(definitionDto.getCapabilities());
 
 		//检查是否存在名称相同的数据源连接，存在的话，则不允许。（还可以检验一下关键字）
@@ -1398,119 +1403,16 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		log.info("upsert new models into MetadataInstance: {}, connection id = {}, connection name = {}",
 				newModels.size(), oldConnectionDto.getId().toHexString(), oldConnectionDto.getName());
 
-		Map<String, List<TypeMappingsEntity>> typeMapping =
-				typeMappingsService.getTypeMapping(oldConnectionDto.getDatabase_type(), TypeMappingDirection.TO_TAPTYPE);
-		String dbVersion = oldConnectionDto.getDb_version();
-		if (com.tapdata.manager.common.utils.StringUtils.isBlank(dbVersion)) {
-			dbVersion = "*";
-		}
-		String finalDbVersion = dbVersion;
-
-		newModels.forEach(model -> {
-			if (model.getFields() != null) {
-				model.getFields().forEach(field -> {
-					String originalDataType = field.getDataType();
-					if (StringUtils.isEmpty(field.getOriginalDataType())) {
-						field.setOriginalDataType(originalDataType);
-					}
-
-					String cacheKey = originalDataType + "-" + finalDbVersion;
-					List<TypeMappingsEntity> typeMappings = null;
-					if (typeMapping.containsKey(cacheKey)) {
-						typeMappings = typeMapping.get(cacheKey);
-					} else if (typeMapping.containsKey(originalDataType + "-*")) {
-						cacheKey = originalDataType + "-*";
-						typeMappings = typeMapping.get(cacheKey);
-					}
-					if (typeMappings == null || typeMappings.size() == 0) {
-						log.error("Not found tap type mapping rule for databaseType={}, dbVersion={}, dbFieldType={}",
-								oldConnectionDto.getDatabase_type(), finalDbVersion, originalDataType);
-						return;
-					}
-					if (typeMappings.size() == 1) {
-						field.setTapType(typeMappings.get(0).getTapType());
-					} else {
-						Integer precision = field.getPrecision();
-						Integer scale = field.getScale();
-						String dataType = field.getDataType();
-						TypeMappingsEntity optimalType = null;
-
-						Function<TypeMappingsEntity, Integer> sortFactor = (TypeMappingsEntity tm1) -> {
-							long factorPrecision = 0;
-							long factorScale = 0;
-							if (precision != null) {
-								Long tm1MinPrecision = tm1.getMinPrecision();
-								Long tm1MaxPrecision = tm1.getMaxPrecision();
-								factorPrecision = (tm1MaxPrecision != null ? tm1MaxPrecision : 0L) -
-										(tm1MinPrecision != null ? tm1MinPrecision : 0L);
-							}
-							if (scale != null) {
-								Long tm1MinScale = tm1.getMinScale();
-								Long tm1MaxScale = tm1.getMaxScale();
-								factorScale = (tm1MaxScale != null ? tm1MaxScale : 0L) -
-										(tm1MinScale != null ? tm1MinScale : 0L);
-							}
-							return Long.valueOf(factorPrecision + factorScale).intValue();
-						};
-
-						List<TypeMappingsEntity> optimalTypeList = typeMappings.stream().filter(tm -> {
-							if (precision != null) { // 过滤掉 type mapping 中 precision 为 null 或者 min max 范围不包含 字段长度的规则
-								if (tm.getMinPrecision() == null || tm.getMinPrecision() > precision)
-									return false;
-								if (tm.getMaxPrecision() == null || tm.getMaxPrecision() < precision)
-									return false;
-							}
-							if (scale != null && !"String".equalsIgnoreCase(dataType)) { //过滤掉 type mapping 中 scale 为 null 或者 min max 范围不包含 字段精度的规则
-								if (tm.getMinScale() == null || tm.getMinScale() > scale)
-									return false;
-								if (tm.getMaxScale() == null || tm.getMaxScale() < scale)
-									return false;
-							}
-
-							if (precision == null && scale == null) {
-								return tm.getMaxPrecision() == null && tm.getMinPrecision() == null &&
-										tm.getMaxScale() == null && tm.getMinScale() == null;
-							} else if (precision == null) {
-								return tm.getMaxPrecision() == null && tm.getMinPrecision() == null;
-							} else if (scale == null) {
-								return tm.getMaxScale() == null && tm.getMinScale() == null;
-							}
-
-							return true;
-						}).sorted((tm1, tm2) -> { // 按照 长度范围、精度范围排序，将最符合的排在上面
-
-							int tm1Factor = sortFactor.apply(tm1);
-							int tm2Factor = sortFactor.apply(tm2);
-
-							return tm1Factor - tm2Factor;
-
-						}).collect(Collectors.toList());
-
-						//optimalTypeList = _optimalTypeList.size() > 0 ? _optimalTypeList : typeMappings;
-						//}
-
-						if (optimalTypeList.size() == 1) {
-							optimalType = optimalTypeList.get(0);
-						}
-
-						if (optimalType == null) {
-							optimalType = typeMappings.get(0);
-						}
-
-						if (optimalType != null) {
-							field.setTapType(optimalType.getTapType());
-						}
-					}
-				});
-			}
-		});
-
 		if (CollectionUtils.isNotEmpty(newModels)) {
 			for (MetadataInstancesDto newModel : newModels) {
 				List<Field> fields = newModel.getFields();
 				if (CollectionUtils.isNotEmpty(fields)) {
 					for (Field field : fields) {
 						field.setSourceDbType(oldConnectionDto.getDatabase_type());
+						String originalDataType = field.getDataType();
+						if (StringUtils.isEmpty(field.getOriginalDataType())) {
+							field.setOriginalDataType(originalDataType);
+						}
 					}
 				}
 			}
@@ -1676,6 +1578,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 		Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
 		for (DataSourceConnectionDto connectionDto : connectionDtos) {
+			String connId = connectionDto.getId().toHexString();
 			Query query = new Query(Criteria.where("_id").is(connectionDto.getId()));
 			query.fields().include("_id");
 			DataSourceConnectionDto connection = findOne(query);
@@ -1701,7 +1604,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				}
 			}
 
-			conMap.put(connectionDto.getId().toHexString(), connection);
+			conMap.put(connId, connection);
 
 		}
 		return conMap;
@@ -1838,12 +1741,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 	public Long countTaskByConnectionId(String connectionId, UserDetail userDetail) {
 		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId)
+				.and("syncType").ne(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
 				.andOperator(Criteria.where("is_deleted").is(false),Criteria.where("status").ne("delete_failed")));
 		query.fields().include("_id", "name", "syncType");
 		return taskService.count(query, userDetail);
 	}
 	public List<TaskDto> findTaskByConnectionId(String connectionId, int limit, UserDetail userDetail) {
 		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId)
+				.and("syncType").ne(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
 				.andOperator(Criteria.where("is_deleted").is(false),Criteria.where("status").ne("delete_failed")));
 		query.fields().include("_id", "name", "syncType");
 		query.limit(limit);

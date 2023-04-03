@@ -347,7 +347,7 @@ public abstract class ConnectorBase implements TapConnector {
             if (throwables.contains(cause)) {
                 break;
             }
-            if (cause.getClass().getName().equals(match.getName())) {
+            if (match.isInstance(cause)) {
                 matched = cause;
                 break;
             }
@@ -411,7 +411,7 @@ public abstract class ConnectorBase implements TapConnector {
         return null;
     }
 
-    protected void singleThreadDiscoverSchema(List<DataMap> subList, Consumer<List<TapTable>> consumer) {
+    protected void singleThreadDiscoverSchema(List<DataMap> subList, Consumer<List<TapTable>> consumer) throws Exception {
         throw new UnsupportedOperationException("This type of datasource is not supported");
     }
 

@@ -22,9 +22,13 @@ import picocli.CommandLine;
 
 import java.io.File;
 import java.io.InputStream;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @CommandLine.Command(
         description = "Push PDK jar file into Tapdata",
@@ -102,27 +106,14 @@ public class RegisterCli extends CommonCli {
                     }
 
                     JSONObject o = (JSONObject) JSON.toJSON(specification);
+                    DataSourceQCType qcType = DataSourceQCType.parse(specification.getManifest().get("Authentication"));
+                    qcType = (null == qcType) ? DataSourceQCType.Alpha : qcType;
+                    o.put("qcType", qcType);
 
                     String pdkAPIVersion = specification.getManifest().get("PDK-API-Version");
-                    AtomicInteger pdkAPIBuildNumber = new AtomicInteger();
-                    if (StringUtils.isNotBlank(pdkAPIVersion)) {
-                        CommonUtils.ignoreAnyError(() -> {
-                            LinkedList<String> collect = Arrays.stream(pdkAPIVersion.split("[.]")).collect(Collectors.toCollection(LinkedList::new));
-                            String last = collect.getLast();
-                            if (collect.size() != 3) {
-                                pdkAPIBuildNumber.set(0);
-                            } else if (last.contains("-SNAPSHOT")) {
-                                String temp = StringUtils.replace(last, "-SNAPSHOT", "");
-                                if (temp.chars().allMatch(Character::isDigit)) {
-                                    pdkAPIBuildNumber.set(Integer.parseInt(temp));
-                                }
-                            } else if (last.chars().allMatch(Character::isDigit)) {
-                                pdkAPIBuildNumber.set(Integer.parseInt(last));
-                            }
-                        }, TAG);
-                    }
+                    int pdkAPIBuildNumber = CommonUtils.getPdkBuildNumer(pdkAPIVersion);
                     o.put("pdkAPIVersion", pdkAPIVersion);
-                    o.put("pdkAPIBuildNumber", pdkAPIBuildNumber.get());
+                    o.put("pdkAPIBuildNumber", pdkAPIBuildNumber);
 
                     o.put("beta", "beta".equals(specification.getManifest().get("Authentication")));
                     String nodeType = null;

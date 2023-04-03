@@ -3,7 +3,9 @@
     "name": "TencentDB MariaDB",
     "icon": "icons/tencent_db_mariadb.png",
     "id": "tencent-db-mariadb",
-    "doc": "${doc}"
+    "doc": "${doc}",
+    "authentication": "Beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "capabilities": [

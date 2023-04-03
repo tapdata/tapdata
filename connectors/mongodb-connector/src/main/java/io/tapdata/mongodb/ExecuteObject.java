@@ -1,5 +1,9 @@
 package io.tapdata.mongodb;
 
+import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.pdk.apis.exception.NotSupportedException;
+
+import java.util.List;
 import java.util.Map;
 
 public class ExecuteObject {
@@ -7,6 +11,8 @@ public class ExecuteObject {
 	public static final String INSERT_OP = "insert";
 	public static final String UPDATE_OP = "update";
 	public static final String DELETE_OP = "delete";
+
+	public static final String AGGREGATE_OP = "aggregate";
 	public static final String FIND_AND_MODIFY_OP = "findAndModify";
 
 	private String op;
@@ -23,6 +29,8 @@ public class ExecuteObject {
 
 	private Map<String, Object> sort;
 
+	private List<Map<String, Object>> pipeline;
+
 	private int limit;
 	private int skip;
 
@@ -32,21 +40,14 @@ public class ExecuteObject {
 
 	private Map<String, Object> projection;
 
-	public ExecuteObject(String database, String collection, Map<String, Object> filter, Map<String, Object> sort, int limit) {
-		this.op = op;
-		this.database = database;
-		this.collection = collection;
-		this.filter = filter;
-		this.sort = sort;
-		this.limit = limit;
-	}
+	private int batchSize;
 
 	public ExecuteObject(Map<String, Object> executeObj) {
 		this.op = executeObj.get("op") == null ? null : executeObj.get("op").toString();
 		this.sql = executeObj.get("sql") == null ? null : executeObj.get("sql").toString();
 		this.database = executeObj.get("database") == null ? null : executeObj.get("database").toString();
 		this.collection = executeObj.get("collection") == null ? null : executeObj.get("collection").toString();
-		this.filter = executeObj.get("filter") == null ? null : (Map<String, Object>) executeObj.get("filter");
+		this.filter = getFilter(executeObj.get("filter"));
 		this.opObject = executeObj.get("opObject") == null ? null : (Map<String, Object>) executeObj.get("opObject");
 		this.upsert = executeObj.get("upsert") == null ? false : Boolean.valueOf(executeObj.get("upsert").toString());
 		this.multi = executeObj.get("multi") == null ? false : Boolean.valueOf(executeObj.get("multi").toString());
@@ -54,6 +55,34 @@ public class ExecuteObject {
 		this.limit = executeObj.get("limit") == null ? 0 : (int) executeObj.get("limit");
 		this.skip = executeObj.get("skip") == null ? 0 : (int) executeObj.get("skip");
 		this.projection = executeObj.get("projection") == null ? null : (Map<String, Object>) executeObj.get("projection");
+		this.pipeline = getPipeline(executeObj.get("pipeline"));
+		this.batchSize = executeObj.get("batchSize") == null ? 1000 : (int) executeObj.get("batchSize");
+	}
+
+	private Map<String, Object> getFilter(Object obj) {
+		if (obj != null) {
+			if (obj instanceof Map) {
+				return (Map<String, Object>) obj;
+			} else if (obj instanceof String) {
+				return TapSimplify.fromJson((String) obj, Map.class);
+			} else {
+				throw new NotSupportedException(obj.toString());
+			}
+		}
+		return null;
+	}
+
+	private List<Map<String, Object>> getPipeline(Object obj) {
+		if (obj != null) {
+			if (obj instanceof List) {
+				return (List<Map<String, Object>>) obj;
+			} else if (obj instanceof String) {
+				return TapSimplify.fromJson((String) obj, List.class);
+			} else {
+				throw new NotSupportedException(obj.toString());
+			}
+		}
+		return null;
 	}
 
 	public String getOp() {
@@ -152,21 +181,39 @@ public class ExecuteObject {
 		this.projection = projection;
 	}
 
+	public List<Map<String, Object>> getPipeline() {
+		return pipeline;
+	}
+
+	public void setPipeline(List<Map<String, Object>> pipeline) {
+		this.pipeline = pipeline;
+	}
+
+	public int getBatchSize() {
+		return batchSize;
+	}
+
+	public void setBatchSize(int batchSize) {
+		this.batchSize = batchSize;
+	}
+
 	@Override
 	public String toString() {
 		return "ExecuteObject{" +
-				"op='" + op + '\'' +
-				", sql='" + sql + '\'' +
-				", database='" + database + '\'' +
-				", collection='" + collection + '\'' +
-				", filter=" + filter +
-				", opObject=" + opObject +
-				", sort=" + sort +
-				", limit=" + limit +
-				", skip=" + skip +
-				", upsert=" + upsert +
-				", multi=" + multi +
-				", projection=" + projection +
-				'}';
+						"op='" + op + '\'' +
+						", sql='" + sql + '\'' +
+						", database='" + database + '\'' +
+						", collection='" + collection + '\'' +
+						", filter=" + filter +
+						", opObject=" + opObject +
+						", sort=" + sort +
+						", pipeline=" + pipeline +
+						", limit=" + limit +
+						", skip=" + skip +
+						", upsert=" + upsert +
+						", multi=" + multi +
+						", projection=" + projection +
+						", batchSize=" + batchSize +
+						'}';
 	}
 }

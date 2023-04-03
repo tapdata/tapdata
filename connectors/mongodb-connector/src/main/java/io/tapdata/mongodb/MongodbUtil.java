@@ -15,7 +15,6 @@ import org.bson.BsonDocument;
 import org.bson.BsonString;
 import org.bson.BsonTimestamp;
 import org.bson.Document;
-import org.bson.codecs.BigDecimalCodec;
 import org.bson.codecs.configuration.CodecRegistries;
 import org.bson.codecs.configuration.CodecRegistry;
 
@@ -420,4 +419,9 @@ public class MongodbUtil {
 		}
 		return containId;
 	}
+
+	/**
+	 * @param commandStr: db.test.find({}), db.getCollection('test').find({})
+	 * @return
+	 */
 }

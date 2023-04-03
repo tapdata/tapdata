@@ -10,6 +10,8 @@ import com.tapdata.tm.commons.schema.bean.Relation;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
+import io.tapdata.entity.conversion.PossibleDataTypes;
+import io.tapdata.entity.result.ResultItem;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -50,6 +52,7 @@ public class MetadataInstancesEntity extends BaseEntity {
     @Field("fields_lienage")
     private String fieldsLienage;
     private List<com.tapdata.tm.commons.schema.Field> fields;
+    private boolean hasPrimaryKey;
     private Object indexes;
     @Field("source")
     private SourceDto source;
@@ -59,6 +62,7 @@ public class MetadataInstancesEntity extends BaseEntity {
     @Field("last_user_name")
     private String lastUserName;
     private List<TableIndex> indices;
+    private boolean hasUnionIndex;
     private Set<Integer> partitionSet;
     private FileProperty fileProperty;
     private List<String> fromFile;
@@ -108,4 +112,9 @@ public class MetadataInstancesEntity extends BaseEntity {
     private String taskId;
 
     private String nodeId;
+    private boolean hasTransformEx;
+    private Map<String, PossibleDataTypes> findPossibleDataTypes;
+    private boolean hasUpdateField;
+
+    private String description;
 }

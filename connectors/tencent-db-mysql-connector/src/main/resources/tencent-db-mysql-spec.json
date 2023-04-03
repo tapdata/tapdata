@@ -3,7 +3,9 @@
     "name": "TencentDB MySQL",
     "icon": "icons/tencent_db_mysql.png",
     "id": "tencent-db-mysql",
-    "doc": "${doc}"
+    "doc": "${doc}",
+    "authentication": "Beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "capabilities": [

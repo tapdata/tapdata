@@ -127,7 +127,7 @@ public class ExceptionHandler extends BaseController {
 	public ResponseMessage<?> handlerException(BizException e, HttpServletRequest request, HttpServletResponse response) {
 		log.error("System error:{}", ThrowableUtils.getStackTraceByPn(e));
 
-		if ("NotLogin".equals(e.getErrorCode())){
+		if ("NotLogin".equals(e.getErrorCode())) {
 			response.setStatus(HttpStatus.SC_UNAUTHORIZED);
 		}
 
@@ -136,12 +136,30 @@ public class ExceptionHandler extends BaseController {
 			return listWarnMessage(e, request);
 		}
 
+
+		if ("Ldp.MdmTargetNoPrimaryKey".equals(e.getErrorCode())) {
+			String message = MessageUtil.getMessage(WebUtils.getLocale(request), e.getErrorCode());
+			ResponseMessage<Object> failed = failed(e.getErrorCode(), message);
+			Object[] args = e.getArgs();
+			if (args != null && args.length != 0) {
+				failed.setData(args[0]);
+			}
+			return failed;
+		}
+
 		String message = MessageUtil.getMessage(WebUtils.getLocale(request), e.getErrorCode(), e.getArgs());
 
-		if (!StringUtils.isEmpty(message))
-			return failed(e.getErrorCode(), message);
 
-		return failed(e.getErrorCode(), e);
+		ResponseMessage<Object> failed;
+		if (!StringUtils.isEmpty(message)) {
+			failed = failed(e.getErrorCode(), message);
+		} else {
+
+			failed = failed(e.getErrorCode(), e);
+
+		}
+
+		return failed;
 	}
 
 	public ResponseMessage<Map<String, List<Message>>> listWarnMessage(BizException e, HttpServletRequest request) {

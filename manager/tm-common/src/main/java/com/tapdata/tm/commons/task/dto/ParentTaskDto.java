@@ -252,6 +252,13 @@ public class ParentTaskDto extends SchedulableDto {
     // 1分钟内不能强制停止（不存库，根据 stoppingTime 来判断）
     private Boolean canForceStopping;
 
+    /**
+     * 是否强制使用共享挖掘
+     * true: 当共享挖掘不可用时，任务会报错停止
+     * false: 当共享挖掘不可用时，任务会自动尝试正常的增量方式
+     */
+    private Boolean enforceShareCdc = true;
+
     public Integer getWriteBatchSize() {
         return Objects.isNull(writeBatchSize) ? 0 : writeBatchSize;
     }

@@ -3,7 +3,9 @@
     "name": "PolarDB MySQL",
     "icon": "icons/polar-db-mysql.png",
     "id": "polar-db-mysql",
-    "doc": "${doc}"
+    "doc": "${doc}",
+    "authentication": "Beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "capabilities": [

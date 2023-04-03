@@ -3,7 +3,9 @@
     "name": "Custom Connection",
     "icon": "icons/custom.png",
     "doc": "${doc}",
-    "id": "custom"
+    "id": "custom",
+    "authentication": "Beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "connection": {

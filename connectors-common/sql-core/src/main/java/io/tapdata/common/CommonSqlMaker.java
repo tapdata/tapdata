@@ -48,8 +48,8 @@ public class CommonSqlMaker {
                 return "";
             }
             builder.append('\"').append(tapField.getName()).append("\" ").append(tapField.getDataType()).append(' ');
-            buildNullDefinition(builder, tapField);
             buildDefaultDefinition(builder, tapField);
+            buildNullDefinition(builder, tapField);
             if (needComment) {
                 buildCommentDefinition(builder, tapField);
             }
@@ -57,7 +57,7 @@ public class CommonSqlMaker {
         }).collect(Collectors.joining(", "));
     }
 
-    private void buildNullDefinition(StringBuilder builder, TapField tapField) {
+    protected void buildNullDefinition(StringBuilder builder, TapField tapField) {
         if ((EmptyKit.isNotNull(tapField.getNullable()) && !tapField.getNullable()) || tapField.getPrimaryKey()) {
             builder.append("NOT NULL").append(' ');
         }

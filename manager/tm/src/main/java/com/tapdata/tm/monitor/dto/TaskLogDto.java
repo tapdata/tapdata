@@ -29,4 +29,6 @@ public class TaskLogDto {
     private int offset = 0;
     @Schema(description = "数量，默认100")
     private int limit = 100;
+
+    private boolean startTask;
 }

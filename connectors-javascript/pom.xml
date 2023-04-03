@@ -12,17 +12,19 @@
 		<module>js-core</module>
 <!--		<module>coding-demo-connector</module>-->
 		<module>lark-im-connector</module>
+		<module>github-connector</module>
 <!--		<module>zoho-crm-connector</module>-->
 		<module>metabase-connector</module>
 		<module>lark-task-connector</module>
+		<module>salesforce-connector</module>
 	</modules>
 
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
 		<java.version>8</java.version>
 		<tapdata.pdk.runner.version>1.2-SNAPSHOT</tapdata.pdk.runner.version>
-		<tapdata.api.version>1.2.0</tapdata.api.version>
-		<tapdata.pdk.api.version>1.2.0</tapdata.pdk.api.version>
+		<tapdata.api.version>1.2.1</tapdata.api.version>
+		<tapdata.pdk.api.version>1.2.1</tapdata.pdk.api.version>
 		<tapdata.pdk.connector.core.version>1.0-SNAPSHOT</tapdata.pdk.connector.core.version>
 		<junit.jupiter.version>5.8.1</junit.jupiter.version>
 		<junit.platform.version>1.8.1</junit.platform.version>

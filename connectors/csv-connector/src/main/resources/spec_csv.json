@@ -3,7 +3,9 @@
     "name": "CSV",
     "icon": "icons/csv.png",
     "doc": "${doc}",
-    "id": "csv"
+    "id": "csv",
+    "authentication": "Beta",
+    "tags": ["File"]
   },
   "configOptions": {
     "connection": {
@@ -76,7 +78,7 @@
               }
             },
             {
-              "target": "*(accessKey,secretKey,endpoint,region,bucket)",
+              "target": "*(region)",
               "fulfill": {
                 "state": {
                   "visible": "{{$self.value==='s3fs'}}"
@@ -87,7 +89,7 @@
               "target": "*(accessKey,secretKey,endpoint,bucket)",
               "fulfill": {
                 "state": {
-                  "visible": "{{$self.value==='oss'}}"
+                  "visible": "{{$self.value==='oss' || $self.value==='s3fs'}}"
                 }
               }
             }
@@ -331,7 +333,17 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "includeRegString",
-          "x-index": 2
+          "x-index": 2,
+          "x-reactions": [
+            {
+              "dependencies": ["$outputs"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
         },
         "excludeRegString": {
           "type": "string",
@@ -339,7 +351,17 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "excludeRegString",
-          "x-index": 3
+          "x-index": 3,
+          "x-reactions": [
+            {
+              "dependencies": ["$outputs"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
         },
         "recursive": {
           "type": "boolean",
@@ -347,17 +369,17 @@
           "default": true,
           "x-decorator": "FormItem",
           "x-component": "Switch",
-          "x-index": 4
-        },
-        "delimiter": {
-          "required": true,
-          "default": ",",
-          "type": "string",
-          "title": "${delimiter}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "delimiter",
-          "x-index": 5
+          "x-index": 4,
+          "x-reactions": [
+            {
+              "dependencies": ["$outputs"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
         },
         "fileEncoding": {
           "type": "string",
@@ -385,13 +407,49 @@
             }
           ]
         },
+        "offStandard": {
+          "type": "boolean",
+          "title": "${offStandard}",
+          "default": false,
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "x-index": 7,
+          "x-reactions": [
+            {
+              "dependencies": ["$outputs"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
+        },
+        "lineExpression": {
+          "type": "string",
+          "required": true,
+          "title": "${lineExpression}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 8,
+          "x-reactions": [
+            {
+              "dependencies": ["$outputs", ".offStandard"],
+              "fulfill": {
+                "state": {
+                  "display": "{{($deps[0].length > 0 && $deps[1]) ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
+        },
         "header": {
           "type": "string",
           "title": "${header}",
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "header",
-          "x-index": 7
+          "x-index": 9
         },
         "headerLine": {
           "type": "string",
@@ -399,7 +457,7 @@
           "default": 1,
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
-          "x-index": 8
+          "x-index": 10
         },
         "dataStartLine": {
           "required": true,
@@ -409,7 +467,17 @@
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
           "apiServerKey": "dataStartLine",
-          "x-index": 9
+          "x-index": 11,
+          "x-reactions": [
+            {
+              "dependencies": ["$outputs"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
         },
         "justString": {
           "type": "boolean",
@@ -417,7 +485,17 @@
           "default": false,
           "x-decorator": "FormItem",
           "x-component": "Switch",
-          "x-index": 10
+          "x-index": 12,
+          "x-reactions": [
+            {
+              "dependencies": ["$outputs"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
         },
         "writeFilePath": {
           "type": "string",
@@ -425,7 +503,18 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "writeFilePath",
-          "x-index": 11
+          "x-index": 13,
+          "required": true,
+          "x-reactions": [
+            {
+              "dependencies": ["$inputs"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
         },
         "fileNameExpression": {
           "type": "string",
@@ -433,7 +522,18 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "fileNameExpression",
-          "x-index": 12
+          "x-index": 14,
+          "required": true,
+          "x-reactions": [
+            {
+              "dependencies": ["$inputs"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
         }
       }
     }
@@ -474,7 +574,11 @@
       "modelName": "Model Name",
       "headerLine": "Header Line",
       "justString": "All To String",
-      "fileEncoding": "File Encoding"
+      "fileEncoding": "File Encoding",
+      "writeFilePath": "File Path",
+      "fileNameExpression": "File Name Expression",
+      "offStandard": "Off Standard CSV",
+      "lineExpression": "Expression Each Line"
     },
     "zh_CN": {
       "doc": "docs/csv_zh_CN.md",
@@ -510,7 +614,11 @@
       "modelName": "模型名",
       "headerLine": "表头行",
       "justString": "全转换字符串",
-      "fileEncoding": "文件编码"
+      "fileEncoding": "文件编码",
+      "writeFilePath": "文件路径",
+      "fileNameExpression": "文件名表达式",
+      "offStandard": "非标准CSV格式",
+      "lineExpression": "行表达式"
     },
     "zh_TW": {
       "doc": "docs/csv_zh_TW.md",
@@ -546,7 +654,11 @@
       "modelName": "模型名",
       "headerLine": "表頭行",
       "justString": "全轉換字符串",
-      "fileEncoding": "文件編碼"
+      "fileEncoding": "文件編碼",
+      "writeFilePath": "檔案路徑",
+      "fileNameExpression": "檔名運算式",
+      "offStandard": "非標準CSV格式",
+      "lineExpression": "行運算式"
     }
   },
   "dataTypes": {

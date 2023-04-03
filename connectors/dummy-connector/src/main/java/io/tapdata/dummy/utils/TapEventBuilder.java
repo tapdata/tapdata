@@ -17,8 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.function.Consumer;
 
 /**
  * TapEvent builder
@@ -36,6 +35,16 @@ public class TapEventBuilder {
     private Integer serialStep;
 
     private DummyOffset offset;
+
+    private final Consumer<Map<String, Object>> heartbeatSetter;
+
+    public TapEventBuilder() {
+        this((data) -> {});
+    }
+
+    public TapEventBuilder(Consumer<Map<String, Object>> heartbeatSetter) {
+        this.heartbeatSetter = heartbeatSetter;
+    }
 
     public void reset(Object offsetState, SyncStage syncStage) {
         if (offsetState instanceof DummyOffset) {
@@ -59,6 +68,7 @@ public class TapEventBuilder {
         for (TapField tapField : table.childItems()) {
             after.put(tapField.getName(), generateEventValue(tapField, RecordOperators.Insert));
         }
+        heartbeatSetter.accept(after);
 
         TapInsertRecordEvent tapEvent = TapSimplify.insertRecordEvent(after, table.getName());
         updateOffset(table.getName(), RecordOperators.Insert, tapEvent);
@@ -79,6 +89,7 @@ public class TapEventBuilder {
                 after.put(tapField.getName(), generateEventValue(tapField, RecordOperators.Update));
             }
         });
+        heartbeatSetter.accept(after);
 
         String tableName = table.getName();
         TapUpdateRecordEvent updateRecordEvent = TapSimplify.updateDMLEvent(before, after, tableName);
@@ -96,6 +107,8 @@ public class TapEventBuilder {
         } else {
             before = new HashMap<>(before);
         }
+        heartbeatSetter.accept(before);
+
         TapDeleteRecordEvent deleteRecordEvent = TapSimplify.deleteDMLEvent(before, tableName);
         updateOffset(tableName, RecordOperators.Delete, deleteRecordEvent);
         return deleteRecordEvent;

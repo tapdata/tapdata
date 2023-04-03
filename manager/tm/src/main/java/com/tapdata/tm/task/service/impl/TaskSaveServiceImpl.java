@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.service.impl;
 
 import cn.hutool.extra.cglib.CglibUtil;
+import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
 import com.tapdata.tm.commons.dag.DAG;
@@ -10,8 +11,7 @@ import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -20,12 +20,8 @@ import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.task.entity.TaskDagCheckLog;
-import com.tapdata.tm.task.service.TaskDagCheckLogService;
 import com.tapdata.tm.task.service.TaskSaveService;
-import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import lombok.Setter;
@@ -42,27 +38,9 @@ import java.util.stream.Collectors;
 @Service
 @Setter(onMethod_ = {@Autowired})
 public class TaskSaveServiceImpl implements TaskSaveService {
-    private TaskService taskService;
-    private TaskDagCheckLogService taskDagCheckLogService;
     private MetadataInstancesService metadataInstancesService;
     private AlarmSettingService alarmSettingService;
     private AlarmRuleService alarmRuleService;
-
-    @Override
-    public boolean taskSaveCheckLog(TaskDto taskDto, UserDetail userDetail) {
-        taskDagCheckLogService.removeAllByTaskId(taskDto.getId().toHexString());
-
-        boolean noPass = false;
-        List<TaskDagCheckLog> taskDagCheckLogs = taskDagCheckLogService.dagCheck(taskDto, userDetail, true);
-        if (CollectionUtils.isNotEmpty(taskDagCheckLogs)) {
-            Optional<TaskDagCheckLog> any = taskDagCheckLogs.stream().filter(log -> Level.ERROR.equals(log.getGrade())).findAny();
-            if (any.isPresent()) {
-                noPass = true;
-            }
-        }
-
-        return noPass;
-    }
 
     @Override
     public void syncTaskSetting(TaskDto taskDto, UserDetail userDetail) {
@@ -77,31 +55,65 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
         //supplier migrate tableSelectType=all tableNames and SyncObjects
         if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
-            DatabaseNode sourceNode = dag.getSourceNode().getFirst();
-
-            if (StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
-                String connectionId = sourceNode.getConnectionId();
-                List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(connectionId, null, userDetail);
-                if (CollectionUtils.isNotEmpty(metaList)) {
-                    List<String> collect = metaList.stream()
-                            .map(MetadataInstancesDto::getOriginalName)
-                            .filter(originalName -> {
-                                if (StringUtils.isEmpty(sourceNode.getTableExpression())) {
-                                    return false;
-                                } else {
-                                    return Pattern.matches(sourceNode.getTableExpression(), originalName);
-                                }
-                            })
-                            .collect(Collectors.toList());
-                    sourceNode.setTableNames(collect);
+            dag.getSourceNode().forEach(sourceNode -> {
+                if (StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
+                    String connectionId = sourceNode.getConnectionId();
+                    List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(connectionId, null, userDetail);
+                    if (CollectionUtils.isNotEmpty(metaList)) {
+                        List<String> collect = metaList.stream()
+                                .map(MetadataInstancesDto::getOriginalName)
+                                .filter(originalName -> {
+                                    if (StringUtils.isEmpty(sourceNode.getTableExpression())) {
+                                        return false;
+                                    } else {
+                                        return Pattern.matches(sourceNode.getTableExpression(), originalName);
+                                    }
+                                })
+                                .collect(Collectors.toList());
+                        sourceNode.setTableNames(collect);
+                    }
                 }
-            }
 
-            nodeCheckData(sourceNode.successors(), sourceNode.getTableNames(), null);
+                nodeCheckData(sourceNode.successors(), sourceNode.getTableNames(), null);
+            });
+
+            if (CollectionUtils.isNotEmpty(dag.getTargets())) {
+                dag.getTargets().stream()
+                        .filter(node -> node instanceof DatabaseNode)
+                        .forEach(target -> {
+                            DatabaseNode databaseNode = (DatabaseNode) target;
+                            if (Objects.isNull(databaseNode.getUpdateConditionFieldMap())) {
+                                databaseNode.setUpdateConditionFieldMap(Maps.newHashMap());
+                            }
+
+                            String nodeId = databaseNode.getId();
+                            long updateExNum = metadataInstancesService.countUpdateExNum(nodeId);
+                            if (updateExNum > 0) {
+                                List<MetadataInstancesDto> metaList = metadataInstancesService.findByNodeId(nodeId, userDetail);
+                                Optional.ofNullable(metaList).ifPresent(list -> {
+                                    list.forEach(schema -> {
+                                        List<String> fields = schema.getFields().stream().filter(Field::getPrimaryKey).map(Field::getFieldName).collect(Collectors.toList());
+                                        if (CollectionUtils.isNotEmpty(fields)) {
+                                            databaseNode.getUpdateConditionFieldMap().put(schema.getName(), fields);
+                                        } else {
+                                            List<String> columnList = schema.getIndices() == null ? null : schema.getIndices().stream().filter(TableIndex::isUnique)
+                                                    .flatMap(idc -> idc.getColumns().stream())
+                                                    .map(TableIndexColumn::getColumnName)
+                                                    .collect(Collectors.toList());
+                                            if (CollectionUtils.isNotEmpty(columnList)) {
+                                                databaseNode.getUpdateConditionFieldMap().put(schema.getName(), columnList);
+                                            }
+                                        }
+                                    });
+                                });
+                            }
+                        });
+            }
 
             Dag temp = new Dag(dag.getEdges(), dag.getNodes());
             DAG.build(temp);
         }
+
 
     }
 
@@ -120,7 +132,7 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             //alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INSPECT_ERROR));
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_FULL_COMPLETE));
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_START));
-            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_STOP));
+//            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_STOP));
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
             taskDto.setAlarmSettings(CglibUtil.copyList(alarmSettingDtos, AlarmSettingVO::new));
         }

@@ -160,6 +160,10 @@
 
         <!-- lombok -->
         <lombok.version>1.18.20</lombok.version>
+
+        <error-code-core.version>1.0-SNAPSHOT</error-code-core.version>
+        <pdk-error-code.version>1.0-SNAPSHOT</pdk-error-code.version>
+        <error-code-scanner.version>1.0-SNAPSHOT</error-code-scanner.version>
     </properties>
 
     <modules>
@@ -853,6 +857,24 @@
                 <groupId>org.projectlombok</groupId>
                 <artifactId>lombok</artifactId>
                 <version>${lombok.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.tapdata</groupId>
+                <artifactId>error-code-core</artifactId>
+                <version>${error-code-core.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.tapdata</groupId>
+                <artifactId>pdk-error-code</artifactId>
+                <version>${pdk-error-code.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.tapdata</groupId>
+                <artifactId>error-code-scanner</artifactId>
+                <version>${error-code-scanner.version}</version>
             </dependency>
 
         </dependencies>

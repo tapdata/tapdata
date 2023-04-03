@@ -93,8 +93,8 @@ public class TidbWriteRecorder extends WriteRecorder {
         if (EmptyKit.isNull(preparedStatement)) {
             final String allColumnNames = allColumn.stream().map(k -> "`" + k + "`").collect(Collectors.joining(", "));
             final String placeHolder = buildValuesPlaceHolderStr();
-            final String allColumnNamesAndValues = allColumn.stream().filter(k -> !uniqueCondition.contains(k)).
-                    map(k -> "`" + k + "`=values(" + k + ")").collect(Collectors.joining(", "));
+            final String allColumnNamesAndValues = allColumn.stream().
+                    map(k -> "`" + k + "`=values(`" + k + "`)").collect(Collectors.joining(", "));
             final String insertSql = String.format(INSERT_UPDATE_SQL_TEMPLATE, schema, tapTable.getId(), allColumnNames, placeHolder, allColumnNamesAndValues);
 
             preparedStatement = connection.prepareStatement(insertSql);

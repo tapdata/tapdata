@@ -1,12 +1,21 @@
 package io.tapdata.mongodb.reader;
 
-import com.mongodb.*;
-import com.mongodb.client.*;
+import com.mongodb.ConnectionString;
+import com.mongodb.MongoCommandException;
+import com.mongodb.MongoInterruptedException;
+import com.mongodb.MongoNamespace;
+import com.mongodb.MongoQueryException;
+import com.mongodb.client.ChangeStreamIterable;
+import com.mongodb.client.MongoChangeStreamCursor;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Aggregates;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.FullDocument;
 import com.mongodb.client.model.changestream.OperationType;
+import com.mongodb.client.model.changestream.UpdateDescription;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -14,6 +23,7 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.cache.KVMap;
+import io.tapdata.exception.TapPdkOffsetOutOfLogEx;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.mongodb.MongodbUtil;
 import io.tapdata.mongodb.entity.MongodbConfig;
@@ -29,11 +39,15 @@ import org.bson.codecs.DecoderContext;
 import org.bson.codecs.DocumentCodec;
 import org.bson.conversions.Bson;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static io.tapdata.base.ConnectorBase.*;
+import static io.tapdata.base.ConnectorBase.deleteDMLEvent;
+import static io.tapdata.base.ConnectorBase.insertRecordEvent;
+import static io.tapdata.base.ConnectorBase.list;
+import static io.tapdata.base.ConnectorBase.updateDMLEvent;
 import static java.util.Collections.singletonList;
 
 /**
@@ -141,7 +155,7 @@ public class MongodbV4StreamReader implements MongodbStreamReader {
 						if (MapUtils.isEmpty(fullDocument)) {
 							if (fullDocumentOption == FullDocument.DEFAULT) {
 								final Document documentKey = new DocumentCodec().decode(new BsonDocumentReader(event.getDocumentKey()), DecoderContext.builder().build());
-								try (final MongoCursor<Document> mongoCursor = mongoDatabase.getCollection(collectionName).find(documentKey).iterator();){
+								try (final MongoCursor<Document> mongoCursor = mongoDatabase.getCollection(collectionName).find(documentKey).iterator();) {
 									if (mongoCursor.hasNext()) {
 										fullDocument = mongoCursor.next();
 									}
@@ -153,15 +167,33 @@ public class MongodbV4StreamReader implements MongodbStreamReader {
 								continue;
 							}
 						}
+
 						if (event.getDocumentKey() != null) {
 							after.putAll(fullDocument);
 
 							TapUpdateRecordEvent recordEvent = updateDMLEvent(null, after, collectionName);
+							Map<String, Object> info = new DataMap();
+							Map<String, Object> unset = new DataMap();
+							UpdateDescription updateDescription = event.getUpdateDescription();
+							if (updateDescription != null) {
+								for (String f:updateDescription.getRemovedFields()) {
+									if (!after.containsKey(f)) {
+										unset.put(f, true);
+									}
+								}
+								if (unset.size() > 0) {
+									info.put("$unset", unset);
+								}
+							}
+							recordEvent.setInfo(info);
 							recordEvent.setReferenceTime((long) (event.getClusterTime().getTime()) * 1000);
 							tapEvents.add(recordEvent);
 						} else {
 							throw new RuntimeException(String.format("Document key is null, failed to update. %s", event));
 						}
+
+
+
 
 						// The default mode FullDocument.DEFAULT indicates that the reverse lookup phase is entered
 						// and need to switch to FullDocument.UPDATE_LOOKUP
@@ -190,7 +222,7 @@ public class MongodbV4StreamReader implements MongodbStreamReader {
 				if (throwable instanceof MongoCommandException) {
 					MongoCommandException mongoCommandException = (MongoCommandException) throwable;
 					if (mongoCommandException.getErrorCode() == 286) {
-						TapLogger.error(TAG, "offset " + offset + " is too old, will stop, error " + getStackString(throwable));
+						throw new TapPdkOffsetOutOfLogEx(connectorContext.getSpecification().getId(), offset, throwable);
 					}
 
 					if (mongoCommandException.getErrorCode() == 10334) {

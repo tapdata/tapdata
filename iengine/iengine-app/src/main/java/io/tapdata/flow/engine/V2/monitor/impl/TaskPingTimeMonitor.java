@@ -1,7 +1,10 @@
 package io.tapdata.flow.engine.V2.monitor.impl;
 
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.constant.*;
+import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.JSONUtil;
+import com.tapdata.constant.UUIDGenerator;
 import com.tapdata.entity.AppType;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.ping.PingDto;
@@ -37,11 +40,10 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  * @create 2022-03-08 18:53
  **/
 public class TaskPingTimeMonitor extends TaskMonitor<Object> {
-	private static final Logger logger = LogManager.getLogger(TaskPingTimeMonitor.class);
-
 	private final static long PING_INTERVAL_MS = 5000L;
 	public static final String TAG = TaskPingTimeMonitor.class.getSimpleName();
 
+	private Logger logger = LogManager.getLogger(TaskPingTimeMonitor.class);
 	private ScheduledExecutorService executorService;
 	private HttpClientMongoOperator clientMongoOperator;
 	private Supplier<Boolean> stopTask;
@@ -59,7 +61,6 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 		executorService.scheduleWithFixedDelay(
 				() -> {
 					Thread.currentThread().setName("Task-PingTime-" + taskDto.getId().toHexString());
-					Log4jUtil.setThreadContext(taskDto);
 
 					Query query = new Query(where("_id").is(taskDto.getId())
 							.and("status").nin(TaskDto.STATUS_ERROR, TaskDto.STATUS_SCHEDULE_FAILED)

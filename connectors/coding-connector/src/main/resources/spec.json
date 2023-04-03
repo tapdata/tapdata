@@ -3,7 +3,9 @@
     "name": "Coding",
     "icon": "icons/coding.png",
     "doc" : "${doc}",
-    "id": "coding"
+    "id": "coding",
+    "authentication": "Beta",
+    "tags": ["SaaS"]
   },
   "configOptions": {
     "pdkExpansion": [],

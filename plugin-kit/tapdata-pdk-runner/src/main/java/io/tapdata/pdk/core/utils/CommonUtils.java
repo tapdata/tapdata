@@ -3,6 +3,7 @@ package io.tapdata.pdk.core.utils;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.functions.ConnectionFunctions;
 import io.tapdata.pdk.apis.functions.connection.ErrorHandleFunction;
@@ -12,6 +13,7 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.error.QuiteException;
+import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
@@ -22,14 +24,18 @@ import javax.crypto.SecretKey;
 import java.io.InputStream;
 import java.security.SecureRandom;
 import java.text.SimpleDateFormat;
-import java.util.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Optional;
+import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -127,10 +133,12 @@ public class CommonUtils {
                     autoRetryAsync(runnable, tag, message, times - 1, periodSeconds);
                 }, periodSeconds, TimeUnit.SECONDS);
             } else {
-                if(throwable instanceof CoreException) {
-                    throw (CoreException) throwable;
+                Throwable matchThrowable = matchThrowable(throwable, TapCodeException.class);
+                if (null != matchThrowable) {
+                    throw (TapCodeException) matchThrowable;
+                } else {
+                    throw new TapPdkRunnerUnknownException(throwable);
                 }
-                throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, message + " execute failed, " + throwable.getMessage());
             }
         }
     }
@@ -177,7 +185,7 @@ public class CommonUtils {
             if(consumer != null) {
                 consumer.accept(throwable);
             } else {
-                throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, throwable.getMessage(), throwable);
+                throw new RuntimeException(throwable);
             }
         }
     }
@@ -339,30 +347,6 @@ public class CommonUtils {
         return pdkAPIBuildNumber.get();
     }
 
-    public static void main(String[] args) {
-//        AtomicLong counter = new AtomicLong();
-//
-//        int times = 2000000;
-//        long time = System.currentTimeMillis();
-//        for(int i = 0; i < times; i++) {
-//            Runnable r = new Runnable() {
-//                @Override
-//                public void run() {
-//                    counter.incrementAndGet();
-//                }
-//            };
-//            r.run();
-//        }
-//        System.out.println("1takes " + (System.currentTimeMillis() - time));
-//
-//        time = System.currentTimeMillis();
-//        for(int i = 0; i < times; i++) {
-//            Runnable r = () -> counter.incrementAndGet();
-//            r.run();
-//        }
-//        System.out.println("2takes " + (System.currentTimeMillis() - time));
-    }
-
     static class FunctionAndContext{
         ErrorHandleFunction errorHandleFunction = null;
         TapConnectionContext tapConnectionContext = null;
@@ -399,5 +383,59 @@ public class CommonUtils {
                 break;
             }
         }
+    }
+
+    public static Throwable matchThrowable(Throwable throwable, Class<? extends Throwable> match) {
+        if (null == throwable) {
+            return null;
+        }
+        if (compareClass(match, throwable.getClass())) {
+            return throwable;
+        }
+        List<Throwable> throwables = new ArrayList<>();
+        throwables.add(throwable);
+        Throwable matched = null;
+        while (!Thread.currentThread().isInterrupted()) {
+            Throwable cause = throwables.get(throwables.size() - 1).getCause();
+            if (null == cause) {
+                break;
+            }
+            if (throwables.contains(cause)) {
+                break;
+            }
+            if (compareClass(match, cause.getClass())) {
+                matched = cause;
+                break;
+            }
+            throwables.add(cause);
+        }
+        return matched;
+    }
+
+    public static boolean compareClass(Class<?> rootClazz, Class<?> compareClazz) {
+        if (rootClazz == null && compareClazz == null) {
+            return true;
+        }
+        if (rootClazz == null || compareClazz == null) {
+            return false;
+        }
+        if (rootClazz.getName().equals(compareClazz.getName())) {
+            return true;
+        }
+        List<Class<?>> classList = new ArrayList<>();
+        classList.add(compareClazz);
+        boolean res = false;
+        while (!Thread.currentThread().isInterrupted()) {
+            Class<?> superclass = classList.get(classList.size() - 1).getSuperclass();
+            if (null == superclass) {
+                break;
+            }
+            if (superclass.getName().equals(rootClazz.getName())) {
+                res = true;
+                break;
+            }
+            classList.add(superclass);
+        }
+        return res;
     }
 }

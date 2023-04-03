@@ -10,6 +10,7 @@ import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
@@ -27,25 +28,23 @@ import io.tapdata.mongodb.reader.MongodbV4StreamReader;
 import io.tapdata.mongodb.reader.v3.MongodbV3StreamReader;
 import io.tapdata.mongodb.writer.MongodbWriter;
 import io.tapdata.partition.DatabaseReadPartitionSplitter;
-import io.tapdata.partition.SplitCompleteListener;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
-import io.tapdata.pdk.apis.error.NotSupportedException;
+import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
+import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
-import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionsFunction;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
-import io.tapdata.pdk.apis.partition.ReadPartition;
-import io.tapdata.pdk.apis.partition.TapPartitionFilter;
-import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.*;
 import org.bson.conversions.Bson;
 import org.bson.types.*;
@@ -65,7 +64,6 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static com.mongodb.client.model.Filters.*;
-import static java.util.Collections.max;
 import static java.util.Collections.singletonList;
 
 /**
@@ -80,8 +78,8 @@ public class MongodbConnector extends ConnectorBase {
 	public static final String TAG = MongodbConnector.class.getSimpleName();
 	private final AtomicLong counter = new AtomicLong();
 	private final AtomicBoolean isShutDown = new AtomicBoolean(false);
-	private MongodbConfig mongoConfig;
-	private MongoClient mongoClient;
+	protected  MongodbConfig mongoConfig;
+	protected  MongoClient mongoClient;
 	private MongoDatabase mongoDatabase;
 	private final int[] lock = new int[0];
 	MongoCollection<Document> mongoCollection;
@@ -426,6 +424,7 @@ public class MongodbConnector extends ConnectorBase {
 		connectorFunctions.supportBatchRead(this::batchRead);
 		connectorFunctions.supportBatchCount(this::batchCount);
 		connectorFunctions.supportCreateIndex(this::createIndex);
+//		connectorFunctions.supportCreateTableV2(this::createTableV2);
 		connectorFunctions.supportStreamRead(this::streamRead);
 		connectorFunctions.supportTimestampToStreamOffset(this::streamOffset);
 		connectorFunctions.supportErrorHandleFunction(this::errorHandle);
@@ -435,27 +434,38 @@ public class MongodbConnector extends ConnectorBase {
 		connectorFunctions.supportQueryFieldMinMaxValueFunction(this::queryFieldMinMaxValue);
 //        connectorFunctions.supportStreamOffset((connectorContext, tableList, offsetStartTime, offsetOffsetTimeConsumer) -> streamOffset(connectorContext, tableList, offsetStartTime, offsetOffsetTimeConsumer));
 		connectorFunctions.supportExecuteCommandFunction(this::executeCommand);
+		connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
 	}
 
-	private void executeCommand(TapConnectorContext tapConnectorContext, TapExecuteCommand tapExecuteCommand, Consumer<ExecuteResult> executeResultConsumer) {
-		ExecuteResult<?> executeResult;
+	private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws Throwable {
+		// TODO: 为 分片集群建表, schema 约束建表预留位置
+		CreateTableOptions createTableOptions = new CreateTableOptions();
+		createTableOptions.setTableExists(false);
+		return createTableOptions;
+	}
+
+
+		private void executeCommand(TapConnectorContext tapConnectorContext, TapExecuteCommand tapExecuteCommand, Consumer<ExecuteResult> executeResultConsumer) {
 		try {
 			Map<String, Object> executeObj = tapExecuteCommand.getParams();
 			String command = tapExecuteCommand.getCommand();
+			if (MapUtils.isNotEmpty(executeObj) && StringUtils.isEmpty((CharSequence) executeObj.get("database"))) {
+				executeObj.put("database", mongoConfig.getDatabase());
+			}
 			if ("execute".equals(command)) {
-				executeResult = new ExecuteResult<Long>().result(mongodbExecuteCommandFunction.execute(executeObj, mongoClient));
+				executeResultConsumer.accept(new ExecuteResult<Long>().result(mongodbExecuteCommandFunction.execute(executeObj, mongoClient)));
 			} else if ("executeQuery".equals(command)) {
-				executeResult = new ExecuteResult<List<Map<String, Object>>>().result(mongodbExecuteCommandFunction.executeQuery(executeObj, mongoClient));
+				mongodbExecuteCommandFunction.executeQuery(executeObj, mongoClient, list -> executeResultConsumer.accept(new ExecuteResult<List<Map<String, Object>>>().result(list)), this::isAlive);
 			} else if ("count".equals(command)) {
-				executeResult = new ExecuteResult<Long>().result(mongodbExecuteCommandFunction.count(executeObj, mongoClient));
-			} else {
-				throw new NotSupportedException();
+				executeResultConsumer.accept(new ExecuteResult<Long>().result(mongodbExecuteCommandFunction.count(executeObj, mongoClient)));
+			} else if ("aggregate".equals(command)) {
+				mongodbExecuteCommandFunction.aggregate(executeObj, mongoClient, list -> executeResultConsumer.accept(new ExecuteResult<List<Map<String, Object>>>().result(list)), this::isAlive);
+			} else  {
+				throw new NotSupportedException(command);
 			}
 		} catch (Exception e) {
-			executeResult = new ExecuteResult<>().error(e);
+			executeResultConsumer.accept(new ExecuteResult<>().error(e));
 		}
-
-		executeResultConsumer.accept(executeResult);
 	}
 
 	private FieldMinMaxValue queryFieldMinMaxValue(TapConnectorContext connectorContext, TapTable table, TapAdvanceFilter partitionFilter, String fieldName) {
@@ -597,7 +607,6 @@ public class MongodbConnector extends ConnectorBase {
 				|| null != matchThrowable(throwable, MongoSocketException.class)
 				|| null != matchThrowable(throwable, MongoConnectionPoolClearedException.class)
 				|| null != matchThrowable(throwable, MongoSecurityException.class)
-				|| null != matchThrowable(throwable, MongoServerException.class)
 				|| null != matchThrowable(throwable, MongoConfigurationException.class)
 				|| null != matchThrowable(throwable, MongoTimeoutException.class)
 				|| null != matchThrowable(throwable, MongoSocketReadException.class)
@@ -651,6 +660,7 @@ public class MongodbConnector extends ConnectorBase {
 			throw new RuntimeException("connection config cannot be empty");
 		}
 		mongoConfig =(MongodbConfig) new MongodbConfig().load(connectionConfig);
+		mongoConfig.load(connectionContext.getNodeConfig());
 		if (mongoConfig == null) {
 			throw new RuntimeException("load mongo config failed from connection config");
 		}
@@ -1036,5 +1046,15 @@ public class MongodbConnector extends ConnectorBase {
 			mongodbWriter.onDestroy();
 			mongodbWriter = null;
 		}
+	}
+
+	private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
+		String database = mongoConfig.getDatabase();
+		MongoDatabase mongoDatabase = 	mongoClient.getDatabase(database);
+		Document collStats = mongoDatabase.runCommand(new Document("collStats", tableName));
+		TableInfo tableInfo = TableInfo.create();
+		tableInfo.setNumOfRows(Long.valueOf(collStats.getInteger("count")));
+		tableInfo.setStorageSize(Long.valueOf(collStats.getInteger("size")));
+		return tableInfo;
 	}
 }

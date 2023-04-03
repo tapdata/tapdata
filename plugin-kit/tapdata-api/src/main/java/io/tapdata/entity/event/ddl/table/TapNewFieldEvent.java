@@ -36,5 +36,4 @@ public class TapNewFieldEvent extends TapFieldBaseEvent {
     public void setNewFields(List<TapField> newFields) {
         this.newFields = newFields;
     }
-
 }

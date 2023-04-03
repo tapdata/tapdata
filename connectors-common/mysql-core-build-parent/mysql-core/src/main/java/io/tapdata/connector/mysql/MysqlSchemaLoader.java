@@ -1,14 +1,12 @@
 package io.tapdata.connector.mysql;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
-import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
@@ -57,8 +55,7 @@ public class MysqlSchemaLoader {
 
         DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
         String database = connectionConfig.getString("database");
-
-        List<String> allTables = queryAllTables(database, filterTable);
+        List<DataMap> allTables =queryAllTables(database, filterTable);
         if (CollectionUtils.isEmpty(allTables)) {
             consumer.accept(null);
             return;
@@ -68,9 +65,10 @@ public class MysqlSchemaLoader {
         DefaultExpressionMatchingMap dataTypesMap = tapConnectionContext.getSpecification().getDataTypesMap();
 
         try {
-            List<List<String>> partition = Lists.partition(allTables, tableSize);
-            partition.forEach(tables -> {
-                String tableNames = StringUtils.join(tables, "','");
+            List<List<DataMap>> tableLists = Lists.partition(allTables, tableSize);
+            tableLists.forEach(tableList -> {
+                List<String> subTableNames = tableList.stream().map(v -> v.getString("TABLE_NAME")).collect(Collectors.toList());
+                String tableNames = StringUtils.join(subTableNames, "','");
                 List<DataMap> columnList = queryAllColumns(database, tableNames);
                 List<DataMap> indexList = queryAllIndexes(database, tableNames);
 
@@ -78,14 +76,16 @@ public class MysqlSchemaLoader {
                 Map<String, List<DataMap>> indexMap = indexList.stream().collect(Collectors.groupingBy(t -> t.getString("TABLE_NAME")));
 
                 List<TapTable> tempList = new ArrayList<>();
-                tables.forEach(table -> {
-                    TapTable tapTable = TapSimplify.table(table);
-                    if (columnMap.containsKey(table)) {
-                        discoverFields(columnMap.get(table), tapTable, instance, dataTypesMap);
+                tableList.forEach(subTable -> {
+                    String tableName = subTable.getString("TABLE_NAME");
+                    TapTable tapTable = TapSimplify.table(tableName);
+                    if (columnMap.containsKey(tableName)) {
+                        discoverFields(columnMap.get(tableName), tapTable, instance, dataTypesMap);
                     }
-                    if (indexMap.containsKey(table)) {
-                        tapTable.setIndexList(discoverIndexes(indexMap.get(table), table));
+                    if (indexMap.containsKey(tableName)) {
+                        tapTable.setIndexList(discoverIndexes(indexMap.get(tableName), tableName));
                     }
+                    tapTable.setComment(subTable.getString("TABLE_COMMENT"));
                     tempList.add(tapTable);
                 });
 
@@ -188,7 +188,7 @@ public class MysqlSchemaLoader {
         return index;
     }
 
-    private List<String> queryAllTables(String database, List<String> filterTable) {
+    private  List<DataMap>  queryAllTables(String database, List<String> filterTable) {
         String sql = String.format(SELECT_TABLES, database);
         if (CollectionUtils.isNotEmpty(filterTable)) {
             filterTable = filterTable.stream().map(t -> "'" + t + "'").collect(Collectors.toList());
@@ -196,13 +196,9 @@ public class MysqlSchemaLoader {
             sql += String.format(TABLE_NAME_IN, tableNameIn);
         }
 
-        List<String> tableList = TapSimplify.list();
+        List<DataMap> tableList = TapSimplify.list();
         try {
-            mysqlJdbcContext.query(sql, resultSet -> {
-                while (resultSet.next()) {
-                    tableList.add(resultSet.getString("TABLE_NAME"));
-                }
-            });
+            mysqlJdbcContext.query(sql, resultSet -> tableList.addAll(DbKit.getDataFromResultSet(resultSet)));
         } catch (Throwable e) {
             TapLogger.error(TAG, "Execute queryAllTables failed, error: " + e.getMessage(), e);
         }

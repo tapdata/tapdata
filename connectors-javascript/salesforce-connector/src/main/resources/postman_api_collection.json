@@ -1,0 +1,744 @@
+{
+  "info": {
+    "_postman_id": "d206593f-e84a-4cbf-8196-eea512a30862",
+    "name": "Salesforce js api",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "16923698"
+  },
+  "item": [
+    {
+      "name": "OAuth",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=3MVG9n_HvETGhr3Ai83SSfHGaxjpZakxMv8ZB8yl5vP.6NMlgXFAhVcuqtruP9ehJxEGrmZnH6fvlhHA6yjE.&redirect_uri=https://redirect.tapdata.io/oauth/complete/salesforce&scope=api refresh_token",
+          "protocol": "https",
+          "host": [
+            "login",
+            "salesforce",
+            "com"
+          ],
+          "path": [
+            "services",
+            "oauth2",
+            "authorize"
+          ],
+          "query": [
+            {
+              "key": "response_type",
+              "value": "code"
+            },
+            {
+              "key": "client_id",
+              "value": "3MVG9n_HvETGhr3Ai83SSfHGaxjpZakxMv8ZB8yl5vP.6NMlgXFAhVcuqtruP9ehJxEGrmZnH6fvlhHA6yjE."
+            },
+            {
+              "key": "redirect_uri",
+              "value": "https://redirect.tapdata.io/oauth/complete/salesforce"
+            },
+            {
+              "key": "scope",
+              "value": "api refresh_token"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "get access token",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "authorization_code",
+              "type": "text"
+            },
+            {
+              "key": "code",
+              "value": "{{code}}",
+              "type": "text"
+            },
+            {
+              "key": "client_id",
+              "value": "{{client_id}}",
+              "type": "text"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{client_secret}}",
+              "type": "text"
+            },
+            {
+              "key": "redirect_uri",
+              "value": "https://redirect.tapdata.io/oauth/complete/salesforce",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "https://login.salesforce.com/services/oauth2/token?grant_type=authorization_code&code={{code}}&client_id={{client_id}}&client_secret={{client_secret}}&redirect_uri=https://redirect.tapdata.io/oauth/complete/salesforce",
+          "protocol": "https",
+          "host": [
+            "login",
+            "salesforce",
+            "com"
+          ],
+          "path": [
+            "services",
+            "oauth2",
+            "token"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "refresh token",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{_endpoint}}/services/oauth2/token?grant_type=refresh_token&client_id={{client_id}}&client_secret={{client_secret}}&refresh_token={{refresh_token}}",
+          "protocol": "https",
+          "host": [
+            "{{_endpoint}}"
+          ],
+          "path": [
+            "services",
+            "oauth2",
+            "token"
+          ],
+          "query": [
+            {
+              "key": "grant_type",
+              "value": "refresh_token"
+            },
+            {
+              "key": "client_id",
+              "value": "{{client_id}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{client_secret}}"
+            },
+            {
+              "key": "refresh_token",
+              "value": "{{refresh_token}}"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Contact",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Chatter-Entity-Encoding",
+            "value": "false"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{Authorization}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Cookie",
+            "value": "BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1",
+            "disabled": true
+          }
+        ],
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query {\r\n  uiapi {\r\n    query {\r\n       Contact(first: 2000){\r\n        edges {\r\n          node {\r\n              Id\r\n            AccountId {value\r\n            }\r\n            AssistantName {value\r\n            }\r\n            AssistantPhone {value\r\n            }\r\n            Birthdate {\r\n                value\r\n            }\r\n            CleanStatus {\r\n                value\r\n            }\r\n            Department {\r\n                value\r\n            }\r\n            Description {\r\n                value\r\n            }\r\n            Email {\r\n                value\r\n            }\r\n            EmailBouncedDate {\r\n                value\r\n            }\r\n            EmailBouncedReason {\r\n                value\r\n            }\r\n            Fax {\r\n                value\r\n            }\r\n            FirstName {\r\n                value\r\n            }\r\n            HomePhone {\r\n                value\r\n            }\r\n            IndividualId {\r\n                value\r\n            }\r\n            IsDeleted {\r\n                value\r\n            }\r\n            IsEmailBounced {\r\n                value\r\n            }\r\n            Jigsaw {\r\n                value\r\n            }\r\n            Languages__c {\r\n                value\r\n            }\r\n            LastActivityDate {\r\n                value\r\n            }\r\n            LastName {\r\n                value\r\n            }\r\n            LastReferencedDate {\r\n                value\r\n            }\r\n            LastViewedDate {\r\n                value\r\n            }\r\n            LeadSource {\r\n                value\r\n            }\r\n            MailingCity {\r\n                value\r\n            }\r\n            MailingCountry {\r\n                value\r\n            }\r\n            MailingGeocodeAccuracy {\r\n                value\r\n            }\r\n            MailingLatitude {\r\n                value\r\n            }\r\n            MailingLongitude {\r\n                value\r\n            }\r\n            MailingPostalCode {\r\n                value\r\n            }\r\n            MailingState {\r\n                value\r\n            }\r\n            MailingStreet {\r\n                value\r\n            }\r\n            MasterRecordId {\r\n                value\r\n            }\r\n            MobilePhone {\r\n                value\r\n            }\r\n            Name {\r\n                value\r\n            }\r\n            OtherCity {\r\n                value\r\n            }\r\n            OtherCountry {\r\n                value\r\n            }\r\n            OtherGeocodeAccuracy {\r\n                value\r\n            }\r\n            OtherLatitude {\r\n                value\r\n            }\r\n            OtherLongitude {\r\n                value\r\n            }\r\n            OtherPhone {\r\n                value\r\n            }\r\n            OtherPostalCode {\r\n                value\r\n            }\r\n            OtherState {\r\n                value\r\n            }\r\n            OtherStreet {\r\n                value\r\n            }\r\n            OwnerId {\r\n                value\r\n            }\r\n            Phone {\r\n                value\r\n            }\r\n            PhotoUrl {\r\n                value\r\n            }\r\n            RecordTypeId {\r\n                value\r\n            }\r\n            ReportsToId {\r\n                value\r\n            }\r\n            Salutation {\r\n                value\r\n            }\r\n            Title {\r\n                value\r\n            }\r\n            LastModifiedById {\r\n                value\r\n            }\r\n            LastModifiedDate {\r\n                value\r\n            }\r\n            CreatedDate {\r\n                value\r\n            }\r\n        }\r\n        cursor\r\n        }\r\n        totalCount\r\n        pageInfo {\r\n          hasNextPage\r\n          hasPreviousPage\r\n          startCursor\r\n          endCursor\r\n        }\r\n      }\r\n    }\r\n  }\r\n}",
+            "variables": {}
+          }
+        },
+        "url": {
+          "raw": "{{_endpoint}}/services/data/v{{version}}/graphql",
+          "host": [
+            "{{_endpoint}}"
+          ],
+          "path": [
+            "services",
+            "data",
+            "v{{version}}",
+            "graphql"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Contact by after",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Chatter-Entity-Encoding",
+            "value": "false"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{Authorization}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Cookie",
+            "value": "BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1"
+          }
+        ],
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query contact{\r\n  uiapi {\r\n    query {\r\n      Contact(first: 2000, after: \"{{after}}\") {\r\n        edges {\r\n          node {\r\n              Id\r\n            AccountId {\r\n                value\r\n            }\r\n            AssistantName {\r\n                value\r\n            }\r\n            AssistantPhone {\r\n                value\r\n            }\r\n            Birthdate {\r\n                value\r\n            }\r\n            CleanStatus {\r\n                value\r\n            }\r\n            Department {\r\n                value\r\n            }\r\n            Description {\r\n                value\r\n            }\r\n            Email {\r\n                value\r\n            }\r\n            EmailBouncedDate {\r\n                value\r\n            }\r\n            EmailBouncedReason {\r\n                value\r\n            }\r\n            Fax {\r\n                value\r\n            }\r\n            FirstName {\r\n                value\r\n            }\r\n            HomePhone {\r\n                value\r\n            }\r\n            IndividualId {\r\n                value\r\n            }\r\n            IsDeleted {\r\n                value\r\n            }\r\n            IsEmailBounced {\r\n                value\r\n            }\r\n            Jigsaw {\r\n                value\r\n            }\r\n            Languages__c {\r\n                value\r\n            }\r\n            LastActivityDate {\r\n                value\r\n            }\r\n            LastName {\r\n                value\r\n            }\r\n            LastReferencedDate {\r\n                value\r\n            }\r\n            LastViewedDate {\r\n                value\r\n            }\r\n            LeadSource {\r\n                value\r\n            }\r\n            MailingCity {\r\n                value\r\n            }\r\n            MailingCountry {\r\n                value\r\n            }\r\n            MailingGeocodeAccuracy {\r\n                value\r\n            }\r\n            MailingLatitude {\r\n                value\r\n            }\r\n            MailingLongitude {\r\n                value\r\n            }\r\n            MailingPostalCode {\r\n                value\r\n            }\r\n            MailingState {\r\n                value\r\n            }\r\n            MailingStreet {\r\n                value\r\n            }\r\n            MasterRecordId {\r\n                value\r\n            }\r\n            MobilePhone {\r\n                value\r\n            }\r\n            Name {\r\n                value\r\n            }\r\n            OtherCity {\r\n                value\r\n            }\r\n            OtherCountry {\r\n                value\r\n            }\r\n            OtherGeocodeAccuracy {\r\n                value\r\n            }\r\n            OtherLatitude {\r\n                value\r\n            }\r\n            OtherLongitude {\r\n                value\r\n            }\r\n            OtherPhone {\r\n                value\r\n            }\r\n            OtherPostalCode {\r\n                value\r\n            }\r\n            OtherState {\r\n                value\r\n            }\r\n            OtherStreet {\r\n                value\r\n            }\r\n            OwnerId {\r\n                value\r\n            }\r\n            Phone {\r\n                value\r\n            }\r\n            PhotoUrl {\r\n                value\r\n            }\r\n            RecordTypeId {\r\n                value\r\n            }\r\n            ReportsToId {\r\n                value\r\n            }\r\n            Salutation {\r\n                value\r\n            }\r\n            Title {\r\n                value\r\n            }\r\n            LastModifiedById {\r\n                value\r\n            }\r\n            LastModifiedDate {\r\n                value\r\n            }\r\n            CreatedDate {\r\n                value\r\n            }\r\n        }\r\n        cursor\r\n        }\r\n        totalCount\r\n        pageInfo {\r\n          hasNextPage\r\n          hasPreviousPage\r\n          startCursor\r\n          endCursor\r\n        }\r\n      }\r\n    }\r\n  }\r\n}",
+            "variables": {}
+          }
+        },
+        "url": {
+          "raw": "{{_endpoint}}/services/data/v{{version}}/graphql",
+          "host": [
+            "{{_endpoint}}"
+          ],
+          "path": [
+            "services",
+            "data",
+            "v{{version}}",
+            "graphql"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Contact stream read",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Chatter-Entity-Encoding",
+            "value": "false"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{Authorization}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Cookie",
+            "value": "BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1"
+          }
+        ],
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query {\r\n  uiapi {\r\n    query {\r\n       Contact(first: 2000, where: { LastModifiedDate: { gte: { range: { last_n_days: 1 } } } }, orderBy: {LastModifiedDate: {order : DESC}}){\r\n        edges {\r\n          node {\r\n              Id\r\n            AccountId {\r\n                value\r\n            }\r\n            AssistantName {\r\n                value\r\n            }\r\n            AssistantPhone {\r\n                value\r\n            }\r\n            Birthdate {\r\n                value\r\n            }\r\n            CleanStatus {\r\n                value\r\n            }\r\n            Department {\r\n                value\r\n            }\r\n            Description {\r\n                value\r\n            }\r\n            Email {\r\n                value\r\n            }\r\n            EmailBouncedDate {\r\n                value\r\n            }\r\n            EmailBouncedReason {\r\n                value\r\n            }\r\n            Fax {\r\n                value\r\n            }\r\n            FirstName {\r\n                value\r\n            }\r\n            HomePhone {\r\n                value\r\n            }\r\n            IndividualId {\r\n                value\r\n            }\r\n            IsDeleted {\r\n                value\r\n            }\r\n            IsEmailBounced {\r\n                value\r\n            }\r\n            Jigsaw {\r\n                value\r\n            }\r\n            Languages__c {\r\n                value\r\n            }\r\n            LastActivityDate {\r\n                value\r\n            }\r\n            LastName {\r\n                value\r\n            }\r\n            LastReferencedDate {\r\n                value\r\n            }\r\n            LastViewedDate {\r\n                value\r\n            }\r\n            LeadSource {\r\n                value\r\n            }\r\n            MailingCity {\r\n                value\r\n            }\r\n            MailingCountry {\r\n                value\r\n            }\r\n            MailingGeocodeAccuracy {\r\n                value\r\n            }\r\n            MailingLatitude {\r\n                value\r\n            }\r\n            MailingLongitude {\r\n                value\r\n            }\r\n            MailingPostalCode {\r\n                value\r\n            }\r\n            MailingState {\r\n                value\r\n            }\r\n            MailingStreet {\r\n                value\r\n            }\r\n            MasterRecordId {\r\n                value\r\n            }\r\n            MobilePhone {\r\n                value\r\n            }\r\n            Name {\r\n                value\r\n            }\r\n            OtherCity {\r\n                value\r\n            }\r\n            OtherCountry {\r\n                value\r\n            }\r\n            OtherGeocodeAccuracy {\r\n                value\r\n            }\r\n            OtherLatitude {\r\n                value\r\n            }\r\n            OtherLongitude {\r\n                value\r\n            }\r\n            OtherPhone {\r\n                value\r\n            }\r\n            OtherPostalCode {\r\n                value\r\n            }\r\n            OtherState {\r\n                value\r\n            }\r\n            OtherStreet {\r\n                value\r\n            }\r\n            OwnerId {\r\n                value\r\n            }\r\n            Phone {\r\n                value\r\n            }\r\n            PhotoUrl {\r\n                value\r\n            }\r\n            RecordTypeId {\r\n                value\r\n            }\r\n            ReportsToId {\r\n                value\r\n            }\r\n            Salutation {\r\n                value\r\n            }\r\n            Title {\r\n                value\r\n            }\r\n            LastModifiedById {\r\n                value\r\n            }\r\n            LastModifiedDate {\r\n                value\r\n            }\r\n            CreatedDate {\r\n                value\r\n            }\r\n        }\r\n        cursor\r\n        }\r\n        totalCount\r\n        pageInfo {\r\n          hasNextPage\r\n          hasPreviousPage\r\n          startCursor\r\n          endCursor\r\n        }\r\n      }\r\n    }\r\n  }\r\n}",
+            "variables": {}
+          }
+        },
+        "url": {
+          "raw": "{{_endpoint}}/services/data/v57.0/graphql",
+          "protocol": "https",
+          "host": [
+            "{{_endpoint}}"
+          ],
+          "path": [
+            "services",
+            "data",
+            "v57.0",
+            "graphql"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Contact stream read by after",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Chatter-Entity-Encoding",
+            "value": "false"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{Authorization}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Cookie",
+            "value": "BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1; BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1"
+          }
+        ],
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query {\r\n  uiapi {\r\n    query {\r\n       Contact(first: 2000, after: \"{{after}}\", where: { LastModifiedDate: { gte: { range: { last_n_days: 1 } } } }, orderBy: {LastModifiedDate: {order : DESC}}){\r\n        edges {\r\n          node {\r\n              Id\r\n            AccountId {\r\n                value\r\n            }\r\n            AssistantName {\r\n                value\r\n            }\r\n            AssistantPhone {\r\n                value\r\n            }\r\n            Birthdate {\r\n                value\r\n            }\r\n            CleanStatus {\r\n                value\r\n            }\r\n            Department {\r\n                value\r\n            }\r\n            Description {\r\n                value\r\n            }\r\n            Email {\r\n                value\r\n            }\r\n            EmailBouncedDate {\r\n                value\r\n            }\r\n            EmailBouncedReason {\r\n                value\r\n            }\r\n            Fax {\r\n                value\r\n            }\r\n            FirstName {\r\n                value\r\n            }\r\n            HomePhone {\r\n                value\r\n            }\r\n            IndividualId {\r\n                value\r\n            }\r\n            IsDeleted {\r\n                value\r\n            }\r\n            IsEmailBounced {\r\n                value\r\n            }\r\n            Jigsaw {\r\n                value\r\n            }\r\n            Languages__c {\r\n                value\r\n            }\r\n            LastActivityDate {\r\n                value\r\n            }\r\n            LastName {\r\n                value\r\n            }\r\n            LastReferencedDate {\r\n                value\r\n            }\r\n            LastViewedDate {\r\n                value\r\n            }\r\n            LeadSource {\r\n                value\r\n            }\r\n            MailingCity {\r\n                value\r\n            }\r\n            MailingCountry {\r\n                value\r\n            }\r\n            MailingGeocodeAccuracy {\r\n                value\r\n            }\r\n            MailingLatitude {\r\n                value\r\n            }\r\n            MailingLongitude {\r\n                value\r\n            }\r\n            MailingPostalCode {\r\n                value\r\n            }\r\n            MailingState {\r\n                value\r\n            }\r\n            MailingStreet {\r\n                value\r\n            }\r\n            MasterRecordId {\r\n                value\r\n            }\r\n            MobilePhone {\r\n                value\r\n            }\r\n            Name {\r\n                value\r\n            }\r\n            OtherCity {\r\n                value\r\n            }\r\n            OtherCountry {\r\n                value\r\n            }\r\n            OtherGeocodeAccuracy {\r\n                value\r\n            }\r\n            OtherLatitude {\r\n                value\r\n            }\r\n            OtherLongitude {\r\n                value\r\n            }\r\n            OtherPhone {\r\n                value\r\n            }\r\n            OtherPostalCode {\r\n                value\r\n            }\r\n            OtherState {\r\n                value\r\n            }\r\n            OtherStreet {\r\n                value\r\n            }\r\n            OwnerId {\r\n                value\r\n            }\r\n            Phone {\r\n                value\r\n            }\r\n            PhotoUrl {\r\n                value\r\n            }\r\n            RecordTypeId {\r\n                value\r\n            }\r\n            ReportsToId {\r\n                value\r\n            }\r\n            Salutation {\r\n                value\r\n            }\r\n            Title {\r\n                value\r\n            }\r\n            LastModifiedById {\r\n                value\r\n            }\r\n            LastModifiedDate {\r\n                value\r\n            }\r\n            CreatedDate {\r\n                value\r\n            }\r\n        }\r\n        cursor\r\n        }\r\n        totalCount\r\n        pageInfo {\r\n          hasNextPage\r\n          hasPreviousPage\r\n          startCursor\r\n          endCursor\r\n        }\r\n      }\r\n    }\r\n  }\r\n}",
+            "variables": ""
+          }
+        },
+        "url": {
+          "raw": "{{_endpoint}}/services/data/v{{version}}/graphql",
+          "host": [
+            "{{_endpoint}}"
+          ],
+          "path": [
+            "services",
+            "data",
+            "v{{version}}",
+            "graphql"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Opportunity",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Chatter-Entity-Encoding",
+            "value": "false"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{Authorization}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Cookie",
+            "value": "BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1"
+          }
+        ],
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query opportunity {\r\n  uiapi {\r\n    query {\r\n      Opportunity(first: 2000) {\r\n        edges {\r\n          node {\r\n              Id\r\n            AccountId {\r\n                value\r\n            }\r\n            Amount {\r\n                value\r\n            }\r\n            CampaignId {\r\n                value\r\n            }\r\n            CloseDate {\r\n                value\r\n            }\r\n            ContactId {\r\n                value\r\n            }\r\n            Description {\r\n                value\r\n            }\r\n            ExpectedRevenue {\r\n                value\r\n            }\r\n            Fiscal {\r\n                value\r\n            }\r\n            FiscalQuarter {\r\n                value\r\n            }\r\n            FiscalYear {\r\n                value\r\n            }\r\n            ForecastCategory {\r\n                value\r\n            }\r\n            ForecastCategoryName {\r\n                value\r\n            }\r\n            HasOpenActivity {\r\n                value\r\n            }\r\n            HasOpportunityLineItem {\r\n                value\r\n            }\r\n            HasOverdueTask {\r\n                value\r\n            }\r\n            IsClosed {\r\n                value\r\n            }\r\n            IsDeleted {\r\n                value\r\n            }\r\n            IsWon {\r\n                value\r\n            }\r\n            LastActivityDate {\r\n                value\r\n            }\r\n            LastAmountChangedHistoryId {\r\n                value\r\n            }\r\n            LastCloseDateChangedHistoryId {\r\n                value\r\n            }\r\n            LastReferencedDate {\r\n                value\r\n            }\r\n            LastStageChangeDate {\r\n                value\r\n            }\r\n            LastViewedDate {\r\n                value\r\n            }\r\n            LeadSource {\r\n                value\r\n            }\r\n            Name {\r\n                value\r\n            }\r\n            NextStep {\r\n                value\r\n            }\r\n            OwnerId {\r\n                value\r\n            }\r\n            Pricebook2Id {\r\n                value\r\n            }\r\n            Probability {\r\n                value\r\n            }\r\n            PushCount {\r\n                value\r\n            }\r\n            RecordTypeId {\r\n                value\r\n            }\r\n            StageName {\r\n                value\r\n            }\r\n            TotalOpportunityQuantity {\r\n                value\r\n            }\r\n            Type {\r\n                value\r\n            }\r\n            LastModifiedById {\r\n                value\r\n            }\r\n            LastModifiedDate {\r\n                value\r\n            }\r\n            CreatedDate {\r\n                value\r\n            }\r\n        }\r\n        cursor\r\n        }\r\n        totalCount\r\n        pageInfo {\r\n          hasNextPage\r\n          hasPreviousPage\r\n          startCursor\r\n          endCursor\r\n        }\r\n      }\r\n    }\r\n  }\r\n  }",
+            "variables": {}
+          }
+        },
+        "url": {
+          "raw": "{{_endpoint}}/services/data/v57.0/graphql",
+          "host": [
+            "{{_endpoint}}"
+          ],
+          "path": [
+            "services",
+            "data",
+            "v{{version}}",
+            "graphql"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Opportunity by after",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Chatter-Entity-Encoding",
+            "value": "false"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{Authorization}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Cookie",
+            "value": "BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1"
+          }
+        ],
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query opportunity {\r\n  uiapi {\r\n    query {\r\n      Opportunity(first: 2000, after: \"{{after}}\") {\r\n        edges {\r\n          node {\r\n              Id\r\n            AccountId {\r\n                value\r\n            }\r\n            Amount {\r\n                value\r\n            }\r\n            CampaignId {\r\n                value\r\n            }\r\n            CloseDate {\r\n                value\r\n            }\r\n            ContactId {\r\n                value\r\n            }\r\n            Description {\r\n                value\r\n            }\r\n            ExpectedRevenue {\r\n                value\r\n            }\r\n            Fiscal {\r\n                value\r\n            }\r\n            FiscalQuarter {\r\n                value\r\n            }\r\n            FiscalYear {\r\n                value\r\n            }\r\n            ForecastCategory {\r\n                value\r\n            }\r\n            ForecastCategoryName {\r\n                value\r\n            }\r\n            HasOpenActivity {\r\n                value\r\n            }\r\n            HasOpportunityLineItem {\r\n                value\r\n            }\r\n            HasOverdueTask {\r\n                value\r\n            }\r\n            IsClosed {\r\n                value\r\n            }\r\n            IsDeleted {\r\n                value\r\n            }\r\n            IsWon {\r\n                value\r\n            }\r\n            LastActivityDate {\r\n                value\r\n            }\r\n            \r\n            LastAmountChangedHistoryId {\r\n                value\r\n            }\r\n            LastCloseDateChangedHistoryId {\r\n                value\r\n            }\r\n            LastReferencedDate {\r\n                value\r\n            }\r\n            LastStageChangeDate {\r\n                value\r\n            }\r\n            LastViewedDate {\r\n                value\r\n            }\r\n            LeadSource {\r\n                value\r\n            }\r\n            Name {\r\n                value\r\n            }\r\n            NextStep {\r\n                value\r\n            }\r\n            OwnerId {\r\n                value\r\n            }\r\n            Pricebook2Id {\r\n                value\r\n            }\r\n            Probability {\r\n                value\r\n            }\r\n            PushCount {\r\n                value\r\n            }\r\n            RecordTypeId {\r\n                value\r\n            }\r\n            StageName {\r\n                value\r\n            }\r\n            TotalOpportunityQuantity {\r\n                value\r\n            }\r\n            Type {\r\n                value\r\n            }\r\n            LastModifiedById {\r\n                value\r\n            }\r\n            LastModifiedDate {\r\n                value\r\n            }\r\n            CreatedDate {\r\n                value\r\n            }\r\n        }\r\n        cursor\r\n        }\r\n        totalCount\r\n        pageInfo {\r\n          hasNextPage\r\n          hasPreviousPage\r\n          startCursor\r\n          endCursor\r\n        }\r\n      }\r\n    }\r\n  }\r\n  }",
+            "variables": {}
+          }
+        },
+        "url": {
+          "raw": "{{_endpoint}}/services/data/v{{version}}/graphql",
+          "host": [
+            "{{_endpoint}}"
+          ],
+          "path": [
+            "services",
+            "data",
+            "v{{version}}",
+            "graphql"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Opportunity stream read",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Chatter-Entity-Encoding",
+            "value": "false"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{Authorization}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Cookie",
+            "value": "BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1"
+          }
+        ],
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query opportunity {\r\n  uiapi {\r\n    query {\r\n      Opportunity(first: 2000, where: { LastModifiedDate: { gte: { range: { last_n_days: 1 } } } }, orderBy: {LastModifiedDate: {order : DESC}}) {\r\n        edges {\r\n          node {\r\n              Id\r\n            AccountId {\r\n                value\r\n            }\r\n            Amount {\r\n                value\r\n            }\r\n            CampaignId {\r\n                value\r\n            }\r\n            CloseDate {\r\n                value\r\n            }\r\n            ContactId {\r\n                value\r\n            }\r\n            Description {\r\n                value\r\n            }\r\n            ExpectedRevenue {\r\n                value\r\n            }\r\n            Fiscal {\r\n                value\r\n            }\r\n            FiscalQuarter {\r\n                value\r\n            }\r\n            FiscalYear {\r\n                value\r\n            }\r\n            ForecastCategory {\r\n                value\r\n            }\r\n            ForecastCategoryName {\r\n                value\r\n            }\r\n            HasOpenActivity {\r\n                value\r\n            }\r\n            HasOpportunityLineItem {\r\n                value\r\n            }\r\n            HasOverdueTask {\r\n                value\r\n            }\r\n            IsClosed {\r\n                value\r\n            }\r\n            IsDeleted {\r\n                value\r\n            }\r\n            IsWon {\r\n                value\r\n            }\r\n            LastActivityDate {\r\n                value\r\n            }\r\n            LastAmountChangedHistoryId {\r\n                value\r\n            }\r\n            LastCloseDateChangedHistoryId {\r\n                value\r\n            }\r\n            LastReferencedDate {\r\n                value\r\n            }\r\n            LastStageChangeDate {\r\n                value\r\n            }\r\n            LastViewedDate {\r\n                value\r\n            }\r\n            LeadSource {\r\n                value\r\n            }\r\n            Name {\r\n                value\r\n            }\r\n            NextStep {\r\n                value\r\n            }\r\n            OwnerId {\r\n                value\r\n            }\r\n            Pricebook2Id {\r\n                value\r\n            }\r\n            Probability {\r\n                value\r\n            }\r\n            PushCount {\r\n                value\r\n            }\r\n            RecordTypeId {\r\n                value\r\n            }\r\n            StageName {\r\n                value\r\n            }\r\n            TotalOpportunityQuantity {\r\n                value\r\n            }\r\n            Type {\r\n                value\r\n            }\r\n            LastModifiedById {\r\n                value\r\n            }\r\n            LastModifiedDate {\r\n                value\r\n            }\r\n            CreatedDate {\r\n                value\r\n            }\r\n        }\r\n        cursor\r\n        }\r\n        totalCount\r\n        pageInfo {\r\n          hasNextPage\r\n          hasPreviousPage\r\n          startCursor\r\n          endCursor\r\n        }\r\n      }\r\n    }\r\n  }\r\n  }",
+            "variables": {}
+          }
+        },
+        "url": {
+          "raw": "{{_endpoint}}/services/data/v{{version}}/graphql",
+          "protocol": "https",
+          "host": [
+            "{{_endpoint}}"
+          ],
+          "path": [
+            "services",
+            "data",
+            "v57.0",
+            "graphql"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Opportunity stream read by after",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Chatter-Entity-Encoding",
+            "value": "false"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{Authorization}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Cookie",
+            "value": "BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1; BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1"
+          }
+        ],
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query opportunity {\r\n  uiapi {\r\n    query {\r\n      Opportunity(first: 2000, after: \"{{after}}\", where: { LastModifiedDate: { gte: { range: { last_n_days: 1 } } } }, orderBy: {LastModifiedDate: {order : DESC}}) {\r\n        edges {\r\n          node {\r\n              Id\r\n            AccountId {\r\n                value\r\n            }\r\n            Amount {\r\n                value\r\n            }\r\n            CampaignId {\r\n                value\r\n            }\r\n            CloseDate {\r\n                value\r\n            }\r\n            ContactId {\r\n                value\r\n            }\r\n            Description {\r\n                value\r\n            }\r\n            ExpectedRevenue {\r\n                value\r\n            }\r\n            Fiscal {\r\n                value\r\n            }\r\n            FiscalQuarter {\r\n                value\r\n            }\r\n            FiscalYear {\r\n                value\r\n            }\r\n            ForecastCategory {\r\n                value\r\n            }\r\n            ForecastCategoryName {\r\n                value\r\n            }\r\n            HasOpenActivity {\r\n                value\r\n            }\r\n            HasOpportunityLineItem {\r\n                value\r\n            }\r\n            HasOverdueTask {\r\n                value\r\n            }\r\n            IsClosed {\r\n                value\r\n            }\r\n            IsDeleted {\r\n                value\r\n            }\r\n            IsWon {\r\n                value\r\n            }\r\n            LastActivityDate {\r\n                value\r\n            }\r\n            LastAmountChangedHistoryId {\r\n                value\r\n            }\r\n            LastCloseDateChangedHistoryId {\r\n                value\r\n            }\r\n            LastReferencedDate {\r\n                value\r\n            }\r\n            LastStageChangeDate {\r\n                value\r\n            }\r\n            LastViewedDate {\r\n                value\r\n            }\r\n            LeadSource {\r\n                value\r\n            }\r\n            Name {\r\n                value\r\n            }\r\n            NextStep {\r\n                value\r\n            }\r\n            OwnerId {\r\n                value\r\n            }\r\n            Pricebook2Id {\r\n                value\r\n            }\r\n            Probability {\r\n                value\r\n            }\r\n            PushCount {\r\n                value\r\n            }\r\n            RecordTypeId {\r\n                value\r\n            }\r\n            StageName {\r\n                value\r\n            }\r\n            TotalOpportunityQuantity {\r\n                value\r\n            }\r\n            Type {\r\n                value\r\n            }\r\n            LastModifiedById {\r\n                value\r\n            }\r\n            LastModifiedDate {\r\n                value\r\n            }\r\n            CreatedDate {\r\n                value\r\n            }\r\n        }\r\n        cursor\r\n        }\r\n        totalCount\r\n        pageInfo {\r\n          hasNextPage\r\n          hasPreviousPage\r\n          startCursor\r\n          endCursor\r\n        }\r\n      }\r\n    }\r\n  }\r\n  }",
+            "variables": ""
+          }
+        },
+        "url": {
+          "raw": "{{_endpoint}}/services/data/v{{version}}/graphql",
+          "host": [
+            "{{_endpoint}}"
+          ],
+          "path": [
+            "services",
+            "data",
+            "v{{version}}",
+            "graphql"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Lead",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Chatter-Entity-Encoding",
+            "value": "false"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{Authorization}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Cookie",
+            "value": "BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1"
+          }
+        ],
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query lead {\r\n  uiapi {\r\n    query {\r\n      Lead(first: 2000) {\r\n        edges {\r\n          node {\r\n              Id\r\n            AnnualRevenue {\r\n                value\r\n            }\r\n            City {\r\n                value\r\n            }\r\n            CleanStatus {\r\n                value\r\n            }\r\n            Company {\r\n                value\r\n            }\r\n            CompanyDunsNumber {\r\n                value\r\n            }\r\n            ConvertedAccountId {\r\n                value\r\n            }\r\n            ConvertedContactId {\r\n                value\r\n            }\r\n            ConvertedDate {\r\n                value\r\n            }\r\n            ConvertedOpportunityId {\r\n                value\r\n            }\r\n            Country {\r\n                value\r\n            }\r\n            Description {\r\n                value\r\n            }\r\n            Email {\r\n                value\r\n            }\r\n            EmailBouncedDate {\r\n                value\r\n            }\r\n            EmailBouncedReason {\r\n                value\r\n            }\r\n            Fax {\r\n                value\r\n            }\r\n            FirstName {\r\n                value\r\n            }\r\n            GeocodeAccuracy {\r\n                value\r\n            }\r\n            IndividualId {\r\n                value\r\n            }\r\n            Industry {\r\n                value\r\n            }\r\n            IsConverted {\r\n                value\r\n            }\r\n            IsDeleted {\r\n                value\r\n            }\r\n            IsUnreadByOwner {\r\n                value\r\n            }\r\n            Jigsaw {\r\n                value\r\n            }\r\n            LastActivityDate {\r\n                value\r\n            }\r\n            LastName {\r\n                value\r\n            }\r\n            LastReferencedDate{\r\n                value\r\n            }\r\n            LastViewedDate{\r\n                value\r\n            }\r\n            Latitude{\r\n                value\r\n            }\r\n            Longitude{\r\n                value\r\n            }\r\n            LeadSource{\r\n                value\r\n            }\r\n            MasterRecordId{\r\n                value\r\n            }\r\n            MobilePhone{\r\n                value\r\n            }\r\n            Name{\r\n                value\r\n            }\r\n            NumberOfEmployees{\r\n                value\r\n            }\r\n            NumberOfEmployees{\r\n                value\r\n            }\r\n            Phone{\r\n                value\r\n            }\r\n            PhotoUrl{\r\n                value\r\n            }\r\n            PostalCode{\r\n                value\r\n            }\r\n            RecordTypeId{\r\n                value\r\n            }\r\n            Salutation{\r\n                value\r\n            }\r\n            State{\r\n                value\r\n            }\r\n            Status{\r\n                value\r\n            }\r\n            Street{\r\n                value\r\n            }\r\n            Title{\r\n                value\r\n            }\r\n            Website{\r\n                value\r\n            }\r\n            LastModifiedById {\r\n                value\r\n            }\r\n            LastModifiedDate {\r\n                value\r\n            }\r\n            CreatedDate {\r\n                value\r\n            }\r\n        }\r\n        cursor\r\n        }\r\n        totalCount\r\n        pageInfo {\r\n          hasNextPage\r\n          hasPreviousPage\r\n          startCursor\r\n          endCursor\r\n        }\r\n      }\r\n    }\r\n  }\r\n}",
+            "variables": {}
+          }
+        },
+        "url": {
+          "raw": "{{_endpoint}}/services/data/v{{version}}/graphql",
+          "host": [
+            "{{_endpoint}}"
+          ],
+          "path": [
+            "services",
+            "data",
+            "v{{version}}",
+            "graphql"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Lead by after",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Chatter-Entity-Encoding",
+            "value": "false"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{Authorization}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Cookie",
+            "value": "BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1"
+          }
+        ],
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query lead {\r\n  uiapi {\r\n    query {\r\n      Lead(first: 2000, after: \"{{after}}\") {\r\n        edges {\r\n          node {\r\n              Id\r\n            AnnualRevenue {\r\n                value\r\n            }\r\n            City {\r\n                value\r\n            }\r\n            CleanStatus {\r\n                value\r\n            }\r\n            Company {\r\n                value\r\n            }\r\n            CompanyDunsNumber {\r\n                value\r\n            }\r\n            ConvertedAccountId {\r\n                value\r\n            }\r\n            ConvertedContactId {\r\n                value\r\n            }\r\n            ConvertedDate {\r\n                value\r\n            }\r\n            ConvertedOpportunityId {\r\n                value\r\n            }\r\n            Country {\r\n                value\r\n            }\r\n            Description {\r\n                value\r\n            }\r\n            Email {\r\n                value\r\n            }\r\n            EmailBouncedDate {\r\n                value\r\n            }\r\n            EmailBouncedReason {\r\n                value\r\n            }\r\n            Fax {\r\n                value\r\n            }\r\n            FirstName {\r\n                value\r\n            }\r\n            GeocodeAccuracy {\r\n                value\r\n            }\r\n            IndividualId {\r\n                value\r\n            }\r\n            Industry {\r\n                value\r\n            }\r\n            IsConverted {\r\n                value\r\n            }\r\n            IsDeleted {\r\n                value\r\n            }\r\n            IsUnreadByOwner {\r\n                value\r\n            }\r\n            Jigsaw {\r\n                value\r\n            }\r\n            LastActivityDate {\r\n                value\r\n            }\r\n            LastName {\r\n                value\r\n            }\r\n            LastReferencedDate{\r\n                value\r\n            }\r\n            LastViewedDate{\r\n                value\r\n            }\r\n            Latitude{\r\n                value\r\n            }\r\n            Longitude{\r\n                value\r\n            }\r\n            LeadSource{\r\n                value\r\n            }\r\n            MasterRecordId{\r\n                value\r\n            }\r\n            MobilePhone{\r\n                value\r\n            }\r\n            Name{\r\n                value\r\n            }\r\n            NumberOfEmployees{\r\n                value\r\n            }\r\n            NumberOfEmployees{\r\n                value\r\n            }\r\n            Phone{\r\n                value\r\n            }\r\n            PhotoUrl{\r\n                value\r\n            }\r\n            PostalCode{\r\n                value\r\n            }\r\n            RecordTypeId{\r\n                value\r\n            }\r\n            Salutation{\r\n                value\r\n            }\r\n            State{\r\n                value\r\n            }\r\n            Status{\r\n                value\r\n            }\r\n            Street{\r\n                value\r\n            }\r\n            Title{\r\n                value\r\n            }\r\n            Website{\r\n                value\r\n            }\r\n            LastModifiedById {\r\n                value\r\n            }\r\n            LastModifiedDate {\r\n                value\r\n            }\r\n            CreatedDate {\r\n                value\r\n            }\r\n        }\r\n        cursor\r\n        }\r\n        totalCount\r\n        pageInfo {\r\n          hasNextPage\r\n          hasPreviousPage\r\n          startCursor\r\n          endCursor\r\n        }\r\n      }\r\n    }\r\n  }\r\n}",
+            "variables": {}
+          }
+        },
+        "url": {
+          "raw": "{{_endpoint}}/services/data/v{{version}}/graphql",
+          "host": [
+            "{{_endpoint}}"
+          ],
+          "path": [
+            "services",
+            "data",
+            "v{{version}}",
+            "graphql"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Lead stream read",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Chatter-Entity-Encoding",
+            "value": "false"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{Authorization}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Cookie",
+            "value": "BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1"
+          }
+        ],
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query lead {\r\n  uiapi {\r\n    query {\r\n      Lead(first: 2000, where: { LastModifiedDate: { gte: { range: { last_n_days: 1 } } } }, orderBy: {LastModifiedDate: {order : DESC}}) {\r\n        edges {\r\n          node {\r\n              Id\r\n            AnnualRevenue {\r\n                value\r\n            }\r\n            City {\r\n                value\r\n            }\r\n            CleanStatus {\r\n                value\r\n            }\r\n            Company {\r\n                value\r\n            }\r\n            CompanyDunsNumber {\r\n                value\r\n            }\r\n            ConvertedAccountId {\r\n                value\r\n            }\r\n            ConvertedContactId {\r\n                value\r\n            }\r\n            ConvertedDate {\r\n                value\r\n            }\r\n            ConvertedOpportunityId {\r\n                value\r\n            }\r\n            Country {\r\n                value\r\n            }\r\n            Description {\r\n                value\r\n            }\r\n            Email {\r\n                value\r\n            }\r\n            EmailBouncedDate {\r\n                value\r\n            }\r\n            EmailBouncedReason {\r\n                value\r\n            }\r\n            Fax {\r\n                value\r\n            }\r\n            FirstName {\r\n                value\r\n            }\r\n            GeocodeAccuracy {\r\n                value\r\n            }\r\n            IndividualId {\r\n                value\r\n            }\r\n            Industry {\r\n                value\r\n            }\r\n            IsConverted {\r\n                value\r\n            }\r\n            IsDeleted {\r\n                value\r\n            }\r\n            IsUnreadByOwner {\r\n                value\r\n            }\r\n            Jigsaw {\r\n                value\r\n            }\r\n            LastActivityDate {\r\n                value\r\n            }\r\n            LastName {\r\n                value\r\n            }\r\n            LastReferencedDate{\r\n                value\r\n            }\r\n            LastViewedDate{\r\n                value\r\n            }\r\n            Latitude{\r\n                value\r\n            }\r\n            Longitude{\r\n                value\r\n            }\r\n            LeadSource{\r\n                value\r\n            }\r\n            MasterRecordId{\r\n                value\r\n            }\r\n            MobilePhone{\r\n                value\r\n            }\r\n            Name{\r\n                value\r\n            }\r\n            NumberOfEmployees{\r\n                value\r\n            }\r\n            NumberOfEmployees{\r\n                value\r\n            }\r\n            Phone{\r\n                value\r\n            }\r\n            PhotoUrl{\r\n                value\r\n            }\r\n            PostalCode{\r\n                value\r\n            }\r\n            RecordTypeId{\r\n                value\r\n            }\r\n            Salutation{\r\n                value\r\n            }\r\n            State{\r\n                value\r\n            }\r\n            Status{\r\n                value\r\n            }\r\n            Street{\r\n                value\r\n            }\r\n            Title{\r\n                value\r\n            }\r\n            Website{\r\n                value\r\n            }\r\n            LastModifiedById {\r\n                value\r\n            }\r\n            LastModifiedDate {\r\n                value\r\n            }\r\n            CreatedDate {\r\n                value\r\n            }\r\n        }\r\n        cursor\r\n        }\r\n        totalCount\r\n        pageInfo {\r\n          hasNextPage\r\n          hasPreviousPage\r\n          startCursor\r\n          endCursor\r\n        }\r\n      }\r\n    }\r\n  }\r\n}",
+            "variables": {}
+          }
+        },
+        "url": {
+          "raw": "{{_endpoint}}/services/data/v{{version}}/graphql",
+          "protocol": "https",
+          "host": [
+            "{{_endpoint}}"
+          ],
+          "path": [
+            "services",
+            "data",
+            "v57.0",
+            "graphql"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Lead stream read by after",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Chatter-Entity-Encoding",
+            "value": "false"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{Authorization}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Cookie",
+            "value": "BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1; BrowserId=hH2yQLmREe2CxRVv4I9OcA; CookieConsentPolicy=0:1; LSKey-c$CookieConsentPolicy=0:1"
+          }
+        ],
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query lead {\r\n  uiapi {\r\n    query {\r\n      Lead(first: 2000, after: \"{{after}}\", where: { LastModifiedDate: { gte: { range: { last_n_days: 1 } } } }, orderBy: {LastModifiedDate: {order : DESC}}) {\r\n        edges {\r\n          node {\r\n              Id\r\n            AnnualRevenue {\r\n                value\r\n            }\r\n            City {\r\n                value\r\n            }\r\n            CleanStatus {\r\n                value\r\n            }\r\n            Company {\r\n                value\r\n            }\r\n            CompanyDunsNumber {\r\n                value\r\n            }\r\n            ConvertedAccountId {\r\n                value\r\n            }\r\n            ConvertedContactId {\r\n                value\r\n            }\r\n            ConvertedDate {\r\n                value\r\n            }\r\n            ConvertedOpportunityId {\r\n                value\r\n            }\r\n            Country {\r\n                value\r\n            }\r\n            Description {\r\n                value\r\n            }\r\n            Email {\r\n                value\r\n            }\r\n            EmailBouncedDate {\r\n                value\r\n            }\r\n            EmailBouncedReason {\r\n                value\r\n            }\r\n            Fax {\r\n                value\r\n            }\r\n            FirstName {\r\n                value\r\n            }\r\n            GeocodeAccuracy {\r\n                value\r\n            }\r\n            IndividualId {\r\n                value\r\n            }\r\n            Industry {\r\n                value\r\n            }\r\n            IsConverted {\r\n                value\r\n            }\r\n            IsDeleted {\r\n                value\r\n            }\r\n            IsUnreadByOwner {\r\n                value\r\n            }\r\n            Jigsaw {\r\n                value\r\n            }\r\n            LastActivityDate {\r\n                value\r\n            }\r\n            LastName {\r\n                value\r\n            }\r\n            LastReferencedDate{\r\n                value\r\n            }\r\n            LastViewedDate{\r\n                value\r\n            }\r\n            Latitude{\r\n                value\r\n            }\r\n            Longitude{\r\n                value\r\n            }\r\n            LeadSource{\r\n                value\r\n            }\r\n            MasterRecordId{\r\n                value\r\n            }\r\n            MobilePhone{\r\n                value\r\n            }\r\n            Name{\r\n                value\r\n            }\r\n            NumberOfEmployees{\r\n                value\r\n            }\r\n            NumberOfEmployees{\r\n                value\r\n            }\r\n            Phone{\r\n                value\r\n            }\r\n            PhotoUrl{\r\n                value\r\n            }\r\n            PostalCode{\r\n                value\r\n            }\r\n            RecordTypeId{\r\n                value\r\n            }\r\n            Salutation{\r\n                value\r\n            }\r\n            State{\r\n                value\r\n            }\r\n            Status{\r\n                value\r\n            }\r\n            Street{\r\n                value\r\n            }\r\n            Title{\r\n                value\r\n            }\r\n            Website{\r\n                value\r\n            }\r\n            LastModifiedById {\r\n                value\r\n            }\r\n            LastModifiedDate {\r\n                value\r\n            }\r\n            CreatedDate {\r\n                value\r\n            }\r\n        }\r\n        cursor\r\n        }\r\n        totalCount\r\n        pageInfo {\r\n          hasNextPage\r\n          hasPreviousPage\r\n          startCursor\r\n          endCursor\r\n        }\r\n      }\r\n    }\r\n  }\r\n}",
+            "variables": ""
+          }
+        },
+        "url": {
+          "raw": "{{_endpoint}}/services/data/v{{version}}/graphql",
+          "host": [
+            "{{_endpoint}}"
+          ],
+          "path": [
+            "services",
+            "data",
+            "v{{version}}",
+            "graphql"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "Authorization",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "_endpoint",
+      "value": "https://163com-8a-dev-ed.develop.my.salesforce.com",
+      "type": "string"
+    },
+    {
+      "key": "version",
+      "value": "57.0",
+      "type": "string"
+    },
+    {
+      "key": "first",
+      "value": "10",
+      "type": "string"
+    },
+    {
+      "key": "after",
+      "value": "djE6OQ==",
+      "type": "string"
+    },
+    {
+      "key": "url",
+      "value": "https://login.salesforce.com",
+      "type": "string"
+    },
+    {
+      "key": "client_id",
+      "value": "3MVG9n_HvETGhr3Ai83SSfHGaxjpZakxMv8ZB8yl5vP.6NMlgXFAhVcuqtruP9ehJxEGrmZnH6fvlhHA6yjE.",
+      "type": "string"
+    },
+    {
+      "key": "client_secret",
+      "value": "BD2C1E4178343B85CAEEAA574528F8B5EFFC8C36DEC0139D31097CA1DE7A5751",
+      "type": "string"
+    },
+    {
+      "key": "code",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

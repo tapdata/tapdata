@@ -25,6 +25,8 @@ public class PostParam {
     public static final String DISABLED = "disabled";
     public static final String OPTIONS = "options";
     public static final String BODY = "body";
+    public static final String GRAPHQL = "graphql";
+    public static final String VARIABLES = "variables";
 
     public static final String EVENT = "event";
     public static final String LISTEN = "listen";

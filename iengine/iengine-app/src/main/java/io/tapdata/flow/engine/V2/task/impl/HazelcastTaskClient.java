@@ -13,7 +13,6 @@ import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.flow.engine.V2.common.HazelcastStatusMappingEnum;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
-import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.util.SupplierImpl;
@@ -38,6 +37,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	public static final String TAG = HazelcastTaskClient.class.getSimpleName();
 	public static final int MAX_RETRY_TIME = 3;
 	public static final long RESET_RETRY_DURATION_HOUR = TimeUnit.HOURS.toMillis(2L);
+	public static final int WAIT_JET_JOB_RUNNING_WHEN_STARTING_STATUS_TIME = 5;
 	private Logger logger = LogManager.getLogger(HazelcastTaskClient.class);
 
 	private Job job;
@@ -49,7 +49,6 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private ClientMongoOperator clientMongoOperator;
 	private HazelcastInstance hazelcastInstance;
 	private MonitorManager monitorManager;
-	private SnapshotProgressManager snapshotProgressManager;
 	private String cacheName;
 	private Throwable error;
 	private TerminalMode terminalMode;
@@ -124,6 +123,17 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 
 	@Override
 	public synchronized boolean stop() {
+		for (int i = 0; i < WAIT_JET_JOB_RUNNING_WHEN_STARTING_STATUS_TIME; i++) {
+			if (job.getStatus() == JobStatus.STARTING) {
+				try {
+					TimeUnit.SECONDS.sleep(1L);
+				} catch (InterruptedException e) {
+					break;
+				}
+			} else {
+				break;
+			}
+		}
 		if (job.getStatus() == JobStatus.RUNNING) {
 			job.suspend();
 		}
@@ -136,22 +146,18 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 			CommonUtils.handleAnyError(
 					() -> {
 						monitorManager.close();
-						logger.info("Closed task monitor(s)\n{}", monitorManager);
 						obsLogger.info(String.format("Closed task monitor(s)\n%s", monitorManager));
 					},
 					err -> {
-						logger.warn("Close task monitor(s) failed, error: {}", err.getMessage(), err);
 						obsLogger.warn(String.format("Close task monitor(s) failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
 					}
 			);
 			CommonUtils.handleAnyError(
 					() -> {
 						AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(error));
-						logger.info("Stopped task aspect(s)");
 						obsLogger.info("Stopped task aspect(s)");
 					},
 					err -> {
-						logger.warn("Stop task aspect(s) failed, error: {}", err.getMessage(), err);
 						obsLogger.warn(String.format("Stop task aspect(s) failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
 					}
 			);

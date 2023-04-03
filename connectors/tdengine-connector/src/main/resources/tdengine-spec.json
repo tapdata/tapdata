@@ -3,7 +3,9 @@
     "name": "TDengine",
     "icon": "icons/tdengine.png",
     "id": "tdengine",
-    "doc": "${doc}"
+    "doc": "${doc}",
+    "authentication": "Beta",
+    "tags": ["Database"]
   },
   "configOptions": {
     "capabilities": [

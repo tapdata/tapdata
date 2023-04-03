@@ -50,14 +50,23 @@ public abstract class AbstractRedisRecordWriter {
             for (TapRecordEvent recordEvent : tapRecordEvents) {
                 if (recordEvent instanceof TapInsertRecordEvent) {
                     TapInsertRecordEvent tapInsertRecordEvent = (TapInsertRecordEvent) recordEvent;
+                    if (EmptyKit.isNull(tapInsertRecordEvent.getAfter())) {
+                        continue;
+                    }
                     handleInsertEvent(tapInsertRecordEvent, pipelined);
                     insert++;
                 } else if (recordEvent instanceof TapUpdateRecordEvent) {
                     TapUpdateRecordEvent tapUpdateRecordEvent = (TapUpdateRecordEvent) recordEvent;
+                    if (EmptyKit.isNull(tapUpdateRecordEvent.getAfter())) {
+                        continue;
+                    }
                     handleUpdateEvent(tapUpdateRecordEvent, pipelined);
                     update++;
                 } else {
                     TapDeleteRecordEvent tapDeleteRecordEvent = (TapDeleteRecordEvent) recordEvent;
+                    if (EmptyKit.isNull(tapDeleteRecordEvent.getBefore())) {
+                        continue;
+                    }
                     handleDeleteEvent(tapDeleteRecordEvent, pipelined);
                     delete++;
                 }
@@ -82,11 +91,27 @@ public abstract class AbstractRedisRecordWriter {
     protected abstract void handleDeleteEvent(TapDeleteRecordEvent event, Pipeline pipelined);
 
     protected String getRedisKey(Map<String, Object> value) {
-        String key = redisConfig.getKeyExpression();
-        for (String field : fieldList) {
-            key = key.replaceAll("\\$\\{" + field + "}", String.valueOf(value.get(field)));
+        if (EmptyKit.isNotBlank(redisConfig.getKeyExpression())) {
+            String key = redisConfig.getKeyExpression();
+            for (String field : fieldList) {
+                Object obj = value.get(field);
+                key = key.replaceAll("\\$\\{" + field + "}", EmptyKit.isNull(obj) ? "null" : String.valueOf(obj));
+            }
+            return key;
+        } else {
+            StringBuilder sb = new StringBuilder();
+            if (EmptyKit.isNotEmpty(redisConfig.getKeyPrefix())) {
+                sb.append(redisConfig.getKeyPrefix());
+            }
+            sb.append(tapTable.primaryKeys(true).stream().map(k -> {
+                Object obj = value.get(k);
+                return EmptyKit.isNull(obj) ? "null" : String.valueOf(obj);
+            }).collect(Collectors.joining(redisConfig.getKeyJoin())));
+            if (EmptyKit.isNotEmpty(redisConfig.getKeySuffix())) {
+                sb.append(redisConfig.getKeySuffix());
+            }
+            return sb.toString();
         }
-        return key;
     }
 
     protected List<String> getKeyFieldList() {
@@ -104,12 +129,13 @@ public abstract class AbstractRedisRecordWriter {
     }
 
     protected String getJsonValue(Map<String, Object> value) {
-        return jsonParser.toJson(value.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, v -> String.valueOf(v.getValue()))));
+        return jsonParser.toJson(value.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, v -> EmptyKit.isNull(v.getValue()) ? "null" : String.valueOf(v.getValue()))));
     }
 
     protected String getTextValue(Map<String, Object> value) {
         return fieldList.stream().map(v -> {
-            String str = String.valueOf(value.get(v));
+            Object obj = value.get(v);
+            String str = EmptyKit.isNull(obj) ? "null" : String.valueOf(obj);
             if (redisConfig.getCsvFormat()) {
                 return csvFormat(str, redisConfig.getValueJoinString());
             } else {

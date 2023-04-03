@@ -3,24 +3,25 @@ package io.tapdata.observable.metric;
 import com.google.common.collect.HashBiMap;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
+import io.tapdata.aspect.taskmilestones.CDCHeartbeatWriteAspect;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.module.api.PipelineDelay;
 import io.tapdata.observable.metric.handler.*;
-import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.math.BigDecimal;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
-@AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC})
+@AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_CONN_HEARTBEAT, TaskDto.SYNC_TYPE_LOG_COLLECTOR})
 public class ObservableAspectTask extends AspectTask {
 	private final ClassHandlers observerClassHandlers = new ClassHandlers();
 
@@ -35,12 +36,14 @@ public class ObservableAspectTask extends AspectTask {
 		observerClassHandlers.register(PDKNodeInitAspect.class, this::handlePDKNodeInit);
 		observerClassHandlers.register(DataNodeCloseAspect.class, this::handleDataNodeClose);
 		// source data node aspects
+		observerClassHandlers.register(SourceJoinHeartbeatAspect.class, this::handleSourceJoinHeartbeat);
 		observerClassHandlers.register(TableCountFuncAspect.class, this::handleTableCount);
 		observerClassHandlers.register(BatchReadFuncAspect.class, this::handleBatchReadFunc);
 		observerClassHandlers.register(StreamReadFuncAspect.class, this::handleStreamReadFunc);
 		observerClassHandlers.register(SourceStateAspect.class, this::handleSourceState);
 		observerClassHandlers.register(SourceDynamicTableAspect.class, this::handleSourceDynamicTable);
 		// target data node aspects
+		observerClassHandlers.register(CDCHeartbeatWriteAspect.class, this::handleCDCHeartbeatWriteAspect);
 		observerClassHandlers.register(WriteRecordFuncAspect.class, this::handleWriteRecordFunc);
 		observerClassHandlers.register(NewFieldFuncAspect.class, this::handleNewFieldFun);
 		observerClassHandlers.register(AlterFieldNameFuncAspect.class, this::handleAlterFieldNameFunc);
@@ -86,8 +89,14 @@ public class ObservableAspectTask extends AspectTask {
 			dataNodeSampleHandlers = new HashMap<>();
 		}
 		Node<?> node = aspect.getDataProcessorContext().getNode();
+		String nodeId = node.getId();
 		DataNodeSampleHandler handler = new DataNodeSampleHandler(task, node);
-		dataNodeSampleHandlers.put(node.getId(), handler);
+		dataNodeSampleHandlers.put(nodeId, handler);
+		if (node.getDag().getTargets().stream().anyMatch(n->nodeId.equals(n.getId()))) {
+			taskSampleHandler.addTargetNodeHandler(nodeId, handler);
+		} else if (node.getDag().getSources().stream().anyMatch(n->nodeId.equals(n.getId()))) {
+			taskSampleHandler.addSourceNodeHandler(nodeId, handler);
+		}
 		handler.init();
 
 		return null;
@@ -113,6 +122,13 @@ public class ObservableAspectTask extends AspectTask {
 	}
 
 	// source data node related
+
+	private final Map<String, Boolean> joinHeartbeatMap = new ConcurrentHashMap<>();
+	public Void handleSourceJoinHeartbeat(SourceJoinHeartbeatAspect aspect) {
+		Node<?> node = aspect.getDataProcessorContext().getNode();
+		joinHeartbeatMap.put(node.getId(), aspect.getJoinHeartbeat());
+		return null;
+	}
 
 	Map<String, Map<String, Number>> taskRetrievedTableValues;
 	public Void handleTableCount(TableCountFuncAspect aspect) {
@@ -203,7 +219,12 @@ public class ObservableAspectTask extends AspectTask {
 
 		switch (aspect.getState()) {
 			case StreamReadFuncAspect.STATE_START:
-				List<String> tables = aspect.getTables();
+				List<String> tables = aspect.getTables().stream().filter(t -> {
+					if (Boolean.TRUE.equals(joinHeartbeatMap.get(nodeId))) {
+						if (ConnHeartbeatUtils.TABLE_NAME.equals(t)) return false;
+					}
+					return true;
+				}).collect(Collectors.toList());
 				taskSampleHandler.handleStreamReadStart(tables);
 				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 						handler -> handler.handleStreamReadStreamStart(tables, aspect.getStreamStartedTime())
@@ -233,7 +254,6 @@ public class ObservableAspectTask extends AspectTask {
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 							handler -> {
 								handler.handleStreamReadProcessComplete(System.currentTimeMillis(), recorder);
-								taskSampleHandler.addTargetNodeHandler(nodeId, handler);
 							}
 					);
 				});
@@ -258,10 +278,6 @@ public class ObservableAspectTask extends AspectTask {
 				for(String table : aspect.getDataProcessorContext().getTapTableMap().keySet()) {
 					taskSampleHandler.addTable(table);
 				}
-
-				Optional.ofNullable(dataNodeSampleHandlers.get(node.getId())).ifPresent(
-						handler -> taskSampleHandler.addSourceNodeHandler(node.getId(), handler)
-				);
 				break;
 			case SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED:
 //				taskSampleHandler.handleSnapshotDone(aspect.getInitialSyncCompletedTime());
@@ -388,6 +404,17 @@ public class ObservableAspectTask extends AspectTask {
 		return null;
 	}
 
+	public Void handleCDCHeartbeatWriteAspect(CDCHeartbeatWriteAspect aspect) {
+		Node<?> node = aspect.getDataProcessorContext().getNode();
+		String nodeId = node.getId();
+		Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
+				handler -> {
+					handler.handleCDCHeartbeatWriteAspect(aspect.getTapdataEvents());
+				}
+		);
+		return null;
+	}
+
 	private PipelineDelayImpl pipelineDelay = (PipelineDelayImpl) InstanceFactory.instance(PipelineDelay.class);
 	public Void handleWriteRecordFunc(WriteRecordFuncAspect aspect) {
 		Node<?> node = aspect.getDataProcessorContext().getNode();
@@ -400,7 +427,6 @@ public class ObservableAspectTask extends AspectTask {
 				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 						handler -> {
 							handler.handleWriteRecordStart(aspect.getTime(), recorder);
-							taskSampleHandler.addTargetNodeHandler(nodeId, handler);
 						}
 				);
 				aspect.consumer((events, result) -> {
@@ -422,7 +448,7 @@ public class ObservableAspectTask extends AspectTask {
 								// source >> target table name maybe change
 
 								String syncType = aspect.getDataProcessorContext().getTaskDto().getSyncType();
-								if (TaskDto.SYNC_TYPE_SYNC.equals(syncType)) {
+								if (TaskDto.SYNC_TYPE_SYNC.equals(syncType) || TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(syncType)) {
 									return handlers.values().stream().findFirst();
 								} else {
 									LinkedHashMap<String, String> tableNameRelation = ((DatabaseNode) node).getSyncObjects().get(0).getTableNameRelation();

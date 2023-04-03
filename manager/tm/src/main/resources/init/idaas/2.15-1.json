@@ -1,0 +1,46 @@
+[
+  {
+	"createIndexes": "ShareCdcTableMetrics",
+	"indexes": [
+	  {
+		"key": {
+		  "taskId": 1,
+		  "nodeId": 1,
+		  "connectionId": 1,
+		  "tableName": 1
+		},
+		"name": "taskId_1_nodeId_1_connectionId_1_tableName_1",
+		"background": true
+	  },
+	  {
+		"key": {
+		  "createTime": 1
+		},
+		"name": "createTime_1",
+		"expireAfterSeconds": 604800,
+		"background": true
+	  }
+	]
+  },
+	{
+		"insert": "MetadataDefinition",
+		"documents": [
+			{
+				"value": "SOURCE",
+				"item_type": ["source"]
+			},
+			{
+				"value": "FDM",
+				"item_type": ["fdm"]
+			},
+			{
+				"value": "MDM",
+				"item_type": ["mdm"]
+			},
+			{
+				"value": "TARGET",
+				"item_type": ["target"]
+			}
+		]
+	}
+]

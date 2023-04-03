@@ -17,13 +17,16 @@ import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.construct.ConstructIterator;
 import io.tapdata.construct.HazelcastConstruct;
 import io.tapdata.construct.constructImpl.ConstructRingBuffer;
+import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
-import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.value.TapStringValue;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcContext;
@@ -32,6 +35,7 @@ import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
+import io.tapdata.pdk.core.api.impl.serialize.ObjectSerializableImplV2;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.collections4.CollectionUtils;
@@ -69,12 +73,12 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  * @create 2022-02-17 15:13
  **/
 public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializable {
-
 	private static final long serialVersionUID = -8010918045236535239L;
 	private static final int DEFAULT_THREAD_NUMBER = 8;
 	private static final String THREAD_NAME_PREFIX = "Share-CDC-Task-Reader-";
 	private static final String LOG_PREFIX = "[Share CDC Task HZ Reader] - ";
 	public static final String TAG = ShareCdcPDKTaskReader.class.getSimpleName();
+	private final static ObjectSerializable OBJECT_SERIALIZABLE = InstanceFactory.instance(ObjectSerializable.class);
 	public static final int QUEUE_CAPACITY = 100;
 	private ExecutorService readThreadPool;
 	private TaskDto logCollectorTaskDto;
@@ -110,7 +114,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				throw new IllegalArgumentException("Expected: " + ShareCdcTaskPdkContext.class.getName() + ", actual: " + this.shareCdcContext.getClass().getName());
 			}
 			int step = 0;
-			logger.info(logWrapper("Initializing share cdc reader..."));
 			shareCdcContext.getObsLogger().info(logWrapper("Initializing share cdc reader..."));
 			this.running = new AtomicBoolean(true);
 			this.hazelcastInstance = HazelcastUtil.getInstance(this.shareCdcContext.getConfigurationCenter());
@@ -170,7 +173,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 
 		// Do not start ttl here
 		logCollectorExternalStorage.setTtlDay(0);
-		logger.info(logWrapper("Will use external storage: " + logCollectorExternalStorage));
 		shareCdcContext.getObsLogger().info(logWrapper("Will use external storage: " + logCollectorExternalStorage));
 
 		// Check start point valid of each table
@@ -315,7 +317,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			} catch (Exception e) {
 				throw new RuntimeException(String.format("Find ringbuffer by sequence '%s' failed", sequence), e);
 			}
-			logger.info("Start read old version log data, name: {}, sequence: {}", ringBuffer.getName(), sequence);
 			shareCdcContext.getObsLogger().info("Start read old version log data, name: {}, sequence: {}", ringBuffer.getName(), sequence);
 			while (this.running.get()) {
 				Document document = iterator.tryNext();
@@ -370,7 +371,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 
 		public void read() {
 			Thread.currentThread().setName(THREAD_NAME_PREFIX + "-" + taskDto.getName() + "-" + index);
-			logger.info(logWrapper("Starting read log from hazelcast construct, tables: " + tableNames));
 			shareCdcContext.getObsLogger().info(logWrapper("Starting read log from hazelcast construct, tables: " + tableNames));
 			while (running.get()) {
 				if (null == future || future.isDone()) {
@@ -395,7 +395,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 								long sequenceFindByTs = construct.findSequence(this.shareCdcContext.getCdcStartTs());
 								readerResourceMap.get(tableName).sequence(sequenceFindByTs);
 								sequenceMap.put(tableName, sequenceFindByTs);
-								logger.info(logWrapper("Find sequence in construct(" + tableName + ") by timestamp(" + Instant.ofEpochMilli(this.shareCdcContext.getCdcStartTs()) + "): " + sequenceFindByTs));
 								shareCdcContext.getObsLogger().info(logWrapper("Find sequence in construct(" + tableName + ") by timestamp(" + Instant.ofEpochMilli(this.shareCdcContext.getCdcStartTs()) + "): " + sequenceFindByTs));
 							} catch (Exception e) {
 								String err = "Find sequence by timestamp failed, timestamp: " + this.shareCdcContext.getCdcStartTs() + "; Error: " + e.getMessage();
@@ -405,7 +404,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 						}
 						if (readerResourceMap.get(tableName).firstTime) {
 							readerResourceMap.get(tableName).firstTime = false;
-							logger.info(logWrapper("Starting read '{}' log, sequence: {}"), tableName, readerResourceMap.get(tableName).sequence);
 							shareCdcContext.getObsLogger().info(logWrapper("Starting read '{}' log, sequence: {}"), tableName, readerResourceMap.get(tableName).sequence);
 						}
 						// Find hazelcast construct iterator
@@ -457,7 +455,6 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 						sequenceMap.put(tableName, iterator.getSequence());
 						documents.forEach(doc -> enqueue(tapEventWrapper(doc)));
 						if (readerResourceMap.get(tableName).firstData) {
-							logger.info(logWrapper("Successfully read " + tableName + "'s first log data, will continue to read the log"));
 							shareCdcContext.getObsLogger().info(logWrapper("Successfully read " + tableName + "'s first log data, will continue to read the log"));
 							readerResourceMap.get(tableName).firstData = false;
 						}
@@ -510,28 +507,15 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			return null;
 		}
 		LogContent logContent = LogContent.valueOf(document);
-		logDocumentVerify(document);
-
-		if (OperationType.isDml(logContent.getOp())) {
-			if (null == logContent.getBefore() && null == logContent.getAfter()) {
-				throw new IllegalArgumentException("Log data unusable, op: " + logContent.getOp() + ", before and after are both null");
-			}
-			if (StringUtils.isBlank(logContent.getFromTable())) {
-				throw new IllegalArgumentException("Log data unusable, op:" + logContent.getOp() + ", from table is null");
-			}
-		}
+		logContentVerify(logContent);
 
 		TapEvent tapEvent = null;
 		OperationType operationType = OperationType.fromOp(logContent.getOp());
 		switch (operationType) {
 			case INSERT:
 				tapEvent = new TapInsertRecordEvent().init();
-				if (MapUtils.isNotEmpty(logContent.getAfter())) {
-					handleData(logContent.getAfter());
-					((TapInsertRecordEvent) tapEvent).setAfter(logContent.getAfter());
-				} else {
-					throw new RuntimeException("Insert event must have after data: " + logContent);
-				}
+				handleData(logContent.getAfter());
+				((TapInsertRecordEvent) tapEvent).setAfter(logContent.getAfter());
 				break;
 			case UPDATE:
 				tapEvent = new TapUpdateRecordEvent().init();
@@ -542,11 +526,14 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 				break;
 			case DELETE:
 				tapEvent = new TapDeleteRecordEvent().init();
-				if (MapUtils.isNotEmpty(logContent.getBefore())) {
-					handleData(logContent.getBefore());
-					((TapDeleteRecordEvent) tapEvent).setBefore(logContent.getBefore());
-				} else {
-					throw new RuntimeException("Delete event must have before data: " + logContent);
+				handleData(logContent.getBefore());
+				((TapDeleteRecordEvent) tapEvent).setBefore(logContent.getBefore());
+				break;
+			case DDL:
+				Object tapDDLEventObj = OBJECT_SERIALIZABLE.toObject(logContent.getTapDDLEvent(),
+						new ObjectSerializable.ToObjectOptions().classLoader(logContent.getClass().getClassLoader()));
+				if (tapDDLEventObj instanceof TapDDLEvent) {
+					tapEvent = (TapDDLEvent) tapDDLEventObj;
 				}
 				break;
 			default:
@@ -556,8 +543,8 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		if (null == tapEvent) {
 			return null;
 		}
-		((TapRecordEvent) tapEvent).setReferenceTime(logContent.getTimestamp());
-		((TapRecordEvent) tapEvent).setTableId(logContent.getFromTable());
+		((TapBaseEvent) tapEvent).setReferenceTime(logContent.getTimestamp());
+		((TapBaseEvent) tapEvent).setTableId(logContent.getFromTable());
 		Object offsetObj;
 		try {
 			offsetObj = PdkUtil.decodeOffset(logContent.getOffsetString(), ((ShareCdcTaskPdkContext) shareCdcContext).getConnectorNode());

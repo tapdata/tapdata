@@ -28,10 +28,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 import org.voovan.tools.collection.CacheMap;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Supplier;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -177,6 +174,12 @@ public class ScriptExecutorsManager {
       return executeResult.getResult();
     }
 
+    public List<? extends Map<String, Object>> aggregate(Map<String, Object> executeObj) throws Throwable {
+      ExecuteResult<List<? extends Map<String, Object>>> executeResult = new ExecuteResult<>();
+      pdkExecute("aggregate", executeObj, executeResult);
+      return executeResult.getResult();
+    }
+
     public Object call(String funcName, List<Map<String, Object>> params) throws Throwable {
       ExecuteResult<Long> executeResult = new ExecuteResult<>();
       Map<String, Object> executeObj = new HashMap<>();
@@ -200,7 +203,11 @@ public class ScriptExecutorsManager {
           executeResult.setError(e.getError());
           return;
         }
-        executeResult.setResult((T) e.getResult());
+        if (executeResult.getResult() != null && executeResult.getResult() instanceof List) {
+          ((List) executeResult.getResult()).addAll((Collection) e.getResult());
+        } else {
+          executeResult.setResult((T) e.getResult());
+        }
       });
 
       if (executeResult == null || executeResult.getError() != null) {

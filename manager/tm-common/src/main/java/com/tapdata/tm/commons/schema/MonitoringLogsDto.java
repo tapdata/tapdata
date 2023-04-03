@@ -36,6 +36,8 @@ public class MonitoringLogsDto extends BaseDto {
     private List<String> logTags;
     @Singular("record")
     private List<Map<String, Object>> data;
+    private String errorCode;
+    private String fullErrorCode;
 
     public String formatMonitoringLog() {
         return "[" + level + "] " + date + " " + formatMonitoringLogMessage();

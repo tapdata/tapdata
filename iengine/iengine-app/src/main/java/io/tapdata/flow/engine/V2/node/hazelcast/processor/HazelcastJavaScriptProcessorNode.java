@@ -135,14 +135,12 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
                 ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
         if (connections != null) {
           if (nodes.size() > 1) {
-            logger.warn("Use the first node as the default script executor, please use it with caution.");
             obsLogger.warn("Use the first node as the default script executor, please use it with caution.");
           }
           return new ScriptExecutorsManager.ScriptExecutor(connections, clientMongoOperator, jetContext.hazelcastInstance(), new ObsScriptLogger(obsLogger), TAG + "_" + node.getId());
         }
       }
     }
-    logger.warn("The " + flag + " could not build the executor, please check");
     obsLogger.warn("The " + flag + " could not build the executor, please check");
     return null;
   }

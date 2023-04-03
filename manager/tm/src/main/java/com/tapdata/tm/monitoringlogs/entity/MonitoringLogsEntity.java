@@ -31,4 +31,6 @@ public class MonitoringLogsEntity extends BaseEntity {
     private List<String> logTags;
     private List<Map<String, Object>> data;
     private String dataJson;
+    private String errorCode;
+    private String fullErrorCode;
 }

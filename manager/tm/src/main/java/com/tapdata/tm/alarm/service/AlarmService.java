@@ -7,6 +7,7 @@ import com.tapdata.tm.alarm.dto.TaskAlarmInfoVo;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
+import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -14,6 +15,7 @@ import com.tapdata.tm.message.dto.MessageDto;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public interface AlarmService {
@@ -31,14 +33,14 @@ public interface AlarmService {
                                String keyword,
                                Integer page,
                                Integer size,
-                               UserDetail userDetail);
+                               UserDetail userDetail,
+                               Locale locale);
 
     TaskAlarmInfoVo listByTask(AlarmListReqDto dto);
 
     List<AlarmInfo> find(String taskId, String nodeId, AlarmKeyEnum key);
 
     void closeWhenTaskRunning(String taskId);
-    void connectAlarm(String nodeName, String connectId, String response_body, boolean pass);
 
     void delAlarm(String taskId);
 
@@ -47,4 +49,6 @@ public interface AlarmService {
     MessageDto add(MessageDto messageDto,UserDetail userDetail);
 
     List<AlarmChannelDto> getAvailableChannels();
+
+    boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type, UserDetail userDetail);
 }

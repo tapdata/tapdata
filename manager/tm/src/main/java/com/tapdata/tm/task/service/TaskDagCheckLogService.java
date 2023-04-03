@@ -9,18 +9,18 @@ import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.vo.TaskDagCheckLogVo;
 
 import java.util.List;
+import java.util.Locale;
 
 public interface TaskDagCheckLogService {
     TaskDagCheckLog save(TaskDagCheckLog log);
 
     List<TaskDagCheckLog> saveAll(List<TaskDagCheckLog> logs);
 
-    List<TaskDagCheckLog> dagCheck(TaskDto taskDto, UserDetail userDetail, boolean onlySave);
+    List<TaskDagCheckLog> dagCheck(TaskDto taskDto, UserDetail userDetail, boolean onlySave, Locale locale);
 
-    TaskDagCheckLogVo getLogs(TaskLogDto dto);
+    TaskDagCheckLogVo getLogs(TaskLogDto dto, UserDetail userDetail, Locale locale);
 
     void removeAllByTaskId(String taskId);
 
-    void createLog(String taskId, String userId, Level grade, DagOutputTemplateEnum templateEnum,
-                   boolean delOther, boolean needSave, Object ... param);
+    TaskDagCheckLog createLog(String taskId, String nodeId, String userId, Level grade, DagOutputTemplateEnum templateEnum, String template, Object ... param);
 }

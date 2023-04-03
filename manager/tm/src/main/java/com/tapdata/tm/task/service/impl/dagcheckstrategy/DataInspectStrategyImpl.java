@@ -12,6 +12,7 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
+import com.tapdata.tm.utils.MessageUtil;
 import io.tapdata.entity.schema.TapTable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -19,10 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.text.MessageFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 
 @Component("dataInspectStrategy")
 public class DataInspectStrategyImpl implements DagLogStrategy {
@@ -33,7 +31,7 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
     private MetadataInstancesService metadataInstancesService;
 
     @Override
-    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
+    public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail, Locale locale) {
         List<TaskDagCheckLog> results = new ArrayList<>();
 
         // 没开启数据校验不检查
@@ -41,7 +39,7 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
             return results;
         }
         if (taskDto.getCanOpenInspect() == null || !taskDto.getCanOpenInspect()) {
-            results.add(createWarn(taskDto, userDetail, "任务不支持校验"));
+            results.add(createWarn(taskDto, userDetail, "not suports check", locale));
             return results;
         }
 
@@ -65,7 +63,7 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
                 }
             }
             if (!filterNames.isEmpty()) {
-                results.add(createError(taskDto, userDetail, String.format("节点 %s 不支持校验，请删除节点或关闭校验", String.join(",", filterNames))));
+                results.add(createError(taskDto, userDetail, String.format(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_NOT_SUPORTS"), String.join(",", filterNames)), locale));
             }
 
             // 数据节点支持查询接口
@@ -73,14 +71,14 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
             LinkedList<DatabaseNode> sourceNodes = dag.getSourceNode();
             for (DatabaseNode node : sourceNodes) {
                 if (null != node.getEnableDynamicTable() && node.getEnableDynamicTable()) {
-                    results.add(createError(taskDto, userDetail, String.format("请关闭源 %s 动态新增表，或关闭校验", node.getName())));
+                    results.add(createError(taskDto, userDetail, String.format(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_NEED_CLOSED_SOURCE"), node.getName()), locale));
                 }
 
 //                results.add(createError(taskDto, userDetail, String.format("源 %s 不支持校验", node.getName())));
             }
             for (DatabaseNode node : dag.getTargetNode()) {
                 if (null != node.getEnableDynamicTable() && node.getEnableDynamicTable()) {
-                    results.add(createError(taskDto, userDetail, String.format("请关闭目标 %s 动态新增表，或关闭校验", node.getName())));
+                    results.add(createError(taskDto, userDetail, String.format(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_NEED_CLOSED_TARGET"), node.getName()), locale));
                 }
 //                results.add(createError(taskDto, userDetail, String.format("目标 %s 不支持校验", node.getName())));
             }
@@ -104,7 +102,7 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
                     }
                 }
 
-                results.add(createInfo(taskDto, userDetail, supportTableCounts, notSupportTableCounts));
+                results.add(createInfo(taskDto, userDetail, supportTableCounts, notSupportTableCounts, locale));
             }
         } catch (Exception e) {
             logger.warn("校验检查异常：{}", e.getMessage(), e);
@@ -113,47 +111,47 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
                 if (null != stackTraces) {
                     for (StackTraceElement stackTrace : stackTraces) {
                         if (stackTrace.getClassName().contains("tapdata")) {
-                            results.add(createError(taskDto, userDetail, "NPE " + stackTrace));
+                            results.add(createError(taskDto, userDetail, "NPE " + stackTrace, locale));
                             return results;
                         }
                     }
                 }
             }
-            results.add(createError(taskDto, userDetail, "检查异常：" + e.getMessage()));
+            results.add(createError(taskDto, userDetail, "check error：" + e.getMessage(), locale));
         }
         return results;
     }
 
-    private static TaskDagCheckLog createInfo(TaskDto taskDto, UserDetail userDetail, int supportTables, int notSupportTables) {
+    private static TaskDagCheckLog createInfo(TaskDto taskDto, UserDetail userDetail, int supportTables, int notSupportTables, Locale locale) {
         TaskDagCheckLog checkLog = new TaskDagCheckLog();
         checkLog.setTaskId(taskDto.getId().toHexString());
         checkLog.setCheckType(templateEnum.name());
         checkLog.setCreateAt(new Date());
         checkLog.setCreateUser(userDetail.getUserId());
         checkLog.setGrade(Level.INFO);
-        checkLog.setLog(MessageFormat.format(templateEnum.getInfoTemplate(), checkLog.getCreateAt(), taskDto.getName(), supportTables, notSupportTables));
+        checkLog.setLog(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_INFO"), checkLog.getCreateAt(), taskDto.getName(), supportTables, notSupportTables));
         return checkLog;
     }
 
-    private static TaskDagCheckLog createWarn(TaskDto taskDto, UserDetail userDetail, String msg) {
+    private static TaskDagCheckLog createWarn(TaskDto taskDto, UserDetail userDetail, String msg, Locale locale) {
         TaskDagCheckLog checkLog = new TaskDagCheckLog();
         checkLog.setTaskId(taskDto.getId().toHexString());
         checkLog.setCheckType(templateEnum.name());
         checkLog.setCreateAt(new Date());
         checkLog.setCreateUser(userDetail.getUserId());
         checkLog.setGrade(Level.WARN);
-        checkLog.setLog(MessageFormat.format(templateEnum.getErrorTemplate(), checkLog.getCreateAt(), taskDto.getName(), msg));
+        checkLog.setLog(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_ERROR"), checkLog.getCreateAt(), taskDto.getName(), msg));
         return checkLog;
     }
 
-    private static TaskDagCheckLog createError(TaskDto taskDto, UserDetail userDetail, String msg) {
+    private static TaskDagCheckLog createError(TaskDto taskDto, UserDetail userDetail, String msg, Locale locale) {
         TaskDagCheckLog checkLog = new TaskDagCheckLog();
         checkLog.setTaskId(taskDto.getId().toHexString());
         checkLog.setCheckType(templateEnum.name());
         checkLog.setCreateAt(new Date());
         checkLog.setCreateUser(userDetail.getUserId());
         checkLog.setGrade(Level.ERROR);
-        checkLog.setLog(MessageFormat.format(templateEnum.getErrorTemplate(), checkLog.getCreateAt(), taskDto.getName(), msg));
+        checkLog.setLog(MessageFormat.format(MessageUtil.getDagCheckMsg(locale, "DATA_INSPECT_ERROR"), checkLog.getCreateAt(), taskDto.getName(), msg));
         return checkLog;
     }
 

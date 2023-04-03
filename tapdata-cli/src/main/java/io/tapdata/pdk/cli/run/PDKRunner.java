@@ -1,6 +1,5 @@
 package io.tapdata.pdk.cli.run;
 
-//import com.tapdata.constant.ConfigurationCenter;
 import io.tapdata.pdk.cli.Main;
 import io.tapdata.pdk.core.connector.TapConnectorManager;
 import io.tapdata.pdk.core.utils.CommonUtils;

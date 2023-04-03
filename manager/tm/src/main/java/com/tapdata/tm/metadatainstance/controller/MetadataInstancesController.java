@@ -2,14 +2,18 @@ package com.tapdata.tm.metadatainstance.controller;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
-import com.tapdata.tm.commons.util.JsonUtil;
-import com.tapdata.tm.accessToken.dto.AccessTokenDto;
 import com.tapdata.tm.base.controller.BaseController;
-import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.dto.Field;
+import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.bean.Table;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.inspect.service.InspectService;
+import com.tapdata.tm.metadatainstance.bean.NodeInfoPage;
 import com.tapdata.tm.metadatainstance.dto.DataType2TapTypeDto;
 import com.tapdata.tm.metadatainstance.dto.MigrateResetTableDto;
 import com.tapdata.tm.metadatainstance.dto.MigrateTableInfoDto;
@@ -17,7 +21,12 @@ import com.tapdata.tm.metadatainstance.param.ClassificationParam;
 import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
 import com.tapdata.tm.metadatainstance.service.MetaMigrateService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.metadatainstance.vo.*;
+import com.tapdata.tm.metadatainstance.vo.ExportModulesVo;
+import com.tapdata.tm.metadatainstance.vo.MetaTableCheckVo;
+import com.tapdata.tm.metadatainstance.vo.MetaTableVo;
+import com.tapdata.tm.metadatainstance.vo.MetadataInstancesVo;
+import com.tapdata.tm.metadatainstance.vo.TableListVo;
+import com.tapdata.tm.metadatainstance.vo.TableSupportInspectVo;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.utils.GZIPUtil;
@@ -38,7 +47,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 
@@ -48,7 +68,10 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.BindException;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 
@@ -157,20 +180,28 @@ public class MetadataInstancesController extends BaseController {
     }
 
     @GetMapping("node/schemaPage")
-    public ResponseMessage<Page<MetadataInstancesDto>> findPageByNodeId(@RequestParam("nodeId") String nodeId,
-                                                                    @RequestParam(value = "tableFilter", required = false) String tableFilter,
-                                                                    @RequestParam(value = "fields", required = false) List<String> fields,
-                                                                    @RequestParam(value = "page", defaultValue = "1") Integer page,
-                                                                    @RequestParam(value = "pageSize", defaultValue = "0") Integer pageSize) {
+    @Operation(summary = "目标节点表详情接口")
+    public ResponseMessage<NodeInfoPage> findPageByNodeId(@RequestParam("nodeId") String nodeId,
+                                                          @RequestParam(value = "tableFilter", required = false) String tableFilter,
+                                                          @Parameter(description = "目标表筛选项，updateEx筛选更新条件异常，transformEx筛选推演异常，默认空查全部表")
+                                                          @RequestParam(value = "filterType", required = false) String filterType,
+                                                          @RequestParam(value = "fields", required = false) List<String> fields,
+                                                          @RequestParam(value = "page", defaultValue = "1") Integer page,
+                                                          @RequestParam(value = "pageSize", defaultValue = "0") Integer pageSize) {
 
-        Page<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findByNodeId(nodeId, fields, getLoginUser(), null, tableFilter, page, pageSize);
-        if (CollectionUtils.isNotEmpty(metadataInstancesDtos.getItems())) {
-            for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos.getItems()) {
+        Page<MetadataInstancesDto> data = metadataInstancesService.findByNodeId(nodeId, fields, getLoginUser(), null, tableFilter, filterType, page, pageSize);
+        if (CollectionUtils.isNotEmpty(data.getItems())) {
+            for (MetadataInstancesDto metadataInstancesDto : data.getItems()) {
                 ////页面显示排序问题处理
                 MetadataInstancesDto.sortField(metadataInstancesDto.getFields());
             }
         }
-        return success(metadataInstancesDtos);
+
+        long updateExNum = metadataInstancesService.countUpdateExNum(nodeId);
+        long transformExNum = metadataInstancesService.countTransformExNum(nodeId);
+        long wholeNum = metadataInstancesService.countTotalNum(nodeId);
+
+        return success(new NodeInfoPage(data.getTotal(), data.getItems(), wholeNum, updateExNum,transformExNum));
     }
 
     @GetMapping("node/oldSchema")
@@ -191,7 +222,7 @@ public class MetadataInstancesController extends BaseController {
     @GetMapping("node/heartbeatQualifiedName")
     public ResponseMessage<String> findHeartbeatQualifiedNameByNodeId(@RequestParam(value = "filter", required = false) String filterJson) {
         Filter filter = parseFilter(filterJson);
-        return success(metadataInstancesService.findQualifiedNameByNodeId(filter, getLoginUser()));
+        return success(metadataInstancesService.findHeartbeatQualifiedNameByNodeId(filter, getLoginUser()));
     }
 
 
@@ -459,6 +490,11 @@ public class MetadataInstancesController extends BaseController {
         return success(metadataInstancesService.tables(connectionId, sourceType));
     }
 
+    @GetMapping("tablesValue")
+    public ResponseMessage<List<Map<String, String>>> tablesValue(String connectionId, @RequestParam(value = "sourceType", defaultValue = "SOURCE") String sourceType) {
+        return success(metadataInstancesService.tableValues(connectionId, sourceType));
+    }
+
     @GetMapping("page-tables")
     public ResponseMessage<Page<String>> pageTables(
             @RequestParam(value = "connectionId") String connectionId // 连接编号
@@ -478,7 +514,6 @@ public class MetadataInstancesController extends BaseController {
         }
         return success(metadataInstancesService.pageTables(connectionId, sourceType, regex, skip, limit));
     }
-
 
     @DeleteMapping("logic/schema/{taskId}")
     public ResponseMessage<Void> deleteLogicModel(@PathVariable("taskId") String taskId, @RequestParam("nodeId") String nodeId) {
@@ -742,5 +777,13 @@ public class MetadataInstancesController extends BaseController {
         returnMap.put("exist", exist);
         return success(returnMap);
     }
+
+
+    @PostMapping("updateTableDesc")
+    public ResponseMessage<Void> updateTableDesc(@RequestBody MetadataInstancesDto metadataInstances) {
+        metadataInstancesService.updateTableDesc(metadataInstances, getLoginUser());
+        return success();
+    }
+
 
 }

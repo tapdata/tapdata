@@ -1,9 +1,7 @@
 package com.tapdata.tm.task.service;
 
-import cn.hutool.core.date.DateUtil;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
-import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -21,12 +19,10 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
-import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.utils.GZIPUtil;
@@ -70,12 +66,14 @@ public class TransformSchemaService {
     private MessageQueueService messageQueueService;
     private WorkerService workerService;
     private TaskDagCheckLogService taskDagCheckLogService;
+    private LdpService ldpService;
 
     @Autowired
     public TransformSchemaService(DAGDataService dagDataService, MetadataInstancesService metadataInstancesService, TaskService taskService,
                                   DataSourceService dataSourceService, MetadataTransformerService metadataTransformerService,
                                   DataSourceDefinitionService definitionService, MetadataTransformerItemService metadataTransformerItemService,
-                                  MessageQueueService messageQueueService, WorkerService workerService, TaskDagCheckLogService taskDagCheckLogService) {
+                                  MessageQueueService messageQueueService, WorkerService workerService, TaskDagCheckLogService taskDagCheckLogService,
+                                  LdpService ldpService) {
         this.dagDataService = dagDataService;
         this.metadataInstancesService = metadataInstancesService;
         this.taskService = taskService;
@@ -86,6 +84,7 @@ public class TransformSchemaService {
         this.messageQueueService = messageQueueService;
         this.workerService = workerService;
         this.taskDagCheckLogService = taskDagCheckLogService;
+        this.ldpService = ldpService;
     }
 
     @Value("${tm.transform.batch.num:1000}")
@@ -97,9 +96,6 @@ public class TransformSchemaService {
         try {
             transformSchema(taskDto, user);
         } catch (Exception e) {
-            taskDagCheckLogService.createLog(taskId.toHexString(), user.getUserId(), Level.ERROR,
-                    DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
-                    false, true, DateUtil.now(), e.getMessage());
             taskService.update(new Query(Criteria.where("_id").is(taskId)), Update.update("transformDagHash", 0));
         }
     }
@@ -354,8 +350,7 @@ public class TransformSchemaService {
             // add transformer task log
             List<String> taskIds = Lists.newArrayList();
             taskIds.addAll(msgMap.keySet());
-            taskDagCheckLogService.createLog(taskIds.get(0), user.getUserId(), Level.ERROR, DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
-                    false, true, DateUtil.now(), msgMap.get(taskIds.get(0)).get(0).getMsg());
+
             taskService.update(new Query(Criteria.where("_id").is(taskIds.get(0))), Update.update("transformDagHash", 0));
         }
 
@@ -397,19 +392,16 @@ public class TransformSchemaService {
             if (StringUtils.isNotBlank(result.getTransformUuid()) && StringUtils.isNotBlank(result.getTaskId())) {
                 Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(result.getTaskId()))
                         .and("transformUuid").lte(result.getTransformUuid());
-                UpdateResult transformed = taskService.update(new Query(criteria),
+                taskService.update(new Query(criteria),
                         Update.update("transformed", true).set("transformUuid", result.getTransformUuid()), user);
-                if (transformed.getModifiedCount() > 0 && CollectionUtils.isNotEmpty(result.getUpsertTransformer())) {
-                    int total = result.getUpsertTransformer().get(0).getTotal();
-                    int finished = result.getUpsertTransformer().get(0).getFinished();
-                    // add transformer task log
-                    taskDagCheckLogService.createLog(taskId, user.getUserId(), Level.INFO, DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
-                            false, true, DateUtil.now(), finished, total);
-                }
             }
         }
-    }
 
+        ldpService.afterLdpTask(taskId, user);
+
+
+
+    }
 
     private void sendTransformer(TransformerWsMessageDto wsMessageDto, UserDetail user) {
         TaskDto taskDto = wsMessageDto.getTaskDto();
