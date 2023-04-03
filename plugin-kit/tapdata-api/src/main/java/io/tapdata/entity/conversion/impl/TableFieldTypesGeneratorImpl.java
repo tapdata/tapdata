@@ -2,6 +2,7 @@ package io.tapdata.entity.conversion.impl;
 
 import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.mapping.TypeExprResult;
@@ -9,8 +10,10 @@ import io.tapdata.entity.mapping.type.TapMapping;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.utils.DataMap;
 
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static io.tapdata.entity.simplify.TapSimplify.tapRaw;
 
@@ -21,23 +24,33 @@ public class TableFieldTypesGeneratorImpl implements TableFieldTypesGenerator {
     public void autoFill(LinkedHashMap<String, TapField> nameFieldMap, DefaultExpressionMatchingMap expressionMatchingMap) {
         for(Map.Entry<String, TapField> entry : nameFieldMap.entrySet()) {
             if(entry.getValue().getDataType() != null) {
-                TypeExprResult<DataMap> result = expressionMatchingMap.get(entry.getValue().getDataType());
-                if(result != null) {
-                    TapMapping tapMapping = (TapMapping) result.getValue().get(TapMapping.FIELD_TYPE_MAPPING);
-                    if(tapMapping != null) {
-                        entry.getValue().setTapType(tapMapping.toTapType(entry.getValue().getDataType(), result.getParams()));
+                Set<String> ignoreExpressionSet = null;
+                boolean needRetry;
+
+                do {
+                    needRetry = false;
+                    TypeExprResult<DataMap> result = expressionMatchingMap.get(entry.getValue().getDataType(), ignoreExpressionSet);
+                    if(result != null) {
+                        TapMapping tapMapping = (TapMapping) result.getValue().get(TapMapping.FIELD_TYPE_MAPPING);
+                        if(tapMapping != null) {
+                            try {
+                                entry.getValue().setTapType(tapMapping.toTapType(entry.getValue().getDataType(), result.getParams()));
+                            } catch (CoreException e) {
+                                TapLogger.warn(TAG, "Ignore {}, because params {} error {}", result.getExpression(), result.getParams(), e.getMessage());
+                                if(ignoreExpressionSet == null)
+                                    ignoreExpressionSet = new HashSet<>();
+                                ignoreExpressionSet.add(result.getExpression());
+                                needRetry = true;
+                            }
+                        }
+                    } else {
+                        if(entry.getValue().getTapType() == null) {
+                            entry.getValue().setTapType(tapRaw());
+                            TapLogger.warn(TAG, "Field dataType {} didn't match corresponding TapMapping, TapRaw will be used for this dataType. ", entry.getValue().getDataType());
+                        }
                     }
-                } else {
-//<<<<<<< HEAD
-//                    entry.getValue().setTapType(tapRaw());
-//                    TapLogger.debug(TAG, "Field dataType {} didn't match corresponding TapMapping, TapRaw will be used for this dataType. ", entry.getValue().getDataType());
-//=======
-                    if(entry.getValue().getTapType() == null) {
-                        entry.getValue().setTapType(tapRaw());
-                        TapLogger.warn(TAG, "Field dataType {} didn't match corresponding TapMapping, TapRaw will be used for this dataType. ", entry.getValue().getDataType());
-                    }
-//>>>>>>> develop-v2.9-coding-connector
-                }
+                } while(needRetry);
+
             }
         }
     }
