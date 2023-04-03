@@ -4054,9 +4054,18 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (CollectionUtils.isNotEmpty(nodeList)) {
                     for (Node node : nodeList) {
                         if (node instanceof DatabaseNode) {
+                            boolean tableNameExist = false;
                             DatabaseNode nodeTemp = (DatabaseNode) node;
-                            if (CollectionUtils.isNotEmpty(nodeTemp.getTableNames()) &&
-                                    nodeTemp.getTableNames().contains(tableName)
+                            if (nodeTemp.getSyncObjects() != null) {
+                                for (SyncObjects syncObjects : nodeTemp.getSyncObjects()) {
+                                    if (syncObjects.getObjectNames().contains(tableName)) {
+                                        tableNameExist = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (((CollectionUtils.isNotEmpty(nodeTemp.getTableNames()) && nodeTemp.getTableNames().contains(tableName))
+                                    || tableNameExist)
                                     && node.getId().equals(target)) {
                                 return true;
                             }
