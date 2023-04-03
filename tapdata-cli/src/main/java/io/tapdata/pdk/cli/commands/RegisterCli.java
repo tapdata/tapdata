@@ -12,6 +12,7 @@ import io.tapdata.pdk.cli.CommonCli;
 import io.tapdata.pdk.cli.services.UploadFileService;
 import io.tapdata.pdk.core.connector.TapConnector;
 import io.tapdata.pdk.core.connector.TapConnectorManager;
+import io.tapdata.pdk.core.constants.DataSourceQCType;
 import io.tapdata.pdk.core.tapnode.TapNodeContainer;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
