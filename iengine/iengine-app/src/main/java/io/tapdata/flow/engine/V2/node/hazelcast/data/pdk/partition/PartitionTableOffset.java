@@ -1,11 +1,10 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition;
 
-import io.tapdata.entity.serializer.JavaCustomSerializer;
-import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.pdk.apis.partition.ReadPartition;
 
-import java.io.*;
-import java.util.*;
+import java.io.Serializable;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**

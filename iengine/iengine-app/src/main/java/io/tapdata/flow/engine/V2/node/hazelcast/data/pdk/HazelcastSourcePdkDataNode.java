@@ -8,7 +8,9 @@ import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.taskmilestones.*;
@@ -215,7 +217,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											.start()
 											.table(tapTable),
 									batchReadFuncAspect -> PDKInvocationMonitor.invoke(
-											getConnectorNode(), PDKMethod.SOURCE_BATCH_READ,
+											getConnectorNode(),
+											PDKMethod.SOURCE_BATCH_READ,
 											createPdkMethodInvoker().runnable(() -> {
 														BiConsumer<List<TapEvent>, Object> consumer = (events, offsetObject) -> {
 															if (events != null && !events.isEmpty()) {
@@ -248,7 +251,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																}
 															}
 														};
-														if (getNode() instanceof TableNode) {
+														Node<?> node = getNode();
+														if (node instanceof TableNode) {
 															TableNode tableNode = (TableNode) dataProcessorContext.getNode();
 															if (isTableFilter(tableNode) || isPollingCDC(tableNode)) {
 																TapAdvanceFilter tapAdvanceFilter = batchFilterRead();
@@ -262,7 +266,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																		tempList.clear();
 																	}
 																});
-															} else if (tableNode.isEnableCustomCommand() && executeCommandFunction != null) {
+															}
+															else if (tableNode.isEnableCustomCommand() && executeCommandFunction != null) {
 																Map<String, Object> customCommand = tableNode.getCustomCommand();
 																customCommand.put("batchSize", readBatchSize);
 																executeCommandFunction.execute(getConnectorNode().getConnectorContext(), TapExecuteCommand.create()
@@ -278,10 +283,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																	List<TapEvent> events = maps.stream().map(m -> TapSimplify.insertRecordEvent(m, tableName)).collect(Collectors.toList());
 																	consumer.accept(events, null);
 																});
-															} else {
+															}
+															else {
 																batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
 															}
-														} else {
+														}
+														else {
 															batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
 														}
 													}

@@ -17,7 +17,6 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.tapdata.entity.simplify.TapSimplify.deleteDMLEvent;
-import static io.tapdata.entity.simplify.TapSimplify.map;
 
 /**
  * @author aplomb

@@ -6,6 +6,7 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.taskmilestones.*;
@@ -15,6 +16,7 @@ import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapIndexEx;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -155,7 +157,6 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 						return null == snapshotRowSizeMap || !snapshotRowSizeMap.containsKey(table);
 					});
 				}
-
 				if (this.removeTables != null && this.removeTables.contains(table)) {
 //					logger.info("Table " + table + " is detected that it has been removed, the snapshot read will be skipped");
 					obsLogger.info("Table " + table + " is detected that it has been removed, the snapshot read will be skipped");
@@ -167,7 +168,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 					obsLogger.info("Table {} has read finished, no need batch read any more. ", table);
 					return null;
 				}
-				Object tableOffset = ((Map<String, Object>) syncProgress.getBatchOffsetObj()).get(table);
+				Object tableOffset = ((Map<?, ?>) syncProgress.getBatchOffsetObj()).get(table);
 //				logger.info("Starting batch read, table name: " + tapTable.getId() + ", offset: " + tableOffset);
 				obsLogger.info("Starting batch read, table name: " + table + ", offset: " + tableOffset);
 				int eventBatchSize = 100;
@@ -180,7 +181,6 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 			});
 			//Go to CDC stage after all tables finished initial sync.
 			tableParallelWorker.finished(super::enterCDCStage);
-
 //			tableParallelWorker.setParallelWorkerStateListener((id, fromState, toState) -> {
 //				if(toState == ParallelWorkerStateListener.STATE_LONG_IDLE) {
 //					//All tables should finish initial sync now.
@@ -199,10 +199,12 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 		executeAspect(new SnapshotReadEndAspect().dataProcessorContext(dataProcessorContext));
 		return null;
 	}
+
 	protected void enterCDCStage() {
 		//Don't change to CDC stage for partition read.
 		this.endSnapshotLoop.set(true);
 	}
+
 	private void handleReadPartitionsForTable(PDKSourceContext pdkSourceContext, GetReadPartitionsFunction getReadPartitionsFunction, ReadPartitionOptions finalReadPartitionOptions, String tableId, AsyncJobCompleted jobCompleted) {
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableId);
 		tablePartitionReaderMap.computeIfAbsent(tapTable.getId(), table -> asyncMaster.createAsyncParallelWorker("PartitionsReader_" + table, partitionReaderThreadCount));
@@ -301,6 +303,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 		doCdc();
 		return null;
 	}
+
 	private void handleWorkerError(String id, JobBase asyncJob, Throwable throwable) {
 		Throwable throwableWrapper = throwable;
 		if (!(throwableWrapper instanceof NodeException)) {
@@ -588,6 +591,23 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 			}
 		} finally {
 			super.doClose();
+		}
+	}
+
+	//全量分片...
+	@Override
+	protected void restartPdkConnector(){
+		Node<?> node = getNode();
+		if (node instanceof TableNode){
+			TableNode tableNode = (TableNode)node;
+			ReadPartitionOptions options = tableNode.getReadPartitionOptions();
+			if (null != options && options.isEnable()){
+				//@todo 全量阶段...
+				//@todo 增量阶段，获取正在执行的表，等待表增量结束后再加入新表后重启任务...
+			}
+		} else {
+			//TapLogger.warn(TAG,"TableNode not support.");
+			//super.restartPdkConnector();
 		}
 	}
 }

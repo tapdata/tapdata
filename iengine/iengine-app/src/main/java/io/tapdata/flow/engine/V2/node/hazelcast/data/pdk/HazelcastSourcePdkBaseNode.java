@@ -16,6 +16,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.Message;
@@ -555,25 +556,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 										// Restart source runner
 										if (null != sourceRunner) {
 											this.sourceRunnerFirstTime.set(false);
-											if (null != getConnectorNode()) {
-												//Release webhook waiting thread before stop connectorNode.
-												if (streamReadFuncAspect != null) {
-													streamReadFuncAspect.noMoreWaitRawData();
-													streamReadFuncAspect = null;
-												}
-												PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG);
-												PDKIntegration.releaseAssociateId(this.associateId);
-												ConnectorNodeService.getInstance().removeConnectorNode(this.associateId);
-												createPdkConnectorNode(dataProcessorContext, jetContext.hazelcastInstance());
-												connectorNodeInit(dataProcessorContext);
-											} else {
-												String error = "Connector node is null";
-												errorHandle(new RuntimeException(error), error);
-												return;
-											}
-											this.sourceRunner.shutdownNow();
-											this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-table-changed-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
-											sourceRunner.submit(this::startSourceRunner);
+                                            restartPdkConnector();
 										} else {
 											String error = "Source runner is null";
 											errorHandle(new RuntimeException(error), error);
@@ -628,6 +611,28 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
     abstract void startSourceRunner();
 
+	void restartPdkConnector(){
+        if (null != getConnectorNode()) {
+            //Release webhook waiting thread before stop connectorNode.
+            if (streamReadFuncAspect != null) {
+                streamReadFuncAspect.noMoreWaitRawData();
+                streamReadFuncAspect = null;
+            }
+            PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG);
+            PDKIntegration.releaseAssociateId(this.associateId);
+            ConnectorNodeService.getInstance().removeConnectorNode(this.associateId);
+            createPdkConnectorNode(dataProcessorContext, jetContext.hazelcastInstance());
+            connectorNodeInit(dataProcessorContext);
+        } else {
+            String error = "Connector node is null";
+            errorHandle(new RuntimeException(error), error);
+            return;
+        }
+        this.sourceRunner.shutdownNow();
+        this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-table-changed-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
+        sourceRunner.submit(this::startSourceRunner);
+    }
+
     @NotNull
     public List<TapdataEvent> wrapTapdataEvent(List<TapEvent> events) {
         return wrapTapdataEvent(events, SyncStage.INITIAL_SYNC, null);
@@ -661,24 +666,22 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
     }
 
     private TapdataEvent wrapSingleTapdataEvent(TapEvent tapEvent, SyncStage syncStage, Object offsetObj, boolean isLast) {
-
-
         TapdataEvent tapdataEvent = null;
-
-            switch (sourceMode) {
-                case NORMAL:
-                    tapdataEvent = new TapdataEvent();
-                    break;
-                case LOG_COLLECTOR:
-                    tapdataEvent = new TapdataShareLogEvent();
-                    Connections connections = dataProcessorContext.getConnections();
-                    if (null != connections) {
-                        tapdataEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connections.getId());
-                    }
-                    break;
-            }
-            tapdataEvent.setTapEvent(tapEvent);
-            tapdataEvent.setSyncStage(syncStage);if (tapEvent instanceof TapRecordEvent) {
+        switch (sourceMode) {
+            case NORMAL:
+                tapdataEvent = new TapdataEvent();
+                break;
+            case LOG_COLLECTOR:
+                tapdataEvent = new TapdataShareLogEvent();
+                Connections connections = dataProcessorContext.getConnections();
+                if (null != connections) {
+                    tapdataEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connections.getId());
+                }
+                break;
+        }
+        tapdataEvent.setTapEvent(tapEvent);
+        tapdataEvent.setSyncStage(syncStage);
+        if (tapEvent instanceof TapRecordEvent) {
             if (SyncStage.INITIAL_SYNC == syncStage) {
                 if (isLast && !StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
                         TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
@@ -702,15 +705,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             tapdataEvent = TapdataHeartbeatEvent.create(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
         } else if (tapEvent instanceof TapDDLEvent) {
             obsLogger.info("Source node received an ddl event: " + tapEvent);
-
             if (null != ddlFilter && !ddlFilter.test((TapDDLEvent) tapEvent)) {
                 obsLogger.warn("DDL events are filtered\n - Event: " + tapEvent + "\n - Filter: " + JSON.toJSONString(ddlFilter));
                 return null;
             }
-
-
             tapdataEvent.setStreamOffset(offsetObj);
-            tapdataEvent.setSourceTime(((TapDDLEvent) tapEvent).getReferenceTime());if (sourceMode.equals(SourceMode.NORMAL)) {
+            tapdataEvent.setSourceTime(((TapDDLEvent) tapEvent).getReferenceTime());
+            if (sourceMode.equals(SourceMode.NORMAL)) {
 				handleSchemaChange(tapEvent);
 			}
 		}
