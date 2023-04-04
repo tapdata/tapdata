@@ -25,7 +25,6 @@ import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
-import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -129,9 +128,9 @@ public class Hive1Connector extends ConnectorBase {
 
 
     @Override
-    public void onStop(TapConnectionContext connectionContext) throws Throwable {
+    public void onStop(TapConnectionContext connectionContext) {
         TapLogger.info("线程debug", "onStop当前线程为:{}", Thread.currentThread().getName());
-        ErrorKit.ignoreAnyError(hive1JdbcContext::close);
+        EmptyKit.closeQuietly(hive1JdbcContext);
         Optional.ofNullable(this.hive1Writer).ifPresent(Hive1Writer::onDestroy);
     }
 
