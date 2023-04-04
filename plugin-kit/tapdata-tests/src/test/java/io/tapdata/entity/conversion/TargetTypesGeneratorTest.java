@@ -1475,6 +1475,7 @@ class TargetTypesGeneratorTest {
                 .add(field("NUMBER(5,2)", "NUMBER(5,2)"))
                 .add(field("NUMBER(*,10)", "NUMBER(*,10)"))
                 .add(field("NUMBER(50)", "NUMBER(50)"))
+                .add(field("NUMBER(50,*,b)", "NUMBER(50,*,b)"))
         ;
 
         tableFieldTypesGenerator.autoFill(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(sourceTypeExpression));
@@ -1491,6 +1492,9 @@ class TargetTypesGeneratorTest {
 
         TapField number50 = nameFieldMap.get("NUMBER(50)");
         assertEquals("decimal(50,8)", number50.getDataType());
+
+        TapField number50StarB = nameFieldMap.get("NUMBER(50,*,b)");
+        assertEquals(null, number50StarB.getDataType());
     }
 
 

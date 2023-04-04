@@ -36,7 +36,7 @@ public class TableFieldTypesGeneratorImpl implements TableFieldTypesGenerator {
                             try {
                                 entry.getValue().setTapType(tapMapping.toTapType(entry.getValue().getDataType(), result.getParams()));
                             } catch (CoreException e) {
-                                TapLogger.warn(TAG, "Ignore {}, because params {} error {}", result.getExpression(), result.getParams(), e.getMessage());
+                                TapLogger.warn(TAG, "Ignore {} to try others, because params {} error {}", result.getExpression(), result.getParams(), e.getMessage());
                                 if(ignoreExpressionSet == null)
                                     ignoreExpressionSet = new HashSet<>();
                                 ignoreExpressionSet.add(result.getExpression());
