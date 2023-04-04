@@ -1,5 +1,6 @@
 package io.tapdata.kit;
 
+import java.io.Closeable;
 import java.util.Collection;
 import java.util.Map;
 
@@ -57,6 +58,24 @@ public class EmptyKit {
 
     public static boolean isNotNull(Object var) {
         return null != var;
+    }
+
+    public static void closeQuietly(Closeable closeable) {
+        if (isNotNull(closeable)) {
+            try {
+                closeable.close();
+            } catch (Throwable ignore) {
+            }
+        }
+    }
+
+    public static void closeQuietly(AutoCloseable autoCloseable) {
+        if (isNotNull(autoCloseable)) {
+            try {
+                autoCloseable.close();
+            } catch (Throwable ignore) {
+            }
+        }
     }
 
 }
