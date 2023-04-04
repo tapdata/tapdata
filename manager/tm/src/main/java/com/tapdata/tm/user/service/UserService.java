@@ -25,6 +25,7 @@ import com.tapdata.tm.role.service.RoleService;
 import com.tapdata.tm.roleMapping.dto.PrincipleType;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 import com.tapdata.tm.roleMapping.service.RoleMappingService;
+import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.tcm.dto.UserInfoDto;
 import com.tapdata.tm.tcm.service.TcmService;
 import com.tapdata.tm.user.dto.*;
@@ -98,6 +99,9 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
     @Autowired
     MailUtils mailUtils;
 
+    @Autowired
+    private LdpService ldpService;
+
     @Override
     protected void beforeSave(UserDto dto, UserDetail userDetail) {
 
@@ -120,6 +124,15 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
             return getUserDetail(user);
         }
         return null;
+    }
+
+
+    public List<UserDetail> loadAllUser() {
+        List<User> all = repository.findAll(new Query());
+        if (CollectionUtils.isNotEmpty(all)) {
+            return all.stream().map(this::getUserDetail).collect(Collectors.toList());
+        }
+        return new ArrayList<>();
     }
 
     /**
@@ -371,6 +384,10 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
         UserDto result = convertToDto(save, dtoClass);
         List<RoleMappingDto> roleMappingDtos = updateRoleMapping(save.getId().toHexString(), request.getRoleusers(), userDetail);
         result.setRoleMappings(roleMappingDtos);
+
+        //添加ldp目录
+        ldpService.addLdpDirectory(getUserDetail(user));
+
         return result;
     }
     private List<RoleMappingDto> updateRoleMapping(String userId, List<Object> roleusers, UserDetail userDetail) {
