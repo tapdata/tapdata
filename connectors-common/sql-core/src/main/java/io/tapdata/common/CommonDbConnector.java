@@ -390,7 +390,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
         return ddlSqlGenerator.addColumn(commonDbConfig, tapNewFieldEvent);
     }
 
-    private String getSchemaAndTable(String tableId) {
+    protected String getSchemaAndTable(String tableId) {
         StringBuilder sb = new StringBuilder();
         char escapeChar = commonDbConfig.getEscapeChar();
         if (EmptyKit.isNotBlank(commonDbConfig.getSchema())) {
@@ -400,7 +400,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
         return sb.toString();
     }
 
-    private String getCreateTableSql(TapTable tapTable) {
+    protected String getCreateTableSql(TapTable tapTable) {
         char escapeChar = commonDbConfig.getEscapeChar();
         StringBuilder sb = new StringBuilder("create table ");
         sb.append(getSchemaAndTable(tapTable.getId())).append('(').append(commonSqlMaker.buildColumnDefinition(tapTable, false));

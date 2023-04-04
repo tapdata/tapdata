@@ -13,7 +13,8 @@ public class TDDFactory {
     private enum TddPath{
 //        MySql("mysql-connector-v1.0-SNAPSHOT.jar","mysql.json"),
 //        MongoDB("mongodb-connector-v1.0-SNAPSHOT.jar","mongodb.json"),
-        Coding("coding-connector-v1.0-SNAPSHOT.jar","coding.json"),
+//        Coding("coding-connector-v1.0-SNAPSHOT.jar","coding.json"),
+        Tidb("tidb-connector-v1.0-SNAPSHOT.jar","tidb.json"),
 //        KafKa("kafka-connector-v1.0-SNAPSHOT.jar","kafka.json"),
 //        ActiveMQ("activemq-connector-v1.0-SNAPSHOT.jar","activemq.json")
         ;
