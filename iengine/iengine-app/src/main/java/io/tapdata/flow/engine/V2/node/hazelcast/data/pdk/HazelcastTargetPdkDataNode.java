@@ -79,7 +79,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				if (Objects.isNull(dbNode.getUpdateConditionFieldMap())) {
 					dbNode.setUpdateConditionFieldMap(Maps.newHashMap());
 				}
-        updateConditionFieldsMap.putAll(dbNode.getUpdateConditionFieldMap());
+				updateConditionFieldsMap.putAll(dbNode.getUpdateConditionFieldMap());
 			}
 			initTargetDB();
 		} catch (Exception e) {
