@@ -1,18 +1,17 @@
 package io.tapdata.connector.tidb.util.pojo;
 
-public class ChangeFeed {
+public class Changefeed {
     private Long startTs;
     private String sinkUri;
     // synchronize DDL
     private Boolean syncDdl;
-    private String changeFeedId;
+    private  String changefeedId;
 
-    public String getChangeFeedId() {
-        return changeFeedId;
+    public String getChangefeedId() {
+        return changefeedId;
     }
-
     //Synchronize tables without valid indexes
-    public Boolean forceReplicate;
+    public  Boolean forceReplicate;
 
     public Long getStartTs() {
         return startTs;
@@ -45,13 +44,13 @@ public class ChangeFeed {
     public String getSinkUri() {
         return sinkUri;
     }
-
     //ignore Synchronize tables without primary keys
     private Boolean ignoreIneligibleTable;
 
     public Boolean getIgnoreIneligibleTable() {
         return ignoreIneligibleTable;
     }
+
 
 
     public void setIgnoreIneligibleTable(Boolean ignoreIneligibleTable) {
@@ -63,16 +62,17 @@ public class ChangeFeed {
     }
 
 
-    public ChangeFeed() {
+    public Changefeed() {
     }
 
     public void setChangeFeedId(String changeFeedId) {
-        this.changeFeedId = changeFeedId;
+        this.changefeedId = changeFeedId;
     }
 
-    public ChangeFeed(String sinkUri, Boolean syncDdl, String changeFeedId, Boolean ignoreIneligibleTable) {
+    public Changefeed(String sinkUri, Boolean syncDdl, String changeFeedId, Boolean ignoreIneligibleTable) {
         this.sinkUri = sinkUri;
         this.syncDdl = syncDdl;
-        this.changeFeedId = changeFeedId;
+        this.changefeedId = changeFeedId;
+        this.forceReplicate = forceReplicate;
     }
 }
