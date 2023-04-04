@@ -49,7 +49,7 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 		MethodMapping methodMapping = serviceSkeletonAnnotationHandler.getMethodMapping(crc);
 		if (methodMapping == null) {
 			TapLogger.error(TAG, "All methodMappings: " + JSON.toJSONString(serviceSkeletonAnnotationHandler.getMethodMap().keySet()));
-			throw new CoreException(NetErrors.ERROR_METHODREQUEST_METHODNOTFOUND, "Method doesn't be found by service_class_method " + RpcCacheManager.getInstance().getMethodByCrc(crc) + ",crc: " + crc);
+			throw new CoreException(NetErrors.ERROR_METHODREQUEST_METHODNOTFOUND, "Method not found by service_class_method " + RpcCacheManager.getInstance().getMethodByCrc(crc) + ",crc: " + crc);
 		}
 //		TapLogger.info(TAG, "argumentsFrom methodMapping {}", methodMapping);
 		int argCount = dis.getDataInputStream().readInt();

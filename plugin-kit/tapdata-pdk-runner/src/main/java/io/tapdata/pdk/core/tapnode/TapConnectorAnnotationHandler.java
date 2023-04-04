@@ -160,7 +160,7 @@ public class TapConnectorAnnotationHandler extends TapBaseAnnotationHandler {
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
-                        TapLogger.error(TAG, "Resource {} doesn't be found, connector class {} will be ignored, connector jar path is: {}.", tapConnectorClass.value(), clazz, jarFileName.toString());
+                        TapLogger.error(TAG, "Resource {} not found, connector class {} will be ignored, connector jar path is: {}.", tapConnectorClass.value(), clazz, jarFileName.toString());
                     }
                 }
             }
