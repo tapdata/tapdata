@@ -10,7 +10,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.kit.ErrorKit;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.oceanbase.*;
 import io.tapdata.oceanbase.bean.OceanbaseConfig;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
@@ -260,8 +260,8 @@ public class OceanbaseConnector extends CommonDbConnector {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
-        ErrorKit.ignoreAnyError(oceanbaseJdbcContext::close);
-        ErrorKit.ignoreAnyError(oceanbaseWriter::close);
+        EmptyKit.closeQuietly(oceanbaseJdbcContext);
+        EmptyKit.closeQuietly(oceanbaseWriter);
     }
 
     private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
