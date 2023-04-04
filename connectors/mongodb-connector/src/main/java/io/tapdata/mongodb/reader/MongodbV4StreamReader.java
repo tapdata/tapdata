@@ -177,9 +177,12 @@ public class MongodbV4StreamReader implements MongodbStreamReader {
 							UpdateDescription updateDescription = event.getUpdateDescription();
 							if (updateDescription != null) {
 								for (String f:updateDescription.getRemovedFields()) {
-									if (!after.containsKey(f)) {
+									if (after.keySet().stream().noneMatch(v -> v.equals(f) || v.startsWith(f + ".") || f.startsWith(v + "."))) {
 										unset.put(f, true);
 									}
+//									if (!after.containsKey(f)) {
+//										unset.put(f, true);
+//									}
 								}
 								if (unset.size() > 0) {
 									info.put("$unset", unset);
