@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
+import com.google.common.collect.Maps;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.TapdataShareLogEvent;
@@ -75,7 +76,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				writeStrategy = tableNode.getWriteStrategy();
 			} else if (node instanceof DatabaseNode) {
 				DatabaseNode dbNode = (DatabaseNode) node;
-				Optional.ofNullable(dbNode.getUpdateConditionFieldMap()).ifPresent(m -> updateConditionFieldsMap.putAll(m));
+        if (Objects.isNull(dbNode.getUpdateConditionFieldMap())) {
+          dbNode.setUpdateConditionFieldMap(Maps.newHashMap());
+        }
+        updateConditionFieldsMap.putAll(dbNode.getUpdateConditionFieldMap());
 			}
 			initTargetDB();
 		} catch (Exception e) {
