@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -51,13 +50,13 @@ public class TidbConnectionTest extends CommonDbTest {
     protected static String CHECK_TIDB_VERSION = "SELECT VERSION()";
     private boolean cdcCapability;
     private final ConnectionOptions connectionOptions;
-    private String array[];
+    private String[] array;
 
     public TidbConnectionTest(TidbConfig tidbConfig, Consumer<TestItem> consumer, ConnectionOptions connectionOptions) {
         super(tidbConfig, consumer);
         this.tidbConfig = tidbConfig;
         this.connectionOptions = connectionOptions;
-        jdbcContext = new TidbContext(tidbConfig);
+        jdbcContext = new TidbJdbcContext(tidbConfig);
     }
 
     public void setKafkaConfig(KafkaConfig kafkaConfig) {
@@ -68,18 +67,10 @@ public class TidbConnectionTest extends CommonDbTest {
     public Boolean testOneByOne() {
         testFunctionMap.put("testPbserver", this::testPbserver);
         testFunctionMap.put("testVersion", this::testVersion);
-        if (!ConnectionTypeEnum.SOURCE.getType().equals(commonDbConfig.get__connectionType())) {
-            testFunctionMap.put("testCreateTablePrivilege", this::testCreateTablePrivilege);
-        }
         if (!ConnectionTypeEnum.TARGET.getType().equals(commonDbConfig.get__connectionType())) {
-            testFunctionMap.put("testBinlogRowImage", this::testBinlogRowImage);
             TidbConfig tidbConfig = (TidbConfig) commonDbConfig;
             if (tidbConfig.getEnableIncrement()) {
                 testFunctionMap.put("testKafkaHostPort", this::testKafkaHostPort);
-                consumer.accept(testItem(IC_CONFIGURATION_ENABLED, TestItem.RESULT_SUCCESSFULLY, "Incremental configuration is enabled"));
-
-            } else {
-                consumer.accept(testItem(IC_CONFIGURATION_ENABLED, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, "Incremental configuration is not enabled"));
             }
         }
         return super.testOneByOne();
@@ -364,59 +355,6 @@ public class TidbConnectionTest extends CommonDbTest {
         return true;
     }
 
-    public Boolean testCreateTablePrivilege() {
-        try {
-            String username = tidbConfig.getUser();
-            boolean missed = checkMySqlCreateTablePrivilege(username);
-            if (missed) {
-                consumer.accept(testItem(MysqlTestItem.CHECK_CREATE_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
-                        "User does not have privileges [ create ], will not be able to use the create table(s) feature"));
-                return true;
-            }
-            consumer.accept(testItem(MysqlTestItem.CHECK_CREATE_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY));
-            return true;
-        } catch (SQLException e) {
-            int errorCode = e.getErrorCode();
-            String sqlState = e.getSQLState();
-            String message = e.getMessage();
-
-            // 如果源库是关闭密码认证时，默认权限校验通过
-            if (errorCode == 1290 && "HY000".equals(sqlState) && StringUtils.isNotBlank(message) && message.contains("--skip-grant-tables")) {
-                consumer.accept(testItem(MysqlTestItem.CHECK_CREATE_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY));
-            } else {
-                consumer.accept(testItem(MysqlTestItem.CHECK_CREATE_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
-                        "Check create table privileges failed; " + e.getErrorCode() + " " + e.getSQLState() + " " + e.getMessage() + "\n" + getStackString(e)));
-            }
-        } catch (Throwable e) {
-            consumer.accept(testItem(MysqlTestItem.CHECK_CREATE_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
-                    "Check create table privileges failed; " + e.getMessage() + "\n" + getStackString(e)));
-            return true;
-        }
-        return true;
-    }
-
-    protected boolean checkMySqlCreateTablePrivilege(String username) throws Throwable {
-        String sql = null;
-        AtomicBoolean result = new AtomicBoolean(true);
-        String versionMsg[] = array[2].split("v");
-        String version[] = versionMsg[1].split("\\.");
-        if (Integer.parseInt(version[0]) == 5) {
-            if (Integer.parseInt(version[2]) < 4) {
-                sql = CHECK_LOW_CREATE_TABLE_PRIVILEGES_SQL;
-            }
-        } else {
-            sql = CHECK_CREATE_TABLE_PRIVILEGES_SQL;
-        }
-        jdbcContext.query(String.format(sql, username), resultSet -> {
-            while (resultSet.next()) {
-                if (resultSet.getInt(1) > 0) {
-                    result.set(false);
-                }
-            }
-        });
-        return result.get();
-    }
-
     public Boolean setCdcCapabilitie() {
         if (cdcCapability) {
             List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDLParserType.MYSQL_CCJ_SQL_PARSER);
@@ -445,32 +383,6 @@ public class TidbConnectionTest extends CommonDbTest {
         public boolean isOnlyNeed() {
             return onlyNeed;
         }
-    }
-
-    @Override
-    public Boolean testStreamRead() {
-//        String database = commonDbConfig.getDatabase();
-//        AtomicBoolean cdcPrivilege = new AtomicBoolean();
-//        try {
-//            // check if the cdc is enabled for the database
-//            jdbcContext.queryWithNext(String.format(CHECK_DATABASE_ENABLE_CDC, database),
-//                    rs -> cdcPrivilege.set(rs.getBoolean("is_cdc_enabled")));
-//            if (!cdcPrivilege.get()) {
-//                consumer.accept(testItem(DbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
-//                        String.format(DATABASE_CDC_DISABLED, database)));
-//                return true;
-//            }
-//
-//            // check if user have access privilege to the cdc tables
-//            jdbcContext.execute(String.format(SELECT_CDC_CHANGE_TABLES, database));
-//            consumer.accept(testItem(DbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY));
-//            return true;
-//        } catch (Throwable e) {
-//            e.printStackTrace();
-//        }
-//        consumer.accept(testItem(DbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
-//                String.format(CDC_TABLE_NO_PRIVILEGE, database)));
-        return true;
     }
 
     /**
