@@ -1,7 +1,7 @@
 ## **Connect configuration help**
 ###  **1. MongoDB Atlas Installation Instructions**
 Follow these instructions to ensure that the MongoDB Atlas database is successfully added and used in Tapdata.
->**Note**：MongoDB Atlas must be a replica set when serving as a source connection.
+>**Note**：When connecting to MongoDB Atlas, you need to enter a connection string based on the URI demonstration format of the MongoDB Atlas database connection. The connection string must be specified as user name, password, and database name.
 #### **2. Supported version**
 MongoDB Atlas 5.0.15
 >**Note**：Ensure that both the resource database and the target database are of version 5.0 or later.
@@ -34,9 +34,9 @@ readWriteAnyDatabase@admin
 ```
 ### **4.  MongoDB Atlas TLS/SSL configuration**
 - **Enable TLS/SSL**<br>
-Please select "Yes" in "Connect using TLS/SSL" on the left configuration page to configure<br>
+  Please select "Yes" in "Connect using TLS/SSL" on the left configuration page to configure<br>
 - **Set MongoDB PemKeyFile**<br>
-Click "Select File" and select the certificate file. If the certificate file is password protected, fill in the password in "Private Key Password"<br>
+  Click "Select File" and select the certificate file. If the certificate file is password protected, fill in the password in "Private Key Password"<br>
 - **Set CAFile**<br>
-Please select "Yes" in "Validate server certificate" on the left configuration page<br>
-Then click "Select File" in "Authentication and Authorization" below<br>
+  Please select "Yes" in "Validate server certificate" on the left configuration page<br>
+  Then click "Select File" in "Authentication and Authorization" below<br>

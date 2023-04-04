@@ -321,11 +321,13 @@ public class PostgresConnector extends CommonDbConnector {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
-				if (EmptyKit.isNotNull(cdcRunner)) {
-					ErrorKit.ignoreAnyError(cdcRunner::closeCdcRunner);
-				}
-        ErrorKit.ignoreAnyError(postgresTest::close);
-        ErrorKit.ignoreAnyError(postgresJdbcContext::close);
+        ErrorKit.ignoreAnyError(() -> {
+            if (EmptyKit.isNotNull(cdcRunner)) {
+                cdcRunner.closeCdcRunner();
+            }
+        });
+        EmptyKit.closeQuietly(postgresTest);
+        EmptyKit.closeQuietly(postgresJdbcContext);
     }
 
     //initialize jdbc context, slot name, version
