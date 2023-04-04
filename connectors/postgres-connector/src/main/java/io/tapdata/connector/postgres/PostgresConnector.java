@@ -315,9 +315,13 @@ public class PostgresConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
-        ErrorKit.ignoreAnyError(cdcRunner::closeCdcRunner);
-        ErrorKit.ignoreAnyError(postgresTest::close);
-        ErrorKit.ignoreAnyError(postgresJdbcContext::close);
+        ErrorKit.ignoreAnyError(() -> {
+            if (EmptyKit.isNotNull(cdcRunner)) {
+                cdcRunner.closeCdcRunner();
+            }
+        });
+        EmptyKit.closeQuietly(postgresTest);
+        EmptyKit.closeQuietly(postgresJdbcContext);
     }
 
     //initialize jdbc context, slot name, version

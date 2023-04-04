@@ -2,7 +2,7 @@ package io.tapdata.connector.tidb.dml;
 
 import io.tapdata.connector.mysql.MysqlMaker;
 import io.tapdata.connector.mysql.SqlMaker;
-import io.tapdata.connector.tidb.TidbContext;
+import io.tapdata.connector.tidb.TidbJdbcContext;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -19,10 +19,10 @@ import java.util.function.Predicate;
 
 public class TidbReader {
 
-    private final TidbContext tidbContext;
+    private final TidbJdbcContext tidbJdbcContext;
 
-    public TidbReader(TidbContext tidbContext) {
-        this.tidbContext = tidbContext;
+    public TidbReader(TidbJdbcContext tidbJdbcContext) {
+        this.tidbJdbcContext = tidbJdbcContext;
     }
 
     public void readWithFilter(TapConnectorContext tapConnectorContext, TapTable tapTable, TapAdvanceFilter tapAdvanceFilter,
@@ -32,7 +32,7 @@ public class TidbReader {
         AtomicLong row = new AtomicLong(0L);
         try {
             Set<String> dateTypeSet = dateFields(tapTable);
-            tidbContext.query(sql, rs -> {
+            tidbJdbcContext.query(sql, rs -> {
                 ResultSetMetaData metaData = rs.getMetaData();
                 while (rs.next()) {
                     if (null != stop && stop.test(null)) {

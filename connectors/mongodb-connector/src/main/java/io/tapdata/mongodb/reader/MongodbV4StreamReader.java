@@ -7,6 +7,7 @@ import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.FullDocument;
 import com.mongodb.client.model.changestream.OperationType;
+import com.mongodb.client.model.changestream.UpdateDescription;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -157,6 +158,23 @@ public class MongodbV4StreamReader implements MongodbStreamReader {
 							after.putAll(fullDocument);
 
 							TapUpdateRecordEvent recordEvent = updateDMLEvent(null, after, collectionName);
+							Map<String, Object> info = new DataMap();
+							Map<String, Object> unset = new DataMap();
+							UpdateDescription updateDescription = event.getUpdateDescription();
+							if (updateDescription != null) {
+								for (String f:updateDescription.getRemovedFields()) {
+									if (after.keySet().stream().noneMatch(v -> v.equals(f) || v.startsWith(f + ".") || f.startsWith(v + "."))) {
+										unset.put(f, true);
+									}
+//									if (!after.containsKey(f)) {
+//										unset.put(f, true);
+//									}
+								}
+								if (unset.size() > 0) {
+									info.put("$unset", unset);
+								}
+							}
+							recordEvent.setInfo(info);
 							recordEvent.setReferenceTime((long) (event.getClusterTime().getTime()) * 1000);
 							tapEvents.add(recordEvent);
 						} else {
