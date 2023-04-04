@@ -88,8 +88,12 @@ public class SelectDbConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
-        ErrorKit.ignoreAnyError(selectDbJdbcContext::close);
-        ErrorKit.ignoreAnyError(selectDbStreamLoader::shutdown);
+        EmptyKit.closeQuietly(selectDbJdbcContext);
+        ErrorKit.ignoreAnyError(() -> {
+            if (EmptyKit.isNotNull(selectDbStreamLoader)) {
+                selectDbStreamLoader.shutdown();
+            }
+        });
         Optional.ofNullable(this.valve).ifPresent(WriteValve::close);
     }
 

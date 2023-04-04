@@ -9,7 +9,6 @@ import io.tapdata.databend.config.DatabendConfig;
 import io.tapdata.databend.ddl.sqlmaker.DatabendDDLSqlMaker;
 import io.tapdata.databend.dml.DatabendBatchWriter;
 import io.tapdata.databend.dml.TapTableWriter;
-import io.tapdata.databend.util.JdbcUtil;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -25,7 +24,6 @@ import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
-import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -276,8 +274,8 @@ public class DatabendConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
-        ErrorKit.ignoreAnyError(databendJdbcContext::close);
-        JdbcUtil.closeQuietly(databendBatchWriter);
+        EmptyKit.closeQuietly(databendJdbcContext);
+        EmptyKit.closeQuietly(databendBatchWriter);
     }
 
 }

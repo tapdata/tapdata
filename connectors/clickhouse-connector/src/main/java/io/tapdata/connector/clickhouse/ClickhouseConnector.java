@@ -8,7 +8,6 @@ import io.tapdata.connector.clickhouse.config.ClickhouseConfig;
 import io.tapdata.connector.clickhouse.ddl.sqlmaker.ClickhouseDDLSqlMaker;
 import io.tapdata.connector.clickhouse.dml.ClickhouseBatchWriter;
 import io.tapdata.connector.clickhouse.dml.TapTableWriter;
-import io.tapdata.connector.clickhouse.util.JdbcUtil;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -23,7 +22,6 @@ import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
-import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -178,8 +176,8 @@ public class ClickhouseConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
-        ErrorKit.ignoreAnyError(clickhouseJdbcContext::close);
-        JdbcUtil.closeQuietly(clickhouseWriter);
+        EmptyKit.closeQuietly(clickhouseJdbcContext);
+        EmptyKit.closeQuietly(clickhouseWriter);
     }
 
     @Override
