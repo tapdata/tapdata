@@ -1,4 +1,4 @@
-config.setStreamReadIntervalSeconds(60);
+config.setStreamReadIntervalSeconds(10);
 var batchStart = Date.parse(new Date());
 var afterData;
 var clientInfo = {
@@ -746,17 +746,19 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
         pageInfo = uiApi.query[tableName + ""].pageInfo;
         afterData = pageInfo.endCursor;
         let resultData = uiApi.query[tableName + ""].edges;
-        disassemblyData(resultData, result);
+        if (isFirst) {
+            disassemblyData(resultData, result,offset);
+        } else {
+            disassemblyDataAfter(resultData, result,offset);
+        }
         isFirst = false;
-        batchReadSender.send(result, tableName, {}, false);
+        batchReadSender.send(result, tableName, offset, false);
         result = [];
-        batchStart = Number(Date.parse(new Date()));
     } while (pageInfo.hasNextPage && isAlive());
 }
 
 function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
     if (!checkParam(tableNameList)) return;
-
     for (let index = 0; index < tableNameList.length; index++) {
         if (!isAlive()) break;
         let pageInfo = {"hasNextPage": true};
@@ -767,48 +769,21 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
             if (!isAlive()) break;
             try {
                 if (first) {
+                    log.warn("第一次")
+                    let resultDays = Math.ceil(Number(new Date(new Date().getTime()) - offset) / 86400000)
+                    clientInfo.days = resultDays;
                     invoke = invoker.invoke(tableNameList[index] + " stream read", clientInfo);
+                    streamData(index, invoke, pageInfo, afterData, tableNameList, offset, arr, pageSize, streamReadSender, first);
+                    first = false;
                 } else {
+                    log.warn("第二次")
                     clientInfo.after = afterData;
+                    clientInfo.days = 1;
                     invoke = invoker.invoke(tableNameList[index] + " stream read by after", clientInfo);
+                    streamData(index, invoke, pageInfo, afterData, tableNameList, offset, arr, pageSize, streamReadSender, first);
                 }
             } catch (e) {
-                throw ("Failed to query the data. Please check the connection." + JSON.stringify(invoke));
-            }
-            let resultMap = invoke.result.data.uiapi.query[tableNameList[index] + ""];
-            let resultData = resultMap.edges;
-            pageInfo = resultMap.pageInfo;
-            afterData = pageInfo.endCursor;
-            if (resultData[0] && resultData.length > 0) {
-                for (let j = 0; j < resultData.length; j++) {
-                    if (!isAlive()) break;
-                    let resultItem = resultData[j];
-                    let nod = resultItem.node;
-                    if (Number(new Date(nod.LastModifiedDate.value)) > Number(new Date(batchStart))) {
-                        if (nod.LastModifiedDate.value === nod.CreatedDate.value) {
-                            arr[j] = {
-                                "eventType": "i",
-                                "tableName": tableNameList[index],
-                                "afterData": sendData(nod),
-                                "referenceTime": Number(new Date())
-                            };
-                        } else {
-                            arr[j] = {
-                                "eventType": "u",
-                                "tableName": tableNameList[index],
-                                "afterData": sendData(nod),
-                                "referenceTime": Number(new Date())
-                            };
-                        }
-                        batchStart = Date.parse(new Date());
-                    } else {
-                        batchStart = Date.parse(new Date());
-                        break;
-                    }
-                }
-                streamReadSender.send(arr, tableNameList[index], {});
-                arr = [];
-                first = false;
+                throw ("Failed to query the data. Please check the connection." + JSON.stringify(invoke) + exceptionUtil.eMessage(e));
             }
         } while (pageInfo.hasNextPage && isAlive())
     }
