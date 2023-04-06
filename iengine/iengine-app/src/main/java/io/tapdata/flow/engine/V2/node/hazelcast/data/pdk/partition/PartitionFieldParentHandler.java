@@ -32,7 +32,7 @@ public class PartitionFieldParentHandler {
 		table = tapTable.getId();
 		TapIndexEx partitionIndex = tapTable.partitionIndex();
 		if(partitionIndex == null || partitionIndex.getIndexFields() == null || partitionIndex.getIndexFields().isEmpty()) {
-			throw new CoreException(PartitionErrorCodes.PARTITION_INDEX_NULL, "Partition index is illegal for table {}", table);
+			throw new CoreException(PartitionErrorCodes.PARTITION_INDEX_NULL, "Not find any primary keys, partition index is illegal for table {}, cancel full breakpoint resume.", table);
 		}
 
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
