@@ -3,7 +3,9 @@
     "name": "Metabase",
     "icon": "icon/metabase.png",
     "doc" : "${doc}",
-    "id": "metabase"
+    "id": "metabase",
+    "authentication": "Beta",
+    "tags": ["SaaS"]
   },
   "configOptions": {
     "pdkExpansion": [],

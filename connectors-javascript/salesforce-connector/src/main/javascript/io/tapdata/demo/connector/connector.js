@@ -724,11 +724,32 @@ function discoverSchema(connectionConfig) {
     ];
 }
 
+function timestampToOffset(time) {
+    return {
+        "currentTime": time,
+        "recordId": null,
+        "firstTime" : true
+    }
+}
 function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
+    if (!offset || null === offset || !offset.firstTime) {
+        offset = timestampToOffset(offset);
+    }
     let invoke;
     let result = [];
-    let isFirst = true;
+    let isFirst = false;
     let pageInfo = {"hasNextPage": true};
+    if(offset && offset.currentTime === null) {
+        if(offset.firstTime) {
+            isFirst = true;
+            offset.firstTime = false;
+        } else {
+            let resultDays = Math.ceil(Number(new Date(new Date().getTime()) - offset.currentTime) / 86400000)
+            clientInfo.days = resultDays;
+        }
+    } else {
+        throw "Unexpected offset " + JSON.stringify(offset);
+    }
     do {
         let uiApi;
         try {
@@ -747,45 +768,61 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
         afterData = pageInfo.endCursor;
         let resultData = uiApi.query[tableName + ""].edges;
         if (isFirst) {
-            disassemblyData(resultData, result,offset);
+            offset = disassemblyData(resultData, result, offset, pageInfo);
         } else {
-            disassemblyDataAfter(resultData, result,offset);
+            offset = disassemblyDataAfter(resultData, result, offset, pageInfo);
         }
         isFirst = false;
-        batchReadSender.send(result, tableName, offset, false);
+        batchReadSender.send(result, tableName, offset);
         result = [];
     } while (pageInfo.hasNextPage && isAlive());
 }
 
 function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
+    log.warn("offset:{}",offset)
+    if (!offset || null === offset || !offset.firstTime) {
+        offset = timestampToOffset(offset);
+    }
+    let isFirst = false;
+    if(offset && offset.currentTime) {
+        if(offset.firstTime) {
+            isFirst = true;
+            offset.firstTime = false;
+        }
+    } else {
+        throw "Unexpected offset " + JSON.stringify(offset);
+    }
     if (!checkParam(tableNameList)) return;
     for (let index = 0; index < tableNameList.length; index++) {
         if (!isAlive()) break;
         let pageInfo = {"hasNextPage": true};
         let arr = [];
         let invoke;
-        let first = true;
+        let resultMap;
         do {
             if (!isAlive()) break;
             try {
-                if (first) {
-                    log.warn("第一次")
-                    let resultDays = Math.ceil(Number(new Date(new Date().getTime()) - offset) / 86400000)
+                if (isFirst) {
+                    log.warn("isFirst:{}",isFirst)
+                    let resultDays = Math.ceil(Number(new Date(new Date().getTime()) - offset.currentTime) / 86400000)
                     clientInfo.days = resultDays;
                     invoke = invoker.invoke(tableNameList[index] + " stream read", clientInfo);
-                    streamData(index, invoke, pageInfo, afterData, tableNameList, offset, arr, pageSize, streamReadSender, first);
-                    first = false;
                 } else {
-                    log.warn("第二次")
                     clientInfo.after = afterData;
                     clientInfo.days = 1;
                     invoke = invoker.invoke(tableNameList[index] + " stream read by after", clientInfo);
-                    streamData(index, invoke, pageInfo, afterData, tableNameList, offset, arr, pageSize, streamReadSender, first);
+
                 }
+                resultMap = invoke.result.data.uiapi.query[tableNameList[index] + ""];
+                if (resultMap.pageInfo.hasNextPage) {
+                    afterData = resultMap.pageInfo.endCursor;
+                }
+                streamData(index, invoke, resultMap, pageInfo, tableNameList, offset, arr, pageSize, streamReadSender);
+                isFirst = false;
             } catch (e) {
                 throw ("Failed to query the data. Please check the connection." + JSON.stringify(invoke) + exceptionUtil.eMessage(e));
             }
-        } while (pageInfo.hasNextPage && isAlive())
+        } while (resultMap.pageInfo.hasNextPage && isAlive())
     }
 }
 

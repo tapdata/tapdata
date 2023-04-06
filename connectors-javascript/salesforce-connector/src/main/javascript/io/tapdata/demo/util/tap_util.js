@@ -23,15 +23,21 @@ function checkParam(param) {
     return 'undefined' !== param && null != param;
 }
 
-function disassemblyData(resultData, result, offset) {
+function disassemblyData(resultData, result, offset, pageInfo) {
     for (let j = 0; j < resultData.length; j++) {
         if (!isAlive()) break;
         let resultItem = resultData[j];
         let nod = resultItem.node;
         let keys = Object.keys(nod);
-        offset = {
-            "currentTime" : Number(new Date(nod.CreatedDate.value)),
-            "recordId" : nod.Id
+        if (resultItem.cursor === pageInfo.endCursor) {
+            let time = Number(new Date(nod.CreatedDate.value));
+            if (!offset || !offset.currentTime || time > offset.currentTime) {
+                offset = {
+                    "currentTime": time,
+                    "recordId": nod.Id,
+                    "firstTime": false
+                }
+            }
         }
         for (let index = 0; index < keys.length; index++) {
             if (!isAlive()) break;
@@ -40,20 +46,40 @@ function disassemblyData(resultData, result, offset) {
         }
         result.push(nod);
     }
+    return offset;
 }
 
-function disassemblyDataAfter(resultData, result, offset) {
-    let resultItem = resultData[j];
-    let nod = resultItem.node;
-    let keys = Object.keys(nod);
+function disassemblyDataAfter(resultData, result, offset, pageInfo) {
+    let bool = false;
     for (let j = 0; j < resultData.length; j++) {
-        if (Number(new Date(nod.CreatedDate.value) < offset.currentTime) || nod.Id === offset.recordId) {
-            continue;
+        let resultItem = resultData[j];
+        let nod = resultItem.node;
+        let keys = Object.keys(nod);
+        let createTime = Number(new Date(nod.CreatedDate.value));
+        if (offset && offset.currentTime) {
+            if (createTime < offset.currentTime) {
+                if (!bool) {
+                    if (!offset.recordId) {
+                        bool = true;
+                    } else {
+                        if (nod.id === offset.recordId) {
+                            bool = true;
+                        }
+                        continue;
+                    }
+                }
+            }
         }
         if (!isAlive()) break;
-        offset = {
-            "currentTime" : Number(new Date(nod.CreatedDate.value)),
-            "recordId" : nod.Id
+        if (resultItem.cursor === pageInfo.endCursor) {
+            let time = new Date(nod.CreatedDate.value).getTime();
+            if (!offset || !offset.currentTime || time > offset.currentTime) {
+                offset = {
+                    "currentTime": time,
+                    "recordId": nod.Id,
+                    "firstTime": false
+                }
+            }
         }
         for (let index = 0; index < keys.length; index++) {
             if (!isAlive()) break;
@@ -62,6 +88,7 @@ function disassemblyDataAfter(resultData, result, offset) {
         }
         result.push(nod);
     }
+    return offset;
 }
 
 function sendData(nod) {
@@ -74,50 +101,43 @@ function sendData(nod) {
     return nod;
 }
 
-function streamData(index,invoke, pageInfo, afterData, tableNameList, offset, arr, pageSize, streamReadSender,first) {
-    log.warn("zhelizheliu")
-    log.warn("invoke.result.data.uiapi:{}",invoke.result.data.uiapi)
-    log.warn("tablename:{}",tableNameList)
-    log.warn("invoke.result.data.uiapi.query[tableNameList[index] :{}",invoke.result.data.uiapi.query[tableNameList[index] + ""])
-    let resultMap = invoke.result.data.uiapi.query[tableNameList[index] + ""];
-    log.warn("这里666")
-
+function streamData(index, invoke, resultMap, pageInfo, tableNameList, offset, arr, pageSize, streamReadSender) {
+    resultMap = invoke.result.data.uiapi.query[tableNameList[index] + ""];
     let resultData = resultMap.edges;
     if (resultData[0] && resultData.length > 0) {
-        afterData = resultMap.pageInfo.endCursor;
         for (let j = 0; j < resultData.length; j++) {
             if (!isAlive()) break;
             let resultItem = resultData[j];
             let nod = resultItem.node;
-            let cId = offset.recordId
-            log.warn("这里1")
-            offset = {
-                "currentTime" : Number(new Date(new Date().getTime())),
-                "recordId" : nod.Id
-            }
-            log.warn("这里2")
-            if (Number(new Date(nod.LastModifiedDate.value)) > isStreamFirst(offset,first) || nod.Id !== cId) {
-                if (nod.LastModifiedDate.value === nod.CreatedDate.value) {
-                    arr[j] = {
-                        "eventType": "i",
-                        "tableName": tableNameList[index],
-                        "afterData": sendData(nod),
-                        "referenceTime": Number(new Date())
-                    };
+            let lastModifiedDate = Number(new Date(nod.LastModifiedDate.value));
+            if (lastModifiedDate >= offset.currentTime) {
+                log.warn("lastModifiedDate:{}", lastModifiedDate)
+                if (offset.recordId !== nod.id) {
+                    offset.currentTime = BigInt(lastModifiedDate);
+                    offset.recordId = nod.Id;
+                    offset.firstTime = false;
+                    if (nod.LastModifiedDate.value === nod.CreatedDate.value) {
+                        log.warn("增加勒一条数据")
+                        arr[j] = {
+                            "eventType": "i",
+                            "tableName": tableNameList[index],
+                            "afterData": sendData(nod),
+                            "referenceTime": Number(new Date())
+                        };
+                    } else {
+                        log.warn("修改勒一条数据")
+                        arr[j] = {
+                            "eventType": "u",
+                            "tableName": tableNameList[index],
+                            "afterData": sendData(nod),
+                            "referenceTime": Number(new Date())
+                        };
+                    }
+                    log.warn("offset.currentTime:{}", offset.currentTime)
                 } else {
-                    arr[j] = {
-                        "eventType": "u",
-                        "tableName": tableNameList[index],
-                        "afterData": sendData(nod),
-                        "referenceTime": Number(new Date())
-                    };
+                    continue;
+                    log.warn("continue")
                 }
-                log.warn("offset.currentTime:{}",offset.currentTime)
-                log.warn("这里3")
-            } else {
-
-                offset = {"currentTime" : Number(new Date(new Date().getTime()))}
-                break;
             }
         }
         streamReadSender.send(arr, tableNameList[index], offset);
@@ -125,19 +145,11 @@ function streamData(index,invoke, pageInfo, afterData, tableNameList, offset, ar
     }
 }
 
-function isStreamFirst(offset,first) {
-    if (first) {
-        return offset;
-    } else {
-        return offset.currentTime;
-    }
-
-}
 function checkAuthority(invoke, httpCode) {
-    if (httpCode === 400 || (invoke.result.error_description && invoke.result.error_description === "expired access/refresh token")){
-        throw ("Error: " + invoke.result.error_description + " HttpCode: " + httpCode );
-    }else if (invoke.result[0] && invoke.result[0].errorCode && invoke.result[0].message) {
-        throw "Error: " + invoke.result[0].message + " Code: " + invoke.result[0].errorCode + " HttpCode: " + httpCode ;
+    if (httpCode === 400 || (invoke.result.error_description && invoke.result.error_description === "expired access/refresh token")) {
+        throw ("Error: " + invoke.result.error_description + " HttpCode: " + httpCode);
+    } else if (invoke.result[0] && invoke.result[0].errorCode && invoke.result[0].message) {
+        throw "Error: " + invoke.result[0].message + " Code: " + invoke.result[0].errorCode + " HttpCode: " + httpCode;
     }
 }
 
@@ -145,7 +157,7 @@ function result(invoke, httpCode) {
     if (httpCode >= 200 && httpCode < 300) {
         return "Pass";
     } else if (invoke.result[0] && invoke.result[0].errorCode && invoke.result[0].message) {
-        return "Error: " + invoke.result[0].message + " Code: " + invoke.result[0].errorCode + " HttpCode: " + httpCode ;
+        return "Error: " + invoke.result[0].message + " Code: " + invoke.result[0].errorCode + " HttpCode: " + httpCode;
     } else {
         return "Error: Unknown. HttpCode: " + httpCode
     }
