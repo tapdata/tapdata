@@ -555,6 +555,17 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
 
 		biConsumer.accept(dto.getAdds(), (permissions, addRoleMappingDtos, roleId) -> {
 			if (CollectionUtils.isNotEmpty(addRoleMappingDtos)) {
+				//去重
+				List<Criteria> queryExistsCriteriaList = addRoleMappingDtos.stream()
+								.map(r -> Criteria.where("roleId").is(r.getRoleId())
+												.and("principalId").is(r.getPrincipalId())
+												.and("principalType").is(PrincipleType.PERMISSION))
+								.collect(Collectors.toList());
+				List<RoleMappingDto> alreadyExistsRoleMappings = roleMappingService.findAll(Query.query(new Criteria().orOperator(queryExistsCriteriaList)));
+				if (CollectionUtils.isNotEmpty(alreadyExistsRoleMappings)) {
+					Set<String> alreadyExistsPermissionCodes = alreadyExistsRoleMappings.stream().map(RoleMappingDto::getPrincipalId).collect(Collectors.toSet());
+					addRoleMappingDtos = addRoleMappingDtos.stream().filter(r -> !alreadyExistsPermissionCodes.contains(r.getPrincipalId())).collect(Collectors.toList());
+				}
 				roleMappingService.save(addRoleMappingDtos, userDetail);
 			}
 			//添加没有的父权限
