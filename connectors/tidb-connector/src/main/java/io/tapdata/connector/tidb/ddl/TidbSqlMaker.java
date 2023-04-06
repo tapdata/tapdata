@@ -215,7 +215,7 @@ public class TidbSqlMaker extends MysqlMaker implements DDLSqlMaker {
         return constraintName;
     }
 
-    private static final String TIDB_FIELD_TEMPLATE = "%s";
+    private static final String TIDB_FIELD_TEMPLATE = "`%s`";
     private static final String TIDB_TABLE_TEMPLATE = "%s.%s";//"[%s].[%s].[%s]";
     private static final String TIDB_TABLE_WITHOUT_DATABASE_TEMPLATE = "%s.%s";
 
