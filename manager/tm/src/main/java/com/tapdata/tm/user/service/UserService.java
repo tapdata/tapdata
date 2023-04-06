@@ -517,59 +517,64 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
         return serverPort;
     }
 
-    public void updatePermissionRoleMapping(UpdatePermissionRoleMappingDto dto, UserDetail userDetail) {
+	public void updatePermissionRoleMapping(UpdatePermissionRoleMappingDto dto, UserDetail userDetail) {
+		BiConsumer<List<RoleMappingDto>, Bi3Consumer<List<PermissionEntity>, List<RoleMappingDto>, ObjectId>> biConsumer = (roleMappingDtos, consumer) -> {
+			if (CollectionUtils.isNotEmpty(roleMappingDtos)) {
+				Map<ObjectId, List<RoleMappingDto>> roleMappingByRoleIdMap = roleMappingDtos.stream().collect(Collectors.groupingBy(RoleMappingDto::getRoleId));
+				for (Map.Entry<ObjectId, List<RoleMappingDto>> entry : roleMappingByRoleIdMap.entrySet()) {
+					List<RoleMappingDto> dtos = entry.getValue();
+					ObjectId roleId = entry.getKey();
+					//查询当前页面菜单的权限
+					List<PermissionEntity> permissions = getPermissionsByCodes(dtos.stream().map(RoleMappingDto::getPrincipalId).filter(StringUtils::isNotEmpty).collect(Collectors.toSet()));
+					//获取指定的页面菜单的权限及其子权限
+					List<RoleMappingDto> wholeRoleMappingDto = getWholeRoleMappingDto(permissions.stream().map(PermissionEntity::getName).collect(Collectors.toSet()), roleId);
+					consumer.accept(permissions, wholeRoleMappingDto, roleId);
+				}
+			}
+		};
 
-        BiConsumer<List<RoleMappingDto>, Bi3Consumer<List<PermissionEntity>, List<RoleMappingDto>, ObjectId>> biConsumer = (roleMappingDtos, consumer) -> {
-           if (CollectionUtils.isNotEmpty(roleMappingDtos)) {
-               Map<ObjectId, List<RoleMappingDto>> roleMappingByRoleIdMap = roleMappingDtos.stream().collect(Collectors.groupingBy(RoleMappingDto::getRoleId));
-               for (Map.Entry<ObjectId, List<RoleMappingDto>> entry : roleMappingByRoleIdMap.entrySet()) {
-                   List<RoleMappingDto> dtos = entry.getValue();
-                   ObjectId roleId = entry.getKey();
-                   //查询当前页面菜单的权限
-                   List<PermissionEntity> permissions = getPermissionsByCodes(dtos.stream().map(RoleMappingDto::getPrincipalId).collect(Collectors.toSet()));
-                   //获取指定的页面菜单的权限及其子权限
-                   List<RoleMappingDto> wholeRoleMappingDto = getWholeRoleMappingDto(permissions.stream().map(PermissionEntity::getName).collect(Collectors.toSet()), roleId);
-                   consumer.accept(permissions, wholeRoleMappingDto, roleId);
-               }
-           }
-        };
+		biConsumer.accept(dto.getDeletes(), (permissions, deleteRoleMappingDtos, roleId) -> {
+			List<Criteria> deleteCriteriaList = deleteRoleMappingDtos.stream()
+							.map(delete -> Criteria.where("roleId").is(delete.getRoleId())
+											.and("principalId").is(delete.getPrincipalId())
+											.and("principalType").is(PrincipleType.PERMISSION))
+							.collect(Collectors.toList());
+			if (CollectionUtils.isNotEmpty(deleteCriteriaList)) {
+				roleMappingService.deleteAll(Query.query(new Criteria().orOperator(deleteCriteriaList)));
+			}
+			//删除没有页面菜单的父权限
+			List<RoleMappingDto> toDeleteParentRoleMappingDtos = getTodoParentRoleMappingDtos(roleId, permissions);
+			if (CollectionUtils.isNotEmpty(toDeleteParentRoleMappingDtos)) {
+				roleMappingService.deleteAll(Query.query(new Criteria().orOperator(toDeleteParentRoleMappingDtos.stream()
+								.map(delete -> Criteria.where("roleId").is(delete.getRoleId())
+												.and("principalId").is(delete.getPrincipalId())
+												.and("principalType").is(PrincipleType.PERMISSION))
+								.collect(Collectors.toList()))));
+			}
+		});
 
-        biConsumer.accept(dto.getDeletes(), (permissions, deleteRoleMappingDtos, roleId) -> {
-            List<Criteria> deleteCriteriaList = deleteRoleMappingDtos.stream()
-                    .map(delete -> Criteria.where("roleId").is(delete.getRoleId())
-                            .and("principalId").is(delete.getPrincipalId())
-                            .and("principalType").is(PrincipleType.PERMISSION))
-                    .collect(Collectors.toList());
-            roleMappingService.deleteAll(Query.query(new Criteria().orOperator(deleteCriteriaList)));
-            //删除没有页面菜单的父权限
-            List<RoleMappingDto> toDeleteParentRoleMappingDtos = getTodoParentRoleMappingDtos(roleId, permissions);
-            if (CollectionUtils.isNotEmpty(toDeleteParentRoleMappingDtos)) {
-                roleMappingService.deleteAll(Query.query(new Criteria().orOperator(toDeleteParentRoleMappingDtos.stream()
-                        .map(delete -> Criteria.where("roleId").is(delete.getRoleId())
-                                .and("principalId").is(delete.getPrincipalId())
-                                .and("principalType").is(PrincipleType.PERMISSION))
-                        .collect(Collectors.toList()))));
-            }
-        });
-
-        biConsumer.accept(dto.getAdds(), (permissions, addRoleMappingDtos, roleId) -> {
-            roleMappingService.save(addRoleMappingDtos, userDetail);
-            //添加没有的父权限
-            Set<String> parentPermissionCodes = getParentPermissionCodes(permissions);
-            List<Criteria> queryParentCriteriaList = parentPermissionCodes.stream()
-                    .map(code -> Criteria.where("roleId").is(roleId)
-                            .and("principalId").is(code)
-                            .and("principalType").is(PrincipleType.PERMISSION))
-                    .collect(Collectors.toList());
-            List<RoleMappingDto> alreadyExistsParentRoleMappings = roleMappingService.findAll(Query.query(new Criteria().orOperator(queryParentCriteriaList)));
-            alreadyExistsParentRoleMappings.stream().map(RoleMappingDto::getPrincipalId).forEach(parentPermissionCodes::remove);
-            List<RoleMappingDto> toAddParentRoleMappingDtos = parentPermissionCodes.stream()
-                    .map(code -> new RoleMappingDto(PrincipleType.PERMISSION.getValue(), code, roleId)).collect(Collectors.toList());
-            if (CollectionUtils.isNotEmpty(toAddParentRoleMappingDtos)) {
-                roleMappingService.save(toAddParentRoleMappingDtos, userDetail);
-            }
-        });
-    }
+		biConsumer.accept(dto.getAdds(), (permissions, addRoleMappingDtos, roleId) -> {
+			if (CollectionUtils.isNotEmpty(addRoleMappingDtos)) {
+				roleMappingService.save(addRoleMappingDtos, userDetail);
+			}
+			//添加没有的父权限
+			Set<String> parentPermissionCodes = getParentPermissionCodes(permissions);
+			if (CollectionUtils.isNotEmpty(parentPermissionCodes)) {
+				List<Criteria> queryParentCriteriaList = parentPermissionCodes.stream()
+								.map(code -> Criteria.where("roleId").is(roleId)
+												.and("principalId").is(code)
+												.and("principalType").is(PrincipleType.PERMISSION))
+								.collect(Collectors.toList());
+				List<RoleMappingDto> alreadyExistsParentRoleMappings = roleMappingService.findAll(Query.query(new Criteria().orOperator(queryParentCriteriaList)));
+				alreadyExistsParentRoleMappings.stream().map(RoleMappingDto::getPrincipalId).forEach(parentPermissionCodes::remove);
+				List<RoleMappingDto> toAddParentRoleMappingDtos = parentPermissionCodes.stream()
+								.map(code -> new RoleMappingDto(PrincipleType.PERMISSION.getValue(), code, roleId)).collect(Collectors.toList());
+				if (CollectionUtils.isNotEmpty(toAddParentRoleMappingDtos)) {
+					roleMappingService.save(toAddParentRoleMappingDtos, userDetail);
+				}
+			}
+		});
+	}
 
     @NotNull
     private List<RoleMappingDto> getTodoParentRoleMappingDtos(ObjectId roleId, List<PermissionEntity> permissions) {
@@ -618,14 +623,49 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
         }})));
     }
 
+	/**
+	 * {"$and":
+	 *     [
+	 *         {name:"v2_datasource_menu"},
+	 *         {"$or":
+	 *             [
+	 *                 {parentId:{"$eq": null}},
+	 *                 {parentId:{"$eq":""}},
+	 *                 {parentId:{"$exists":false}}
+	 *             ]
+	 *         }
+	 *      ]
+	 * }
+	 * @param permissionCodes
+	 * @return
+	 */
     private List<PermissionEntity> getPermissionsByCodes(Set<String> permissionCodes) {
-        Filter filter = new Filter(Where.where("name", new HashMap<String, Object>() {{
-            put("$in", permissionCodes);
-        }}).and("parentId", new HashMap<String, Object>() {{
-            put("$ne", null);
-        }}).and("parentId", new HashMap<String, Object>() {{
-            put("$ne", "");
-        }}));
-        return permissionService.find(filter);
+			Where where = Where.where("$and", new ArrayList<Map<String, Object>>() {{
+				add(new HashMap<String, Object>() {{
+					put("name", new HashMap<String, Object>() {{
+						put("$in", permissionCodes);
+					}});
+				}});
+				add(new HashMap<String, Object>() {{
+					put("$or", new ArrayList<Map<String, Object>>() {{
+						add(new HashMap<String, Object>() {{
+							put("parentId", new HashMap<String, Object>() {{
+								put("$eq", null);
+							}});
+						}});
+						add(new HashMap<String, Object>() {{
+							put("parentId", new HashMap<String, Object>() {{
+								put("$eq", "");
+							}});
+						}});
+						add(new HashMap<String, Object>() {{
+							put("parentId", new HashMap<String, Object>() {{
+								put("$exists", false);
+							}});
+						}});
+					}});
+				}});
+			}});
+			return permissionService.find(new Filter(where));
     }
 }
