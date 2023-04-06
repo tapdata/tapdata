@@ -1,13 +1,14 @@
 package io.tapdata.connector.mysql.writer;
 
-import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.connector.mysql.util.MysqlUtil;
+import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -96,22 +97,16 @@ public class MysqlSqlBatchWriter extends MysqlJdbcWriter {
 
 	private boolean canLargeInsertSql(TapTable tapTable) {
 		Collection<String> pkOrUniqueIndex = tapTable.primaryKeys();
-		if (CollectionUtils.isEmpty(pkOrUniqueIndex)) {
-			return false;
-		}
-		return true;
-	}
+        return !CollectionUtils.isEmpty(pkOrUniqueIndex);
+    }
 
 	private boolean canReplaceInto(TapTable tapTable, String updatePolicy) {
 		Collection<String> pkOrUniqueIndex = tapTable.primaryKeys();
 		if (CollectionUtils.isEmpty(pkOrUniqueIndex)) {
 			return false;
 		}
-		if (ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS.equals(updatePolicy)) {
-			return false;
-		}
-		return true;
-	}
+        return !ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS.equals(updatePolicy);
+    }
 
 	private int doInsert(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) throws Throwable {
 		if (CollectionUtils.isEmpty(tapRecordEvents)) {
@@ -120,7 +115,10 @@ public class MysqlSqlBatchWriter extends MysqlJdbcWriter {
 		int result = 0;
 		String sql;
 		String dmlInsertPolicy = getDmlInsertPolicy(tapConnectorContext);
-		if (ConnectionOptions.DML_INSERT_POLICY_IGNORE_ON_EXISTS.equals(dmlInsertPolicy)) {
+		if (EmptyKit.isEmpty(tapTable.primaryKeys(true))) {
+			sql = appendLargeInsertSql(tapConnectorContext, tapTable, tapRecordEvents);
+		}
+		else if (ConnectionOptions.DML_INSERT_POLICY_IGNORE_ON_EXISTS.equals(dmlInsertPolicy)) {
 			sql = appendLargeInsertIgnoreSql(tapConnectorContext, tapTable, tapRecordEvents);
 		} else {
 			sql = appendLargeInsertOnDuplicateUpdateSql(tapConnectorContext, tapTable, tapRecordEvents);
@@ -176,6 +174,9 @@ public class MysqlSqlBatchWriter extends MysqlJdbcWriter {
 			return 0;
 		}
 		Collection<String> primaryKeys = tapTable.primaryKeys(true);
+		if(EmptyKit.isEmpty(primaryKeys)) {
+			primaryKeys = tapTable.getNameFieldMap().keySet();
+		}
 		List<String> whereList = new ArrayList<>();
 		for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
 			Map<String, Object> before = ((TapDeleteRecordEvent) tapRecordEvent).getBefore();
