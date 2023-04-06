@@ -566,7 +566,9 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
 					Set<String> alreadyExistsPermissionCodes = alreadyExistsRoleMappings.stream().map(RoleMappingDto::getPrincipalId).collect(Collectors.toSet());
 					addRoleMappingDtos = addRoleMappingDtos.stream().filter(r -> !alreadyExistsPermissionCodes.contains(r.getPrincipalId())).collect(Collectors.toList());
 				}
-				roleMappingService.save(addRoleMappingDtos, userDetail);
+				if (CollectionUtils.isNotEmpty(addRoleMappingDtos)) {
+					roleMappingService.save(addRoleMappingDtos, userDetail);
+				}
 			}
 			//添加没有的父权限
 			Set<String> parentPermissionCodes = getParentPermissionCodes(permissions);
