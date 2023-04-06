@@ -3,7 +3,9 @@
     "name": "Salesforce",
     "icon": "icon/Salesforce-Logo.png",
     "doc" : "${doc}",
-    "id": "salesforce"
+    "id": "salesforce",
+    "authentication": "Beta",
+    "tags": ["SaaS"]
   },
   "configOptions": {
     "pdkExpansion": [],
