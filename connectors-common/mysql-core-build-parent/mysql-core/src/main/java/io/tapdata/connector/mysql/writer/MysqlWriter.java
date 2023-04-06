@@ -8,6 +8,7 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -74,6 +75,10 @@ public abstract class MysqlWriter {
     }
 
     protected Collection<String> getUniqueKeys(TapTable tapTable) {
+        Collection<String> primaryKeys = tapTable.primaryKeys(true);
+        if (EmptyKit.isEmpty(primaryKeys)) {
+            return tapTable.getNameFieldMap().keySet();
+        }
         return tapTable.primaryKeys(true);
     }
 
