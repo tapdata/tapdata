@@ -23,34 +23,36 @@ import java.util.stream.Stream;
  */
 public class TidbWriteRecorder extends WriteRecorder {
 
+    private static final String INSERT_UPDATE_SQL_TEMPLATE = "INSERT INTO `%s`.`%s`(%s) values %s ON DUPLICATE KEY UPDATE %s";
+    private static final String INSERT_IGNORE_SQL_TEMPLATE = "INSERT IGNORE INTO `%s`.`%s`(%s) values(%s)";
+    private static final String INSERT_SQL_TEMPLATE = "INSERT INTO `%s`.`%s`(%s) values %s";
+    private final static String UPDATE_SQL = "UPDATE %s SET %s WHERE %s";
+
+    private final Map<String, String> fieldsDataType = new HashMap<>();
+    private String setClause;
+    private String whereClause;
+
     public TidbWriteRecorder(Connection connection, TapTable tapTable, String schema) {
         super(connection, tapTable, schema);
         init();
     }
-    private final Map<String, String> fieldsDataType = new HashMap<>();
-    public TidbWriteRecorder(Connection connection, TapTable tapTable, String schema, boolean hasUnique) {
-        super(connection, tapTable, schema);
-        uniqueConditionIsIndex = uniqueConditionIsIndex && hasUnique;
-        init();
+
+    private void init() {
+        if (null == tapTable) {
+            return;
+        }
+        for (Map.Entry<String, TapField> entry : tapTable.getNameFieldMap().entrySet()) {
+            String name = entry.getKey();
+            TapField field = entry.getValue();
+            fieldsDataType.put(name, field.getDataType());
+        }
     }
-    private static final String INSERT_UPDATE_SQL_TEMPLATE = "INSERT INTO `%s`.`%s`(%s) values %s ON DUPLICATE KEY UPDATE %s";
 
-    private static final String INSERT_IGNORE_SQL_TEMPLATE = "INSERT IGNORE INTO `%s`.`%s`(%s) values(%s)";
-
-    private static final String INSERT_SQL_TEMPLATE = "INSERT INTO `%s`.`%s`(%s) values %s";
-
-    private final static String UPDATE_SQL = "UPDATE %s SET %s WHERE %s";
-    private final static String DELETE_SQL = "DELETE FROM %s WHERE %s";
-    private String fieldsClause;
-    private String setClause;
-    private String valuesClause;
-    private String whereClause;
     @Override
     public void addInsertBatch(Map<String, Object> after) throws SQLException {
         if (EmptyKit.isEmpty(after)) {
             return;
         }
-
         if (EmptyKit.isNotEmpty(uniqueCondition)) {
             if (insertPolicy.equals("ignore-on-exists")) {
                 insertIfNotExist(after);
@@ -61,7 +63,6 @@ public class TidbWriteRecorder extends WriteRecorder {
             justInsert(after);
         }
         preparedStatement.addBatch();
-
     }
 
 
@@ -80,13 +81,8 @@ public class TidbWriteRecorder extends WriteRecorder {
         }
     }
 
-
     private String buildValuesPlaceHolderStr() {
-        StringBuilder sb = new StringBuilder();
-            sb.append("(");
-            sb.append(StringKit.copyString("?", allColumn.size(), ","));
-            sb.append(")");
-        return sb.toString();
+        return "(" + StringKit.copyString("?", allColumn.size(), ",") + ")";
     }
 
     private void upsert(Map<String, Object> after) throws SQLException {
@@ -96,17 +92,15 @@ public class TidbWriteRecorder extends WriteRecorder {
             final String allColumnNamesAndValues = allColumn.stream().
                     map(k -> "`" + k + "`=values(`" + k + "`)").collect(Collectors.joining(", "));
             final String insertSql = String.format(INSERT_UPDATE_SQL_TEMPLATE, schema, tapTable.getId(), allColumnNames, placeHolder, allColumnNamesAndValues);
-
             preparedStatement = connection.prepareStatement(insertSql);
         }
         preparedStatement.clearParameters();
         // fill placeHolders
         int pos = 1;
-            for (String key : allColumn) {
-                preparedStatement.setObject(pos++, after.get(key));
-
-            }
+        for (String key : allColumn) {
+            preparedStatement.setObject(pos++, after.get(key));
         }
+    }
 
     private void justInsert(Map<String, Object> after) throws SQLException {
         if (EmptyKit.isNull(preparedStatement)) {
@@ -117,22 +111,22 @@ public class TidbWriteRecorder extends WriteRecorder {
         }
         preparedStatement.clearParameters();
         int pos = 1;
-            for (String key : allColumn) {
-                preparedStatement.setObject(pos++, after.get(key));
-            }
+        for (String key : allColumn) {
+            preparedStatement.setObject(pos++, after.get(key));
         }
+    }
 
     @Override
     protected void justUpdate(Map<String, Object> after, Map<String, Object> before) throws SQLException {
         if (EmptyKit.isNull(preparedStatement)) {
             if (hasPk) {
-                preparedStatement = connection.prepareStatement("UPDATE " +"`"+  schema + "`" +"." + "`"+tapTable.getId()+"`" + " SET " +
-                        after.keySet().stream().map(k ->k + "=?").collect(Collectors.joining(", ")) + " WHERE " +
-                        before.keySet().stream().map(k ->k + "=?").collect(Collectors.joining(" AND ")));
+                preparedStatement = connection.prepareStatement("UPDATE " + "`" + schema + "`" + "." + "`" + tapTable.getId() + "`" + " SET " +
+                        after.keySet().stream().map(k -> "`" + k + "`=?").collect(Collectors.joining(", ")) + " WHERE " +
+                        before.keySet().stream().map(k -> "`" + k + "`=?").collect(Collectors.joining(" AND ")));
             } else {
-                preparedStatement = connection.prepareStatement("UPDATE " +"`"+  schema + "`" +"." + "`"+tapTable.getId()+"`" +" SET " +
-                        after.keySet().stream().map(k -> k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
-                        before.keySet().stream().map(k -> "("+ k + "=? OR (" + k + " IS NULL AND ? IS NULL))")
+                preparedStatement = connection.prepareStatement("UPDATE " + "`" + schema + "`" + "." + "`" + tapTable.getId() + "`" + " SET " +
+                        after.keySet().stream().map(k -> "`" + k + "`=?").collect(Collectors.joining(", ")) + " WHERE " +
+                        before.keySet().stream().map(k -> "(`" + k + "`=? OR (`" + k + "` IS NULL AND ? IS NULL))")
                                 .collect(Collectors.joining(" AND ")));
             }
         }
@@ -154,11 +148,11 @@ public class TidbWriteRecorder extends WriteRecorder {
         }
         if (EmptyKit.isNull(preparedStatement)) {
             if (hasPk) {
-                preparedStatement = connection.prepareStatement("DELETE FROM" +"`"+  schema + "`" +"." + "`"+tapTable.getId()+"`" + " WHERE " +
-                        before.keySet().stream().map(k -> k + "=?").collect(Collectors.joining(" AND ")));
+                preparedStatement = connection.prepareStatement("DELETE FROM" + "`" + schema + "`" + "." + "`" + tapTable.getId() + "`" + " WHERE " +
+                        before.keySet().stream().map(k -> "`" + k + "`=?").collect(Collectors.joining(" AND ")));
             } else {
-                preparedStatement = connection.prepareStatement("DELETE FROM "+"`"+ schema + "`" +"." + "`"+tapTable.getId()+"`" + "WHERE " +
-                        before.keySet().stream().map(k -> "(" + k + "=? OR (" + k + " IS NULL AND ? IS NULL))")
+                preparedStatement = connection.prepareStatement("DELETE FROM " + "`" + schema + "`" + "." + "`" + tapTable.getId() + "`" + "WHERE " +
+                        before.keySet().stream().map(k -> "(`" + k + "`=? OR (`" + k + "` IS NULL AND ? IS NULL))")
                                 .collect(Collectors.joining(" AND ")));
             }
         }
@@ -166,17 +160,7 @@ public class TidbWriteRecorder extends WriteRecorder {
         dealNullBefore(before, 1);
         preparedStatement.addBatch();
     }
-    private void init() {
-        if (null == tapTable) {
-            return;
-        }
 
-        for (Map.Entry<String, TapField> entry : tapTable.getNameFieldMap().entrySet()) {
-            String name = entry.getKey();
-            TapField field = entry.getValue();
-            fieldsDataType.put(name, field.getDataType());
-        }
-    }
     public void addUpdateBatch(Map<String, Object> after, Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
         if (EmptyKit.isEmpty(after) || EmptyKit.isEmpty(uniqueCondition)) {
             return;
@@ -198,14 +182,15 @@ public class TidbWriteRecorder extends WriteRecorder {
         preparedStatement.clearParameters();
         int pos = 1;
         pos = setParametersForSetClause(preparedStatement, after, pos);
-        pos = setParametersForWhereClause(preparedStatement, lastBefore, pos);
+        setParametersForWhereClause(preparedStatement, lastBefore, pos);
         preparedStatement.addBatch();
     }
+
     private int setParametersForSetClause(PreparedStatement pstmt, Map<String, Object> data, int pos) throws SQLException {
         pos = setAllObject(pstmt, data, pos);
-
         return pos;
     }
+
     private int setAllObject(PreparedStatement pstmt, Map<String, Object> data, int pos) throws SQLException {
         for (String column : allColumn) {
             Object value = data.get(column);
@@ -217,16 +202,17 @@ public class TidbWriteRecorder extends WriteRecorder {
         }
         return pos;
     }
+
     private int setObject(PreparedStatement pstmt, int pos, String fieldDataType, Object value) throws SQLException {
         if (null != fieldDataType && fieldDataType.toLowerCase().contains("binary")) {
             pstmt.setBytes(pos, (byte[]) value);
         } else {
             pstmt.setObject(pos, value);
         }
-
         return ++pos;
     }
-    private int setParametersForWhereClause(PreparedStatement pstmt, Map<String, Object> data, int pos) throws SQLException {
+
+    private void setParametersForWhereClause(PreparedStatement pstmt, Map<String, Object> data, int pos) throws SQLException {
         // using pk(logic pk) in where clause
         if (hasPk || !EmptyKit.isEmpty(uniqueCondition)) {
             for (String column : uniqueCondition) {
@@ -234,14 +220,14 @@ public class TidbWriteRecorder extends WriteRecorder {
             }
         } else {
             fieldsDataType.keySet().removeIf(this::shouldSkipField);
-            for(String column : fieldsDataType.keySet()) {
+            for (String column : fieldsDataType.keySet()) {
                 pos = setObject(pstmt, pos, fieldsDataType.get(column), data.get(column));
                 pos = setObject(pstmt, pos, fieldsDataType.get(column), data.get(column));
             }
         }
 
-        return pos;
     }
+
     private boolean shouldSkipField(String field) {
         // skip the "ntext", "text" and "image" in where clause since cdc table column values of these data types
         // are always be null in delete event and update before event, more detail at:
@@ -254,12 +240,14 @@ public class TidbWriteRecorder extends WriteRecorder {
                 );
 
     }
+
     private String appendSetClause() {
         if (setClause == null) {
-            setClause =  allColumn.stream().map(k -> TidbSqlMaker.formatFieldName(k) + " = ?").collect(Collectors.joining(", "));
+            setClause = allColumn.stream().map(k -> TidbSqlMaker.formatFieldName(k) + " = ?").collect(Collectors.joining(", "));
         }
         return setClause;
     }
+
     private String appendWhereClause() {
         if (whereClause == null) {
             Stream<String> streaming;
@@ -274,9 +262,9 @@ public class TidbWriteRecorder extends WriteRecorder {
             }
             whereClause = streaming.collect(Collectors.joining(" AND "));
         }
-
         return whereClause;
     }
+
     private String formatTableName() {
         return TidbSqlMaker.formatTableName(schema, tapTable.getId());
     }

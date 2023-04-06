@@ -21,8 +21,6 @@ import static io.tapdata.base.ConnectorBase.testItem;
 public class SelectDbTest extends CommonDbTest {
     protected static final String TAG = SelectDbTest.class.getSimpleName();
 
-    protected SelectDbJdbcContext selectDbJdbcContext;
-
     public SelectDbTest(SelectDbConfig selectDbConfig, Consumer<TestItem> consumer) {
         super(selectDbConfig, consumer);
     }
@@ -47,7 +45,7 @@ public class SelectDbTest extends CommonDbTest {
     protected Boolean testWritePrivilege() {
         try {
             List<String> sqls = new ArrayList<>();
-            if (selectDbJdbcContext.queryAllTables(Arrays.asList(TEST_WRITE_TABLE, TEST_WRITE_TABLE.toUpperCase())).size() > 0) {
+            if (jdbcContext.queryAllTables(Arrays.asList(TEST_WRITE_TABLE, TEST_WRITE_TABLE.toUpperCase())).size() > 0) {
                 sqls.add(String.format(TEST_DROP_TABLE, TEST_WRITE_TABLE));
             }
             final byte[] finalBytes = finalString.getBytes(StandardCharsets.UTF_8);
@@ -76,7 +74,7 @@ public class SelectDbTest extends CommonDbTest {
     @Override
     protected Boolean testVersion() {
         try {
-            String selectDBVersion = selectDbJdbcContext.getSelectDBVersion();
+            String selectDBVersion = ((SelectDbJdbcContext) jdbcContext).getSelectDBVersion();
             consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_SUCCESSFULLY, selectDBVersion));
         } catch (Throwable throwable) {
             throwable.printStackTrace();
