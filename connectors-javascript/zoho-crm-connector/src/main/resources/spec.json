@@ -3,7 +3,9 @@
     "name": "Zoho-CRM",
     "icon": "icon/zoho.png",
     "doc" : "${doc}",
-    "id": "zoho-crm"
+    "id": "zoho-crm",
+    "authentication": "Beta",
+    "tags": ["SaaS"]
   },
   "configOptions": {
     "pdkExpansion": [],
