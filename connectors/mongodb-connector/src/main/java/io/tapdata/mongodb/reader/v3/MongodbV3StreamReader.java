@@ -331,9 +331,12 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 											Iterator<Map.Entry<String, Object>> entryIterator = originUnset.entrySet().iterator();
 											while (entryIterator.hasNext()) {
 												Map.Entry<String, Object> entry = entryIterator.next();
-												if (!after.containsKey(entry.getKey())) {
+												if (after.keySet().stream().noneMatch(v -> v.equals(entry.getKey()) || v.startsWith(entry.getKey() + ".") || entry.getKey().startsWith(v + "."))) {
 													finalUnset.put(entry.getKey(), true);
 												}
+//												if (!after.containsKey(entry.getKey())) {
+//													finalUnset.put(entry.getKey(), true);
+//												}
 											}
 										}
 										Map<String, Object> info = new HashMap<>();
