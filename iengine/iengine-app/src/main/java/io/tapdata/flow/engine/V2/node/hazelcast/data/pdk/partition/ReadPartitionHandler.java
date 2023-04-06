@@ -34,7 +34,7 @@ import static io.tapdata.entity.simplify.TapSimplify.*;
 /**
  * @author aplomb
  */
-public class ReadPartitionHandler extends PartitionFieldParentHandler {
+public class ReadPartitionHandler extends PartitionFieldParentHandler implements ReadPartitionKVStorage{
 	private final PDKSourceContext pdkSourceContext;
 	private final ReadPartition readPartition;
 //	private final TypeSplitterMap typeSplitterMap;

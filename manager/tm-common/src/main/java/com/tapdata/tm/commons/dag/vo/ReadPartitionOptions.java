@@ -16,6 +16,7 @@ public class ReadPartitionOptions implements Serializable {
 	private int partitionThreadCount = 8;
 	private int partitionBatchCount = 3000;
 	private int minMaxSplitPieces = 100;
+	private boolean hasKVStorage = true;
 	public int getSplitType() {
 		return splitType;
 	}
@@ -38,6 +39,14 @@ public class ReadPartitionOptions implements Serializable {
 
 	public void setEnable(boolean enable) {
 		this.enable = enable;
+	}
+
+	public boolean hasKVStorage() {
+		return hasKVStorage;
+	}
+
+	public void hasKVStorage(boolean hasKVStorage) {
+		this.hasKVStorage = hasKVStorage;
 	}
 
 	public int getPartitionThreadCount() {
