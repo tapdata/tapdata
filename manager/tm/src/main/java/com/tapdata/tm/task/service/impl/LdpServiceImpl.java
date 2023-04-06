@@ -362,11 +362,11 @@ public class LdpServiceImpl implements LdpService {
     }
 
     @Override
-    public TaskDto createMdmTask(TaskDto task, String tagId, UserDetail user) {
+    public TaskDto createMdmTask(TaskDto task, String tagId, UserDetail user, boolean confirmTable) {
 
         try {
             //check mdm task
-            checkMdmTask(task, user);
+            checkMdmTask(task, user, confirmTable);
             //add mmd type
             task.setLdpType(TaskDto.LDP_TYPE_MDM);
 
@@ -643,7 +643,7 @@ public class LdpServiceImpl implements LdpService {
         metaData.setId(null);
     }
 
-    private void checkMdmTask(TaskDto task, UserDetail user) {
+    private void checkMdmTask(TaskDto task, UserDetail user, boolean confirmTable) {
         //syncType is sync
 
         if (StringUtils.isBlank(task.getSyncType())) {
@@ -684,7 +684,9 @@ public class LdpServiceImpl implements LdpService {
 
         String tableName = target.getTableName();
 
-        repeatTable(Lists.newArrayList(tableName), null, targetConId, user);
+        if (!confirmTable) {
+            repeatTable(Lists.newArrayList(tableName), null, targetConId, user);
+        }
 
 //        if (!fdmConnectionId.equals(sourceConId)) {
 //            throw new BizException("");

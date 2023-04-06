@@ -12,7 +12,7 @@ public interface LdpService {
     TaskDto createFdmTask(TaskDto task, UserDetail user);
 
 
-    TaskDto createMdmTask(TaskDto task, String tagId, UserDetail user);
+    TaskDto createMdmTask(TaskDto task, String tagId, UserDetail user, boolean confirmTable);
 
     void afterLdpTask(String taskId, UserDetail user);
 
