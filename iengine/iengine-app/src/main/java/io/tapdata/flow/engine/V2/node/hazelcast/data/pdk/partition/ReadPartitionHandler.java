@@ -6,7 +6,10 @@ import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.async.master.JobContext;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePartitionReadDataNode;
@@ -115,7 +118,7 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler implements
 			}
 		}
 		ReadPartitionContext readPartitionContext = jobContext.getContext(ReadPartitionContext.class);
-		sourcePdkDataNode.getObsLogger().info("Start storing partition {} into local, batchSize {}, sequenceStorageId {}", readPartition, sourcePdkDataNode.batchSize, sequenceStorageId);
+		sourcePdkDataNode.getObsLogger().info("Start storing partition {} , batchSize {}, sequenceStorageId {}", readPartition, sourcePdkDataNode.batchSize, sequenceStorageId);
 		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = sourcePdkDataNode.getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
 		if(queryByAdvanceFilterFunction != null) {
 			long time = System.currentTimeMillis();
@@ -147,7 +150,7 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler implements
 						));
 			} finally {
 				sourcePdkDataNode.removePdkMethodInvoker(pdkMethodInvoker);
-				sourcePdkDataNode.getObsLogger().info("Stored the readPartition {} into local {}, takes {}, storage takes {}, total {}", readPartition, sequenceStorageId, (System.currentTimeMillis() - time), storageTakes.longValue(), counter.longValue());
+				sourcePdkDataNode.getObsLogger().info("Stored the readPartition {} {}, takes {}, storage takes {}, total {}", readPartition, sequenceStorageId, (System.currentTimeMillis() - time), storageTakes.longValue(), counter.longValue());
 			}
 
 		}
@@ -337,4 +340,57 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler implements
 	public void finish() {
 		finished.set(true);
 	}
+
+    @Override
+    public void handleUpdateRecordEvent(TapUpdateRecordEvent updateRecordEvent, Map<String, Object> after, Map<String, Object> key) {
+        synchronized (this) {
+            if(this.isFinished()) {
+                this.passThrough(updateRecordEvent);
+            } else {
+                Map<String, Object> existData = this.getExistDataFromKVMap(key);//(Map<String, Object>) kvStorage.get(key);
+                Map<String, Object> finalMap;
+                if(existData != null) {
+                    existData.putAll(after);
+                    finalMap = existData;
+                } else {
+                    finalMap = after;
+                }
+                this.writeIntoKVStorage(key, finalMap, updateRecordEvent);
+            }
+        }
+    }
+
+    @Override
+    public void handleInsertRecordEvent(TapInsertRecordEvent insertRecordEvent, Map<String, Object> after, Map<String, Object> key) {
+        synchronized (this) {
+            if(this.isFinished()) {
+                this.passThrough(insertRecordEvent);
+            } else {
+                this.writeIntoKVStorage(key, after, insertRecordEvent);
+            }
+        }
+    }
+
+    @Override
+    public void handleDeleteRecordEvent(TapDeleteRecordEvent deleteRecordEvent, Map<String, Object> key) {
+        synchronized (this) {
+            if(this.isFinished()) {
+                this.passThrough(deleteRecordEvent);
+            } else {
+                this.deleteFromKVStorage(key);
+            }
+        }
+    }
+
+    @Override
+    public void deleteFromPartition(TapDeleteRecordEvent deleteRecordEvent, Map<String, Object> key) {
+        synchronized (this) {
+            if(this.isFinished()) {
+                this.passThrough(deleteRecordEvent);
+            } else {
+                this.justDeleteFromKVStorage(key);
+            }
+        }
+    }
+
 }

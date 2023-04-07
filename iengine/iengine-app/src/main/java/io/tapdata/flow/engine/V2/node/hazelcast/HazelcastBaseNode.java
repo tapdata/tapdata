@@ -333,7 +333,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 	}
 
-	private int bucketIndex = 0;
+	protected int bucketIndex = 0;
 
 	protected boolean offer(TapdataEvent dataEvent) {
 
