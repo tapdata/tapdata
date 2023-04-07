@@ -74,8 +74,8 @@ public class SelectDbConnector extends ConnectorBase {
         }).initContext();
         selectDbJdbcContext = new SelectDbJdbcContext(selectDbConfig);
         this.selectDbVersion = selectDbJdbcContext.queryVersion();
-        this.selectDbStreamLoader = new SelectDbStreamLoader(selectDbContext, new HttpUtil().getHttpClient());
-        this.selectDbStreamLoader = new SelectDbStreamLoader(new HttpUtil().getHttpClient(), selectDbConfig);
+        this.selectDbStreamLoader = new SelectDbStreamLoader(new HttpUtil().getHttpClient(), selectDbConfig)
+                .selectDbJdbcContext(selectDbJdbcContext);
 
         ddlSqlMaker = new SelectDbDDLSqlMaker();
         fieldDDLHandlers = new BiClassHandlers<>();
@@ -110,6 +110,7 @@ public class SelectDbConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
 
         codecRegistry.registerFromTapValue(TapRawValue.class, "text", tapRawValue -> {
             if (tapRawValue != null && tapRawValue.getValue() != null)
@@ -163,6 +164,16 @@ public class SelectDbConnector extends ConnectorBase {
 //        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
+    }
+
+    protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+        RetryOptions retryOptions = RetryOptions.create();
+        Throwable match;
+        if (null != (match = matchThrowable(throwable, CoreException.class)) && ((CoreException) match).getCode() == 343) {
+            retryOptions.needRetry(false);
+            return retryOptions;
+        }
+        return retryOptions;
     }
 
     private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
