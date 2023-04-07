@@ -23,4 +23,10 @@ public class TapAPIErrorCodes {
 	public static final int ERROR_NUMBER_SCALE_PARSE_FAILED = 1019;
 	public static final int ERROR_NUMBER_PRECISION_PARSE_FAILED = 1020;
 	public static final int ERROR_NUMBER_BIT_PARSE_FAILED = 1021;
+	public static final int FIND_OBJECT_ID_FAILED = 1022;
+	public static final int NEW_OBJECT_ID = 1023;
+	public static final int CLASS_NOT_FOUND_READ_OBJECT = 1024;
+	public static final int PARSE_DOCUMENT_FAILED = 1025;
+	public static final int GET_PARSE_METHOD_FAILED = 1026;
+	public static final int CLASS_NOT_FOUND = 1027;
 }
