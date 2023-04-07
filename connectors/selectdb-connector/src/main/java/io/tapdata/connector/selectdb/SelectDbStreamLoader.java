@@ -1,9 +1,9 @@
 package io.tapdata.connector.selectdb;
 
 import cn.hutool.core.lang.Assert;
-import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.tapdata.connector.selectdb.config.SelectDbConfig;
+import io.tapdata.connector.selectdb.exception.SelectDbErrorCodes;
 import io.tapdata.connector.selectdb.exception.SelectDbRunTimeException;
 import io.tapdata.connector.selectdb.exception.StreamLoadException;
 import io.tapdata.connector.selectdb.streamload.*;
@@ -107,7 +107,7 @@ public class SelectDbStreamLoader extends Throwable {
         HashMap<String, String> selectDBCopyIntoLog;
         selectDBCopyIntoLog = this.selectDbJdbcContext.getSelectDBCopyIntoLog(uuid);
         if (!"FINISHED".equals(selectDBCopyIntoLog.get("State"))) {
-            throw new CoreException(100001, "ErrorMsg: " + selectDBCopyIntoLog.get("ErrorMsg")
+            throw new CoreException(SelectDbErrorCodes.ERROR_SDB_COPY_INTO_CANCELLED, "ErrorMsg: " + selectDBCopyIntoLog.get("ErrorMsg")
                     + ";   Log URL: [" + selectDBCopyIntoLog.get("URL")
                     + "]   CreateTime:" + selectDBCopyIntoLog.get("CreateTime"));
         }

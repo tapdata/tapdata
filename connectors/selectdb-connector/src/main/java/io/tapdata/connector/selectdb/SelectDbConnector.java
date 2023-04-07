@@ -5,6 +5,7 @@ import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.connector.selectdb.bean.SelectDbColumn;
 import io.tapdata.connector.selectdb.config.SelectDbConfig;
+import io.tapdata.connector.selectdb.exception.SelectDbErrorCodes;
 import io.tapdata.connector.selectdb.util.CopyIntoUtils;
 import io.tapdata.connector.selectdb.util.HttpUtil;
 import io.tapdata.entity.codec.TapCodecsRegistry;
@@ -169,11 +170,11 @@ public class SelectDbConnector extends ConnectorBase {
     protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
         RetryOptions retryOptions = RetryOptions.create();
         Throwable match;
-        if (null != (match = matchThrowable(throwable, CoreException.class)) && ((CoreException) match).getCode() == 100001) {
+        if (null != (match = matchThrowable(throwable, CoreException.class)) && ((CoreException) match).getCode() == SelectDbErrorCodes.ERROR_SDB_COPY_INTO_CANCELLED) {
             retryOptions.needRetry(false);
             return retryOptions;
         }
-        return retryOptions;
+        return retryOptions.needRetry(true);
     }
 
     private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
