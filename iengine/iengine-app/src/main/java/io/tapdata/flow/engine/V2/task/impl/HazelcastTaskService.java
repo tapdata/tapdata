@@ -63,14 +63,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskSource;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskSourceAndTarget;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskTarget;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastVirtualTargetNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastPdkSourceAndTargetTableNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSampleSourcePdkDataNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkShareCDCNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkAutoInspectNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkCacheNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkDataNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkShareCDCNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastJavaScriptProcessorNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
@@ -405,125 +398,125 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
                                 readPartitionOptions = ((DataParentNode<?>) node).getReadPartitionOptions();
                             }
 
-//							if(readPartitionOptions != null && readPartitionOptions.isEnable() && readPartitionOptions.getSplitType() != ReadPartitionOptions.SPLIT_TYPE_NONE) {
-//								hazelcastNode = new HazelcastSourcePartitionReadDataNode(processorContext);
-//							} else {
-//								hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
-//							}
-                            hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
-                        }
-                    } else {
-                        hazelcastNode = new HazelcastTaskSource(
-                                DataProcessorContext.newBuilder()
-                                        .withTaskDto(taskDto)
-                                        .withNode(node)
-                                        .withNodes(nodes)
-                                        .withEdges(edges)
-                                        .withConfigurationCenter(config)
-                                        .withSourceConn(connection)
-                                        .build());
-                    }
-                } else {
-                    if ("pdk".equals(connection.getPdkType())) {
-                        hazelcastNode = new HazelcastTargetPdkDataNode(
-                                DataProcessorContext.newBuilder()
-                                        .withTaskDto(taskDto)
-                                        .withNode(node)
-                                        .withNodes(nodes)
-                                        .withEdges(edges)
-                                        .withConfigurationCenter(config)
-                                        .withTargetConn(connection)
-                                        .withConnections(connection)
-                                        .withConnectionConfig(connection.getConfig())
-                                        .withDatabaseType(databaseType)
-                                        .withTapTableMap(tapTableMap)
-                                        .withTaskConfig(taskConfig)
-                                        .build());
-                    } else {
-                        hazelcastNode = new HazelcastTaskTarget(
-                                DataProcessorContext.newBuilder()
-                                        .withTaskDto(taskDto)
-                                        .withNode(node)
-                                        .withNodes(nodes)
-                                        .withEdges(edges)
-                                        .withConfigurationCenter(config)
-                                        .withNodeSchemas(nodeSchemas)
-                                        .withTargetConn(connection)
-                                        .withCacheService(cacheService)
-                                        .build()
-                        );
-                    }
-                }
-                break;
-            case CACHE:
-                if ("pdk".equals(connection.getPdkType())) {
-                    hazelcastNode = new HazelcastTargetPdkCacheNode(
-                            DataProcessorContext.newBuilder()
-                                    .withTaskDto(taskDto)
-                                    .withNode(node)
-                                    .withNodes(nodes)
-                                    .withEdges(edges)
-                                    .withConfigurationCenter(config)
-                                    .withConnectionConfig(connection.getConfig())
-                                    .withDatabaseType(databaseType)
-                                    .withTapTableMap(tapTableMap)
-                                    .withCacheService(cacheService)
-                                    .withTaskConfig(taskConfig)
-                                    .build()
-                    );
-                } else {
-                    hazelcastNode = new HazelcastCacheTarget(
-                            DataProcessorContext.newBuilder()
-                                    .withTaskDto(taskDto)
-                                    .withNode(node)
-                                    .withNodes(nodes)
-                                    .withEdges(edges)
-                                    .withConfigurationCenter(config)
-                                    .withTargetConn(connection)
-                                    .withCacheService(cacheService)
-                                    .withTapTableMap(tapTableMap)
-                                    .withTaskConfig(taskConfig)
-                                    .build()
-                    );
-                }
-                break;
-            case AUTO_INSPECT:
-                if ("pdk".equals(connection.getPdkType())) {
-                    hazelcastNode = new HazelcastTargetPdkAutoInspectNode(
-                            DataProcessorContext.newBuilder()
-                                    .withTaskDto(taskDto)
-                                    .withNode(node)
-                                    .withNodes(nodes)
-                                    .withEdges(edges)
-                                    .withConfigurationCenter(config)
-                                    .withConnectionConfig(connection.getConfig())
-                                    .withDatabaseType(databaseType)
-                                    .withTapTableMap(tapTableMap)
-                                    .withCacheService(cacheService)
-                                    .withTaskConfig(taskConfig)
-                                    .build()
-                    );
-                } else {
-                    throw new RuntimeException("un support AutoInspect node " + connection.getPdkType());
-                }
-                break;
-            case VIRTUAL_TARGET:
-                DataProcessorContext processorContext = DataProcessorContext.newBuilder()
-                        .withTaskDto(taskDto)
-                        .withNode(node)
-                        .withNodes(nodes)
-                        .withEdges(edges)
-                        .withConfigurationCenter(config)
-                        .withTargetConn(connection)
-                        .withCacheService(cacheService)
-                        .withTapTableMap(tapTableMap)
-                        .withTaskConfig(taskConfig)
-                        .build();
-                if (TaskDto.SYNC_TYPE_TEST_RUN.equals(taskDto.getSyncType())) {
-                    hazelcastNode = new HazelcastVirtualTargetNode(processorContext);
-                } else {
-                    hazelcastNode = new HazelcastSchemaTargetNode(processorContext);
-                }
+							if(readPartitionOptions != null && readPartitionOptions.isEnable() && readPartitionOptions.getSplitType() != ReadPartitionOptions.SPLIT_TYPE_NONE) {
+								hazelcastNode = new HazelcastSourcePartitionReadDataNode(processorContext);
+							} else {
+								hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
+							}
+//							hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
+						}
+					} else {
+						hazelcastNode = new HazelcastTaskSource(
+								DataProcessorContext.newBuilder()
+										.withTaskDto(taskDto)
+										.withNode(node)
+										.withNodes(nodes)
+										.withEdges(edges)
+										.withConfigurationCenter(config)
+										.withSourceConn(connection)
+										.build());
+					}
+				} else {
+					if ("pdk".equals(connection.getPdkType())) {
+						hazelcastNode = new HazelcastTargetPdkDataNode(
+								DataProcessorContext.newBuilder()
+										.withTaskDto(taskDto)
+										.withNode(node)
+										.withNodes(nodes)
+										.withEdges(edges)
+										.withConfigurationCenter(config)
+										.withTargetConn(connection)
+										.withConnections(connection)
+										.withConnectionConfig(connection.getConfig())
+										.withDatabaseType(databaseType)
+										.withTapTableMap(tapTableMap)
+										.withTaskConfig(taskConfig)
+										.build());
+					} else {
+						hazelcastNode = new HazelcastTaskTarget(
+								DataProcessorContext.newBuilder()
+										.withTaskDto(taskDto)
+										.withNode(node)
+										.withNodes(nodes)
+										.withEdges(edges)
+										.withConfigurationCenter(config)
+										.withNodeSchemas(nodeSchemas)
+										.withTargetConn(connection)
+										.withCacheService(cacheService)
+										.build()
+						);
+					}
+				}
+				break;
+			case CACHE:
+				if ("pdk".equals(connection.getPdkType())) {
+					hazelcastNode = new HazelcastTargetPdkCacheNode(
+							DataProcessorContext.newBuilder()
+									.withTaskDto(taskDto)
+									.withNode(node)
+									.withNodes(nodes)
+									.withEdges(edges)
+									.withConfigurationCenter(config)
+									.withConnectionConfig(connection.getConfig())
+									.withDatabaseType(databaseType)
+									.withTapTableMap(tapTableMap)
+									.withCacheService(cacheService)
+									.withTaskConfig(taskConfig)
+									.build()
+					);
+				} else {
+					hazelcastNode = new HazelcastCacheTarget(
+							DataProcessorContext.newBuilder()
+									.withTaskDto(taskDto)
+									.withNode(node)
+									.withNodes(nodes)
+									.withEdges(edges)
+									.withConfigurationCenter(config)
+									.withTargetConn(connection)
+									.withCacheService(cacheService)
+									.withTapTableMap(tapTableMap)
+									.withTaskConfig(taskConfig)
+									.build()
+					);
+				}
+				break;
+			case AUTO_INSPECT:
+				if ("pdk".equals(connection.getPdkType())) {
+					hazelcastNode = new HazelcastTargetPdkAutoInspectNode(
+							DataProcessorContext.newBuilder()
+									.withTaskDto(taskDto)
+									.withNode(node)
+									.withNodes(nodes)
+									.withEdges(edges)
+									.withConfigurationCenter(config)
+									.withConnectionConfig(connection.getConfig())
+									.withDatabaseType(databaseType)
+									.withTapTableMap(tapTableMap)
+									.withCacheService(cacheService)
+									.withTaskConfig(taskConfig)
+									.build()
+					);
+				} else {
+					throw new RuntimeException("un support AutoInspect node " + connection.getPdkType());
+				}
+				break;
+			case VIRTUAL_TARGET:
+				DataProcessorContext processorContext = DataProcessorContext.newBuilder()
+						.withTaskDto(taskDto)
+						.withNode(node)
+						.withNodes(nodes)
+						.withEdges(edges)
+						.withConfigurationCenter(config)
+						.withTargetConn(connection)
+						.withCacheService(cacheService)
+						.withTapTableMap(tapTableMap)
+						.withTaskConfig(taskConfig)
+						.build();
+				if (TaskDto.SYNC_TYPE_TEST_RUN.equals(taskDto.getSyncType())) {
+					hazelcastNode = new HazelcastVirtualTargetNode(processorContext);
+				} else {
+					hazelcastNode = new HazelcastSchemaTargetNode(processorContext);
+				}
 
                 break;
             case JOIN:

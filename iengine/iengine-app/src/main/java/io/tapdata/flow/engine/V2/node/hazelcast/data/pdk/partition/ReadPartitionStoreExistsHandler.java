@@ -23,7 +23,9 @@ import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -32,9 +34,11 @@ import java.util.concurrent.atomic.LongAdder;
 import static io.tapdata.entity.simplify.TapSimplify.*;
 
 /**
+ * 全量分片不存储Value的实现， 只存储了主键是否已经存在， 在完成分片读时之后， 根据主键是否有值， 期间收到的增量数据是否发送Insert还是Update事件。
+ *
  * @author aplomb
  */
-public class ReadPartitionHandler extends PartitionFieldParentHandler {
+public class ReadPartitionStoreExistsHandler extends PartitionFieldParentHandler {
 	private final PDKSourceContext pdkSourceContext;
 	private final ReadPartition readPartition;
 //	private final TypeSplitterMap typeSplitterMap;
@@ -50,7 +54,7 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 	private final AtomicBoolean finished = new AtomicBoolean(false);
 	private final LongAdder sentEventCount = new LongAdder();
 
-	public ReadPartitionHandler(PDKSourceContext pdkSourceContext, TapTable tapTable, ReadPartition readPartition, HazelcastSourcePartitionReadDataNode sourcePdkDataNode) {
+	public ReadPartitionStoreExistsHandler(PDKSourceContext pdkSourceContext, TapTable tapTable, ReadPartition readPartition, HazelcastSourcePartitionReadDataNode sourcePdkDataNode) {
 		super(tapTable);
 		this.readPartition = readPartition;
 		this.pdkSourceContext = pdkSourceContext;
@@ -76,13 +80,6 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 			kvStorageDuringSending.put(key, map(entry(DELETED, true)));
 		else
 			partitionCDCStorage.put(key, map(entry(DELETED, true)));
-	}
-
-	public void justDeleteFromKVStorage(Map<String, Object> key) {
-		if(kvStorageDuringSending != null)
-			kvStorageDuringSending.remove(key);
-		else
-			partitionCDCStorage.remove(key);
 	}
 
 	public JobContext handleStartCachingStreamData(JobContext jobContext1) {
@@ -132,17 +129,29 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 				PDKInvocationMonitor.invoke(sourcePdkDataNode.getConnectorNode(), PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
 						pdkMethodInvoker.runnable(
 								() -> queryByAdvanceFilterFunction.query(sourcePdkDataNode.getConnectorNode().getConnectorContext(), tapAdvanceFilter, readPartitionContext.getTable(), filterResults -> {
-									Optional.ofNullable(filterResults.getResults()).ifPresent(results -> {
+									BatchReadFuncAspect batchReadFuncAspect = readPartitionContext.getBatchReadFuncAspect();
+									List<Map<String, Object>> results = filterResults.getResults();
+									if(results != null) {
+										List<TapEvent> events = new ArrayList<>();
 										long storageTime;
 										for (Map<String, Object> result : results) {
 											counter.increment();
 											Map<String, Object> value = reviseData(result);
 											Map<String, Object> key = getKeyFromData(value);
 											storageTime = System.currentTimeMillis();
-											partitionSequenceStorage.put(key, value);
+											partitionSequenceStorage.put(key, 1);
 											storageTakes.add(System.currentTimeMillis() - storageTime);
+
+											events.add(insertRecordEvent(value, table));
+											sentEventCount.increment();
+											if(events.size() >= sourcePdkDataNode.batchSize) {
+												enqueueTapEvents(batchReadFuncAspect, events);
+												events = new ArrayList<>();
+											}
+
 										}
-									});
+										enqueueTapEvents(batchReadFuncAspect, events);
+									}
 								})
 						));
 			} finally {
@@ -174,7 +183,32 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 		long time = System.currentTimeMillis();
 
 		AtomicReference<List<TapEvent>> reference = new AtomicReference<>(events);
-		partitionSequenceStorage.foreachValues((value, value1) -> {
+		partitionCDCStorage.foreach((key, value) -> {
+			Map<String, Object> keyMap = (Map<String, Object>) key;
+			Map<String, Object> dataFromCDC = (Map<String, Object>) value;
+			Object exists = partitionSequenceStorage.get(key);
+			if(exists != null && exists.equals(1)) {
+				Object deleted = dataFromCDC.get(DELETED);
+				if(deleted != null && deleted.equals(true)) {
+					reference.get().add(deleteDMLEvent(keyMap, table));
+				} else {
+					reference.get().add(updateDMLEvent(keyMap, dataFromCDC, table));
+				}
+			} else {
+				reference.get().add(insertRecordEvent(dataFromCDC, table));
+			}
+			sentEventCount.increment();
+			if(reference.get().size() >= sourcePdkDataNode.batchSize) {
+//				long theTime = System.currentTimeMillis();
+				enqueueTapEvents(batchReadFuncAspect, reference.get());
+//				sourcePdkDataNode.getObsLogger().info("enqueueTapEvents sequence events {} takes {}", reference.get().size(), (System.currentTimeMillis() - theTime));
+				reference.set(new ArrayList<>());
+			}
+			return null;
+		});
+		enqueueTapEvents(batchReadFuncAspect, reference.get());
+
+		/*partitionSequenceStorage.foreachValues((value, value1) -> {
 			Map<String, Object> record = (Map<String, Object>) value;
 			Map<String, Object> dataFromCDC = (Map<String, Object>) value1;
 			if(dataFromCDC != null) {
@@ -194,31 +228,11 @@ public class ReadPartitionHandler extends PartitionFieldParentHandler {
 				reference.set(new ArrayList<>());
 			}
 			return null;
-		}, partitionCDCStorage::removeAndGet);
-//		sequenceStorage.foreach((key1, value) -> {
-//			Map<String, Object> record = (Map<String, Object>) value;
-//			Map<String, Object> key = (Map<String, Object>) key1;
-//			Map<String, Object> dataFromCDC = (Map<String, Object>) kvStorage.removeAndGet(key);
-//			if(dataFromCDC != null) {
-//				record.putAll(dataFromCDC);
-//			}
-//			reference.get().add(insertRecordEvent(record, table));
-//			sentEventCount.increment();
-//			if(reference.get().size() >= sourcePdkDataNode.batchSize) {
-////				long theTime = System.currentTimeMillis();
-//				enqueueTapEvents(batchReadFuncAspect, reference.get());
-////				sourcePdkDataNode.getObsLogger().info("enqueueTapEvents sequence events {} takes {}", reference.get().size(), (System.currentTimeMillis() - theTime));
-//				reference.set(new ArrayList<>());
-//			}
-//			return null;
-//		});
-		long theTime = System.currentTimeMillis();
-		enqueueTapEvents(batchReadFuncAspect, reference.get());
-		sourcePdkDataNode.getObsLogger().info("enqueueTapEvents last sequence events {} takes {}", reference.get().size(), (System.currentTimeMillis() - theTime));
+		}, partitionCDCStorage::removeAndGet);*/
 
 		sourcePdkDataNode.getObsLogger().info("Consumer sequence events {} takes {}", sentEventCount.longValue(), (System.currentTimeMillis() - time));
 
-		theTime = System.currentTimeMillis();
+		long theTime = System.currentTimeMillis();
 		List<TapEvent> newInsertEvents = new ArrayList<>();
 		AtomicReference<List<TapEvent>> newInsertReference = new AtomicReference<>(newInsertEvents);
 		partitionCDCStorage.foreachValues((value) -> {

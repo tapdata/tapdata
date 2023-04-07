@@ -1345,6 +1345,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 taskDtoPage = findDataCopyList(filter, userDetail);
             } else if (SyncType.SYNC.getValue().equals(synType)) {
                 taskDtoPage = findDataDevList(filter, userDetail);
+            } else if (SyncType.CONN_HEARTBEAT.getValue().equals(synType)) {
+                taskDtoPage = findDataDevList(filter, userDetail);
             }
             items = taskDtoPage.getItems();
         } else {

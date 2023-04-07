@@ -13,7 +13,8 @@ public enum SyncType {
 
     MIGRATE(TaskDto.SYNC_TYPE_MIGRATE),  //即数据复制
 
-    LOG_COLLECTOR(TaskDto.SYNC_TYPE_LOG_COLLECTOR);
+    LOG_COLLECTOR(TaskDto.SYNC_TYPE_LOG_COLLECTOR),
+    CONN_HEARTBEAT(TaskDto.SYNC_TYPE_CONN_HEARTBEAT); // 即心跳任务
 
     private final String value;
 

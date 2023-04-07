@@ -1,12 +1,8 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
-import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.partition.ReadPartition;
-
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * @author aplomb

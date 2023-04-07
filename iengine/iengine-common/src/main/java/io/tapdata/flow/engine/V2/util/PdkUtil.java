@@ -4,6 +4,7 @@ import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import io.tapdata.entity.logger.Log;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -38,6 +39,11 @@ import java.util.function.Function;
 public class PdkUtil {
 
 	private static final Map<String, Object> pdkHashDownloadLockMap = new ConcurrentHashMap<>();
+	private static final String TAG;
+
+	static {
+		TAG = PdkUtil.class.getSimpleName();
+	}
 
 	public static Object pdkDownloadLock(String pdkHash) {
 		Object lock = pdkHashDownloadLockMap.get(pdkHash);
@@ -95,6 +101,8 @@ public class PdkUtil {
 	public static String encodeOffset(Object offsetObject) {
 		if (null != offsetObject) {
 			byte[] offsetBytes = InstanceFactory.instance(ObjectSerializable.class).fromObject(offsetObject);
+			if(offsetBytes == null)
+				TapLogger.error(TAG, "Serialize offsetObject {} failed, as returned null", offsetObject);
 			return Base64.encodeBase64String(offsetBytes);
 		}
 		return "";

@@ -204,7 +204,7 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 								.configState(STATE_NONE, stateMachine.execute().nextStates(STATE_INITIALIZING, STATE_DESTROYED))
 								.configState(STATE_INITIALIZING, stateMachine.execute(this::handleInitializing).nextStates(STATE_INITIALIZED, STATE_DESTROYED))
 								.configState(STATE_INITIALIZED, stateMachine.execute().nextStates(STATE_INITIALIZING, STATE_DESTROYED))
-								.configState(STATE_DESTROYED, stateMachine.execute().nextStates())
+								.configState(STATE_DESTROYED, stateMachine.execute(this::handleDestroyed).nextStates())
 								.errorOccurred((throwable, fromState, toState, tapSequenceStorage, stateMachine) -> {
 									if(throwable instanceof CoreException) {
 										throw (CoreException) throwable;
@@ -225,18 +225,26 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 		};
 	}
 
-	private void handleInitializing(TapKVStorageImpl tapKVStorage, StateMachine<String, TapKVStorageImpl> stateMachine) {
-		final Options options = new Options();
-		options.setCompressionType(CompressionType.ZSTD_COMPRESSION);
-		options.setCreateIfMissing(true);
+	private void handleDestroyed(TapKVStorageImpl tapKVStorage, StateMachine<String, TapKVStorageImpl> stringTapKVStorageStateMachine) {
+		try (Options options = new Options()){
+			CommonUtils.ignoreAnyError(() -> db.syncWal(), TAG);
+			CommonUtils.ignoreAnyError(() -> db.close(), TAG);
+			options.setCompressionType(CompressionType.ZSTD_COMPRESSION);
+			options.setCreateIfMissing(true);
+			CommonUtils.ignoreAnyError(() -> RocksDB.destroyDB(dbDir.getAbsolutePath(), options), TAG);
+		}
+	}
 
+	private void handleInitializing(TapKVStorageImpl tapKVStorage, StateMachine<String, TapKVStorageImpl> stateMachine) {
 		String thePath = storageOptions.getRootPath();
 		if(path != null)
 			thePath = FilenameUtils.concat(thePath, path);
 		thePath = FilenameUtils.concat(thePath, "kv_rocksdb/");
 
 		dbDir = new File(FilenameUtils.concat(thePath, id));
-		try {
+		try (final Options options = new Options()) {
+			options.setCompressionType(CompressionType.ZSTD_COMPRESSION);
+			options.setCreateIfMissing(true);
 			FileUtils.forceMkdir(dbDir);
 			db = RocksDB.open(options, dbDir.getAbsolutePath());
 		} catch(RocksDBException ex) {
@@ -256,7 +264,7 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 		if(!stateMachine.getCurrentState().equals(STATE_INITIALIZED))
 			throw new CoreException(StorageErrors.ITERATE_ON_WRONG_STATE, "Iterate on wrong state {}, expect state {}", stateMachine.getCurrentState(), STATE_INITIALIZED);
 		CommonUtils.ignoreAnyError(() -> db.syncWal(), TAG);
-		db.close();
+		handleDestroyed(this, stateMachine);
 		release();
 		stateMachine.gotoState(STATE_INITIALIZING, FormatUtils.format("Re-initializing after reset, id {}, options {}", id, storageOptions));
 	}
@@ -267,8 +275,6 @@ public class TapKVStorageImpl extends TapStorageImpl implements TapKVStorage {
 //			throw new CoreException(StorageErrors.ITERATE_ON_WRONG_STATE, "Iterate on wrong state {}, expect state {}", stateMachine.getCurrentState(), STATE_INITIALIZED);
 		if (stateMachine != null && !stateMachine.getCurrentState().equals(STATE_DESTROYED)) {
 			stateMachine.gotoState(STATE_DESTROYED, FormatUtils.format("Force destroy, id {}, options {}", id, storageOptions));
-			CommonUtils.ignoreAnyError(() -> db.syncWal(), TAG);
-			db.close();
 		}
 		initHandler = null;
 		release();
