@@ -32,6 +32,8 @@ public class WriteValve {
     //
     private boolean autoCheckTableWhenWriteOnce = false;
 
+    private Check check;
+
     //
     public static WriteValve open(
             int writeSize,
@@ -93,11 +95,12 @@ public class WriteValve {
     public void close(boolean stopNow) {
         Optional.ofNullable(this.tapEventCollector).ifPresent(tap -> tap.stop(stopNow));
     }
-    public void close() {
+    public void close() throws Throwable {
         this.close(true);
+        this.check.check();
     }
 
-    public void commit(String tableId) {
+    public void commit(String tableId) throws Throwable {
         if (Objects.isNull(tableId) || "".equals(tableId.trim())) {
             throw new CoreException(" Unable to submit data for an empty table, table name is empty.");
         }
@@ -106,22 +109,24 @@ public class WriteValve {
             tab.add(tableId);
             e.uploadEvents(tab);
         });
+        this.check.check();
     }
 
     public void commitAll() {
         Optional.ofNullable(this.tapEventCollector).ifPresent(TapEventCollector::uploadEvents);
     }
 
-    public void commit(List<String> tableIdList) {
+    public void commit(List<String> tableIdList) throws Throwable {
         if (Objects.isNull(tableIdList) || tableIdList.isEmpty()) {
             throw new CoreException(" If you need to submit the data of all tables immediately, please use commitAll(). ");
         }
         Optional.ofNullable(this.tapEventCollector).ifPresent(e -> e.uploadEvents(tableIdList));
+        this.check.check();
     }
 
-    public WriteValve write(List<TapRecordEvent> eventList, TapTable table) {
+    public WriteValve write(List<TapRecordEvent> eventList, TapTable table) throws Throwable {
         this.tapEventCollector.addTapEvents(eventList, table);
-        return this;
+        return this.check();
     }
 
     public WriteValve writeSize(int writeSize) {
@@ -162,6 +167,19 @@ public class WriteValve {
     public WriteValve autoCheckTableWhenWriteOnce(boolean autoCheck) {
         this.autoCheckTableWhenWriteOnce = autoCheck;
         this.tapEventCollector.autoCheckTable(autoCheck);
+        return this;
+    }
+
+    public WriteValve check() throws Throwable{
+        if (null == check) check = new Check() {
+            @Override
+            public void check() throws Throwable {
+                if (null != tapEventCollector.throwable()) {
+                    throw tapEventCollector.throwable();
+                }
+            }
+        };
+        check.check();
         return this;
     }
 }

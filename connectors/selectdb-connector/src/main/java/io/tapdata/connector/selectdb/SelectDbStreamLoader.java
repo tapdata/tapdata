@@ -107,6 +107,7 @@ public class SelectDbStreamLoader extends Throwable {
         HashMap<String, String> selectDBCopyIntoLog;
         selectDBCopyIntoLog = this.selectDbJdbcContext.getSelectDBCopyIntoLog(uuid);
         if (!"FINISHED".equals(selectDBCopyIntoLog.get("State"))) {
+//            selectDbContext.tapConnectionContext().getLog().info();
             throw new CoreException(SelectDbErrorCodes.ERROR_SDB_COPY_INTO_CANCELLED, "ErrorMsg: " + selectDBCopyIntoLog.get("ErrorMsg")
                     + ";   Log URL: [" + selectDBCopyIntoLog.get("URL")
                     + "]   CreateTime:" + selectDBCopyIntoLog.get("CreateTime"));

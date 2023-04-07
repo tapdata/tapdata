@@ -55,8 +55,6 @@ public class MessageSerializer {
                         jsonName.put(entry.getKey(), o.toString());
                     } else if (o instanceof Date) {
                         jsonName.put(entry.getKey(), o.toString());
-                    } else if("{}".equals(o) ) {
-                        continue;
                     } else {
                         jsonName.put(entry.getKey(), values.get(entry.getKey()));
                     }
