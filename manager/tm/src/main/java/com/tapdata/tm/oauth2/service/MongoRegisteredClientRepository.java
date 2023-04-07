@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tapdata.tm.oauth2.entity.RegisteredClientEntity;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -124,10 +125,14 @@ public class MongoRegisteredClientRepository implements RegisteredClientReposito
             return null;
         return RegisteredClient.withId(registeredClientEntity.getId().toHexString())
                 .clientSettings(clientSettings -> {
-                    clientSettings.settings().putAll(parseMap(registeredClientEntity.getClientSettings()));
+                    if (StringUtils.isNotBlank(registeredClientEntity.getClientSettings())) {
+                        clientSettings.settings().putAll(parseMap(registeredClientEntity.getClientSettings()));
+                    }
                 })
                 .tokenSettings(tokenSettings -> {
-                    tokenSettings.settings().putAll(parseMap(registeredClientEntity.getTokenSettings()));
+                    if (StringUtils.isNotBlank(registeredClientEntity.getTokenSettings())) {
+                        tokenSettings.settings().putAll(parseMap(registeredClientEntity.getTokenSettings()));
+                    }
                 })
                 .clientId(registeredClientEntity.getClientId())
                 .clientIdIssuedAt(registeredClientEntity.getClientIdIssuedAt())

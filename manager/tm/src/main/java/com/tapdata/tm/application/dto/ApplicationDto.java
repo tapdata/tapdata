@@ -3,8 +3,10 @@ package com.tapdata.tm.application.dto;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 
 import java.util.List;
+import java.util.Set;
 
 
 /**
@@ -40,5 +42,6 @@ public class ApplicationDto extends BaseDto {
     private List scopes;
     private List<String> redirectUris;
     private Boolean showMenu;
+    private Set<String> clientAuthenticationMethods;
 
 }

@@ -5,8 +5,10 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
+import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 
 import java.util.List;
+import java.util.Set;
 
 
 /**
@@ -74,6 +76,7 @@ public class ApplicationEntity extends BaseEntity {
     private List scopes;
     private List<String> redirectUris;
     private Boolean showMenu;
+    private Set<String> clientAuthenticationMethods;
 
 
 }
