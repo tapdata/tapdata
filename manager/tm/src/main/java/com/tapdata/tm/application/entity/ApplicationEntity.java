@@ -77,6 +77,8 @@ public class ApplicationEntity extends BaseEntity {
     private List<String> redirectUris;
     private Boolean showMenu;
     private Set<String> clientAuthenticationMethods;
+    private String clientSettings;
+    private String tokenSettings;
 
 
 }

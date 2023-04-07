@@ -7,6 +7,7 @@ import com.tapdata.tm.application.dto.ApplicationDto;
 import com.tapdata.tm.application.service.ApplicationService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MapUtils;
@@ -17,13 +18,17 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.NonNull;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.security.oauth2.server.authorization.config.ClientSettings;
+import org.springframework.security.oauth2.server.authorization.config.TokenSettings;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -54,8 +59,30 @@ public class ApplicationController extends BaseController {
 //        metadataDefinition.setId(objectId);
 //        metadataDefinition.setClientId(objectId.toHexString());
         if (CollectionUtils.isEmpty(applicationDto.getClientAuthenticationMethods())) {
-            applicationDto.setClientAuthenticationMethods(Sets.newHashSet(ClientAuthenticationMethod.POST.getValue()));
+            applicationDto.setClientAuthenticationMethods(
+                    Sets.newHashSet(
+                            ClientAuthenticationMethod.POST.getValue(),
+                            ClientAuthenticationMethod.CLIENT_SECRET_POST.getValue(),
+                            ClientAuthenticationMethod.CLIENT_SECRET_JWT.getValue(),
+                            ClientAuthenticationMethod.PRIVATE_KEY_JWT.getValue())
+            );
         }
+
+        if (StringUtils.isBlank(applicationDto.getClientSettings())) {
+            TokenSettings tokenSettings = new TokenSettings();
+            tokenSettings.accessTokenTimeToLive(Duration.ofDays(14));
+            tokenSettings.refreshTokenTimeToLive(Duration.ofDays(14));
+            tokenSettings.reuseRefreshTokens(true);
+            applicationDto.setClientSettings(JsonUtil.toJson(tokenSettings.settings()));
+        }
+
+        if (StringUtils.isBlank(applicationDto.getTokenSettings())) {
+            ClientSettings clientSettings = new ClientSettings();
+            clientSettings.requireUserConsent(true);
+            applicationDto.setClientSettings(JsonUtil.toJson(clientSettings.settings()));
+        }
+
+
         ApplicationDto dto = applicationService.save(applicationDto, getLoginUser());
         dto.setClientId(dto.getId().toHexString());
         applicationService.updateById(dto, getLoginUser());
