@@ -3932,7 +3932,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         TableStatusInfoDto tableStatusInfoDto = new TableStatusInfoDto();
         Criteria criteria = new Criteria();
         // tableName 不为空根据表查询。否则根据连接查询
-        criteria.and("dag.nodes.connectionId").is(connectionId);
+        criteria.and("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true);
         criteria.orOperator(new Criteria().and("dag.nodes.tableName").is(tableName),
                 new Criteria().and("dag.nodes.tableNames").in(tableName),
                 new Criteria().and("dag.nodes.syncObjects.objectNames").in(tableName));
@@ -3958,7 +3958,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         taskEditStatus = TableStatusEnum.STATUS_DRAFT.getValue();
                     } else {
                         taskErrorStatus = TableStatusEnum.STATUS_ERROR.getValue();
-                        break;
                     }
                 }
             }
@@ -4001,9 +4000,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 cdcDelayTime = Long.valueOf(sample.getVs().get("replicateLag").toString());
             }
             tableStatusInfoDto.setCdcDelayTime(cdcDelayTime);
-            long  LastDataChangeTime = sample.getVs().get("currentEventTimestamp").longValue();
-            if(LastDataChangeTime !=0){
-                lastData = new Date(LastDataChangeTime);
+            if(sample.getVs().get("currentEventTimestamp") != null) {
+                long LastDataChangeTime = sample.getVs().get("currentEventTimestamp").longValue();
+                if (LastDataChangeTime != 0) {
+                    lastData = new Date(LastDataChangeTime);
+                }
             }
             tableStatusInfoDto.setLastDataChangeTime(lastData);
         }
