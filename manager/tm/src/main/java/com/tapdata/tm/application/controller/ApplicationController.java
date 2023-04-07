@@ -2,6 +2,7 @@ package com.tapdata.tm.application.controller;
 
 import cn.hutool.core.map.MapUtil;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import com.tapdata.tm.application.dto.ApplicationDto;
 import com.tapdata.tm.application.service.ApplicationService;
 import com.tapdata.tm.base.controller.BaseController;
@@ -15,10 +16,12 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.NonNull;
+import org.apache.commons.collections4.CollectionUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -45,12 +48,15 @@ public class ApplicationController extends BaseController {
      */
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
-    public ResponseMessage<ApplicationDto> save(@RequestBody ApplicationDto metadataDefinition) {
-        metadataDefinition.setId(null);
+    public ResponseMessage<ApplicationDto> save(@RequestBody ApplicationDto applicationDto) {
+        applicationDto.setId(null);
 //        ObjectId objectId = new ObjectId();
 //        metadataDefinition.setId(objectId);
 //        metadataDefinition.setClientId(objectId.toHexString());
-        ApplicationDto dto = applicationService.save(metadataDefinition, getLoginUser());
+        if (CollectionUtils.isEmpty(applicationDto.getClientAuthenticationMethods())) {
+            applicationDto.setClientAuthenticationMethods(Sets.newHashSet(ClientAuthenticationMethod.POST.getValue()));
+        }
+        ApplicationDto dto = applicationService.save(applicationDto, getLoginUser());
         dto.setClientId(dto.getId().toHexString());
         applicationService.updateById(dto, getLoginUser());
         return success(dto);
