@@ -5,6 +5,7 @@ import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -15,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 
@@ -196,6 +198,14 @@ public class MetadataDefinitionController extends BaseController {
     public ResponseMessage<MetadataDefinitionDto> upsertByWhere(@RequestParam("where") String whereJson, @RequestBody MetadataDefinitionDto metadataDefinition) {
         Where where = parseWhere(whereJson);
         return success(metadataDefinitionService.upsertByWhere(where, metadataDefinition, getLoginUser()));
+    }
+
+
+
+
+    @GetMapping("child")
+    public ResponseMessage<List<MetadataDefinitionDto>> findAndChild(String tagId) {
+        return success(metadataDefinitionService.findAndChild(Lists.of(MongoUtils.toObjectId(tagId)), getLoginUser()));
     }
 
 }
