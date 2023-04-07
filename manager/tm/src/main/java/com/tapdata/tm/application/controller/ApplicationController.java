@@ -1,6 +1,7 @@
 package com.tapdata.tm.application.controller;
 
 import cn.hutool.core.map.MapUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.tapdata.tm.application.dto.ApplicationDto;
@@ -9,6 +10,7 @@ import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.oauth2.service.MongoRegisteredClientRepository;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.utils.MongoUtils;
@@ -68,20 +70,19 @@ public class ApplicationController extends BaseController {
             );
         }
 
-        if (StringUtils.isBlank(applicationDto.getClientSettings())) {
+        if (StringUtils.isBlank(applicationDto.getTokenSettings())) {
             TokenSettings tokenSettings = new TokenSettings();
             tokenSettings.accessTokenTimeToLive(Duration.ofDays(14));
             tokenSettings.refreshTokenTimeToLive(Duration.ofDays(14));
             tokenSettings.reuseRefreshTokens(true);
-            applicationDto.setClientSettings(JsonUtil.toJson(tokenSettings.settings()));
+            applicationDto.setTokenSettings(MongoRegisteredClientRepository.writeMap(tokenSettings.settings()));
         }
 
-        if (StringUtils.isBlank(applicationDto.getTokenSettings())) {
+        if (StringUtils.isBlank(applicationDto.getClientSettings())) {
             ClientSettings clientSettings = new ClientSettings();
             clientSettings.requireUserConsent(true);
-            applicationDto.setClientSettings(JsonUtil.toJson(clientSettings.settings()));
+            applicationDto.setClientSettings(MongoRegisteredClientRepository.writeMap(clientSettings.settings()));
         }
-
 
         ApplicationDto dto = applicationService.save(applicationDto, getLoginUser());
         dto.setClientId(dto.getId().toHexString());

@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 public class MongoRegisteredClientRepository implements RegisteredClientRepository {
 
     private final PasswordEncoder passwordEncoder;
-    private ObjectMapper objectMapper = new ObjectMapper();
+    private static ObjectMapper objectMapper = new ObjectMapper();
 
     private final MongoOperations mongoOperations;
     private String collectionName;
@@ -163,17 +163,17 @@ public class MongoRegisteredClientRepository implements RegisteredClientReposito
         return mapperEntity(entity);
     }
 
-    private Map<String, Object> parseMap(String data) {
+    public static Map<String, Object> parseMap(String data) {
         try {
-            return this.objectMapper.readValue(data, new TypeReference<Map<String, Object>>() {});
+            return objectMapper.readValue(data, new TypeReference<Map<String, Object>>() {});
         } catch (Exception ex) {
             throw new IllegalArgumentException(ex.getMessage(), ex);
         }
     }
 
-    private String writeMap(Map<String, Object> data) {
+    public static String writeMap(Map<String, Object> data) {
         try {
-            return this.objectMapper.writeValueAsString(data);
+            return objectMapper.writeValueAsString(data);
         } catch (Exception ex) {
             throw new IllegalArgumentException(ex.getMessage(), ex);
         }
