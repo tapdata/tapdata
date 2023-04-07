@@ -169,7 +169,7 @@ public class SelectDbConnector extends ConnectorBase {
     protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
         RetryOptions retryOptions = RetryOptions.create();
         Throwable match;
-        if (null != (match = matchThrowable(throwable, CoreException.class)) && ((CoreException) match).getCode() == 343) {
+        if (null != (match = matchThrowable(throwable, CoreException.class)) && ((CoreException) match).getCode() == 100001) {
             retryOptions.needRetry(false);
             return retryOptions;
         }

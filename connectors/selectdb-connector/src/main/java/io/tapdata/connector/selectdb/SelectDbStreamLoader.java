@@ -107,7 +107,7 @@ public class SelectDbStreamLoader extends Throwable {
         HashMap<String, String> selectDBCopyIntoLog;
         selectDBCopyIntoLog = this.selectDbJdbcContext.getSelectDBCopyIntoLog(uuid);
         if (!"FINISHED".equals(selectDBCopyIntoLog.get("State"))) {
-            throw new CoreException(343, "ErrorMsg: " + selectDBCopyIntoLog.get("ErrorMsg")
+            throw new CoreException(100001, "ErrorMsg: " + selectDBCopyIntoLog.get("ErrorMsg")
                     + ";   Log URL: [" + selectDBCopyIntoLog.get("URL")
                     + "]   CreateTime:" + selectDBCopyIntoLog.get("CreateTime"));
         }
