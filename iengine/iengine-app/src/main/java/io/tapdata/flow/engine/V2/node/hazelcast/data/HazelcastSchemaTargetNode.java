@@ -41,8 +41,6 @@ import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import java.util.*;
 
-import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
-
 public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 
 	/**
@@ -157,7 +155,9 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 					}
 				}
 			}
-		} catch (Exception e) {
+		} catch (TapCodeException tapCodeException) {
+			throw tapCodeException;
+		} catch (Throwable e) {
 			throw new TapCodeException(VirtualTargetExCode_14.UNKNOWN_ERROR, e);
 		} finally {
 			ThreadContext.clearAll();
