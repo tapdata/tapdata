@@ -6,26 +6,24 @@
  */
 package com.tapdata.tm.ws.endpoint;
 
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.websocket.MessageInfoBuilder;
 import com.tapdata.tm.commons.websocket.ReturnCallback;
 import com.tapdata.tm.ws.dto.MessageInfo;
 import com.tapdata.tm.ws.dto.WebSocketInfo;
 import com.tapdata.tm.ws.dto.WebSocketResult;
 import com.tapdata.tm.ws.handler.*;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.socket.TextMessage;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.socket.TextMessage;
 
 @Slf4j
 public class WebSocketManager {
@@ -66,10 +64,12 @@ public class WebSocketManager {
 		for (String k : set) {
 			WebSocketInfo v = wsCache.get(k);
 			if (StringUtils.isNotBlank(v.getAgentId())) {
-				removeSession(k);
 				try {
 					v.getSession().close();
-				} catch (IOException ignore) {
+				} catch (IOException e) {
+					log.error("close agent websocket error", e);
+				} finally {
+					removeSession(k);
 				}
 			}
 		}
