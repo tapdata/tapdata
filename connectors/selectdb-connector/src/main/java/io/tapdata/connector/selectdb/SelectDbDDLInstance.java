@@ -6,10 +6,7 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Author:Skeet
@@ -23,13 +20,11 @@ public class SelectDbDDLInstance {
     }
 
     public String buildDistributedKey(Collection<String> primaryKeyNames) {
-        StringBuilder builder = new StringBuilder();
+        StringJoiner joiner = new StringJoiner(",");
         for (String fieldName : primaryKeyNames) {
-            builder.append(fieldName);
-            builder.append(',');
+            joiner.add("`" + fieldName + "`");
         }
-        builder.delete(builder.length() - 1, builder.length());
-        return builder.toString();
+        return joiner.toString();
     }
 
     public String buildColumnDefinition(final TapTable tapTable) {
