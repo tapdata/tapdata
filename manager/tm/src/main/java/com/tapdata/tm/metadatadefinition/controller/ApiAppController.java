@@ -2,6 +2,7 @@ package com.tapdata.tm.metadatadefinition.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.metadatadefinition.dto.ApiAppDetail;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.ApiAppService;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
@@ -96,6 +97,13 @@ public class ApiAppController extends BaseController {
             @RequestParam("fields") String fieldsJson) {
         Field fields = parseField(fieldsJson);
         return success(apiAppService.findById(MongoUtils.toObjectId(id),  fields, getLoginUser()));
+    }
+
+
+    @Operation(summary = "Find a model instance by {{id}} from the data source")
+    @GetMapping("detail/{id}")
+    public ResponseMessage<ApiAppDetail> detail(@PathVariable("id") String id) {
+        return success(apiAppService.detail(MongoUtils.toObjectId(id), getLoginUser()));
     }
 
     /**

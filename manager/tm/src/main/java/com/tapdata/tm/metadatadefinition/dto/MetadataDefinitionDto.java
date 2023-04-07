@@ -32,4 +32,7 @@ public class MetadataDefinitionDto extends BaseDto {
     /** root目录展示需要，这个不需要入库 */
     private String userName;
 
+    private int apiCount;
+    private int publishedApiCount;
+
 }
