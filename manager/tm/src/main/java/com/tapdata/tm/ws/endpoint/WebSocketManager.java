@@ -66,10 +66,12 @@ public class WebSocketManager {
 		for (String k : set) {
 			WebSocketInfo v = wsCache.get(k);
 			if (StringUtils.isNotBlank(v.getAgentId())) {
-				removeSession(k);
 				try {
 					v.getSession().close();
-				} catch (IOException ignore) {
+				} catch (IOException e) {
+					log.error("close agent websocket session failed ", e);
+				} finally {
+					removeSession(k);
 				}
 			}
 		}
