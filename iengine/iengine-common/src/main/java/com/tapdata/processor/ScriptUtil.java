@@ -167,6 +167,9 @@ public class ScriptUtil {
             if (externalClassLoader[0] != null) {
                 Thread.currentThread().setContextClassLoader(externalClassLoader[0]);
             }
+						if (Thread.currentThread().getContextClassLoader() == null) {
+							Thread.currentThread().setContextClassLoader(ScriptUtil.class.getClassLoader());
+						}
             String scripts = script + System.lineSeparator() + buildInMethod;
 
             try {
