@@ -6,7 +6,7 @@ package io.tapdata.write;
  * @create 2023/4/7 20:32
  **/
 public interface Check {
-    public default void check() throws Throwable{
+    public default void check() {
 
     }
 }
