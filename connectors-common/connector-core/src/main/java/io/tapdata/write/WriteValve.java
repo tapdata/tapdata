@@ -95,12 +95,12 @@ public class WriteValve {
     public void close(boolean stopNow) {
         Optional.ofNullable(this.tapEventCollector).ifPresent(tap -> tap.stop(stopNow));
     }
-    public void close() throws Throwable {
+    public void close() {
         this.close(true);
         this.check.check();
     }
 
-    public void commit(String tableId) throws Throwable {
+    public void commit(String tableId) {
         if (Objects.isNull(tableId) || "".equals(tableId.trim())) {
             throw new CoreException(" Unable to submit data for an empty table, table name is empty.");
         }
@@ -116,7 +116,7 @@ public class WriteValve {
         Optional.ofNullable(this.tapEventCollector).ifPresent(TapEventCollector::uploadEvents);
     }
 
-    public void commit(List<String> tableIdList) throws Throwable {
+    public void commit(List<String> tableIdList) {
         if (Objects.isNull(tableIdList) || tableIdList.isEmpty()) {
             throw new CoreException(" If you need to submit the data of all tables immediately, please use commitAll(). ");
         }
@@ -124,7 +124,7 @@ public class WriteValve {
         this.check.check();
     }
 
-    public WriteValve write(List<TapRecordEvent> eventList, TapTable table) throws Throwable {
+    public WriteValve write(List<TapRecordEvent> eventList, TapTable table) {
         this.tapEventCollector.addTapEvents(eventList, table);
         return this.check();
     }
@@ -170,12 +170,12 @@ public class WriteValve {
         return this;
     }
 
-    public WriteValve check() throws Throwable{
+    public WriteValve check() {
         if (null == check) check = new Check() {
             @Override
-            public void check() throws Throwable {
+            public void check() {
                 if (null != tapEventCollector.throwable()) {
-                    throw tapEventCollector.throwable();
+                    throw new RuntimeException(tapEventCollector.throwable());
                 }
             }
         };
