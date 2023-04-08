@@ -32,6 +32,8 @@ public class WriteValve {
     //
     private boolean autoCheckTableWhenWriteOnce = false;
 
+    private Check check;
+
     //
     public static WriteValve open(
             int writeSize,
@@ -95,6 +97,7 @@ public class WriteValve {
     }
     public void close() {
         this.close(true);
+        this.check.check();
     }
 
     public void commit(String tableId) {
@@ -106,6 +109,7 @@ public class WriteValve {
             tab.add(tableId);
             e.uploadEvents(tab);
         });
+        this.check.check();
     }
 
     public void commitAll() {
@@ -117,11 +121,12 @@ public class WriteValve {
             throw new CoreException(" If you need to submit the data of all tables immediately, please use commitAll(). ");
         }
         Optional.ofNullable(this.tapEventCollector).ifPresent(e -> e.uploadEvents(tableIdList));
+        this.check.check();
     }
 
     public WriteValve write(List<TapRecordEvent> eventList, TapTable table) {
         this.tapEventCollector.addTapEvents(eventList, table);
-        return this;
+        return this.check();
     }
 
     public WriteValve writeSize(int writeSize) {
@@ -162,6 +167,19 @@ public class WriteValve {
     public WriteValve autoCheckTableWhenWriteOnce(boolean autoCheck) {
         this.autoCheckTableWhenWriteOnce = autoCheck;
         this.tapEventCollector.autoCheckTable(autoCheck);
+        return this;
+    }
+
+    public WriteValve check() {
+        if (null == check) check = new Check() {
+            @Override
+            public void check() {
+                if (null != tapEventCollector.throwable()) {
+                    throw new RuntimeException(tapEventCollector.throwable());
+                }
+            }
+        };
+        check.check();
         return this;
     }
 }

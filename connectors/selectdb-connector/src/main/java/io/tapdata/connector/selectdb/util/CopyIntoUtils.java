@@ -57,12 +57,12 @@ public class CopyIntoUtils {
         primaryKeys = key;
     }
 
-    public static void upload(byte[] bytes) throws IOException {
+    public static void upload(String uuid, byte[] bytes) throws IOException {
         if (selectdbHttp == null) {
             throw new RuntimeException("load_url cannot be empty, or the host cannot connect.Please check your configuration.");
         }
         String uploadLoadUrl = String.format(UPLOAD_URL_PATTERN, selectdbHttp);
-        String uploadUuidName = UUID.randomUUID().toString() + "_" + System.currentTimeMillis() + ".json";
+        String uploadUuidName =  uuid + ".json";
         uuidName = uploadUuidName;
         String location = getUploadAddress(uploadLoadUrl, uuidName);
         put(location, uuidName, bytes);
@@ -98,7 +98,7 @@ public class CopyIntoUtils {
                 .build();
         Response response = client.newCall(request).execute();
         response.close();
-        TapLogger.info(TAG, "CopyInto successfully.");
+//        TapLogger.info(TAG, "CopyInto successfully.");
     }
 
     public static void uploadTest(byte[] bytes) throws IOException {

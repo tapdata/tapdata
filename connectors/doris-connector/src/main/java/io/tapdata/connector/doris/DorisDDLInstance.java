@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.kit.EmptyKit;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.Collection;
@@ -34,7 +35,10 @@ public class DorisDDLInstance {
 
     public String buildColumnDefinition(final TapTable tapTable) {
         final Map<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-        final Collection<String> pks = tapTable.primaryKeys(true);
+        Collection<String> pks = tapTable.primaryKeys(true);
+        if (EmptyKit.isEmpty(pks)) {
+            pks = tapTable.getNameFieldMap().keySet();
+        }
         Set<String> pkSet = Sets.newHashSet();
         final List<String> fieldStrs = Lists.newArrayList();
         for (String pk : pks) {
