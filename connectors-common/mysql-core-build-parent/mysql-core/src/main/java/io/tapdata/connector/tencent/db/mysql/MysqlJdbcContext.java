@@ -140,7 +140,11 @@ public class MysqlJdbcContext implements AutoCloseable {
 			} catch (Exception ignored) {
 			}
 		}else {
-			properties.put("serverTimezone", "GMT");
+			try {
+				properties.put("serverTimezone", this.timezone());
+			} catch (Exception e) {
+				throw new RuntimeException(e);
+			}
 		}
 		StringBuilder propertiesString = new StringBuilder();
 		properties.forEach((k, v) -> propertiesString.append("&").append(k).append("=").append(v));
