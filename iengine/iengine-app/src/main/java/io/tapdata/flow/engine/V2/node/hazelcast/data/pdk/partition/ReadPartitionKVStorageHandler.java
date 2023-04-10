@@ -333,8 +333,9 @@ public class ReadPartitionKVStorageHandler extends PartitionFieldParentHandler i
 	}
 
 	public void passThrough(TapEvent event) {
-		if(finished.get())
-			sourcePdkDataNode.handleStreamEventsReceived(list(event), null);
+		if(finished.get()) {
+            sourcePdkDataNode.handleStreamEventsReceived(list(event), null);
+        }
 	}
 
 	public Map<String, Object> getExistDataFromKVMap(Map<String, Object> key) {

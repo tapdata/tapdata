@@ -669,9 +669,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             }
             tapdataEvents.add(tapdataEvent);
         }
-        if (streamReadFuncAspect != null) {
-            AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), eventCache);
-        }
         return tapdataEvents;
     }
 
