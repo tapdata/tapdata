@@ -12,12 +12,6 @@ spring:
   data:
     mongodb:
       cursorBatchSize: 1000
-      default:
-        uri: 'mongodb://127.0.0.1:27017/cloud-tm'
-      obs:
-        uri: 'mongodb://127.0.0.1:27017/cloud-obs'
-      log:
-        uri: 'mongodb://127.0.0.1:27017/cloud-log'
 
   messages:
     encoding: UTF-8
