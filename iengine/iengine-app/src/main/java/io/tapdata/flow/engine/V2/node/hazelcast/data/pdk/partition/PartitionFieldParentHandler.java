@@ -36,13 +36,13 @@ public class PartitionFieldParentHandler {
 		table = tapTable.getId();
 		TapIndexEx partitionIndex = tapTable.partitionIndex();
 		if(partitionIndex == null || partitionIndex.getIndexFields() == null || partitionIndex.getIndexFields().isEmpty()) {
-			TapLogger.warn(TAG, "Not find any primary keys, partition index is illegal for table {}.", table);
-			//throw new CoreException(PartitionErrorCodes.PARTITION_INDEX_NULL, "Not find any primary keys, partition index is illegal for table {}, cancel full breakpoint resume.", table);
+			//TapLogger.warn(TAG, "Not find any primary keys, partition index is illegal for table {}.", table);
+			throw new CoreException(PartitionErrorCodes.PARTITION_INDEX_NULL, "Not find any primary keys, partition index is illegal for table {}, cancel full breakpoint resume.", table);
 			//partitionFields.addAll(nameFieldMap.keySet());
 			//if (partitionFields.isEmpty()){
 			//	throw new CoreException(PartitionErrorCodes.PARTITION_INDEX_NULL,"Not find any fields in source table {}.", table);
 			//}
-			return;
+			//return;
 		}
         partitionFields = new ArrayList<>();
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();

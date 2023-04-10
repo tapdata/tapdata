@@ -28,7 +28,6 @@ public interface ReadPartitionHandler {
         if (node instanceof DataParentNode) {
             DataParentNode<?> databaseNode = (DataParentNode<?>) node;
             ReadPartitionOptions readPartitionOptions = databaseNode.getReadPartitionOptions();
-            readPartitionOptions.hasKVStorage(false);
             if (readPartitionOptions.hasKVStorage()) {
                 return new ReadPartitionHandlerHandler(pdkSourceContext, tapTable, readPartition, sourcePdkDataNode);
             } else {
