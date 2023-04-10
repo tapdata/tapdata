@@ -401,6 +401,24 @@
           "x-component": "InputNumber",
           "apiServerKey": "dataStartLine",
           "x-index": 10
+        },
+        "justString": {
+          "type": "boolean",
+          "title": "${justString}",
+          "default": false,
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "x-index": 12,
+          "x-reactions": [
+            {
+              "dependencies": ["$outputs"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
         }
       }
     }
@@ -442,7 +460,8 @@
       "header": "File Header",
       "dataStartLine": "Data Line",
       "modelName": "Model Name",
-      "headerLine": "Header Line"
+      "headerLine": "Header Line",
+      "justString": "All To String"
     },
     "zh_CN": {
       "doc": "docs/excel_zh_CN.md",
@@ -478,7 +497,8 @@
       "header": "表头",
       "dataStartLine": "正文起始行",
       "modelName": "模型名",
-      "headerLine": "表头行"
+      "headerLine": "表头行",
+      "justString": "全转换字符串"
     },
     "zh_TW": {
       "doc": "docs/excel_zh_TW.md",
@@ -514,7 +534,8 @@
       "header": "表頭",
       "dataStartLine": "正文起始行",
       "modelName": "模型名",
-      "headerLine": "表頭行"
+      "headerLine": "表頭行",
+      "justString": "全轉換字符串"
     }
   },
   "dataTypes": {
