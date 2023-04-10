@@ -433,7 +433,8 @@ public class TaskController extends BaseController {
 //        log.info("subTask updateByWhere, whereJson:{},reqBody:{}",whereJson,reqBody);
         Where where = parseWhere(whereJson);
         Document update = Document.parse(reqBody);
-        if (!update.containsKey("$set") && !update.containsKey("$setOnInsert") && !update.containsKey("$unset")) {
+        boolean contains$ = update.keySet().stream().anyMatch(s -> s.startsWith("$"));
+        if (!contains$) {
             Document _body = new Document();
             _body.put("$set", update);
             update = _body;
