@@ -398,12 +398,12 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
                             for(ReadPartition readPartition : recoveredPartitions) {
 								readPartition.partitionIndex(partitionIndex);
 								if(completedPartitionIdsCache.containsKey(readPartition.getId())) {
-									ReadPartitionKVStorage readPartitionHandler = ReadPartitionKVStorage.KVStorage(sourceContext, tapTable, readPartition, this);
+									ReadPartitionHandler readPartitionHandler = ReadPartitionHandler.createReadPartitionHandler(sourceContext, tapTable, readPartition, this);
 									readPartitionHandler.finish();
 									obsLogger.info("Table {} partition {} has read finished by last time, count {}, will be skipped.", entryKey, readPartition, completedPartitionIdsCache.get(readPartition.getId()));
 									eventPartitionDispatcher.register(readPartition, readPartitionHandler);
 								} else {
-									ReadPartitionKVStorage readPartitionHandler = ReadPartitionKVStorage.KVStorage(sourceContext, tapTable, readPartition, this);
+									ReadPartitionHandler readPartitionHandler = ReadPartitionHandler.createReadPartitionHandler(sourceContext, tapTable, readPartition, this);
 									obsLogger.info("Table {} partition {} hasn't been read by last time, will continue read. ", entryKey, readPartition);
 									eventPartitionDispatcher.register(readPartition, readPartitionHandler);
 								}

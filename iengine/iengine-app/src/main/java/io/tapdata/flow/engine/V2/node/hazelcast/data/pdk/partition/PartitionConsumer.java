@@ -45,7 +45,7 @@ public class PartitionConsumer implements Consumer<ReadPartition> {
 			AspectUtils.accept(getReadPartitionsFuncAspect.state(GetReadPartitionsFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), readPartition);
 
 		readPartition.partitionIndex(tapTable.partitionIndex());
-		ReadPartitionKVStorage readPartitionHandler = ReadPartitionKVStorage.KVStorage(pdkSourceContext, tapTable, readPartition, sourcePdkDataNodeEx1);
+		ReadPartitionHandler readPartitionHandler = ReadPartitionHandler.createReadPartitionHandler(pdkSourceContext, tapTable, readPartition, sourcePdkDataNodeEx1);
 		partitionsReader.job(readPartition.getId(),
 				JobContext.create()
 						.context(ReadPartitionContext.create()

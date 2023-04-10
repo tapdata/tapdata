@@ -22,7 +22,7 @@ import static io.tapdata.entity.simplify.TapSimplify.deleteDMLEvent;
  * @author aplomb
  */
 public class TapEventPartitionDispatcher extends PartitionFieldParentHandler {
-	private final ConcurrentSkipListMap<ReadPartition, ReadPartitionKVStorage> readPartitionConsumerMap = new ConcurrentSkipListMap<>(/*ReadPartition::compareTo*/);
+	private final ConcurrentSkipListMap<ReadPartition, ReadPartitionHandler> readPartitionConsumerMap = new ConcurrentSkipListMap<>(/*ReadPartition::compareTo*/);
 
 	private final AtomicBoolean readPartitionFinished = new AtomicBoolean(false);
 
@@ -55,7 +55,7 @@ public class TapEventPartitionDispatcher extends PartitionFieldParentHandler {
 			return null;
 		}
 		obsLogger.info("Table {} InsertRecord key {} assigned into partition {}", table, key, readPartition);
-		ReadPartitionKVStorage readPartitionHandler = readPartitionConsumerMap.get(readPartition);
+		ReadPartitionHandler readPartitionHandler = readPartitionConsumerMap.get(readPartition);
 		if(readPartitionHandler == null) {
 			throw new CoreException(PartitionErrorCodes.PARTITION_NOT_FOUND_FOR_VALUE, "ReadPartition {} failed to find readPartitionHandler for key {} while insert", readPartition, key);
 		}
@@ -75,7 +75,7 @@ public class TapEventPartitionDispatcher extends PartitionFieldParentHandler {
 			return null;
 		}
 		obsLogger.info("Table {} UpdateRecord key {} assigned into partition {}", table, key, readPartition);
-		ReadPartitionKVStorage readPartitionHandler = readPartitionConsumerMap.get(readPartition);
+		ReadPartitionHandler readPartitionHandler = readPartitionConsumerMap.get(readPartition);
 		if(readPartitionHandler == null) {
 			throw new CoreException(PartitionErrorCodes.PARTITION_NOT_FOUND_FOR_VALUE, "ReadPartition {} failed to find readPartitionHandler for key {} while update", readPartition, key);
 		}
@@ -97,7 +97,7 @@ public class TapEventPartitionDispatcher extends PartitionFieldParentHandler {
 			return null;
 		}
 		obsLogger.info("Table {} DeleteRecord key {} assigned into partition {}", table, key, readPartition);
-		ReadPartitionKVStorage readPartitionHandler = readPartitionConsumerMap.get(readPartition);
+		ReadPartitionHandler readPartitionHandler = readPartitionConsumerMap.get(readPartition);
 		if(readPartitionHandler == null) {
 			throw new CoreException(PartitionErrorCodes.PARTITION_NOT_FOUND_FOR_VALUE, "ReadPartition {} failed to find readPartitionHandler for key {} while delete", readPartition, key);
 		}
@@ -115,14 +115,14 @@ public class TapEventPartitionDispatcher extends PartitionFieldParentHandler {
 			return;
 		}
 		obsLogger.info("Table {} deleteFromPartition key {} assigned into partition {}", table, key, readPartition);
-		ReadPartitionKVStorage readPartitionHandler = readPartitionConsumerMap.get(readPartition);
+		ReadPartitionHandler readPartitionHandler = readPartitionConsumerMap.get(readPartition);
 		if(readPartitionHandler == null) {
 			throw new CoreException(PartitionErrorCodes.PARTITION_NOT_FOUND_FOR_VALUE, "ReadPartition {} failed to find readPartitionHandler for key {} while delete", readPartition, key);
 		}
         readPartitionHandler.deleteFromPartition(deleteRecordEvent,key);
 	}
 
-	public void register(ReadPartition readPartition, ReadPartitionKVStorage readPartitionHandler) {
+	public void register(ReadPartition readPartition, ReadPartitionHandler readPartitionHandler) {
 		readPartitionConsumerMap.put(readPartition, readPartitionHandler);
 	}
 
@@ -140,7 +140,7 @@ public class TapEventPartitionDispatcher extends PartitionFieldParentHandler {
 		return readPartitionFinished.get();
 	}
 
-	public ConcurrentSkipListMap<ReadPartition, ReadPartitionKVStorage> getReadPartitionConsumerMap() {
+	public ConcurrentSkipListMap<ReadPartition, ReadPartitionHandler> getReadPartitionConsumerMap() {
 		return readPartitionConsumerMap;
 	}
 }

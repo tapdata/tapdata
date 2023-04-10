@@ -34,7 +34,8 @@ public class StopTaskOnErrorLog implements Log {
 	@Override
 	public void error(String message, Object... params) {
 		if(hazelcastBaseNode != null) {
-			hazelcastBaseNode.errorHandle(new TapCodeException(FormatUtils.format(message, params)), null);
+            String msg  = FormatUtils.format(message, params);
+			hazelcastBaseNode.errorHandle(new TapCodeException(msg, new RuntimeException(msg)), null);
 		} else {
 			log.error(message, params);
 		}
