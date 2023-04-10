@@ -3,6 +3,7 @@ package com.tapdata.tm.task.service;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Maps;
 import com.mongodb.ConnectionString;
+import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
@@ -931,6 +932,7 @@ public class LogCollectorService {
                 List<Node> sources1 = oldLogCollectorTask.getDag().getSources();
                 LogCollectorNode logCollectorNode = (LogCollectorNode) sources1.get(0);
                 List<String> oldTableNames = logCollectorNode.getTableNames();
+                Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
                 for (String id : ids) {
                     newLogCollectorMap.put(id, oldLogCollectorTask.getId().toHexString());
                 }

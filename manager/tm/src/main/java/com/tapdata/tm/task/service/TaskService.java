@@ -445,8 +445,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         customSqlService.checkCustomSqlTask(taskDto, user);
 
-        if (oldTaskDto.getEditVersion().equals(taskDto.getEditVersion())) {
-            //throw new BizException("Task.OldVersion");
+        boolean agentReq = isAgentReq();
+        if (!agentReq) {
+            if (taskDto.getVersion() != null && !oldTaskDto.getEditVersion().equals(taskDto.getEditVersion())) {
+                throw new BizException("Task.OldVersion");
+            }
         }
 
         //改名不能重复
@@ -472,8 +475,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         log.debug("check task dag complete, task id =- {}", taskDto.getId());
 
-        String editVersion = buildEditVersion(taskDto);
-        taskDto.setEditVersion(editVersion);
+        if (!isAgentReq()) {
+            String editVersion = buildEditVersion(taskDto);
+            taskDto.setEditVersion(editVersion);
+        }
+
 
         //更新任务
         log.debug("update task, task dto = {}", taskDto);

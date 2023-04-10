@@ -106,9 +106,13 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
         String parentId = metadataDefinitionDto.getParent_id();
         Criteria criteria = Criteria.where("value").is(value);
         if (StringUtils.isBlank(parentId)) {
-            criteria.and("parent_id").exists(false).and("item_type").in(metadataDefinitionDto.getItemType());
+            criteria.and("parent_id").exists(false);
         } else {
             criteria.and("parent_id").is(parentId);
+        }
+
+        if (CollectionUtils.isNotEmpty(metadataDefinitionDto.getItemType())) {
+            criteria.and("item_type").in(metadataDefinitionDto.getItemType());
         }
 
         Query query=Query.query(criteria);
