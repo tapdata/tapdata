@@ -34,6 +34,7 @@ final class TapEventCollector {
     private final AtomicBoolean isStarted = new AtomicBoolean(false);
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
     private List<TapRecordEvent> events = new CopyOnWriteArrayList<>();
+    private Throwable throwable;
     private EventProcessor eventProcessor = (eventList, table) -> {
     };
 
@@ -110,6 +111,7 @@ final class TapEventCollector {
                     try {
                         this.tryUpload(true);
                     } catch (Throwable throwable) {
+                        this.throwable = throwable;
                         TapLogger.error(TAG, "Try upload failed in scheduler, {}", throwable.getMessage());
                     }
                 }, this.initDelay, this.idleSeconds, TimeUnit.SECONDS);
@@ -202,5 +204,9 @@ final class TapEventCollector {
             //this.collectedTable.put(table.getId(), table);
         }
         tryUpload(this.events.size() > this.maxRecords);
+    }
+
+    public Throwable throwable(){
+        return this.throwable;
     }
 }
