@@ -13,7 +13,7 @@ public class ReadPartitionOptions implements Serializable {
 
 	private boolean enable = false;
 	private long maxRecordInPartition = 500_000;
-	private int partitionThreadCount = 8;
+	private int partitionThreadCount = 4;
 	private int partitionBatchCount = 3000;
 	private int minMaxSplitPieces = 100;
 	private boolean hasKVStorage = true;
