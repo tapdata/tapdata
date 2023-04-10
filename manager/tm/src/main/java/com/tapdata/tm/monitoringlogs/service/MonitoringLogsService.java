@@ -355,7 +355,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
                 info.setCheckType(DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name());
                 // 2022-12-08 18:56:44【新任务@14:19:54】【模型推演检测】：
                 String date = DateUtil.toLocalDateTime(log.getDate()).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN));
-                String message = "{0}【{1}】【{2}节点】{3}：";
+                String message = "{0}【{1}】【{2}节点】{3}";
                 info.setLog(MessageFormat.format(message, date, taskName, nodeName, log.getMessage()));
                 info.setGrade(Level.valueOf(log.getLevel()));
                 info.setCreateAt(log.getDate());

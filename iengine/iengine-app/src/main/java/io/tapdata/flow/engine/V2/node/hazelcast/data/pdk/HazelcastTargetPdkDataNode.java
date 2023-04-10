@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
+import com.google.common.collect.Maps;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.TapdataShareLogEvent;
@@ -23,6 +24,9 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
+import io.tapdata.error.TapEventException;
+import io.tapdata.error.TaskTargetProcessorExCode_15;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
@@ -75,11 +79,18 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				writeStrategy = tableNode.getWriteStrategy();
 			} else if (node instanceof DatabaseNode) {
 				DatabaseNode dbNode = (DatabaseNode) node;
-				Optional.ofNullable(dbNode.getUpdateConditionFieldMap()).ifPresent(m -> updateConditionFieldsMap.putAll(m));
+				if (Objects.isNull(dbNode.getUpdateConditionFieldMap())) {
+					dbNode.setUpdateConditionFieldMap(Maps.newHashMap());
+				}
+				updateConditionFieldsMap.putAll(dbNode.getUpdateConditionFieldMap());
 			}
 			initTargetDB();
 		} catch (Exception e) {
-			throw e;
+			if (e instanceof TapCodeException) {
+				throw e;
+			} else {
+				throw new TapCodeException(TaskTargetProcessorExCode_15.UNKNOWN_ERROR, e);
+			}
 		}
 		ddlEventHandlers = new ClassHandlers();
 		ddlEventHandlers.register(TapNewFieldEvent.class, this::executeNewFieldFunction);
@@ -115,7 +126,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					}
 					TapTable tapTable = tapTableMap.get(tableId);
 					if (null == tapTable) {
-						NodeException e = new NodeException("Init target node failed, table \"" + tableId + "\"'s schema is null").context(getDataProcessorContext());
+						TapCodeException e =  new TapCodeException(TaskTargetProcessorExCode_15.INIT_TARGET_TABLE_TAP_TABLE_NULL, "Table name: "+ tableId);
 						if (null != funcAspect) funcAspect.setThrowable(e);
 						throw e;
 					}
@@ -186,12 +197,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), tapTable, indexEvent.get()), TAG));
 			}
 		} catch (Throwable throwable) {
-			NodeException nodeException = new NodeException(throwable).context(getDataProcessorContext());
-			if (null != indexEvent.get()) {
-				nodeException.event(indexEvent.get());
-			}
-			obsLogger.error(nodeException.getMessage(), nodeException);
-			throw nodeException;
+			throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_INDEX_FAILED, "Table name: " + tableId, throwable)
+					.addEvent(indexEvent.get());
 		}
 	}
 
@@ -211,12 +218,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CLEAR_TABLE, () -> func.clearTable(getConnectorNode().getConnectorContext(), tapClearTableEvent.get()), TAG));
 			});
 		} catch (Throwable throwable) {
-			NodeException nodeException = new NodeException(throwable).context(getDataProcessorContext());
-			if (null != tapClearTableEvent.get()) {
-				nodeException.event(tapClearTableEvent.get());
-			}
-			obsLogger.error(nodeException.getMessage(), nodeException);
-			throw nodeException;
+			throw new TapEventException(TaskTargetProcessorExCode_15.CLEAR_TABLE_FAILED, "Table name: " + tableId, throwable)
+					.addEvent(tapClearTableEvent.get());
 		}
 	}
 
@@ -256,12 +259,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			clientMongoOperator.insertOne(Collections.singletonList(tapTable),
 							ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
 		} catch (Throwable throwable) {
-			NodeException nodeException = new NodeException(throwable).context(processorBaseContext);
-			if (null != tapCreateTableEvent.get()) {
-				nodeException.event(tapCreateTableEvent.get());
-			}
-			obsLogger.error(nodeException.getMessage(), nodeException);
-			throw nodeException;
+			throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_TABLE_FAILED, "Table model: " + tapTable, throwable)
+					.addEvent(tapCreateTableEvent.get());
 		}
 		return createdTable;
 	}
@@ -288,14 +287,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						.dataProcessorContext(dataProcessorContext).state(NewFieldFuncAspect.STATE_START));
 			}
 		} catch (Throwable throwable) {
-			NodeException nodeException = new NodeException(throwable).context(getDataProcessorContext());
-			if (null != tapDropTableEvent.get()) {
-				nodeException.event(tapDropTableEvent.get());
-			}
-			obsLogger.error(nodeException.getMessage(), nodeException);
-			throw nodeException;
+			throw new TapEventException(TaskTargetProcessorExCode_15.DROP_TABLE_FAILED, "Table name: " + tableId, throwable)
+					.addEvent(tapDropTableEvent.get());
 		}
-
 	}
 
 	@Nullable

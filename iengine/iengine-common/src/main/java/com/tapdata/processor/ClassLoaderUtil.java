@@ -18,7 +18,7 @@ public class ClassLoaderUtil {
       if (classLoader instanceof URLClassLoader) {
         logger.info("url:  {}", Arrays.asList(((URLClassLoader) classLoader).getURLs()));
       }
-      classLoader = classLoader.getParent();
+      classLoader = classLoader != null ? classLoader.getParent() : null;
     } while (classLoader != null);
 
   }

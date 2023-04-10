@@ -47,7 +47,12 @@ public class PartitionConsumer implements Consumer<ReadPartition> {
 		readPartition.partitionIndex(tapTable.partitionIndex());
 		ReadPartitionHandler readPartitionHandler = new ReadPartitionHandler(pdkSourceContext, tapTable, readPartition, sourcePdkDataNodeEx1);
 		partitionsReader.job(readPartition.getId(),
-				JobContext.create().context(ReadPartitionContext.create().pdkSourceContext(pdkSourceContext).table(tapTable).readPartition(readPartition).batchReadFuncAspect(batchReadFuncAspect)),
+				JobContext.create()
+						.context(ReadPartitionContext.create()
+								.pdkSourceContext(pdkSourceContext)
+								.table(tapTable)
+								.readPartition(readPartition)
+								.batchReadFuncAspect(batchReadFuncAspect)),
 				asyncQueueWorker -> asyncQueueWorker.
 						job("startCachingStreamData", jobContext -> {
 							JobContext context = readPartitionHandler.handleStartCachingStreamData(jobContext);

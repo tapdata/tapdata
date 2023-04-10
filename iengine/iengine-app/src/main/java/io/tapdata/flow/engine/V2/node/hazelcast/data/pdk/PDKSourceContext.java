@@ -19,7 +19,10 @@ public class PDKSourceContext {
 	}
 	private List<String> pendingInitialSyncTables;
 	public PDKSourceContext pendingInitialSyncTables(List<String> pendingInitialSyncTables) {
-		this.pendingInitialSyncTables = new CopyOnWriteArrayList<>(pendingInitialSyncTables);
+		if(pendingInitialSyncTables != null)
+			this.pendingInitialSyncTables = new CopyOnWriteArrayList<>(pendingInitialSyncTables);
+		else
+			this.pendingInitialSyncTables = new CopyOnWriteArrayList<>();
 		return this;
 	}
 	private boolean needCDC;

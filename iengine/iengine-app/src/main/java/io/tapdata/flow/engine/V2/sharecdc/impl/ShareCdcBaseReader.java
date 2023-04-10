@@ -13,6 +13,7 @@ import io.tapdata.flow.engine.V2.sharecdc.ShareCdcReader;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcReaderExCode_13;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -24,6 +25,8 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -105,7 +108,7 @@ public class ShareCdcBaseReader implements ShareCdcReader {
 		}
 	}
 
-	protected void poll(BiConsumer<TapEvent, Object> logContentConsumer) throws Exception {
+	protected void poll(StreamReadConsumer streamReadConsumer) throws Exception {
 		AtomicBoolean firstEvent = new AtomicBoolean(false);
 		while (running.get()) {
 			ShareCDCReaderEvent shareCDCReaderEvent;
@@ -130,7 +133,9 @@ public class ShareCdcBaseReader implements ShareCdcReader {
 						+ "\n - before: " + TapEventUtil.getBefore(tapEvent)
 						+ "\n - after: " + TapEventUtil.getAfter(tapEvent));
 			}
-			logContentConsumer.accept(shareCDCReaderEvent.getTapEvent(), shareCDCReaderEvent.getOffsetObj());
+			List<TapEvent> events = new ArrayList<>();
+			events.add(shareCDCReaderEvent.getTapEvent());
+			streamReadConsumer.accept(events, shareCDCReaderEvent.getOffsetObj());
 		}
 	}
 

@@ -196,15 +196,15 @@ public class TapTable extends TapItem<TapField> {
 
 		TapIndex bestIndex = null;
 
-		if (indexList != null) {
-			for (TapIndex tapIndex : indexList) {
-				if(tapIndex.getIndexFields() == null)
-					continue;
-				if((bestIndex == null || bestIndex.getIndexFields().size() > tapIndex.getIndexFields().size()))
-					bestIndex = tapIndex;
-			}
-		}
-
+//		if (indexList != null) {
+//			for (TapIndex tapIndex : indexList) {
+//				if(tapIndex.getIndexFields() == null)
+//					continue;
+//				if((bestIndex == null || bestIndex.getIndexFields().size() > tapIndex.getIndexFields().size()))
+//					bestIndex = tapIndex;
+//			}
+//		}
+		//Use primary key only, as index field may have null value, which can not be find by AdvanceFilter.
 		TapIndex primaryIndex = new TapIndex().unique(true);
 		for (String key : nameFieldMapCopyRef.keySet()) {
 			TapField field = nameFieldMapCopyRef.get(key);

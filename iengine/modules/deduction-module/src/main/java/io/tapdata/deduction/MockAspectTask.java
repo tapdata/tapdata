@@ -16,6 +16,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.schema.SampleMockUtil;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.List;
 import java.util.Optional;
@@ -49,9 +50,10 @@ public class MockAspectTask extends AbstractAspectTask {
             return null;
           }
           String tableId = TapEventUtil.getTableId(tapEvent);
-          if (!multipleTables) {
-            tableId = nodeId;
-          }
+					if (StringUtils.equals(processorBaseContext.getTaskDto().getSyncType(), TaskDto.SYNC_TYPE_TEST_RUN) && !multipleTables) {
+						tableId = nodeId;
+					}
+
           TapTable tapTable = processorBaseContext.getTapTableMap().get(tableId);
           SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
           break;
