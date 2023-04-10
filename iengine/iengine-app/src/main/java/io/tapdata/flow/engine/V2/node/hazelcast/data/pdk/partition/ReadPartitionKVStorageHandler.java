@@ -37,7 +37,7 @@ import static io.tapdata.entity.simplify.TapSimplify.*;
 /**
  * @author aplomb
  */
-public class ReadPartitionHandlerHandler extends PartitionFieldParentHandler implements ReadPartitionHandler {
+public class ReadPartitionKVStorageHandler extends PartitionFieldParentHandler implements ReadPartitionHandler {
 	private final PDKSourceContext pdkSourceContext;
 	private final ReadPartition readPartition;
 //	private final TypeSplitterMap typeSplitterMap;
@@ -53,7 +53,7 @@ public class ReadPartitionHandlerHandler extends PartitionFieldParentHandler imp
 	private final AtomicBoolean finished = new AtomicBoolean(false);
 	private final LongAdder sentEventCount = new LongAdder();
 
-	public ReadPartitionHandlerHandler(PDKSourceContext pdkSourceContext, TapTable tapTable, ReadPartition readPartition, HazelcastSourcePartitionReadDataNode sourcePdkDataNode) {
+	public ReadPartitionKVStorageHandler(PDKSourceContext pdkSourceContext, TapTable tapTable, ReadPartition readPartition, HazelcastSourcePartitionReadDataNode sourcePdkDataNode) {
 		super(tapTable);
 		this.readPartition = readPartition;
 		this.pdkSourceContext = pdkSourceContext;
@@ -268,7 +268,15 @@ public class ReadPartitionHandlerHandler extends PartitionFieldParentHandler imp
 
 		if (CollectionUtil.isNotEmpty(tapdataEvents)) {
 //			long time = System.currentTimeMillis();
-			tapdataEvents.forEach(sourcePdkDataNode::enqueue);
+			tapdataEvents.forEach(tapdataEvent -> {
+				if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
+					String tableId = ((TapRecordEvent) tapdataEvent.getTapEvent()).getTableId();
+					if (sourcePdkDataNode.removeTables() != null && sourcePdkDataNode.removeTables().contains(tableId)) {
+						return;
+					}
+				}
+				sourcePdkDataNode.enqueue(tapdataEvent);
+			});
 //			sourcePdkDataNode.getObsLogger().info("enqueue events {} takes {}", tapdataEvents.size(), (System.currentTimeMillis() - time));
 
 //			time = System.currentTimeMillis();

@@ -37,7 +37,7 @@ import static io.tapdata.entity.simplify.TapSimplify.*;
  * @description ReadPartitionUnKVStorageHandler create by Gavin
  * @create 2023/4/6 14:25
  **/
-public class ReadPartitionUnHandlerHandler extends PartitionFieldParentHandler implements ReadPartitionHandler {
+public class ReadPartitionUnKVStorageHandler extends PartitionFieldParentHandler implements ReadPartitionHandler {
     private final PDKSourceContext pdkSourceContext;
     private final ReadPartition readPartition;
     private final HazelcastSourcePartitionReadDataNode sourcePdkDataNode;
@@ -46,7 +46,7 @@ public class ReadPartitionUnHandlerHandler extends PartitionFieldParentHandler i
 
     private CopyOnWriteArrayList<TapEvent> cdcEvents = new CopyOnWriteArrayList<>();
 
-    public ReadPartitionUnHandlerHandler(PDKSourceContext pdkSourceContext, TapTable tapTable, ReadPartition readPartition, HazelcastSourcePartitionReadDataNode sourcePdkDataNode) {
+    public ReadPartitionUnKVStorageHandler(PDKSourceContext pdkSourceContext, TapTable tapTable, ReadPartition readPartition, HazelcastSourcePartitionReadDataNode sourcePdkDataNode) {
         super(tapTable);
         this.readPartition = readPartition;
         this.pdkSourceContext = pdkSourceContext;

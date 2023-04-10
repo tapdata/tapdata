@@ -29,12 +29,12 @@ public interface ReadPartitionHandler {
             DataParentNode<?> databaseNode = (DataParentNode<?>) node;
             ReadPartitionOptions readPartitionOptions = databaseNode.getReadPartitionOptions();
             if (readPartitionOptions.hasKVStorage()) {
-                return new ReadPartitionHandlerHandler(pdkSourceContext, tapTable, readPartition, sourcePdkDataNode);
+                return new ReadPartitionKVStorageHandler(pdkSourceContext, tapTable, readPartition, sourcePdkDataNode);
             } else {
-                return new ReadPartitionUnHandlerHandler(pdkSourceContext, tapTable, readPartition, sourcePdkDataNode);
+                return new ReadPartitionUnKVStorageHandler(pdkSourceContext, tapTable, readPartition, sourcePdkDataNode);
             }
         }
-        return new ReadPartitionUnHandlerHandler(pdkSourceContext, tapTable, readPartition, sourcePdkDataNode);
+        return new ReadPartitionUnKVStorageHandler(pdkSourceContext, tapTable, readPartition, sourcePdkDataNode);
     }
 
     public default void writeIntoKVStorage(Map<String, Object> key, Map<String, Object> after, TapRecordEvent recordEvent){

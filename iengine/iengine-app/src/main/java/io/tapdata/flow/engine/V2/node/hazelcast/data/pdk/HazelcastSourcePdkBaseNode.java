@@ -413,7 +413,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
     }
 
     @Override
-    public boolean complete() {
+    final public boolean complete() {
         try {
             TaskDto taskDto = dataProcessorContext.getTaskDto();
             if (firstComplete) {
@@ -840,10 +840,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             }
 
             while (isRunning()) {
-                if (eventQueue.offer(tapdataEvent, 50, TimeUnit.MILLISECONDS)) {
+                if (eventQueue.offer(tapdataEvent, 3, TimeUnit.SECONDS)) {
                     break;
                 }
-                //Thread.sleep(50);
             }
         } catch (InterruptedException ignore) {
             logger.warn("TapdataEvent enqueue thread interrupted");

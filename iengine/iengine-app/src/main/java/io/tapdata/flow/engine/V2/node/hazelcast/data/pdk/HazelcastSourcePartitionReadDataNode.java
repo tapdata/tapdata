@@ -627,9 +627,6 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
     public void enqueue(TapdataEvent tapdataEvent) {
         try {
             while (isRunning()) {
-//                if(offer(tapdataEvent)){
-//                    break;
-//                }
                 if (eventQueue.offer(tapdataEvent, 3, TimeUnit.SECONDS)) {
                     break;
                 }
@@ -694,6 +691,10 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
         }
         newTables.addAll(addList);
         return false;
+	}
+
+	public List<String> removeTables(){
+		return removeTables;
 	}
 
 
