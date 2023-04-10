@@ -3,6 +3,7 @@ package com.tapdata.tm.user.repository;
 import com.tapdata.tm.base.reporitory.BaseRepository;
 import com.tapdata.tm.user.entity.User;
 import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -13,7 +14,7 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public class UserRepository extends BaseRepository<User, ObjectId> {
-    public UserRepository(MongoTemplate mongoOperations) {
+    public UserRepository(@Qualifier(value = "mongoTemplate") MongoTemplate mongoOperations) {
         super(User.class, mongoOperations);
     }
 

@@ -3,8 +3,14 @@ spring:
     active: '@profile.active@'
     include: '@env.PRODUCT@,default'
 
-  data:
-    mongodb:
-      uri: 'mongodb://127.0.0.1:27017/tapdata?authSource=admin'
-      cursorBatchSize: 1000
-
+    data:
+        mongodb:
+            cursorBatchSize: 1000
+            default:
+                uri: 'mongodb://139.198.115.191:32000/dfs-tm'
+            obs:
+                uri: 'mongodb://139.198.115.191:32000/dfs-tm-obs'
+            log:
+                uri: 'mongodb://139.198.115.191:32000/dfs-tm-log'
+tcm:
+    url: http://139.198.127.226:30103
