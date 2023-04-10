@@ -72,7 +72,7 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
     public UserService(@NonNull UserRepository repository) {
         super(repository, UserDto.class, User.class);
     }
-    @Value("${spring.data.mongodb.uri}")
+    @Value("${spring.data.mongodb.default.uri}")
     private String mongodbUri;
     @Value("${server.port}")
     private String serverPort;
