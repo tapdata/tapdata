@@ -40,12 +40,14 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
     @Override
     public CodingStarter connectorInit(CodingConnector codingConnector) {
         this.lastTimeSplitIterationCode.addAll(codingConnector.lastTimeSplitIterationCode());
+        this.lastTimePoint = codingConnector.iterationsLastTimePoint();
         return super.connectorInit(codingConnector);
     }
 
     @Override
     public CodingStarter connectorOut() {
         this.codingConnector.lastTimeSplitIterationCode(this.lastTimeSplitIterationCode);
+        this.codingConnector.iterationsLastTimePoint(this.lastTimePoint);
         return super.connectorOut();
     }
 
@@ -312,6 +314,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
         if (Checker.isEmpty(offsetState)) {
             offsetState = new CodingOffset();
         }
+        if (this.lastTimePoint == null) this.lastTimePoint = 0L;
         CodingOffset offset = (CodingOffset) offsetState;
         long startPage = Optional.ofNullable(offset.getTableUpdateTimeMap().get(TABLE_NAME)).orElse(0L);
         Param param = IterationParam.create()
@@ -339,14 +342,23 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
                 for (Map<String, Object> iteration : result) {
                     Long referenceTime = (Long) iteration.get("UpdatedAt");
                     Long createdAt = (Long) iteration.get("CreatedAt");
-                    Long currentTimePoint = referenceTime - referenceTime % (24 * 60 * 60 * 1000);//时间片段
                     String iterationHash = this.key(iteration, createdAt, referenceTime);
-                    if (!lastTimeSplitIterationCode.contains(iterationHash)) {
-                        if (isStreamRead && referenceTime > createdAt) {
-                            events.add(TapSimplify.updateDMLEvent(null, iteration, TABLE_NAME).referenceTime(System.currentTimeMillis()));
-                        } else {
-                            events.add(TapSimplify.insertRecordEvent(iteration, TABLE_NAME).referenceTime(System.currentTimeMillis()));
+                    Long currentTimePoint = referenceTime - referenceTime % (24 * 60 * 60 * 1000);//时间片段
+                    if (isStreamRead) {
+                        if (currentTimePoint >= this.lastTimePoint && !lastTimeSplitIterationCode.contains(iterationHash)) {
+                            if (referenceTime > createdAt) {
+                                events.add(TapSimplify.updateDMLEvent(null, iteration, TABLE_NAME).referenceTime(System.currentTimeMillis()));
+                            } else {
+                                events.add(TapSimplify.insertRecordEvent(iteration, TABLE_NAME).referenceTime(System.currentTimeMillis()));
+                            }
+                            if (!currentTimePoint.equals(this.lastTimePoint)) {
+                                this.lastTimePoint = currentTimePoint;
+                                lastTimeSplitIterationCode = new HashSet<>();
+                            }
+                            lastTimeSplitIterationCode.add(iterationHash);
                         }
+                    } else {
+                        events.add(TapSimplify.insertRecordEvent(iteration, TABLE_NAME).referenceTime(System.currentTimeMillis()));
                         if (!currentTimePoint.equals(this.lastTimePoint)) {
                             this.lastTimePoint = currentTimePoint;
                             lastTimeSplitIterationCode = new HashSet<>();
