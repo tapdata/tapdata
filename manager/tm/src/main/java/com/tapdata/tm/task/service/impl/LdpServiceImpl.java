@@ -591,7 +591,10 @@ public class LdpServiceImpl implements LdpService {
             DAG dag = taskDto.getDag();
             Node node = dag.getSources().get(0);
             String connectionId = ((DatabaseNode) node).getConnectionId();
-            result.put(tagMap.get(connectionId), taskDto);
+            String linkId = tagMap.get(connectionId);
+            if (StringUtils.isNotBlank(linkId)) {
+                result.put(tagMap.get(connectionId), taskDto);
+            }
         }
         return result;
     }
