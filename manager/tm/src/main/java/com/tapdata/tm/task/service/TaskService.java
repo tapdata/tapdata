@@ -1713,7 +1713,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Node sourceNode = getSourceNode(taskDto);
         CacheNode targetNode = (CacheNode) getTargetNode(taskDto);
         ShareCacheDetailVo shareCacheDetailVo = new ShareCacheDetailVo();
+        shareCacheDetailVo.setId(id);
         shareCacheDetailVo.setName(taskDto.getName());
+        shareCacheDetailVo.setStatus(taskDto.getStatus());
         String connectionId = ((DataNode) sourceNode).getConnectionId();
         DataSourceConnectionDto connectionDto = dataSourceService.findOne(Query.query(Criteria.where("id").is(connectionId)));
         if (null != connectionDto) {
@@ -1722,9 +1724,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         shareCacheDetailVo.setTableName(((TableNode) sourceNode).getTableName());
         shareCacheDetailVo.setCacheKeys(targetNode.getCacheKeys());
-
+        shareCacheDetailVo.setCreateTime(taskDto.getCreateAt());
+        shareCacheDetailVo.setCreateUser(taskDto.getCreateUser());
         if (null != sourceNode.getAttrs()) {
             shareCacheDetailVo.setFields((List<String>) sourceNode.getAttrs().get("fields"));
+        }
+
+        if (taskDto.getCurrentEventTimestamp() != null) {
+            shareCacheDetailVo.setCacheTimeAt(new Date(taskDto.getCurrentEventTimestamp()));
         }
         shareCacheDetailVo.setMaxRows(targetNode.getMaxRows());
         shareCacheDetailVo.setMaxMemory(targetNode.getMaxMemory());
