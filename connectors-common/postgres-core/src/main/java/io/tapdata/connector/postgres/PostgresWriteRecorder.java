@@ -12,6 +12,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -23,7 +24,7 @@ public class PostgresWriteRecorder extends WriteRecorder {
 
     public PostgresWriteRecorder(Connection connection, TapTable tapTable, String schema, boolean hasUnique) {
         super(connection, tapTable, schema);
-        uniqueConditionIsIndex = uniqueConditionIsIndex && hasUnique;
+//        uniqueConditionIsIndex = uniqueConditionIsIndex && hasUnique;
     }
 
     @Override
@@ -32,7 +33,7 @@ public class PostgresWriteRecorder extends WriteRecorder {
             return;
         }
         if (EmptyKit.isNotEmpty(uniqueCondition)) {
-            if (Integer.parseInt(version) > 90500 && uniqueConditionIsIndex) {
+            if (Integer.parseInt(version) > 90500) {
                 if (insertPolicy.equals("ignore-on-exists")) {
                     conflictIgnoreInsert(after);
                 } else {
@@ -154,13 +155,13 @@ public class PostgresWriteRecorder extends WriteRecorder {
         if (EmptyKit.isNull(preparedStatement)) {
             String insertSql;
             if (hasPk) {
-                insertSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + allColumn.stream().map(k -> "\"" + k + "\"=?")
+                insertSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + updatedColumn.stream().map(k -> "\"" + k + "\"=?")
                         .collect(Collectors.joining(", ")) + " WHERE " + uniqueCondition.stream().map(k -> "\"" + k + "\"=?")
                         .collect(Collectors.joining(" AND ")) + " RETURNING *) INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
                         + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") SELECT "
                         + StringKit.copyString("?", allColumn.size(), ",") + " WHERE NOT EXISTS (SELECT * FROM upsert)";
             } else {
-                insertSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + allColumn.stream().map(k -> "\"" + k + "\"=?")
+                insertSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + updatedColumn.stream().map(k -> "\"" + k + "\"=?")
                         .collect(Collectors.joining(", ")) + " WHERE " + uniqueCondition.stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ?::text IS NULL))")
                         .collect(Collectors.joining(" AND ")) + " RETURNING *) INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
                         + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") SELECT "
@@ -170,7 +171,7 @@ public class PostgresWriteRecorder extends WriteRecorder {
         }
         preparedStatement.clearParameters();
         int pos = 1;
-        for (String key : allColumn) {
+        for (String key : updatedColumn) {
             preparedStatement.setObject(pos++, after.get(key));
         }
         if (hasPk) {
@@ -285,13 +286,13 @@ public class PostgresWriteRecorder extends WriteRecorder {
         if (EmptyKit.isNull(preparedStatement)) {
             String updateSql;
             if (hasPk) {
-                updateSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + allColumn.stream().map(k -> "\"" + k + "\"=?")
+                updateSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + updatedColumn.stream().map(k -> "\"" + k + "\"=?")
                         .collect(Collectors.joining(", ")) + " WHERE " + before.keySet().stream().map(k -> "\"" + k + "\"=?")
                         .collect(Collectors.joining(" AND ")) + " RETURNING *) INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
                         + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") SELECT "
                         + StringKit.copyString("?", allColumn.size(), ",") + " WHERE NOT EXISTS (SELECT * FROM upsert)";
             } else {
-                updateSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + allColumn.stream().map(k -> "\"" + k + "\"=?")
+                updateSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + updatedColumn.stream().map(k -> "\"" + k + "\"=?")
                         .collect(Collectors.joining(", ")) + " WHERE " + before.keySet().stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ?::text IS NULL))")
                         .collect(Collectors.joining(" AND ")) + " RETURNING *) INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
                         + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") SELECT "
@@ -301,7 +302,7 @@ public class PostgresWriteRecorder extends WriteRecorder {
         }
         preparedStatement.clearParameters();
         int pos = 1;
-        for (String key : allColumn) {
+        for (String key : updatedColumn) {
             preparedStatement.setObject(pos++, after.get(key));
         }
         dealNullBefore(before, pos);
