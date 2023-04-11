@@ -26,6 +26,8 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastSchemaTargetNode;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.WebSocketEventHandler;
 import io.tapdata.websocket.WebSocketEventResult;
@@ -81,44 +83,48 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 
 			@Override
 			public TapTable loadTapTable(String nodeId, String virtualId, TaskDto taskDto) {
-				// 跑任务加载js模型
-				String schemaKey = taskDto.getId() + "-" + virtualId;
-				long startTs = System.currentTimeMillis();
-				TaskClient<TaskDto> taskClient = execTask(taskDto);
+				ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
+				try {
+					// 跑任务加载js模型
+					String schemaKey = taskDto.getId() + "-" + virtualId;
+					long startTs = System.currentTimeMillis();
+					TaskClient<TaskDto> taskClient = execTask(taskDto);
 
-				logger.info("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
-				if (TaskDto.STATUS_COMPLETE.equals(taskClient.getStatus())) {
+					obsLogger.info("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
 					//成功
 					TapTable tapTable = HazelcastSchemaTargetNode.getTapTable(schemaKey);
-					if (logger.isDebugEnabled()) {
-						logger.debug("derivation results: {}", JSON.toJSONString(tapTable));
+					if (obsLogger.isDebugEnabled()) {
+						obsLogger.debug("derivation results: {}", JSON.toJSONString(tapTable));
 					}
-
 					return tapTable;
+				} catch (Exception e) {
+					obsLogger.error("An error occurred while obtaining the results of model deduction", e);
 				}
 				return null;
 			}
 
 			@Override
 			public List<MigrateJsResultVo> getJsResult(String jsNodeId, String virtualTargetId, TaskDto taskDto) {
-				String schemaKey = taskDto.getId() + "-" + virtualTargetId;
-				long startTs = System.currentTimeMillis();
+				ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
+				try {
+					String schemaKey = taskDto.getId() + "-" + virtualTargetId;
+					long startTs = System.currentTimeMillis();
 
-				TaskClient<TaskDto> taskClient = execTask(taskDto);
+					TaskClient<TaskDto> taskClient = execTask(taskDto);
 
-				logger.info("load MigrateJsResultVos task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
-				if (TaskDto.STATUS_COMPLETE.equals(taskClient.getStatus())) {
+					obsLogger.info("load MigrateJsResultVos task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
 					//成功
 					List<SchemaApplyResult> schemaApplyResultList = HazelcastSchemaTargetNode.getSchemaApplyResultList(schemaKey);
-					if (logger.isDebugEnabled()) {
-						logger.debug("derivation results: {}", JSON.toJSONString(schemaApplyResultList));
+					if (obsLogger.isDebugEnabled()) {
+						obsLogger.debug("derivation results: {}", JSON.toJSONString(schemaApplyResultList));
 					}
 
 					if (CollectionUtils.isNotEmpty(schemaApplyResultList)) {
 						return schemaApplyResultList.stream().map(s -> new MigrateJsResultVo(s.getOp(),s.getFieldName(), s.getTapField(), s.getTapIndex()))
 										.collect(Collectors.toList());
 					}
-
+				} catch (Exception e) {
+					obsLogger.error("An error occurred while obtaining the results of model deduction", e);
 				}
 				return null;
 			}
