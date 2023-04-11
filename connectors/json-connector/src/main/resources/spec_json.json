@@ -521,10 +521,10 @@
     },
     "DATETIME": {
       "range": [
-        "1000-01-01 00:00:00.000000000",
-        "9999-12-31 23:59:59.999999999"
+        "1000-01-01 00:00:00",
+        "9999-12-31 23:59:59"
       ],
-      "pattern": "yyyy-MM-dd HH:mm:ss.SSSSSSSSS",
+      "pattern": "yyyy-MM-dd HH:mm:ss",
       "fraction": [
         0,
         9

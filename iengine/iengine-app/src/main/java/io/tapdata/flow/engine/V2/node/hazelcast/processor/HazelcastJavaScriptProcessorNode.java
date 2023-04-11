@@ -19,6 +19,8 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.script.ScriptExecutorsManager;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
@@ -137,7 +139,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
           if (nodes.size() > 1) {
             obsLogger.warn("Use the first node as the default script executor, please use it with caution.");
           }
-          return new ScriptExecutorsManager.ScriptExecutor(connections, clientMongoOperator, jetContext.hazelcastInstance(), new ObsScriptLogger(obsLogger), TAG + "_" + node.getId());
+          return this.scriptExecutorsManager.create(connections, clientMongoOperator, jetContext.hazelcastInstance(), new ObsScriptLogger(obsLogger));
         }
       }
     }
@@ -196,11 +198,13 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
             TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
       Map<String, Object> finalRecord = record;
       CountDownLatch countDownLatch = new CountDownLatch(1);
+			AtomicReference<Throwable> errorAtomicRef = new AtomicReference<>();
       Thread thread = new Thread(() -> {
         Thread.currentThread().setName("Javascript-Test-Runner");
         try {
           scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, finalRecord));
-        } catch (ScriptException | NoSuchMethodException ignored) {
+        } catch (Throwable throwable) {
+					errorAtomicRef.set(throwable);
         } finally {
           countDownLatch.countDown();
         }
@@ -210,6 +214,10 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
       if (!threadFinished) {
         thread.stop();
       }
+			if (errorAtomicRef.get() != null) {
+				throw new TapCodeException(TaskProcessorExCode_11.JAVA_SCRIPT_PROCESS_FAILED, errorAtomicRef.get());
+			}
+
     } else {
       scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, record));
     }
