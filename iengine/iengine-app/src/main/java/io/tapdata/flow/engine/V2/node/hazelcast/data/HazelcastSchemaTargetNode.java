@@ -40,6 +40,8 @@ import org.voovan.tools.collection.CacheMap;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import java.util.*;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 
@@ -48,27 +50,49 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	 */
 	private static final CacheMap<String, TapTable> tabTableCacheMap = new CacheMap<>();
 	private static final CacheMap<String, List<SchemaApplyResult>> schemaApplyResultMap = new CacheMap<>();
+
+	private static final CacheMap<String, Supplier<TapTable>> defaultTapTableSupplierMap = new CacheMap<>();
+
+	private static final CacheMap<String, Supplier<List<SchemaApplyResult>>> defaultSchemaApplyResultSupplierMap = new CacheMap<>();
+	private static final CacheMap<String, Function<Object, Object>> defaultDeclareFunctionMap = new CacheMap<>();
 	public static final String FUNCTION_NAME_DECLARE = "declare";
 
 	private final String schemaKey;
 	private final TapTableMap<String, TapTable> oldTapTableMap;
 
-	private Invocable engine;
-
 	private boolean needToDeclare;
+
+	private Function<Object, Object> declareFunction;
 
 	static {
 		tabTableCacheMap.maxSize(100).autoRemove(true).expire(600).interval(60).create();
 		schemaApplyResultMap.maxSize(100).autoRemove(true).expire(600).interval(60).create();
+		defaultTapTableSupplierMap.maxSize(100).autoRemove(true).expire(600).interval(60).create();
+		defaultSchemaApplyResultSupplierMap.maxSize(100).autoRemove(true).expire(600).interval(60).create();
+		defaultDeclareFunctionMap.maxSize(100).autoRemove(true).expire(600).interval(60).create();
 	}
 
 
 	public static TapTable getTapTable(String schemaKey) {
-		return tabTableCacheMap.remove(schemaKey);
+		TapTable tapTable = tabTableCacheMap.remove(schemaKey);
+		if (tapTable == null) {
+			Supplier<TapTable> tapTableSupplier = defaultTapTableSupplierMap.remove(schemaKey);
+			if (tapTableSupplier != null) {
+				return tapTableSupplier.get();
+			}
+		}
+		return tapTable;
 	}
 
 	public static List<SchemaApplyResult> getSchemaApplyResultList(String schemaKey) {
-		return schemaApplyResultMap.remove(schemaKey);
+		List<SchemaApplyResult> schemaApplyResults = schemaApplyResultMap.remove(schemaKey);
+		if (schemaApplyResults == null) {
+			Supplier<List<SchemaApplyResult>> schemaApplyResultsSupplier = defaultSchemaApplyResultSupplierMap.remove(schemaKey);
+			if (schemaApplyResultsSupplier != null) {
+				return schemaApplyResultsSupplier.get();
+			}
+		}
+		return schemaApplyResults;
 	}
 
 
@@ -89,17 +113,42 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 			String declareScript = (String) ReflectionUtil.getFieldValue(deductionSchemaNode, "declareScript");
 			this.needToDeclare = StringUtils.isNotEmpty(declareScript);
 			if (this.needToDeclare) {
+				this.declareFunction = (param) -> {
+					Invocable engine = null;
+					try {
+						String realDeclareScript;
+						if (multipleTables) {
+							realDeclareScript = String.format("function declare(schemaApplyResultList){\n %s \n return schemaApplyResultList;\n}", declareScript);
+						} else {
+							realDeclareScript = String.format("function declare(tapTable){\n %s \n return tapTable;\n}", declareScript);
+						}
+						ObsScriptLogger scriptLogger = new ObsScriptLogger(obsLogger);
+						engine = ScriptUtil.getScriptEngine(realDeclareScript, null, null,
+										((DataProcessorContext) processorBaseContext).getCacheService(), scriptLogger
+						);
+						TapModelDeclare tapModelDeclare = new TapModelDeclare(scriptLogger);
+						((ScriptEngine) engine).put("TapModelDeclare", tapModelDeclare);
+						return engine.invokeFunction(FUNCTION_NAME_DECLARE, param);
+					} catch (Throwable throwable) {
+						throw new RuntimeException("Error executing declaration code", throwable);
+					} finally {
+						if (engine instanceof GraalJSScriptEngine) {
+							((GraalJSScriptEngine) engine).close();
+						}
+					}
+				};
+				defaultDeclareFunctionMap.put(schemaKey, declareFunction);
 				if (multipleTables) {
-					declareScript = String.format("function declare(schemaApplyResultList){\n %s \n return schemaApplyResultList;\n}", declareScript);
+					defaultSchemaApplyResultSupplierMap.put(schemaKey, ()-> (List<SchemaApplyResult>) declareFunction.apply(new ArrayList<>()));
 				} else {
-					declareScript = String.format("function declare(tapTable){\n %s \n return tapTable;\n}", declareScript);
+					defaultTapTableSupplierMap.put(schemaKey, ()-> {
+						List<TapTable> tapTables = TapTableUtil.getTapTables(deductionSchemaNode);
+						if (CollectionUtils.isNotEmpty(tapTables)) {
+							return (TapTable) declareFunction.apply(tapTables.get(0));
+						}
+						return (TapTable) declareFunction.apply(new TapTable());
+					});
 				}
-				ObsScriptLogger scriptLogger = new ObsScriptLogger(obsLogger);
-				this.engine = ScriptUtil.getScriptEngine(declareScript, null, null,
-								((DataProcessorContext) processorBaseContext).getCacheService(), scriptLogger
-				);
-				TapModelDeclare tapModelDeclare = new TapModelDeclare(scriptLogger);
-				((ScriptEngine) this.engine).put("TapModelDeclare", tapModelDeclare);
 			}
 		}
 	}
@@ -131,7 +180,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 								if (!multipleTables) {
 									//迁移任务，只有一张表
 									if (needToDeclare) {
-										tapTable = (TapTable) engine.invokeFunction(FUNCTION_NAME_DECLARE, tapTable);
+										tapTable = (TapTable) this.declareFunction.apply(tapTable);
 									}
 									tabTableCacheMap.put(schemaKey, tapTable);
 								}
@@ -140,7 +189,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 									// 获取差异模型
 									List<SchemaApplyResult> schemaApplyResults = getSchemaApplyResults(tapTable);
 									if (needToDeclare) {
-										schemaApplyResults = (List<SchemaApplyResult>) engine.invokeFunction(FUNCTION_NAME_DECLARE, schemaApplyResults);
+										schemaApplyResults = (List<SchemaApplyResult>) this.declareFunction.apply(schemaApplyResults);
 									}
 									schemaApplyResultMap.put(schemaKey, schemaApplyResults);
 								}
@@ -168,9 +217,6 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	protected void doClose() throws Exception {
 		super.doClose();
 		CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.oldTapTableMap).ifPresent(TapTableMap::reset), HazelcastSchemaTargetNode.class.getSimpleName());
-		if (this.engine instanceof GraalJSScriptEngine) {
-			((GraalJSScriptEngine) this.engine).close();
-		}
 	}
 
 	@NotNull
