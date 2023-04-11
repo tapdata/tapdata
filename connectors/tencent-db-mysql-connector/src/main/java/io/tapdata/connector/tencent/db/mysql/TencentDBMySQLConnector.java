@@ -1,18 +1,23 @@
 package io.tapdata.connector.tencent.db.mysql;
 
+import com.github.shyiko.mysql.binlog.BinaryLogClient;
+import com.github.shyiko.mysql.binlog.event.*;
+import com.zaxxer.hikari.HikariDataSource;
+import io.debezium.connector.mysql.MySqlConnection;
+import io.debezium.jdbc.JdbcConnection;
 import io.tapdata.common.CommonDbConfig;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.common.ddl.DDLSqlMaker;
+import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.mysql.*;
+import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
+import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
 import io.tapdata.connector.mysql.writer.MysqlWriter;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
-import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
-import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
-import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
-import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
+import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapIndex;
@@ -24,6 +29,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.partition.DatabaseReadPartitionSplitter;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
+import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
@@ -37,7 +43,13 @@ import io.tapdata.pdk.apis.partition.TapPartitionFilter;
 import io.tapdata.pdk.apis.partition.splitter.StringCaseInsensitiveSplitter;
 import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 
+import java.io.IOException;
+import java.io.Serializable;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -64,11 +76,107 @@ public class TencentDBMySQLConnector extends MysqlConnector {
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
     private DDLSqlMaker ddlSqlMaker;
 
+
+//    public synchronized MysqlJdbcContext initMysqlJdbcContext(TapConnectionContext tapConnectionContext) {
+//        MysqlJdbcContext context = super.initMysqlJdbcContext(tapConnectionContext);
+//        JdbcConnection.Operations operations = new JdbcConnection.Operations() {
+//            @Override
+//            public void apply(Statement statement) throws SQLException {
+//                statement.execute("/*proxy*/ set binlog_dump_sticky_backend=set_1681181636_1");
+//            }
+//        };
+//        try(MySqlConnection connection = new MySqlConnection(new MySqlConnection.MySqlConnectionConfiguration(null), operations)){
+//            connection.connect();
+//        }catch (Exception e){
+//
+//        }
+//        try {
+//            context.query("show status", statement -> {
+//
+//            });
+//        } catch (Throwable e) {
+//
+//        }
+//
+//        DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
+//        String host = String.valueOf(connectionConfig.get("host"));
+//        String userName = String.valueOf(connectionConfig.get("username"));
+//        String password = String.valueOf(connectionConfig.get("password"));
+//        int port = ((Number) connectionConfig.get("port")).intValue();
+//
+//        BinaryLogClient logClient = new BinaryLogClient(host,port,userName,password);
+//        logClient.setServerId(3);
+//        logClient.setBlocking(true);
+//
+//        logClient.registerEventListener(event -> {
+//            EventData data = event.getData();
+//            if (data instanceof TableMapEventData){
+//                //((TableMapEventData)data)
+//            }
+//            if (data instanceof UpdateRowsEventData){
+//                List<Map.Entry<Serializable[], Serializable[]>> rows = ((UpdateRowsEventData) data).getRows();
+//            } else if (data instanceof WriteRowsEventData){
+//                List<Serializable[]> rows = ((WriteRowsEventData) data).getRows();
+//            } else if (data instanceof DeleteRowsEventData){
+//                List<Serializable[]> rows = ((DeleteRowsEventData) data).getRows();
+//            }
+//        });
+//        try {
+//            logClient.connect();
+//        } catch (IOException e) {
+//        }
+//
+//        return context;
+//    }
+
+    Map<String,MysqlReader> readers = new HashMap<>();
+    void initStreamRead(TapConnectionContext tapConnectionContext) throws Throwable {
+        try {
+            mysqlJdbcContext.query("/*proxy*/ show status", rs -> {
+                while (rs.next()) {
+                    String statusName = rs.getString("status_name");
+                    if ("set".equals(statusName)) {
+                        String items = rs.getString("value");
+                        if (Objects.nonNull(items)) {
+                            String[] split = items.split(",");
+                            for (String backend : split) {
+                                MysqlJdbcContext jdbcContext = new MysqlJdbcContext(tapConnectionContext);
+                                if (tapConnectionContext instanceof TapConnectorContext) {
+                                    MysqlReader reader = new MysqlReader(jdbcContext);
+                                    readers.put(backend, reader);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        } catch (Throwable e) {
+            TapLogger.warn(TAG,e.getMessage());
+        }
+    }
+
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
         this.tapConnectionContext = tapConnectionContext;
         tapConnectionContext.getConnectionConfig().put("protocolType", "mysql");
         super.onStart(tapConnectionContext);
+        this.mysqlJdbcContext = super.initMysqlJdbcContext(tapConnectionContext);
+        if (tapConnectionContext instanceof TapConnectorContext) {
+            this.mysqlWriter = new MysqlSqlBatchWriter(mysqlJdbcContext);
+            this.mysqlReader = new MysqlReader(mysqlJdbcContext);
+            this.version = mysqlJdbcContext.getMysqlVersion();
+            this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
+            if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
+                this.connectionTimezone = mysqlJdbcContext.timezone();
+            }
+        }
+        ddlSqlMaker = new MysqlDDLSqlMaker(version);
+        initStreamRead(tapConnectionContext);
+//        fieldDDLHandlers = new BiClassHandlers<>();
+//        fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
+//        fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
+//        fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
+//        fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
     }
 
     @Override
@@ -122,7 +230,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
         connectorFunctions.supportBatchRead(this::batchRead);
 
         //云上购买的TDSQL mysq 需要购买数据订阅服务才可以拿到增量日志，私有化部署暂无增量方案
-        //connectorFunctions.supportStreamRead(this::streamRead);
+        connectorFunctions.supportStreamRead(this::streamRead);
         connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
         connectorFunctions.supportQueryByAdvanceFilter(this::query);
         connectorFunctions.supportWriteRecord(this::writeRecord);
@@ -136,6 +244,19 @@ public class TencentDBMySQLConnector extends MysqlConnector {
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> mysqlJdbcContext.getConnection(), this::isAlive, c));
         connectorFunctions.supportQueryFieldMinMaxValueFunction(this::minMaxValue);
         connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
+    }
+
+    private void streamRead(TapConnectorContext tapConnectorContext, List<String> tables, Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
+        //mysqlJdbcContext.execute("/*proxy*/ set binlog_dump_sticky_backend=set_1681181636_1");
+        for (Map.Entry<String, MysqlReader> entry : readers.entrySet()) {
+            String key = entry.getKey();
+            MysqlReader value = entry.getValue();
+            MysqlJdbcContext jdbc = value.mysqlJdbcContext();
+//            jdbc.execute("/*proxy*/ set binlog_dump_sticky_backend=" + key);
+            value.readBinlog(tapConnectorContext, tables, offset, batchSize, DDLParserType.MYSQL_CCJ_SQL_PARSER, consumer, map(entry("tdsql.partition", key)));
+            break;
+        }
+        //mysqlReader.readBinlog(tapConnectorContext, tables, offset, batchSize, DDLParserType.MYSQL_CCJ_SQL_PARSER, consumer);
     }
 
     private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
@@ -300,6 +421,12 @@ public class TencentDBMySQLConnector extends MysqlConnector {
         } catch (Throwable throwable) {
             return Collections.emptyList();
         }
+    }
+
+    @Override
+    public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
+        MysqlSchemaLoader mysqlSchemaLoader = new MysqlSchemaLoader(mysqlJdbcContext);
+        mysqlSchemaLoader.discoverSchema(tables, consumer, tableSize);
     }
 
     @Override

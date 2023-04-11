@@ -9,6 +9,8 @@ import static io.debezium.util.Strings.isNullOrEmpty;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -16,6 +18,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
@@ -36,6 +39,9 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
+import com.github.shyiko.mysql.binlog.network.protocol.PacketChannel;
+import com.github.shyiko.mysql.binlog.network.protocol.command.ByteArrayCommand;
+import com.github.shyiko.mysql.binlog.network.protocol.command.QueryCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.event.Level;
@@ -901,7 +907,44 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
                 long started = clock.currentTimeInMillis();
                 try {
                     LOGGER.debug("Attempting to establish binlog reader connection with timeout of {} ms", timeout);
+                    client.registerLifecycleListener(new LifecycleListener() {
+                        @Override
+                        public void onConnect(BinaryLogClient client) {
+                            try {
+                                Configuration configuration = connectorConfig.getConfig();
+                                if(configuration != null) {
+                                    String tdsqlPartition = configuration.getString("tdsql.partition");
+                                    if(tdsqlPartition != null) {
+                                        tdsqlPartition = tdsqlPartition.trim();
+                                        Field field = client.getClass().getDeclaredField("channel");
+                                        field.setAccessible(true);
+                                        PacketChannel channel = (PacketChannel) field.get(client);
+//                            channel.write(new QueryCommand("/*proxy*/ set binlog_dump_sticky_backend=" + tdsqlPartition));
+                                        channel.write(new QueryCommand(("/*proxy*/ set binlog_dump_sticky_backend=" + tdsqlPartition)));
+                                    }
+                                }
+                            } catch(Throwable throwable) {
+                                throwable.printStackTrace();
+                            }
+                        }
+
+                        @Override
+                        public void onCommunicationFailure(BinaryLogClient client, Exception ex) {
+
+                        }
+
+                        @Override
+                        public void onEventDeserializationFailure(BinaryLogClient client, Exception ex) {
+
+                        }
+
+                        @Override
+                        public void onDisconnect(BinaryLogClient client) {
+
+                        }
+                    });
                     client.connect(timeout);
+
                     // Need to wait for keepalive thread to be running, otherwise it can be left orphaned
                     // The problem is with timing. When the close is called too early after connect then
                     // the keepalive thread is not terminated

@@ -46,7 +46,7 @@ public class MysqlJdbcContext implements AutoCloseable {
 
 	public static final String FIELD_TEMPLATE = "`%s`";
 
-	private static final Map<String, String> DEFAULT_PROPERTIES = new HashMap<String, String>() {{
+    private static final Map<String, String> DEFAULT_PROPERTIES = new HashMap<String, String>() {{
 		put("rewriteBatchedStatements", "true");
 		put("useCursorFetch", "true");
 		put("useSSL", "false");

@@ -115,6 +115,10 @@ public class MysqlReader implements Closeable {
 		}
 	}
 
+    public MysqlJdbcContext mysqlJdbcContext(){
+        return this.mysqlJdbcContext;
+    }
+
 	public void readWithOffset(TapConnectorContext tapConnectorContext, TapTable tapTable, MysqlSnapshotOffset mysqlSnapshotOffset,
 							   Predicate<?> stop, BiConsumer<Map<String, Object>, MysqlSnapshotOffset> consumer) throws Throwable {
 		SqlMaker sqlMaker = new MysqlMaker();
@@ -206,8 +210,12 @@ public class MysqlReader implements Closeable {
 		}
 	}
 
+    public void readBinlog(TapConnectorContext tapConnectorContext, List<String> tables,
+                           Object offset, int batchSize, DDLParserType ddlParserType, StreamReadConsumer consumer) throws Throwable {
+        readBinlog(tapConnectorContext, tables, offset, batchSize, ddlParserType, consumer, null);
+    }
 	public void readBinlog(TapConnectorContext tapConnectorContext, List<String> tables,
-						   Object offset, int batchSize, DDLParserType ddlParserType, StreamReadConsumer consumer) throws Throwable {
+						   Object offset, int batchSize, DDLParserType ddlParserType, StreamReadConsumer consumer, Map<String, Object> extraConfig) throws Throwable {
 		try {
 			batchSize = Math.max(batchSize, MIN_BATCH_SIZE);
 			initDebeziumServerName(tapConnectorContext);
@@ -267,6 +275,11 @@ public class MysqlReader implements Closeable {
 //					.with("time.type", "io.tapdata.connector.mysql.converters.TimeConverter")
 //					.with("time.schema.name", "io.debezium.mysql.type.Time")
 					.with("snapshot.locking.mode", "none");
+            if(extraConfig != null) {
+                for(Map.Entry<String, Object> entry : extraConfig.entrySet()) {
+                    builder.with(entry.getKey(), entry.getValue());
+                }
+            }
 			if (EmptyKit.isNotBlank(connectionConfig.getString("timezone"))) {
 				builder.with("database.serverTimezone", TimeZone.getTimeZone(connectionConfig.getString("timezone")).toZoneId());
 			}
@@ -278,9 +291,15 @@ public class MysqlReader implements Closeable {
 				builder.with("pdk.offset.string", offsetStr);
 			}
 			/*
-				todo At present, the schema loading logic will load the schema of all current tables each time it is started. When there is ddl in the historical data, it will cause a parsing error
-				todo The main scenario is shared mining, which dynamically modifies the table include list. If the last cached model list is used, debezium will not load the newly added table model, resulting in a parsing error when reading: whose schema isn't known to this connector
-				todo Best practice, need to change the debezium source code, add a configuration that supports partial update of some table schemas, and logic implementation
+				@todo At present, the schema loading logic will load the schema of all current tables each time it is started.
+				  When there is ddl in the historical data, it will cause a parsing error
+				@todo The main scenario is shared mining, which dynamically modifies the table include list.
+				 If the last cached model list is used, debezium will not load the newly added table model,
+				 resulting in a parsing error when reading:
+				    whose schema isn't known to this connector
+				@todo Best practice, need to change the debezium source code,
+				 add a configuration that supports partial update of some table schemas,
+				  and logic implementation
 			*/
 			builder.with("snapshot.mode", MySqlConnectorConfig.SnapshotMode.SCHEMA_ONLY_RECOVERY);
 			if (null != throwableAtomicReference.get()) {

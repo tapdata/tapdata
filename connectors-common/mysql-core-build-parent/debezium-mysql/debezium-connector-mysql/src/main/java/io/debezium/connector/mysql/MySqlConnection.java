@@ -66,6 +66,15 @@ public class MySqlConnection extends JdbcConnection {
         this.connectionConfig = connectionConfig;
     }
 
+    public MySqlConnection(MySqlConnectionConfiguration connectionConfig,Operations initialOperations) {
+        super(connectionConfig.config(), connectionConfig.factory(), initialOperations);
+        this.connectionConfig = connectionConfig;
+    }
+
+    public Configuration getConfiguration() {
+        return connectionConfig.config;
+    }
+
     @Override
     public synchronized Connection connection(boolean executeOnConnect) throws SQLException {
         if (!isConnected() && connectionConfig.sslModeEnabled()) {

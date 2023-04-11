@@ -867,9 +867,24 @@ public class JdbcConnection implements AutoCloseable {
         return connection(true);
     }
 
+    public Configuration getConfiguration() {
+        return null;
+    }
+
     public synchronized Connection connection(boolean executeOnConnect) throws SQLException {
         if (!isConnected()) {
             conn = factory.connect(JdbcConfiguration.adapt(config));
+//            Configuration configuration = getConfiguration();
+//            if(configuration != null) {
+//                String tdsqlPartition = configuration.getString("tdsql.partition");
+//                if(tdsqlPartition != null) {
+//                    tdsqlPartition = tdsqlPartition.trim();
+////                    PreparedStatement preparedStatement = conn.prepareStatement("/*proxy*/ set binlog_dump_sticky_backend=" + tdsqlPartition);
+////                    preparedStatement.execute();
+//                    ResultSet resultSet = conn.createStatement().executeQuery("/*proxy*/ set binlog_dump_sticky_backend=" + tdsqlPartition);
+//                }
+//            }
+
             if (!isConnected()) {
                 throw new SQLException("Unable to obtain a JDBC connection");
             }
