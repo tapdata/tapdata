@@ -5,7 +5,6 @@ import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.hive.config.HiveConfig;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.schema.TapField;
-import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
@@ -19,6 +18,7 @@ import org.apache.commons.codec.binary.Base64;
 
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -103,25 +103,20 @@ public class HiveConnector extends CommonDbConnector {
     @Override
     protected void singleThreadDiscoverSchema(List<DataMap> subList, Consumer<List<TapTable>> consumer) throws SQLException {
         List<TapTable> tapTableList = TapSimplify.list();
+        Map<String, Map<String, Object>> tableMap = hiveJdbcContext.queryTablesDesc(subList.stream().map(v -> v.getString("tab_name")).collect(Collectors.toList()));
         subList.forEach(subTable -> {
-            //2、table name/comment
             String table = subTable.getString("tab_name");
+            Map<String, Object> tableInfoMap = tableMap.get(table);
             TapTable tapTable = table(table);
-            //3、primary key and table index
             List<String> primaryKey = TapSimplify.list();
-//            List<TapIndex> tapIndexList = TapSimplify.list();
-//            makePrimaryKeyAndIndex(indexList, table, primaryKey, tapIndexList);
-//            //4、table columns info
-//            AtomicInteger keyPos = new AtomicInteger(0);
-//            columnList.stream().filter(col -> table.equals(col.getString("tableName")))
-//                    .forEach(col -> {
-//                        TapField tapField = makeTapField(col);
-//                        tapField.setPos(keyPos.incrementAndGet());
-//                        tapField.setPrimaryKey(primaryKey.contains(tapField.getName()));
-//                        tapField.setPrimaryKeyPos(primaryKey.indexOf(tapField.getName()) + 1);
-//                        tapTable.add(tapField);
-//                    });
-//            tapTable.setIndexList(tapIndexList);
+            AtomicInteger keyPos = new AtomicInteger(0);
+            ((List<Map<String, String>>) tableInfoMap.get("columns")).forEach(col -> {
+                TapField tapField = new TapField();
+                tapField.setPos(keyPos.incrementAndGet());
+                tapField.setPrimaryKey(primaryKey.contains(tapField.getName()));
+                tapField.setPrimaryKeyPos(primaryKey.indexOf(tapField.getName()) + 1);
+                tapTable.add(tapField);
+            });
             tapTableList.add(tapTable);
         });
         syncSchemaSubmit(tapTableList, consumer);
