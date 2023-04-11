@@ -85,9 +85,13 @@ public class ScriptExecutorsManager {
 
     scriptLogger.info("create script executor for {}", connectionName);
 
+		return create(connections, clientMongoOperator, hazelcastInstance, scriptLogger);
+  }
+
+	public ScriptExecutor create(Connections connections, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, Log scriptLogger) {
 		return new ScriptExecutor(connections, clientMongoOperator, hazelcastInstance, scriptLogger,
 						this.getClass().getSimpleName() + "-" + taskId + "-" + nodeId + "-" + UUIDGenerator.uuid());
-  }
+	}
 
   public void close() {
     this.cacheMap.forEach((key, value) -> this.cacheMap.getDestory().apply(key, value));
@@ -107,7 +111,7 @@ public class ScriptExecutorsManager {
 
     private final Log scriptLogger;
 
-    public ScriptExecutor(Connections connections, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, Log scriptLogger, String TAG) {
+    private ScriptExecutor(Connections connections, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, Log scriptLogger, String TAG) {
       this.TAG = TAG;
       this.scriptLogger = scriptLogger;
 
