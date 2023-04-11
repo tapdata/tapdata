@@ -127,7 +127,7 @@ public class DummyConnector extends ConnectorBase {
     }
 
     private void supportBatchRead(TapConnectorContext connectorContext, TapTable table, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventConsumer) throws Throwable {
-        connectorContext.getLog().info("start {} batch read", table.getName());
+        connectorContext.getLog().info("Start {} batch read", table.getName());
 
         // Generate specified amount of data
         builder.reset(offsetState, SyncStage.Initial);
@@ -211,7 +211,7 @@ public class DummyConnector extends ConnectorBase {
             AtomicLong update = new AtomicLong();
             AtomicLong delete = new AtomicLong();
             for (TapRecordEvent e : recordEvents) {
-                if (!(isAlive() && (!writeLog || writeRate.addReturn()))) return;
+                if (!(isAlive() && writeRate.addReturn())) return;
 
                 delayCalculation.log(e.getTime());
 
