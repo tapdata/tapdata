@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition;
 import io.tapdata.entity.codec.impl.utils.AnyTimeToDateTime;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndexEx;
 import io.tapdata.entity.schema.TapIndexField;
@@ -24,19 +25,27 @@ import static io.tapdata.entity.simplify.TapSimplify.map;
  * @author aplomb
  */
 public class PartitionFieldParentHandler {
+	public static final String TAG = PartitionFieldParentHandler.class.getName();
 	protected String table;
 	protected List<String> partitionFields;
 	protected Map<String, Integer> dateFieldFactionMap;
 	protected TypeHandlers<TapEvent, Void> typeHandlers = new TypeHandlers<>();
+
+
 	public PartitionFieldParentHandler(TapTable tapTable) {
 		table = tapTable.getId();
 		TapIndexEx partitionIndex = tapTable.partitionIndex();
 		if(partitionIndex == null || partitionIndex.getIndexFields() == null || partitionIndex.getIndexFields().isEmpty()) {
+			//TapLogger.warn(TAG, "Not find any primary keys, partition index is illegal for table {}.", table);
 			throw new CoreException(PartitionErrorCodes.PARTITION_INDEX_NULL, "Not find any primary keys, partition index is illegal for table {}, cancel full breakpoint resume.", table);
+			//partitionFields.addAll(nameFieldMap.keySet());
+			//if (partitionFields.isEmpty()){
+			//	throw new CoreException(PartitionErrorCodes.PARTITION_INDEX_NULL,"Not find any fields in source table {}.", table);
+			//}
+			//return;
 		}
-
-		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-		partitionFields = new ArrayList<>();
+        partitionFields = new ArrayList<>();
+        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 		for(TapIndexField field : partitionIndex.getIndexFields()) {
 			partitionFields.add(field.getName());
 			if(nameFieldMap != null) {

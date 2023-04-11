@@ -166,7 +166,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 						globalStateMap,
 						connectorCapabilities,
 						() -> Log4jUtil.setThreadContext(taskDto),
-						InstanceFactory.instance(LogFactory.class).getLog(processorBaseContext)
+						new StopTaskOnErrorLog(InstanceFactory.instance(LogFactory.class).getLog(processorBaseContext), this)
 				)
 		);
 		logger.info(String.format("Create PDK connector on node %s[%s] complete | Associate id: %s", getNode().getName(), getNode().getId(), associateId));
