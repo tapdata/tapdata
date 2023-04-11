@@ -7,6 +7,7 @@ import com.tapdata.tm.commons.dag.process.DateProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateDateProcessorNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.schema.TapTableMap;
@@ -14,6 +15,10 @@ import lombok.SneakyThrows;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -66,12 +71,38 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
     }
 
     TapTable tapTable = processorBaseContext.getTapTableMap().get(tableName);
+    if (tapTable == null) {
+      consumer.accept(tapdataEvent, processResult);
+      return;
+    }
 
+    LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+    List<String> addTimeFields = new ArrayList<>();
+    nameFieldMap.forEach((k, v) -> {
+      if (dataTypes.contains(v.getDataType())) {
+        addTimeFields.add(k);
+      }
+    });
 
-    TapRecordEvent recordEvent = (TapRecordEvent) tapEvent;
+    final Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
 
-    Map<String, Object> info = recordEvent.getInfo();
+    if (after != null) {
+      addTime(addTimeFields, after);
+    }
+    consumer.accept(tapdataEvent, processResult);
+  }
 
-
+  private void addTime(List<String> addTimeFields, final Map<String, Object> after) {
+    after.forEach((k, v) -> {
+      if (addTimeFields.contains(k)) {
+        if (v instanceof Instant) {
+          if (add) {
+            ((Instant) v).plus(hours, ChronoUnit.HOURS);
+          } else {
+            ((Instant) v).minus(hours, ChronoUnit.HOURS);
+          }
+        }
+      }
+    });
   }
 }
