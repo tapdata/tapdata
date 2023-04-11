@@ -170,21 +170,24 @@ public class MysqlConnectionTest extends CommonDbTest {
                 return true;
             }
 
-        } else if (grantSql.contains("`" + databaseName + "`" + ".* TO")) {
+        } else if (grantSql.contains("`" + databaseName + "`" + ".* TO") || grantSql.contains(databaseName + ".* TO") ) {
             if (privilege) {
                 return true;
             }
-        } else if (databaseName.contains("_") && grantSql.contains("`" + databaseName.replace("_", "\\_") + "`" + ".* TO")) {
+        } else if (databaseName.contains("_") &&
+                (grantSql.contains("`" + databaseName.replace("_", "\\_") + "`" + ".* TO") ||
+                 grantSql.contains(databaseName.replace("_", "\\_") + ".* TO"))) {
             if (privilege) {
                 return true;
             }
-        } else if (grantSql.contains("`" + databaseName + "`" + ".")) {
-            String table = grantSql.substring(grantSql.indexOf(databaseName + "`."), grantSql.indexOf("TO")).trim();
+        } else if (grantSql.contains("`" + databaseName + "`" + ".") || grantSql.contains(databaseName+ ".")) {
+            String table = grantSql.substring(grantSql.indexOf(databaseName + "."), grantSql.indexOf("TO")).trim();
             if (privilege) {
                 tableList.add(table);
             }
-        } else if (databaseName.contains("_") && grantSql.contains("`" + databaseName.replace("_", "\\_") + "`" + ".")) {
-            String table = grantSql.substring(grantSql.indexOf(databaseName.replace("_", "\\_") + "`."), grantSql.indexOf("TO")).trim();
+        } else if (databaseName.contains("_") && (grantSql.contains("`" + databaseName.replace("_", "\\_") + "`" + "."))
+             || grantSql.contains(databaseName.replace("_", "\\_")+ ".")) {
+            String table = grantSql.substring(grantSql.indexOf(databaseName.replace("_", "\\_") + "."), grantSql.indexOf("TO")).trim();
             if (privilege) {
                 tableList.add(table);
             }
