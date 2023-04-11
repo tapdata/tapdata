@@ -64,12 +64,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskSourceAndTarge
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskTarget;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastVirtualTargetNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcessor;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastJavaScriptProcessorNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMigrateFieldRenameProcessorNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastRenameTableProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -648,6 +643,20 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
                 break;
             case AGGREGATION_PROCESSOR:
                 hazelcastNode = new HazelcastMultiAggregatorProcessor(
+                        DataProcessorContext.newBuilder()
+                                .withTaskDto(taskDto)
+                                .withNode(node)
+                                .withNodes(nodes)
+                                .withEdges(edges)
+                                .withConfigurationCenter(config)
+                                .withTapTableMap(tapTableMap)
+                                .withTaskConfig(taskConfig)
+                                .build()
+                );
+                break;
+            case DATE_PROCESSOR:
+            case MIGRATE_DATE_PROCESSOR:
+                hazelcastNode = new HazelcastDateProcessorNode(
                         DataProcessorContext.newBuilder()
                                 .withTaskDto(taskDto)
                                 .withNode(node)
