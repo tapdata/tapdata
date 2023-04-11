@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
+import com.tapdata.cache.scripts.ScriptCacheService;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.*;
@@ -92,13 +93,15 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
               ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class);
     }
 
+    ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
+
     this.engine = ScriptUtil.getScriptEngine(
             JSEngineEnum.GRAALVM_JS.getEngineName(),
             script, javaScriptFunctions,
             clientMongoOperator,
             null,
             null,
-            ((DataProcessorContext) processorBaseContext).getCacheService(),
+            scriptCacheService,
             new ObsScriptLogger(obsLogger, logger),
             this.standard
     );

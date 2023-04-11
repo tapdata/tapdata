@@ -63,8 +63,42 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
             result = result.stream().sorted(Comparator.nullsFirst(Comparator.comparing(RelationTaskInfoVo::getStartTime).reversed()))
                     .collect(Collectors.toList());
         }
+        getShareCacheByTaskAttrs(result, request, taskDto);
         getHeartbeat(result, request, taskDto);
         return result;
+    }
+
+    private void getShareCacheByTaskAttrs(List<RelationTaskInfoVo> result, RelationTaskRequest request, TaskDto taskDto) {
+        Criteria cacheCriteria = null;
+        if (Boolean.FALSE.equals(taskDto.getShareCache())) {
+            Map<String, Set<String>> usedShareCache = (Map<String, Set<String>>)taskDto.getAttrs().get(TaskDto.ATTRS_USED_SHARE_CACHE);
+            if (null == usedShareCache || usedShareCache.isEmpty()) return;
+            Set<String> allCache = usedShareCache.keySet();
+
+            cacheCriteria = Criteria.where("is_deleted").is(false)
+                    .and("shareCache").is(true)
+                    .and("name").in(allCache);
+        } else if (StringUtils.isBlank(request.getType())
+                || RelationTaskRequest.type_shareCache.equals(request.getType())) {
+            cacheCriteria = Criteria.where("is_deleted").is(false)
+                    .and("shareCache").is(false)
+                    .and(String.format("attrs.%s.%s", TaskDto.ATTRS_USED_SHARE_CACHE, taskDto.getName())).exists(true);
+        }
+
+        if (null != cacheCriteria) {
+            for (TaskDto task : getFilterCriteria(request, cacheCriteria)) {
+                result.add(RelationTaskInfoVo.builder()
+                        .id(task.getId().toHexString())
+                        .name(task.getName())
+                        .status(task.getStatus())
+                        .startTime(Objects.nonNull(task.getStartTime()) ? task.getStartTime().getTime() : null)
+                        .type(RelationTaskRequest.type_shareCache)
+                        .syncType(task.getSyncType())
+                        .taskType(task.getType())
+                        .build()
+                );
+            }
+        }
     }
 
     private void getShareCache(List<String> connectionIds, List<RelationTaskInfoVo> result, RelationTaskRequest request, List<Node> nodes) {
