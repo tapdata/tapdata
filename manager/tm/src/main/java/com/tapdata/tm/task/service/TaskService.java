@@ -447,7 +447,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         boolean agentReq = isAgentReq();
         if (!agentReq) {
-            if (taskDto.getVersion() != null && !oldTaskDto.getEditVersion().equals(taskDto.getEditVersion())) {
+            if (taskDto.getEditVersion() != null && !oldTaskDto.getEditVersion().equals(taskDto.getEditVersion())) {
                 throw new BizException("Task.OldVersion");
             }
         }
