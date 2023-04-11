@@ -31,7 +31,7 @@ import java.util.function.Consumer;
 import static io.tapdata.base.ConnectorBase.getStackString;
 import static io.tapdata.base.ConnectorBase.testItem;
 
-public class TencentDBMySQLConnectorTest extends MysqlConnectionTest{
+public class TencentDBMySQLConnectorTest extends MysqlConnectionTest {
     protected static final String TAG = TencentDBMySQLConnectorTest.class.getSimpleName();
     protected static final String CHECK_DATABASE_PRIVILEGES_SQL = "SHOW GRANTS FOR %s";
     protected static final String CHECK_DATABASE_BINLOG_STATUS_SQL = "SHOW GLOBAL VARIABLES where variable_name = 'log_bin' OR variable_name = 'binlog_format'";
@@ -45,36 +45,39 @@ public class TencentDBMySQLConnectorTest extends MysqlConnectionTest{
 
     protected ConnectionOptions connectionOptions;
 
-    protected  boolean cdcCapability = true;
+    protected boolean cdcCapability = true;
 
 
     public TencentDBMySQLConnectorTest(MysqlJdbcContext mysqlJdbcContext, TapConnectionContext tapConnectionContext, Consumer<TestItem> consumer, CommonDbConfig commonDbConfig, ConnectionOptions connectionOptions) {
         super(mysqlJdbcContext, tapConnectionContext, consumer, commonDbConfig, connectionOptions);
         this.tapConnectionContext = tapConnectionContext;
-        this.mysqlJdbcContext =mysqlJdbcContext;
+        this.mysqlJdbcContext = mysqlJdbcContext;
     }
 
     @Override
     public Boolean testWritePrivilege() {
-        return  WriteOrReadPrivilege("write");
+        return WriteOrReadPrivilege("write");
     }
+
     @Override
-    public Boolean testReadPrivilege(){
-        return  WriteOrReadPrivilege("read");
+    public Boolean testReadPrivilege() {
+        return WriteOrReadPrivilege("read");
     }
-    private boolean  WriteOrReadPrivilege(String mark){
+
+    private boolean WriteOrReadPrivilege(String mark) {
         DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
         String databaseName = String.valueOf(connectionConfig.get("database"));
+        String userName = String.valueOf(connectionConfig.get("username"));
         List<String> tableList = new ArrayList();
         AtomicReference<Boolean> globalWrite = new AtomicReference();
         AtomicReference<TestItem> testItem = new AtomicReference<>();
         String itemMark = TestItem.ITEM_READ;
-        if("write".equals(mark)){
-            itemMark =TestItem.ITEM_WRITE;
+        if ("write".equals(mark)) {
+            itemMark = TestItem.ITEM_WRITE;
         }
         try {
             String finalItemMark = itemMark;
-            mysqlJdbcContext.query(String.format(CHECK_DATABASE_PRIVILEGES_SQL,databaseName), resultSet -> {
+            mysqlJdbcContext.query(String.format(CHECK_DATABASE_PRIVILEGES_SQL, userName), resultSet -> {
                 while (resultSet.next()) {
                     String grantSql = resultSet.getString(1);
                     if (testWriteOrReadPrivilege(grantSql, tableList, databaseName, mark)) {
@@ -97,9 +100,10 @@ public class TencentDBMySQLConnectorTest extends MysqlConnectionTest{
             consumer.accept(testItem(itemMark, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, JSONObject.toJSONString(tableList)));
             return true;
         }
-        consumer.accept(testItem(itemMark, TestItem.RESULT_FAILED, "Without table can "+mark));
+        consumer.accept(testItem(itemMark, TestItem.RESULT_FAILED, "Without table can " + mark));
         return false;
     }
+
     @Override
     public boolean testWriteOrReadPrivilege(String grantSql, List<String> tableList, String databaseName, String mark) {
         boolean privilege;
@@ -135,15 +139,17 @@ public class TencentDBMySQLConnectorTest extends MysqlConnectionTest{
         }
         return false;
     }
+
     @Override
-    public Boolean testCDCPrivileges(){
+    public Boolean testCDCPrivileges() {
         DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
         String databaseName = String.valueOf(connectionConfig.get("database"));
+        String userName = String.valueOf(connectionConfig.get("username"));
         AtomicReference<TestItem> testItem = new AtomicReference<>();
         try {
             StringBuilder missPri = new StringBuilder();
             List<CdcPrivilege> cdcPrivileges = new ArrayList<>(Arrays.asList(CdcPrivilege.values()));
-            mysqlJdbcContext.query(String.format(CHECK_DATABASE_PRIVILEGES_SQL,databaseName), resultSet -> {
+            mysqlJdbcContext.query(String.format(CHECK_DATABASE_PRIVILEGES_SQL, userName), resultSet -> {
                 while (resultSet.next()) {
                     String grantSql = resultSet.getString(1);
                     Iterator<CdcPrivilege> iterator = cdcPrivileges.iterator();
