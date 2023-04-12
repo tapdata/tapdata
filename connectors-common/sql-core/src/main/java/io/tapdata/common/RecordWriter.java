@@ -5,11 +5,14 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.exception.TapPdkTerminateByServerEx;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.SQLRecoverableException;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -23,8 +26,10 @@ public class RecordWriter {
     protected String version;
     protected Connection connection;
     protected final TapTable tapTable;
+    protected final String pdkId;
 
     public RecordWriter(JdbcContext jdbcContext, TapTable tapTable) throws SQLException {
+        this.pdkId = jdbcContext.getConfig().getPdkId();
         this.connection = jdbcContext.getConnection();
         this.tapTable = tapTable;
     }
@@ -70,7 +75,10 @@ public class RecordWriter {
             //release resource
 
         } catch (Exception e) {
-            throw new RuntimeException(String.format("Write record(s) failed: %s | Table: %s", e.getMessage(), tapTable.getId()), e);
+            if (e instanceof SQLRecoverableException) {
+                throw new TapPdkTerminateByServerEx(pdkId, ErrorKit.getLastCause(e));
+            }
+            throw e;
         } finally {
             insertRecorder.releaseResource();
             updateRecorder.releaseResource();

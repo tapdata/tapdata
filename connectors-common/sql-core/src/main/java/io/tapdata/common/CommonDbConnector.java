@@ -12,8 +12,10 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.exception.TapPdkTerminateByServerEx;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.FilterResult;
@@ -22,6 +24,7 @@ import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLRecoverableException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -242,13 +245,20 @@ public abstract class CommonDbConnector extends ConnectorBase {
         List<TapEvent> tapEvents = list();
         //get all column names
         List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
-        while (isAlive() && resultSet.next()) {
-            DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
-            tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
-            if (tapEvents.size() == eventBatchSize) {
-                eventsOffsetConsumer.accept(tapEvents, offset);
-                tapEvents = list();
+        try {
+            while (isAlive() && resultSet.next()) {
+                DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
+                tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
+                if (tapEvents.size() == eventBatchSize) {
+                    eventsOffsetConsumer.accept(tapEvents, offset);
+                    tapEvents = list();
+                }
             }
+        } catch (Exception e) {
+            if (e instanceof SQLRecoverableException) {
+                throw new TapPdkTerminateByServerEx(commonDbConfig.getPdkId(), ErrorKit.getLastCause(e));
+            }
+            throw e;
         }
         //last events those less than eventBatchSize
         if (EmptyKit.isNotEmpty(tapEvents)) {

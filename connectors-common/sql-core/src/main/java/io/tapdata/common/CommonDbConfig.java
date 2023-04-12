@@ -22,6 +22,7 @@ public class CommonDbConfig implements Serializable {
     protected static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class); //json util
     protected static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
 
+    private String pdkId;
     private String __connectionType;
     private String dbType;
     private String host;
@@ -82,6 +83,14 @@ public class CommonDbConfig implements Serializable {
     public CommonDbConfig load(Map<String, Object> map) {
         assert beanUtils != null;
         return beanUtils.mapToBean(map, this);
+    }
+
+    public String getPdkId() {
+        return pdkId;
+    }
+
+    public void setPdkId(String pdkId) {
+        this.pdkId = pdkId;
     }
 
     public String get__connectionType() {
