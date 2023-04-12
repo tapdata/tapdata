@@ -69,9 +69,5 @@ public class V2_16_1_API_APP extends AbsPatch {
 
         Update update = Update.update("listtags", Lists.of(new Tag(metadataDefinition.getId().toHexString(), metadataDefinition.getValue())));
         mongoTemplate.updateMulti(query, update, ModulesEntity.class);
-
-
-        IndexOperations indexOperations = mongoTemplate.indexOps(ModulesEntity.class);
-
     }
 }
