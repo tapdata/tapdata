@@ -91,7 +91,7 @@ public class ApiAppServiceImpl implements ApiAppService {
         }
 
         Criteria criteria = Criteria.where("listtags")
-                .elemMatch(Criteria.where("id").is(oldId));
+                .elemMatch(Criteria.where("id").is(oldId)).and("is_deleted").ne(true);
         Update update = Update.update("listtags.$.id", newTag.getId()).set("listtags.$.value", newTag.getValue());
         modulesService.update(new Query(criteria), update, user);
     }
@@ -120,7 +120,7 @@ public class ApiAppServiceImpl implements ApiAppService {
         }
 
         List<String> tagIds = metadatas.stream().map(m -> m.getId().toHexString()).collect(Collectors.toList());
-        Criteria criteria = Criteria.where("listtags.id").in(tagIds);
+        Criteria criteria = Criteria.where("listtags.id").in(tagIds).and("is_deleted").ne(true);
 
         Query query = new Query(criteria);
         query.fields().include("listtags", "status");
