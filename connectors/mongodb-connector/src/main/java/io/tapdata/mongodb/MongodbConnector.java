@@ -931,22 +931,30 @@ public class MongodbConnector extends ConnectorBase {
 			}
 		}
 
-		Document lastDocument = null;
+		Document lastDocument;
 
-		while (mongoCursor.hasNext()) {
-			if (!isAlive()) return;
-			lastDocument = mongoCursor.next();
-			tapEvents.add(insertRecordEvent(lastDocument, table.getId()));
+		try {
+			while (mongoCursor.hasNext()) {
+				if (!isAlive()) return;
+				lastDocument = mongoCursor.next();
+				tapEvents.add(insertRecordEvent(lastDocument, table.getId()));
 
-			if (tapEvents.size() == eventBatchSize) {
-				Object value = lastDocument.get(COLLECTION_ID_FIELD);
-				batchOffset = new MongoBatchOffset(COLLECTION_ID_FIELD, value);
-				tapReadOffsetConsumer.accept(tapEvents, batchOffset);
-				tapEvents = list();
+				if (tapEvents.size() == eventBatchSize) {
+					Object value = lastDocument.get(COLLECTION_ID_FIELD);
+					batchOffset = new MongoBatchOffset(COLLECTION_ID_FIELD, value);
+					tapReadOffsetConsumer.accept(tapEvents, batchOffset);
+					tapEvents = list();
+				}
 			}
-		}
-		if (!tapEvents.isEmpty()) {
-			tapReadOffsetConsumer.accept(tapEvents, null);
+			if (!tapEvents.isEmpty()) {
+				tapReadOffsetConsumer.accept(tapEvents, null);
+			}
+		} catch (Exception e) {
+			if (!isAlive() && e instanceof MongoInterruptedException) {
+				// ignored
+			} else {
+				throw e;
+			}
 		}
 	}
 

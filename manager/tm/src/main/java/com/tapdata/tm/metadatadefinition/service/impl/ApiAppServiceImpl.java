@@ -47,6 +47,7 @@ public class ApiAppServiceImpl implements ApiAppService {
         if (itemType == null) {
             itemType = new ArrayList<>();
             itemType.add(MetadataDefinitionDto.ITEM_TYPE_APP);
+            metadataDefinition.setItemType(itemType);
         } else {
             if (!itemType.contains(MetadataDefinitionDto.ITEM_TYPE_APP)) {
                 itemType.add(MetadataDefinitionDto.ITEM_TYPE_APP);
@@ -61,7 +62,7 @@ public class ApiAppServiceImpl implements ApiAppService {
         //添加api总数，跟已发布的api数量。
         addApiCount(page.getItems(), user);
 
-        return null;
+        return page;
     }
 
     @Override
@@ -141,8 +142,9 @@ public class ApiAppServiceImpl implements ApiAppService {
 
         for (MetadataDefinitionDto metadata : metadatas) {
             List<ModulesDto> modulesDtos1 = map.get(metadata.getId().toHexString());
-            int apiCount = modulesDtos1.size();
-            int publishedApiCount = (int) modulesDtos1.stream().map(s -> ModuleStatusEnum.ACTIVE.getValue().equals(s.getStatus())).count();
+            boolean empty = CollectionUtils.isEmpty(modulesDtos1);
+            int apiCount = empty ? 0 : modulesDtos1.size();
+            int publishedApiCount = empty ? 0 : (int) modulesDtos1.stream().map(s -> ModuleStatusEnum.ACTIVE.getValue().equals(s.getStatus())).count();
             metadata.setApiCount(apiCount);
             metadata.setPublishedApiCount(publishedApiCount);
         }

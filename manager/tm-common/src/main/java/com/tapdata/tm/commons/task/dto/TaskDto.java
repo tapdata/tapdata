@@ -42,6 +42,8 @@ public class TaskDto extends ParentTaskDto {
     public static final String LDP_TYPE_FDM = "fdm";
     public static final String LDP_TYPE_MDM = "mdm";
 
+    public static final String ATTRS_USED_SHARE_CACHE = "usedShareCache";
+
     /** 任务图*/
     @JsonSerialize( using = DagSerialize.class)
     @JsonDeserialize( using = DagDeserialize.class)

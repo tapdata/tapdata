@@ -94,7 +94,7 @@ public class ApiAppController extends BaseController {
     @Operation(summary = "Find a model instance by {{id}} from the data source")
     @GetMapping("{id}")
     public ResponseMessage<MetadataDefinitionDto> findById(@PathVariable("id") String id,
-            @RequestParam("fields") String fieldsJson) {
+            @RequestParam(value = "fields", required = false) String fieldsJson) {
         Field fields = parseField(fieldsJson);
         return success(apiAppService.findById(MongoUtils.toObjectId(id),  fields, getLoginUser()));
     }

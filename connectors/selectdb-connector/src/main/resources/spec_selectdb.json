@@ -121,10 +121,10 @@
     "datetimev2": {
       "to": "TapDateTime",
       "range": [
-        "0000-01-01 00:00:00.000000",
-        "9999-12-31 23:59:59.999999"
+        "0000-01-01 00:00:00",
+        "9999-12-31 23:59:59"
       ],
-      "pattern": "YYYY-MM-DD HH:MM:SS.ssssss",
+      "pattern": "YYYY-MM-DD HH:MM:SS",
       "fraction": 6,
       "withTimeZone": false
     },
@@ -168,8 +168,8 @@
     "datetime": {
       "byte": 8,
       "range": [
-        "1000-01-01 00:00:00 000000000",
-        "9999-12-31 23:59:59 999999999"
+        "1000-01-01 00:00:00",
+        "9999-12-31 23:59:59"
       ],
       "pattern": "YYYY-MM-DD HH:MM:SS",
       "to": "TapDateTime"

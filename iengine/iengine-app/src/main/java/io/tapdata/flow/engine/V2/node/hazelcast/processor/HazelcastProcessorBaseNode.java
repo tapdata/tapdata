@@ -5,7 +5,8 @@ import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.ProcessorNodeProcessAspect;
 import io.tapdata.aspect.utils.AspectUtils;
-import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.error.TapEventException;
+import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.commons.collections4.CollectionUtils;
@@ -77,39 +78,37 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 							}
 						}
 
-							// consider process is done
-							processedEventList.add(event);
-							if (null != processorNodeProcessAspect) {
-								AspectUtils.accept(processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), event);
-							}
+						// consider process is done
+						processedEventList.add(event);
+						if (null != processorNodeProcessAspect) {
+							AspectUtils.accept(processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), event);
+						}
 
-						});
 					});
-				} catch (Throwable throwable) {
-					throw new NodeException("Error occurred when process events in processor", throwable)
-							.context(getProcessorBaseContext())
-							.event(tapdataEvent.getTapEvent());
-				}
+				});
+			} catch (Throwable throwable) {
+				throw new TapEventException(TaskProcessorExCode_11.UNKNOWN_ERROR, throwable).addEvent(tapdataEvent.getTapEvent());
+			}
 
-				if (CollectionUtils.isNotEmpty(processedEventList)) {
-					for (TapdataEvent event : processedEventList) {
-						while (isRunning()) {
-							if (offer(event)) {
-								break;
-							}
+			if (CollectionUtils.isNotEmpty(processedEventList)) {
+				for (TapdataEvent event : processedEventList) {
+					while (isRunning()) {
+						if (offer(event)) {
+							break;
 						}
 					}
 				}
-			} catch (Throwable throwable) {
-				errorHandle(throwable, throwable.getMessage());
-			} finally {
-				ThreadContext.clearAll();
 			}
-			return true;
+		} catch (Throwable throwable) {
+			errorHandle(throwable, throwable.getMessage());
+		} finally {
+			ThreadContext.clearAll();
+		}
+		return true;
 	}
 
 	@Override
-	protected void doClose() throws Exception{
+	protected void doClose() throws Exception {
 		super.doClose();
 	}
 

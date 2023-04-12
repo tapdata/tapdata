@@ -2,6 +2,7 @@ package com.tapdata.tm.modules.vo;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.vo.BaseVo;
 import lombok.Data;
@@ -47,7 +48,7 @@ public class ModulesListVo extends BaseVo {
     private List<Field> fields;
 
     @JsonProperty("listtags")
-    private List listTags;
+    private List<Tag> listtags;
 
     private String project;
     private String createType;
