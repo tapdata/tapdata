@@ -218,7 +218,7 @@ public class MeasureAOP {
             param.put("alarmDate", alarmDate);
             param.put("taskName", task.getName());
             param.put("threshold", alarmRuleDto.getMs());
-            param.put("replicateLag", replicateLag);
+            param.put("currentValue", replicateLag);
             if (first.isPresent()) {
                 AlarmInfo data = first.get();
                 alarmInfo.setId(data.getId());
