@@ -1,7 +1,7 @@
 ## **連接配置幫助**
 ###  **1. MongoDB Atlas安裝說明**
-請遵循以下說明以確保在 Tapdata 中成功添加和使用MongoDB Atlas數據庫。
-> **注意**：MongoDB Atlas作爲源端連接時，必須是副本集
+連接MongoDB Atlas時，需要按照MongoDB Atlas數據庫連接的URI示範格式填寫連接串。
+> **注意**：連接MongoDB Atlas時，需要按照MongoDB Atlas數據庫連接的URI示範格式填寫連接串，連接串需要指定：用戶名、密碼、數據庫名。
 #### **2. 支持版本**
 MongoDB Atlas 5.0.15
 > **注意**：請儘量保證資源端數據庫和目標數據庫都是5.0以上版本。
