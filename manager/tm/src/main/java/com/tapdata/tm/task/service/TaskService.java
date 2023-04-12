@@ -3970,7 +3970,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (StringUtils.isNotEmpty(taskSuccessStatus)) {
             if(judgeTargetInspect(connectionId, tableName, userDetail)){
                 tableStatus=  TableStatusEnum.STATUS_NORMAL.getValue();
-                queryTableMeasurement(taskId,tableStatusInfoDto);
+                measurementServiceV2.queryTableMeasurement(taskId,tableStatusInfoDto);
             }else {
                 tableStatus = TableStatusEnum.STATUS_ERROR.getValue();
             }
@@ -3981,36 +3981,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         tableStatusInfoDto.setStatus(tableStatus);
         return tableStatusInfoDto;
     }
-
-
-    public void queryTableMeasurement(String taskId, TableStatusInfoDto tableStatusInfoDto) {
-        Criteria criteria = Criteria.where("tags.taskId").is(taskId)
-                .and("grnty").is("minute")
-                .and("tags.type").is("task");
-        Query query = new Query(criteria);
-        query.fields().include("ss", "tags");
-        query.with(Sort.by("last").descending());
-        MeasurementEntity measurementEntity = repository.getMongoOperations().findOne(query, MeasurementEntity.class, "AgentMeasurementV2");
-        List<Sample> samples = measurementEntity.getSamples();
-        if (CollectionUtils.isNotEmpty(samples)) {
-            Sample sample = samples.get(0);
-            Long cdcDelayTime = null;
-            Date lastData = null;
-            if (sample.getVs().get("replicateLag") != null) {
-                cdcDelayTime = Long.valueOf(sample.getVs().get("replicateLag").toString());
-            }
-            tableStatusInfoDto.setCdcDelayTime(cdcDelayTime);
-            if(sample.getVs().get("currentEventTimestamp") != null) {
-                long LastDataChangeTime = sample.getVs().get("currentEventTimestamp").longValue();
-                if (LastDataChangeTime != 0) {
-                    lastData = new Date(LastDataChangeTime);
-                }
-            }
-            tableStatusInfoDto.setLastDataChangeTime(lastData);
-        }
-
-    }
-
 
 
     public boolean judgeTargetInspect(String connectionId, String tableName, UserDetail userDetail) {

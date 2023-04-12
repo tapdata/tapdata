@@ -2,7 +2,6 @@ package com.tapdata.tm.monitor.service;
 
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUtil;
-import cn.hutool.core.math.MathUtil;
 import com.mongodb.client.result.DeleteResult;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
@@ -20,6 +19,7 @@ import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
+import com.tapdata.tm.task.bean.TableStatusInfoDto;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
@@ -974,5 +974,37 @@ public class MeasurementServiceV2 {
         query.fields().include("ss", "tags");
         query.with(Sort.by("date").descending());
         return mongoOperations.findOne(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+    }
+
+
+    public void queryTableMeasurement(String taskId, TableStatusInfoDto tableStatusInfoDto) {
+        Criteria criteria = Criteria.where("tags.taskId").is(taskId)
+                .and("grnty").is("minute")
+                .and("tags.type").is("task");
+        Query query = new Query(criteria);
+        query.fields().include("ss", "tags");
+        query.with(Sort.by("last").descending());
+        MeasurementEntity measurementEntity = mongoOperations.findOne(query, MeasurementEntity.class, "AgentMeasurementV2");
+        if (measurementEntity == null) {
+            return;
+        }
+        List<Sample> samples = measurementEntity.getSamples();
+        if (org.apache.commons.collections4.CollectionUtils.isNotEmpty(samples)) {
+            Sample sample = samples.get(0);
+            Long cdcDelayTime = null;
+            Date lastData = null;
+            if (sample.getVs().get("replicateLag") != null) {
+                cdcDelayTime = Long.valueOf(sample.getVs().get("replicateLag").toString());
+            }
+            tableStatusInfoDto.setCdcDelayTime(cdcDelayTime);
+            if (sample.getVs().get("currentEventTimestamp") != null) {
+                long LastDataChangeTime = sample.getVs().get("currentEventTimestamp").longValue();
+                if (LastDataChangeTime != 0) {
+                    lastData = new Date(LastDataChangeTime);
+                }
+            }
+            tableStatusInfoDto.setLastDataChangeTime(lastData);
+        }
+
     }
 }
