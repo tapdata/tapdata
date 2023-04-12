@@ -14,11 +14,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 
 /**
  * @Date: 2021/10/15
@@ -115,6 +110,19 @@ public class ApiAppController extends BaseController {
     @DeleteMapping("{id}")
     public ResponseMessage<Void> delete(@PathVariable("id") String id) {
         metadataDefinitionService.deleteById(MongoUtils.toObjectId(id), getLoginUser());
+        return success();
+    }
+
+    /**
+     * move object tags
+     * @param id
+     * @param moveId
+     * @return
+     */
+    @Operation(summary = "Delete a model instance by {{id}} from the data source")
+    @PutMapping("move/{id}")
+    public ResponseMessage<Void> delete(@PathVariable("id") String id, @RequestParam("moveId") String moveId) {
+        apiAppService.move(id, moveId, getLoginUser());
         return success();
     }
 

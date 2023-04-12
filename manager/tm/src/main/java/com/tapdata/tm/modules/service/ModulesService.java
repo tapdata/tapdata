@@ -106,6 +106,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         notDeleteMap.put("$ne", true);
         where.put("is_deleted", notDeleteMap);
 
+
         String status = (String) where.getOrDefault("status", "");
         if ("all".equals(status)) {
             where.remove("status");
