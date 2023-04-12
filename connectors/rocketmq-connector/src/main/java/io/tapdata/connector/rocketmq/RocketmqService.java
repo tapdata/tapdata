@@ -22,15 +22,20 @@ import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import org.apache.rocketmq.acl.common.AclClientRPCHook;
 import org.apache.rocketmq.acl.common.SessionCredentials;
 import org.apache.rocketmq.client.consumer.DefaultLitePullConsumer;
+import org.apache.rocketmq.client.consumer.DefaultMQPullConsumer;
+import org.apache.rocketmq.client.consumer.PullResult;
 import org.apache.rocketmq.client.exception.MQClientException;
 import org.apache.rocketmq.client.producer.DefaultMQProducer;
+import org.apache.rocketmq.common.MixAll;
 import org.apache.rocketmq.common.consumer.ConsumeFromWhere;
 import org.apache.rocketmq.common.message.Message;
 import org.apache.rocketmq.common.message.MessageExt;
+import org.apache.rocketmq.common.message.MessageQueue;
 import org.apache.rocketmq.remoting.RPCHook;
 import org.apache.rocketmq.tools.admin.DefaultMQAdminExt;
 
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
@@ -160,6 +165,68 @@ public class RocketmqService extends AbstractMqService {
         }
         submitTables(tableSize, consumer, null, destinationSet);
         defaultMQAdminExt.shutdown();
+    }
+    @Override
+    protected <T> void submitTables(int tableSize, Consumer<List<TapTable>> consumer, Object object, Set<T> destinationSet) {
+        DefaultMQPullConsumer mqConsumer  = new DefaultMQPullConsumer(MixAll.TOOLS_CONSUMER_GROUP, (RPCHook) null);
+        mqConsumer.setNamesrvAddr(mqConfig.getNameSrvAddr());
+        try {
+            mqConsumer.start();
+        } catch (Exception e) {
+            TapLogger.error(TAG, "Mq consumer startup failed");
+        }
+        Lists.partition(new ArrayList<>(destinationSet), tableSize).forEach(tables -> {
+            List<TapTable> tableList = new CopyOnWriteArrayList<>();
+            CountDownLatch countDownLatch = new CountDownLatch(tables.size());
+            executorService = Executors.newFixedThreadPool(tables.size());
+            tables.forEach(table -> executorService.submit(() -> {
+                TapTable tapTable = new TapTable();
+                List<MessageExt> messageViewList = Lists.newArrayList();
+                try {
+                    SCHEMA_PARSER.parse(tapTable, analyzeTable(object, table, tapTable));
+                    Set<MessageQueue> mqs = mqConsumer.fetchSubscribeMessageQueues(tapTable.getName());
+                    for (MessageQueue mq : mqs) {
+                        long minOffset = mqConsumer.searchOffset(mq, 0);
+                        long maxOffset = mqConsumer.searchOffset(mq, System.currentTimeMillis());
+                        READQ:
+                        for (long offset = minOffset; offset <= maxOffset; ) {
+                            try {
+                                PullResult pullResult = mqConsumer.pull(mq, "*", offset, 32);
+                                offset = pullResult.getNextBeginOffset();
+                                switch (pullResult.getPullStatus()) {
+                                    case FOUND:
+                                        messageViewList.addAll(pullResult.getMsgFoundList());
+                                        break;
+                                    case NO_MATCHED_MSG:
+                                    case NO_NEW_MSG:
+                                    case OFFSET_ILLEGAL:
+                                        break READQ;
+                                }
+                            } catch (Exception e) {
+                                break;
+                            }
+                        }
+                    }
+                    if (!messageViewList.isEmpty()) {
+                        Map<String, Object> messageBody = jsonParser.fromJsonBytes(messageViewList.get(0).getBody(), Map.class);
+                        SCHEMA_PARSER.parse(tapTable, messageBody);
+                    }
+                } catch (Exception e) {
+                    TapLogger.error(TAG, "topic[{}] value [{}] can not parse to json, ignore...", tapTable.getName(), messageViewList.get(0).getBody());
+                }
+                tableList.add(tapTable);
+                countDownLatch.countDown();
+            }));
+            try {
+                countDownLatch.await();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            } finally {
+                mqConsumer.shutdown();
+                executorService.shutdown();
+            }
+            consumer.accept(tableList);
+        });
     }
 
     @Override

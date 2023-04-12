@@ -81,7 +81,7 @@ public class DbKit {
         List<String> columnNames = new ArrayList<>();
         ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
         for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
-            String[] columnNameArr = resultSetMetaData.getColumnName(i).split("\\.");
+            String[] columnNameArr = resultSetMetaData.getColumnLabel(i).split("\\.");
             String substring = columnNameArr[columnNameArr.length - 1];
             columnNames.add(substring);
         }
