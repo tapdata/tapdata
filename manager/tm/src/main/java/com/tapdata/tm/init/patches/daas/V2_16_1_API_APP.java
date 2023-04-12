@@ -21,6 +21,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.OutOperation;
 import org.springframework.data.mongodb.core.index.CompoundIndexDefinition;
+import org.springframework.data.mongodb.core.index.IndexOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -68,5 +69,9 @@ public class V2_16_1_API_APP extends AbsPatch {
 
         Update update = Update.update("listtags", Lists.of(new Tag(metadataDefinition.getId().toHexString(), metadataDefinition.getValue())));
         mongoTemplate.updateMulti(query, update, ModulesEntity.class);
+
+
+        IndexOperations indexOperations = mongoTemplate.indexOps(ModulesEntity.class);
+
     }
 }
