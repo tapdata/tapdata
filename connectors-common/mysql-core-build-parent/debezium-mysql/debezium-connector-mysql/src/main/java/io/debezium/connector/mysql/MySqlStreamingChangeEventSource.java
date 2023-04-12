@@ -907,42 +907,21 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
                 long started = clock.currentTimeInMillis();
                 try {
                     LOGGER.debug("Attempting to establish binlog reader connection with timeout of {} ms", timeout);
-                    client.registerLifecycleListener(new LifecycleListener() {
-                        @Override
-                        public void onConnect(BinaryLogClient client) {
-                            try {
-                                Configuration configuration = connectorConfig.getConfig();
-                                if(configuration != null) {
-                                    String tdsqlPartition = configuration.getString("tdsql.partition");
-                                    if(tdsqlPartition != null) {
-                                        tdsqlPartition = tdsqlPartition.trim();
-                                        Field field = client.getClass().getDeclaredField("channel");
-                                        field.setAccessible(true);
-                                        PacketChannel channel = (PacketChannel) field.get(client);
-//                            channel.write(new QueryCommand("/*proxy*/ set binlog_dump_sticky_backend=" + tdsqlPartition));
-                                        channel.write(new QueryCommand(("/*proxy*/ set binlog_dump_sticky_backend=" + tdsqlPartition)));
-                                    }
-                                }
-                            } catch(Throwable throwable) {
-                                throwable.printStackTrace();
+                    try {
+                        Configuration configuration = connectorConfig.getConfig();
+                        if(configuration != null) {
+                            String tdsqlPartition = configuration.getString("tdsql.partition");
+                            if(tdsqlPartition != null) {
+                                tdsqlPartition = tdsqlPartition.trim();
+                                Class<? extends BinaryLogClient> clientClass = client.getClass();
+                                Field sql = clientClass.getDeclaredField("sql");
+                                sql.setAccessible(true);
+                                sql.set(client, "/*proxy*/ set binlog_dump_sticky_backend=" + tdsqlPartition);
+                                LOGGER.info("Partition of TD-SQL BinaryLog.");
                             }
                         }
-
-                        @Override
-                        public void onCommunicationFailure(BinaryLogClient client, Exception ex) {
-
-                        }
-
-                        @Override
-                        public void onEventDeserializationFailure(BinaryLogClient client, Exception ex) {
-
-                        }
-
-                        @Override
-                        public void onDisconnect(BinaryLogClient client) {
-
-                        }
-                    });
+                    } catch(Throwable ignore) {
+                    }
                     client.connect(timeout);
 
                     // Need to wait for keepalive thread to be running, otherwise it can be left orphaned

@@ -1,10 +1,5 @@
 package io.tapdata.connector.tencent.db.mysql;
 
-import com.github.shyiko.mysql.binlog.BinaryLogClient;
-import com.github.shyiko.mysql.binlog.event.*;
-import com.zaxxer.hikari.HikariDataSource;
-import io.debezium.connector.mysql.MySqlConnection;
-import io.debezium.jdbc.JdbcConnection;
 import io.tapdata.common.CommonDbConfig;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.common.ddl.DDLSqlMaker;
@@ -15,6 +10,7 @@ import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
 import io.tapdata.connector.mysql.writer.MysqlWriter;
 import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.*;
@@ -45,12 +41,12 @@ import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.io.IOException;
-import java.io.Serializable;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -140,9 +136,8 @@ public class TencentDBMySQLConnector extends MysqlConnector {
                         if (Objects.nonNull(items)) {
                             String[] split = items.split(",");
                             for (String backend : split) {
-                                MysqlJdbcContext jdbcContext = new MysqlJdbcContext(tapConnectionContext);
                                 if (tapConnectionContext instanceof TapConnectorContext) {
-                                    MysqlReader reader = new MysqlReader(jdbcContext);
+                                    MysqlReader reader = new MysqlReader(mysqlJdbcContext);
                                     readers.put(backend, reader);
                                 }
                             }
@@ -246,15 +241,58 @@ public class TencentDBMySQLConnector extends MysqlConnector {
         connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
     }
 
+    private ExecutorService sourceConsumer;
+    private final Object binlogLock = new Object();
+    private final AtomicBoolean binlogFlag = new AtomicBoolean(true);
     private void streamRead(TapConnectorContext tapConnectorContext, List<String> tables, Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
-        //mysqlJdbcContext.execute("/*proxy*/ set binlog_dump_sticky_backend=set_1681181636_1");
+//        mysqlJdbcContext.execute("/*proxy*/ set binlog_dump_sticky_backend=set_1681181636_1");
+        if (sourceConsumer == null) {
+            synchronized (this){
+                if (sourceConsumer == null){
+                    int size = readers.size();
+                    this.sourceConsumer = new ThreadPoolExecutor(size <= 1 ? 1 : size << 1, size, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
+                }
+            }
+        }
         for (Map.Entry<String, MysqlReader> entry : readers.entrySet()) {
             String key = entry.getKey();
             MysqlReader value = entry.getValue();
-            MysqlJdbcContext jdbc = value.mysqlJdbcContext();
-//            jdbc.execute("/*proxy*/ set binlog_dump_sticky_backend=" + key);
-            value.readBinlog(tapConnectorContext, tables, offset, batchSize, DDLParserType.MYSQL_CCJ_SQL_PARSER, consumer, map(entry("tdsql.partition", key)));
-            break;
+            this.sourceConsumer.execute(()->{
+                Thread.currentThread().setUncaughtExceptionHandler((thread, throwable) -> {
+                    synchronized (binlogFlag){
+                        binlogFlag.set(false);
+                    }
+                    TapLogger.error(TAG,"Binary Log partition {} has Stoped. Stop reason: {}.", key, throwable.getMessage());
+                });
+                try {
+                    value.readBinlog(
+                            tapConnectorContext,
+                            tables,
+                            offset,
+                            batchSize,
+                            DDLParserType.MYSQL_CCJ_SQL_PARSER,
+                            consumer,
+                            map(entry("tdsql.partition", key)));
+                }catch (Throwable throwable){
+                    throw new CoreException(throwable.getMessage());
+                }
+            });
+        }
+        synchronized (binlogLock){
+            while(true){
+                try {
+                    binlogLock.wait(3000);
+                }catch (Exception ignored){}
+                synchronized (binlogFlag){
+                    if (!binlogFlag.get()){
+                        if (null != sourceConsumer && !sourceConsumer.isShutdown()){
+                            sourceConsumer.shutdown();
+                            sourceConsumer = null;
+                        }
+                        break;
+                    }
+                }
+            }
         }
         //mysqlReader.readBinlog(tapConnectorContext, tables, offset, batchSize, DDLParserType.MYSQL_CCJ_SQL_PARSER, consumer);
     }

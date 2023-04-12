@@ -31,6 +31,12 @@ public class MysqlBinlogPositionUtil implements AutoCloseable {
     private final int fileBegin;
     private final int fileEnd;
     private final BinaryLogClient client;
+    private String partition;
+
+    public MysqlBinlogPositionUtil partition(String partitionId){
+        this.partition = partitionId;
+        return this;
+    }
 
     public MysqlBinlogPositionUtil(String host, int port, String username, String password) throws SQLException {
         try (Connection conn = getConnection(host, port, username, password)) {

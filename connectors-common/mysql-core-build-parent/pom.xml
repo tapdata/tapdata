@@ -18,6 +18,7 @@
         </developer>
     </developers>
     <modules>
+        <module>binary-log-client</module>
         <module>debezium-mysql</module>
         <module>mysql-core</module>
     </modules>
