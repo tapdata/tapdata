@@ -1,14 +1,10 @@
 package com.tapdata.tm.init.patches.daas;
 
-import com.mongodb.BasicDBObject;
-import com.mongodb.client.gridfs.model.GridFSFile;
 import com.tapdata.tm.commons.schema.Tag;
-import com.tapdata.tm.ds.entity.DataSourceDefinitionEntity;
 import com.tapdata.tm.init.PatchType;
 import com.tapdata.tm.init.PatchVersion;
 import com.tapdata.tm.init.patches.AbsPatch;
 import com.tapdata.tm.init.patches.PatchAnnotation;
-import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.entity.MetadataDefinitionEntity;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.sdk.util.AppType;
@@ -16,19 +12,11 @@ import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.SpringContextHelper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bson.Document;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.aggregation.Aggregation;
-import org.springframework.data.mongodb.core.aggregation.OutOperation;
-import org.springframework.data.mongodb.core.index.CompoundIndexDefinition;
-import org.springframework.data.mongodb.core.index.IndexOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.data.mongodb.gridfs.GridFsTemplate;
 
-import java.util.List;
-import java.util.Objects;
 
 /**
  *
