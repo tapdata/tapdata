@@ -47,8 +47,13 @@ public class ScriptExecutorsManager {
   private final String taskId;
   private final String nodeId;
 
+	private final boolean trialRun;
 
-  public ScriptExecutorsManager(Log scriptLogger, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, String taskId, String nodeId) {
+	public ScriptExecutorsManager(Log scriptLogger, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, String taskId, String nodeId) {
+		this(scriptLogger, clientMongoOperator, hazelcastInstance, taskId, nodeId, false);
+	}
+
+  public ScriptExecutorsManager(Log scriptLogger, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, String taskId, String nodeId, boolean trialRun) {
 
     this.taskId = taskId;
     this.nodeId = nodeId;
@@ -65,6 +70,7 @@ public class ScriptExecutorsManager {
               return -1L;
             })
             .create();
+		this.trialRun = trialRun;
   }
 
   public ScriptExecutor getScriptExecutor(String connectionName) {
@@ -90,7 +96,7 @@ public class ScriptExecutorsManager {
 
 	public ScriptExecutor create(Connections connections, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, Log scriptLogger) {
 		return new ScriptExecutor(connections, clientMongoOperator, hazelcastInstance, scriptLogger,
-						this.getClass().getSimpleName() + "-" + taskId + "-" + nodeId + "-" + UUIDGenerator.uuid());
+						this.getClass().getSimpleName() + "-" + taskId + "-" + nodeId + "-" + UUIDGenerator.uuid(), trialRun);
 	}
 
   public void close() {
@@ -111,9 +117,12 @@ public class ScriptExecutorsManager {
 
     private final Log scriptLogger;
 
-    private ScriptExecutor(Connections connections, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, Log scriptLogger, String TAG) {
+		private final boolean trialRun;
+
+    private ScriptExecutor(Connections connections, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, Log scriptLogger, String TAG, boolean trialRun) {
       this.TAG = TAG;
       this.scriptLogger = scriptLogger;
+			this.trialRun = trialRun;
 
       Map<String, Object> connectionConfig = connections.getConfig();
       DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
@@ -164,6 +173,10 @@ public class ScriptExecutorsManager {
      * @return
      */
     public long execute(Map<String, Object> executeObj) throws Throwable {
+			if (trialRun) {
+				scriptLogger.info("Trial run, skip execute");
+				return 0;
+			}
       ExecuteResult<Long> executeResult = new ExecuteResult<>();
       pdkExecute("execute", executeObj, executeResult);
       return executeResult.getResult();
@@ -188,6 +201,10 @@ public class ScriptExecutorsManager {
     }
 
     public Object call(String funcName, List<Map<String, Object>> params) throws Throwable {
+			if (trialRun) {
+				scriptLogger.info("Trial run, skip call");
+				return new Object();
+			}
       ExecuteResult<Long> executeResult = new ExecuteResult<>();
       Map<String, Object> executeObj = new HashMap<>();
       executeObj.put("funcName", funcName);

@@ -37,7 +37,6 @@ import org.springframework.data.mongodb.core.query.Query;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
-import javax.script.ScriptException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -114,7 +113,9 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
     Node node = getNode();
     if (!this.standard) {
       this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(obsLogger), clientMongoOperator, jetContext.hazelcastInstance(),
-              node.getTaskId(), node.getId());
+              node.getTaskId(), node.getId(),
+							StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
+											TaskDto.SYNC_TYPE_TEST_RUN, TaskDto.SYNC_TYPE_DEDUCE_SCHEMA));
       ((ScriptEngine) this.engine).put("ScriptExecutorsManager", scriptExecutorsManager);
 
       List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
