@@ -32,12 +32,12 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-runner</artifactId>
-			<version>1.2-SNAPSHOT</version>
+            <version>1.2-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>script-engine-module</artifactId>
-			<version>1.0-SNAPSHOT</version>
+            <version>1.0-SNAPSHOT</version>
         </dependency>
         <!-- https://mvnrepository.com/artifact/org.apache.maven.shared/maven-invoker -->
         <dependency>
@@ -157,6 +157,11 @@
             <version>1.0-SNAPSHOT</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>pdk-error-code</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -233,7 +238,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>2.22.2</version>
                 <configuration>
-                  <retryCount>5</retryCount>
+                    <retryCount>5</retryCount>
                 </configuration>
             </plugin>
         </plugins>

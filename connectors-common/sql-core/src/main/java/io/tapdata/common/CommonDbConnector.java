@@ -2,6 +2,7 @@ package io.tapdata.common;
 
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.ddl.DDLSqlGenerator;
+import io.tapdata.common.exception.ExceptionCollector;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.*;
@@ -45,6 +46,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
     protected JdbcContext jdbcContext;
     protected CommonDbConfig commonDbConfig;
     protected CommonSqlMaker commonSqlMaker;
+    protected ExceptionCollector exceptionCollector;
 
     @Override
     public int tableCount(TapConnectionContext connectionContext) throws SQLException {
@@ -254,11 +256,8 @@ public abstract class CommonDbConnector extends ConnectorBase {
                     tapEvents = list();
                 }
             }
-        } catch (Exception e) {
-            if (e instanceof SQLRecoverableException) {
-                throw new TapPdkTerminateByServerEx(commonDbConfig.getPdkId(), ErrorKit.getLastCause(e));
-            }
-            throw e;
+        } catch (SQLException e) {
+            exceptionCollector.collectTerminateByServer(e);
         }
         //last events those less than eventBatchSize
         if (EmptyKit.isNotEmpty(tapEvents)) {
