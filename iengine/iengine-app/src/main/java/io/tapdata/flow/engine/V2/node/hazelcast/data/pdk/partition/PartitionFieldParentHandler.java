@@ -35,33 +35,35 @@ public class PartitionFieldParentHandler {
 	public PartitionFieldParentHandler(TapTable tapTable) {
 		table = tapTable.getId();
 		TapIndexEx partitionIndex = tapTable.partitionIndex();
-		if(partitionIndex == null || partitionIndex.getIndexFields() == null || partitionIndex.getIndexFields().isEmpty()) {
-			//TapLogger.warn(TAG, "Not find any primary keys, partition index is illegal for table {}.", table);
-			throw new CoreException(PartitionErrorCodes.PARTITION_INDEX_NULL, "Not find any primary keys, partition index is illegal for table {}, cancel full breakpoint resume.", table);
-			//partitionFields.addAll(nameFieldMap.keySet());
-			//if (partitionFields.isEmpty()){
-			//	throw new CoreException(PartitionErrorCodes.PARTITION_INDEX_NULL,"Not find any fields in source table {}.", table);
-			//}
-			//return;
-		}
+//		if(partitionIndex == null || partitionIndex.getIndexFields() == null || partitionIndex.getIndexFields().isEmpty()) {
+//			//TapLogger.warn(TAG, "Not find any primary keys, partition index is illegal for table {}.", table);
+//			throw new CoreException(PartitionErrorCodes.PARTITION_INDEX_NULL, "Not find any primary keys, partition index is illegal for table {}, cancel full breakpoint resume.", table);
+//			//partitionFields.addAll(nameFieldMap.keySet());
+//			//if (partitionFields.isEmpty()){
+//			//	throw new CoreException(PartitionErrorCodes.PARTITION_INDEX_NULL,"Not find any fields in source table {}.", table);
+//			//}
+//			//return;
+//		}
         partitionFields = new ArrayList<>();
-        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-		for(TapIndexField field : partitionIndex.getIndexFields()) {
-			partitionFields.add(field.getName());
-			if(nameFieldMap != null) {
-				TapField tapField = nameFieldMap.get(field.getName());
-				if(tapField != null && tapField.getTapType() != null) {
-					if(tapField.getTapType() instanceof TapDateTime) {
-						Integer fraction = ((TapDateTime) tapField.getTapType()).getFraction();
-						if(fraction == null)
-							fraction = 3;
-						dateFieldFactionMap.put(field.getName(), fraction);
-					} else if(tapField.getTapType() instanceof TapDate || tapField.getTapType() instanceof TapTime || tapField.getTapType() instanceof TapYear) {
-						dateFieldFactionMap.put(field.getName(), 3);
-					}
-				}
-			}
-		}
+        if(partitionIndex != null) {
+            LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+            for(TapIndexField field : partitionIndex.getIndexFields()) {
+                partitionFields.add(field.getName());
+                if(nameFieldMap != null) {
+                    TapField tapField = nameFieldMap.get(field.getName());
+                    if(tapField != null && tapField.getTapType() != null) {
+                        if(tapField.getTapType() instanceof TapDateTime) {
+                            Integer fraction = ((TapDateTime) tapField.getTapType()).getFraction();
+                            if(fraction == null)
+                                fraction = 3;
+                            dateFieldFactionMap.put(field.getName(), fraction);
+                        } else if(tapField.getTapType() instanceof TapDate || tapField.getTapType() instanceof TapTime || tapField.getTapType() instanceof TapYear) {
+                            dateFieldFactionMap.put(field.getName(), 3);
+                        }
+                    }
+                }
+            }
+        }
 	}
 
 	protected Map<String, Object> getKeyFromData(Map<String, Object> before) {
