@@ -17,5 +17,12 @@ public interface TaskDateProcessorExCode_17 {
 			describe = "The target model does not exist, there may be a problem with the model calculation",
 			describeCN = "目标模型不存在，可能是模型推算出现问题"
 	)
-	String INIT_TARGET_TABLE_TAP_TABLE_NULL = "15002";
+	String INIT_TARGET_TABLE_TAP_TABLE_NULL = "17002";
+
+	@TapExCode(
+			describe = "The selected modification type is a non-time type",
+			describeCN = "选择的修改类型为非时间类型"
+	)
+	String SELECTED_TYPE_IS_NON_TIME = "17003";
+
 }

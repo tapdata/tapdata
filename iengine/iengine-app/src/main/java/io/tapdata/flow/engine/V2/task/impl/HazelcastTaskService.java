@@ -38,6 +38,7 @@ import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.MigrateDateProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
@@ -244,6 +245,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
                         && !(node instanceof HazelCastImdgNode)
                         && !(node instanceof TableRenameProcessNode)
                         && !(node instanceof MigrateFieldRenameProcessorNode)
+                        && !(node instanceof MigrateDateProcessorNode)
                         && !(node instanceof VirtualTargetNode)
                         && !StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)
                 ) {
