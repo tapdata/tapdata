@@ -116,8 +116,9 @@ public class QueryDataBaseDataService {
                     if (getTableInfoFunction == null) {
                         tableInfo.setNumOfRows(0L);
                         tableInfo.setStorageSize(0L); // 字节单位
+                    }else {
+                        tableInfo = getTableInfoFunction.getTableInfo(connectorNode.getConnectorContext(), tableName);
                     }
-                    tableInfo = getTableInfoFunction.getTableInfo(connectorNode.getConnectorContext(), tableName);
                 } catch (Exception e) {
                     log.error("Get TableInfoFunction error :", e);
                     tableInfo.setNumOfRows(0L);
@@ -127,7 +128,11 @@ public class QueryDataBaseDataService {
             } catch (Exception e) {
                 throw new RuntimeException("Failed to init pdk connector, database type: " + databaseType + ", message: " + e.getMessage(), e);
             } finally {
-                PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
+                try {
+                    PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
+                }catch (Exception e){
+                    log.error(" Stop error{}",e.getMessage());
+                }
             }
         } finally {
             PDKIntegration.releaseAssociateId(associateId);
