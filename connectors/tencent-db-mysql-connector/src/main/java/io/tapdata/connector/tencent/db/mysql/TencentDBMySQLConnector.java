@@ -7,15 +7,19 @@ import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.mysql.*;
 import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
-import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
+import io.tapdata.connector.mysql.writer.MysqlJdbcOneByOneWriter;
 import io.tapdata.connector.mysql.writer.MysqlWriter;
 import io.tapdata.connector.tencent.db.core.TDSqlDiscoverSchema;
+import io.tapdata.connector.tencent.db.core.TDSqlJdbcOneByOneWriter;
 import io.tapdata.connector.tencent.db.core.TDSqlWriter;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
-import io.tapdata.entity.event.ddl.table.*;
+import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapIndex;
@@ -69,6 +73,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
     private MysqlJdbcContext mysqlJdbcContext;
     private MysqlReader mysqlReader;
     private MysqlWriter mysqlWriter;
+    private MysqlJdbcOneByOneWriter tdSqlJdbcOneByOneWriter;
     private String version;
     private String connectionTimezone;
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
@@ -127,7 +132,8 @@ public class TencentDBMySQLConnector extends MysqlConnector {
 //        return context;
 //    }
 
-    Map<String,MysqlReader> readers = new HashMap<>();
+    Map<String, MysqlReader> readers = new HashMap<>();
+
     void initStreamRead(TapConnectionContext tapConnectionContext) throws Throwable {
         try {
             mysqlJdbcContext.query("/*proxy*/ show status", rs -> {
@@ -148,7 +154,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
                 }
             });
         } catch (Throwable e) {
-            TapLogger.warn(TAG,e.getMessage());
+            TapLogger.warn(TAG, e.getMessage());
         }
     }
 
@@ -159,7 +165,13 @@ public class TencentDBMySQLConnector extends MysqlConnector {
         super.onStart(tapConnectionContext);
         this.mysqlJdbcContext = super.initMysqlJdbcContext(tapConnectionContext);
         if (tapConnectionContext instanceof TapConnectorContext) {
-            this.mysqlWriter = new TDSqlWriter(mysqlJdbcContext);
+            this.mysqlWriter = new TDSqlWriter(mysqlJdbcContext, map -> {
+                try {
+                    return new TDSqlJdbcOneByOneWriter(mysqlJdbcContext, map);
+                } catch (Throwable throwable) {
+                    return null;
+                }
+            });
             this.mysqlReader = new MysqlReader(mysqlJdbcContext);
             this.version = mysqlJdbcContext.getMysqlVersion();
             this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
@@ -246,12 +258,13 @@ public class TencentDBMySQLConnector extends MysqlConnector {
     private ExecutorService sourceConsumer;
     private final Object binlogLock = new Object();
     private final AtomicBoolean binlogFlag = new AtomicBoolean(true);
+
     private void streamRead(TapConnectorContext tapConnectorContext, List<String> tables, Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
 //        mysqlJdbcContext.execute("/*proxy*/ set binlog_dump_sticky_backend=set_1681181636_1");
         consumer.streamReadStarted();
         if (sourceConsumer == null) {
-            synchronized (this){
-                if (sourceConsumer == null){
+            synchronized (this) {
+                if (sourceConsumer == null) {
                     int size = readers.size();
                     this.sourceConsumer = new ThreadPoolExecutor(size <= 1 ? 1 : size >> 1, size, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
                 }
@@ -260,13 +273,13 @@ public class TencentDBMySQLConnector extends MysqlConnector {
         for (Map.Entry<String, MysqlReader> entry : readers.entrySet()) {
             String key = entry.getKey();
             MysqlReader value = entry.getValue();
-            this.sourceConsumer.execute(()->{
+            this.sourceConsumer.execute(() -> {
                 Thread.currentThread().setUncaughtExceptionHandler((thread, throwable) -> {
-                    synchronized (binlogFlag){
+                    synchronized (binlogFlag) {
                         binlogFlag.set(false);
                     }
                     throwable.printStackTrace();
-                    TapLogger.error(TAG,"Binary Log partition {} has Stoped. Stop reason: {}.", key, throwable.getMessage());
+                    TapLogger.error(TAG, "Binary Log partition {} has Stoped. Stop reason: {}.", key, throwable.getMessage());
                 });
                 try {
                     value.readBinlog(
@@ -277,19 +290,20 @@ public class TencentDBMySQLConnector extends MysqlConnector {
                             DDLParserType.MYSQL_CCJ_SQL_PARSER,
                             consumer,
                             map(entry("tdsql.partition", key)));
-                }catch (Throwable throwable){
+                } catch (Throwable throwable) {
                     throw new CoreException(throwable.getMessage());
                 }
             });
         }
-        synchronized (binlogLock){
-            while(true){
+        synchronized (binlogLock) {
+            while (true) {
                 try {
                     binlogLock.wait(3000);
-                }catch (Exception ignored){}
-                synchronized (binlogFlag){
-                    if (!binlogFlag.get()){
-                        if (null != sourceConsumer && !sourceConsumer.isShutdown()){
+                } catch (Exception ignored) {
+                }
+                synchronized (binlogFlag) {
+                    if (!binlogFlag.get()) {
+                        if (null != sourceConsumer && !sourceConsumer.isShutdown()) {
                             sourceConsumer.shutdown();
                             sourceConsumer = null;
                         }

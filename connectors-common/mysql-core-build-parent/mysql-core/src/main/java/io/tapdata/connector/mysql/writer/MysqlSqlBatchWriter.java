@@ -34,6 +34,13 @@ public class MysqlSqlBatchWriter extends MysqlJdbcWriter {
 		this.mysqlJdbcOneByOneWriter = new MysqlJdbcOneByOneWriter(mysqlJdbcContext, jdbcCacheMap);
 	}
 
+
+
+	public MysqlSqlBatchWriter(MysqlJdbcContext mysqlJdbcContext, MysqlJdbcOneByOneWriterSetter jdbcOneByOneWriterSetter) throws Throwable {
+		super(mysqlJdbcContext);
+		this.mysqlJdbcOneByOneWriter = jdbcOneByOneWriterSetter.set(super.jdbcCacheMap);
+	}
+
 	public void onDestroy() {
 		mysqlJdbcOneByOneWriter.onDestroy();
 		super.onDestroy();

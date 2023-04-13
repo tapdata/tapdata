@@ -39,8 +39,8 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 		super(mysqlJdbcContext);
 	}
 
-	public MysqlJdbcOneByOneWriter(MysqlJdbcContext mysqlJdbcContext, Map<String, JdbcCache> jdbcCacheMap) throws Throwable {
-		super(mysqlJdbcContext, jdbcCacheMap);
+	public MysqlJdbcOneByOneWriter(MysqlJdbcContext mysqlJdbcContext, Object jdbcCacheMap) throws Throwable {
+		super(mysqlJdbcContext, (Map<String, MysqlJdbcWriter.JdbcCache>)jdbcCacheMap);
 	}
 
 	@Override

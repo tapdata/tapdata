@@ -1,5 +1,6 @@
 package io.tapdata.connector.tencent.db.core;
 
+import io.tapdata.connector.mysql.writer.MysqlJdbcOneByOneWriterSetter;
 import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
 import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -16,13 +17,18 @@ public class TDSqlWriter extends MysqlSqlBatchWriter {
         super(mysqlJdbcContext);
     }
 
+    public TDSqlWriter(MysqlJdbcContext mysqlJdbcContext, MysqlJdbcOneByOneWriterSetter jdbcOneByOneWriterSetter) throws Throwable {
+        super(mysqlJdbcContext, jdbcOneByOneWriterSetter);
+    }
+
+
     @Override
     protected String appendLargeInsertOnDuplicateUpdateSql(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) {
         return appendReplaceIntoSql(tapConnectorContext, tapTable, tapRecordEvents);
     }
 
     @Override
-    protected List<String> updateKeyValues(LinkedHashMap<String, TapField> nameFieldMap, TapRecordEvent tapRecordEvent){
+    protected List<String> updateKeyValues(LinkedHashMap<String, TapField> nameFieldMap, TapRecordEvent tapRecordEvent) {
         List<String> setList = new ArrayList<>();
         nameFieldMap.forEach((fieldName, field) -> {
             if (!needAddIntoPreparedStatementValues(field, tapRecordEvent)) {
