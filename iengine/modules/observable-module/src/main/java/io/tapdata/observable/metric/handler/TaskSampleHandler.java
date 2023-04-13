@@ -67,7 +67,7 @@ public class TaskSampleHandler extends AbstractHandler {
     private Long snapshotDoneCost = null;
     private String currentSnapshotTable = null;
     private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
-    private Long currentSnapshotTableInsertRowTotal = 0L;
+    private Long currentSnapshotTableInsertRowTotal = null;
     private Long currentSnapshotTableRowTotal = null;
     private Double outputQpsMax;
     private Double outputQpsAvg;
