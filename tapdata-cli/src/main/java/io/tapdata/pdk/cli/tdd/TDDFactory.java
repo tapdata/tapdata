@@ -15,6 +15,8 @@ public class TDDFactory {
 //        PGSQL("postgres-connector-v1.0-SNAPSHOT.jar","postgres.json"),
 //        MySql("mysql-connector-v1.0-SNAPSHOT.jar","mysql.json"),
 //        MongoDB("mongodb-connector-v1.0-SNAPSHOT.jar","mongodb.json"),
+//        Coding("coding-connector-v1.0-SNAPSHOT.jar","coding.json"),
+        Tidb("tidb-connector-v1.0-SNAPSHOT.jar","tidb.json"),
         MongoDBAtlas("mongodb-atlas-connector-v1.0-SNAPSHOT.jar","mongodb-atlas.json")
 //        Coding("coding-connector-v1.0-SNAPSHOT.jar","coding.json"),
 //        KafKa("kafka-connector-v1.0-SNAPSHOT.jar","kafka.json"),

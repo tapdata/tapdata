@@ -1,24 +1,23 @@
 package io.tapdata.connector.selectdb;
 
 import cn.hutool.core.lang.Assert;
-import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.tapdata.connector.selectdb.config.SelectDbConfig;
+import io.tapdata.connector.selectdb.exception.SelectDbErrorCodes;
 import io.tapdata.connector.selectdb.exception.SelectDbRunTimeException;
 import io.tapdata.connector.selectdb.exception.StreamLoadException;
 import io.tapdata.connector.selectdb.streamload.*;
 import io.tapdata.connector.selectdb.streamload.rest.models.RespContent;
 import io.tapdata.connector.selectdb.util.CopyIntoUtils;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
 
@@ -37,7 +36,7 @@ import static io.tapdata.entity.simplify.TapSimplify.toJson;
  * Author:Skeet
  * Date: 2022/12/13
  **/
-public class SelectDbStreamLoader {
+public class SelectDbStreamLoader extends Throwable {
     private static final String TAG = SelectDbStreamLoader.class.getSimpleName();
     private static final String LOAD_URL_PATTERN = "http://%s/api/%s/%s/_stream_load";
     private static final String LABEL_PREFIX_PATTERN = "tapdata_%s_%s";
@@ -50,6 +49,7 @@ public class SelectDbStreamLoader {
     private CloseableHttpClient httpClient;
     private SelectDbConfig selectDbConfig;
     private SelectDbContext selectDbContext;
+    private SelectDbJdbcContext selectDbJdbcContext;
     private Future<CloseableHttpResponse> pendingLoadFuture;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
@@ -101,8 +101,18 @@ public class SelectDbStreamLoader {
         dataOutputStream.write(s.getBytes(StandardCharsets.UTF_8));
         dataOutputStream.write(Constants.LINE_DELIMITER_DEFAULT.getBytes(StandardCharsets.UTF_8));
         final byte[] finalBytes = byteArrayOutputStream.toByteArray();
-        CopyIntoUtils.upload(finalBytes);
+        String uuid = UUID.randomUUID().toString() + "_" + System.currentTimeMillis();
+        CopyIntoUtils.upload(uuid, finalBytes);
         CopyIntoUtils.copyInto(table);
+        HashMap<String, String> selectDBCopyIntoLog;
+        selectDBCopyIntoLog = this.selectDbJdbcContext.getSelectDBCopyIntoLog(uuid);
+        if (!"FINISHED".equals(selectDBCopyIntoLog.get("State"))
+                && !"ETL:100%; LOAD:100%".equals(selectDBCopyIntoLog.get("Progress"))
+                && "CANCELLED".equals(selectDBCopyIntoLog.get("State"))) {
+            throw new CoreException(SelectDbErrorCodes.ERROR_SDB_COPY_INTO_CANCELLED, "ErrorMsg: " + selectDBCopyIntoLog.get("ErrorMsg")
+                    + ";   Log URL: [" + selectDBCopyIntoLog.get("URL")
+                    + "]   CreateTime:" + selectDBCopyIntoLog.get("CreateTime"));
+        }
         return listResult;
     }
 
@@ -186,5 +196,14 @@ public class SelectDbStreamLoader {
 
     private String buildPrefix(final String tableName) {
         return String.format(LABEL_PREFIX_PATTERN, Thread.currentThread().getId(), tableName);
+    }
+
+    public SelectDbStreamLoader selectDbJdbcContext(SelectDbJdbcContext selectDbJdbcContext) {
+        this.selectDbJdbcContext = selectDbJdbcContext;
+        return this;
+    }
+
+    public SelectDbJdbcContext selectDbJdbcContext() {
+        return this.selectDbJdbcContext;
     }
 }

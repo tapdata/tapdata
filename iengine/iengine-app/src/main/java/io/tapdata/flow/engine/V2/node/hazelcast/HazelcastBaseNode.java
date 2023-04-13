@@ -10,7 +10,6 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.DataFlowStageUtil;
 import com.tapdata.constant.DataFlowUtil;
 import com.tapdata.constant.HazelcastUtil;
-import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.Job;
 import com.tapdata.entity.JoinTable;
 import com.tapdata.entity.MessageEntity;
@@ -58,13 +57,12 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapValue;
-import io.tapdata.error.TapUnknownException;
+import io.tapdata.error.TapProcessorUnknownException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
@@ -84,8 +82,6 @@ import io.tapdata.websocket.handler.TestRunTaskHandler;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
@@ -698,7 +694,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (null != matchThrowable) {
 			currentEx = (TapCodeException) matchThrowable;
 		} else {
-			currentEx = new TapUnknownException(throwable);
+			currentEx = new TapProcessorUnknownException(throwable);
 		}
 		TaskDto taskDto = processorBaseContext.getTaskDto();
 		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(), TaskDto.SYNC_TYPE_TEST_RUN)) {

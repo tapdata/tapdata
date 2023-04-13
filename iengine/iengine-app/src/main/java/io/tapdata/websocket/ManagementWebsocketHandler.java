@@ -2,7 +2,12 @@ package io.tapdata.websocket;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.tapdata.constant.*;
+import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.ConfigurationCenter;
+import com.tapdata.constant.JSONUtil;
+import com.tapdata.constant.Log4jUtil;
+import com.tapdata.constant.PkgAnnoUtil;
+import com.tapdata.constant.UUIDGenerator;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.ping.PingDto;
 import com.tapdata.tm.commons.ping.PingType;
@@ -11,6 +16,7 @@ import com.tapdata.tm.sdk.util.CloudSignUtil;
 import com.tapdata.tm.sdk.util.Version;
 import com.tapdata.tm.worker.WorkerSingletonLock;
 import io.tapdata.common.SettingService;
+import io.tapdata.common.executor.ThreadFactory;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.websocket.handler.PongHandler;
@@ -23,13 +29,19 @@ import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
 import org.springframework.util.concurrent.ListenableFuture;
-import org.springframework.web.socket.*;
+import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketHandler;
+import org.springframework.web.socket.WebSocketHttpHeaders;
+import org.springframework.web.socket.WebSocketMessage;
+import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.client.WebSocketClient;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
 
 import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -37,8 +49,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -133,6 +147,8 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	private boolean wsAlive;
 	private String currentWsUrl;
 
+	private ThreadPoolExecutor websocketHandleMessageThreadPoolExecutor;
+
 	@PostConstruct
 	public void init() {
 		this.baseURLs = (List<String>) configCenter.getConfig(ConfigurationCenter.BASR_URLS);
@@ -141,6 +157,12 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 		this.fileDetectorDefinition = PkgAnnoUtil.getBeanSetWithAnno(Collections.singletonList("io.tapdata.websocket"),
 				Collections.singletonList(EventHandlerAnnotation.class));
 		healthThreadPool = new ScheduledThreadPoolExecutor(1);
+		this.websocketHandleMessageThreadPoolExecutor = new ThreadPoolExecutor(1, 32, 1L, TimeUnit.SECONDS,
+				new LinkedBlockingDeque<>(100),
+				new ThreadFactory("Thread-websocket-handle-message-"),
+				(runnable, executor) -> {
+					logger.error("Thread is rejected, runnable {} pool {}", runnable, executor);
+				});
 		healthThreadPool.scheduleWithFixedDelay(() -> {
 			try {
 				Thread.currentThread().setName("Management Websocket Health Check");
@@ -176,6 +198,11 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 				logger.error("Websocket heartbeat failed, will reconnect after {}s. Error: {}", PING_INTERVAL, e.getMessage(), e);
 			}
 		}, 0, PING_INTERVAL, TimeUnit.SECONDS);
+	}
+
+	@PreDestroy
+	public void destroy() {
+		this.websocketHandleMessageThreadPoolExecutor.shutdown();
 	}
 
 	private void handleWhenPingFailed() {
@@ -286,62 +313,71 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	}
 
 	@Override
-	public void handleMessage(WebSocketSession session, WebSocketMessage<?> message) throws Exception {
-		logger.debug("Received message {}", message);
-
-		String payload = (String) message.getPayload();
-
-		WebSocketEvent<Map> event = JSONUtil.json2POJO(payload, new TypeReference<WebSocketEvent>() {
-		});
-
-		Map eventRequestData = event.getData();
-		String messageType = event.getType();
-		if (!org.apache.commons.lang3.StringUtils.equals(messageType, TaskDto.SYNC_TYPE_TEST_RUN)) {
-			messageType = eventRequestData != null && eventRequestData.containsKey("type") && eventRequestData.get("type") != null ?
-					eventRequestData.get("type").toString() : event.getType();
-		}
-
-		WebSocketEventHandler<WebSocketEventResult> eventHandler = eventHandler(messageType);
-
-		WebSocketEventResult eventResult;
-		if (eventHandler == null) {
-			String errorMsg = String.format("Cannot find web socket event handler, type %s", messageType);
-			logger.warn(errorMsg);
-			eventResult = WebSocketEventResult.handleFailed(UNKNOWN_EVENT_RESULT, errorMsg);
-		} else {
+	public void handleMessage(final WebSocketSession session, final WebSocketMessage<?> message) throws Exception {
+		Runnable runnable = () -> {
 			try {
-				eventResult = eventHandler.handle(eventRequestData, (data) -> {
+				logger.debug("Received message {}", message);
+
+				String payload = (String) message.getPayload();
+
+				WebSocketEvent<Map> event = JSONUtil.json2POJO(payload, new TypeReference<WebSocketEvent>() {
+				});
+
+				Map eventRequestData = event.getData();
+				String messageType = event.getType();
+				if (!StringUtils.equals(messageType, TaskDto.SYNC_TYPE_TEST_RUN)) {
+					messageType = eventRequestData != null && eventRequestData.containsKey("type") && eventRequestData.get("type") != null ?
+							eventRequestData.get("type").toString() : event.getType();
+				}
+
+				WebSocketEventHandler<WebSocketEventResult> eventHandler = eventHandler(messageType);
+
+				WebSocketEventResult eventResult;
+				if (eventHandler == null) {
+					String errorMsg = String.format("Cannot find web socket event handler, type %s", messageType);
+					logger.warn(errorMsg);
+					eventResult = WebSocketEventResult.handleFailed(UNKNOWN_EVENT_RESULT, errorMsg);
+				} else {
+					try {
+						eventResult = eventHandler.handle(eventRequestData, (data) -> {
+							WebSocketEvent<WebSocketEventResult> result = new WebSocketEvent();
+							result.setType(event.getType());
+							result.setData(data);
+							result.setReceiver(event.getSender());
+							result.setSender(event.getReceiver());
+
+							JSONUtil.disableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+							sendMessage(new TextMessage(JSONUtil.obj2Json(result)));
+						});
+					} catch (Exception e) {
+						String errorMsg = String.format("Handle websocket event error, event: %s, message: %s",
+								event, e.getMessage());
+						logger.error(errorMsg, e);
+						eventResult = WebSocketEventResult.handleFailed(HANDLE_EVENT_ERROR_RESULT, errorMsg);
+					}
+				}
+
+				// if eventResult is null, do not reply
+				if (eventResult != null) {
 					WebSocketEvent<WebSocketEventResult> result = new WebSocketEvent();
 					result.setType(event.getType());
-					result.setData(data);
+					result.setData(eventResult);
 					result.setReceiver(event.getSender());
 					result.setSender(event.getReceiver());
 
+					logger.info("Processed message result {}.", result);
+
 					JSONUtil.disableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 					sendMessage(new TextMessage(JSONUtil.obj2Json(result)));
-				});
-			} catch (Exception e) {
-				String errorMsg = String.format("Handle websocket event error, event: %s, message: %s",
-						event, e.getMessage());
+					JSONUtil.enableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+				}
+			} catch (Throwable e) {
+				String errorMsg = String.format("Handle websocket event error, message: %s, error: %s", message, e.getMessage());
 				logger.error(errorMsg, e);
-				eventResult = WebSocketEventResult.handleFailed(HANDLE_EVENT_ERROR_RESULT, errorMsg);
 			}
-		}
+		};
 
-		// if eventResult is null, do not reply
-		if (eventResult != null) {
-			WebSocketEvent<WebSocketEventResult> result = new WebSocketEvent();
-			result.setType(event.getType());
-			result.setData(eventResult);
-			result.setReceiver(event.getSender());
-			result.setSender(event.getReceiver());
-
-			logger.info("Processed message result {}.", result);
-
-			JSONUtil.disableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-			sendMessage(new TextMessage(JSONUtil.obj2Json(result)));
-			JSONUtil.enableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-		}
+		websocketHandleMessageThreadPoolExecutor.execute(runnable);
 	}
 
 	private WebSocketEventHandler eventHandler(String messageType) throws ClassNotFoundException, InstantiationException, IllegalAccessException {

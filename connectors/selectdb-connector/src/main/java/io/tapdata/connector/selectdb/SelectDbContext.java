@@ -22,6 +22,9 @@ public class SelectDbContext implements AutoCloseable {
     private SelectDbConfig selectDbConfig;
     private Connection connection;
     private Statement statement;
+    public TapConnectionContext tapConnectionContext(){
+        return tapConnectionContext;
+    }
 
     public SelectDbContext(final TapConnectionContext tapConnectionContext) {
         this.tapConnectionContext = tapConnectionContext;

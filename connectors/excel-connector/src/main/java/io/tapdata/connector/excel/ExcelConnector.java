@@ -78,14 +78,19 @@ public class ExcelConnector extends FileConnector {
                     fileOffset.setDataLine(excelConfig.getDataStartLine());
                     for (int j = fileOffset.getDataLine() - 1; isAlive() && j <= sheet.getLastRowNum(); j++) {
                         Row row = sheet.getRow(j);
+                        if (EmptyKit.isNull(row)) {
+                            break;
+                        }
                         Map<String, Object> after = new HashMap<>();
                         if (j > lastMergedRow) {
                             for (int k = excelConfig.getFirstColumn() - 1; k < excelConfig.getLastColumn(); k++) {
-                                after.put((String) headers[k - excelConfig.getFirstColumn() + 1], ExcelUtil.getCellValue(row.getCell(k), formulaEvaluator));
+                                Object val = ExcelUtil.getCellValue(row.getCell(k), formulaEvaluator);
+                                after.put((String) headers[k - excelConfig.getFirstColumn() + 1], excelConfig.getJustString() ? (EmptyKit.isNull(val) ? "null" : String.valueOf(val)) : val);
                             }
                         } else {
                             for (int k = excelConfig.getFirstColumn() - 1; k < excelConfig.getLastColumn(); k++) {
-                                after.put((String) headers[k - excelConfig.getFirstColumn() + 1], ExcelUtil.getMergedCellValue(mergedList, mergedDataMap, row.getCell(k), formulaEvaluator));
+                                Object val = ExcelUtil.getMergedCellValue(mergedList, mergedDataMap, row.getCell(k), formulaEvaluator);
+                                after.put((String) headers[k - excelConfig.getFirstColumn() + 1], excelConfig.getJustString() ? (EmptyKit.isNull(val) ? "null" : String.valueOf(val)) : val);
                             }
                         }
                         tapEvents.get().add(insertRecordEvent(after, tapTable.getId()).referenceTime(lastModified));
@@ -148,7 +153,7 @@ public class ExcelConnector extends FileConnector {
         if (EmptyKit.isEmpty(sample)) {
             throw new RuntimeException("Load schema from excel files error: no headers and contents!");
         }
-        makeTapTable(tapTable, sample, false);
+        makeTapTable(tapTable, sample, fileConfig.getJustString());
         consumer.accept(Collections.singletonList(tapTable));
         storage.destroy();
     }
@@ -157,8 +162,11 @@ public class ExcelConnector extends FileConnector {
     protected void makeTapTable(TapTable tapTable, Map<String, Object> sample, boolean isJustString) {
         for (Map.Entry<String, Object> objectEntry : sample.entrySet()) {
             TapField field = new TapField();
-            field.name(objectEntry.getKey());
+            field.name(objectEntry.getKey().replaceAll("\n", ""));
             Object val = objectEntry.getValue();
+            if (isJustString) {
+                val = EmptyKit.isNull(val) ? "null" : String.valueOf(val);
+            }
             if (EmptyKit.isNull(val) || val instanceof String) {
                 if (EmptyKit.isNotEmpty((String) val) && ((String) val).length() > 200) {
                     field.dataType("TEXT");

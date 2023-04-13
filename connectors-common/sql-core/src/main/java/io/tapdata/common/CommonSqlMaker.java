@@ -26,6 +26,16 @@ import java.util.stream.Collectors;
  */
 public class CommonSqlMaker {
 
+    private char escapeChar = '"';
+
+    public CommonSqlMaker() {
+
+    }
+
+    public CommonSqlMaker(char escapeChar) {
+        this.escapeChar = escapeChar;
+    }
+
     /**
      * combine column definition for creating table
      * e.g.
@@ -47,7 +57,7 @@ public class CommonSqlMaker {
             if (tapField.getDataType() == null) {
                 return "";
             }
-            builder.append('\"').append(tapField.getName()).append("\" ").append(tapField.getDataType()).append(' ');
+            builder.append(escapeChar).append(tapField.getName()).append(escapeChar).append(' ').append(tapField.getDataType()).append(' ');
             buildDefaultDefinition(builder, tapField);
             buildNullDefinition(builder, tapField);
             if (needComment) {
@@ -105,14 +115,14 @@ public class CommonSqlMaker {
             if (EmptyKit.isNotEmpty(filter.getMatch())) {
                 builder.append("AND ");
             }
-            builder.append(filter.getOperators().stream().map(v -> v.toString("\"")).collect(Collectors.joining(" AND "))).append(' ');
+            builder.append(filter.getOperators().stream().map(v -> v.toString(String.valueOf(escapeChar))).collect(Collectors.joining(" AND "))).append(' ');
         }
     }
 
     public void buildOrderClause(StringBuilder builder, TapAdvanceFilter filter) {
         if (EmptyKit.isNotEmpty(filter.getSortOnList())) {
             builder.append("ORDER BY ");
-            builder.append(filter.getSortOnList().stream().map(v -> v.toString("\"")).collect(Collectors.joining(", "))).append(' ');
+            builder.append(filter.getSortOnList().stream().map(v -> v.toString(String.valueOf(escapeChar))).collect(Collectors.joining(", "))).append(' ');
         }
     }
 
@@ -156,7 +166,7 @@ public class CommonSqlMaker {
         StringBuilder builder = new StringBuilder();
         if (EmptyKit.isNotEmpty(record)) {
             record.forEach((fieldName, value) -> {
-                builder.append('\"').append(fieldName).append('\"').append(operator);
+                builder.append(escapeChar).append(fieldName).append(escapeChar).append(operator);
                 if (value instanceof Number) {
                     builder.append(value);
                 } else if (value instanceof DateTime) {
