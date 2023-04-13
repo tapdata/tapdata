@@ -83,6 +83,7 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
@@ -149,6 +150,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	private TypeMappingsService typeMappingsService;
 
 	@Autowired
+	@Lazy
 	private LogCollectorService logCollectorService;
 
 	public DataSourceService(@NonNull DataSourceRepository repository) {

@@ -5,6 +5,7 @@ import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.connector.selectdb.bean.SelectDbColumn;
 import io.tapdata.connector.selectdb.config.SelectDbConfig;
+import io.tapdata.connector.selectdb.exception.SelectDbErrorCodes;
 import io.tapdata.connector.selectdb.util.CopyIntoUtils;
 import io.tapdata.connector.selectdb.util.HttpUtil;
 import io.tapdata.entity.codec.TapCodecsRegistry;
@@ -74,8 +75,8 @@ public class SelectDbConnector extends ConnectorBase {
         }).initContext();
         selectDbJdbcContext = new SelectDbJdbcContext(selectDbConfig);
         this.selectDbVersion = selectDbJdbcContext.queryVersion();
-        this.selectDbStreamLoader = new SelectDbStreamLoader(selectDbContext, new HttpUtil().getHttpClient());
-        this.selectDbStreamLoader = new SelectDbStreamLoader(new HttpUtil().getHttpClient(), selectDbConfig);
+        this.selectDbStreamLoader = new SelectDbStreamLoader(new HttpUtil().getHttpClient(), selectDbConfig)
+                .selectDbJdbcContext(selectDbJdbcContext);
 
         ddlSqlMaker = new SelectDbDDLSqlMaker();
         fieldDDLHandlers = new BiClassHandlers<>();
@@ -87,14 +88,16 @@ public class SelectDbConnector extends ConnectorBase {
     }
 
     @Override
-    public void onStop(TapConnectionContext connectionContext) {
+    public void onStop(TapConnectionContext connectionContext) throws Throwable {
         EmptyKit.closeQuietly(selectDbJdbcContext);
         ErrorKit.ignoreAnyError(() -> {
             if (EmptyKit.isNotNull(selectDbStreamLoader)) {
                 selectDbStreamLoader.shutdown();
             }
         });
-        Optional.ofNullable(this.valve).ifPresent(WriteValve::close);
+        if (this.valve != null) {
+            this.valve.close();
+        }
     }
 
     @Override
@@ -110,6 +113,7 @@ public class SelectDbConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+        connectorFunctions.supportErrorHandleFunction(this::errorHandle);
 
         codecRegistry.registerFromTapValue(TapRawValue.class, "text", tapRawValue -> {
             if (tapRawValue != null && tapRawValue.getValue() != null)
@@ -165,6 +169,16 @@ public class SelectDbConnector extends ConnectorBase {
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
     }
 
+    protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+        RetryOptions retryOptions = RetryOptions.create().beforeRetryMethod(() -> {});
+        Throwable match;
+        if (null != (match = matchThrowable(throwable, CoreException.class)) && ((CoreException) match).getCode() == SelectDbErrorCodes.ERROR_SDB_COPY_INTO_CANCELLED) {
+            retryOptions.needRetry(false);
+            return retryOptions;
+        }
+        return retryOptions.needRetry(true);
+    }
+
     private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
         List<String> sqls = fieldDDLHandlers.handle(tapFieldBaseEvent, tapConnectorContext);
         if (null == sqls) {
@@ -188,7 +202,13 @@ public class SelectDbConnector extends ConnectorBase {
             return null;
         }
         TapNewFieldEvent tapNewFieldEvent = (TapNewFieldEvent) tapFieldBaseEvent;
-        Optional.ofNullable(this.valve).ifPresent(va -> va.commit(tapFieldBaseEvent.getTableId()));
+        if (this.valve != null) {
+            try {
+                this.valve.commit(tapFieldBaseEvent.getTableId());
+            } catch (Throwable throwable) {
+                throw new CoreException(throwable.getMessage());
+            }
+        }
         return ddlSqlMaker.addColumn(tapConnectorContext, tapNewFieldEvent);
     }
 
@@ -200,7 +220,13 @@ public class SelectDbConnector extends ConnectorBase {
             return null;
         }
         TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent = (TapAlterFieldAttributesEvent) tapFieldBaseEvent;
-        Optional.ofNullable(this.valve).ifPresent(va -> va.commit(tapFieldBaseEvent.getTableId()));
+        if (this.valve != null) {
+            try {
+                this.valve.commit(tapFieldBaseEvent.getTableId());
+            } catch (Throwable throwable) {
+                throw new CoreException(throwable.getMessage());
+            }
+        }
         return ddlSqlMaker.alterColumnAttr(tapConnectorContext, tapAlterFieldAttributesEvent);
     }
 
@@ -212,7 +238,13 @@ public class SelectDbConnector extends ConnectorBase {
             return null;
         }
         TapAlterFieldNameEvent tapAlterFieldNameEvent = (TapAlterFieldNameEvent) tapFieldBaseEvent;
-        Optional.ofNullable(this.valve).ifPresent(va -> va.commit(tapFieldBaseEvent.getTableId()));
+        if (this.valve != null) {
+            try {
+                this.valve.commit(tapFieldBaseEvent.getTableId());
+            } catch (Throwable throwable) {
+                throw new CoreException(throwable.getMessage());
+            }
+        }
         return ddlSqlMaker.alterColumnName(tapConnectorContext, tapAlterFieldNameEvent);
     }
 
@@ -224,7 +256,13 @@ public class SelectDbConnector extends ConnectorBase {
             return null;
         }
         TapDropFieldEvent tapDropFieldEvent = (TapDropFieldEvent) tapFieldBaseEvent;
-        Optional.ofNullable(this.valve).ifPresent(va -> va.commit(tapFieldBaseEvent.getTableId()));
+        if (this.valve != null) {
+            try {
+                this.valve.commit(tapFieldBaseEvent.getTableId());
+            } catch (Throwable throwable) {
+                throw new CoreException(throwable.getMessage());
+            }
+        }
         return ddlSqlMaker.dropColumn(tapConnectorContext, tapDropFieldEvent);
     }
 
@@ -268,7 +306,7 @@ public class SelectDbConnector extends ConnectorBase {
 
     private final Object lock = new int[0];
 
-    private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws IOException {
+    private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
         if (Objects.isNull(this.valve)) {
             synchronized (lock) {
                 if (Objects.isNull(this.valve)) {
@@ -389,13 +427,13 @@ public class SelectDbConnector extends ConnectorBase {
         Collection<String> primaryKeys = tapTable.primaryKeys(true);
         this.copyIntoKey = new CopyIntoUtils(EmptyKit.isEmpty(primaryKeys));
         String firstColumn = tapTable.getNameFieldMap().values().stream().findFirst().orElseGet(TapField::new).getName();
-        String sql = "CREATE TABLE IF NOT EXISTS " + database + "." + tapTable.getId() + "(" +
+        String sql = "CREATE TABLE IF NOT EXISTS `" + database + "`.`" + tapTable.getId() + "`(" +
                 DDLInstance.buildColumnDefinition(tapTable) + ")";
         try {
             List<String> sqls = TapSimplify.list();
             if (EmptyKit.isEmpty(primaryKeys)) {
-                sql += "DUPLICATE KEY (" + firstColumn + " ) " +
-                        "DISTRIBUTED BY HASH(" + firstColumn + " ) BUCKETS 10 ";
+                sql += "DUPLICATE KEY (`" + firstColumn + "` ) " +
+                        "DISTRIBUTED BY HASH(`" + firstColumn + "` ) BUCKETS 10 ";
             } else if (EmptyKit.isNotNull(tapTable.getComment())) {
                 sql += "UNIQUE KEY (" + DDLInstance.buildDistributedKey(primaryKeys) + " ) " +
                         "COMMENT \"" + tapTable.getComment() + "\"" +

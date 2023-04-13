@@ -8,7 +8,7 @@ import io.tapdata.pdk.apis.functions.connection.ErrorHandleFunction;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
-import io.tapdata.pdk.core.error.TapPdkRunnerExCode_13;
+import io.tapdata.pdk.core.error.TapPdkRunnerExCode_18;
 import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 
@@ -135,7 +135,7 @@ public class RetryUtils extends CommonUtils {
 		try {
 			retryOptions = function.needRetry(tapConnectionContext, method, errThrowable);
 		} catch (Throwable e) {
-			throw new TapCodeException(TapPdkRunnerExCode_13.CALL_ERROR_HANDLE_API_ERROR, "Call error handle function failed", e);
+			throw new TapCodeException(TapPdkRunnerExCode_18.CALL_ERROR_HANDLE_API_ERROR, "Call error handle function failed", e);
 		}
 		return retryOptions;
 	}

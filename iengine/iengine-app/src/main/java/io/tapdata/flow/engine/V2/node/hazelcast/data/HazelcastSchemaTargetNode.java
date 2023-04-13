@@ -7,6 +7,7 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.schema.SchemaApplyResult;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.processor.ScriptUtil;
+import com.tapdata.processor.util.TapModelDeclare;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
@@ -22,6 +23,8 @@ import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.JavaTypesToTapTypes;
 import io.tapdata.entity.utils.ReflectionUtil;
+import io.tapdata.error.VirtualTargetExCode_14;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -30,52 +33,66 @@ import io.tapdata.schema.TapTableUtil;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 import org.voovan.tools.collection.CacheMap;
 
 import javax.script.Invocable;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-
-import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
+import javax.script.ScriptEngine;
+import java.util.*;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
-
-	private final static Logger logger = LogManager.getLogger(HazelcastSchemaTargetNode.class);
 
 	/**
 	 * key: subTaskId+jsNodeId
 	 */
 	private static final CacheMap<String, TapTable> tabTableCacheMap = new CacheMap<>();
 	private static final CacheMap<String, List<SchemaApplyResult>> schemaApplyResultMap = new CacheMap<>();
+
+	private static final CacheMap<String, Supplier<TapTable>> defaultTapTableSupplierMap = new CacheMap<>();
+
+	private static final CacheMap<String, Supplier<List<SchemaApplyResult>>> defaultSchemaApplyResultSupplierMap = new CacheMap<>();
+	private static final CacheMap<String, Function<Object, Object>> defaultDeclareFunctionMap = new CacheMap<>();
 	public static final String FUNCTION_NAME_DECLARE = "declare";
 
 	private final String schemaKey;
 	private final TapTableMap<String, TapTable> oldTapTableMap;
 
-	private Invocable engine;
-
 	private boolean needToDeclare;
+
+	private Function<Object, Object> declareFunction;
 
 	static {
 		tabTableCacheMap.maxSize(100).autoRemove(true).expire(600).interval(60).create();
 		schemaApplyResultMap.maxSize(100).autoRemove(true).expire(600).interval(60).create();
+		defaultTapTableSupplierMap.maxSize(100).autoRemove(true).expire(600).interval(60).create();
+		defaultSchemaApplyResultSupplierMap.maxSize(100).autoRemove(true).expire(600).interval(60).create();
+		defaultDeclareFunctionMap.maxSize(100).autoRemove(true).expire(600).interval(60).create();
 	}
 
 
 	public static TapTable getTapTable(String schemaKey) {
-		return tabTableCacheMap.remove(schemaKey);
+		TapTable tapTable = tabTableCacheMap.remove(schemaKey);
+		if (tapTable == null) {
+			Supplier<TapTable> tapTableSupplier = defaultTapTableSupplierMap.remove(schemaKey);
+			if (tapTableSupplier != null) {
+				return tapTableSupplier.get();
+			}
+		}
+		return tapTable;
 	}
 
 	public static List<SchemaApplyResult> getSchemaApplyResultList(String schemaKey) {
-		return schemaApplyResultMap.remove(schemaKey);
+		List<SchemaApplyResult> schemaApplyResults = schemaApplyResultMap.remove(schemaKey);
+		if (schemaApplyResults == null) {
+			Supplier<List<SchemaApplyResult>> schemaApplyResultsSupplier = defaultSchemaApplyResultSupplierMap.remove(schemaKey);
+			if (schemaApplyResultsSupplier != null) {
+				return schemaApplyResultsSupplier.get();
+			}
+		}
+		return schemaApplyResults;
 	}
 
 
@@ -96,17 +113,42 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 			String declareScript = (String) ReflectionUtil.getFieldValue(deductionSchemaNode, "declareScript");
 			this.needToDeclare = StringUtils.isNotEmpty(declareScript);
 			if (this.needToDeclare) {
+				this.declareFunction = (param) -> {
+					Invocable engine = null;
+					try {
+						String realDeclareScript;
+						if (multipleTables) {
+							realDeclareScript = String.format("function declare(schemaApplyResultList){\n %s \n return schemaApplyResultList;\n}", declareScript);
+						} else {
+							realDeclareScript = String.format("function declare(tapTable){\n %s \n return tapTable;\n}", declareScript);
+						}
+						ObsScriptLogger scriptLogger = new ObsScriptLogger(obsLogger);
+						engine = ScriptUtil.getScriptEngine(realDeclareScript, null, null,
+										((DataProcessorContext) processorBaseContext).getCacheService(), scriptLogger
+						);
+						TapModelDeclare tapModelDeclare = new TapModelDeclare(scriptLogger);
+						((ScriptEngine) engine).put("TapModelDeclare", tapModelDeclare);
+						return engine.invokeFunction(FUNCTION_NAME_DECLARE, param);
+					} catch (Throwable throwable) {
+						throw new RuntimeException("Error executing declaration code", throwable);
+					} finally {
+						if (engine instanceof GraalJSScriptEngine) {
+							((GraalJSScriptEngine) engine).close();
+						}
+					}
+				};
+				defaultDeclareFunctionMap.put(schemaKey, declareFunction);
 				if (multipleTables) {
-					declareScript = String.format("var TapModelDeclare = Java.type(\"com.tapdata.processor.util.TapModelDeclare\");\n" +
-									"function declare(schemaApplyResultList){\n %s \n return schemaApplyResultList;\n}", declareScript);
+					defaultSchemaApplyResultSupplierMap.put(schemaKey, ()-> (List<SchemaApplyResult>) declareFunction.apply(new ArrayList<>()));
 				} else {
-					declareScript = String.format("var TapModelDeclare = Java.type(\"com.tapdata.processor.util.TapModelDeclare\");\n" +
-									"function declare(tapTable){\n %s \n return tapTable;\n}", declareScript);
+					defaultTapTableSupplierMap.put(schemaKey, ()-> {
+						List<TapTable> tapTables = TapTableUtil.getTapTables(deductionSchemaNode);
+						if (CollectionUtils.isNotEmpty(tapTables)) {
+							return (TapTable) declareFunction.apply(tapTables.get(0));
+						}
+						return (TapTable) declareFunction.apply(new TapTable());
+					});
 				}
-				this.engine = ScriptUtil.getScriptEngine(declareScript, null, null,
-								((DataProcessorContext) processorBaseContext).getCacheService(),
-								new ObsScriptLogger(obsLogger)
-				);
 			}
 		}
 	}
@@ -122,8 +164,8 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 
 						TapRecordEvent tapEvent;
 						for (TapdataEvent tapdataEvent : tapdataEvents) {
-							if (logger.isDebugEnabled()) {
-								logger.debug("tapdata event [{}]", tapdataEvent.toString());
+							if (obsLogger.isDebugEnabled()) {
+								obsLogger.debug("tapdata event [{}]", tapdataEvent.toString());
 							}
 							if (null != tapdataEvent.getMessageEntity()) {
 								tapEvent = message2TapEvent(tapdataEvent.getMessageEntity());
@@ -138,7 +180,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 								if (!multipleTables) {
 									//迁移任务，只有一张表
 									if (needToDeclare) {
-										tapTable = (TapTable) engine.invokeFunction(FUNCTION_NAME_DECLARE, tapTable);
+										tapTable = (TapTable) this.declareFunction.apply(tapTable);
 									}
 									tabTableCacheMap.put(schemaKey, tapTable);
 								}
@@ -147,13 +189,13 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 									// 获取差异模型
 									List<SchemaApplyResult> schemaApplyResults = getSchemaApplyResults(tapTable);
 									if (needToDeclare) {
-										schemaApplyResults = (List<SchemaApplyResult>) engine.invokeFunction(FUNCTION_NAME_DECLARE, schemaApplyResults);
+										schemaApplyResults = (List<SchemaApplyResult>) this.declareFunction.apply(schemaApplyResults);
 									}
 									schemaApplyResultMap.put(schemaKey, schemaApplyResults);
 								}
 							} catch (Exception e) {
 								String msg = String.format(" tableName: %s, %s", tapTable.getId(), e.getMessage());
-								throw new RuntimeException(msg, e);
+								throw new TapCodeException(VirtualTargetExCode_14.DECLARE_ERROR, msg, e);
 							}
 						}
 
@@ -162,9 +204,10 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 					}
 				}
 			}
-		} catch (Exception e) {
-			logger.error("Target process failed {}", e.getMessage(), e);
-			throw sneakyThrow(e);
+		} catch (TapCodeException tapCodeException) {
+			throw tapCodeException;
+		} catch (Throwable e) {
+			throw new TapCodeException(VirtualTargetExCode_14.UNKNOWN_ERROR, e);
 		} finally {
 			ThreadContext.clearAll();
 		}
@@ -174,24 +217,21 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	protected void doClose() throws Exception {
 		super.doClose();
 		CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.oldTapTableMap).ifPresent(TapTableMap::reset), HazelcastSchemaTargetNode.class.getSimpleName());
-		if (this.engine instanceof GraalJSScriptEngine) {
-			((GraalJSScriptEngine) this.engine).close();
-		}
 	}
 
 	@NotNull
 	private TapTable getNewTapTable(TapRecordEvent tapEvent) {
 		Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
-		if (logger.isDebugEnabled()) {
-			logger.info("after map is [{}]", after);
+		if (obsLogger.isDebugEnabled()) {
+			obsLogger.debug("after map is [{}]", after);
 		}
 		TapTable tapTable = new TapTable(tapEvent.getTableId());
 		if (MapUtils.isNotEmpty(after)) {
 			LinkedHashMap<String, TapField> oldNameFieldMap = getOldNameFieldMap(tapEvent.getTableId());
 			for (Map.Entry<String, Object> entry : after.entrySet()) {
 				String fieldName = entry.getKey();
-				if (logger.isDebugEnabled()) {
-					logger.debug("entry type: {} - {}", fieldName, entry.getValue().getClass());
+				if (obsLogger.isDebugEnabled()) {
+					obsLogger.debug("entry type: {} - {}", fieldName, entry.getValue().getClass());
 				}
 				TapType tapType;
 				if (entry.getValue() instanceof TapValue) {

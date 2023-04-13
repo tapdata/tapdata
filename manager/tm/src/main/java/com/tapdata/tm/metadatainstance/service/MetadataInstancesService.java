@@ -1648,7 +1648,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                         metadatas = Lists.newArrayList();
                     } else{
                         criteriaTable.and("nodeId").is(nodeId)
-                                .and("originalName").in(tableNames)
+//                                .and("originalName").in(tableNames)
                                 .and("taskId").is(taskId)
                                 .and("is_deleted").ne(true);
                         metadatas = findAllDto(queryMetadata, user);

@@ -20,6 +20,7 @@ import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.PdkTableMap;
@@ -46,8 +47,13 @@ public class ScriptExecutorsManager {
   private final String taskId;
   private final String nodeId;
 
+	private final boolean trialRun;
 
-  public ScriptExecutorsManager(Log scriptLogger, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, String taskId, String nodeId) {
+	public ScriptExecutorsManager(Log scriptLogger, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, String taskId, String nodeId) {
+		this(scriptLogger, clientMongoOperator, hazelcastInstance, taskId, nodeId, false);
+	}
+
+  public ScriptExecutorsManager(Log scriptLogger, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, String taskId, String nodeId, boolean trialRun) {
 
     this.taskId = taskId;
     this.nodeId = nodeId;
@@ -64,6 +70,7 @@ public class ScriptExecutorsManager {
               return -1L;
             })
             .create();
+		this.trialRun = trialRun;
   }
 
   public ScriptExecutor getScriptExecutor(String connectionName) {
@@ -84,9 +91,13 @@ public class ScriptExecutorsManager {
 
     scriptLogger.info("create script executor for {}", connectionName);
 
-    return new ScriptExecutor(connections, clientMongoOperator, hazelcastInstance, scriptLogger,
-            this.getClass().getSimpleName() + "-" + taskId + "-" + nodeId);
+		return create(connections, clientMongoOperator, hazelcastInstance, scriptLogger);
   }
+
+	public ScriptExecutor create(Connections connections, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, Log scriptLogger) {
+		return new ScriptExecutor(connections, clientMongoOperator, hazelcastInstance, scriptLogger,
+						this.getClass().getSimpleName() + "-" + taskId + "-" + nodeId + "-" + UUIDGenerator.uuid(), trialRun);
+	}
 
   public void close() {
     this.cacheMap.forEach((key, value) -> this.cacheMap.getDestory().apply(key, value));
@@ -102,17 +113,22 @@ public class ScriptExecutorsManager {
     private final String associateId;
     private final Supplier<ExecuteCommandFunction> executeCommandFunctionSupplier;
 
+		private final TapTableMap<String, TapTable> tapTableMap;
+
     private final Log scriptLogger;
 
-    public ScriptExecutor(Connections connections, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, Log scriptLogger, String TAG) {
+		private final boolean trialRun;
+
+    private ScriptExecutor(Connections connections, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, Log scriptLogger, String TAG, boolean trialRun) {
       this.TAG = TAG;
       this.scriptLogger = scriptLogger;
+			this.trialRun = trialRun;
 
       Map<String, Object> connectionConfig = connections.getConfig();
       DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
       PdkStateMap pdkStateMap = new PdkStateMap(TAG, hazelcastInstance);
       PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
-      TapTableMap<String, TapTable> tapTableMap = TapTableMap.create("ScriptExecutor", TAG);
+      this.tapTableMap = TapTableMap.create("ScriptExecutor", TAG);
       PdkTableMap pdkTableMap = new PdkTableMap(tapTableMap);
       this.associateId = this.getClass().getSimpleName() + "-" + connections.getName() + "-" + UUIDGenerator.uuid();
       this.connectorNode = PdkUtil.createNode(TAG,
@@ -157,6 +173,10 @@ public class ScriptExecutorsManager {
      * @return
      */
     public long execute(Map<String, Object> executeObj) throws Throwable {
+			if (trialRun) {
+				scriptLogger.info("Trial run, skip execute");
+				return 0;
+			}
       ExecuteResult<Long> executeResult = new ExecuteResult<>();
       pdkExecute("execute", executeObj, executeResult);
       return executeResult.getResult();
@@ -181,6 +201,10 @@ public class ScriptExecutorsManager {
     }
 
     public Object call(String funcName, List<Map<String, Object>> params) throws Throwable {
+			if (trialRun) {
+				scriptLogger.info("Trial run, skip call");
+				return new Object();
+			}
       ExecuteResult<Long> executeResult = new ExecuteResult<>();
       Map<String, Object> executeObj = new HashMap<>();
       executeObj.put("funcName", funcName);
@@ -231,6 +255,14 @@ public class ScriptExecutorsManager {
                 });
         scriptLogger.info("PDK connector node stopped: " + associateId);
       }, err -> scriptLogger.warn(String.format("Stop PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId)));
+			CommonUtils.handleAnyError(() -> {
+				Optional.ofNullable(connectorNode).ifPresent(node -> PDKIntegration.releaseAssociateId(associateId));
+				scriptLogger.info("PDK connector node released: " + associateId);
+			}, err -> scriptLogger.warn(String.format("Release PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId)));
+			CommonUtils.handleAnyError(() -> {
+				Optional.ofNullable(tapTableMap).ifPresent(TapTableMap::reset);
+				scriptLogger.info(String.format("[%s] schema data cleaned",TAG));
+			}, err -> scriptLogger.warn(String.format("Clean [%s] schema data failed: %s", TAG, err.getMessage())));
     }
 
   }

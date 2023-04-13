@@ -443,7 +443,7 @@ public class AlarmServiceImpl implements AlarmService {
                 break;
             case TASK_INCREMENT_DELAY:
                 title = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START_TITLE, info.getName());
-                content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START, info.getName(), info.getParam().get("replicateLag"));
+                content = MessageFormat.format(AlarmMailTemplate.TASK_INCREMENT_DELAY_START, info.getName(), info.getParam().get("currentValue"));
                 SmsEvent = "增量延迟";
                 break;
             case DATANODE_AVERAGE_HANDLE_CONSUME:

@@ -22,16 +22,15 @@ import com.tapdata.tm.statemachine.enums.TaskState;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
-import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.NonNull;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -58,12 +57,12 @@ import java.util.zip.ZipOutputStream;
  */
 @Service
 @Slf4j
-@Setter(onMethod_ = {@Autowired})
 public class MonitoringLogsService extends BaseService<MonitoringLogsDto, MonitoringLogsEntity, ObjectId, MonitoringLogsRepository> {
     private static final int MAX_DATA_SIZE = 100;
     private static final int MAX_MESSAGE_CHAR_LENGTH = 2000;
+    @Autowired
+    @Qualifier(value = "logMongoTemplate")
     private MongoTemplate mongoOperations;
-    private TaskService taskService;
 
     public MonitoringLogsService(@NonNull MonitoringLogsRepository repository) {
         super(repository, MonitoringLogsDto.class, MonitoringLogsEntity.class);
@@ -355,8 +354,8 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
                 info.setCheckType(DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name());
                 // 2022-12-08 18:56:44【新任务@14:19:54】【模型推演检测】：
                 String date = DateUtil.toLocalDateTime(log.getDate()).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN));
-                String message = "{0}【{1}】【{2}节点】{3}：";
-                info.setLog(MessageFormat.format(message, date, taskName, nodeName, log.getMessage()));
+                String message = "{0}【{1}】【{2}节点】{3}";
+							info.setLog(MessageFormat.format(message, date, taskName, nodeName, log.getMessage() + (StringUtils.isNotEmpty(log.getErrorStack()) ? "\n" + log.getErrorStack() : "")));
                 info.setGrade(Level.valueOf(log.getLevel()));
                 info.setCreateAt(log.getDate());
                 info.setId(log.getId());

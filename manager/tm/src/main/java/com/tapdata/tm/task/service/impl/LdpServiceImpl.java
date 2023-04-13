@@ -362,11 +362,11 @@ public class LdpServiceImpl implements LdpService {
     }
 
     @Override
-    public TaskDto createMdmTask(TaskDto task, String tagId, UserDetail user) {
+    public TaskDto createMdmTask(TaskDto task, String tagId, UserDetail user, boolean confirmTable, boolean start) {
 
         try {
             //check mdm task
-            checkMdmTask(task, user);
+            checkMdmTask(task, user, confirmTable);
             //add mmd type
             task.setLdpType(TaskDto.LDP_TYPE_MDM);
 
@@ -379,7 +379,11 @@ public class LdpServiceImpl implements LdpService {
             boolean hasPrimaryKey = checkNoPrimaryKey(task, user);
             //create sync task
             if (hasPrimaryKey) {
-                task = taskService.confirmStart(task, user, true);
+                if (start) {
+                    task = taskService.confirmStart(task, user, true);
+                } else {
+                    task = taskService.confirmById(task, user, true);
+                }
             } else {
                 task = taskService.confirmById(task, user, true);
                 throw new BizException("Ldp.MdmTargetNoPrimaryKey", task);
@@ -591,7 +595,10 @@ public class LdpServiceImpl implements LdpService {
             DAG dag = taskDto.getDag();
             Node node = dag.getSources().get(0);
             String connectionId = ((DatabaseNode) node).getConnectionId();
-            result.put(tagMap.get(connectionId), taskDto);
+            String linkId = tagMap.get(connectionId);
+            if (StringUtils.isNotBlank(linkId)) {
+                result.put(tagMap.get(connectionId), taskDto);
+            }
         }
         return result;
     }
@@ -643,7 +650,7 @@ public class LdpServiceImpl implements LdpService {
         metaData.setId(null);
     }
 
-    private void checkMdmTask(TaskDto task, UserDetail user) {
+    private void checkMdmTask(TaskDto task, UserDetail user, boolean confirmTable) {
         //syncType is sync
 
         if (StringUtils.isBlank(task.getSyncType())) {
@@ -684,7 +691,9 @@ public class LdpServiceImpl implements LdpService {
 
         String tableName = target.getTableName();
 
-        repeatTable(Lists.newArrayList(tableName), null, targetConId, user);
+        if (!confirmTable) {
+            repeatTable(Lists.newArrayList(tableName), null, targetConId, user);
+        }
 
 //        if (!fdmConnectionId.equals(sourceConId)) {
 //            throw new BizException("");
