@@ -51,7 +51,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	static final String SNAPSHOT_SOURCE_READ_TIME_COST_AVG = "snapshotSourceReadTimeCostAvg";
 	static final String INCR_SOURCE_READ_TIME_COST_AVG = "incrementalSourceReadTimeCostAvg";
 	static final String TARGET_WRITE_TIME_COST_AVG = "targetWriteTimeCostAvg";
-
+	private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
 	static final String CURR_SNAPSHOT_TABLE = "currentSnapshotTable";
 	static final String CURR_SNAPSHOT_TABLE_ROW_TOTAL = "currentSnapshotTableRowTotal";
 	static final String CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL = "currentSnapshotTableInsertRowTotal";
@@ -144,12 +144,12 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		collector.addSampler(CURR_SNAPSHOT_TABLE, () -> null);
 		collector.addSampler(CURR_SNAPSHOT_TABLE_ROW_TOTAL, () -> {
 			if (null == currentSnapshotTable) return null;
-			return currentSnapshotTableRowTotal;
+			return currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
 		});
 		collector.addSampler(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL, () -> {
 			if (Objects.nonNull(snapshotTableCounter.value()) && CollectionUtils.isNotEmpty(nodeTables) &&
-					snapshotTableCounter.value().intValue() == nodeTables.size()) {
-				return currentSnapshotTableRowTotal;
+					snapshotTableCounter.value().intValue() == nodeTables.size() && Objects.nonNull(currentSnapshotTable)) {
+				return currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
 			}
 			return currentSnapshotTableInsertRowTotal;
 		});
@@ -397,13 +397,14 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 
 	AtomicBoolean firstTableCount = new AtomicBoolean(true);
 
-	public void handleTableCountAccept(long count) {
+	public void handleTableCountAccept(String table ,long count) {
 //		if (firstTableCount.get()) {
 //			Optional.ofNullable(snapshotRowCounter).ifPresent(CounterSampler::reset);
 //			firstTableCount.set(false);
 //		}
 
 		currentSnapshotTableRowTotal = count;
+		currentSnapshotTableRowTotalMap.putIfAbsent(table, count);
 		Optional.ofNullable(snapshotRowCounter).ifPresent(counter -> counter.inc(count));
 	}
 

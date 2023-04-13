@@ -66,7 +66,7 @@ public class TaskSampleHandler extends AbstractHandler {
     private Long snapshotDoneAt = null;
     private Long snapshotDoneCost = null;
     private String currentSnapshotTable = null;
-//    private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
+    private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
     private Long currentSnapshotTableInsertRowTotal = null;
     private Long currentSnapshotTableRowTotal = null;
     private Double outputQpsMax;
@@ -221,12 +221,12 @@ public class TaskSampleHandler extends AbstractHandler {
         collector.addSampler(CURR_SNAPSHOT_TABLE, () -> null);
         collector.addSampler(CURR_SNAPSHOT_TABLE_ROW_TOTAL, () -> {
             if (null == currentSnapshotTable) return null;
-            return currentSnapshotTableRowTotal;
+            return currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
         });
         collector.addSampler(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL, () -> {
             if (Objects.nonNull(snapshotTableTotal.value()) && CollectionUtils.isNotEmpty(taskTables) &&
-            snapshotTableTotal.value().intValue() == taskTables.size()) {
-                return currentSnapshotTableRowTotal;
+            snapshotTableTotal.value().intValue() == taskTables.size() && Objects.nonNull(currentSnapshotTable)) {
+                return currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
             }
             return currentSnapshotTableInsertRowTotal;
         });
@@ -257,9 +257,9 @@ public class TaskSampleHandler extends AbstractHandler {
         taskTables.addAll(Arrays.asList(tables));
     }
 
-    public void handleTableCountAccept(long count) {
+    public void handleTableCountAccept(String table, long count) {
         snapshotRowTotal.inc(count);
-        currentSnapshotTableRowTotal = count;
+        currentSnapshotTableRowTotalMap.putIfAbsent(table, count);
     }
 
     public void handleCreateTableEnd() {
