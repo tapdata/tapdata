@@ -104,19 +104,40 @@ public class RocketmqService extends AbstractMqService {
 
     @Override
     protected <T> Map<String, Object> analyzeTable(Object object, T topic, TapTable tapTable) throws Exception {
-        DefaultLitePullConsumer litePullConsumer = new DefaultLitePullConsumer(((RocketmqConfig) mqConfig).getConsumerGroup(), getRPCHook());
-        litePullConsumer.setNamesrvAddr(mqConfig.getNameSrvAddr());
-        litePullConsumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
-        litePullConsumer.start();
+        DefaultMQPullConsumer mqConsumer  = new DefaultMQPullConsumer(MixAll.TOOLS_CONSUMER_GROUP, (RPCHook) null);
+        mqConsumer.setNamesrvAddr(mqConfig.getNameSrvAddr());
+        mqConsumer.start();
         tapTable.setId((String) topic);
         tapTable.setName((String) topic);
-        litePullConsumer.subscribe((String) topic, "*");
-        List<MessageExt> messageExts = litePullConsumer.poll(2000);
+        List<MessageExt> messageExts = new ArrayList<>();
+        Set<MessageQueue> mqs = mqConsumer.fetchSubscribeMessageQueues(tapTable.getName());
+        for (MessageQueue mq : mqs) {
+            long minOffset = mqConsumer.searchOffset(mq, 0);
+            long maxOffset = mqConsumer.searchOffset(mq, System.currentTimeMillis());
+            READQ:
+            for (long offset = minOffset; offset <= maxOffset; ) {
+                try {
+                    PullResult pullResult = mqConsumer.pull(mq, "*", offset, 32);
+                    offset = pullResult.getNextBeginOffset();
+                    switch (pullResult.getPullStatus()) {
+                        case FOUND:
+                            messageExts.addAll(pullResult.getMsgFoundList());
+                            break;
+                        case NO_MATCHED_MSG:
+                        case NO_NEW_MSG:
+                        case OFFSET_ILLEGAL:
+                            break READQ;
+                    }
+                } catch (Exception e) {
+                    break;
+                }
+            }
+        }
         if (EmptyKit.isEmpty(messageExts)) {
             return new HashMap<>();
         }
         MessageExt messageExt = messageExts.get(0);
-        litePullConsumer.shutdown();
+        mqConsumer.shutdown();
         return jsonParser.fromJsonBytes(messageExt.getBody(), Map.class);
     }
 

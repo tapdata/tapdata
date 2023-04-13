@@ -30,14 +30,14 @@ public class TaskSampleRetriever {
 		}
 	}
 
-	public SampleResponse retrieveRaw(Map<String, String> tags, List<String> fields) {
+	public SampleResponse retrieveRaw(long startTime, Map<String, String> tags, List<String> fields) {
 		if (operator == null) {
 			throw new RuntimeException("TaskSampleRetrieverV2 should be call start() first.");
 		}
 
 		Map<String, Object> request = new HashMap<>();
 		long now = System.currentTimeMillis();
-		request.put("startAt", now);
+		request.put("startAt", startTime);
 		request.put("endAt", now);
 		request.put("samples", new HashMap<String, Map<String, Object>>() {{
 			put("retriever", new HashMap<String, Object>() {{
@@ -50,8 +50,8 @@ public class TaskSampleRetriever {
 		return operator.postOne(request, ConnectorConstant.SAMPLE_STATISTIC_COLLECTION + "/query/v2", SampleResponse.class);
 	}
 
-	public Map<String, Number> retrieve(Map<String, String> tags, List<String> fields) {
-		SampleResponse response = retrieveRaw(tags, fields);
+	public Map<String, Number> retrieve(long startTime, Map<String, String> tags, List<String> fields) {
+		SampleResponse response = retrieveRaw(startTime, tags, fields);
 
 		Map<String, Number> samples = new HashMap<>();
 		if (response != null && response.getSamples() != null) {
@@ -68,12 +68,12 @@ public class TaskSampleRetriever {
 		return samples;
 	}
 
-	public Map<String, Number> retrieveWithRetry(Map<String, String> tags, List<String> fields) {
+	public Map<String, Number> retrieveWithRetry(long startTime,Map<String, String> tags, List<String> fields) {
 		int attempt = 1;
 		Throwable error = null;
 		while (attempt <= MAX_RETRIEVE_ATTEMPT) {
 			try {
-				return retrieve(tags, fields);
+				return retrieve(startTime, tags, fields);
 			} catch (Throwable throwable) {
 				error = throwable;
 			}

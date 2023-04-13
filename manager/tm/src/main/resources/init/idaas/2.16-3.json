@@ -1,0 +1,45 @@
+[
+	{
+		"insert": "Permission",
+		"documents": [
+			{
+				"description": "应用管理",
+				"name": "v2_api-application",
+				"need_permission": true,
+				"order": 1,
+				"parentId": "v2_data-server",
+				"resources": [
+					{
+						"type": "page",
+						"code": "v2_api-application",
+						"path": "/api-application"
+					}
+				],
+				"status": "enable",
+				"type": "read",
+				"version": "v2"
+			}
+		]
+	},
+	{
+		"insert": "RoleMapping",
+		"documents": [
+			{
+				"principalId": "v2_api-application",
+				"principalType": "PERMISSION",
+				"roleId": {
+					"$oid": "5b9a0a383fcba02649524bf1"
+				},
+				"self_only": false
+			},
+			{
+				"principalId": "v2_api-application",
+				"principalType": "PERMISSION",
+				"roleId": {
+					"$oid": "5d31ae1ab953565ded04badd"
+				},
+				"self_only": false
+			}
+		]
+	}
+]

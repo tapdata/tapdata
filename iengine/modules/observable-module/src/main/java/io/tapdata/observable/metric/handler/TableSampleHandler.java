@@ -100,7 +100,7 @@ public class TableSampleHandler extends AbstractHandler {
         List<String> fields = new ArrayList<String>(){{
             add(SNAPSHOT_INSERT_ROW_TOTAL);
         }};
-        TaskSampleRetriever.SampleResponse response = TaskSampleRetriever.getInstance().retrieveRaw(tags, fields);
+        TaskSampleRetriever.SampleResponse response = TaskSampleRetriever.getInstance().retrieveRaw(task.getStartTime().getTime(), tags, fields);
 
         Map<String, Map<String, Number>> samples = new HashMap<>();
         if (response != null && response.getSamples() != null) {

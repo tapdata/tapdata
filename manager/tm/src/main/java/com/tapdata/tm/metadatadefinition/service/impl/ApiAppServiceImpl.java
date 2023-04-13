@@ -87,12 +87,12 @@ public class ApiAppServiceImpl implements ApiAppService {
         Criteria criteriaNew = Criteria.where("_id").is(MongoUtils.toObjectId(newId));
         MetadataDefinitionDto newTag = metadataDefinitionService.findOne(new Query(criteriaNew), user);
         if (newTag == null) {
-            throw new BizException("");
+            throw new BizException("ApiApp.NewTagNotFound");
         }
 
         Criteria criteria = Criteria.where("listtags")
                 .elemMatch(Criteria.where("id").is(oldId)).and("is_deleted").ne(true);
-        Update update = Update.update("listtags.$.id", newTag.getId()).set("listtags.$.value", newTag.getValue());
+        Update update = Update.update("listtags.$.id", newTag.getId().toHexString()).set("listtags.$.value", newTag.getValue());
         modulesService.update(new Query(criteria), update, user);
     }
 
