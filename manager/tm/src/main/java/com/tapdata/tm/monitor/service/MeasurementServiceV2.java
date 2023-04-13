@@ -398,7 +398,7 @@ public class MeasurementServiceV2 {
         long average = (start + end) / 2;
 
         Map<String, Sample> endSamples = getInstantSamples(querySample, INSTANT_PADDING_LEFT_AND_RIGHT, average , end);
-        Map<String, Sample> startSamples = getInstantSamples(querySample, INSTANT_PADDING_LEFT_AND_RIGHT, start , average);
+        Map<String, Sample> startSamples = getInstantSamples(querySample, INSTANT_PADDING_LEFT, start , average);
 
         Map<String, Sample> data = new HashMap<>();
         for (String hash : endSamples.keySet()) {
