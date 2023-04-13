@@ -84,6 +84,9 @@ public abstract class LogMiner implements ILogMiner {
         List<TapTable> lobTables = new ArrayList<>();
         tableList.forEach(table -> {
             TapTable tapTable = tableMap.get(table);
+            if (null == tapTable || null == tapTable.getNameFieldMap()) {
+                return;
+            }
             if (tapTable.getNameFieldMap().entrySet().stream().anyMatch(field -> field.getValue().getDataType().contains("LOB"))) {
                 lobTables.add(tapTable);
             }

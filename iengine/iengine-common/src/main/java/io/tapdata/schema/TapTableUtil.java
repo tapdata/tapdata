@@ -74,6 +74,17 @@ public class TapTableUtil {
 	@NotNull
 	public static TapTableMap<String, TapTable> getTapTableMap(String prefix, Node<?> node, Long tmCurrentTime) {
 
+		List<TapTable> tapTableList = getTapTables(node);
+		TapTableMap<String, TapTable> tapTableMap;
+		if (CollectionUtils.isNotEmpty(tapTableList)) {
+			tapTableMap = TapTableMap.create(prefix, node.getId(), tapTableList, tmCurrentTime);
+		} else {
+			tapTableMap = TapTableMap.create(node.getId());
+		}
+		return tapTableMap;
+	}
+
+	public static List<TapTable> getTapTables(Node<?> node) {
 		Object schema = node.getSchema();
 		if (schema == null) {
 			schema = node.getOutputSchema();
@@ -90,13 +101,10 @@ public class TapTableUtil {
 				schemaList = (List<Schema>) schema;
 			}
 		}
-		TapTableMap<String, TapTable> tapTableMap;
 		if (CollectionUtils.isNotEmpty(schemaList)) {
-			List<TapTable> tapTableList = schemaList.stream().map(PdkSchemaConvert::toPdk).collect(Collectors.toList());
-			tapTableMap = TapTableMap.create(prefix, node.getId(), tapTableList, tmCurrentTime);
+			return schemaList.stream().map(PdkSchemaConvert::toPdk).collect(Collectors.toList());
 		} else {
-			tapTableMap = TapTableMap.create(node.getId());
+			return Collections.emptyList();
 		}
-		return tapTableMap;
 	}
 }

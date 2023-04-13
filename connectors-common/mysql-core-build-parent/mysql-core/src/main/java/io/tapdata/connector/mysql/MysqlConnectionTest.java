@@ -51,7 +51,7 @@ public class MysqlConnectionTest extends CommonDbTest {
 
     protected ConnectionOptions connectionOptions;
 
-    protected  boolean cdcCapability = true;
+    protected boolean cdcCapability = true;
 
     public MysqlConnectionTest(MysqlJdbcContext mysqlJdbcContext, TapConnectionContext tapConnectionContext,
                                Consumer<TestItem> consumer, CommonDbConfig commonDbConfig, ConnectionOptions connectionOptions) {
@@ -115,18 +115,18 @@ public class MysqlConnectionTest extends CommonDbTest {
 
     @Override
     public Boolean testWritePrivilege() {
-       return  WriteOrReadPrivilege("write");
+        return WriteOrReadPrivilege("write");
     }
 
-    private boolean  WriteOrReadPrivilege(String mark){
+    private boolean WriteOrReadPrivilege(String mark) {
         DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
         String databaseName = String.valueOf(connectionConfig.get("database"));
         List<String> tableList = new ArrayList();
-        AtomicReference<Boolean> globalWrite = new AtomicReference();
+        AtomicReference<Boolean> globalWrite = new AtomicReference<>();
         AtomicReference<TestItem> testItem = new AtomicReference<>();
         String itemMark = TestItem.ITEM_READ;
-        if("write".equals(mark)){
-            itemMark =TestItem.ITEM_WRITE;
+        if ("write".equals(mark)) {
+            itemMark = TestItem.ITEM_WRITE;
         }
         try {
             String finalItemMark = itemMark;
@@ -153,41 +153,43 @@ public class MysqlConnectionTest extends CommonDbTest {
             consumer.accept(testItem(itemMark, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, JSONObject.toJSONString(tableList)));
             return true;
         }
-        consumer.accept(testItem(itemMark, TestItem.RESULT_FAILED, "Without table can "+mark));
+        consumer.accept(testItem(itemMark, TestItem.RESULT_FAILED, "Without table can " + mark));
         return false;
     }
 
     public boolean testWriteOrReadPrivilege(String grantSql, List<String> tableList, String databaseName, String mark) {
         boolean privilege;
         privilege = grantSql.contains("INSERT") && grantSql.contains("UPDATE") && grantSql.contains("DELETE")
-          || grantSql.contains("ALL PRIVILEGES");
+                || grantSql.contains("ALL PRIVILEGES");
         if ("read".equals(mark)) {
             privilege = grantSql.contains("SELECT") || grantSql.contains("ALL PRIVILEGES");
         }
         grantSql = grantSql.replaceAll("\\\\", "");
         if (grantSql.contains("*.* TO")) {
-            if (privilege) {
-                return true;
-            }
-
-        } else if (grantSql.contains("`" + databaseName + "`" + ".* TO") || grantSql.contains(databaseName + ".* TO") ) {
-            if (privilege) {
-                return true;
-            }
+            return privilege;
+        } else if (grantSql.contains("`" + databaseName + "`.* TO") || grantSql.contains(databaseName + ".* TO")) {
+            return privilege;
         } else if (databaseName.contains("_") &&
-                (grantSql.contains("`" + databaseName.replace("_", "\\_") + "`" + ".* TO") ||
-                 grantSql.contains(databaseName.replace("_", "\\_") + ".* TO"))) {
-            if (privilege) {
-                return true;
-            }
-        } else if (grantSql.contains("`" + databaseName + "`" + ".") || grantSql.contains(databaseName+ ".")) {
+                (grantSql.contains("`" + databaseName.replace("_", "\\_") + "`.* TO") ||
+                        grantSql.contains(databaseName.replace("_", "\\_") + ".* TO"))) {
+            return privilege;
+        } else if (grantSql.contains(databaseName + ".")) {
             String table = grantSql.substring(grantSql.indexOf(databaseName + "."), grantSql.indexOf("TO")).trim();
             if (privilege) {
                 tableList.add(table);
             }
-        } else if (databaseName.contains("_") && (grantSql.contains("`" + databaseName.replace("_", "\\_") + "`" + "."))
-             || grantSql.contains(databaseName.replace("_", "\\_")+ ".")) {
+        } else if (grantSql.contains("`" + databaseName + "`.")) {
+            String table = grantSql.substring(grantSql.indexOf(databaseName + "`."), grantSql.indexOf("TO")).trim();
+            if (privilege) {
+                tableList.add(table);
+            }
+        } else if (databaseName.contains("_") && grantSql.contains(databaseName.replace("_", "\\_") + ".")) {
             String table = grantSql.substring(grantSql.indexOf(databaseName.replace("_", "\\_") + "."), grantSql.indexOf("TO")).trim();
+            if (privilege) {
+                tableList.add(table);
+            }
+        } else if (databaseName.contains("_") && grantSql.contains("`" + databaseName.replace("_", "\\_") + "`.")) {
+            String table = grantSql.substring(grantSql.indexOf(databaseName.replace("_", "\\_") + "`."), grantSql.indexOf("TO")).trim();
             if (privilege) {
                 tableList.add(table);
             }
@@ -197,8 +199,8 @@ public class MysqlConnectionTest extends CommonDbTest {
 
 
     @Override
-    public Boolean testReadPrivilege(){
-        return  WriteOrReadPrivilege("read");
+    public Boolean testReadPrivilege() {
+        return WriteOrReadPrivilege("read");
     }
 
     @Override
@@ -226,7 +228,7 @@ public class MysqlConnectionTest extends CommonDbTest {
         return true;
     }
 
-    public Boolean testCDCPrivileges(){
+    public Boolean testCDCPrivileges() {
         AtomicReference<TestItem> testItem = new AtomicReference<>();
         try {
             StringBuilder missPri = new StringBuilder();
@@ -407,8 +409,8 @@ public class MysqlConnectionTest extends CommonDbTest {
         return result.get();
     }
 
-    public Boolean setCdcCapabilitie(){
-        if(cdcCapability){
+    public Boolean setCdcCapabilitie() {
+        if (cdcCapability) {
             List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDLParserType.MYSQL_CCJ_SQL_PARSER);
             ddlCapabilities.forEach(connectionOptions::capability);
         }
