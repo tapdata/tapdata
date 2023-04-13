@@ -4,7 +4,7 @@ package io.tapdata.connector.tidb.util;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.PropertyNamingStrategy;
 import com.alibaba.fastjson.serializer.SerializeConfig;
-import io.tapdata.connector.tidb.util.pojo.Changefeed;
+import io.tapdata.connector.tidb.util.pojo.ChangeFeed;
 import io.tapdata.kit.ErrorKit;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.config.RequestConfig;
@@ -18,7 +18,7 @@ import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
 
-public class HttpUtil {
+public class HttpUtil implements AutoCloseable {
 
     private final CloseableHttpClient httpClient;
     private boolean isChangeFeedClosed;
@@ -48,7 +48,7 @@ public class HttpUtil {
         return false;
     }
 
-    public Boolean createChangefeed(Changefeed changefeed, String cdcUrl) throws IOException {
+    public Boolean createChangefeed(ChangeFeed changefeed, String cdcUrl) throws IOException {
         String url = "http://" + cdcUrl + "/api/v1/changefeeds";
         HttpPost httpPost = new HttpPost(url);
         SerializeConfig config = new SerializeConfig();
@@ -100,8 +100,6 @@ public  Boolean resumeChangefeed(String changefeedId,String cdcUrl)throws IOExce
         }
         return false;
     }
-
-
 
     public void close() {
         ErrorKit.ignoreAnyError(httpClient::close);

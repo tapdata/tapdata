@@ -111,7 +111,7 @@ public class MongoUtils {
                 }
             }
 
-            if ((key.equals("id") || key.equals("_id") || key.equals("listtags.id")) && cond instanceof String) {
+            if ((key.equals("id") || key.equals("_id")) && cond instanceof String) {
                 if (((String) cond).matches("[0-9a-zA-Z]{24}")) {
                     where.replace(key, toObjectId((String) cond));
                 }

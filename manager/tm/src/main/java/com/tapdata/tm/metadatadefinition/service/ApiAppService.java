@@ -18,7 +18,7 @@ public interface ApiAppService {
 
     MetadataDefinitionDto findById(ObjectId id, Field field, UserDetail user);
 
-    void delete(ObjectId id, UserDetail user);
+    void move(String oldId, String newId, UserDetail user);
 
     ApiAppDetail detail(ObjectId toObjectId, UserDetail loginUser);
 }

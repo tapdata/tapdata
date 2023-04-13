@@ -32,8 +32,8 @@ public class SampleMockUtil {
     sampleDateMap.put(TapDateTime.class, new TapDateTimeValue(new DateTime(Instant.now())));
     sampleDateMap.put(TapTime.class, new TapTimeValue(new DateTime(Instant.now())));
     sampleDateMap.put(TapYear.class, new TapYearValue(new DateTime(Instant.now())));
-    sampleDateMap.put(TapArray.class, new TapArrayValue(Collections.singletonList("sample array")));
-    sampleDateMap.put(TapMap.class, new TapMapValue(Collections.singletonMap("sample map key", "sample map value")));
+    sampleDateMap.put(TapArray.class, new TapArrayValue(Collections.emptyList()));
+    sampleDateMap.put(TapMap.class, new TapMapValue(Collections.emptyMap()));
     sampleDateMap.put(TapRaw.class, new TapRawValue("sample raw"));
   }
 

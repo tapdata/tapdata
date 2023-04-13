@@ -54,9 +54,6 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 
 	@SneakyThrows
 	protected boolean need2CDC() {
-		if (!isRunning()) {
-			return false;
-		}
 		if (SyncTypeEnum.CDC != syncType && SyncTypeEnum.INITIAL_SYNC_CDC != syncType) {
 			return false;
 		}
