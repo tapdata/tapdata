@@ -131,12 +131,24 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	private boolean needCdcDelay() {
-		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
-		TapTable tapTable = tapTableMap.get(ConnHeartbeatUtils.TABLE_NAME);
-		return Boolean.TRUE.equals(dataProcessorContext.getConnections().getHeartbeatEnable())
-				&& null != tapTable && StringUtils.isNotBlank(tapTable.getId()) && MapUtils.isNotEmpty(tapTable.getNameFieldMap());
-	}
+    private boolean needCdcDelay() {
+        if (Boolean.TRUE.equals(dataProcessorContext.getConnections().getHeartbeatEnable())) {
+            return Optional.ofNullable(dataProcessorContext.getTapTableMap()).map(tapTableMap -> {
+                try {
+                    TapTable tapTable = tapTableMap.get(ConnHeartbeatUtils.TABLE_NAME);
+                    if (null != tapTable && StringUtils.isNotBlank(tapTable.getId()) && MapUtils.isNotEmpty(tapTable.getNameFieldMap())) {
+                        return true;
+                    }
+                    logger.warn("Check cdcDelay failed, schema: {}", tapTable);
+                    return false;
+                } catch (Exception e) {
+                    logger.warn("Check cdcDelay failed: {}", e.getMessage());
+                    return false;
+                }
+            }).orElse(false);
+        }
+        return false;
+    }
 
 	@Override
     protected void doInit(@NotNull Context context) throws Exception {
