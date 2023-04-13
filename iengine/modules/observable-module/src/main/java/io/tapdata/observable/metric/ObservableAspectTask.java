@@ -156,7 +156,7 @@ public class ObservableAspectTask extends AspectTask {
 					Optional.ofNullable(dataNodeSampleHandlers.get(node.getId())).ifPresent(
 							dataNodeSampleHandler -> dataNodeSampleHandler.handleTableCountAccept(table, cnt)
 					);
-					taskSampleHandler.handleTableCountAccept(cnt);
+					taskSampleHandler.handleTableCountAccept(table, cnt);
 				});
 				break;
 			case TableCountFuncAspect.STATE_END:
