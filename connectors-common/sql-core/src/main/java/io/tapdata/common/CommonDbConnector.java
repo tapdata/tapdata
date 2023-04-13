@@ -13,10 +13,8 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.exception.TapPdkTerminateByServerEx;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
-import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.FilterResult;
@@ -25,7 +23,6 @@ import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.SQLRecoverableException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -258,6 +255,8 @@ public abstract class CommonDbConnector extends ConnectorBase {
             }
         } catch (SQLException e) {
             exceptionCollector.collectTerminateByServer(e);
+            exceptionCollector.collectReadPrivileges("batchReadV3", Collections.emptyList(), e);
+            throw e;
         }
         //last events those less than eventBatchSize
         if (EmptyKit.isNotEmpty(tapEvents)) {
