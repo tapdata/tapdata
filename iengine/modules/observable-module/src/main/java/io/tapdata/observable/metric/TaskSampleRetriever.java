@@ -73,7 +73,7 @@ public class TaskSampleRetriever {
 		Throwable error = null;
 		while (attempt <= MAX_RETRIEVE_ATTEMPT) {
 			try {
-				return retrieve(startTime, tags, fields);
+				return retrieve(startTime - 60000, tags, fields);
 			} catch (Throwable throwable) {
 				error = throwable;
 			}
