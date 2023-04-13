@@ -72,7 +72,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 
 	private String currentSnapshotTable = null;
 	private Long currentSnapshotTableRowTotal = null;
-	private Long currentSnapshotTableInsertRowTotal = null;
+	private Long currentSnapshotTableInsertRowTotal = 0L;
 
 	private Long snapshotStartAt = null;
 	@Getter
@@ -208,7 +208,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	public void handleBatchReadFuncEnd(long endAt) {
 		Optional.ofNullable(snapshotTableCounter).ifPresent(CounterSampler::inc);
 		tableSnapshotDoneAtMap.put(currentSnapshotTable, endAt);
-		currentSnapshotTableInsertRowTotal = null;
+		currentSnapshotTableInsertRowTotal = 0L;
 	}
 
 
