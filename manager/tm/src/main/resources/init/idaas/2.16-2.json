@@ -1,0 +1,14 @@
+[
+  {
+	"createIndexes": "Modules",
+	"indexes": [
+	  {
+		"key": {
+		  "listtags.id": 1
+		},
+		"name": "index_modules_listtags_id",
+		"background": true
+	  }
+	]
+  }
+]

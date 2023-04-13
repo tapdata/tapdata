@@ -2,6 +2,7 @@ package io.tapdata.connector.selectdb.streamload;
 
 
 import com.alibaba.fastjson.JSON;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -11,7 +12,6 @@ import io.tapdata.entity.schema.TapTable;
 import org.apache.commons.collections4.MapUtils;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -19,27 +19,38 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
+
 /**
  * Author:Skeet
  * Date: 2022/12/14
  **/
 public class MessageSerializer {
-    public static List<Map<String, Object>> serializeMap(TapTable table, TapRecordEvent recordEvent) throws IOException {
+    public static List<Map<String, Object>> serializeMap(TapTable table, TapRecordEvent recordEvent) {
         List<Map<String, Object>> list = new ArrayList<>();
-        if (recordEvent instanceof TapInsertRecordEvent) {
-            final TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent) recordEvent;
-            final Map<String, Object> after = insertRecordEvent.getAfter();
-            list.add(buildJsonMap(table, after, false));
-        } else if (recordEvent instanceof TapUpdateRecordEvent) {
-            final TapUpdateRecordEvent updateRecordEvent = (TapUpdateRecordEvent) recordEvent;
-            final Map<String, Object> before = updateRecordEvent.getBefore();
-            final Map<String, Object> after = updateRecordEvent.getAfter();
-            list.add(buildJsonMap(table, before, true));
-            list.add(buildJsonMap(table, after, false));
-        } else {
-            final TapDeleteRecordEvent deleteRecordEvent = (TapDeleteRecordEvent) recordEvent;
-            final Map<String, Object> before = deleteRecordEvent.getBefore();
-            list.add(buildJsonMap(table, before, true));
+        try {
+            if (recordEvent instanceof TapInsertRecordEvent) {
+                final TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent) recordEvent;
+                final Map<String, Object> after = insertRecordEvent.getAfter();
+                list.add(buildJsonMap(table, after, false));
+            } else if (recordEvent instanceof TapUpdateRecordEvent) {
+                final TapUpdateRecordEvent updateRecordEvent = (TapUpdateRecordEvent) recordEvent;
+                Map<String, Object> before = updateRecordEvent.getBefore();
+                final Map<String, Object> after = updateRecordEvent.getAfter();
+                before = before == null ? after : before;
+                list.add(buildJsonMap(table, before, true));
+                list.add(buildJsonMap(table, after, false));
+            } else {
+                final TapDeleteRecordEvent deleteRecordEvent = (TapDeleteRecordEvent) recordEvent;
+                final Map<String, Object> before = deleteRecordEvent.getBefore();
+                list.add(buildJsonMap(table, before, true));
+            }
+        } catch (Throwable e) {
+            if(e instanceof CoreException) {
+                throw (CoreException)e;
+            }
+            throw new CoreException("Data generate empty json, value is :  " +
+                    toJson(recordEvent)+ "recordEvent:" + recordEvent.getClass().getSimpleName());
         }
         return list;
     }
@@ -61,6 +72,9 @@ public class MessageSerializer {
                 }
             }
             jsonName.put("__DORIS_DELETE_SIGN__", delete ? "1" : "0");
+        }
+        if (jsonName.isEmpty()) {
+            throw new CoreException("Data generate empty json, value is :  " + JSON.toJSONString(values));
         }
         return jsonName;
     }

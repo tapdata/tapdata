@@ -280,10 +280,10 @@ public class DefaultDataDirectoryServiceImpl implements DefaultDataDirectoryServ
             if ("admin@admin.com".equals(userDetail.getEmail())) {
                 admin = userDetail;
                 deleteDefault(userDetail);
-//                addPdkIds(userDetail);
-//                addConnections(userDetail);
-//                addJobs(userDetail);
-//                addApi(userDetail);
+                addPdkIds(userDetail);
+                addConnections(userDetail);
+                addJobs(userDetail);
+                addApi(userDetail);
             }
         }
 
@@ -293,10 +293,10 @@ public class DefaultDataDirectoryServiceImpl implements DefaultDataDirectoryServ
 
         for (UserDetail userDetail : userList) {
             deleteDefault(userDetail);
-//            addPdkIds(userDetail);
-//            addConnections(userDetail);
-//            addJobs(userDetail);
-//            addApi(userDetail);
+            addPdkIds(userDetail);
+            addConnections(userDetail);
+            addJobs(userDetail);
+            addApi(userDetail);
         }
     }
 

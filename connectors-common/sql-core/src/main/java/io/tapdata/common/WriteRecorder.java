@@ -1,8 +1,6 @@
 package io.tapdata.common;
 
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.schema.TapIndex;
-import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.kit.EmptyKit;
@@ -23,10 +21,11 @@ public abstract class WriteRecorder {
     protected final Connection connection;
     protected final TapTable tapTable;
     protected final List<String> allColumn;
+    protected List<String> updatedColumn;
     protected final String schema;
     protected List<String> uniqueCondition;
     protected boolean hasPk = false;
-    protected boolean uniqueConditionIsIndex = false; //Target table may not have a unique index, used in Postgres
+    //    protected boolean uniqueConditionIsIndex = false; //Target table may not have a unique index, used in Postgres
     protected String version;
     protected String insertPolicy;
     protected String updatePolicy;
@@ -55,9 +54,13 @@ public abstract class WriteRecorder {
         //2、second priority: analyze table with its indexes
         else {
             uniqueCondition = new ArrayList<>(tapTable.primaryKeys(true));
-            uniqueConditionIsIndex = EmptyKit.isNotEmpty(tapTable.getIndexList()) && tapTable.getIndexList().stream().filter(TapIndex::isUnique).anyMatch(in ->
-                    (in.getIndexFields().size() == uniqueCondition.size()) && new HashSet<>(uniqueCondition)
-                            .containsAll(in.getIndexFields().stream().map(TapIndexField::getName).collect(Collectors.toList())));
+//            uniqueConditionIsIndex = EmptyKit.isNotEmpty(tapTable.getIndexList()) && tapTable.getIndexList().stream().filter(TapIndex::isUnique).anyMatch(in ->
+//                    (in.getIndexFields().size() == uniqueCondition.size()) && new HashSet<>(uniqueCondition)
+//                            .containsAll(in.getIndexFields().stream().map(TapIndexField::getName).collect(Collectors.toList())));
+        }
+        updatedColumn = allColumn.stream().filter(v -> uniqueCondition.contains(v)).collect(Collectors.toList());
+        if (EmptyKit.isEmpty(updatedColumn)) {
+            updatedColumn = allColumn;
         }
     }
 

@@ -15,10 +15,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.StringJoiner;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -29,8 +26,6 @@ import java.util.stream.Collectors;
  **/
 public class SelectDbJdbcContext extends JdbcContext {
     private static final String TAG = SelectDbJdbcContext.class.getSimpleName();
-    protected static final String TEST_SELECTDB_VERSION = "show variables where Variable_name = 'version_comment';";
-
     public SelectDbJdbcContext(SelectDbConfig config) {
         super(config);
     }
@@ -59,6 +54,23 @@ public class SelectDbJdbcContext extends JdbcContext {
             }
         });
         return version.get();
+    }
+
+    public HashMap<String, String> getSelectDBCopyIntoLog(String uuid){
+        HashMap<String, String> map = new HashMap<>();
+        try {
+            query(String.format(SDB_COPY_LOG, uuid), resultSet -> {
+                if (resultSet.next()) {
+                    map.put("ErrorMsg",resultSet.getString("ErrorMsg"));
+                    map.put("URL",resultSet.getString("URL"));
+                    map.put("CreateTime",resultSet.getString("CreateTime"));
+                    map.put("State",resultSet.getString("State"));
+                }
+            });
+        }catch (Throwable e){
+            TapLogger.error(TAG, "Execute getSelectDBCopyIntoLog failed, error: " + e.getMessage(), e);
+        }
+        return map;
     }
 
     @Override
@@ -136,6 +148,10 @@ public class SelectDbJdbcContext extends JdbcContext {
         }
         return indexList;
     }
+
+    private final static String SDB_COPY_LOG = "show copy WHERE Files like '%s'";
+
+    protected static final String TEST_SELECTDB_VERSION = "show variables where Variable_name = 'version_comment';";
 
     private final static String SDB_ALL_TABLE = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' AND TABLE_TYPE='BASE TABLE' %s";
 
