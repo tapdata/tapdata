@@ -48,8 +48,9 @@ public class LdpController extends BaseController {
     @Operation(summary = "Create a new task of the fdm")
     @PostMapping("mdm/task")
     public ResponseMessage<TaskDto> createMdmTask(@RequestBody TaskDto task, @RequestParam(value = "tagId", required = false) String tagId,
-                                                  @RequestParam(value = "confirmTable", required = false, defaultValue = "false") Boolean confirmTable) {
-        return success(ldpService.createMdmTask(task, tagId, getLoginUser(), confirmTable));
+                                                  @RequestParam(value = "confirmTable", required = false, defaultValue = "false") Boolean confirmTable,
+                                                  @RequestParam(value = "start", required = false, defaultValue = "true") Boolean start) {
+        return success(ldpService.createMdmTask(task, tagId, getLoginUser(), confirmTable, start));
     }
 
 

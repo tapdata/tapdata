@@ -362,7 +362,7 @@ public class LdpServiceImpl implements LdpService {
     }
 
     @Override
-    public TaskDto createMdmTask(TaskDto task, String tagId, UserDetail user, boolean confirmTable) {
+    public TaskDto createMdmTask(TaskDto task, String tagId, UserDetail user, boolean confirmTable, boolean start) {
 
         try {
             //check mdm task
@@ -379,7 +379,11 @@ public class LdpServiceImpl implements LdpService {
             boolean hasPrimaryKey = checkNoPrimaryKey(task, user);
             //create sync task
             if (hasPrimaryKey) {
-                task = taskService.confirmStart(task, user, true);
+                if (start) {
+                    task = taskService.confirmStart(task, user, true);
+                } else {
+                    task = taskService.confirmById(task, user, true);
+                }
             } else {
                 task = taskService.confirmById(task, user, true);
                 throw new BizException("Ldp.MdmTargetNoPrimaryKey", task);
