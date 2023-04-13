@@ -33,15 +33,16 @@ public class MysqlSchemaLoader {
     private static final String TAG = MysqlSchemaLoader.class.getSimpleName();
     private static final String SELECT_TABLES = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' AND TABLE_TYPE='BASE TABLE'";
     private static final String TABLE_NAME_IN = " AND TABLE_NAME IN(%s)";
-    private static final String SELECT_COLUMNS = "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME %s";
+    protected static final String SELECT_COLUMNS = "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME %s";
     private final static String SELECT_ALL_INDEX_SQL = "select TABLE_NAME,INDEX_NAME,INDEX_TYPE,COLLATION,NON_UNIQUE,COLUMN_NAME,SEQ_IN_INDEX\n" +
             "from INFORMATION_SCHEMA.STATISTICS\n" +
             "where TABLE_SCHEMA = '%s'\n" +
             "and TABLE_NAME %s order by INDEX_NAME,SEQ_IN_INDEX";
 
 
-    private TapConnectionContext tapConnectionContext;
-    private MysqlJdbcContext mysqlJdbcContext;
+    protected TapConnectionContext tapConnectionContext;
+    protected MysqlJdbcContext mysqlJdbcContext;
+
 
     public MysqlSchemaLoader(MysqlJdbcContext mysqlJdbcContext) {
         this.mysqlJdbcContext = mysqlJdbcContext;
@@ -100,7 +101,7 @@ public class MysqlSchemaLoader {
         }
     }
 
-    private void discoverFields(List<DataMap> columnList, TapTable tapTable, TableFieldTypesGenerator tableFieldTypesGenerator,
+    protected void discoverFields(List<DataMap> columnList, TapTable tapTable, TableFieldTypesGenerator tableFieldTypesGenerator,
                                 DefaultExpressionMatchingMap dataTypesMap) {
         AtomicInteger primaryPos = new AtomicInteger(1);
 
@@ -130,7 +131,7 @@ public class MysqlSchemaLoader {
         });
     }
 
-    private List<DataMap> queryAllColumns(String database, String tableNames) {
+    protected List<DataMap> queryAllColumns(String database, String tableNames) {
         TapLogger.debug(TAG, "Query all columns, database: {}, tableNames:{}", database, tableNames);
 
         String inTableName = new StringJoiner(tableNames).add("IN ('").add("')").toString();
@@ -149,7 +150,7 @@ public class MysqlSchemaLoader {
         return columnList;
     }
 
-    private List<DataMap> queryAllIndexes(String database, String tableNames) {
+    protected List<DataMap> queryAllIndexes(String database, String tableNames) {
         TapLogger.debug(TAG, "Query all indexes, database: {}, tableNames:{}", database, tableNames);
         List<DataMap> indexList = TapSimplify.list();
 
@@ -188,7 +189,7 @@ public class MysqlSchemaLoader {
         return index;
     }
 
-    private  List<DataMap>  queryAllTables(String database, List<String> filterTable) {
+    protected List<DataMap> queryAllTables(String database, List<String> filterTable) {
         String sql = String.format(SELECT_TABLES, database);
         if (CollectionUtils.isNotEmpty(filterTable)) {
             filterTable = filterTable.stream().map(t -> "'" + t + "'").collect(Collectors.toList());
@@ -223,7 +224,7 @@ public class MysqlSchemaLoader {
         } catch (Throwable e) {
             throw new RuntimeException("Get table names failed, sql: " + sql + ", error: " + e.getMessage(), e);
         }
-        if (list.size() > 0) {
+        if (!list.isEmpty()) {
             listConsumer.accept(list);
             list.clear();
         }

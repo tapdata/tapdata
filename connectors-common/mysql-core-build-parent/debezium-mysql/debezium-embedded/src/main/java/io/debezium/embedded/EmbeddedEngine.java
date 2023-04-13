@@ -761,6 +761,7 @@ public final class EmbeddedEngine implements DebeziumEngine<SourceRecord> {
                     }
                     catch (Throwable t) {
                         // Clean-up allocated resources
+                        t.printStackTrace();
                         try {
                             LOGGER.debug("Stopping the task");
                             task.stop();

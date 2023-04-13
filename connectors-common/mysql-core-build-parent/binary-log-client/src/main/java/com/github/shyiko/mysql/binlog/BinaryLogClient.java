@@ -166,26 +166,26 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
 
     /**
      * Alias for BinaryLogClient("localhost", 3306, &lt;no schema&gt; = null, username, password).
-     * @see BinaryLogClient#BinaryLogClient(String, int, String, String, String)
+     * @see BinaryLogClient#BinaryLogClient(String, int, String, String, String, String)
      */
     public BinaryLogClient(String username, String password) {
-        this("localhost", 3306, null, username, password);
+        this("localhost", 3306, null, username, password, null);
     }
 
     /**
      * Alias for BinaryLogClient("localhost", 3306, schema, username, password).
-     * @see BinaryLogClient#BinaryLogClient(String, int, String, String, String)
+     * @see BinaryLogClient#BinaryLogClient(String, int, String, String, String, String)
      */
     public BinaryLogClient(String schema, String username, String password) {
-        this("localhost", 3306, schema, username, password);
+        this("localhost", 3306, schema, username, password, null);
     }
 
     /**
      * Alias for BinaryLogClient(hostname, port, &lt;no schema&gt; = null, username, password).
-     * @see BinaryLogClient#BinaryLogClient(String, int, String, String, String)
+     * @see BinaryLogClient#BinaryLogClient(String, int, String, String, String, String)
      */
-    public BinaryLogClient(String hostname, int port, String username, String password, String sql) {
-        this(hostname, port, null, username, password, sql);
+    public BinaryLogClient(String hostname, int port, String username, String password) {
+        this(hostname, port, null, username, password, null);
     }
 
     /**

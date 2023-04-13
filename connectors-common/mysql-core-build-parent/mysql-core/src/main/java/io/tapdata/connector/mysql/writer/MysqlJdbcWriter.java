@@ -106,6 +106,17 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
 		return preparedStatement;
 	}
 
+    protected List<String> updateKeyValues(LinkedHashMap<String, TapField> nameFieldMap, TapRecordEvent tapRecordEvent){
+        List<String> setList = new ArrayList<>();
+        nameFieldMap.forEach((fieldName, field) -> {
+            if (!needAddIntoPreparedStatementValues(field, tapRecordEvent)) {
+                return;
+            }
+            setList.add("`" + fieldName + "`=?");
+        });
+        return setList;
+    }
+
 	protected PreparedStatement getUpdatePreparedStatement(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
 		JdbcCache jdbcCache = getJdbcCache();
 		Map<String, PreparedStatement> updateMap = jdbcCache.getUpdateMap();
@@ -120,13 +131,7 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
 			if (MapUtils.isEmpty(nameFieldMap)) {
 				throw new Exception("Create update prepared statement error, table \"" + tableId + "\"'s fields is empty, retry after reload connection \"" + name + "\"'s schema");
 			}
-			List<String> setList = new ArrayList<>();
-			nameFieldMap.forEach((fieldName, field) -> {
-				if (!needAddIntoPreparedStatementValues(field, tapRecordEvent)) {
-					return;
-				}
-				setList.add("`" + fieldName + "`=?");
-			});
+			List<String> setList = updateKeyValues(nameFieldMap, tapRecordEvent);
 			List<String> whereList = new ArrayList<>();
 			Collection<String> uniqueKeys = getUniqueKeys(tapTable);
 			for (String uniqueKey : uniqueKeys) {

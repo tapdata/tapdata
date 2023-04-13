@@ -9,6 +9,8 @@ import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
 import io.tapdata.connector.mysql.writer.MysqlWriter;
+import io.tapdata.connector.tencent.db.core.TDSqlDiscoverSchema;
+import io.tapdata.connector.tencent.db.core.TDSqlWriter;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
@@ -137,7 +139,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
                             String[] split = items.split(",");
                             for (String backend : split) {
                                 if (tapConnectionContext instanceof TapConnectorContext) {
-                                    MysqlReader reader = new MysqlReader(mysqlJdbcContext);
+                                    MysqlReader reader = new MysqlReader(new MysqlJdbcContext(tapConnectionContext));
                                     readers.put(backend, reader);
                                 }
                             }
@@ -157,7 +159,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
         super.onStart(tapConnectionContext);
         this.mysqlJdbcContext = super.initMysqlJdbcContext(tapConnectionContext);
         if (tapConnectionContext instanceof TapConnectorContext) {
-            this.mysqlWriter = new MysqlSqlBatchWriter(mysqlJdbcContext);
+            this.mysqlWriter = new TDSqlWriter(mysqlJdbcContext);
             this.mysqlReader = new MysqlReader(mysqlJdbcContext);
             this.version = mysqlJdbcContext.getMysqlVersion();
             this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
@@ -246,11 +248,12 @@ public class TencentDBMySQLConnector extends MysqlConnector {
     private final AtomicBoolean binlogFlag = new AtomicBoolean(true);
     private void streamRead(TapConnectorContext tapConnectorContext, List<String> tables, Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
 //        mysqlJdbcContext.execute("/*proxy*/ set binlog_dump_sticky_backend=set_1681181636_1");
+        consumer.streamReadStarted();
         if (sourceConsumer == null) {
             synchronized (this){
                 if (sourceConsumer == null){
                     int size = readers.size();
-                    this.sourceConsumer = new ThreadPoolExecutor(size <= 1 ? 1 : size << 1, size, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
+                    this.sourceConsumer = new ThreadPoolExecutor(size <= 1 ? 1 : size >> 1, size, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
                 }
             }
         }
@@ -262,6 +265,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
                     synchronized (binlogFlag){
                         binlogFlag.set(false);
                     }
+                    throwable.printStackTrace();
                     TapLogger.error(TAG,"Binary Log partition {} has Stoped. Stop reason: {}.", key, throwable.getMessage());
                 });
                 try {
@@ -289,6 +293,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
                             sourceConsumer.shutdown();
                             sourceConsumer = null;
                         }
+                        consumer.streamReadEnded();
                         break;
                     }
                 }
@@ -463,7 +468,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
 
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-        MysqlSchemaLoader mysqlSchemaLoader = new MysqlSchemaLoader(mysqlJdbcContext);
+        MysqlSchemaLoader mysqlSchemaLoader = new TDSqlDiscoverSchema(mysqlJdbcContext);
         mysqlSchemaLoader.discoverSchema(tables, consumer, tableSize);
     }
 
