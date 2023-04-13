@@ -397,7 +397,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 
 	AtomicBoolean firstTableCount = new AtomicBoolean(true);
 
-	public void handleTableCountAccept(String table, long count) {
+	public void handleTableCountAccept(long count) {
 //		if (firstTableCount.get()) {
 //			Optional.ofNullable(snapshotRowCounter).ifPresent(CounterSampler::reset);
 //			firstTableCount.set(false);

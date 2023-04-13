@@ -259,7 +259,6 @@ public class TaskSampleHandler extends AbstractHandler {
 
     public void handleTableCountAccept(long count) {
         snapshotRowTotal.inc(count);
-        currentSnapshotTableInsertRowTotal = 0L;
         currentSnapshotTableRowTotal = count;
     }
 
