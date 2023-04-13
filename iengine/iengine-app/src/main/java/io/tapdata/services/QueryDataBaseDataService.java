@@ -81,7 +81,7 @@ public class QueryDataBaseDataService {
                 throw new RuntimeException("Cannot find tableName:" + tableName);
             }
             ConnectorNode connectorNode = createConnectorNode(associateId, (HttpClientMongoOperator) clientMongoOperator, databaseType, connections.getConfig());
-            List<Map<String, Object>> maps;
+            List<Map<String, Object>> maps ;
             String TAG = this.getClass().getSimpleName();
             try {
                 PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);
@@ -126,7 +126,8 @@ public class QueryDataBaseDataService {
                 }
                 return map(entry("sampleData", maps), entry("tableInfo", tableInfo));
             } catch (Exception e) {
-                throw new RuntimeException("Failed to init pdk connector, database type: " + databaseType + ", message: " + e.getMessage(), e);
+                log.error("Failed to init pdk connector, database type: " + databaseType + ", message: " + e.getMessage(), e);
+                return map(entry("sampleData", new ArrayList<>()), entry("tableInfo", new TableInfo()));
             } finally {
                 try {
                     PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
