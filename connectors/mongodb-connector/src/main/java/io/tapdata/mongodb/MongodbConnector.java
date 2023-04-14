@@ -248,7 +248,11 @@ public class MongodbConnector extends ConnectorBase {
 						stringTypeValueMap.put(fieldName, currentLength);
 					}
 					if (null != stringTypeValueMap.get(fieldName)) {
-						field = TapSimplify.field(fieldName, bsonType.name() + String.format("(%s)", stringTypeValueMap.get(fieldName)));
+						int length = stringTypeValueMap.get(fieldName);
+						length = length * 5;
+						if(length < 100)
+							length = 100;
+						field = TapSimplify.field(fieldName, bsonType.name() + String.format("(%s)", length));
 					} else {
 						field = TapSimplify.field(fieldName, bsonType.name());
 					}
