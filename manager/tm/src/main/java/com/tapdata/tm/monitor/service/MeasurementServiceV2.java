@@ -75,7 +75,6 @@ public class MeasurementServiceV2 {
         DateTime date = DateUtil.date();
         for (SampleRequest singleSampleRequest : sampleRequestList) {
             Criteria criteria = Criteria.where(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
-            Criteria beforeCriteria = Criteria.where(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
 
             Map<String, String> tags = singleSampleRequest.getTags();
             if (null == tags || 0 == tags.size()) {
@@ -89,37 +88,10 @@ public class MeasurementServiceV2 {
 
             for (Map.Entry<String, String> entry : tags.entrySet()) {
                 criteria.and(MeasurementEntity.FIELD_TAGS + "." + entry.getKey()).is(entry.getValue());
-                beforeCriteria.and(MeasurementEntity.FIELD_TAGS + "." + entry.getKey()).is(entry.getValue());
             }
 
             Date second = TimeUtil.cleanTimeAfterSecond(date);
-            // 补充数据
-            beforeCriteria.and("date").lte(second);
-
-//            MeasurementEntity before = mongoOperations.findOne(beforeQuery, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
             AtomicReference<Sample> requestSample = new AtomicReference<>(singleSampleRequest.getSample());
-//            Optional.ofNullable(before).ifPresent(
-//                    bf -> {
-//                        Sample sample = bf.getSamples().stream().findFirst().orElse(null);
-//                        Optional.ofNullable(sample).ifPresent(
-//                                samp -> {
-//                                    Map<String, Number> vs = samp.getVs();
-//                                    Optional.ofNullable(vs).ifPresent(
-//                                            vvs -> {
-//                                                Map<String, Number> numberMap = requestSample.get().getVs();
-//                                                vvs.forEach((key, value) -> {
-//                                                    if (numberMap.containsKey(key) && Objects.isNull(numberMap.get(key)) && Objects.nonNull(value)) {
-//                                                        requestSample.get().getVs().put(key, value);
-//                                                    }
-//                                                });
-////                                                requestSample.set(supplyKeyData(requestSample.get(), vvs, numberMap));
-//                                            }
-//                                    );
-//                                }
-//                        );
-//                    }
-//            );
-
 
             Query query = Query.query(criteria);
             requestSample.get().setDate(second);
