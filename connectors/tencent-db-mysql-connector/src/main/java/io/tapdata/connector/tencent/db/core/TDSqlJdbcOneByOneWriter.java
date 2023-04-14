@@ -33,7 +33,7 @@ public class TDSqlJdbcOneByOneWriter extends MysqlJdbcOneByOneWriter {
 //            if (null == field.getPartitionKey() || !field.getPartitionKey()) {
 //                setList.add("`" + fieldName + "`=?");
 //            }
-            if (null == field.getComment() || !"IS_PARTITION_KEY".equals(field.getComment())) {
+            if (null == field.getComment() || !TDSqlDiscoverSchema.PARTITION_KEY_SINGLE.equals(field.getComment())) {
                 setList.add("`" + fieldName + "`=?");
             }
         });
@@ -51,7 +51,8 @@ public class TDSqlJdbcOneByOneWriter extends MysqlJdbcOneByOneWriter {
         List<String> afterKeys = new ArrayList<>(after.keySet());
         for (String fieldName : nameFieldMap.keySet()) {
             TapField tapField = nameFieldMap.get(fieldName);
-            if (null == tapField || (null != tapField.getComment() && "IS_PARTITION_KEY".equals(tapField.getComment()))) {
+            if (null == tapField || (null != tapField.getComment() && TDSqlDiscoverSchema.PARTITION_KEY_SINGLE.equals(tapField.getComment()))) {
+                afterKeys.remove(fieldName);
                 continue;
             }
             if (!needAddIntoPreparedStatementValues(tapField, tapRecordEvent)) {

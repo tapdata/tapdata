@@ -1,28 +1,25 @@
 package io.tapdata.connector.tencent.db.core;
 
-import com.google.common.collect.Lists;
 import io.tapdata.connector.mysql.MysqlSchemaLoader;
 import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.kit.DbKit;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class TDSqlDiscoverSchema extends MysqlSchemaLoader {
     public final static String TAG = TDSqlDiscoverSchema.class.getSimpleName();
+    public final static String PARTITION_KEY_SINGLE = "IS_PARTITION_KEY";
+    public final static String PARTITION_KEY_SINGLE_NOT = "NOT_PARTITION_KEY";
 
     public static final String PARTITION_SQL = "Select PARTITION_EXPRESSION, TABLE_NAME\n" +
             "from information_schema.PARTITIONS\n" +
@@ -30,63 +27,17 @@ public class TDSqlDiscoverSchema extends MysqlSchemaLoader {
             "      TABLE_SCHEMA = %s and\n" +
             "      TABLE_NAME in ('%s')\n" +
             "group by TABLE_NAME";
+    public static final String PARTITION_SQL_0 = "Select PARTITION_EXPRESSION, TABLE_NAME\n" +
+            "from information_schema.PARTITIONS\n" +
+            "where\n" +
+            "      TABLE_SCHEMA = '%s' and\n" +
+            "      TABLE_NAME = '%s'\n" +
+            "group by TABLE_NAME";
+    //public static final String SHOW_CREATE_TABLE = "SELECT create_statement FROM tables where name in (%s)";
 
     public TDSqlDiscoverSchema(MysqlJdbcContext mysqlJdbcContext) {
         super(mysqlJdbcContext);
     }
-
-//    @Override
-//    public void discoverSchema(List<String> filterTable, Consumer<List<TapTable>> consumer, int tableSize) throws Throwable {
-//        if (null == consumer) {
-//            throw new IllegalArgumentException("Consumer cannot be null");
-//        }
-//
-//        DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
-//        String database = connectionConfig.getString("database");
-//        List<DataMap> allTables = queryAllTables(database, filterTable);
-//        if (CollectionUtils.isEmpty(allTables)) {
-//            consumer.accept(null);
-//            return;
-//        }
-//
-//        TableFieldTypesGenerator instance = InstanceFactory.instance(TableFieldTypesGenerator.class);
-//        DefaultExpressionMatchingMap dataTypesMap = tapConnectionContext.getSpecification().getDataTypesMap();
-//
-//        try {
-//            List<List<DataMap>> tableLists = Lists.partition(allTables, tableSize);
-//            tableLists.forEach(tableList -> {
-//                List<String> subTableNames = tableList.stream().map(v -> v.getString("TABLE_NAME")).collect(Collectors.toList());
-//                String tableNames = StringUtils.join(subTableNames, "','");
-//                List<DataMap> columnList = queryAllColumns(database, tableNames);
-//                List<DataMap> indexList = queryAllIndexes(database, tableNames);
-//
-//                Map<String, List<DataMap>> columnMap = columnList.stream().collect(Collectors.groupingBy(t -> t.getString("TABLE_NAME")));
-//                Map<String, List<DataMap>> indexMap = indexList.stream().collect(Collectors.groupingBy(t -> t.getString("TABLE_NAME")));
-//
-//                List<TapTable> tempList = new ArrayList<>();
-//                tableList.forEach(subTable -> {
-//                    String tableName = subTable.getString("TABLE_NAME");
-//                    TapTable tapTable = TapSimplify.table(tableName);
-//                    if (columnMap.containsKey(tableName)) {
-//                        discoverFields(columnMap.get(tableName), tapTable, instance, dataTypesMap);
-//                    }
-//                    if (indexMap.containsKey(tableName)) {
-//                        tapTable.setIndexList(discoverIndexes(indexMap.get(tableName), tableName));
-//                    }
-//                    tapTable.setComment(subTable.getString("TABLE_COMMENT"));
-//                    tempList.add(tapTable);
-//                });
-//
-//                if (CollectionUtils.isNotEmpty(tempList)) {
-//                    consumer.accept(tempList);
-//                    //tempList.clear();
-//                }
-//            });
-//
-//        } catch (Exception e) {
-//            throw new CoreException(e.getMessage());
-//        }
-//    }
 
     private List<String> fullPartitionKey(String partitionRegex){
         List<String> keys = new ArrayList<>();
@@ -102,6 +53,26 @@ public class TDSqlDiscoverSchema extends MysqlSchemaLoader {
         return keys;
     }
 
+
+//    protected List<DataMap> queryAllTables(String database, List<String> filterTable) {
+//        String sql = String.format(SELECT_TABLES, database);
+//        if (CollectionUtils.isNotEmpty(filterTable)) {
+//            filterTable = filterTable.stream().map(t -> "'" + t + "'").collect(Collectors.toList());
+//            String tableNameIn = String.join(",", filterTable);
+//            sql += String.format(TABLE_NAME_IN, tableNameIn);
+//        }
+//
+//        List<DataMap> tableList = TapSimplify.list();
+//        try {
+//            mysqlJdbcContext.query(sql, resultSet -> {
+//                tableList.addAll(DbKit.getDataFromResultSet(resultSet));
+//            });
+//        } catch (Throwable e) {
+//            TapLogger.error(TAG, "Execute queryAllTables failed, error: " + e.getMessage(), e);
+//        }
+//        return tableList;
+//    }
+
     protected void discoverFields(List<DataMap> columnList, TapTable tapTable, TableFieldTypesGenerator tableFieldTypesGenerator,
                                   DefaultExpressionMatchingMap dataTypesMap) {
         AtomicInteger primaryPos = new AtomicInteger(1);
@@ -115,7 +86,7 @@ public class TDSqlDiscoverSchema extends MysqlSchemaLoader {
             Boolean partitionKey = (Boolean)dataMap.get("IS_PARTITION_EXPRESSION");
             TapField field = TapSimplify.field(columnName, columnType);
             field.setPartitionKey(partitionKey);
-            field.setComment(Optional.ofNullable(partitionKey).orElse(false) ? "IS_PARTITION_KEY" : "NOT_PARTITION_KEY");
+            field.setComment(Optional.ofNullable(partitionKey).orElse(false) ? PARTITION_KEY_SINGLE :PARTITION_KEY_SINGLE_NOT);
 
             tableFieldTypesGenerator.autoFill(field, dataTypesMap);
 
@@ -134,6 +105,29 @@ public class TDSqlDiscoverSchema extends MysqlSchemaLoader {
 //			field.defaultValue(columnDefault);
             tapTable.add(field);
         });
+    }
+
+    public List<String> getAllPartitionKey(String database, String tableName){
+        List<String> keys = new ArrayList<>();
+        String sql = String.format(PARTITION_SQL_0, database, tableName);
+        try {
+            mysqlJdbcContext.query(sql, resultSet -> {
+                List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
+                while (resultSet.next()) {
+                    DataMap map = DbKit.getRowFromResultSet(resultSet, columnNames);
+                    Object expression = map.get("PARTITION_EXPRESSION");
+                    if (null != expression && tableName.equals(map.get("TABLE_NAME"))){
+                        List<String> list = fullPartitionKey((String) expression);
+                        if (!list.isEmpty()) {
+                            keys.addAll(list);
+                        }
+                    }
+                }
+            });
+        } catch (Throwable e) {
+            TapLogger.error(TAG, "Execute queryAllColumns partition failed, error: " + e.getMessage(), e);
+        }
+        return keys;
     }
 
     protected List<DataMap> queryAllColumns(String database, String tableNames) {

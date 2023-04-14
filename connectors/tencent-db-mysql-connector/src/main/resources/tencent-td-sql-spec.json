@@ -5,7 +5,9 @@
     "id": "tencent-db-mysql",
     "doc": "${doc}",
     "authentication": "Beta",
-    "tags": ["Database"]
+    "tags": [
+      "Database"
+    ]
   },
   "configOptions": {
     "capabilities": [
@@ -201,6 +203,67 @@
           ]
         }
       }
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+        "tableCreateType": {
+          "type": "String",
+          "default": "SingleTable",
+          "title": "${create_table_type}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "enum": [
+            {
+              "label": "${Single_Table}",
+              "value": "SingleTable"
+            },
+            {
+              "label": "${Partition_Table}",
+              "value": "PartitionTable"
+            },
+            {
+              "label": "${Broadcast_Table}",
+              "value": "BroadcastTable"
+            }
+          ],
+          "x-index": 10,
+          "required": true
+        },
+        "partitionKey": {
+          "type": "string",
+          "default": null,
+          "title": "${partition_key}",
+          "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "wrapperWidth": 300
+          },
+          "x-component": "FieldSelect",
+          "x-component-props": {
+            "allowCreate": true,
+            "multiple": false,
+            "filterable": true
+          },
+          "x-reactions": [
+            "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+            {
+              "dependencies": [
+                "nodeConfig.tableCreateType"
+              ],
+              "fulfill": {
+                "run": "if (!$self.value && $self.dataSource && $self.dataSource.length) {let isPrimaryKeyList = $self.dataSource.filter(item => item.isPrimaryKey); let indicesUniqueList = $self.dataSource.filter(item => item.indicesUnique); $self.setValue((isPrimaryKeyList.length ? isPrimaryKeyList : indicesUniqueList).map(item => item.value)); $self.validate();}"
+              },
+              "state": {
+                "display": "{{$deps[0] === \"PartitionTable\" ? \"visible\" : \"hidden\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0] === \"PartitionTable\" ? true : false}}"
+              }
+            }
+          ]
+        }
+      }
     }
   },
   "messages": {
@@ -213,7 +276,12 @@
       "password": "password",
       "addtionalString": "Connection Parameter String",
       "timezone": "timezone",
-      "doc": "docs/tencent_db_mysql_en_US.md"
+      "doc": "docs/tencent_db_mysql_en_US.md",
+      "create_table_type": " Table creation type when table does not exist ",
+      "partition_key": "Partition key",
+      "Single_Table": " Single Table ",
+      "Partition_Table": " Partition Table ",
+      "Broadcast_Table": " Broadcast Table "
     },
     "zh_CN": {
       "host": "地址",
@@ -223,7 +291,12 @@
       "password": "密码",
       "addtionalString": "连接参数",
       "timezone": "时区",
-      "doc": "docs/tencent_db_mysql_zh_CN.md"
+      "doc": "docs/tencent_db_mysql_zh_CN.md",
+      "create_table_type": "表不存在时的建表类型",
+      "partition_key": "分片键",
+      "Single_Table": "单表",
+      "Partition_Table": "分区表",
+      "Broadcast_Table": "广播表"
     },
     "zh_TW": {
       "host": "地址",
@@ -233,7 +306,12 @@
       "password": "密碼",
       "addtionalString": "連接參數",
       "timezone": "時區",
-      "doc": "docs/tencent_db_mysql_zh_TW.md"
+      "doc": "docs/tencent_db_mysql_zh_TW.md",
+      "create_table_type": " 錶不存在時的建錶類型 ",
+      "partition_key": "分片鍵",
+      "Single_Table": "單表",
+      "Partition_Table": "分區表",
+      "Broadcast_Table": "廣播表"
     }
   },
   "dataTypes": {

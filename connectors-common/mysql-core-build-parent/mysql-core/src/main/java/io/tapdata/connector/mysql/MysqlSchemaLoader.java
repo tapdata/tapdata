@@ -31,8 +31,8 @@ import static io.tapdata.entity.simplify.TapSimplify.indexField;
  **/
 public class MysqlSchemaLoader {
     private static final String TAG = MysqlSchemaLoader.class.getSimpleName();
-    private static final String SELECT_TABLES = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' AND TABLE_TYPE='BASE TABLE'";
-    private static final String TABLE_NAME_IN = " AND TABLE_NAME IN(%s)";
+    protected static final String SELECT_TABLES = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' AND TABLE_TYPE='BASE TABLE'";
+    protected static final String TABLE_NAME_IN = " AND TABLE_NAME IN(%s)";
     protected static final String SELECT_COLUMNS = "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME %s";
     private final static String SELECT_ALL_INDEX_SQL = "select TABLE_NAME,INDEX_NAME,INDEX_TYPE,COLLATION,NON_UNIQUE,COLUMN_NAME,SEQ_IN_INDEX\n" +
             "from INFORMATION_SCHEMA.STATISTICS\n" +

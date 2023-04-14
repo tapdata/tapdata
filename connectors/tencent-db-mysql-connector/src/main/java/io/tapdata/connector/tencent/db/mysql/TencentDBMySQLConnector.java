@@ -8,10 +8,12 @@ import io.tapdata.connector.mysql.*;
 import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.connector.mysql.writer.MysqlJdbcOneByOneWriter;
+import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
 import io.tapdata.connector.mysql.writer.MysqlWriter;
 import io.tapdata.connector.tencent.db.core.TDSqlDiscoverSchema;
 import io.tapdata.connector.tencent.db.core.TDSqlJdbcOneByOneWriter;
 import io.tapdata.connector.tencent.db.core.TDSqlWriter;
+import io.tapdata.connector.tencent.db.table.CreateTable;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
@@ -22,6 +24,7 @@ import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
@@ -48,10 +51,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -70,9 +70,9 @@ public class TencentDBMySQLConnector extends MysqlConnector {
     private static final String TAG = TencentDBMySQLConnector.class.getSimpleName();
     private static final int MAX_FILTER_RESULT_SIZE = 100;
 
-    private MysqlJdbcContext mysqlJdbcContext;
-    private MysqlReader mysqlReader;
-    private MysqlWriter mysqlWriter;
+    private MysqlJdbcContext tdSqlJdbcContext;
+    private MysqlReader tdSqlReader;
+    private MysqlWriter tdSqlWriter;
     private MysqlJdbcOneByOneWriter tdSqlJdbcOneByOneWriter;
     private String version;
     private String connectionTimezone;
@@ -136,7 +136,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
 
     void initStreamRead(TapConnectionContext tapConnectionContext) throws Throwable {
         try {
-            mysqlJdbcContext.query("/*proxy*/ show status", rs -> {
+            tdSqlJdbcContext.query("/*proxy*/ show status", rs -> {
                 while (rs.next()) {
                     String statusName = rs.getString("status_name");
                     if ("set".equals(statusName)) {
@@ -163,20 +163,20 @@ public class TencentDBMySQLConnector extends MysqlConnector {
         this.tapConnectionContext = tapConnectionContext;
         tapConnectionContext.getConnectionConfig().put("protocolType", "mysql");
         super.onStart(tapConnectionContext);
-        this.mysqlJdbcContext = super.initMysqlJdbcContext(tapConnectionContext);
+        this.tdSqlJdbcContext = super.initMysqlJdbcContext(tapConnectionContext);
         if (tapConnectionContext instanceof TapConnectorContext) {
-            this.mysqlWriter = new TDSqlWriter(mysqlJdbcContext, map -> {
+            this.tdSqlWriter = new TDSqlWriter(tdSqlJdbcContext, map -> {
                 try {
-                    return new TDSqlJdbcOneByOneWriter(mysqlJdbcContext, map);
+                    return new TDSqlJdbcOneByOneWriter(tdSqlJdbcContext, map);
                 } catch (Throwable throwable) {
                     return null;
                 }
             });
-            this.mysqlReader = new MysqlReader(mysqlJdbcContext);
-            this.version = mysqlJdbcContext.getMysqlVersion();
+            this.tdSqlReader = new MysqlReader(tdSqlJdbcContext);
+            this.version = tdSqlJdbcContext.getMysqlVersion();
             this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
             if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
-                this.connectionTimezone = mysqlJdbcContext.timezone();
+                this.connectionTimezone = tdSqlJdbcContext.timezone();
             }
         }
         ddlSqlMaker = new MysqlDDLSqlMaker(version);
@@ -186,6 +186,34 @@ public class TencentDBMySQLConnector extends MysqlConnector {
 //        fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
 //        fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
 //        fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
+    }
+
+    @Override
+    public void onStop(TapConnectionContext connectionContext) {
+        try {
+            super.onStop(connectionContext);
+            try {
+                Optional.ofNullable(this.tdSqlReader).ifPresent(MysqlReader::close);
+            } catch (Exception ignored) {
+            }
+            try {
+                Optional.ofNullable(this.tdSqlWriter).ifPresent(MysqlWriter::onDestroy);
+            } catch (Exception ignored) {
+            }
+            if (null != tdSqlJdbcContext) {
+                try {
+                    this.tdSqlJdbcContext.close();
+                    this.tdSqlJdbcContext = null;
+                } catch (Exception e) {
+                    TapLogger.error(TAG, "Release connector failed, error: " + e.getMessage() + "\n" + getStackString(e));
+                }
+            }
+        } finally {
+            if (null != sourceConsumer && !sourceConsumer.isShutdown()) {
+                sourceConsumer.shutdown();
+                sourceConsumer = null;
+            }
+        }
     }
 
     @Override
@@ -250,7 +278,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
         connectorFunctions.supportErrorHandleFunction(this::errorHandle);
-        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> mysqlJdbcContext.getConnection(), this::isAlive, c));
+        connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> tdSqlJdbcContext.getConnection(), this::isAlive, c));
         connectorFunctions.supportQueryFieldMinMaxValueFunction(this::minMaxValue);
         connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
     }
@@ -261,56 +289,65 @@ public class TencentDBMySQLConnector extends MysqlConnector {
 
     private void streamRead(TapConnectorContext tapConnectorContext, List<String> tables, Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
 //        mysqlJdbcContext.execute("/*proxy*/ set binlog_dump_sticky_backend=set_1681181636_1");
-        consumer.streamReadStarted();
-        if (sourceConsumer == null) {
-            synchronized (this) {
-                if (sourceConsumer == null) {
-                    int size = readers.size();
-                    this.sourceConsumer = new ThreadPoolExecutor(size <= 1 ? 1 : size >> 1, size, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
+        try {
+            consumer.streamReadStarted();
+            if (sourceConsumer == null) {
+                synchronized (this) {
+                    if (sourceConsumer == null) {
+                        int size = readers.size();
+                        this.sourceConsumer = new ThreadPoolExecutor(size <= 1 ? 1 : size >> 1, size, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
+                    }
                 }
             }
-        }
-        for (Map.Entry<String, MysqlReader> entry : readers.entrySet()) {
-            String key = entry.getKey();
-            MysqlReader value = entry.getValue();
-            this.sourceConsumer.execute(() -> {
-                Thread.currentThread().setUncaughtExceptionHandler((thread, throwable) -> {
-                    synchronized (binlogFlag) {
-                        binlogFlag.set(false);
-                    }
-                    throwable.printStackTrace();
-                    TapLogger.error(TAG, "Binary Log partition {} has Stoped. Stop reason: {}.", key, throwable.getMessage());
-                });
-                try {
-                    value.readBinlog(
-                            tapConnectorContext,
-                            tables,
-                            offset,
-                            batchSize,
-                            DDLParserType.MYSQL_CCJ_SQL_PARSER,
-                            consumer,
-                            map(entry("tdsql.partition", key)));
-                } catch (Throwable throwable) {
-                    throw new CoreException(throwable.getMessage());
-                }
-            });
-        }
-        synchronized (binlogLock) {
-            while (true) {
-                try {
-                    binlogLock.wait(3000);
-                } catch (Exception ignored) {
-                }
-                synchronized (binlogFlag) {
-                    if (!binlogFlag.get()) {
-                        if (null != sourceConsumer && !sourceConsumer.isShutdown()) {
-                            sourceConsumer.shutdown();
-                            sourceConsumer = null;
+            for (Map.Entry<String, MysqlReader> entry : readers.entrySet()) {
+                String key = entry.getKey();
+                MysqlReader value = entry.getValue();
+                this.sourceConsumer.execute(() -> {
+                    Thread.currentThread().setUncaughtExceptionHandler((thread, throwable) -> {
+                        synchronized (binlogFlag) {
+                            binlogFlag.set(false);
                         }
-                        consumer.streamReadEnded();
-                        break;
+                        throwable.printStackTrace();
+                        tapConnectorContext.getLog().error(TAG, "Binary Log partition {} has Stoped. Stop reason: {}.", key, throwable.getMessage());
+                    });
+                    try {
+                        value.readBinlog(
+                                tapConnectorContext,
+                                tables,
+                                offset,
+                                batchSize,
+                                DDLParserType.MYSQL_CCJ_SQL_PARSER,
+                                consumer,
+                                map(entry("tdsql.partition", key)));
+                    } catch (Throwable throwable) {
+                        tapConnectorContext.getLog().error(TAG, throwable.getMessage());
+                        throw new CoreException(throwable.getMessage());
+                    }
+                });
+            }
+            synchronized (binlogLock) {
+                while (isAlive()) {
+                    try {
+                        binlogLock.wait(3000);
+                    } catch (Exception ignored) {
+                    }
+                    synchronized (binlogFlag) {
+                        if (!binlogFlag.get()) {
+                            if (null != sourceConsumer && !sourceConsumer.isShutdown()) {
+                                sourceConsumer.shutdown();
+                                sourceConsumer = null;
+                            }
+
+                            break;
+                        }
                     }
                 }
+            }
+        } finally {
+            consumer.streamReadEnded();
+            if (null != sourceConsumer && !sourceConsumer.isShutdown()) {
+                sourceConsumer.shutdown();
+                sourceConsumer = null;
             }
         }
         //mysqlReader.readBinlog(tapConnectorContext, tables, offset, batchSize, DDLParserType.MYSQL_CCJ_SQL_PARSER, consumer);
@@ -319,7 +356,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
     private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
         int count;
         try {
-            count = mysqlJdbcContext.count(tapTable.getName());
+            count = tdSqlJdbcContext.count(tapTable.getName());
         } catch (Exception e) {
             throw new RuntimeException("Count table " + tapTable.getName() + " error: " + e.getMessage(), e);
         }
@@ -334,7 +371,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
             mysqlSnapshotOffset = new MysqlSnapshotOffset();
         }
         List<TapEvent> tempList = new ArrayList<>();
-        this.mysqlReader.readWithOffset(tapConnectorContext, tapTable, mysqlSnapshotOffset, n -> !isAlive(), (data, snapshotOffset) -> {
+        this.tdSqlReader.readWithOffset(tapConnectorContext, tapTable, mysqlSnapshotOffset, n -> !isAlive(), (data, snapshotOffset) -> {
             TapRecordEvent tapRecordEvent = tapRecordWrapper(tapConnectorContext, null, data, tapTable, "i");
             tempList.add(tapRecordEvent);
             if (tempList.size() == batchSize) {
@@ -370,8 +407,8 @@ public class TencentDBMySQLConnector extends MysqlConnector {
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws Throwable {
         String tableId = tapClearTableEvent.getTableId();
-        if (mysqlJdbcContext.tableExists(tableId)) {
-            mysqlJdbcContext.clearTable(tableId);
+        if (tdSqlJdbcContext.tableExists(tableId)) {
+            tdSqlJdbcContext.clearTable(tableId);
         } else {
             DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
             String database = connectionConfig.getString("database");
@@ -380,21 +417,22 @@ public class TencentDBMySQLConnector extends MysqlConnector {
     }
 
     private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) throws Throwable {
-        mysqlJdbcContext.dropTable(tapDropTableEvent.getTableId());
+        tdSqlJdbcContext.dropTable(tapDropTableEvent.getTableId());
     }
 
     private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws Throwable {
         CreateTableOptions createTableOptions = new CreateTableOptions();
         try {
-            if (mysqlJdbcContext.tableExists(tapCreateTableEvent.getTableId())) {
+            if (tdSqlJdbcContext.tableExists(tapCreateTableEvent.getTableId())) {
                 DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
                 String database = connectionConfig.getString("database");
                 String tableId = tapCreateTableEvent.getTableId();
                 createTableOptions.setTableExists(true);
                 TapLogger.info(TAG, "Table \"{}.{}\" exists, skip auto create table", database, tableId);
             } else {
-                String mysqlVersion = mysqlJdbcContext.getMysqlVersion();
-                SqlMaker sqlMaker = new MysqlMaker();
+                String mysqlVersion = tdSqlJdbcContext.getMysqlVersion();
+                DataMap nodeConfig = tapConnectorContext.getNodeConfig();
+                SqlMaker sqlMaker = CreateTable.sqlMaker((String) nodeConfig.get("tableCreateType"), (String) nodeConfig.get("partitionKey"));
                 if (null == tapCreateTableEvent.getTable()) {
                     TapLogger.warn(TAG, "Create table event's tap table is null, will skip it: " + tapCreateTableEvent);
                     return createTableOptions;
@@ -402,7 +440,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
                 String[] createTableSqls = sqlMaker.createTable(tapConnectorContext, tapCreateTableEvent, mysqlVersion);
                 for (String createTableSql : createTableSqls) {
                     try {
-                        mysqlJdbcContext.execute(createTableSql);
+                        tdSqlJdbcContext.execute(createTableSql);
                     } catch (Throwable e) {
                         throw new Exception("Execute create table failed, sql: " + createTableSql + ", message: " + e.getMessage(), e);
                     }
@@ -415,9 +453,45 @@ public class TencentDBMySQLConnector extends MysqlConnector {
         }
     }
 
+    Map<String, List<String>> tableTypeMap = new ConcurrentHashMap<>();
+
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
-        WriteListResult<TapRecordEvent> writeListResult = this.mysqlWriter.write(tapConnectorContext, tapTable, tapRecordEvents);
+        List<String> type = tableTypeMap.get(tapTable.getId());
+        if (type == null) {
+            type = tableTypeMap.computeIfAbsent(tapTable.getId(), id -> {
+                TDSqlDiscoverSchema loader = new TDSqlDiscoverSchema(tdSqlJdbcContext);
+                Object database = tapConnectorContext.getConnectionConfig().get("database");
+                return loader.getAllPartitionKey((String) database, id);
+            });
+        }
+
+        WriteListResult<TapRecordEvent> writeListResult;
+        if (type.isEmpty()) {
+            //普通表
+            synchronized (this) {
+                if (null == this.tdSqlWriter || this.tdSqlWriter instanceof TDSqlWriter) {
+                    this.tdSqlWriter = new MysqlSqlBatchWriter(this.tdSqlJdbcContext);
+                }
+            }
+            writeListResult = this.tdSqlWriter.write(tapConnectorContext, tapTable, tapRecordEvents);
+        } else {
+            //分区表
+            setPartitionInfo(type, tapTable);
+            writeListResult = this.tdSqlWriter.write(tapConnectorContext, tapTable, tapRecordEvents);
+        }
         consumer.accept(writeListResult);
+    }
+
+    private TapTable setPartitionInfo(List<String> type, TapTable tapTable) {
+        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+        if (!(null == nameFieldMap || nameFieldMap.isEmpty())) {
+            nameFieldMap.forEach((name, field) -> {
+                field.setComment(null != name && type.contains(name.trim()) ?
+                        TDSqlDiscoverSchema.PARTITION_KEY_SINGLE :
+                        TDSqlDiscoverSchema.PARTITION_KEY_SINGLE_NOT);
+            });
+        }
+        return tapTable;
     }
 
     private void query(TapConnectorContext tapConnectorContext, TapAdvanceFilter tapAdvanceFilter, TapTable tapTable, Consumer<FilterResults> consumer) {
@@ -429,7 +503,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
                 batchSize = tapAdvanceFilter.getBatchSize();
             }
             int finalBatchSize = batchSize;
-            this.mysqlReader.readWithFilter(tapConnectorContext, tapTable, tapAdvanceFilter, n -> !isAlive(), data -> {
+            this.tdSqlReader.readWithFilter(tapConnectorContext, tapTable, tapAdvanceFilter, n -> !isAlive(), data -> {
                 filterResults.add(data);
                 if (filterResults.getResults().size() == finalBatchSize) {
                     consumer.accept(filterResults);
@@ -459,7 +533,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
                 throw new RuntimeException("Get create index sql failed, message: " + e.getMessage(), e);
             }
             try {
-                this.mysqlJdbcContext.execute(createIndexSql);
+                this.tdSqlJdbcContext.execute(createIndexSql);
             } catch (Throwable e) {
                 // mysql index  less than  3072 bytes。
                 if (e.getMessage() != null && e.getMessage().contains("42000 1071")) {
@@ -472,7 +546,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
     }
 
     private List<TapIndex> queryExistIndexes(String database, String tableName) {
-        MysqlSchemaLoader mysqlSchemaLoader = new MysqlSchemaLoader(mysqlJdbcContext);
+        MysqlSchemaLoader mysqlSchemaLoader = new MysqlSchemaLoader(tdSqlJdbcContext);
         try {
             return mysqlSchemaLoader.discoverIndexes(database, tableName);
         } catch (Throwable throwable) {
@@ -482,7 +556,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
 
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-        MysqlSchemaLoader mysqlSchemaLoader = new TDSqlDiscoverSchema(mysqlJdbcContext);
+        MysqlSchemaLoader mysqlSchemaLoader = new TDSqlDiscoverSchema(tdSqlJdbcContext);
         mysqlSchemaLoader.discoverSchema(tables, consumer, tableSize);
     }
 
@@ -491,7 +565,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
         DataMap connectionConfig = connectionContext.getConnectionConfig();
         String database = connectionConfig.getString("database");
         AtomicInteger count = new AtomicInteger(0);
-        this.mysqlJdbcContext.query(String.format("SELECT COUNT(1) count FROM `information_schema`.`TABLES` WHERE TABLE_SCHEMA='%s' AND TABLE_TYPE='BASE TABLE'", database), rs -> {
+        this.tdSqlJdbcContext.query(String.format("SELECT COUNT(1) count FROM `information_schema`.`TABLES` WHERE TABLE_SCHEMA='%s' AND TABLE_TYPE='BASE TABLE'", database), rs -> {
             if (rs.next()) {
                 count.set(Integer.parseInt(rs.getString("count")));
             }
@@ -512,7 +586,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
         String minSql = selectSql.replaceFirst("SELECT \\* FROM", String.format("SELECT MIN(`%s`) AS MIN_VALUE FROM", fieldName));
         AtomicReference<Object> minObj = new AtomicReference<>();
         try {
-            mysqlJdbcContext.query(minSql, rs -> {
+            tdSqlJdbcContext.query(minSql, rs -> {
                 if (rs.next()) {
                     minObj.set(rs.getObject("MIN_VALUE"));
                 }
@@ -525,7 +599,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
         String maxSql = selectSql.replaceFirst("SELECT \\* FROM", String.format("SELECT MAX(`%s`) AS MAX_VALUE FROM", fieldName));
         AtomicReference<Object> maxObj = new AtomicReference<>();
         try {
-            mysqlJdbcContext.query(maxSql, rs -> {
+            tdSqlJdbcContext.query(maxSql, rs -> {
                 if (rs.next()) {
                     maxObj.set(rs.getObject("MAX_VALUE"));
                 }
@@ -557,7 +631,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
     }
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
-        MysqlSchemaLoader mysqlSchemaLoader = new MysqlSchemaLoader(mysqlJdbcContext);
+        MysqlSchemaLoader mysqlSchemaLoader = new MysqlSchemaLoader(tdSqlJdbcContext);
         mysqlSchemaLoader.getTableNames(tapConnectionContext, batchSize, listConsumer);
     }
 
@@ -569,7 +643,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
         for (String sql : sqls) {
             try {
                 TapLogger.info(TAG, "Execute ddl sql: " + sql);
-                mysqlJdbcContext.execute(sql);
+                tdSqlJdbcContext.execute(sql);
             } catch (Throwable e) {
                 throw new RuntimeException("Execute ddl sql failed: " + sql + ", error: " + e.getMessage(), e);
             }
@@ -578,7 +652,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
 
     private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long startTime) throws Throwable {
         if (null == startTime) {
-            return this.mysqlJdbcContext.readBinlogPosition();
+            return this.tdSqlJdbcContext.readBinlogPosition();
         }
         return startTime;
     }
