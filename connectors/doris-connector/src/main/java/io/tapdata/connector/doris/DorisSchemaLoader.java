@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import io.tapdata.connector.doris.bean.DorisConfig;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
@@ -14,7 +15,9 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.kit.DbKit;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -226,6 +229,68 @@ public class DorisSchemaLoader {
 
             tapTable.add(field);
         });
+    }
+
+    CreateTableOptions createTableV2(TapConnectionContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws Throwable {
+        CreateTableOptions createTableOptions = new CreateTableOptions();
+        TapTable tapTable = tapCreateTableEvent.getTable();
+        String database = dorisContext.getDorisConfig().getDatabase();
+        final String tableName = tapTable.getName();
+        Collection<String> primaryKeys = tapTable.primaryKeys(true);
+        Connection connection = dorisContext.getConnection();
+        try (
+                Statement statement = connection.createStatement();
+                ResultSet resultSet = queryOneTable(statement, database, tableName)
+        ) {
+            if (resultSet.next()) {
+                createTableOptions.setTableExists(true);
+                return createTableOptions;
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Check table exists failed | Error: " + e.getMessage(), e);
+        }
+        String sql;
+        Integer replicationNum = tapConnectorContext.getNodeConfig().getInteger("replicationNum");
+        if (CollectionUtils.isEmpty(primaryKeys)) {
+            List<String> duplicateKey = (List<String>) tapConnectorContext.getNodeConfig().getObject("duplicateKey");
+            List<String> distributedKey = (List<String>) tapConnectorContext.getNodeConfig().getObject("distributedKey");
+            //append mode
+            if(EmptyKit.isEmpty(duplicateKey)) {
+                Collection<String> allColumns = tapTable.getNameFieldMap().keySet();
+                sql = "CREATE TABLE IF NOT EXISTS " + tableName +
+                        "(" + DDLInstance.buildColumnDefinition(tapTable) + ") " +
+                        "UNIQUE KEY (" + DDLInstance.buildDistributedKey(allColumns) + " ) " +
+                        "DISTRIBUTED BY HASH(" + DDLInstance.buildDistributedKey(allColumns) + " ) BUCKETS 16 " +
+                        "PROPERTIES(\"replication_num\" = \"" +
+                        replicationNum.toString() +
+                        "\")";
+            } else {
+                sql = "CREATE TABLE IF NOT EXISTS " + tableName +
+                        "(" + DDLInstance.buildColumnDefinition(tapTable) + ") " +
+                        "DUPLICATE KEY (" + String.join(",", duplicateKey) + " ) " +
+                        "DISTRIBUTED BY HASH(" + String.join(",", distributedKey) + " ) BUCKETS 16 " +
+                        "PROPERTIES(\"replication_num\" = \"" +
+                        replicationNum.toString() +
+                        "\")";
+            }
+        } else {
+            sql = "CREATE TABLE IF NOT EXISTS " + tableName +
+                    "(" + DDLInstance.buildColumnDefinition(tapTable) + ") " +
+                    "UNIQUE KEY (" + DDLInstance.buildDistributedKey(primaryKeys) + " ) " +
+                    "DISTRIBUTED BY HASH(" + DDLInstance.buildDistributedKey(primaryKeys) + " ) BUCKETS 16 " +
+                    "PROPERTIES(\"replication_num\" = \"" +
+                    replicationNum.toString() +
+                    "\")";
+        }
+        createTableOptions.setTableExists(false);
+
+        try {
+            TapLogger.info(TAG, "Create table: " + tableName + " | Sql: " + sql);
+            dorisContext.execute(sql);
+            return createTableOptions;
+        } catch (Exception e) {
+            throw new RuntimeException("Create Table " + tableName + " Failed | Error: " + e.getMessage() + " | Sql: " + sql, e);
+        }
     }
 
     public void createTable(final TapTable tapTable) {
