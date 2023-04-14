@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition;
 
+import cn.hutool.crypto.digest.MD5;
 import io.tapdata.entity.codec.impl.utils.AnyTimeToDateTime;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
@@ -13,11 +14,10 @@ import io.tapdata.entity.schema.type.TapDateTime;
 import io.tapdata.entity.schema.type.TapTime;
 import io.tapdata.entity.schema.type.TapYear;
 import io.tapdata.entity.simplify.pretty.TypeHandlers;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.ObjectSerializable;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static io.tapdata.entity.simplify.TapSimplify.map;
 
@@ -71,15 +71,30 @@ public class PartitionFieldParentHandler {
 	}
 	protected Map<String, Object> getKeyFromData(Map<String, Object> before, Map<String, Object> after) {
 		Map<String, Object> map = map();
-		if(before != null) {
-			for(String field : partitionFields) {
-				map.put(field, before.get(field));
-			}
-		} else if(after != null) {
-			for(String field : partitionFields) {
-				map.put(field, after.get(field));
-			}
-		}
+        if(partitionFields == null || partitionFields.isEmpty()) {
+            Map<String, Object> data = null;
+            if(before != null) {
+                data = before;
+            } else if(after != null) {
+                data = after;
+            }
+            if(data != null) {
+                TreeMap<String, Object> sortMap = new TreeMap<>(String::compareTo) ;
+                sortMap.putAll(data);
+                String md5 = MD5.create().digestHex(InstanceFactory.instance(ObjectSerializable.class).fromObject(sortMap));
+                map.put("md5", md5);
+            }
+        } else {
+            if(before != null) {
+                for(String field : partitionFields) {
+                    map.put(field, before.get(field));
+                }
+            } else if(after != null) {
+                for(String field : partitionFields) {
+                    map.put(field, after.get(field));
+                }
+            }
+        }
 		return map;
 	}
 
