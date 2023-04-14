@@ -134,22 +134,26 @@ public class PostgresJdbcContext extends JdbcContext {
                     "        where relname = t.table_name)\n" +
                     "FROM information_schema.tables t WHERE t.table_type='BASE TABLE' and t.table_catalog='%s' AND t.table_schema='%s' %s ORDER BY t.table_name";
     private final static String PG_ALL_COLUMN =
-            "SELECT col.*, d.description,\n" +
+            "SELECT col.*,\n" +
+                    "       (SELECT max(d.description)\n" +
+                    "        FROM pg_catalog.pg_class c,\n" +
+                    "             pg_description d\n" +
+                    "        WHERE c.relname = col.table_name\n" +
+                    "          AND d.objoid = c.oid\n" +
+                    "          AND d.objsubid = col.ordinal_position) AS \"description\",\n" +
                     "       (SELECT pg_catalog.format_type(a.atttypid, a.atttypmod) AS \"dataType\"\n" +
                     "        FROM pg_catalog.pg_attribute a\n" +
                     "        WHERE a.attnum > 0\n" +
                     "          AND a.attname = col.column_name\n" +
                     "          AND NOT a.attisdropped\n" +
                     "          AND a.attrelid =\n" +
-                    "              (SELECT max(cl.oid)\n" +
+                    "              (SELECT cl.oid\n" +
                     "               FROM pg_catalog.pg_class cl\n" +
-                    "                        LEFT JOIN pg_catalog.pg_namespace n ON n.oid = cl.relnamespace\n" +
                     "               WHERE cl.relname = col.table_name))\n" +
                     "FROM information_schema.columns col\n" +
-                    "         JOIN pg_class c ON c.relname = col.table_name\n" +
-                    "         LEFT JOIN pg_description d ON d.objoid = c.oid AND d.objsubid = col.ordinal_position\n" +
-                    "WHERE col.table_catalog='%s' AND col.table_schema='%s' %s\n" +
-                    "ORDER BY col.table_name,col.ordinal_position";
+                    "WHERE col.table_catalog = '%s'\n" +
+                    "  AND col.table_schema = '%s' %s\n" +
+                    "ORDER BY col.table_name, col.ordinal_position";
     private final static String PG_ALL_INDEX =
             "SELECT\n" +
                     "    t.relname AS table_name,\n" +

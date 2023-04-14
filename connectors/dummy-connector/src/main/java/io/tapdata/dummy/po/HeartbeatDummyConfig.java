@@ -16,13 +16,13 @@ public class HeartbeatDummyConfig extends DummyConfig {
     public HeartbeatDummyConfig(DataMap config) {
         super(config);
         this.connId = config.getString("connId");
-        if (null == this.connId) {
-            throw new IllegalArgumentException("connection config.connId is null");
-        }
     }
 
     @Override
     public TapEventBuilder getTapEventBuilder() {
+        if (null == connId) {
+            return new TapEventBuilder();
+        }
         return new TapEventBuilder(data -> data.put("id", connId));
     }
 

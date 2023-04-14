@@ -65,6 +65,7 @@ public class SelectDbJdbcContext extends JdbcContext {
                     map.put("URL",resultSet.getString("URL"));
                     map.put("CreateTime",resultSet.getString("CreateTime"));
                     map.put("State",resultSet.getString("State"));
+                    map.put("Progress",resultSet.getString("Progress"));
                 }
             });
         }catch (Throwable e){
