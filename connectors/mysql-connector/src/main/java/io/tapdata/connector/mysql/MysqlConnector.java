@@ -396,10 +396,6 @@ public class MysqlConnector extends ConnectorBase {
 
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offset, int batchSize, BiConsumer<List<TapEvent>, Object> consumer) throws Throwable {
         MysqlSnapshotOffset mysqlSnapshotOffset;
-        if (1 == 1) {
-            MySQLTimeoutException mySQLTimeoutException = new MySQLTimeoutException("test", "123");
-            throw new TapPdkTerminateByServerEx(tapConnectorContext.getSpecification().getId(), mySQLTimeoutException);
-        }
         if (offset instanceof MysqlSnapshotOffset) {
             mysqlSnapshotOffset = (MysqlSnapshotOffset) offset;
         } else {
