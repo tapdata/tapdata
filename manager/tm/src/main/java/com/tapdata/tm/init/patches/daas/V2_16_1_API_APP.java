@@ -36,7 +36,7 @@ public class V2_16_1_API_APP extends AbsPatch {
         logger.info("Execute java patch: {}...", getClass().getName());
         MongoTemplate mongoTemplate = SpringContextHelper.getBean(MongoTemplate.class);
 
-        Criteria criteria1 = Criteria.where("value").is("default_app_api")
+        Criteria criteria1 = Criteria.where("value").is("Default")
                 .and("readOnly").is(true)
                 .and("itemType").is("app");
         MetadataDefinitionEntity metadataDefinition = mongoTemplate.findOne(new Query(criteria1), MetadataDefinitionEntity.class);

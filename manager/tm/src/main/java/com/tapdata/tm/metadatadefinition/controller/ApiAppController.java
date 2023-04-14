@@ -78,6 +78,7 @@ public class ApiAppController extends BaseController {
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping("{id}")
     public ResponseMessage<MetadataDefinitionDto> updateById(@PathVariable("id") String id, @RequestBody MetadataDefinitionDto metadataDefinition) {
+        metadataDefinition.setId(MongoUtils.toObjectId(id));
         return success(apiAppService.updateById(MongoUtils.toObjectId(id), metadataDefinition, getLoginUser()));
     }
 
