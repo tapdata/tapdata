@@ -221,7 +221,7 @@ public class TDengineConnector extends ConnectorBase {
         else {
             tdengineOffset = (TDengineOffset) offset;
         }
-        String sql = String.format("SELECT * FROM %s.%s LIMIT %s OFFSET %s", tdengineConfig.getDatabase(), tapTable.getId(), batchSize, tdengineOffset.getOffsetValue());
+        String sql = String.format("SELECT * FROM %s.%s OFFSET %s", tdengineConfig.getDatabase(), tapTable.getId(), tdengineOffset.getOffsetValue());
         tdengineJdbcContext.query(sql, resultSet -> {
             List<TapEvent> tapEvents = list();
             //get all column names

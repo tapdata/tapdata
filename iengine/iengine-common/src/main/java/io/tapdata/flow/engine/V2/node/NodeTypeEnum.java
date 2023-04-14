@@ -38,6 +38,8 @@ public enum NodeTypeEnum {
 
 	TABLE_RENAME_PROCESSOR("table_rename_processor"),
 	MIGRATE_FIELD_RENAME_PROCESSOR("migrate_field_rename_processor"),
+	MIGRATE_DATE_PROCESSOR("migrate_date_processor"),
+	DATE_PROCESSOR("date_processor"),
 	;
 
 	public final String type;

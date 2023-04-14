@@ -38,6 +38,7 @@ import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.MigrateDateProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
@@ -64,12 +65,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskSourceAndTarge
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskTarget;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastVirtualTargetNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcessor;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastJavaScriptProcessorNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMigrateFieldRenameProcessorNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastRenameTableProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -249,6 +245,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
                         && !(node instanceof HazelCastImdgNode)
                         && !(node instanceof TableRenameProcessNode)
                         && !(node instanceof MigrateFieldRenameProcessorNode)
+                        && !(node instanceof MigrateDateProcessorNode)
                         && !(node instanceof VirtualTargetNode)
                         && !StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)
                 ) {
@@ -648,6 +645,20 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
                 break;
             case AGGREGATION_PROCESSOR:
                 hazelcastNode = new HazelcastMultiAggregatorProcessor(
+                        DataProcessorContext.newBuilder()
+                                .withTaskDto(taskDto)
+                                .withNode(node)
+                                .withNodes(nodes)
+                                .withEdges(edges)
+                                .withConfigurationCenter(config)
+                                .withTapTableMap(tapTableMap)
+                                .withTaskConfig(taskConfig)
+                                .build()
+                );
+                break;
+            case DATE_PROCESSOR:
+            case MIGRATE_DATE_PROCESSOR:
+                hazelcastNode = new HazelcastDateProcessorNode(
                         DataProcessorContext.newBuilder()
                                 .withTaskDto(taskDto)
                                 .withNode(node)
