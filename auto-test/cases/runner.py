@@ -114,11 +114,12 @@ def run_jobs(test_case, run_params_template):
             logger.error("wait job running timeout: {} seconds, will skip it", int(time.time() - s))
             return False
 
-        if not wait_job_initial(p, timeout):
-            return False
+        if p.job.setting.get("type") != "cdc":
+            if not wait_job_initial(p, timeout):
+                return False
 
         cdc_result = True
-        if p.job.setting.get("type") == "initial_sync+cdc":
+        if p.job.setting.get("type") in ["initial_sync+cdc", "cdc"]:
             cdc_result = test_cdc(p, run_param)
 
         stop_and_clean(p)
@@ -248,6 +249,7 @@ def run_jobs(test_case, run_params_template):
         if args.clean:
             logger.info("cleaning job: {}", p.job.name)
             p.delete()
+        time.sleep(5)  # wait 5 seconds, Wait for the job to stop gracefully
 
     def manual_check(test_case, run_param):
         if "check" not in test_case.__dict__:
