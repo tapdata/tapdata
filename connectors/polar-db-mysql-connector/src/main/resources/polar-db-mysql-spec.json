@@ -284,7 +284,7 @@
     },
     "varbinary[($byte)]": {
       "to": "TapBinary",
-      "byte": 65532,
+      "byte": 65524,
       "defaultByte": 1
     },
     "tinyblob": {
