@@ -20,6 +20,7 @@ public interface PDKExCode_10 {
 					"2. 服务端连接数过多，自动关闭或者拒绝了后续连接。",
 			solution = "",
 			solutionCN = "",
+			recoverable = true,
 			seeAlso = {"https://docs.tapdata.io/enterprise/user-guide/connect-database/"}
 	)
 	String TERMINATE_BY_SERVER = "10001";

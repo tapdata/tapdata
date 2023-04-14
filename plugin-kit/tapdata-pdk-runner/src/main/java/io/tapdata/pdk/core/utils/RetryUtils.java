@@ -70,7 +70,7 @@ public class RetryUtils extends CommonUtils {
 					case WHEN_NEED:
 						if (null == errorHandleFunction) {
 							TapLogger.debug(logTag, "This PDK data source not support retry. ");
-							errorHandle(errThrowable);
+							wrapAndThrowError(errThrowable);
 						}
 						break;
 					case ALWAYS:
@@ -86,7 +86,7 @@ public class RetryUtils extends CommonUtils {
 						throwIfNeed(retryOptions, message, errThrowable);
 					}
 					Optional.ofNullable(invoker.getLogListener())
-							.ifPresent(log -> log.warn(String.format("AutoRetry info: retry times (%s) | periodSeconds (%s s) | error [%s] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage(), errThrowable)));
+							.ifPresent(log -> log.warn(String.format("AutoRetry info: retry times (%s) | periodSeconds (%s s) | error [%s] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage())));
 					invoker.setRetryTimes(retryTimes - 1);
 					if (async) {
 						ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> autoRetry(node, method, invoker), retryPeriodSeconds, TimeUnit.SECONDS);
@@ -105,13 +105,13 @@ public class RetryUtils extends CommonUtils {
 						invoker.getStartRetry().run();
 					}
 				} else {
-					errorHandle(errThrowable);
+					wrapAndThrowError(errThrowable);
 				}
 			}
 		}
 	}
 
-	private static void errorHandle(Throwable errThrowable) {
+	private static void wrapAndThrowError(Throwable errThrowable) {
 		Throwable matchThrowable = CommonUtils.matchThrowable(errThrowable, TapCodeException.class);
 		if (null != matchThrowable) {
 			throw (TapCodeException) matchThrowable;
@@ -149,7 +149,7 @@ public class RetryUtils extends CommonUtils {
 				throw errThrowable;
 			}
 		} catch (Throwable e) {
-			errorHandle(e);
+			wrapAndThrowError(e);
 		}
 	}
 
