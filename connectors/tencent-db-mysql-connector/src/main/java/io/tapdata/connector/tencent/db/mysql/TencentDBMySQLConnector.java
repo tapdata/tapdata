@@ -31,6 +31,8 @@ import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.kit.DbKit;
 import io.tapdata.partition.DatabaseReadPartitionSplitter;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
@@ -286,6 +288,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
     private ExecutorService sourceConsumer;
     private final Object binlogLock = new Object();
     private final AtomicBoolean binlogFlag = new AtomicBoolean(true);
+    private Throwable streamReadFailed = null;
 
     private void streamRead(TapConnectorContext tapConnectorContext, List<String> tables, Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
 //        mysqlJdbcContext.execute("/*proxy*/ set binlog_dump_sticky_backend=set_1681181636_1");
@@ -307,8 +310,9 @@ public class TencentDBMySQLConnector extends MysqlConnector {
                         synchronized (binlogFlag) {
                             binlogFlag.set(false);
                         }
-                        throwable.printStackTrace();
-                        tapConnectorContext.getLog().error(TAG, "Binary Log partition {} has Stoped. Stop reason: {}.", key, throwable.getMessage());
+                        streamReadFailed = throwable;
+//                        throwable.printStackTrace();
+                        tapConnectorContext.getLog().error(TAG, "Binary Log partition {} has Stoped. Stop reason: {}.", key, InstanceFactory.instance(TapUtils.class).getStackTrace(throwable));
                     });
                     try {
                         value.readBinlog(
@@ -351,6 +355,8 @@ public class TencentDBMySQLConnector extends MysqlConnector {
             }
         }
         //mysqlReader.readBinlog(tapConnectorContext, tables, offset, batchSize, DDLParserType.MYSQL_CCJ_SQL_PARSER, consumer);
+        if(streamReadFailed != null)
+            throw new CoreException(TDSQLErrors.STREAM_READ_FAILED, streamReadFailed, "stream read occurred error {}", streamReadFailed.getMessage());
     }
 
     private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
@@ -613,13 +619,22 @@ public class TencentDBMySQLConnector extends MysqlConnector {
 
     protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
         RetryOptions retryOptions = RetryOptions.create();
-        retryOptions.setNeedRetry(true);
-        retryOptions.beforeRetryMethod(() -> {
-            try {
-                this.onStart(tapConnectionContext);
-            } catch (Throwable ignore) {
+        if(throwable instanceof CoreException) {
+            switch (((CoreException) throwable).getCode()) {
+                case TDSQLErrors.STREAM_READ_FAILED:
+                    retryOptions.needRetry(false);
+                    break;
+                default:
+                    retryOptions.setNeedRetry(true);
+                    retryOptions.beforeRetryMethod(() -> {
+                        try {
+                            this.onStart(tapConnectionContext);
+                        } catch (Throwable ignore) {
+                        }
+                    });
+                    break;
             }
-        });
+        }
         return retryOptions;
     }
 
