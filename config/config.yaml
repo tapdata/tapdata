@@ -1,0 +1,74 @@
+env:
+  server: "139.198.127.204:30330"
+  access_token: "12bbc8149f6e4f87af07946214c231fb97a1105634ed490a8eb7618b7f7a1061"
+
+qa_mongodb:
+  connector: "mongodb"
+  uri: "mongodb://root:Gotapd8!@139.198.127.204:32550/qa2?authSource=admin"
+  __core: true
+  __type: ["source", "sink", "cdc"]
+
+qa_mysql:
+  connector: "mysql"
+  host: "139.198.127.226"
+  port: 32409
+  username: "root"
+  password: "Gotapd8!"
+  database: "tapdata"
+  __core: true
+  __type: ["source", "sink", "cdc"]
+
+qa_postgres:
+  connector: "postgresql"
+  logPluginName: "wal2json"
+  host: "139.198.127.226"
+  port: 30138
+  database: "postgres"
+  schema: "public"
+  user: "root"
+  password: "Gotapd8#"
+  __core: true
+  __type: ["source", "sink", "cdc"]
+
+qa_sqlserver:
+  connector: "sql server"
+  host: "139.198.127.226"
+  port: 31930
+  schema: "dbo"
+  user: "sa"
+  password: "Gotapd8!"
+  database: "TAPDATA"
+  __core: true
+  __type: ["source", "sink", "cdc"]
+
+#qa_oracle:
+#  connector: "oracle"
+#  host: "139.198.127.226"
+#  port: 32394
+#  schema: "C##TAPDATA"
+#  user: "C##tapdata"
+#  password: "family"
+#  sid: "lhrcdb1"
+#  __core: true
+#  __type: ["source", "sink", "cdc"]
+
+qa_clickhouse:
+  connector: "clickhouse"
+  host: "139.198.127.226"
+  port: 31394
+  database: "default"
+  user: "default"
+  password: "Gotapd8!"
+  __core: true
+  __type: ["sink"]
+
+qa_kafka:
+  connector: "kafka"
+  nameSrvAddr: "139.198.127.226:32761"
+  __core: true
+  __type: ["source", "sink", "cdc"]
+
+qa_dummy:
+  connector: "dummy"
+  table_name: "dummy_test1"
+  __type: ["sink"]

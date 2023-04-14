@@ -1,0 +1,7 @@
+logs/
+/reports/
+.idea
+.pytest*/
+.pycharm*/
+/practice*/
+__pycache__/

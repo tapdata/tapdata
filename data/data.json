@@ -1,0 +1,38 @@
+{
+  "job_info": [
+    {
+      "name": str,
+      "dag": {
+        "node": {
+          "source": [
+            {
+              "db_type": str,
+            },
+          ],
+          "target": [
+            {
+              "db_type": str,
+            }
+          ],
+          "processing": [
+            {
+              "type": str
+            }
+          ]
+        }
+      },
+      "test_res": {
+        "table_fields": str,
+        "row_num": str,
+        "sync_type": str,
+        "metrics": {
+          "qps": str,
+          "cpu": str,
+          "mem": str,
+          "processing_time": str,
+          "incremental_delay": str
+        }
+      }
+    }
+  ]
+}
