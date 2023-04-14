@@ -43,6 +43,11 @@ public class V2_14_5_DatabaseTypes extends AbsPatch {
         MongoTemplate mongoTemplate = SpringContextHelper.getBean(MongoTemplate.class);
         GridFsTemplate gridFsTemplate = SpringContextHelper.getBean(GridFsTemplate.class);
 
+        long count = mongoTemplate.count(new Query(), collectionName);
+        if (count == 0) {
+            return;
+        }
+
         //bak
         OutOperation outOperation = new OutOperation("DatabaseTypes_bak_2_14");
         mongoTemplate.aggregate(Aggregation.newAggregation(outOperation), collectionName, BasicDBObject.class);

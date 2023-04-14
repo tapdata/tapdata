@@ -2,6 +2,7 @@ package com.tapdata.tm.monitor.service;
 
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUtil;
+import cn.hutool.core.math.MathUtil;
 import com.mongodb.client.result.DeleteResult;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
@@ -25,13 +26,13 @@ import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.TimeUtil;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.common.sample.request.SampleRequest;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -50,11 +51,16 @@ import java.util.stream.Collectors;
 
 @Service
 @Slf4j
-@Setter(onMethod_ = {@Autowired})
 public class MeasurementServiceV2 {
-    private MongoTemplate mongoOperations;
-    private MetadataInstancesService metadataInstancesService;
-    private TaskService taskService;
+    private final MongoTemplate mongoOperations;
+    private final MetadataInstancesService metadataInstancesService;
+    private final TaskService taskService;
+
+    public MeasurementServiceV2(@Qualifier(value = "obsMongoTemplate") MongoTemplate mongoOperations, MetadataInstancesService metadataInstancesService, TaskService taskService) {
+        this.mongoOperations = mongoOperations;
+        this.metadataInstancesService = metadataInstancesService;
+        this.taskService = taskService;
+    }
 
     public List<MeasurementEntity> find(Query query) {
         return mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
@@ -69,7 +75,6 @@ public class MeasurementServiceV2 {
         DateTime date = DateUtil.date();
         for (SampleRequest singleSampleRequest : sampleRequestList) {
             Criteria criteria = Criteria.where(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
-            Criteria beforeCriteria = Criteria.where(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
 
             Map<String, String> tags = singleSampleRequest.getTags();
             if (null == tags || 0 == tags.size()) {
@@ -83,38 +88,10 @@ public class MeasurementServiceV2 {
 
             for (Map.Entry<String, String> entry : tags.entrySet()) {
                 criteria.and(MeasurementEntity.FIELD_TAGS + "." + entry.getKey()).is(entry.getValue());
-                beforeCriteria.and(MeasurementEntity.FIELD_TAGS + "." + entry.getKey()).is(entry.getValue());
             }
 
             Date second = TimeUtil.cleanTimeAfterSecond(date);
-            // 补充数据
-            beforeCriteria.and("date").lte(second);
-            Query beforeQuery = Query.query(beforeCriteria);
-            beforeQuery.limit(1);
-            MeasurementEntity before = mongoOperations.findOne(beforeQuery, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
             AtomicReference<Sample> requestSample = new AtomicReference<>(singleSampleRequest.getSample());
-            Optional.ofNullable(before).ifPresent(
-                    bf -> {
-                        Sample sample = bf.getSamples().stream().findFirst().orElse(null);
-                        Optional.ofNullable(sample).ifPresent(
-                                samp -> {
-                                    Map<String, Number> vs = samp.getVs();
-                                    Optional.ofNullable(vs).ifPresent(
-                                            vvs -> {
-                                                Map<String, Number> numberMap = requestSample.get().getVs();
-                                                vvs.forEach((key, value) -> {
-                                                    if (numberMap.containsKey(key) && Objects.isNull(numberMap.get(key)) && Objects.nonNull(value)) {
-                                                        requestSample.get().getVs().put(key, value);
-                                                    }
-                                                });
-                                                requestSample.set(supplyKeyData(requestSample.get(), vvs, numberMap));
-                                            }
-                                    );
-                                }
-                        );
-                    }
-            );
-
 
             Query query = Query.query(criteria);
             requestSample.get().setDate(second);
@@ -175,22 +152,18 @@ public class MeasurementServiceV2 {
             return ret;
         }
 
-        long initialStart = measurementQueryParam.getStartAt();
-        long initialEnd = measurementQueryParam.getEndAt();
-
         boolean hasTimeline = false;
         List<Long> timeline = null;
         Long timelineInterval = null;
+        long start = measurementQueryParam.getStartAt();
+        long end = measurementQueryParam.getEndAt();
         for(String unique : measurementQueryParam.getSamples().keySet()) {
             data.putIfAbsent(unique, new ArrayList<>());
             List<Map<String, Object>> uniqueData = data.get(unique);
             MeasurementQueryParam.MeasurementQuerySample querySample = measurementQueryParam.getSamples().get(unique);
-            long start = null != querySample.getStartAt() ? querySample.getStartAt() : initialStart;
-            long end = null != querySample.getEndAt() ? querySample.getEndAt() : initialEnd;
             switch (querySample.getType()) {
                 case MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT:
-                    String type = start == end ? INSTANT_PADDING_RIGHT : INSTANT_PADDING_LEFT_AND_RIGHT;
-                    Map<String, Sample> instantSamples = getInstantSamples(querySample, type, start, end);
+                    Map<String, Sample> instantSamples = getInstantSamples(querySample, INSTANT_PADDING_LEFT_AND_RIGHT, start, end);
                     uniqueData.addAll(formatSingleSamples(instantSamples));
                     break;
                 case MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_DIFFERENCE:
@@ -291,7 +264,7 @@ public class MeasurementServiceV2 {
      * @param end time
      * @return Map
      */
-    private Map<String, Sample> getInstantSamples(MeasurementQueryParam.MeasurementQuerySample querySample, String padding, long start, long end) {
+    private Map<String, Sample> getInstantSamples(MeasurementQueryParam.MeasurementQuerySample querySample, String padding, Long start, Long end) {
         List<String> fields = querySample.getFields();
         Map<String, Sample> data = new HashMap<>();
         if (!StringUtils.equalsAny(querySample.getType(),
@@ -300,43 +273,67 @@ public class MeasurementServiceV2 {
             return data;
         }
 
-        Date startDate = TimeUtil.cleanTimeAfterMinute(new Date(start));
-        Date endDate = TimeUtil.cleanTimeAfterMinute(new Date(end));
         Criteria criteria = Criteria.where(MeasurementEntity.FIELD_DATE);
-        SortOperation sort;
-        long time;
-        switch (padding) {
-            case INSTANT_PADDING_LEFT:
-                criteria = criteria.gte(startDate);
-                time = start;
-                sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).ascending());
-                break;
-            case INSTANT_PADDING_RIGHT:
-                criteria = criteria.lte(endDate);
-                time = end;
-                sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).descending());
-                break;
-            default:
-                criteria = criteria.gte(startDate).lte(endDate);
-                time = end;
-                sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).descending());
-                break;
-
-        }
-        criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
 
         boolean typeIsTask = false;
         boolean typeIsEngine = false;
+        String taskId = "";
         for (Map.Entry<String, String> entry : querySample.getTags().entrySet()) {
             String format = String.format(TAG_FORMAT, entry.getKey());
             String value = entry.getValue();
             criteria.and(format).is(value);
-            if (format.equals("tags.type") && "task".equals(value)) {
-                typeIsTask = true;
+            if (format.equals("tags.type")) {
+                if ("task".equals(value)) {
+                    typeIsTask = true;
+                } else if ("engine".equals(value)) {
+                    typeIsEngine = true;
+                }
             }
-            if (format.equals("tags.type") && "engine".equals(value)) {
-                typeIsEngine = true;
+            if (format.equals("tags.taskId")) {
+                taskId = value;
             }
+        }
+
+        AtomicReference<Date> startDate = new AtomicReference<>();
+        AtomicReference<Date>  endDate = new AtomicReference<>();
+        if (start != null) {
+            startDate.set(new Date(start));
+        }
+        if (end != null) {
+            endDate.set(new Date(end));
+        }
+
+        if (typeIsTask && StringUtils.isNotBlank(taskId) && (ObjectUtils.anyNull(start, end) || Objects.equals(start, end))) {
+            TaskDto taskDto = taskService.findByTaskId(new ObjectId(taskId), "scheduledTime","runningTime", "errorTime", "stopTime", "finishTime", "status");
+            Optional.ofNullable(taskDto).ifPresent(task -> {
+                LinkedList<Date> collect = Lists.newArrayList(task.getScheduledTime(), task.getRunningTime(), task.getErrorTime(), task.getStopTime(), task.getFinishTime()).stream()
+                        .filter(Objects::nonNull)
+                        .sorted()
+                        .collect(Collectors.toCollection(LinkedList::new));
+
+                if (start == null || Objects.equals(start, end)) {
+                    startDate.set(TimeUtil.cleanTimeAfterMinute(collect.getFirst()));
+                }
+                if (end == null) {
+                    endDate.set(TimeUtil.cleanTimeAfterMinute(collect.getLast()));
+                }
+            });
+        }
+
+        if (ObjectUtils.anyNull(startDate.get(), endDate.get())) {
+            log.error("date value error!");
+        }
+
+        criteria = criteria.gte(startDate.get()).lte(endDate.get());
+        criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
+        SortOperation sort;
+        long time;
+        if (padding.equals(INSTANT_PADDING_LEFT)) {
+            time = startDate.get().getTime();
+            sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).ascending());
+        } else {
+            time = endDate.get().getTime();
+            sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).descending());
         }
 
         MatchOperation match = Aggregation.match(criteria);
@@ -372,10 +369,6 @@ public class MeasurementServiceV2 {
             }
         }
 
-//        Number snapshotStartAtTemp = null;
-//        if (typeIsTask && MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT.equals(querySample.getType())) {
-//            snapshotStartAtTemp = getSnapshotStartAt(querySample);
-//        }
         for (String hash : data.keySet()) {
             Sample sample = data.get(hash);
 
@@ -386,13 +379,6 @@ public class MeasurementServiceV2 {
                 }
             }
 
-//            Number snapshotRowTotal = values.get("snapshotRowTotal");
-//            Number snapshotInsertRowTotal = values.get("snapshotInsertRowTotal");
-//            if (Objects.nonNull(snapshotRowTotal) && Objects.nonNull(snapshotInsertRowTotal)
-//                    && snapshotInsertRowTotal.longValue() > snapshotRowTotal.longValue()) {
-//                values.put("snapshotRowTotal", snapshotInsertRowTotal);
-//            }
-
             if (typeIsTask && MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT.equals(querySample.getType())) {
                 Number currentEventTimestamp = values.get("currentEventTimestamp");
                 Number snapshotStartAt = values.get("snapshotStartAt");
@@ -402,10 +388,6 @@ public class MeasurementServiceV2 {
                     values.put("replicateLag", maxRep);
                 }
 
-//                Number snapshotDoneAt = values.get("snapshotDoneAt");
-//                if (Objects.nonNull(snapshotDoneAt) && Objects.isNull(snapshotStartAt)) {
-//                    values.put("snapshotStartAt", snapshotStartAtTemp);
-//                }
             }
             sample.setVs(values);
         }
@@ -413,8 +395,10 @@ public class MeasurementServiceV2 {
     }
 
     public Map<String, Sample> getDifferenceSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long start, long end) {
-        Map<String, Sample> endSamples = getInstantSamples(querySample, INSTANT_PADDING_RIGHT, start , end);
-        Map<String, Sample> startSamples = getInstantSamples(querySample, INSTANT_PADDING_LEFT, start , end);
+        long average = (start + end) / 2;
+
+        Map<String, Sample> endSamples = getInstantSamples(querySample, INSTANT_PADDING_LEFT_AND_RIGHT, average , end);
+        Map<String, Sample> startSamples = getInstantSamples(querySample, INSTANT_PADDING_LEFT, start , average);
 
         Map<String, Sample> data = new HashMap<>();
         for (String hash : endSamples.keySet()) {
