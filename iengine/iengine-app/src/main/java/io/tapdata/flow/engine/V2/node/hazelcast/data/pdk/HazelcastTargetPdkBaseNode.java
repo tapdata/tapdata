@@ -30,6 +30,10 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapMapValue;
+import io.tapdata.error.TapEventException;
+import io.tapdata.error.TapdataEventException;
+import io.tapdata.error.TaskTargetProcessorExCode_15;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionConcurrentProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.KeysPartitioner;
@@ -282,7 +286,13 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         } catch (InterruptedException ignored) {
         } catch (Throwable e) {
             executeAspect(WriteErrorAspect.class, () -> new WriteErrorAspect().dataProcessorContext(dataProcessorContext).error(e));
-			errorHandle(e, "Target process failed " + e.getMessage());
+            Throwable throwableWrapper;
+            if (!(e instanceof TapCodeException)) {
+                throwableWrapper = new TapCodeException(TaskTargetProcessorExCode_15.UNKNOWN_ERROR, e);
+            } else {
+                throwableWrapper = e;
+            }
+			errorHandle(throwableWrapper, null);
 		} finally {
 			ThreadContext.clearAll();
 		}
@@ -354,22 +364,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                         }
                     }
                 } catch (Throwable throwable) {
-                    throw new RuntimeException(String.format("Handle events failed: %s", throwable.getMessage()), throwable);
+                    throw new TapdataEventException(TaskTargetProcessorExCode_15.HANDLE_EVENTS_FAILED, throwable).addEvent(tapdataEvent);
                 }
             }
             if (CollectionUtils.isNotEmpty(tapEvents)) {
-                try {
-                    processEvents(tapEvents);
-                } catch (Throwable throwable) {
-                    throw new RuntimeException(String.format("Process events failed: %s", throwable.getMessage()), throwable);
-                }
+                processEvents(tapEvents);
             }
             if (CollectionUtils.isNotEmpty(tapdataShareLogEvents)) {
-                try {
-                    processShareLog(tapdataShareLogEvents);
-                } catch (Throwable throwable) {
-                    throw new RuntimeException(String.format("Process share log failed: %s", throwable.getMessage()), throwable);
-                }
+                processShareLog(tapdataShareLogEvents);
             }
         executeAspect(new CDCHeartbeatWriteAspect().tapdataEvents(tapdataEvents).dataProcessorContext(dataProcessorContext));} finally {
             flushSyncProgressMap(lastDmlTapdataEvent.get());
@@ -623,7 +625,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 }
             }
         } catch (Throwable throwable) {
-            errorHandle(throwable, throwable.getMessage());
+            errorHandle(throwable, null);
         } finally {
             ThreadContext.clearAll();
         }
