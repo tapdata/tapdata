@@ -11,17 +11,9 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.AlterFieldAttributesFuncAspect;
-import io.tapdata.aspect.AlterFieldNameFuncAspect;
-import io.tapdata.aspect.ClearTableFuncAspect;
-import io.tapdata.aspect.CreateIndexFuncAspect;
-import io.tapdata.aspect.CreateTableFuncAspect;
-import io.tapdata.aspect.DropFieldFuncAspect;
-import io.tapdata.aspect.DropTableFuncAspect;
-import io.tapdata.aspect.NewFieldFuncAspect;
-import io.tapdata.aspect.TableInitFuncAspect;
-import io.tapdata.aspect.WriteRecordFuncAspect;
+import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
@@ -44,6 +36,7 @@ import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
 import io.tapdata.pdk.apis.entity.merge.MergeTableProperties;
 import io.tapdata.pdk.apis.functions.PDKMethod;
@@ -627,7 +620,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 											if (null == connectorNode) {
 												throw new NodeException("Node is stopped, need to exit write_record").context(getDataProcessorContext());
 											}
-											writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), tapRecordEvents, tapTable, writeListResult -> {
+
+											Consumer<WriteListResult<TapRecordEvent>> resultConsumer = (writeListResult) -> {
 												Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
 												if (MapUtils.isNotEmpty(errorMap)) {
 													int recordWarnCounter = 1;
@@ -654,7 +648,25 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 												if (logger.isDebugEnabled()) {
 													logger.debug("Wrote {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
 												}
-											});
+											};
+
+											try {
+												writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), tapRecordEvents, tapTable, resultConsumer);
+											} catch (Throwable t) {
+												AspectInterceptResult aspectInterceptResult = AspectUtils.executeAspect(SkipErrorDataAspect.class, () -> new SkipErrorDataAspect()
+														.dataProcessorContext(dataProcessorContext)
+														.tapTable(tapTable)
+														.throwable(t)
+														.tapRecordEvents(tapRecordEvents)
+														.pdkMethodInvoker(pdkMethodInvoker)
+														.writeOneFunction((tapRecordEvent) -> {
+															writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), Collections.singletonList(tapRecordEvent), tapTable, resultConsumer);
+															return null;
+														}));
+												if (null == aspectInterceptResult || !aspectInterceptResult.isIntercepted()) {
+													throw t;
+												}
+											}
 										}
 								)
 						)));

@@ -8,9 +8,8 @@ import io.tapdata.aspect.ProcessorNodeAspect;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.task.AspectTask;
-import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.aspect.*;
-import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.jetbrains.annotations.Nullable;
@@ -134,10 +133,12 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 
 	public synchronized void ensureTaskSessionCreated(TaskStartAspect startAspect) {
 		TaskDto task = startAspect.getTask();
+		Log log = startAspect.getLog();
+
 		String taskId = task.getId().toString();
 		AtomicReference<AspectTaskEx> newRef = new AtomicReference<>();
 		AspectTaskEx theAspectTask = aspectTaskMap.computeIfAbsent(taskId, id -> {
-			AspectTaskEx aspectTask = newAspectTask(task);
+			AspectTaskEx aspectTask = newAspectTask(task, log);
 			newRef.set(aspectTask);
 			return aspectTask;
 		});
@@ -146,7 +147,7 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 					.error(new RuntimeException("Force call stop aspect")));
 
 			aspectTaskMap.computeIfAbsent(taskId, id -> {
-				AspectTaskEx aspectTask = newAspectTask(task);
+				AspectTaskEx aspectTask = newAspectTask(task, log);
 				newRef.set(aspectTask);
 				return aspectTask;
 			});
@@ -185,11 +186,12 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 		}
 	}
 
-	private AspectTaskEx newAspectTask(TaskDto task) {
+	private AspectTaskEx newAspectTask(TaskDto task, Log log) {
 		try {
 			AspectTask aspectTask = taskClass.getConstructor().newInstance();
 			InstanceFactory.injectBean(aspectTask);
 			aspectTask.setTask(task);
+			aspectTask.setLog(log);
 			return new AspectTaskEx(aspectTask);
 		} catch (InstantiationException | IllegalAccessException | InvocationTargetException |
 				 NoSuchMethodException e) {

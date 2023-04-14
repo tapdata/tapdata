@@ -1,5 +1,7 @@
 package io.tapdata.pdk.core.utils;
 
+import io.tapdata.ErrorCodeConfig;
+import io.tapdata.ErrorCodeEntity;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -63,6 +65,15 @@ public class RetryUtils extends CommonUtils {
 				runnable.run();
 				break;
 			} catch (Throwable errThrowable) {
+				if (invoker.isEnableSkipErrorEvent()) {
+					if (errThrowable instanceof TapCodeException) {
+						String code = ((TapCodeException) errThrowable).getCode();
+						ErrorCodeEntity errorCode = ErrorCodeConfig.getInstance().getErrorCode(code);
+						if (errorCode.isSkippable()) {
+							throw (TapCodeException) errThrowable;
+						}
+					}
+				}
 				CommonUtils.FunctionAndContext functionAndContext = CommonUtils.FunctionAndContext.create();
 				CommonUtils.prepareFunctionAndContextForNode(node, functionAndContext);
 				ErrorHandleFunction errorHandleFunction = functionAndContext.errorHandleFunction();
