@@ -597,7 +597,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 														lastErrorTapRecord = tapRecordEventThrowableEntry.getKey();
 														lastErrorThrowable = tapRecordEventThrowableEntry.getValue();
 													}
-													throw new RuntimeException(String.format("Write record %s failed", lastErrorTapRecord), lastErrorThrowable);
+//													throw new RuntimeException(String.format("Write record %s failed", lastErrorTapRecord), lastErrorThrowable);
 												}
 
 													if (writeRecordFuncAspect != null)
