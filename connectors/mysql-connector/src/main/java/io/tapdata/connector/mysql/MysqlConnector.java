@@ -1,5 +1,6 @@
 package io.tapdata.connector.mysql;
 
+import com.mysql.cj.jdbc.exceptions.MySQLTimeoutException;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonDbConfig;
 import io.tapdata.common.SqlExecuteCommandFunction;
@@ -22,6 +23,7 @@ import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.exception.TapPdkTerminateByServerEx;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.partition.DatabaseReadPartitionSplitter;
@@ -394,6 +396,10 @@ public class MysqlConnector extends ConnectorBase {
 
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offset, int batchSize, BiConsumer<List<TapEvent>, Object> consumer) throws Throwable {
         MysqlSnapshotOffset mysqlSnapshotOffset;
+        if (1 == 1) {
+            MySQLTimeoutException mySQLTimeoutException = new MySQLTimeoutException("test", "123");
+            throw new TapPdkTerminateByServerEx(tapConnectorContext.getSpecification().getId(), mySQLTimeoutException);
+        }
         if (offset instanceof MysqlSnapshotOffset) {
             mysqlSnapshotOffset = (MysqlSnapshotOffset) offset;
         } else {
