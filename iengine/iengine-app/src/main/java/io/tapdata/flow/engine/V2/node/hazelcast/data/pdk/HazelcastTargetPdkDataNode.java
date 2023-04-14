@@ -650,22 +650,17 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 												}
 											};
 
-											try {
+											AspectUtils.executeAspect(SkipErrorDataAspect.class, () -> new SkipErrorDataAspect()
+													.dataProcessorContext(dataProcessorContext)
+													.tapTable(tapTable)
+													.tapRecordEvents(tapRecordEvents)
+													.pdkMethodInvoker(pdkMethodInvoker)
+													.writeOneFunction((subTapRecordEvents) -> {
+														writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), subTapRecordEvents, tapTable, resultConsumer);
+														return null;
+													}));
+											if (!pdkMethodInvoker.isEnableSkipErrorEvent()) {
 												writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), tapRecordEvents, tapTable, resultConsumer);
-											} catch (Throwable t) {
-												AspectInterceptResult aspectInterceptResult = AspectUtils.executeAspect(SkipErrorDataAspect.class, () -> new SkipErrorDataAspect()
-														.dataProcessorContext(dataProcessorContext)
-														.tapTable(tapTable)
-														.throwable(t)
-														.tapRecordEvents(tapRecordEvents)
-														.pdkMethodInvoker(pdkMethodInvoker)
-														.writeOneFunction((tapRecordEvent) -> {
-															writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), Collections.singletonList(tapRecordEvent), tapTable, resultConsumer);
-															return null;
-														}));
-												if (null == aspectInterceptResult || !aspectInterceptResult.isIntercepted()) {
-													throw t;
-												}
 											}
 										}
 								)

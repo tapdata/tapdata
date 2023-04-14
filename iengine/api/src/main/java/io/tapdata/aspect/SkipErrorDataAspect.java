@@ -16,18 +16,12 @@ import java.util.List;
 public class SkipErrorDataAspect extends DataNodeAspect<SkipErrorDataAspect> {
 
     private TapTable tapTable;
-    private Throwable throwable;
     private List<TapRecordEvent> tapRecordEvents;
     private PDKMethodInvoker pdkMethodInvoker;
-    private ThrowableFunction<Void, TapRecordEvent, Throwable> writeOneFunction;
+    private ThrowableFunction<Void, List<TapRecordEvent>, Throwable> writeRecordFunction;
 
     public SkipErrorDataAspect tapTable(TapTable tableName) {
         this.tapTable = tableName;
-        return this;
-    }
-
-    public SkipErrorDataAspect throwable(Throwable throwable) {
-        this.throwable = throwable;
         return this;
     }
 
@@ -41,17 +35,13 @@ public class SkipErrorDataAspect extends DataNodeAspect<SkipErrorDataAspect> {
         return this;
     }
 
-    public SkipErrorDataAspect writeOneFunction(ThrowableFunction<Void, TapRecordEvent, Throwable> writeOneConsumer) {
-        this.writeOneFunction = writeOneConsumer;
+    public SkipErrorDataAspect writeOneFunction(ThrowableFunction<Void, List<TapRecordEvent>, Throwable> writeOneConsumer) {
+        this.writeRecordFunction = writeOneConsumer;
         return this;
     }
 
     public TapTable getTapTable() {
         return tapTable;
-    }
-
-    public Throwable getThrowable() {
-        return throwable;
     }
 
     public List<TapRecordEvent> getTapRecordEvents() {
@@ -62,7 +52,7 @@ public class SkipErrorDataAspect extends DataNodeAspect<SkipErrorDataAspect> {
         return pdkMethodInvoker;
     }
 
-    public ThrowableFunction<Void, TapRecordEvent, Throwable> getWriteOneFunction() {
-        return writeOneFunction;
+    public ThrowableFunction<Void, List<TapRecordEvent>, Throwable> getWriteRecordFunction() {
+        return writeRecordFunction;
     }
 }

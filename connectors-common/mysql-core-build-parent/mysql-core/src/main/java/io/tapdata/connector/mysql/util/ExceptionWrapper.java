@@ -47,7 +47,7 @@ public class ExceptionWrapper {
             } else if (1062 == (ins).getErrorCode() && "23000".equals((ins).getSQLState())) {
                 // [code:1062, state: 23000] java.sql.SQLIntegrityConstraintViolationException: Duplicate entry 'ok' for key 'test_error_code.notnull'
                 newEx = Optional.ofNullable(e.getMessage()).map(err -> {
-                    Pattern p = Pattern.compile(".*Duplicate entry 'ok' for key '[^.]+.([^']+)'.*");
+                    Pattern p = Pattern.compile(".*Duplicate entry '.*' for key '[^.]+.([^']+)'.*");
                     Matcher m = p.matcher(err);
                     if (m.find() && m.groupCount() > 0) {
                         return m.group(1);

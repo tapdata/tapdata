@@ -24,6 +24,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -111,12 +112,26 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     private boolean checkSkipByLimitMode(long syncCounts, long skipCounts) {
         switch (skipErrorEvent.getLimitMode()) {
             case SkipByLimit:
-                return skipErrorEvent.getLimit() >= skipCounts;
+                if (skipErrorEvent.getLimit() >= skipCounts) {
+                    return true;
+                } else {
+                    String skipInfo = JSON.toJSONString(syncAndSkipMap);
+                    log.warn("Reach the skip limit: {}, status: {}", skipCounts, skipInfo);
+                }
+                break;
             case SkipByRate:
-                return skipErrorEvent.getRate() / 100.0 >= (1.0 * syncCounts / skipCounts);
+                float rate = 1f * skipCounts / (syncCounts + skipCounts);
+                if (skipErrorEvent.getRate() / 100.0 >= rate) {
+                    return true;
+                } else {
+                    String skipInfo = JSON.toJSONString(syncAndSkipMap);
+                    log.warn("Reach the skip rate: {}, status: {}", String.format("%.2f", rate), skipInfo);
+                }
+                break;
             default:
-                return false;
+                break;
         }
+        return false;
     }
 
     private boolean checkSkipByThrowable(Throwable ex) {
@@ -220,21 +235,31 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
 
     public AspectInterceptResult skipErrorDataNoeAspectImpl(SkipErrorDataAspect aspect) {
         aspect.getPdkMethodInvoker().setEnableSkipErrorEvent(true);
+
+        String tableId = aspect.getTapTable().getId();
         AspectInterceptResult result = new AspectInterceptResult();
-        if (checkSkipByThrowable(aspect.getThrowable())) {
-            for (TapRecordEvent tapRecordEvent : aspect.getTapRecordEvents()) {
-                try {
-                    aspect.getWriteOneFunction().apply(tapRecordEvent);
-                    getTypeMetrics(tapRecordEvent.getTableId(), METRICS_SYNC).addAndGet(1);
-                } catch (Throwable e) {
-                    if (!checkSkip(aspect.getTapTable().getName(), tapRecordEvent, e)) {
-                        throw new RuntimeException(e);
+        result.setIntercepted(true);
+
+        try {
+            aspect.getWriteRecordFunction().apply(aspect.getTapRecordEvents());
+            getTypeMetrics(tableId, METRICS_SYNC).addAndGet(aspect.getTapRecordEvents().size());
+        } catch (Throwable e1) {
+            if (checkSkipByThrowable(e1)) {
+                for (TapRecordEvent tapRecordEvent : aspect.getTapRecordEvents()) {
+                    try {
+                        aspect.getWriteRecordFunction().apply(Collections.singletonList(tapRecordEvent));
+                        getTypeMetrics(tableId, METRICS_SYNC).addAndGet(1);
+                    } catch (Throwable e2) {
+                        if (!checkSkip(tableId, tapRecordEvent, e2)) {
+                            throw new RuntimeException(e2);
+                        }
                     }
                 }
+            } else if (e1 instanceof RuntimeException) {
+                throw (RuntimeException) e1;
+            } else {
+                throw new RuntimeException(e1);
             }
-            result.setIntercepted(true);
-        } else {
-            result.setIntercepted(false);
         }
 
         return result;
