@@ -358,14 +358,9 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 					);
 					JSONUtil.enableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 				}
-			} catch (IOException e) {
-				throw new RuntimeException(e);
-			} catch (ClassNotFoundException e) {
-				throw new RuntimeException(e);
-			} catch (InstantiationException e) {
-				throw new RuntimeException(e);
-			} catch (IllegalAccessException e) {
-				throw new RuntimeException(e);
+			} catch (Throwable e) {
+				String errorMsg = String.format("Handle websocket event error, message: %s, error: %s", message, e.getMessage());
+				logger.error(errorMsg, e);
 			}
 		};
 

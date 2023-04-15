@@ -46,11 +46,8 @@ public class MessageSerializer {
                 list.add(buildJsonMap(table, before, true));
             }
         } catch (Throwable e) {
-            if(e instanceof CoreException) {
-                throw (CoreException)e;
-            }
-            throw new CoreException("Data generate empty json, value is :  " +
-                    toJson(recordEvent)+ "recordEvent:" + recordEvent.getClass().getSimpleName());
+            throw new CoreException(e, "Data generate empty json, value is :  " +
+                    toJson(recordEvent) + "recordEvent:" + recordEvent.getClass().getSimpleName());
         }
         return list;
     }
@@ -72,8 +69,7 @@ public class MessageSerializer {
                 }
             }
             jsonName.put("__DORIS_DELETE_SIGN__", delete ? "1" : "0");
-        }
-        if (jsonName.isEmpty()) {
+        } else {
             throw new CoreException("Data generate empty json, value is :  " + JSON.toJSONString(values));
         }
         return jsonName;

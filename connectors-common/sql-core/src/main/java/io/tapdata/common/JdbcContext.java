@@ -110,6 +110,7 @@ public abstract class JdbcContext implements AutoCloseable {
                 Connection connection = getConnection();
                 PreparedStatement preparedStatement = connection.prepareStatement(prepareSql)
         ) {
+            preparedStatement.setFetchSize(2000);
             int pos = 1;
             for (Object obj : params) {
                 preparedStatement.setObject(pos++, obj);
