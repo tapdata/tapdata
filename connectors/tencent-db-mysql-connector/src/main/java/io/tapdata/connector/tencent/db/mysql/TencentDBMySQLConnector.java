@@ -292,6 +292,15 @@ public class TencentDBMySQLConnector extends MysqlConnector {
 
     private void streamRead(TapConnectorContext tapConnectorContext, List<String> tables, Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
 //        mysqlJdbcContext.execute("/*proxy*/ set binlog_dump_sticky_backend=set_1681181636_1");
+//        DataMap nodeConfig = tapConnectorContext.getNodeConfig();
+//        Object caseSensitive = nodeConfig.get("caseSensitive");
+//        if (null == caseSensitive || "false".equals(caseSensitive)){
+//            List<String> table = new ArrayList<>();
+//            for (String t : tables) {
+//                table.add(t.toLowerCase(Locale.ROOT));
+//            }
+//            tables = table;
+//        }
         try {
             consumer.streamReadStarted();
             if (sourceConsumer == null) {
@@ -302,6 +311,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
                     }
                 }
             }
+//            List<String> finalTables = tables;
             for (Map.Entry<String, MysqlReader> entry : readers.entrySet()) {
                 String key = entry.getKey();
                 MysqlReader value = entry.getValue();
@@ -312,7 +322,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
                         }
                         streamReadFailed = throwable;
 //                        throwable.printStackTrace();
-                        tapConnectorContext.getLog().error(TAG, "Binary Log partition {} has Stoped. Stop reason: {}.", key, InstanceFactory.instance(TapUtils.class).getStackTrace(throwable));
+                        TapLogger.error(TAG, "Binary Log partition {} has Stoped. Stop reason: {}.", key, InstanceFactory.instance(TapUtils.class).getStackTrace(throwable));
                     });
                     try {
                         value.readBinlog(
@@ -322,9 +332,9 @@ public class TencentDBMySQLConnector extends MysqlConnector {
                                 batchSize,
                                 DDLParserType.MYSQL_CCJ_SQL_PARSER,
                                 consumer,
-                                map(entry("tdsql.partition", key)));
+                                map(entry("tdsql.partition", key), entry("database.history.store.only.monitored.tables.ddl", false)));
                     } catch (Throwable throwable) {
-                        tapConnectorContext.getLog().error(TAG, throwable.getMessage());
+                        TapLogger.error(TAG, throwable.getMessage());
                         throw new CoreException(throwable.getMessage());
                     }
                 });
@@ -493,8 +503,8 @@ public class TencentDBMySQLConnector extends MysqlConnector {
         if (!(null == nameFieldMap || nameFieldMap.isEmpty())) {
             nameFieldMap.forEach((name, field) -> {
                 field.setComment(null != name && type.contains(name.trim()) ?
-                        TDSqlDiscoverSchema.PARTITION_KEY_SINGLE :
-                        TDSqlDiscoverSchema.PARTITION_KEY_SINGLE_NOT);
+                    TDSqlDiscoverSchema.PARTITION_KEY_SINGLE :
+                    TDSqlDiscoverSchema.PARTITION_KEY_SINGLE_NOT);
             });
         }
         return tapTable;

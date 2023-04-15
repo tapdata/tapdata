@@ -2,29 +2,20 @@ package io.tapdata.connector.tencent.db.mysql;
 
 import com.alibaba.fastjson.JSONObject;
 import io.tapdata.common.CommonDbConfig;
-import io.tapdata.common.ddl.DDLFactory;
-import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.mysql.MysqlConnectionTest;
 import io.tapdata.connector.mysql.constant.MysqlTestItem;
-import io.tapdata.constant.ConnectionTypeEnum;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
-import io.tapdata.util.NetUtil;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.io.IOException;
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -68,8 +59,8 @@ public class TencentDBMySQLConnectorTest extends MysqlConnectionTest {
         DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
         String databaseName = String.valueOf(connectionConfig.get("database"));
         String userName = String.valueOf(connectionConfig.get("username"));
-        List<String> tableList = new ArrayList();
-        AtomicReference<Boolean> globalWrite = new AtomicReference();
+        List<String> tableList = new ArrayList<>();
+        AtomicReference<Boolean> globalWrite = new AtomicReference<>();
         AtomicReference<TestItem> testItem = new AtomicReference<>();
         String itemMark = TestItem.ITEM_READ;
         if ("write".equals(mark)) {
@@ -117,7 +108,6 @@ public class TencentDBMySQLConnectorTest extends MysqlConnectionTest {
             if (privilege) {
                 return true;
             }
-
         } else if (grantSql.contains("`" + databaseName + "`" + ".* TO")) {
             if (privilege) {
                 return true;
@@ -143,7 +133,7 @@ public class TencentDBMySQLConnectorTest extends MysqlConnectionTest {
     @Override
     public Boolean testCDCPrivileges() {
         DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
-        String databaseName = String.valueOf(connectionConfig.get("database"));
+        //String databaseName = String.valueOf(connectionConfig.get("database"));
         String userName = String.valueOf(connectionConfig.get("username"));
         AtomicReference<TestItem> testItem = new AtomicReference<>();
         try {
@@ -224,8 +214,8 @@ public class TencentDBMySQLConnectorTest extends MysqlConnectionTest {
         ALL_PRIVILEGES("ALL PRIVILEGES ON *.*", true),
         REPLICATION_CLIENT("REPLICATION CLIENT|SUPER", false),
         REPLICATION_SLAVE("REPLICATION SLAVE", false);
-        //		LOCK_TABLES("LOCK TABLES|ALL", false),
-//    RELOAD("RELOAD", false);
+        //LOCK_TABLES("LOCK TABLES|ALL", false),
+        //RELOAD("RELOAD", false);
 
 
         private final String privileges;

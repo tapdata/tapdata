@@ -1,7 +1,10 @@
 package io.tapdata.connector.tencent.db.mysql;
 
 import com.github.shyiko.mysql.binlog.BinaryLogClient;
-import com.github.shyiko.mysql.binlog.event.*;
+import com.github.shyiko.mysql.binlog.event.DeleteRowsEventData;
+import com.github.shyiko.mysql.binlog.event.EventData;
+import com.github.shyiko.mysql.binlog.event.UpdateRowsEventData;
+import com.github.shyiko.mysql.binlog.event.WriteRowsEventData;
 import com.github.shyiko.mysql.binlog.event.deserialization.EventDeserializer;
 
 import java.io.Serializable;
@@ -10,9 +13,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class Main {
+/**
+ * @author GavinXiao
+ * @description Set2 create by Gavin
+ * @create 2023/4/15 17:49
+ **/
+public class Set2 {
     public static String[] getSets(Map<String, Object> mysqlConfig) throws Exception {
-        return new String[]{"set_1681181636_1", "set_1681181762_3"};
+        return new String[]{"set_1681181762_3"};
     }
     public static void main(String[] args) throws Exception {
         Map<String, Object> mysqlConfig = new HashMap<>();
@@ -73,5 +81,4 @@ public class Main {
 
         client.connect(3000);
     }
-
 }

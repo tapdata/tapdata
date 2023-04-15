@@ -221,10 +221,6 @@
             {
               "label": "${Partition_Table}",
               "value": "PartitionTable"
-            },
-            {
-              "label": "${Broadcast_Table}",
-              "value": "BroadcastTable"
             }
           ],
           "x-index": 10,
@@ -232,6 +228,7 @@
         },
         "partitionKey": {
           "type": "string",
+          "x-index": 20,
           "default": null,
           "title": "${partition_key}",
           "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
@@ -262,6 +259,14 @@
               }
             }
           ]
+        },
+        "caseSensitive": {
+          "type": "boolean",
+          "title": "${isCaseSensitive}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "default": false,
+          "x-index": 30
         }
       }
     }
@@ -281,7 +286,8 @@
       "partition_key": "Partition key",
       "Single_Table": " Single Table ",
       "Partition_Table": " Partition Table ",
-      "Broadcast_Table": " Broadcast Table "
+      "Broadcast_Table": " Broadcast Table ",
+      "isCaseSensitive":" Is case sensitive "
     },
     "zh_CN": {
       "host": "地址",
@@ -296,7 +302,8 @@
       "partition_key": "分片键",
       "Single_Table": "单表",
       "Partition_Table": "分区表",
-      "Broadcast_Table": "广播表"
+      "Broadcast_Table": "广播表",
+      "isCaseSensitive":"是否大小写敏感"
     },
     "zh_TW": {
       "host": "地址",
@@ -311,7 +318,8 @@
       "partition_key": "分片鍵",
       "Single_Table": "單表",
       "Partition_Table": "分區表",
-      "Broadcast_Table": "廣播表"
+      "Broadcast_Table": "廣播表",
+      "isCaseSensitive":" 是否大小寫敏感 "
     }
   },
   "dataTypes": {

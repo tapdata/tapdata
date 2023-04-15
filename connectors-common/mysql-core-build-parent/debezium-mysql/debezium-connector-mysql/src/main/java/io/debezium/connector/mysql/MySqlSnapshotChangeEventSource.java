@@ -393,10 +393,23 @@ public class MySqlSnapshotChangeEventSource extends RelationalSnapshotChangeEven
             }
             connection.query("SHOW CREATE TABLE " + quote(tableId), rs -> {
                 if (rs.next()) {
-                    addSchemaEvent(snapshotContext, tableId.catalog(), rs.getString(2));
+                    addSchemaEvent(snapshotContext, tableId.catalog(),ignoreUNMatchMysqlKeyWorlds(rs.getString(2)));
                 }
             });
         }
+    }
+
+    public static final List<String> ignoreKeys = new ArrayList<String>(){{
+        add("shardkey=");
+    }};
+    String ignoreUNMatchMysqlKeyWorlds(String createTableSql){
+        for (String ignoreKey : ignoreKeys) {
+            int index = createTableSql.lastIndexOf(ignoreKey);
+            if ( index > 0 ){
+                createTableSql = createTableSql.substring(0,index);
+            }
+        }
+        return createTableSql;
     }
 
     private boolean twoPhaseSchemaSnapshot() {

@@ -1,6 +1,5 @@
 package io.tapdata.connector.tencent.db.table;
 
-import io.tapdata.connector.mysql.MysqlMaker;
 import io.tapdata.connector.mysql.util.MysqlUtil;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.logger.TapLogger;
@@ -21,10 +20,10 @@ import java.util.stream.Collectors;
  **/
 public class PartitionTable extends CreateTable {
     private static final String TAG = PartitionTable.class.getSimpleName();
-    private static final String CREATE_TABLE_TEMPLATE = "CREATE TABLE(`%s`.`%s`(\n%s) %s) shardkey = `%s`";
+    private static final String CREATE_TABLE_TEMPLATE = "CREATE TABLE `%s`.`%s` (\n%s) %s `%s`";
     private String partitionKey;
 
-    public PartitionTable partitionKey(String partitionKey){
+    public PartitionTable partitionKey(String partitionKey) {
         this.partitionKey = partitionKey;
         return this;
     }
@@ -55,6 +54,10 @@ public class PartitionTable extends CreateTable {
         if (StringUtils.isNotBlank(tapTable.getComment())) {
             tablePropertiesSql += " COMMENT='" + tapTable.getComment() + "'";
         }
+        if (StringUtils.isNotBlank(tablePropertiesSql)) {
+            tablePropertiesSql += ",";
+        }
+        tablePropertiesSql += " shardkey =";
 
         String sql = String.format(CREATE_TABLE_TEMPLATE, database, tapTable.getId(), fieldSql, tablePropertiesSql, partitionKey);
         return new String[]{sql};

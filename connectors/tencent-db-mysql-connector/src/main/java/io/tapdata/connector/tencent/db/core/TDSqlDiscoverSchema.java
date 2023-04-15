@@ -53,26 +53,6 @@ public class TDSqlDiscoverSchema extends MysqlSchemaLoader {
         return keys;
     }
 
-
-//    protected List<DataMap> queryAllTables(String database, List<String> filterTable) {
-//        String sql = String.format(SELECT_TABLES, database);
-//        if (CollectionUtils.isNotEmpty(filterTable)) {
-//            filterTable = filterTable.stream().map(t -> "'" + t + "'").collect(Collectors.toList());
-//            String tableNameIn = String.join(",", filterTable);
-//            sql += String.format(TABLE_NAME_IN, tableNameIn);
-//        }
-//
-//        List<DataMap> tableList = TapSimplify.list();
-//        try {
-//            mysqlJdbcContext.query(sql, resultSet -> {
-//                tableList.addAll(DbKit.getDataFromResultSet(resultSet));
-//            });
-//        } catch (Throwable e) {
-//            TapLogger.error(TAG, "Execute queryAllTables failed, error: " + e.getMessage(), e);
-//        }
-//        return tableList;
-//    }
-
     protected void discoverFields(List<DataMap> columnList, TapTable tapTable, TableFieldTypesGenerator tableFieldTypesGenerator,
                                   DefaultExpressionMatchingMap dataTypesMap) {
         AtomicInteger primaryPos = new AtomicInteger(1);
@@ -100,9 +80,8 @@ public class TDSqlDiscoverSchema extends MysqlSchemaLoader {
             if (columnKey instanceof String && columnKey.equals("PRI")) {
                 field.primaryKeyPos(primaryPos.getAndIncrement());
             }
-
-//			String columnDefault = dataMap.getString("COLUMN_DEFAULT");
-//			field.defaultValue(columnDefault);
+            //String columnDefault = dataMap.getString("COLUMN_DEFAULT");
+            //field.defaultValue(columnDefault);
             tapTable.add(field);
         });
     }

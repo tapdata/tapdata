@@ -1,6 +1,5 @@
 package io.tapdata.connector.tencent.db.table;
 
-import io.tapdata.connector.mysql.MysqlMaker;
 import io.tapdata.connector.mysql.util.MysqlUtil;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.logger.TapLogger;
@@ -18,10 +17,17 @@ import java.util.stream.Collectors;
  * @author GavinXiao
  * @description BroadcastTable create by Gavin
  * @create 2023/4/14 13:40
+ * <p>
+ * ,
+ * {
+ * "label": "${Broadcast_Table}",
+ * "value": "BroadcastTable"
+ * }
  **/
 public class BroadcastTable extends CreateTable {
     private static final String TAG = BroadcastTable.class.getSimpleName();
-    private static final String CREATE_TABLE_TEMPLATE = "CREATE TABLE (`%s`.`%s`(\n%s) %s) shardkey = noshardkey_allset";
+    private static final String CREATE_TABLE_TEMPLATE = "CREATE TABLE `%s`.`%s`(\n%s) %s shardkey = noshardkey_allset";
+
     @Override
     public String[] createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent, String version) throws Throwable {
         TapTable tapTable = tapCreateTableEvent.getTable();
@@ -46,7 +52,7 @@ public class BroadcastTable extends CreateTable {
         String tablePropertiesSql = "";
         // table comment
         if (StringUtils.isNotBlank(tapTable.getComment())) {
-            tablePropertiesSql += " COMMENT='" + tapTable.getComment() + "'";
+            tablePropertiesSql += " COMMENT='" + tapTable.getComment() + "',";
         }
 
         String sql = String.format(CREATE_TABLE_TEMPLATE, database, tapTable.getId(), fieldSql, tablePropertiesSql);
