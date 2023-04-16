@@ -41,7 +41,7 @@ public class Set2 {
                 "test",
                 "tapdata",
                 "Gotapd8!",
-                "/*proxy*/ set binlog_dump_sticky_backend=" + sets[0]);
+                sets[0]);
         EventDeserializer eventDeserializer = new EventDeserializer();
         eventDeserializer.setCompatibilityMode(
                 EventDeserializer.CompatibilityMode.DATE_AND_TIME_AS_LONG,

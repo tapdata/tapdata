@@ -1,6 +1,6 @@
 {
   "properties": {
-    "name": "TencentDB MySQL",
+    "name": "TencentDB TD-SQL",
     "icon": "icons/tencent_db_mysql.png",
     "id": "tencent-db-mysql",
     "doc": "${doc}",

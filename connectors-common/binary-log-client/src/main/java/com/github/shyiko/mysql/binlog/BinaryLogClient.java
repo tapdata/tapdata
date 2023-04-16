@@ -122,7 +122,12 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
     private final String schema;
     private final String username;
     private final String password;
-    private final String sql;
+    private String setPartitionId;
+    private String sql;
+
+    private String setNameToProxy(){
+        return null == setPartitionId ? "" : "/*sets:" + setPartitionId + "*/ ";
+    }
 
     private boolean blocking = true;
     private long serverId = 65535;
@@ -196,13 +201,13 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
      * @param username login name
      * @param password password
      */
-    public BinaryLogClient(String hostname, int port, String schema, String username, String password, String sql) {
+    public BinaryLogClient(String hostname, int port, String schema, String username, String password, String setId) {
         this.hostname = hostname;
         this.port = port;
         this.schema = schema;
         this.username = username;
         this.password = password;
-        this.sql = sql;
+        this.setPartitionId = setId;
     }
 
     public boolean isBlocking() {
@@ -558,7 +563,7 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
             authenticate(channel, greetingPacket);
             connectionId = greetingPacket.getThreadId();
             if (null != this.sql && !"".equals(this.sql.trim())){
-                channel.write(new QueryCommand(this.sql));
+                channel.write(new QueryCommand("/*proxy*/ set binlog_dump_sticky_backend=" + this.sql));
             }
             if ("".equals(binlogFilename)) {
                 synchronized (gtidSetAccessLock) {
@@ -679,7 +684,7 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
     }
 
     private void enableHeartbeat(final PacketChannel channel) throws IOException {
-        channel.write(new QueryCommand("set @master_heartbeat_period=" + heartbeatInterval * 1000000));
+        channel.write(new QueryCommand(setNameToProxy() + "sFet @master_heartbeat_period=" + heartbeatInterval * 1000000));
         byte[] statementResult = channel.read();
         if (statementResult[0] == (byte) 0xFF /* error */) {
             byte[] bytes = Arrays.copyOfRange(statementResult, 1, statementResult.length);
@@ -927,7 +932,7 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
     }
 
     private String fetchGtidPurged(final PacketChannel channel) throws IOException {
-        channel.write(new QueryCommand("show global variables like 'gtid_purged'"));
+        channel.write(new QueryCommand(setNameToProxy() + "show global variables like 'gtid_purged'"));
         ResultSetRowPacket[] resultSet = readResultSet(channel);
         if (resultSet.length != 0) {
             return resultSet[0].getValue(1).toUpperCase();
@@ -936,7 +941,7 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
     }
 
     private void fetchBinlogFilenameAndPosition(final PacketChannel channel) throws IOException {
-        channel.write(new QueryCommand("show master status"));
+        channel.write(new QueryCommand(setNameToProxy() + "show master status"));
         ResultSetRowPacket[] resultSet = readResultSet(channel);
         if (resultSet.length == 0) {
             throw new IOException("Failed to determine binlog filename/position");
@@ -947,7 +952,7 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
     }
 
     private ChecksumType fetchBinlogChecksum(final PacketChannel channel) throws IOException {
-        channel.write(new QueryCommand("show global variables like 'binlog_checksum'"));
+        channel.write(new QueryCommand(setNameToProxy() + "show global variables like 'binlog_checksum'"));
         ResultSetRowPacket[] resultSet = readResultSet(channel);
         if (resultSet.length == 0) {
             return ChecksumType.NONE;
@@ -956,7 +961,7 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
     }
 
     private void confirmSupportOfChecksum(final PacketChannel channel, ChecksumType checksumType) throws IOException {
-        channel.write(new QueryCommand("set @master_binlog_checksum= @@global.binlog_checksum"));
+        channel.write(new QueryCommand(setNameToProxy() + "set @master_binlog_checksum= @@global.binlog_checksum"));
         byte[] statementResult = channel.read();
         if (statementResult[0] == (byte) 0xFF /* error */) {
             byte[] bytes = Arrays.copyOfRange(statementResult, 1, statementResult.length);

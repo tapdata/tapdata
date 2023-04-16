@@ -8,6 +8,7 @@
     <packaging>pom</packaging>
 	<version>1.0-SNAPSHOT</version>
     <modules>
+		<module>binary-log-client</module>
 		<module>connector-core</module>
 		<module>sql-core</module>
 		<module>mysql-core-build-parent</module>
