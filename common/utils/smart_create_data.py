@@ -6,7 +6,9 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../lib")
 from factory import newDB
 from tapdata_cli.cli import (
     Pipeline,
-
+    DataSource,
+    Sink,
+    Source
 )
 
 

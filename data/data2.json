@@ -1,0 +1,52 @@
+{
+  "name": "的",
+  "connection_type": "source_and_target",
+  "loadAllTables": true,
+  "shareCdcEnable": false,
+  "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION",
+  "openTableExcludeFilter": false,
+  "shareCDCExternalStorageId": "64114cafc1df2b65cfb1274a",
+  "schemaUpdateHour": "02:00",
+  "heartbeatEnable": false,
+  "database_type": "Dummy",
+  "pdkHash": "f45ed8744261175abce5f902473472866aa1ffc40cccec0a0d2abceef4a338c2",
+  "status": "testing",
+  "schema": {},
+  "retry": 0,
+  "nextRetry": null,
+  "response_body": {},
+  "project": "",
+  "submit": true,
+  "pdkType": "pdk",
+  "config": {
+    "initial_totals": 10,
+    "incremental_interval": 1000,
+    "incremental_interval_totals": 1,
+    "incremental_types": [
+      1
+    ],
+    "write_interval": 1000,
+    "write_interval_totals": 1,
+    "write_log": false,
+    "table_name": "dummy_test",
+    "table_fields": [
+      {
+        "pri": true,
+        "name": "id",
+        "type": "uuid"
+      },
+      {
+        "pri": false,
+        "name": "title",
+        "type": "rstring"
+      },
+      {
+        "pri": false,
+        "name": "created",
+        "type": "now"
+      }
+    ],
+    "__connectionType": "source_and_target"
+  },
+  "id": "643ae4d9825a3821aa01f834"
+}

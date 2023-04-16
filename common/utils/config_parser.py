@@ -53,7 +53,9 @@ class Config:
 
 
 config: Config = Config()
-print(config["100_columns.name"])
-config.update_value("100_columns", "initial_totals", 600000)
-for i in config:
-    print(i)
+
+if __name__ == '__main__':
+    print(config["column100.name"])
+    config.update_value("column100", "initial_totals", 600000)
+    for i in config:
+        print(i)

@@ -5,3 +5,4 @@ logs/
 .pycharm*/
 /practice*/
 __pycache__/
+.table_suffix_cache_file

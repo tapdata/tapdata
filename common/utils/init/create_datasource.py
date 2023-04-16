@@ -1,8 +1,8 @@
-import os, sys
-
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + r"\..")
-
 from log import logger
+from tapdata_cli.cli import DataSource
+from source import get_sources
+from helper.suffix import get_suffix
+
 
 # create datasource in tapdata server
 def create_datasource():

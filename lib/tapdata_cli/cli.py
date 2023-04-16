@@ -32,8 +32,7 @@ from graph import Node, Graph
 from check import ConfigCheck
 from log import logger, get_log_level
 from config_parse import config
-from request import  set_req
-from data.api_data.api import DataSourceApi, InspectApi, TaskApi
+from data.api_data.api import DataSourceApi, InspectApi, TaskApi, set_req
 from params.datasource import pdk_config, DATASOURCE_CONFIG
 from params.job import job_config, node_config, node_config_sync
 
@@ -3005,6 +3004,20 @@ class DataSource:
             logger.warn("save Connection fail, err is: {}", data["message"])
         return False
 
+    def update_save(self, datasource_id):
+        data = self.to_dict()
+        data = DataSourceApi().patch(f"/{datasource_id}", json=data)
+        show_connections(quiet=True)
+        if data["code"] == "ok":
+            self.id = data["data"]["id"]
+            self.setting = DataSource.get(datasource_id)
+            self.validate(quiet=False)
+            return True
+        else:
+            self.validate(quiet=False, load_schema=True)
+            logger.warn("save Connection fail, err is: {}", data["message"])
+        return False
+
     def delete(self):
         if self.id is None:
             return
@@ -3358,4 +3371,4 @@ def init(custom_server=server, custom_access_code=access_code):
 
 
 if __name__ == "__main__":
-    init()
+    main()

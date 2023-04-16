@@ -1,4 +1,4 @@
-from lib.tapdata_cli.request import Api
+from lib.tapdata_cli.request import Api, set_req
 
 
 class DataSourceApi(Api):
