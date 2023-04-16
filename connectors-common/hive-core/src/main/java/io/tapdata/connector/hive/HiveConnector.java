@@ -4,10 +4,8 @@ import io.tapdata.common.CommonDbConnector;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.hive.config.HiveConfig;
 import io.tapdata.entity.codec.TapCodecsRegistry;
-import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
-import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -18,8 +16,6 @@ import org.apache.commons.codec.binary.Base64;
 
 import java.sql.SQLException;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -43,24 +39,24 @@ public class HiveConnector extends CommonDbConnector {
 
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
-        codecRegistry.registerFromTapValue(TapRawValue.class, "STRING", tapRawValue -> {
+        codecRegistry.registerFromTapValue(TapRawValue.class, "string", tapRawValue -> {
             if (tapRawValue != null && tapRawValue.getValue() != null) return toJson(tapRawValue.getValue());
             return "null";
         });
-        codecRegistry.registerFromTapValue(TapMapValue.class, "STRING", tapMapValue -> {
+        codecRegistry.registerFromTapValue(TapMapValue.class, "string", tapMapValue -> {
             if (tapMapValue != null && tapMapValue.getValue() != null) return toJson(tapMapValue.getValue());
             return "null";
         });
-        codecRegistry.registerFromTapValue(TapArrayValue.class, "STRING", tapValue -> {
+        codecRegistry.registerFromTapValue(TapArrayValue.class, "string", tapValue -> {
             if (tapValue != null && tapValue.getValue() != null) return toJson(tapValue.getValue());
             return "null";
         });
-        codecRegistry.registerFromTapValue(TapBinaryValue.class, "STRING", tapValue -> {
+        codecRegistry.registerFromTapValue(TapBinaryValue.class, "string", tapValue -> {
             if (tapValue != null && tapValue.getValue() != null)
                 return new String(Base64.encodeBase64(tapValue.getValue()));
             return null;
         });
-        codecRegistry.registerFromTapValue(TapTimeValue.class, "STRING", tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss.SS"));
+        codecRegistry.registerFromTapValue(TapTimeValue.class, "string", tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss.SS"));
         codecRegistry.registerFromTapValue(TapDateValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "yyyy-MM-dd"));
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSS"));
 
@@ -102,23 +98,7 @@ public class HiveConnector extends CommonDbConnector {
 
     @Override
     protected void singleThreadDiscoverSchema(List<DataMap> subList, Consumer<List<TapTable>> consumer) throws SQLException {
-        List<TapTable> tapTableList = TapSimplify.list();
-        Map<String, Map<String, Object>> tableMap = hiveJdbcContext.queryTablesDesc(subList.stream().map(v -> v.getString("tab_name")).collect(Collectors.toList()));
-        subList.forEach(subTable -> {
-            String table = subTable.getString("tab_name");
-            Map<String, Object> tableInfoMap = tableMap.get(table);
-            TapTable tapTable = table(table);
-            List<String> primaryKey = TapSimplify.list();
-            AtomicInteger keyPos = new AtomicInteger(0);
-            ((List<Map<String, String>>) tableInfoMap.get("columns")).forEach(col -> {
-                TapField tapField = new TapField();
-                tapField.setPos(keyPos.incrementAndGet());
-                tapField.setPrimaryKey(primaryKey.contains(tapField.getName()));
-                tapField.setPrimaryKeyPos(primaryKey.indexOf(tapField.getName()) + 1);
-                tapTable.add(tapField);
-            });
-            tapTableList.add(tapTable);
-        });
+        List<TapTable> tapTableList = hiveJdbcContext.queryTablesDesc(subList.stream().map(v -> v.getString("tab_name")).collect(Collectors.toList()));
         syncSchemaSubmit(tapTableList, consumer);
     }
 }
