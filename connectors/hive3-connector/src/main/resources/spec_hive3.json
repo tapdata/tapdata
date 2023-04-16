@@ -245,7 +245,7 @@
       "to": "TapString",
       "byte": "65535"
     },
-    "TINYINT[($zerofill)]": {
+    "tinyint[($zerofill)]": {
       "to": "TapNumber",
       "bit": 8,
       "precision": 3,
@@ -254,7 +254,7 @@
         127
       ]
     },
-    "SMALLINT[($zerofill)]": {
+    "smallint[($zerofill)]": {
       "to": "TapNumber",
       "bit": 16,
       "precision": 5,
@@ -263,7 +263,7 @@
         32767
       ]
     },
-    "INT[($zerofill)]": {
+    "int[($zerofill)]": {
       "to": "TapNumber",
       "bit": 32,
       "precision": 10,
@@ -272,7 +272,7 @@
         2147483647
       ]
     },
-    "BIGINT[($zerofill)]": {
+    "bigint[($zerofill)]": {
       "to": "TapNumber",
       "bit": 64,
       "precision": 19,
@@ -281,18 +281,18 @@
         9223372036854775807
       ]
     },
-    "FLOAT": {
+    "float": {
       "to": "TapNumber",
       "name": "float",
       "bit": 32,
       "fixed": false
     },
-    "DOUBLE": {
+    "double": {
       "to": "TapNumber",
       "bit": 64,
       "fixed": false
     },
-    "DECIMAL($precision,$scale)": {
+    "decimal($precision,$scale)": {
       "to": "TapNumber",
       "precision": [
         1,
@@ -305,7 +305,7 @@
       "defaultPrecision": 10,
       "defaultScale": 0
     },
-    "DATE": {
+    "date": {
       "to": "TapDate",
       "range": [
         "1000-01-01",
@@ -313,7 +313,7 @@
       ],
       "pattern": "yyyy-MM-dd"
     },
-    "TIMESTAMP": {
+    "timestamp": {
       "to": "TapDateTime",
       "range": [
         "1970-01-01 00:00:00.000",
@@ -327,7 +327,7 @@
       "defaultFraction": 0,
       "withTimeZone": true
     },
-    "BOOLEAN": {
+    "boolean": {
       "bit": 1,
       "name": "boolean",
       "to": "TapBoolean"
