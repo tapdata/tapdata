@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class Main {
+public class Set1 {
     public static String[] getSets(Map<String, Object> mysqlConfig) throws Exception {
         return new String[]{"set_1681181636_1", "set_1681181762_3"};
     }
