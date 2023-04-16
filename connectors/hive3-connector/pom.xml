@@ -36,6 +36,11 @@
             <artifactId>hive-jdbc</artifactId>
             <version>${hive.version}</version>
         </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-pdk-runner</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
