@@ -643,6 +643,7 @@ public class MongodbConnector extends ConnectorBase {
 						keys.append(indexField.getName(), 1);
 					}
 					final IndexOptions indexOptions = new IndexOptions();
+					indexOptions.unique(tapIndex.isUnique());
 					if (EmptyKit.isNotEmpty(tapIndex.getName())) {
 						indexOptions.name(tapIndex.getName());
 					}
@@ -1026,9 +1027,10 @@ public class MongodbConnector extends ConnectorBase {
 	private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) throws Throwable {
 		String database = mongoConfig.getDatabase();
 		List<String> temp = new ArrayList<>();
-		MongoCursor<String> iterator = mongoClient.getDatabase(database).listCollectionNames().iterator();
-		while (iterator.hasNext()) {
-			String tableName = iterator.next();
+		for (String tableName : mongoClient.getDatabase(database).listCollectionNames()) {
+			if (getMongoCollection(tableName).estimatedDocumentCount() <= 0) {
+				continue;
+			}
 			temp.add(tableName);
 			if (temp.size() >= batchSize) {
 				listConsumer.accept(temp);
