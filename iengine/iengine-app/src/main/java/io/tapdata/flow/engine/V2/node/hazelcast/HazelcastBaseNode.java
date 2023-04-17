@@ -5,11 +5,7 @@ import com.hazelcast.jet.core.AbstractProcessor;
 import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
 import com.hazelcast.jet.core.Processor;
-import com.tapdata.constant.BeanUtil;
-import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.DataFlowStageUtil;
-import com.tapdata.constant.DataFlowUtil;
-import com.tapdata.constant.HazelcastUtil;
+import com.tapdata.constant.*;
 import com.tapdata.entity.Job;
 import com.tapdata.entity.JoinTable;
 import com.tapdata.entity.MessageEntity;
@@ -46,6 +42,7 @@ import io.tapdata.common.SettingService;
 import io.tapdata.entity.OnData;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
+import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -56,7 +53,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.TapValue;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.error.TapProcessorUnknownException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
@@ -87,13 +84,8 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.text.ParseException;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -206,7 +198,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			this.jetContext = context;
 			super.init(context);
 			running.compareAndSet(false, true);
-			codecsFilterManager = TapCodecUtil.genericCodecsFilterManager();
+			codecsFilterManager = initFilterCodec();
 			// execute ProcessorNodeInitAspect before doInit since we need to init the aspect first;
 			if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
 				AspectUtils.executeAspect(ProcessorNodeInitAspect.class, () -> new ProcessorNodeInitAspect().processorBaseContext(processorBaseContext));
@@ -223,8 +215,14 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 	}
 
+
+
 	public ProcessorBaseContext getProcessorBaseContext() {
 		return processorBaseContext;
+	}
+
+	protected TapCodecsFilterManager initFilterCodec() {
+		return TapCodecUtil.genericCodecsFilterManager();
 	}
 
 	protected Job convert2Job(DataFlow dataFlow, Node node, ClientMongoOperator clientMongoOperator) {

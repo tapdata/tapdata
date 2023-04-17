@@ -15,6 +15,7 @@ import java.util.List;
 @EqualsAndHashCode(callSuper=false)
 public class ShareCacheDetailVo extends BaseVo {
 
+  private String id;
   private String name;
   private String connectionName;
   private String tableName;
@@ -22,6 +23,8 @@ public class ShareCacheDetailVo extends BaseVo {
   private String status;
   private Long ttl;
   private Date createTime;
+  private Date cacheTimeAt;
+  private String createUser;
   private String cacheKeys;
   private List<String> fields;
   private Long maxRows;

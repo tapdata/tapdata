@@ -447,7 +447,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         boolean agentReq = isAgentReq();
         if (!agentReq) {
-            if (taskDto.getVersion() != null && !oldTaskDto.getEditVersion().equals(taskDto.getEditVersion())) {
+            if (taskDto.getEditVersion() != null && !oldTaskDto.getEditVersion().equals(taskDto.getEditVersion())) {
                 throw new BizException("Task.OldVersion");
             }
         }
@@ -1713,7 +1713,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Node sourceNode = getSourceNode(taskDto);
         CacheNode targetNode = (CacheNode) getTargetNode(taskDto);
         ShareCacheDetailVo shareCacheDetailVo = new ShareCacheDetailVo();
+        shareCacheDetailVo.setId(id);
         shareCacheDetailVo.setName(taskDto.getName());
+        shareCacheDetailVo.setStatus(taskDto.getStatus());
         String connectionId = ((DataNode) sourceNode).getConnectionId();
         DataSourceConnectionDto connectionDto = dataSourceService.findOne(Query.query(Criteria.where("id").is(connectionId)));
         if (null != connectionDto) {
@@ -1722,9 +1724,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         shareCacheDetailVo.setTableName(((TableNode) sourceNode).getTableName());
         shareCacheDetailVo.setCacheKeys(targetNode.getCacheKeys());
-
+        shareCacheDetailVo.setCreateTime(taskDto.getCreateAt());
+        shareCacheDetailVo.setCreateUser(taskDto.getCreateUser());
         if (null != sourceNode.getAttrs()) {
             shareCacheDetailVo.setFields((List<String>) sourceNode.getAttrs().get("fields"));
+        }
+
+        if (taskDto.getCurrentEventTimestamp() != null) {
+            shareCacheDetailVo.setCacheTimeAt(new Date(taskDto.getCurrentEventTimestamp()));
         }
         shareCacheDetailVo.setMaxRows(targetNode.getMaxRows());
         shareCacheDetailVo.setMaxMemory(targetNode.getMaxMemory());
@@ -2861,6 +2868,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             taskDto.getAttrs().remove("milestone");
             taskDto.getAttrs().remove("nodeMilestones");
             taskDto.getAttrs().remove(TaskDto.ATTRS_USED_SHARE_CACHE);
+            taskDto.getAttrs().remove(TaskDto.ATTRS_SKIP_ERROR_EVENT);
             AutoInspectUtil.removeProgress(taskDto.getAttrs());
 
             set.set("attrs", taskDto.getAttrs());

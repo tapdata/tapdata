@@ -16,6 +16,7 @@
         <java.version>8</java.version>
         <hikari.version>4.0.3</hikari.version>
         <jsqlparser.version>4.4</jsqlparser.version>
+        <pdk-error-code.version>1.0-SNAPSHOT</pdk-error-code.version>
     </properties>
 
     <dependencies>
@@ -42,6 +43,10 @@
         <dependency>
             <groupId>com.github.jsqlparser</groupId>
             <artifactId>jsqlparser</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>pdk-error-code</artifactId>
         </dependency>
     </dependencies>
 

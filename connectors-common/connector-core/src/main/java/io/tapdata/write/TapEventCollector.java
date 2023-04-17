@@ -6,7 +6,6 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.WriteListResult;
-
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -34,6 +33,7 @@ final class TapEventCollector {
     private final AtomicBoolean isStarted = new AtomicBoolean(false);
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
     private List<TapRecordEvent> events = new CopyOnWriteArrayList<>();
+    private Throwable throwable;
     private EventProcessor eventProcessor = (eventList, table) -> {
     };
 
@@ -110,7 +110,8 @@ final class TapEventCollector {
                     try {
                         this.tryUpload(true);
                     } catch (Throwable throwable) {
-                        TapLogger.error(TAG, "Try upload failed in scheduler, {}", throwable.getMessage());
+                        this.throwable = throwable;
+                        TapLogger.error(TAG, "Try upload failed in scheduler, {}, will retry after {}", throwable.getMessage(), this.idleSeconds);
                     }
                 }, this.initDelay, this.idleSeconds, TimeUnit.SECONDS);
             }
@@ -202,5 +203,9 @@ final class TapEventCollector {
             //this.collectedTable.put(table.getId(), table);
         }
         tryUpload(this.events.size() > this.maxRecords);
+    }
+
+    public Throwable throwable(){
+        return this.throwable;
     }
 }

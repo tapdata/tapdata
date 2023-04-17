@@ -21,6 +21,7 @@ public enum NodeEnum {
     field_mod_type_processor("字段类型修改节点"),
     field_processor("字段处理器节点"),
     field_rename_processor("字段改名节点"),
+    date_processor("开发日期编辑节点"),
     join_processor("Join节点"),
     js_processor("增强JS节点"),
     standard_js_processor("标准JS节点"),
@@ -28,6 +29,7 @@ public enum NodeEnum {
     row_filter_processor("Row Filter节点"),
     table_rename_processor("表编辑节点"),
     migrate_field_rename_processor("字段编辑节点"),
+    migrate_date_processor("复制日期编辑节点"),
     migrate_js_processor("增强JS节点"),
     standard_migrate_js_processor("标准JS节点"),
     union_processor("Union节点");

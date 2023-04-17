@@ -48,7 +48,7 @@ public abstract class AbstractHandler {
     }
 
     public Map<String, Number> retrieve() {
-        return TaskSampleRetriever.getInstance().retrieveWithRetry(tags(), samples());
+        return TaskSampleRetriever.getInstance().retrieveWithRetry(task.getStartTime().getTime(), tags(), samples());
     }
 
 

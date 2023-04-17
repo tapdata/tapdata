@@ -1,5 +1,6 @@
 package io.tapdata.connector.mysql.writer;
 
+import io.tapdata.connector.mysql.util.ExceptionWrapper;
 import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -133,7 +134,12 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 		try {
 			return insertPreparedStatement.executeUpdate();
 		} catch (Throwable e) {
-			throw new RuntimeException(String.format("Insert data failed: %s\n Sql: %s", e.getMessage(), insertPreparedStatement), e);
+			throw ExceptionWrapper.wrap(tapConnectorContext, tapTable, tapRecordEvent, e, (ex) -> {
+				if (null == ex) {
+					return new RuntimeException(String.format("Insert data failed: %s\n Sql: %s", e.getMessage(), insertPreparedStatement), e);
+				}
+				return ex;
+			});
 		}
 	}
 
@@ -156,7 +162,12 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 		try {
 			return updatePreparedStatement.executeUpdate();
 		} catch (Exception e) {
-			throw new RuntimeException(String.format("Update data failed: %s\n Sql: %s", e.getMessage(), updatePreparedStatement), e);
+			throw ExceptionWrapper.wrap(tapConnectorContext, tapTable, tapRecordEvent, e, (ex) -> {
+				if (null == ex) {
+					throw new RuntimeException(String.format("Update data failed: %s\n Sql: %s", e.getMessage(), updatePreparedStatement), e);
+				}
+				return ex;
+			});
 		}
 	}
 

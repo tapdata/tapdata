@@ -14,7 +14,6 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import org.apache.commons.lang3.StringUtils;
 
 import java.sql.*;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -134,14 +133,11 @@ public class MysqlJdbcContext implements AutoCloseable {
 		String timezone = connectionConfig.getString("timezone");
 		if (StringUtils.isNotBlank(timezone)) {
 			try {
-				ZoneId.of(timezone);
 				timezone = "GMT" + timezone;
 				String serverTimezone = timezone.replace("+", "%2B").replace(":00", "");
 				properties.put("serverTimezone", serverTimezone);
 			} catch (Exception ignored) {
 			}
-		}else {
-			properties.put("serverTimezone", "GMT");
 		}
 		StringBuilder propertiesString = new StringBuilder();
 		properties.forEach((k, v) -> propertiesString.append("&").append(k).append("=").append(v));

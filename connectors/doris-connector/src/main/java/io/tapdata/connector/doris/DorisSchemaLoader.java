@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import io.tapdata.connector.doris.bean.DorisConfig;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
@@ -14,18 +15,16 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.kit.DbKit;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.StringJoiner;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -48,10 +47,10 @@ public class DorisSchemaLoader {
             "i.NON_UNIQUE,\n" +
             "i.COLUMN_NAME,\n" +
             "i.SEQ_IN_INDEX,\n" +
-            "k.CONSTRAINT_NAME\n"+
+            "k.CONSTRAINT_NAME\n" +
             "from INFORMATION_SCHEMA.STATISTICS i\n" +
-            "inner join INFORMATION_SCHEMA.KEY_COLUMN_USAGE k\n"+
-            "on k.TABLE_NAME = i.TABLE_NAME and i.COLUMN_NAME = k.COLUMN_NAME\n"+
+            "inner join INFORMATION_SCHEMA.KEY_COLUMN_USAGE k\n" +
+            "on k.TABLE_NAME = i.TABLE_NAME and i.COLUMN_NAME = k.COLUMN_NAME\n" +
             "where k.TABLE_SCHEMA = '%s'\n" +
             "and i.TABLE_SCHEMA = '%s'\n" +
             "and i.TABLE_NAME %s\n" +
@@ -211,7 +210,7 @@ public class DorisSchemaLoader {
         if (CollectionUtils.isEmpty(columnList)) {
             return;
         }
-        columnList.forEach( dataMap -> {
+        columnList.forEach(dataMap -> {
             String columnName = dataMap.getString("COLUMN_NAME");
             String columnType = dataMap.getString("COLUMN_TYPE");
             TapField field = TapSimplify.field(columnName, columnType);
@@ -232,6 +231,68 @@ public class DorisSchemaLoader {
         });
     }
 
+    CreateTableOptions createTableV2(TapConnectionContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws Throwable {
+        CreateTableOptions createTableOptions = new CreateTableOptions();
+        TapTable tapTable = tapCreateTableEvent.getTable();
+        String database = dorisContext.getDorisConfig().getDatabase();
+        final String tableName = tapTable.getName();
+        Collection<String> primaryKeys = tapTable.primaryKeys(true);
+        Connection connection = dorisContext.getConnection();
+        try (
+                Statement statement = connection.createStatement();
+                ResultSet resultSet = queryOneTable(statement, database, tableName)
+        ) {
+            if (resultSet.next()) {
+                createTableOptions.setTableExists(true);
+                return createTableOptions;
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Check table exists failed | Error: " + e.getMessage(), e);
+        }
+        String sql;
+        Integer replicationNum = tapConnectorContext.getNodeConfig().getInteger("replicationNum");
+        if (CollectionUtils.isEmpty(primaryKeys)) {
+            List<String> duplicateKey = (List<String>) tapConnectorContext.getNodeConfig().getObject("duplicateKey");
+            List<String> distributedKey = (List<String>) tapConnectorContext.getNodeConfig().getObject("distributedKey");
+            //append mode
+            if(EmptyKit.isEmpty(duplicateKey)) {
+                Collection<String> allColumns = tapTable.getNameFieldMap().keySet();
+                sql = "CREATE TABLE IF NOT EXISTS " + tableName +
+                        "(" + DDLInstance.buildColumnDefinition(tapTable) + ") " +
+                        "UNIQUE KEY (" + DDLInstance.buildDistributedKey(allColumns) + " ) " +
+                        "DISTRIBUTED BY HASH(" + DDLInstance.buildDistributedKey(allColumns) + " ) BUCKETS 16 " +
+                        "PROPERTIES(\"replication_num\" = \"" +
+                        replicationNum.toString() +
+                        "\")";
+            } else {
+                sql = "CREATE TABLE IF NOT EXISTS " + tableName +
+                        "(" + DDLInstance.buildColumnDefinition(tapTable) + ") " +
+                        "DUPLICATE KEY (" + String.join(",", duplicateKey) + " ) " +
+                        "DISTRIBUTED BY HASH(" + String.join(",", distributedKey) + " ) BUCKETS 16 " +
+                        "PROPERTIES(\"replication_num\" = \"" +
+                        replicationNum.toString() +
+                        "\")";
+            }
+        } else {
+            sql = "CREATE TABLE IF NOT EXISTS " + tableName +
+                    "(" + DDLInstance.buildColumnDefinition(tapTable) + ") " +
+                    "UNIQUE KEY (" + DDLInstance.buildDistributedKey(primaryKeys) + " ) " +
+                    "DISTRIBUTED BY HASH(" + DDLInstance.buildDistributedKey(primaryKeys) + " ) BUCKETS 16 " +
+                    "PROPERTIES(\"replication_num\" = \"" +
+                    replicationNum.toString() +
+                    "\")";
+        }
+        createTableOptions.setTableExists(false);
+
+        try {
+            TapLogger.info(TAG, "Create table: " + tableName + " | Sql: " + sql);
+            dorisContext.execute(sql);
+            return createTableOptions;
+        } catch (Exception e) {
+            throw new RuntimeException("Create Table " + tableName + " Failed | Error: " + e.getMessage() + " | Sql: " + sql, e);
+        }
+    }
+
     public void createTable(final TapTable tapTable) {
         String database = dorisContext.getDorisConfig().getDatabase();
         final String tableName = tapTable.getName();
@@ -249,12 +310,18 @@ public class DorisSchemaLoader {
         }
         String sql;
         if (CollectionUtils.isEmpty(primaryKeys)) {
-            String firstColumn = tapTable.getNameFieldMap().values().stream().findFirst().orElseGet(TapField::new).getName();
+            Collection<String> allColumns = tapTable.getNameFieldMap().keySet();
             sql = "CREATE TABLE IF NOT EXISTS " + tableName +
                     "(" + DDLInstance.buildColumnDefinition(tapTable) + ") " +
-                    "DUPLICATE KEY (" + firstColumn + " ) " +
-                    "DISTRIBUTED BY HASH(" + firstColumn + " ) BUCKETS 10 " +
+                    "UNIQUE KEY (" + DDLInstance.buildDistributedKey(allColumns) + " ) " +
+                    "DISTRIBUTED BY HASH(" + DDLInstance.buildDistributedKey(allColumns) + " ) BUCKETS 10 " +
                     "PROPERTIES(\"replication_num\" = \"1\")";
+//            String firstColumn = tapTable.getNameFieldMap().values().stream().findFirst().orElseGet(TapField::new).getName();
+//            sql = "CREATE TABLE IF NOT EXISTS " + tableName +
+//                    "(" + DDLInstance.buildColumnDefinition(tapTable) + ") " +
+//                    "DUPLICATE KEY (" + firstColumn + " ) " +
+//                    "DISTRIBUTED BY HASH(" + firstColumn + " ) BUCKETS 10 " +
+//                    "PROPERTIES(\"replication_num\" = \"1\")";
         } else {
             sql = "CREATE TABLE IF NOT EXISTS " + tableName +
                     "(" + DDLInstance.buildColumnDefinition(tapTable) + ") " +
@@ -274,7 +341,7 @@ public class DorisSchemaLoader {
     public void dropTable(String dataName, final String tableName) {
         Connection connection = dorisContext.getConnection();
         try (Statement statement = connection.createStatement();
-             ResultSet table = queryOneTable(statement, dataName, tableName)){
+             ResultSet table = queryOneTable(statement, dataName, tableName)) {
             if (table.next()) {
                 String sql = String.format("DROP TABLE `%s`.`%s`", dataName, tableName);
                 dorisContext.execute(sql);
@@ -287,7 +354,7 @@ public class DorisSchemaLoader {
     public void clearTable(String dataName, final String tableName) {
         final Connection connection = dorisContext.getConnection();
         try (Statement statement = connection.createStatement();
-             ResultSet table = queryOneTable(statement, dataName, tableName)){
+             ResultSet table = queryOneTable(statement, dataName, tableName)) {
             if (table.next()) {
                 String sql = String.format("TRUNCATE TABLE `%s`.`%s`", dataName, tableName);
                 dorisContext.execute(sql);

@@ -239,7 +239,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             }
         }
 
-        boolean appendNodeTableName = node instanceof TableRenameProcessNode || node instanceof MigrateFieldRenameProcessorNode || node instanceof MigrateJsProcessorNode;
+        boolean appendNodeTableName = node instanceof MigrateProcessorNode;
 
         if (node.isDataNode()) {
             return createOrUpdateSchemaForDataNode(dataSourceId, schemas, options, node);

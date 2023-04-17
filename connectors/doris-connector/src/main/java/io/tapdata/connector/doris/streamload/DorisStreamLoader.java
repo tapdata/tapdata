@@ -17,6 +17,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPut;
@@ -25,10 +26,7 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -156,15 +154,28 @@ public class DorisStreamLoader {
 			columns.add(Constants.DORIS_DELETE_SIGN);
 			HttpPutBuilder putBuilder = new HttpPutBuilder();
 			InputStreamEntity entity = new InputStreamEntity(recordStream, recordStream.getContentLength());
-			putBuilder.setUrl(loadUrl)
-					// 前端表单传出来的值和tdd json加载的值可能有差别，如前端传的pwd可能是null，tdd的是空字符串
-					.baseAuth(config.getUser(), config.getPassword())
-					.addCommonHeader()
-					.addFormat(writeFormat)
-					.addColumns(columns)
-					.setLabel(label)
-					.enableDelete()
-					.setEntity(entity);
+			Collection<String> primaryKeys = table.primaryKeys(true);
+			if (CollectionUtils.isEmpty(primaryKeys)) {
+				putBuilder.setUrl(loadUrl)
+						// 前端表单传出来的值和tdd json加载的值可能有差别，如前端传的pwd可能是null，tdd的是空字符串
+						.baseAuth(config.getUser(), config.getPassword())
+						.addCommonHeader()
+						.addFormat(writeFormat)
+						.addColumns(columns)
+						.setLabel(label)
+						.enableAppend()
+						.setEntity(entity);
+			} else {
+				putBuilder.setUrl(loadUrl)
+						// 前端表单传出来的值和tdd json加载的值可能有差别，如前端传的pwd可能是null，tdd的是空字符串
+						.baseAuth(config.getUser(), config.getPassword())
+						.addCommonHeader()
+						.addFormat(writeFormat)
+						.addColumns(columns)
+						.setLabel(label)
+						.enableDelete()
+						.setEntity(entity);
+			}
 			HttpPut httpPut = putBuilder.build();
 			TapLogger.debug(TAG, "Call stream load http api, url: {}, headers: {}", loadUrl, putBuilder.header);
 			return handlePreCommitResponse(httpClient.execute(httpPut));
