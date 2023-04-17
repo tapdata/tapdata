@@ -154,6 +154,11 @@ class Job:
             pass
 
 
+class TestCases:
+
+    pass
+
+
 if __name__ == '__main__':
     j = Job()
     # for i in j:
