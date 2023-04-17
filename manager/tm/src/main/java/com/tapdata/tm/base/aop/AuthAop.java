@@ -110,6 +110,11 @@ public class AuthAop {
     return setFreeAuth(pjp, userDetail);
   }
 
+	@Around("execution(public * com.tapdata.tm.base.reporitory.BaseRepository.*(..)) && target(com.tapdata.tm.metadatainstance.repository.MetadataInstancesRepository) && args(.., query, userDetail)")
+	public Object metadataInstancesService(ProceedingJoinPoint pjp, Query query, UserDetail userDetail) throws Throwable {
+		return setFreeAuth(pjp, userDetail);
+	}
+
   private Object setFreeAuth(ProceedingJoinPoint pjp, UserDetail userDetail) throws Throwable {
     if (productComponent.isCloud()) {
       return pjp.proceed();
