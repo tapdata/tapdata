@@ -890,17 +890,27 @@ public class LogCollectorService {
 
         datasourceMap.forEach((k, v) -> {
             //获取需要日志挖掘的表名
-            List<String> tableNames = new ArrayList<>();
+            //Set<String> tableSet = new HashSet<>();
+
+            Map<String, List<String>> tableMaps = new HashMap<>();
+            Set<String> finalTableNames = new HashSet<>();
+
             for (DataSourceConnectionDto d : v) {
+                Set<String> tableSet = new HashSet<>();
                 List<Node> nodes = group.get(d.getId());
                 for (Node node : nodes) {
                     if (node instanceof TableNode) {
-                        tableNames.add(((TableNode) node).getTableName());
+                        tableSet.add(((TableNode) node).getTableName());
                     } else if (node instanceof DatabaseNode) {
-                        tableNames = ((DatabaseNode) node).getSourceNodeTableNames();
+                        tableSet.addAll(((DatabaseNode) node).getSourceNodeTableNames());
                     }
                 }
+                List<String> tableNames = new ArrayList<>(tableSet);
+                finalTableNames.addAll(tableSet);
+                tableMaps.put(d.getId().toHexString(), tableNames);
+
             }
+
 
             //查询是否存在相同的日志挖掘任务，存在，并且表也存在，则不处理
             //根据unique name查询，或者根据id查询
@@ -931,30 +941,48 @@ public class LogCollectorService {
             if (oldLogCollectorTask != null) {
                 List<Node> sources1 = oldLogCollectorTask.getDag().getSources();
                 LogCollectorNode logCollectorNode = (LogCollectorNode) sources1.get(0);
-                List<String> oldTableNames = logCollectorNode.getTableNames();
                 Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
                 for (String id : ids) {
                     newLogCollectorMap.put(id, oldLogCollectorTask.getId().toHexString());
                 }
 
-                List<String> oldConnectionIds = logCollectorNode.getConnectionIds();
 
-                boolean updateConnectionId = false;
+
+                boolean updateConfig = false;
+//                for (String connectionId : connectionIds) {
+//                    if (!oldConnectionIds.contains(connectionId)) {
+//                        oldConnectionIds.add(connectionId);
+//                        updateConnectionId = true;
+//                    }
+//                }
+
+
                 for (String connectionId : connectionIds) {
-                    if (!oldConnectionIds.contains(connectionId)) {
-                        oldConnectionIds.add(connectionId);
-                        updateConnectionId = true;
+                    LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
+                    if (logCollecotrConnConfig == null) {
+                        logCollecotrConnConfig = new LogCollecotrConnConfig(connectionId, tableMaps.get(connectionId));
+                        logCollectorConnConfigs.put(connectionId, logCollecotrConnConfig);
+                        updateConfig = true;
+                    } else {
+                        List<String> tableNames = tableMaps.get(connectionId);
+                        List<String> oldConfigTableNames = logCollecotrConnConfig.getTableNames();
+                        tableNames.addAll(oldConfigTableNames);
+                        tableNames = tableNames.stream().distinct().collect(Collectors.toList());
+                        if (tableNames.size() != oldConfigTableNames.size()) {
+                            updateConfig =  true;
+                        }
                     }
                 }
 
-                List<String> finalTableNames = tableNames;
 
-                if (CollectionUtils.isNotEmpty(oldTableNames) && oldTableNames.containsAll(tableNames)) {
+
+
+                if (!updateConfig) {
                     //检查状态，如果状态不是启动的，需要启动起来
                     String status = oldLogCollectorTask.getStatus();
-                    if (updateConnectionId) {
-                        taskService.confirmById(oldLogCollectorTask, user, true);
-                    }
+//                    if (updateConnectionId) {
+//                        taskService.confirmById(oldLogCollectorTask, user, true);
+//                    }
 
                     if (TaskDto.STATUS_RUNNING.equals(status)) {
                         FunctionUtils.ignoreAnyError(() -> {
@@ -974,9 +1002,7 @@ public class LogCollectorService {
                     return;
                 }
 
-                tableNames.addAll(oldTableNames);
-                tableNames = tableNames.stream().distinct().collect(Collectors.toList());
-                logCollectorNode.setTableNames(tableNames);
+                logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
                 taskService.updateById(oldLogCollectorTask, user);
                 updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
 
@@ -991,12 +1017,19 @@ public class LogCollectorService {
                 return;
             }
 
+
+            Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = new HashMap<>();
+            for (String connectionId : connectionIds) {
+                LogCollecotrConnConfig logCollecotrConnConfig = new LogCollecotrConnConfig(connectionId, tableMaps.get(connectionId));
+                logCollectorConnConfigs.put(connectionId, logCollecotrConnConfig);
+            }
+
             LogCollectorNode logCollectorNode = new LogCollectorNode();
+            logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
             logCollectorNode.setId(UUIDUtil.getUUID());
             logCollectorNode.setConnectionIds(connectionIds);
             logCollectorNode.setDatabaseType(v.get(0).getDatabase_type());
             logCollectorNode.setName(v.get(0).getName());
-            logCollectorNode.setTableNames(tableNames);
             logCollectorNode.setSelectType(LogCollectorNode.SELECT_TYPE_RESERVATION);
             Map<String, Object> attr = Maps.newHashMap();
             attr.put("pdkHash", dataSource.getPdkHash());
@@ -1032,11 +1065,10 @@ public class LogCollectorService {
 
             taskService.start(taskDto.getId(), user);
 
-            List<String> finalTableNames1 = tableNames;
             TaskDto finalTaskDto = taskDto;
             FunctionUtils.ignoreAnyError(() -> {
                 String template = "relate share cdc task, create new task: {0}, table name: {1}, current status {2}.";
-                String msg = MessageFormat.format(template, finalTaskDto.getName(), JSON.toJSONString(finalTableNames1), finalTaskDto.getStatus());
+                String msg = MessageFormat.format(template, finalTaskDto.getName(), JSON.toJSONString(finalTableNames), finalTaskDto.getStatus());
                 monitoringLogsService.startTaskErrorLog(oldTaskDto, user, msg, Level.INFO);
             });
         });
