@@ -55,17 +55,13 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     }
 
     private void save2TaskAttrs() {
-        try {
-            Update update = Update.update(String.format("attrs.%s", TaskDto.ATTRS_SKIP_ERROR_EVENT), syncAndSkipMap);
-            clientMongoOperator.update(Query.query(Criteria.where("_id").is(taskId)), update, ConnectorConstant.TASK_COLLECTION);
-        } catch (Exception e) {
-            log.warn("Store skipErrorEvent failed: {}", e.getMessage());
-        }
+        Update update = Update.update(String.format("attrs.%s", TaskDto.ATTRS_SKIP_ERROR_EVENT), syncAndSkipMap);
+        clientMongoOperator.update(Query.query(Criteria.where("_id").is(taskId)), update, ConnectorConstant.TASK_COLLECTION);
     }
 
     private synchronized void logSkipEvent(TapRecordEvent tapRecordEvent, Throwable ex) {
-        logger.info(skipEventMaker, "Task({}) skip event: {}", taskId, tapRecordEvent);
-        logger.info(skipEventMaker, "Task({}) skip exception: {}", taskId, ex.getMessage(), ex.getCause());
+        logger.info(skipEventMaker, "task-{} skip event: {}", taskId, tapRecordEvent);
+        logger.info(skipEventMaker, "task-{} skip exception: {}", taskId, ex.getMessage(), ex.getCause());
 
         long now = System.currentTimeMillis();
         if (now > nextPrintTimes) {
@@ -152,9 +148,10 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             if (null != storeThread) {
                 storeThread.interrupt();
             }
+            String storeThreadName = String.format("%s-skipErrorEvent", taskId);
             storeThread = new Thread(() -> {
                 long lastStoreTimes = System.currentTimeMillis();
-                log.info("Start skipErrorEvent store runner.");
+                log.info("Start store runner: {}", storeThreadName);
                 while (!Thread.interrupted()) {
                     long nowTime = System.currentTimeMillis();
                     try {
@@ -170,8 +167,9 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
                         logger.warn("Store skipErrorEvent failed: {}", e.getMessage());
                     }
                 }
-                log.info("End skipErrorEvent store runner.");
+                log.info("End store runner: {}", storeThreadName);
             });
+            storeThread.setName(storeThreadName);
             storeThread.start();
         }
 
@@ -244,6 +242,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             aspect.getWriteRecordFunction().apply(aspect.getTapRecordEvents());
             getTypeMetrics(tableId, METRICS_SYNC).addAndGet(aspect.getTapRecordEvents().size());
         } catch (Throwable e1) {
+            // Here the exception is thrown as is and handled by the connector and engine
             if (checkSkipByThrowable(e1)) {
                 for (TapRecordEvent tapRecordEvent : aspect.getTapRecordEvents()) {
                     try {

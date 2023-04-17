@@ -134,7 +134,7 @@ public class PdkStateMap implements KVMap<Object> {
 		}
 		ExternalStorageDto externalStorageDto = new ExternalStorageDto();
 		externalStorageDto.setType(ExternalStorageType.httptm.name());
-		externalStorageDto.setBaseUrl(baseURLs.get(0));
+		externalStorageDto.setBaseURLs(baseURLs);
 		externalStorageDto.setAccessToken(accessCode);
 		externalStorageDto.setConnectTimeoutMs(CONNECT_TIMEOUT_MS);
 		externalStorageDto.setReadTimeoutMs(READ_TIMEOUT_MS);
