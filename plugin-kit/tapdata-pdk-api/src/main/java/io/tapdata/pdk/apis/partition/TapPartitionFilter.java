@@ -53,7 +53,7 @@ public class TapPartitionFilter extends TapFilter {
 			return this;
 		if(match == null)
 			match = DataMap.create();
-		map.putAll(map);
+		match.putAll(map);
 		return this;
 	}
 

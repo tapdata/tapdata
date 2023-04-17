@@ -61,7 +61,7 @@ public class ReadPartitionUnKVStorageHandler extends PartitionFieldParentHandler
             LongAdder storageTakes = new LongAdder();
             LongAdder filterTakes = new LongAdder();
             LongAdder counter = new LongAdder();
-            LongAdder jetTakes = new LongAdder();
+//            LongAdder jetTakes = new LongAdder();
             TapPartitionFilter partitionFilter = readPartition.getPartitionFilter();
             TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create()
                     .match(partitionFilter.getMatch())
@@ -91,7 +91,8 @@ public class ReadPartitionUnKVStorageHandler extends PartitionFieldParentHandler
                                                 reference[0].add(insertRecordEvent(result, table).referenceTime(System.currentTimeMillis()));
                                                 int size = reference[0].size();
                                                 if (size >= tapAdvanceFilter.getBatchSize()){
-                                                    jetTakes.add(sourcePdkDataNode.handleStreamEventsReceived(reference[0], null));
+                                                    sourcePdkDataNode.handleStreamEventsReceived(reference[0], null);
+//                                                    jetTakes.add();
                                                     sentEventCount.add(size);
                                                     counter.add(size);
                                                     reference[0] = new ArrayList<>();
@@ -115,13 +116,13 @@ public class ReadPartitionUnKVStorageHandler extends PartitionFieldParentHandler
                 sourcePdkDataNode.getObsLogger().info(
                         "Stored the readPartition {}, " +
                                 "takes {}, " +
-                                "storage takes {} of jet takes {}, " +
+                                "storage takes {}, " +
                                 "filter takes {}, " +
                                 "total {}",
                         readPartition,
                         (System.currentTimeMillis() - time),
                         storageTakes.longValue(),
-                        jetTakes.longValue(),
+//                        jetTakes.longValue(),
                         filterTakes.longValue(),
                         counter.longValue());
             }

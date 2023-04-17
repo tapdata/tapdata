@@ -522,12 +522,30 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 //        return cast;
 //    }
 
-    public long handleStreamEventsReceived(List<TapEvent> events, Object offsetObj) {
-        long cast = 0;
+	public void handleStreamEventsReceived(List<TapEvent> events, Object offsetObj) {
 		try {
+//			while (isRunning()) {
+//				try {
+//					if (sourceRunnerLock.tryLock(1L, TimeUnit.SECONDS)) {
+//						break;
+//					}
+//				} catch (InterruptedException e) {
+//					break;
+//				}
+//			}
 			if (events != null && !events.isEmpty()) {
-                List<TapdataEvent> tapdataEvents = new ArrayList<>();
-                wrapTapdataEvent(events, tapdataEvents, SyncStage.CDC, offsetObj);
+				events.forEach(event -> {
+					if (null == event.getTime()) {
+						throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
+					}
+					event.addInfo("eventId", UUID.randomUUID().toString());
+				});
+
+				if (streamReadFuncAspect != null) {
+					AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), events);
+				}
+
+				List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj);
 				if (logger.isDebugEnabled()) {
 					logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
 				}
@@ -536,11 +554,8 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 					AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
 
 				if (CollectionUtils.isNotEmpty(tapdataEvents)) {
-                    long s = System.currentTimeMillis();
-                    for (TapdataEvent tapdataEvent : tapdataEvents) {
-                        this.enqueue(tapdataEvent);
-                    }
-                    cast = System.currentTimeMillis() - s;
+					tapdataEvents.forEach(this::enqueue);
+//					syncProgress.setStreamOffsetObj(offsetObj);
 					if (streamReadFuncAspect != null)
 						AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
 				}
@@ -553,8 +568,6 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 			} catch (Exception ignored) {
 			}
 		}*/
-
-        return cast;
 	}
 
     private List<TapdataEvent> wrapTapdataEvent(List<Map<String, Object>> events, SyncStage syncStage, Object offsetObj, String tableId) {
