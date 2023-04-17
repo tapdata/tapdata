@@ -1,6 +1,7 @@
 package io.tapdata.pdk.apis.entity;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class WriteListResult<T> {
@@ -29,7 +30,7 @@ public class WriteListResult<T> {
 
 	public WriteListResult<T> addError(T key, Throwable value) {
 		if (errorMap == null) {
-			errorMap = new HashMap<>();
+			errorMap = new LinkedHashMap<>();
 		}
 		errorMap.put(key, value);
 		return this;

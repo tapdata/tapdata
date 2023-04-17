@@ -139,7 +139,7 @@ public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
 
                 break;
             default:
-                throw new CoreException(NetErrors.ERROR_ENCODER_NOT_FOUND, "Encode type {} doesn't be found to persistent for {}", encode, this.getClass().getSimpleName());
+                throw new CoreException(NetErrors.ERROR_ENCODER_NOT_FOUND, "Encode type {} not found to persistent for {}", encode, this.getClass().getSimpleName());
         }
     }
 

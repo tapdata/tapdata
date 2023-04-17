@@ -1,5 +1,7 @@
 package io.tapdata.entity.mapping.type;
 
+import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.error.TapAPIErrorCodes;
 import io.tapdata.entity.result.ResultItem;
 import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
@@ -253,7 +255,7 @@ public class TapNumberMapping extends TapMapping {
                 length = Integer.parseInt(lengthStr);
                 hasBitVariable = true;
             } catch (Throwable throwable) {
-                throwable.printStackTrace();
+                throw new CoreException(TapAPIErrorCodes.ERROR_NUMBER_BIT_PARSE_FAILED, "Parse bit failed, str {}, error {}", lengthStr, throwable.getMessage());
             }
         }
         if(length == null) {
@@ -276,7 +278,7 @@ public class TapNumberMapping extends TapMapping {
                 precision = Integer.parseInt(precisionStr);
                 hasPrecisionScaleVariable = true;
             } catch (Throwable throwable) {
-                throwable.printStackTrace();
+                throw new CoreException(TapAPIErrorCodes.ERROR_NUMBER_PRECISION_PARSE_FAILED, "Parse precision failed, str {}, error {}", precisionStr, throwable.getMessage());
             }
         }
         if(precision == null) {
@@ -296,7 +298,7 @@ public class TapNumberMapping extends TapMapping {
             try {
                 scale = Integer.parseInt(scaleStr);
             } catch (Throwable throwable) {
-                throwable.printStackTrace();
+                throw new CoreException(TapAPIErrorCodes.ERROR_NUMBER_SCALE_PARSE_FAILED, "Parse scale failed, str {}, error {}", scaleStr, throwable.getMessage());
             }
         }
         if(scale == null)

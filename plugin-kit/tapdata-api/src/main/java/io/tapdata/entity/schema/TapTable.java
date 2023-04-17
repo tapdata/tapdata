@@ -89,6 +89,8 @@ public class TapTable extends TapItem<TapField> {
 
 	private Collection<String> logicPrimaries;
 
+	private TapIndexEx partitionIndex;
+
 	public String toString() {
 		return "TapTable id " + id +
 				" name " + name +
@@ -174,7 +176,18 @@ public class TapTable extends TapItem<TapField> {
 		return Collections.emptyList();
 	}
 
+	public TapIndexEx getPartitionIndex() {
+		return partitionIndex();
+	}
+
+	public void setPartitionIndex(TapIndexEx partitionIndex) {
+		this.partitionIndex = partitionIndex;
+	}
+
 	public TapIndexEx partitionIndex() {
+		if(partitionIndex != null) {
+			return partitionIndex;
+		}
 		LinkedHashMap<String, TapField> nameFieldMapCopyRef = this.nameFieldMap;
 		if (nameFieldMapCopyRef == null || nameFieldMapCopyRef.isEmpty()) {
 			TapLogger.warn(TAG, "Table {} field map is empty, no partition index available. ", name);
