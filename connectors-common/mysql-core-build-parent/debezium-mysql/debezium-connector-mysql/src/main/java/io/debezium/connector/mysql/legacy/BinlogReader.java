@@ -10,6 +10,7 @@ import static io.debezium.util.Strings.isNullOrEmpty;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.Serializable;
+import java.lang.reflect.Field;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -216,6 +217,23 @@ public class BinlogReader extends AbstractReader {
 
         // Set up the log reader ...
         client = new BinaryLogClient(connectionContext.hostname(), connectionContext.port(), connectionContext.username(), connectionContext.password());
+        try {
+            //This try for td-sql and set partition id for td-sql's binary log client @Gavin
+            Configuration configuration = context.getConnectorConfig().getConfig();
+            if(configuration != null) {
+                String tdsqlPartition = configuration.getString("tdsql.partition");
+                if(tdsqlPartition != null) {
+                    tdsqlPartition = tdsqlPartition.trim();
+                    Class<? extends BinaryLogClient> clientClass = client.getClass();
+                    Field sql = clientClass.getDeclaredField("setPartitionId");
+                    sql.setAccessible(true);
+                    sql.set(client,  tdsqlPartition);
+                    //LOGGER.info("Partition of TD-SQL BinaryLog.");
+                }
+            }
+        } catch(Throwable ignore) {
+        }
+
         // BinaryLogClient will overwrite thread names later
         client.setThreadFactory(
                 Threads.threadFactory(MySqlConnector.class, context.getConnectorConfig().getLogicalName(), "binlog-client", false, false,

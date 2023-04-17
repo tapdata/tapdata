@@ -307,13 +307,14 @@ public class TencentDBMySQLConnector extends MysqlConnector {
                 synchronized (this) {
                     if (sourceConsumer == null) {
                         int size = readers.size();
-                        this.sourceConsumer = new ThreadPoolExecutor(size <= 1 ? 1 : size >> 1, size, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
+                        this.sourceConsumer = new ThreadPoolExecutor(size , size, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
                     }
                 }
             }
 //            List<String> finalTables = tables;
             for (Map.Entry<String, MysqlReader> entry : readers.entrySet()) {
                 String key = entry.getKey();
+                //if (key.equals("set_1681181636_1")) continue;
                 MysqlReader value = entry.getValue();
                 this.sourceConsumer.execute(() -> {
                     Thread.currentThread().setUncaughtExceptionHandler((thread, throwable) -> {

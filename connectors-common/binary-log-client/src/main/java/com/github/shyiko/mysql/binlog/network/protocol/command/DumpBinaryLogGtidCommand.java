@@ -30,6 +30,7 @@ public class DumpBinaryLogGtidCommand implements Command {
     private String binlogFilename;
     private long binlogPosition;
     private GtidSet gtidSet;
+    private String proxySet;
 
     public DumpBinaryLogGtidCommand(long serverId, String binlogFilename, long binlogPosition, GtidSet gtidSet) {
         this.serverId = serverId;
@@ -41,6 +42,9 @@ public class DumpBinaryLogGtidCommand implements Command {
     @Override
     public byte[] toByteArray() throws IOException {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        if (null != proxySet) {
+            buffer.writeString(proxySet);
+        }
         buffer.writeInteger(CommandType.BINLOG_DUMP_GTID.ordinal(), 1);
         buffer.writeInteger(0, 2); // flag
         buffer.writeLong(this.serverId, 4);
@@ -73,6 +77,11 @@ public class DumpBinaryLogGtidCommand implements Command {
             b[i++] = (byte) Integer.parseInt(uuid.charAt(j) + "" + uuid.charAt(j + 1), 16);
         }
         return b;
+    }
+
+    public DumpBinaryLogGtidCommand setProxySet(String preSql){
+        this.proxySet = preSql;
+        return this;
     }
 
 }

@@ -907,22 +907,22 @@ public class MySqlStreamingChangeEventSource implements StreamingChangeEventSour
                 long started = clock.currentTimeInMillis();
                 try {
                     LOGGER.debug("Attempting to establish binlog reader connection with timeout of {} ms", timeout);
-                    try {
-                        //This try for td-sql and set partition id for td-sql's binary log client @Gavin
-                        Configuration configuration = connectorConfig.getConfig();
-                        if(configuration != null) {
-                            String tdsqlPartition = configuration.getString("tdsql.partition");
-                            if(tdsqlPartition != null) {
-                                tdsqlPartition = tdsqlPartition.trim();
-                                Class<? extends BinaryLogClient> clientClass = client.getClass();
-                                Field sql = clientClass.getDeclaredField("sql");
-                                sql.setAccessible(true);
-                                sql.set(client,  tdsqlPartition);
-                                LOGGER.info("Partition of TD-SQL BinaryLog.");
-                            }
-                        }
-                    } catch(Throwable ignore) {
-                    }
+//                    try {
+//                        //This try for td-sql and set partition id for td-sql's binary log client @Gavin
+//                        Configuration configuration = connectorConfig.getConfig();
+//                        if(configuration != null) {
+//                            String tdsqlPartition = configuration.getString("tdsql.partition");
+//                            if(tdsqlPartition != null) {
+//                                tdsqlPartition = tdsqlPartition.trim();
+//                                Class<? extends BinaryLogClient> clientClass = client.getClass();
+//                                Field sql = clientClass.getDeclaredField("sql");
+//                                sql.setAccessible(true);
+//                                sql.set(client,  tdsqlPartition);
+//                                LOGGER.info("Partition of TD-SQL BinaryLog.");
+//                            }
+//                        }
+//                    } catch(Throwable ignore) {
+//                    }
                     client.connect(timeout);
                     // Need to wait for keepalive thread to be running, otherwise it can be left orphaned
                     // The problem is with timing. When the close is called too early after connect then

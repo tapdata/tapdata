@@ -27,6 +27,7 @@ public class DumpBinaryLogCommand implements Command {
     private long serverId;
     private String binlogFilename;
     private long binlogPosition;
+    private String proxySet;
 
     public DumpBinaryLogCommand(long serverId, String binlogFilename, long binlogPosition) {
         this.serverId = serverId;
@@ -37,6 +38,9 @@ public class DumpBinaryLogCommand implements Command {
     @Override
     public byte[] toByteArray() throws IOException {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        if (null != proxySet) {
+            buffer.writeString(proxySet);
+        }
         buffer.writeInteger(CommandType.BINLOG_DUMP.ordinal(), 1);
         buffer.writeLong(this.binlogPosition, 4);
         buffer.writeInteger(0, 2); // flag
@@ -45,4 +49,8 @@ public class DumpBinaryLogCommand implements Command {
         return buffer.toByteArray();
     }
 
+    public DumpBinaryLogCommand setProxySet(String preSql){
+        this.proxySet = preSql;
+        return this;
+    }
 }

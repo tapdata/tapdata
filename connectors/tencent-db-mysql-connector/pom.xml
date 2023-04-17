@@ -26,14 +26,6 @@
         <tapdata.pdk.api.version>1.2.2-SNAPSHOT</tapdata.pdk.api.version>
     </properties>
     <dependencies>
-
-        <dependency>
-            <groupId>io.tapdata</groupId>
-            <artifactId>binary-log-client</artifactId>
-            <version>1.0-SNAPSHOT</version>
-            <scope>compile</scope>
-        </dependency>
-
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-api</artifactId>
@@ -45,6 +37,11 @@
             <artifactId>tapdata-api</artifactId>
             <version>${tapdata.pdk.api.version}</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>binary-log-client</artifactId>
+            <version>1.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>

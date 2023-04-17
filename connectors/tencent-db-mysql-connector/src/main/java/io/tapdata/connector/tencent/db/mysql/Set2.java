@@ -79,6 +79,6 @@ public class Set2 {
             }
         });
 
-        client.connect(3000);
+        client.connect(300000);
     }
 }

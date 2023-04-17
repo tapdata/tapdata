@@ -64,10 +64,7 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.security.GeneralSecurityException;
 import java.security.cert.X509Certificate;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -123,10 +120,9 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
     private final String username;
     private final String password;
     private String setPartitionId;
-    private String sql;
 
     private String setNameToProxy(){
-        return null == setPartitionId ? "" : "/*sets:" + setPartitionId + "*/ ";
+        return null == setPartitionId && !"".equals(setPartitionId.trim()) ? "" : "/*sets:" + setPartitionId.trim() + "*/ ";
     }
 
     private boolean blocking = true;
@@ -208,8 +204,11 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
         this.username = username;
         this.password = password;
         this.setPartitionId = setId;
+        this.masterServerId = -1L;
     }
-
+    public long getMasterServerId() {
+        return this.masterServerId;
+    }
     public boolean isBlocking() {
         return blocking;
     }
@@ -562,8 +561,8 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
             GreetingPacket greetingPacket = receiveGreeting(channel);
             authenticate(channel, greetingPacket);
             connectionId = greetingPacket.getThreadId();
-            if (null != this.sql && !"".equals(this.sql.trim())){
-                channel.write(new QueryCommand("/*proxy*/ set binlog_dump_sticky_backend=" + this.sql));
+            if (null != setPartitionId && !"".equals(setPartitionId.trim())){
+                channel.write(new QueryCommand("/*proxy*/ set binlog_dump_sticky_backend=" + setPartitionId));
             }
             if ("".equals(binlogFilename)) {
                 synchronized (gtidSetAccessLock) {
@@ -585,6 +584,7 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
             if (checksumType != ChecksumType.NONE) {
                 confirmSupportOfChecksum(channel, checksumType);
             }
+            this.setMasterServerId(channel);
             if (heartbeatInterval > 0) {
                 enableHeartbeat(channel);
             }
@@ -684,7 +684,7 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
     }
 
     private void enableHeartbeat(final PacketChannel channel) throws IOException {
-        channel.write(new QueryCommand(setNameToProxy() + "sFet @master_heartbeat_period=" + heartbeatInterval * 1000000));
+        channel.write(new QueryCommand(setNameToProxy() + "set @master_heartbeat_period=" + heartbeatInterval * 1000000));
         byte[] statementResult = channel.read();
         if (statementResult[0] == (byte) 0xFF /* error */) {
             byte[] bytes = Arrays.copyOfRange(statementResult, 1, statementResult.length);
@@ -702,9 +702,9 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
                 dumpBinaryLogCommand = new DumpBinaryLogGtidCommand(serverId,
                     useBinlogFilenamePositionInGtidMode ? binlogFilename : "",
                     useBinlogFilenamePositionInGtidMode ? binlogPosition : 4,
-                    gtidSet);
+                    gtidSet);//.setProxySet(setNameToProxy());
             } else {
-                dumpBinaryLogCommand = new DumpBinaryLogCommand(serverId, binlogFilename, binlogPosition);
+                dumpBinaryLogCommand = new DumpBinaryLogCommand(serverId, binlogFilename, binlogPosition);//.setProxySet(setNameToProxy());
             }
         }
         channel.write(dumpBinaryLogCommand);
@@ -865,7 +865,39 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
     boolean isKeepAliveThreadRunning() {
         return keepAliveThreadExecutor != null && !keepAliveThreadExecutor.isShutdown();
     }
+    private volatile long masterServerId;
+    private void setMasterServerId(PacketChannel channel) throws IOException {
+        channel.write(new QueryCommand(setNameToProxy() + "select @@server_id"));
+        ResultSetRowPacket[] resultSet = this.readResultSet0(channel);
+        if (resultSet.length >= 0) {
+            this.masterServerId = Long.parseLong(resultSet[0].getValue(0));
+        }
 
+    }
+
+    private ResultSetRowPacket[] readResultSet0(PacketChannel channel) throws IOException {
+        List<ResultSetRowPacket> resultSet = new LinkedList();
+        byte[] statementResult = channel.read();
+        this.checkError(statementResult);
+
+        while(channel.read()[0] != -2) {
+        }
+
+        byte[] bytes;
+        while((bytes = channel.read())[0] != -2) {
+            this.checkError(bytes);
+            resultSet.add(new ResultSetRowPacket(bytes));
+        }
+
+        return (ResultSetRowPacket[])resultSet.toArray(new ResultSetRowPacket[resultSet.size()]);
+    }
+    private void checkError(byte[] packet) throws IOException {
+        if (packet[0] == -1) {
+            byte[] bytes = Arrays.copyOfRange(packet, 1, packet.length);
+            ErrorPacket errorPacket = new ErrorPacket(bytes);
+            throw new ServerException(errorPacket.getErrorMessage(), errorPacket.getErrorCode(), errorPacket.getSqlState());
+        }
+    }
     /**
      * Connect to the replication stream in a separate thread.
      * @param timeout timeout in milliseconds
@@ -1326,5 +1358,4 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
         public void onDisconnect(BinaryLogClient client) { }
 
     }
-
 }
