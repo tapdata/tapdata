@@ -109,6 +109,10 @@ public class SelectDbStreamLoader extends Throwable {
         if (!"FINISHED".equals(selectDBCopyIntoLog.get("State"))
                 && !"ETL:100%; LOAD:100%".equals(selectDBCopyIntoLog.get("Progress"))
                 && "CANCELLED".equals(selectDBCopyIntoLog.get("State"))) {
+            //Task should be error now.
+            selectDbContext.tapConnectionContext().getLog().error("ErrorMsg: " + selectDBCopyIntoLog.get("ErrorMsg")
+                    + ";   Log URL: [" + selectDBCopyIntoLog.get("URL")
+                    + "]   CreateTime:" + selectDBCopyIntoLog.get("CreateTime"));
             throw new CoreException(SelectDbErrorCodes.ERROR_SDB_COPY_INTO_CANCELLED, "ErrorMsg: " + selectDBCopyIntoLog.get("ErrorMsg")
                     + ";   Log URL: [" + selectDBCopyIntoLog.get("URL")
                     + "]   CreateTime:" + selectDBCopyIntoLog.get("CreateTime"));

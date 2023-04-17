@@ -6,7 +6,6 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.WriteListResult;
-
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -112,7 +111,7 @@ final class TapEventCollector {
                         this.tryUpload(true);
                     } catch (Throwable throwable) {
                         this.throwable = throwable;
-                        TapLogger.error(TAG, "Try upload failed in scheduler, {}", throwable.getMessage());
+                        TapLogger.error(TAG, "Try upload failed in scheduler, {}, will retry after {}", throwable.getMessage(), this.idleSeconds);
                     }
                 }, this.initDelay, this.idleSeconds, TimeUnit.SECONDS);
             }

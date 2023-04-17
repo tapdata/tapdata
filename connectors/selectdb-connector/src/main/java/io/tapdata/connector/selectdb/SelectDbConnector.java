@@ -333,7 +333,7 @@ public class SelectDbConnector extends ConnectorBase {
         try {
             writeListResultConsumer.accept(selectDbStreamLoader.writeRecord(events, table));
         } catch (IOException e) {
-            TapLogger.error(TAG, "Data write failure" + e.getMessage());
+            TapLogger.warn(TAG, "Data write failure" + e.getMessage());
         }
     }
 
