@@ -1,7 +1,7 @@
 {
-  "job_info": [
+  "jobs_infos": [
     {
-      "name": str,
+      "job_name": str,
       "dag": {
         "node": {
           "source": [],
@@ -10,17 +10,19 @@
         }
       },
       "table_fields": str,
-      "sync_type": str,
-      "test_res": {
-        "row_num": str,
-        "metrics": {
-          "qps": str,
-          "cpu": str,
-          "mem": str,
-          "processing_time": str,
-          "incremental_delay": str
+      "job_test_res": [
+        {
+          "sync_type": str,
+          "row_num": str,
+          "metrics": {
+            "qps": str,
+            "cpu": str,
+            "mem": str,
+            "processing_time": str,
+            "incremental_delay": str
+          }
         }
-      }
+      ]
     }
   ]
 }
