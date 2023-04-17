@@ -34,6 +34,7 @@
         <mysql.driver.version>8.0.21</mysql.driver.version>
         <debezium.version>1.5.4.Final</debezium.version>
         <tapdata.pdk.api.version>1.2.1</tapdata.pdk.api.version>
+        <pdk-error-code.version>1.0-SNAPSHOT</pdk-error-code.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -73,6 +74,13 @@
             <scope>provided</scope>
             <version>${tapdata.pdk.api.version}</version>
         </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>pdk-error-code</artifactId>
+            <version>${pdk-error-code.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>

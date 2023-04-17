@@ -91,7 +91,7 @@ public class MongodbWriter {
 			MongodbLookupUtil.lookUpAndSaveDeleteMessage(tapRecordEvents, this.globalStateMap, this.connectionString, pks, collection);
 		}
 		// 1. 如果全部为 insert 操作, 可能是全量阶段行为, 先通过 no order + bulk insert 做尝试, 尽可能提高性能
-		Boolean isBulkInsert = true;
+		Boolean isBulkInsert = false;
 		List<WriteModel<Document>> bulkWriteModels = new ArrayList<>();
 		for (TapRecordEvent recordEvent : tapRecordEvents) {
 			if (!(recordEvent instanceof TapInsertRecordEvent)) {

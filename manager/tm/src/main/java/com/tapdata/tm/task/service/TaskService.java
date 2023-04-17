@@ -2870,6 +2870,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             taskDto.getAttrs().remove("milestone");
             taskDto.getAttrs().remove("nodeMilestones");
             taskDto.getAttrs().remove(TaskDto.ATTRS_USED_SHARE_CACHE);
+            taskDto.getAttrs().remove(TaskDto.ATTRS_SKIP_ERROR_EVENT);
             AutoInspectUtil.removeProgress(taskDto.getAttrs());
 
             set.set("attrs", taskDto.getAttrs());

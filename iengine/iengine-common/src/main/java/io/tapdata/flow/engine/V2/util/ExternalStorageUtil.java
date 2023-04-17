@@ -144,13 +144,13 @@ public class ExternalStorageUtil {
 	}
 
 	private static PersistenceHttpConfig getHttpTMConfig(ExternalStorageDto externalStorageDto, ConstructType constructType, String constructName) {
-		if (StringUtils.isBlank(externalStorageDto.getBaseUrl())) {
+		if (CollectionUtils.isEmpty(externalStorageDto.getBaseURLs())) {
 			throw new RuntimeException(LOG_PREFIX + "Base url cannot be empty");
 		}
 		if (StringUtils.isBlank(externalStorageDto.getAccessToken())) {
 			throw new IllegalArgumentException(LOG_PREFIX + "Access token cannot be empty");
 		}
-		PersistenceHttpConfig httpConfig = PersistenceHttpConfig.create(constructType, constructName, externalStorageDto.getBaseUrl(), externalStorageDto.getAccessToken())
+		PersistenceHttpConfig httpConfig = PersistenceHttpConfig.create(constructType, constructName, externalStorageDto.getBaseURLs(), externalStorageDto.getAccessToken())
 				.connectTimeoutMs(externalStorageDto.getConnectTimeoutMs())
 				.readTimeoutMs(externalStorageDto.getReadTimeoutMs());
 		httpConfig.setInMemSize(DEFAULT_IN_MEM_SIZE);

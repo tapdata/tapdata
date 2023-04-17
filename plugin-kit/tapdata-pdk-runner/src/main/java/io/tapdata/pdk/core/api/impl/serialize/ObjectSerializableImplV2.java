@@ -15,7 +15,6 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.io.*;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -88,9 +87,9 @@ public class ObjectSerializableImplV2 implements ObjectSerializable {
 			dos.writeByte(VERSION);
 			fromObjectPrivate(obj, dos, options);
 			return bos.toByteArray();
-		} catch (Throwable ignored) {
+		} catch (Throwable t) {
+			throw new RuntimeException(t);
 		}
-		return null;
 	}
 
 	public void fromObjectPrivate(Object obj, DataOutputStream dos, FromObjectOptions fromObjectOptions) throws IOException {
@@ -106,35 +105,33 @@ public class ObjectSerializableImplV2 implements ObjectSerializable {
 					try {
 						documentToJsonMethod = obj.getClass().getMethod("toJson");
 					} catch (Throwable throwable) {
-						throwable.printStackTrace();
+						throw new RuntimeException(throwable);
 					}
 				}
-				if(documentToJsonMethod != null) {
-					String json;
-					try {
-						json = (String) documentToJsonMethod.invoke(obj);
-					} catch (Throwable e) {
+				String json;
+				try {
+					json = (String) documentToJsonMethod.invoke(obj);
+				} catch (Throwable e) {
 //						throw new RuntimeException(e);
-						if(!documentToJsonMethod.getDeclaringClass().equals(obj.getClass())) {
-							try {
-								documentToJsonMethod = obj.getClass().getMethod("toJson");
-							} catch (Throwable throwable) {
-								throwable.printStackTrace();
-							}
-							try {
-								json = (String) documentToJsonMethod.invoke(obj);
-							} catch (Throwable ex) {
-								throw new RuntimeException(ex);
-							}
-						} else {
-							throw new RuntimeException(e);
+					if(!documentToJsonMethod.getDeclaringClass().equals(obj.getClass())) {
+						try {
+							documentToJsonMethod = obj.getClass().getMethod("toJson");
+						} catch (Throwable throwable) {
+							throwable.printStackTrace();
 						}
+						try {
+							json = (String) documentToJsonMethod.invoke(obj);
+						} catch (Throwable ex) {
+							throw new RuntimeException(ex);
+						}
+					} else {
+						throw new RuntimeException(e);
 					}
-					dos.writeByte(TYPE_MONGODB_DOCUMENT);
-					byte[] data = json.getBytes(StandardCharsets.UTF_8);
-					dos.writeInt(data.length);
-					dos.write(data);
 				}
+				dos.writeByte(TYPE_MONGODB_DOCUMENT);
+				byte[] data = json.getBytes(StandardCharsets.UTF_8);
+				dos.writeInt(data.length);
+				dos.write(data);
 				return;
 			case "org.bson.types.ObjectId":
 				dos.writeByte(TYPE_MONGODB_OBJECT_ID);
@@ -335,7 +332,8 @@ public class ObjectSerializableImplV2 implements ObjectSerializable {
 					try {
 						map = mapClass.newInstance();
 					} catch (Throwable e) {
-						return null;
+						TapLogger.warn(TAG, "Resurrect Map class {} failed, use LinkedHashMap by default, error {}", classStr, e.getMessage());
+						map = new LinkedHashMap<>();
 					}
 				}
 				while(true) {
@@ -359,7 +357,8 @@ public class ObjectSerializableImplV2 implements ObjectSerializable {
 					try {
 						list = listClass.newInstance();
 					} catch (Throwable e) {
-						return null;
+						TapLogger.warn(TAG, "Resurrect List class {} failed, use ArrayList by default, error {}", listClassStr, e.getMessage());
+						list = new ArrayList<>();
 					}
 				}
 				while(true) {
@@ -398,9 +397,8 @@ public class ObjectSerializableImplV2 implements ObjectSerializable {
 					return oos.readObject();
 				} catch (ClassNotFoundException e) {
 //						e.printStackTrace();
-					TapLogger.warn(TAG, "readObject failed, {}", InstanceFactory.instance(TapUtils.class).getStackTrace(e));
+					throw new CoreException(TapAPIErrorCodes.CLASS_NOT_FOUND_READ_OBJECT, "readObject failed, {}", InstanceFactory.instance(TapUtils.class).getStackTrace(e));
 				}
-				break;
 			case TYPE_MONGODB_OBJECT_ID:
 				String idStr = dis.readUTF();
 				if(objectIdConstructor == null || (options != null && options.getClassLoader() != null && !objectIdConstructor.getDeclaringClass().getClassLoader().equals(options.getClassLoader()))) {
@@ -409,7 +407,7 @@ public class ObjectSerializableImplV2 implements ObjectSerializable {
 						objectIdConstructor = objectIdClass.getConstructor(String.class);
 					} catch (Throwable throwable) {
 //							throwable.printStackTrace();
-						TapLogger.warn(TAG, "findClass for org.bson.types.ObjectId failed, {}", InstanceFactory.instance(TapUtils.class).getStackTrace(throwable));
+						throw new CoreException(TapAPIErrorCodes.FIND_OBJECT_ID_FAILED, "findClass for org.bson.types.ObjectId failed, {}", InstanceFactory.instance(TapUtils.class).getStackTrace(throwable));
 					}
 				}
 				if(objectIdConstructor != null) {
@@ -417,7 +415,7 @@ public class ObjectSerializableImplV2 implements ObjectSerializable {
 						return objectIdConstructor.newInstance(idStr);
 					} catch (Throwable e) {
 //							e.printStackTrace();
-						TapLogger.warn(TAG, "ObjectId newInstance with id {} failed, {}", idStr, InstanceFactory.instance(TapUtils.class).getStackTrace(e));
+						throw new CoreException(TapAPIErrorCodes.NEW_OBJECT_ID, "ObjectId newInstance with id {} failed, {}", idStr, InstanceFactory.instance(TapUtils.class).getStackTrace(e));
 					}
 				}
 				break;
@@ -432,7 +430,7 @@ public class ObjectSerializableImplV2 implements ObjectSerializable {
 						documentParseMethod = documentClass.getMethod("parse", String.class);
 					} catch (Throwable throwable) {
 //							throwable.printStackTrace();
-						TapLogger.warn(TAG, "org.bson.Document get parse method failed, {}", InstanceFactory.instance(TapUtils.class).getStackTrace(throwable));
+						throw new CoreException(TapAPIErrorCodes.GET_PARSE_METHOD_FAILED, "org.bson.Document get parse method failed, {}", InstanceFactory.instance(TapUtils.class).getStackTrace(throwable));
 					}
 				}
 				if(documentParseMethod != null) {
@@ -441,7 +439,7 @@ public class ObjectSerializableImplV2 implements ObjectSerializable {
 						return documentParseMethod.invoke(null, docContent);
 					} catch (Throwable e) {
 //							e.printStackTrace();
-						TapLogger.warn(TAG, "org.bson.Document get parse method failed, {}", InstanceFactory.instance(TapUtils.class).getStackTrace(e));
+						throw new CoreException(TapAPIErrorCodes.PARSE_DOCUMENT_FAILED, "org.bson.Document get parse method failed, {}", InstanceFactory.instance(TapUtils.class).getStackTrace(e));
 					}
 				}
 				break;
@@ -491,14 +489,15 @@ public class ObjectSerializableImplV2 implements ObjectSerializable {
 			try {
 				targetClass = options.getClassLoader().loadClass(className);
 			} catch (ClassNotFoundException e) {
-				e.printStackTrace();
+//				e.printStackTrace();
 			}
 		}
 		if (targetClass == null) {
 			try {
 				targetClass = Class.forName(className);
 			} catch (ClassNotFoundException e) {
-				e.printStackTrace();
+//				e.printStackTrace();
+				throw new CoreException(TapAPIErrorCodes.CLASS_NOT_FOUND, "Class {} not found, {}", className, tapUtils().getStackTrace(e));
 			}
 		}
 		return targetClass;

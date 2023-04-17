@@ -69,6 +69,7 @@ public class Scanner {
 						.howToReproduce(annotation.howToReproduce())
 						.level(annotation.level())
 						.recoverable(annotation.recoverable())
+						.skippable(annotation.skippable())
 						.sourceExClass(exCodeClass)
 						.seeAlso(annotation.seeAlso());
 
