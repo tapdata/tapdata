@@ -259,6 +259,8 @@ public class ParentTaskDto extends SchedulableDto {
      */
     private Boolean enforceShareCdc = true;
 
+    private String pageVersion;
+
     public Integer getWriteBatchSize() {
         return Objects.isNull(writeBatchSize) ? 0 : writeBatchSize;
     }
