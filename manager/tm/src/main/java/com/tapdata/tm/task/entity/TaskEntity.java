@@ -240,6 +240,8 @@ public class TaskEntity extends BaseEntity {
     /** ldp需要新增的表名列表 */
     private List<String> ldpNewTables;
 
+    private String pageVersion;
+
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }
