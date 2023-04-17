@@ -1,621 +1,133 @@
 {
-  "id": "643b884f825a3821aa3d6c01",
-  "lastUpdBy": "62bc5008d4958d013d97c7a6",
-  "createUser": "admin@admin.com",
-  "config": {
-    "initial_totals": 1,
-    "table_fields": [
-      {
-        "pri": True,
-        "name": "id",
-        "type": "uuid"
-      },
-      {
-        "name": "column2",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column3",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column4",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column5",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column6",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column7",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column8",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column9",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column10",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column11",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column12",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column13",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column14",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column15",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column16",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column17",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column18",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column19",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column20",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column21",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column22",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column23",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column24",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column25",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column26",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column27",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column28",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column29",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column30",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column31",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column32",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column33",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column34",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column35",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column36",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column37",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column38",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column39",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column40",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column41",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column42",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column43",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column44",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column45",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column46",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column47",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column48",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column49",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column50",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column51",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column52",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column53",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column54",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column55",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column56",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column57",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column58",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column59",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column60",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column61",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column62",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column63",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column64",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column65",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column66",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column67",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column68",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column69",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column70",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column71",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column72",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column73",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column74",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column75",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column76",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column77",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column78",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column79",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column80",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column81",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column82",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column83",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column84",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column85",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column86",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column87",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column88",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column89",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column90",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column91",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column92",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column93",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column94",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column95",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column96",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column97",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column98",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column99",
-        "pri": False,
-        "type": "rstring"
-      },
-      {
-        "name": "column100",
-        "pri": False,
-        "type": "rstring"
-      }
-    ]
-  },
-  "definitionScope": "public",
-  "definitionVersion": "1.0-SNAPSHOT",
-  "definitionGroup": "io.tapdata",
-  "definitionPdkId": "dummy",
-  "definitionBuildNumber": "null",
-  "definitionTags": [
-    "Database"
-  ],
-  "capabilities": [
+  "jobs_infos": [
     {
-      "type": 11,
-      "id": "batch_read_function"
+      "job_name": "",
+      "dag": {
+        "node": {
+          "source_db_type": "dummy",
+          "target": "dummy",
+          "processing": None
+        }
+      },
+      "table_fields": "100",
+      "job_test_res": [
+        {
+          "sync_type": "initial_sync",
+          "row_num": "100000",
+          "metrics": {}
+        },
+        {
+          "sync_type": "initial_sync",
+          "row_num": "300000",
+          "metrics": {}
+        },
+        {
+          "sync_type": "initial_sync",
+          "row_num": "500000",
+          "metrics": {}
+        },
+        {
+          "sync_type": "cdc",
+          "row_num": "100000",
+          "metrics": {}
+        },
+        {
+          "sync_type": "cdc",
+          "row_num": "300000",
+          "metrics": {}
+        },
+        {
+          "sync_type": "cdc",
+          "row_num": "500000",
+          "metrics": {}
+        }
+      ]
     },
     {
-      "type": 11,
-      "id": "stream_read_function"
+      "job_name": "",
+      "dag": {
+        "node": {
+          "source_db_type": "dummy",
+          "target": "dummy",
+          "processing": None
+        }
+      },
+      "table_fields": "179",
+      "job_test_res": [
+        {
+          "sync_type": "initial_sync",
+          "row_num": "100000",
+          "metrics": {}
+        },
+        {
+          "sync_type": "initial_sync",
+          "row_num": "300000",
+          "metrics": {}
+        },
+        {
+          "sync_type": "initial_sync",
+          "row_num": "500000",
+          "metrics": {}
+        },
+        {
+          "sync_type": "cdc",
+          "row_num": "100000",
+          "metrics": {}
+        },
+        {
+          "sync_type": "cdc",
+          "row_num": "300000",
+          "metrics": {}
+        },
+        {
+          "sync_type": "cdc",
+          "row_num": "500000",
+          "metrics": {}
+        }
+      ]
     },
     {
-      "type": 11,
-      "id": "batch_count_function"
-    },
-    {
-      "type": 11,
-      "id": "timestamp_to_stream_offset_function"
-    },
-    {
-      "type": 11,
-      "id": "write_record_function"
-    },
-    {
-      "type": 11,
-      "id": "alter_field_attributes_function"
-    },
-    {
-      "type": 11,
-      "id": "alter_field_name_function"
-    },
-    {
-      "type": 11,
-      "id": "drop_field_function"
-    },
-    {
-      "type": 11,
-      "id": "new_field_function"
-    },
-    {
-      "type": 11,
-      "id": "get_table_names_function"
-    },
-    {
-      "type": 11,
-      "id": "error_handle_function"
+      "job_name": "",
+      "dag": {
+        "node": {
+          "source_db_type": "dummy",
+          "target": "dummy",
+          "processing": None
+        }
+      },
+      "table_fields": "500",
+      "job_test_res": [
+        {
+          "sync_type": "initial_sync",
+          "row_num": "100000",
+          "metrics": {}
+        },
+        {
+          "sync_type": "initial_sync",
+          "row_num": "300000",
+          "metrics": {}
+        },
+        {
+          "sync_type": "initial_sync",
+          "row_num": "500000",
+          "metrics": {}
+        },
+        {
+          "sync_type": "cdc",
+          "row_num": "100000",
+          "metrics": {}
+        },
+        {
+          "sync_type": "cdc",
+          "row_num": "300000",
+          "metrics": {}
+        },
+        {
+          "sync_type": "cdc",
+          "row_num": "500000",
+          "metrics": {}
+        }
+      ]
     }
-  ],
-  "everLoadSchema": True,
-  "schemaVersion": "fd4d81a2-e049-4d30-b928-1a633d2cd52d",
-  "tableCount": 0,
-  "testTime": 1681623131968,
-  "transformed": True,
-  "loadCount": 0,
-  "loadFieldsStatus": "finished",
-  "loadSchemaField": True,
-  "loadFieldErrMsg": "",
-  "kafkaConsumerRequestTimeout": 0,
-  "kafkaConsumerUseTransactional": False,
-  "kafkaMaxPollRecords": 0,
-  "kafkaPollTimeoutMS": 0,
-  "kafkaMaxFetchBytes": 0,
-  "kafkaMaxFetchWaitMS": 0,
-  "kafkaIgnoreInvalidRecord": False,
-  "kafkaProducerRequestTimeout": 0,
-  "kafkaProducerUseTransactional": False,
-  "kafkaRetries": 0,
-  "kafkaBatchSize": 0,
-  "kafkaAcks": "-1",
-  "kafkaLingerMS": 0,
-  "kafkaDeliveryTimeoutMS": 0,
-  "kafkaMaxRequestSize": 0,
-  "kafkaMaxBlockMS": 0,
-  "kafkaBufferMemory": 0,
-  "kafkaCompressionType": "",
-  "kafkaPartitionKey": "",
-  "kafkaIgnorePushError": False,
-  "agentTags": [],
-  "accessNodeProcessId": "",
-  "accessNodeProcessIdList": [],
-  "accessNodeTypeEmpty": False,
-  "alarmInfo": "DataSourceConnectionDto{name="
-  performance_test_dummy_100_columns
-  ", connection_type="
-  source
-  ", retry=0, status="
-  ready
-  ", tableCount=0, loadAllTables=true, loadFieldsStatus=finished, loadFieldErrMsg=}",
-  "createTime": "2023-04-16T05:31:59.057+00:00",
-  "last_updated": "2023-04-16T05:31:59.057+00:00",
-  "user_id": "62bc5008d4958d013d97c7a6",
-  "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION",
-  "connection_type": "source",
-  "database_type": "Dummy",
-  "loadAllTables": True,
-  "name": "performance_test_dummy_100_columns",
-  "pdkHash": "f45ed8744261175abce5f902473472866aa1ffc40cccec0a0d2abceef4a338c2",
-  "pdkType": "pdk",
-  "project": "",
-  "response_body": {},
-  "retry": 0,
-  "schema": {},
-  "shareCdcEnable": True,
-  "status": "ready",
-  "submit": True
+  ]
 }
