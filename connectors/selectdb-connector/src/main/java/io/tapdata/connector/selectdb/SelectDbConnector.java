@@ -170,7 +170,7 @@ public class SelectDbConnector extends ConnectorBase {
     }
 
     protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
-        RetryOptions retryOptions = RetryOptions.create();
+        RetryOptions retryOptions = RetryOptions.create().beforeRetryMethod(() -> {});
         Throwable match;
         if (null != (match = matchThrowable(throwable, CoreException.class)) && ((CoreException) match).getCode() == SelectDbErrorCodes.ERROR_SDB_COPY_INTO_CANCELLED) {
             retryOptions.needRetry(false);
@@ -333,7 +333,7 @@ public class SelectDbConnector extends ConnectorBase {
         try {
             writeListResultConsumer.accept(selectDbStreamLoader.writeRecord(events, table));
         } catch (IOException e) {
-            TapLogger.error(TAG, "Data write failure" + e.getMessage());
+            TapLogger.warn(TAG, "Data write failure" + e.getMessage());
         }
     }
 

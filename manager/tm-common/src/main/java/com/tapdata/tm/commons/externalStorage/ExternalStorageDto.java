@@ -6,6 +6,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.lang3.StringUtils;
 
+import java.util.List;
+
 
 /**
  * External Storage
@@ -21,7 +23,7 @@ public class ExternalStorageDto extends BaseDto {
 	private boolean canEdit = false;
 	private boolean canDelete = true;
 	private boolean defaultStorage = false;
-	private String baseUrl;
+	private List<String> baseURLs;
 	private String accessToken;
 	private Integer connectTimeoutMs;
 	private Integer readTimeoutMs;

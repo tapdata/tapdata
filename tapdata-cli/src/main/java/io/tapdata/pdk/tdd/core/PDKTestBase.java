@@ -184,7 +184,7 @@ public class PDKTestBase {
             if (StringUtils.isNotBlank(iconPath)) {
                 InputStream is = nodeInfo.readResource(iconPath);
                 if (is == null) {
-                    TapLogger.error(TAG, "Icon image file doesn't be found for url {} which defined in spec json file.");
+                    TapLogger.error(TAG, "Icon image file not found for url {} which defined in spec json file.");
                 }
             }
         }

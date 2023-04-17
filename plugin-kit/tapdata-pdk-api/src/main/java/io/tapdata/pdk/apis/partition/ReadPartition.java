@@ -62,6 +62,8 @@ public class ReadPartition implements Comparable<ReadPartition>, Serializable {
 
 	@Override
 	public int compareTo(ReadPartition o) {
+		if(partitionFilter != null && partitionFilter.matchAny())
+			return 1;
 		if (partitionIndex == null && o.partitionIndex == null)
 			throw new CoreException(TapAPIErrorCodes.ERROR_ILLEGAL_PARAMETERS, "at least exist one partitionIndex for readPartition {} compare {}", this, o);
 		List<TapIndexField> indexFields = partitionIndex != null ? partitionIndex.getIndexFields() : o.partitionIndex.getIndexFields();

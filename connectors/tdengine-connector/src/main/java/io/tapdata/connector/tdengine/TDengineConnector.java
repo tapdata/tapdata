@@ -212,16 +212,8 @@ public class TDengineConnector extends ConnectorBase {
     }
 
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offset, int batchSize, BiConsumer<List<TapEvent>, Object> consumer) throws Throwable {
-        TDengineOffset tdengineOffset;
-        //beginning
-        if (null == offset) {
-            tdengineOffset = new TDengineOffset(0L);
-        }
-        //with offset
-        else {
-            tdengineOffset = (TDengineOffset) offset;
-        }
-        String sql = String.format("SELECT * FROM %s.%s OFFSET %s", tdengineConfig.getDatabase(), tapTable.getId(), tdengineOffset.getOffsetValue());
+        TDengineOffset tdengineOffset = new TDengineOffset();
+        String sql = String.format("SELECT * FROM %s.%s", tdengineConfig.getDatabase(), tapTable.getId());
         tdengineJdbcContext.query(sql, resultSet -> {
             List<TapEvent> tapEvents = list();
             //get all column names
@@ -229,14 +221,12 @@ public class TDengineConnector extends ConnectorBase {
             while (isAlive() && resultSet.next()) {
                 tapEvents.add(insertRecordEvent(DbKit.getRowFromResultSet(resultSet, columnNames), tapTable.getId()));
                 if (tapEvents.size() == batchSize) {
-                    tdengineOffset.setOffsetValue(tdengineOffset.getOffsetValue() + batchSize);
                     consumer.accept(tapEvents, tdengineOffset);
                     tapEvents = list();
                 }
             }
             //last events those less than eventBatchSize
             if (EmptyKit.isNotEmpty(tapEvents)) {
-                tdengineOffset.setOffsetValue(tdengineOffset.getOffsetValue() + tapEvents.size());
                 consumer.accept(tapEvents, tdengineOffset);
             }
         });
