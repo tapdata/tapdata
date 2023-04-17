@@ -316,10 +316,10 @@
     "TIMESTAMP": {
       "to": "TapDateTime",
       "range": [
-        "1970-01-01 00:00:00.000",
-        "2038-01-11 23:59:59.999"
+        "1970-01-01 00:00:00",
+        "2038-01-11 23:59:59"
       ],
-      "pattern": "yyyy-MM-dd HH:mm:ss.SSS",
+      "pattern": "yyyy-MM-dd HH:mm:ss",
       "fraction": [
         0,
         6

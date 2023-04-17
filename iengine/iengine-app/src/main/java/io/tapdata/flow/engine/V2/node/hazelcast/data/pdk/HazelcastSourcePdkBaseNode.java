@@ -21,7 +21,9 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import io.tapdata.Runnable.LoadSchemaRunner;
+import io.tapdata.aspect.SourceCDCDelayAspect;
 import io.tapdata.aspect.SourceDynamicTableAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
@@ -47,6 +49,7 @@ import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
+import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
@@ -57,9 +60,11 @@ import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.schema.TapTableMap;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -82,11 +87,11 @@ import java.util.stream.Collectors;
  * @create 2022-05-11 14:59
  **/
 public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
-    private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
+	private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
     public static final long PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT = 10L;
     public static final String TAPEVENT_INFO_EVENT_ID_KEY = "eventId";
     private static final int ASYNCLY_COUNT_SNAPSHOT_ROW_SIZE_TABLE_THRESHOLD = 100;
-    private final Logger logger = LogManager.getLogger(HazelcastSourcePdkBaseNode.class);
+	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkBaseNode.class);
     protected SyncProgress syncProgress;
     protected ThreadPoolExecutorEx sourceRunner;
     protected ScheduledExecutorService tableMonitorResultHandler;
@@ -98,7 +103,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
      */
     protected LinkedBlockingQueue<TapdataEvent> eventQueue;
     protected StreamReadFuncAspect streamReadFuncAspect;
-    private TapdataEvent pendingEvent;
+    protected TapdataEvent pendingEvent;
     protected SourceMode sourceMode = SourceMode.NORMAL;
     protected Long initialFirstStartTime = System.currentTimeMillis();
     protected TransformerWsMessageDto transformerWsMessageDto;
@@ -110,26 +115,45 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
     protected AtomicBoolean sourceRunnerFirstTime;
     private DAGDataServiceImpl dagDataService;
 
-    private Future<?> sourceRunnerFuture;
+    protected Future<?> sourceRunnerFuture;
     // on cdc step if TableMap not exists heartbeat table, add heartbeat table to cdc whitelist and filter heartbeat records
     protected ICdcDelay cdcDelayCalculation;
     private final Object waitObj = new Object();
     protected DatabaseTypeEnum.DatabaseType databaseType;
-    private boolean firstComplete = true;
+    protected boolean firstComplete = true;
     protected Map<String, Long> snapshotRowSizeMap;
     private ExecutorService snapshotRowSizeThreadPool;
     private ConnectorOnTaskThreadGroup connectorOnTaskThreadGroup;
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		if (Boolean.TRUE.equals(dataProcessorContext.getConnections().getHeartbeatEnable())) {
+		if (needCdcDelay()) {
 			this.cdcDelayCalculation = new CdcDelay();
 		} else {
 			this.cdcDelayCalculation = new CdcDelayDisable();
 		}
 	}
 
-    @Override
+    private boolean needCdcDelay() {
+        if (Boolean.TRUE.equals(dataProcessorContext.getConnections().getHeartbeatEnable())) {
+            return Optional.ofNullable(dataProcessorContext.getTapTableMap()).map(tapTableMap -> {
+                try {
+                    TapTable tapTable = tapTableMap.get(ConnHeartbeatUtils.TABLE_NAME);
+                    if (null != tapTable && StringUtils.isNotBlank(tapTable.getId()) && MapUtils.isNotEmpty(tapTable.getNameFieldMap())) {
+                        return true;
+                    }
+                    logger.warn("Check cdcDelay failed, schema: {}", tapTable);
+                    return false;
+                } catch (Exception e) {
+                    logger.warn("Check cdcDelay failed: {}", e.getMessage());
+                    return false;
+                }
+            }).orElse(false);
+        }
+        return false;
+    }
+
+	@Override
     protected void doInit(@NotNull Context context) throws Exception {
 	    if(connectorOnTaskThreadGroup == null)
 	        connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
@@ -195,7 +219,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private void initSourceEventQueue() {
-		this.sourceQueueCapacity = readBatchSize * 2;
+		this.sourceQueueCapacity = readBatchSize >> 1;
 		this.eventQueue = new LinkedBlockingQueue<>(sourceQueueCapacity);
 		obsLogger.info("Source node \"{}\" event queue capacity: {}", getNode().getName(), sourceQueueCapacity);
 	}
@@ -648,12 +672,20 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
     @NotNull
     protected List<TapdataEvent> wrapTapdataEvent(List<TapEvent> events, SyncStage syncStage, Object offsetObj) {
-        List<TapdataEvent> tapdataEvents = new ArrayList<>(events.size() + 1);
-        for (int i = 0; i < events.size(); i++) {
+        int size = events.size();
+        List<TapdataEvent> tapdataEvents = new ArrayList<>(size + 1);
+        List<TapEvent> eventCache = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
             TapEvent tapEvent = events.get(i);
-            boolean isLast = i == (events.size() - 1);
+            if (null == tapEvent.getTime()) {
+                throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(tapEvent);
+            }
+            tapEvent.addInfo("eventId", UUID.randomUUID().toString());
+            TapEvent tapEventCache = cdcDelayCalculation.filterAndCalcDelay(tapEvent, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
+            eventCache.add(tapEventCache);
+            boolean isLast = i == (size - 1);
             TapdataEvent tapdataEvent;
-            tapdataEvent = wrapTapdataEvent(tapEvent, syncStage, offsetObj, isLast);
+            tapdataEvent = wrapTapdataEvent(tapEventCache, syncStage, offsetObj, isLast);
             if (null == tapdataEvent) {
                 continue;
             }
@@ -956,6 +988,45 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         } finally {
             //threadPoolExecutorEx.close();
             super.doClose();
+        }
+    }
+
+    public void startSourceConsumer() {
+        while (isRunning()) {
+            try {
+                TapdataEvent dataEvent;
+                AtomicBoolean isPending = new AtomicBoolean();
+                if (pendingEvent != null) {
+                    dataEvent = pendingEvent;
+                    pendingEvent = null;
+                    isPending.compareAndSet(false, true);
+                } else {
+                    try {
+                        dataEvent = eventQueue.poll(5, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+                    isPending.compareAndSet(true, false);
+                }
+
+                if (dataEvent != null) {
+                    TapEvent tapEvent;
+                    if (!isPending.get()) {
+                        TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
+                        tapEvent = dataEvent.getTapEvent();
+                        tapRecordToTapValue(tapEvent, codecsFilterManager);
+                    }
+                    if (!offer(dataEvent)) {
+                        pendingEvent = dataEvent;
+                        continue;
+                    }
+                    Optional.ofNullable(getSnapshotProgressManager())
+                            .ifPresent(s -> s.incrementEdgeFinishNumber(TapEventUtil.getTableId(dataEvent.getTapEvent())));
+                }
+            } catch (Throwable e) {
+                errorHandle(e, "start source consumer failed: " + e.getMessage());
+                break;
+            }
         }
     }
 

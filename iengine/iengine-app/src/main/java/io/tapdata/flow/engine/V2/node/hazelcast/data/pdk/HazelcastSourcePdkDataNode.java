@@ -37,6 +37,7 @@ import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcReaderExCode_13;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
+import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
@@ -151,7 +152,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_CDC_COMPLETED));
 				}
 			} else {
-				BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClient(dataProcessorContext.getTaskDto().getId().toHexString()).terminalMode(TerminalMode.COMPLETE);
+				TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
+				if (null != tapdataTaskScheduler) {
+					TaskClient<TaskDto> taskClient = tapdataTaskScheduler.getTaskClient(dataProcessorContext.getTaskDto().getId().toHexString());
+					if (null != taskClient) {
+						taskClient.terminalMode(TerminalMode.COMPLETE);
+					}
+				}
 			}
 		} catch (Throwable throwable) {
 			errorHandle(throwable, throwable.getMessage());
@@ -298,8 +305,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						} catch (Throwable throwable) {
 							executeAspect(new SnapshotReadTableErrorAspect().dataProcessorContext(dataProcessorContext).tableName(tableName).error(throwable));
 							Throwable throwableWrapper = throwable;
-							if (!(throwableWrapper instanceof NodeException)) {
-								throwableWrapper = new NodeException(throwableWrapper).context(getProcessorBaseContext());
+							if (!(throwableWrapper instanceof TapCodeException)) {
+								throwableWrapper = new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, throwable);
 							}
 							throw throwableWrapper;
 						} finally {

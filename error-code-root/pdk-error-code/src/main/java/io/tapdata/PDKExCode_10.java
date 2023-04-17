@@ -20,6 +20,7 @@ public interface PDKExCode_10 {
 					"2. 服务端连接数过多，自动关闭或者拒绝了后续连接。",
 			solution = "",
 			solutionCN = "",
+			recoverable = true,
 			seeAlso = {"https://docs.tapdata.io/enterprise/user-guide/connect-database/"}
 	)
 	String TERMINATE_BY_SERVER = "10001";
@@ -93,6 +94,7 @@ public interface PDKExCode_10 {
 			solutionCN = "1. 参考下方报错信息，比对出错的字段在源库和目标库的类型是否一致，如果不一致，使用数据库的DDL或类似命令进行修正后，再次运行任务；\n" +
 					"2. 使用js处理器，将出错字段过滤，如出错字段为field1，对应的js为\"record.remove('field1')\"；\n" +
 					"3. 如果用js处理器对数据类型进行了改动，则应在js编辑框的下方，按照模型语法，将新的类型传递给Tapdata，删除目标表后，再次运行任务。",
+			skippable = true,
 			seeAlso = {"https://docs.tapdata.io/enterprise/user-guide/connect-database/"}
 	)
 	String WRITE_TYPE = "10006";
@@ -112,6 +114,7 @@ public interface PDKExCode_10 {
 			solutionCN = "1. 参考下方报错信息，找到出错的字段，使用数据库的DDL或类似命令进行修正后，再次运行任务；\n" +
 					"2. 使用js处理器，将出错字段过滤，如出错字段为field1，对应的js为\"record.remove('field1')\"；\n" +
 					"3. 如果用js处理器对字段值进行了改动，则应在js编辑框的下方，按照模型语法，将新的长度传递给Tapdata，删除目标表后，再次运行任务。",
+			skippable = true,
 			seeAlso = {"https://docs.tapdata.io/enterprise/user-guide/connect-database/"}
 	)
 	String WRITE_LENGTH_INVALID = "10007";
@@ -127,6 +130,7 @@ public interface PDKExCode_10 {
 			solutionCN = "1. 使用数据库的DDL或类似命令，修改目标表的主键或唯一索引后，再次尝试启动任务；\n" +
 					"2. 删除目标表，让Tapdata的自动建表功能重新创建表，再次尝试启动任务；\n" +
 					"3. 在Tapdata的任务编辑界面，将目标表的并发写入关闭，再次尝试启动任务。",
+			skippable = true,
 			seeAlso = {"https://docs.tapdata.io/enterprise/user-guide/connect-database/"}
 	)
 	String WRITE_VIOLATE_UNIQUE_CONSTRAINT = "10008";
@@ -142,6 +146,7 @@ public interface PDKExCode_10 {
 					"2. Check the js logic, whether the data value is changed to empty or the error field is deleted by mistake.",
 			solutionCN = "1. 使用数据库的DLL或类似命令，去除目标表的非空约束后，再次尝试启动任务；\n" +
 					"2. 检查js逻辑，是否错误的将数据值改为了空或删除了报错字段。",
+			skippable = true,
 			seeAlso = {"https://docs.tapdata.io/enterprise/user-guide/connect-database/"}
 	)
 	String WRITE_VIOLATE_NULLABLE_CONSTRAINT = "10009";

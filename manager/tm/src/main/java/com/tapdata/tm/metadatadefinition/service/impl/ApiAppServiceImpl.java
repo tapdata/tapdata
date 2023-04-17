@@ -14,6 +14,7 @@ import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MongoUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
@@ -21,6 +22,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -47,6 +49,7 @@ public class ApiAppServiceImpl implements ApiAppService {
         if (itemType == null) {
             itemType = new ArrayList<>();
             itemType.add(MetadataDefinitionDto.ITEM_TYPE_APP);
+            metadataDefinition.setItemType(itemType);
         } else {
             if (!itemType.contains(MetadataDefinitionDto.ITEM_TYPE_APP)) {
                 itemType.add(MetadataDefinitionDto.ITEM_TYPE_APP);
@@ -61,7 +64,7 @@ public class ApiAppServiceImpl implements ApiAppService {
         //添加api总数，跟已发布的api数量。
         addApiCount(page.getItems(), user);
 
-        return null;
+        return page;
     }
 
     @Override
@@ -79,22 +82,18 @@ public class ApiAppServiceImpl implements ApiAppService {
     }
 
     @Override
-    public void delete(ObjectId id, UserDetail user) {
-        //校验是否存在已经发布的api
-        Criteria criteria = Criteria.where("listtags.id").is(id.toHexString())
-                .and("status").is(ModuleStatusEnum.ACTIVE.getValue());
+    public void move(String oldId, String newId, UserDetail user) {
 
-        Query query = new Query(criteria);
-        long count = modulesService.count(query, user);
-        if (count > 0) {
-            throw new BizException("");
+        Criteria criteriaNew = Criteria.where("_id").is(MongoUtils.toObjectId(newId));
+        MetadataDefinitionDto newTag = metadataDefinitionService.findOne(new Query(criteriaNew), user);
+        if (newTag == null) {
+            throw new BizException("ApiApp.NewTagNotFound");
         }
 
-
-        Criteria criteriaDel = Criteria.where("listtags.id").is(id.toHexString());
-        modulesService.deleteAll(new Query(criteriaDel), user);
-
-        metadataDefinitionService.deleteById(id, user);
+        Criteria criteria = Criteria.where("listtags")
+                .elemMatch(Criteria.where("id").is(oldId)).and("is_deleted").ne(true);
+        Update update = Update.update("listtags.$.id", newTag.getId().toHexString()).set("listtags.$.value", newTag.getValue());
+        modulesService.update(new Query(criteria), update, user);
     }
 
     @Override
@@ -121,7 +120,7 @@ public class ApiAppServiceImpl implements ApiAppService {
         }
 
         List<String> tagIds = metadatas.stream().map(m -> m.getId().toHexString()).collect(Collectors.toList());
-        Criteria criteria = Criteria.where("listtags.id").in(tagIds);
+        Criteria criteria = Criteria.where("listtags.id").in(tagIds).and("is_deleted").ne(true);
 
         Query query = new Query(criteria);
         query.fields().include("listtags", "status");
@@ -141,8 +140,9 @@ public class ApiAppServiceImpl implements ApiAppService {
 
         for (MetadataDefinitionDto metadata : metadatas) {
             List<ModulesDto> modulesDtos1 = map.get(metadata.getId().toHexString());
-            int apiCount = modulesDtos1.size();
-            int publishedApiCount = (int) modulesDtos1.stream().map(s -> ModuleStatusEnum.ACTIVE.getValue().equals(s.getStatus())).count();
+            boolean empty = CollectionUtils.isEmpty(modulesDtos1);
+            int apiCount = empty ? 0 : modulesDtos1.size();
+            int publishedApiCount = empty ? 0 : (int) modulesDtos1.stream().filter(s -> ModuleStatusEnum.ACTIVE.getValue().equals(s.getStatus())).count();
             metadata.setApiCount(apiCount);
             metadata.setPublishedApiCount(publishedApiCount);
         }

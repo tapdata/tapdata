@@ -1,6 +1,5 @@
 package com.tapdata.tm.base.controller;
 
-import cn.hutool.core.util.ReUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
 import com.tapdata.tm.base.dto.Field;
@@ -44,19 +43,6 @@ public class BaseController {
 	private ProductComponent productComponent;
 
 	private static final PathMatcher pathMatcher = new AntPathMatcher();
-
-	public static void main(String[] args) {
-		System.out.println(ReUtil.isMatch("get|post|put", "get1"));
-		System.out.println(ReUtil.isMatch("get|post|put", "get"));
-		System.out.println(ReUtil.isMatch("/api/MetadataInstances", "/api/MetadataInstances"));
-
-		AntPathMatcher antPathMatcher = new AntPathMatcher();
-		System.out.println(antPathMatcher.match("/api/MetadataInstances/**", "/api/MetadataInstances/node/schemaPage"));
-		System.out.println(antPathMatcher.match("/api/MetadataInstances/**", "/api/MetadataInstances"));
-		System.out.println(antPathMatcher.match("/api/MetadataInstances/**".toLowerCase(), "/api/metadatainstances".toLowerCase()));
-		System.out.println(antPathMatcher.match("/api/MetadataInstances/**", "/api/MetadataInstances?id=1"));
-		System.out.println(antPathMatcher.match("/api/MetadataInstances/**", "/api/MetadataInstance1"));
-	}
 
 	private static final Map<String, Set<String>> authWhiteListMap = new HashMap<String, Set<String>>() {{
 

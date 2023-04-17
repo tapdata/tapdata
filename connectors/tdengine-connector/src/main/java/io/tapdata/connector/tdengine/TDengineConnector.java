@@ -25,7 +25,6 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
-import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -82,7 +81,7 @@ public class TDengineConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
-        ErrorKit.ignoreAnyError(tdengineJdbcContext::close);
+        EmptyKit.closeQuietly(tdengineJdbcContext);
     }
 
     @Override
@@ -213,16 +212,8 @@ public class TDengineConnector extends ConnectorBase {
     }
 
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offset, int batchSize, BiConsumer<List<TapEvent>, Object> consumer) throws Throwable {
-        TDengineOffset tdengineOffset;
-        //beginning
-        if (null == offset) {
-            tdengineOffset = new TDengineOffset(0L);
-        }
-        //with offset
-        else {
-            tdengineOffset = (TDengineOffset) offset;
-        }
-        String sql = String.format("SELECT * FROM %s.%s LIMIT %s OFFSET %s", tdengineConfig.getDatabase(), tapTable.getId(), batchSize, tdengineOffset.getOffsetValue());
+        TDengineOffset tdengineOffset = new TDengineOffset();
+        String sql = String.format("SELECT * FROM %s.%s", tdengineConfig.getDatabase(), tapTable.getId());
         tdengineJdbcContext.query(sql, resultSet -> {
             List<TapEvent> tapEvents = list();
             //get all column names
@@ -230,14 +221,12 @@ public class TDengineConnector extends ConnectorBase {
             while (isAlive() && resultSet.next()) {
                 tapEvents.add(insertRecordEvent(DbKit.getRowFromResultSet(resultSet, columnNames), tapTable.getId()));
                 if (tapEvents.size() == batchSize) {
-                    tdengineOffset.setOffsetValue(tdengineOffset.getOffsetValue() + batchSize);
                     consumer.accept(tapEvents, tdengineOffset);
                     tapEvents = list();
                 }
             }
             //last events those less than eventBatchSize
             if (EmptyKit.isNotEmpty(tapEvents)) {
-                tdengineOffset.setOffsetValue(tdengineOffset.getOffsetValue() + tapEvents.size());
                 consumer.accept(tapEvents, tdengineOffset);
             }
         });

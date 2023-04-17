@@ -25,6 +25,7 @@ public @interface TapExCode {
 	String solutionCN() default "";
 
 	boolean recoverable() default false;
+	boolean skippable() default false;
 
 	TapExLevel level() default TapExLevel.NORMAL;
 

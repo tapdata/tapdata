@@ -42,6 +42,9 @@ public class TaskDto extends ParentTaskDto {
     public static final String LDP_TYPE_FDM = "fdm";
     public static final String LDP_TYPE_MDM = "mdm";
 
+    public static final String ATTRS_USED_SHARE_CACHE = "usedShareCache";
+    public static final String ATTRS_SKIP_ERROR_EVENT = "skipErrorEvent";
+
     /** 任务图*/
     @JsonSerialize( using = DagSerialize.class)
     @JsonDeserialize( using = DagDeserialize.class)
@@ -65,6 +68,8 @@ public class TaskDto extends ParentTaskDto {
     public boolean isAutoInspect() {
         return Boolean.TRUE.equals(isAutoInspect);
     }
+
+    private SkipErrorEventDto skipErrorEvent;
 
     private String creator;
 

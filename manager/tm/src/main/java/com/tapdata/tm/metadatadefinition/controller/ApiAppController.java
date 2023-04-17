@@ -14,11 +14,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 
 /**
  * @Date: 2021/10/15
@@ -83,6 +78,7 @@ public class ApiAppController extends BaseController {
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping("{id}")
     public ResponseMessage<MetadataDefinitionDto> updateById(@PathVariable("id") String id, @RequestBody MetadataDefinitionDto metadataDefinition) {
+        metadataDefinition.setId(MongoUtils.toObjectId(id));
         return success(apiAppService.updateById(MongoUtils.toObjectId(id), metadataDefinition, getLoginUser()));
     }
 
@@ -94,7 +90,7 @@ public class ApiAppController extends BaseController {
     @Operation(summary = "Find a model instance by {{id}} from the data source")
     @GetMapping("{id}")
     public ResponseMessage<MetadataDefinitionDto> findById(@PathVariable("id") String id,
-            @RequestParam("fields") String fieldsJson) {
+            @RequestParam(value = "fields", required = false) String fieldsJson) {
         Field fields = parseField(fieldsJson);
         return success(apiAppService.findById(MongoUtils.toObjectId(id),  fields, getLoginUser()));
     }
@@ -115,6 +111,19 @@ public class ApiAppController extends BaseController {
     @DeleteMapping("{id}")
     public ResponseMessage<Void> delete(@PathVariable("id") String id) {
         metadataDefinitionService.deleteById(MongoUtils.toObjectId(id), getLoginUser());
+        return success();
+    }
+
+    /**
+     * move object tags
+     * @param id
+     * @param moveId
+     * @return
+     */
+    @Operation(summary = "Delete a model instance by {{id}} from the data source")
+    @PutMapping("move/{id}")
+    public ResponseMessage<Void> delete(@PathVariable("id") String id, @RequestParam("moveId") String moveId) {
+        apiAppService.move(id, moveId, getLoginUser());
         return success();
     }
 

@@ -16,7 +16,6 @@ import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.HazelcastUtil;
-import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.JetDag;
@@ -38,6 +37,7 @@ import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.MigrateDateProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
@@ -48,28 +48,19 @@ import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.autoinspect.utils.AutoInspectNodeUtil;
 import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
-import io.tapdata.flow.engine.V2.exception.TaskSchedulerExCode_12;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastBlank;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastCacheTarget;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastSchemaTargetNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskSource;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskSourceAndTarget;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskTarget;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastVirtualTargetNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcessor;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastJavaScriptProcessorNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMigrateFieldRenameProcessorNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastRenameTableProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -77,6 +68,7 @@ import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.MergeTableUtil;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
+import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
@@ -91,11 +83,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -158,14 +146,15 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 //        TaskThreadGroup threadGroup = new TaskThreadGroup(taskDto);
 //        try (ThreadPoolExecutorEx threadPoolExecutorEx = AsyncUtils.createThreadPoolExecutor("RootTask-" + taskDto.getName(), 1, threadGroup, TAG)) {
         try {
-            AspectUtils.executeAspect(new TaskStartAspect().task(taskDto));
+            ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
+            AspectUtils.executeAspect(new TaskStartAspect().task(taskDto).log(InstanceFactory.instance(LogFactory.class).getLog(taskDto)));
 //            return threadPoolExecutorEx.submitSync(() -> {
             JobConfig jobConfig = new JobConfig();
             jobConfig.setName(taskDto.getName() + "-" + taskDto.getId().toHexString());
             jobConfig.setProcessingGuarantee(ProcessingGuarantee.AT_LEAST_ONCE);
             JetService jet = hazelcastInstance.getJet();
             final JetDag jetDag = task2HazelcastDAG(taskDto);
-            ObsLoggerFactory.getInstance().getObsLogger(taskDto).info("The engine receives " + taskDto.getName() + " task data from TM and will continue to run tasks by jet");
+            obsLogger.info("The engine receives " + taskDto.getName() + " task data from TM and will continue to run tasks by jet");
             Job job = jet.newJob(jetDag.getDag(), jobConfig);
             return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
 //            });
@@ -179,7 +168,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
     @Override
     public TaskClient<TaskDto> startTestTask(TaskDto taskDto) {
         try {
-            AspectUtils.executeAspect(new TaskStartAspect().task(taskDto));
+            AspectUtils.executeAspect(new TaskStartAspect().task(taskDto).log(new TapLog()));
             long startTs = System.currentTimeMillis();
             final JetDag jetDag = task2HazelcastDAG(taskDto);
             JobConfig jobConfig = new JobConfig();
@@ -249,6 +238,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
                         && !(node instanceof HazelCastImdgNode)
                         && !(node instanceof TableRenameProcessNode)
                         && !(node instanceof MigrateFieldRenameProcessorNode)
+                        && !(node instanceof MigrateDateProcessorNode)
                         && !(node instanceof VirtualTargetNode)
                         && !StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)
                 ) {
@@ -648,6 +638,20 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
                 break;
             case AGGREGATION_PROCESSOR:
                 hazelcastNode = new HazelcastMultiAggregatorProcessor(
+                        DataProcessorContext.newBuilder()
+                                .withTaskDto(taskDto)
+                                .withNode(node)
+                                .withNodes(nodes)
+                                .withEdges(edges)
+                                .withConfigurationCenter(config)
+                                .withTapTableMap(tapTableMap)
+                                .withTaskConfig(taskConfig)
+                                .build()
+                );
+                break;
+            case DATE_PROCESSOR:
+            case MIGRATE_DATE_PROCESSOR:
+                hazelcastNode = new HazelcastDateProcessorNode(
                         DataProcessorContext.newBuilder()
                                 .withTaskDto(taskDto)
                                 .withNode(node)

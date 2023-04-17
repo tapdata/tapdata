@@ -1534,7 +1534,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     String[] fieldArrays = fields.toArray(new String[0]);
                     queryMetadata.fields().include(fieldArrays);
                 }
-                if (node instanceof TableRenameProcessNode || node instanceof MigrateFieldRenameProcessorNode || node instanceof MigrateJsProcessorNode) {
+                if (node instanceof MigrateProcessorNode) {
 //                    queryMetadata.addCriteria(criteriaNode);
 //                    String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null, taskId);
 //                    criteriaNode.and("qualified_name").regex("^"+qualifiedName+".*")
@@ -1614,7 +1614,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                         metadatas = Lists.newArrayList();
                     } else{
                         criteriaTable.and("nodeId").is(nodeId)
-                                .and("originalName").in(tableNames)
+//                                .and("originalName").in(tableNames)
                                 .and("taskId").is(taskId)
                                 .and("is_deleted").ne(true);
                         metadatas = findAllDto(queryMetadata, user);
