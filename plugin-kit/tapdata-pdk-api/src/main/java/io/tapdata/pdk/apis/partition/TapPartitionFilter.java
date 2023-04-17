@@ -57,6 +57,9 @@ public class TapPartitionFilter extends TapFilter {
 		return this;
 	}
 
+	public boolean matchAny() {
+		return (match == null || match.isEmpty()) && leftBoundary == null && rightBoundary == null;
+	}
 
 	public QueryOperator getLeftBoundary() {
 		return leftBoundary;

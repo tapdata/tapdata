@@ -44,8 +44,6 @@ public class ReadPartitionUnKVStorageHandler extends PartitionFieldParentHandler
     private final AtomicBoolean finished = new AtomicBoolean(false);
     private final LongAdder sentEventCount = new LongAdder();
 
-    private CopyOnWriteArrayList<TapEvent> cdcEvents = new CopyOnWriteArrayList<>();
-
     public ReadPartitionUnKVStorageHandler(PDKSourceContext pdkSourceContext, TapTable tapTable, ReadPartition readPartition, HazelcastSourcePartitionReadDataNode sourcePdkDataNode) {
         super(tapTable);
         this.readPartition = readPartition;
@@ -88,17 +86,17 @@ public class ReadPartitionUnKVStorageHandler extends PartitionFieldParentHandler
                                          List<Map<String, Object>> results = filterResults.getResults();
                                          if(null != results){
                                              storageTime = System.currentTimeMillis();
-                                             jetTakes.add(sourcePdkDataNode.handleStreamInsertEventsReceived(results, null, table));
-//                                             for (Map<String, Object> result : results) {
-                                                //reference[0].add(insertRecordEvent(result, table).referenceTime(System.currentTimeMillis()));
-//                                                int size = reference[0].size();
-//                                                if (size >= tapAdvanceFilter.getBatchSize()){
-//                                                    jetTakes.add(sourcePdkDataNode.handleStreamEventsReceived(reference[0], null));
-//                                                    sentEventCount.add(size);
-//                                                    counter.add(size);
-//                                                    reference[0] = new ArrayList<>();
-//                                                }
-//                                             }
+                                             //jetTakes.add(sourcePdkDataNode.handleStreamInsertEventsReceived(results, null));
+                                             for (Map<String, Object> result : results) {
+                                                reference[0].add(insertRecordEvent(result, table).referenceTime(System.currentTimeMillis()));
+                                                int size = reference[0].size();
+                                                if (size >= tapAdvanceFilter.getBatchSize()){
+                                                    jetTakes.add(sourcePdkDataNode.handleStreamEventsReceived(reference[0], null));
+                                                    sentEventCount.add(size);
+                                                    counter.add(size);
+                                                    reference[0] = new ArrayList<>();
+                                                }
+                                             }
                                              storageTakes.add(System.currentTimeMillis() - storageTime);
                                         }
                                     }
@@ -203,28 +201,8 @@ public class ReadPartitionUnKVStorageHandler extends PartitionFieldParentHandler
             sourcePdkDataNode.handleStreamEventsReceived(list(event), null);
     }
 
-    private void passThroughs(List<TapEvent> events) {
-        cdcEvents.addAll(events);
-        if (finished.get() && cdcEvents.size() >= sourcePdkDataNode.batchSize){
-            synchronized (this) {
-                if (cdcEvents.size() >= sourcePdkDataNode.batchSize) {
-                    sourcePdkDataNode.handleStreamEventsReceived(cdcEvents, null);
-                    cdcEvents = new CopyOnWriteArrayList<>();
-                }
-            }
-        }
-    }
-
     private void passThrough0(TapEvent event) {
-        cdcEvents.add(event);
-        if (finished.get() && cdcEvents.size() >= sourcePdkDataNode.batchSize){
-            synchronized (this) {
-                if (cdcEvents.size() >= sourcePdkDataNode.batchSize) {
-                    sourcePdkDataNode.handleStreamEventsReceived(cdcEvents, null);
-                    cdcEvents = new CopyOnWriteArrayList<>();
-                }
-            }
-        }
+        sourcePdkDataNode.handleStreamEventsReceived(list(event), null);
     }
 
     public boolean isFinished() {

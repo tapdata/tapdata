@@ -313,6 +313,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 		if(eventPartitionDispatcher != null) {
 			eventPartitionDispatcher.readPartitionFinished();
 		}
+		super.enterCDCStage();
 	}
 
 	private JobContext handleStreamRead(JobContext jobContext) {
@@ -495,31 +496,31 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 		syncProgress.setStreamOffsetObj(offset);
 	}
 
-    public long handleStreamInsertEventsReceived(List<Map<String, Object>> events, Object offsetObj, String tableId){
-        long cast = 0;
-        try {
-            if (events != null && !events.isEmpty()) {
-                List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj, tableId);
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
-                }
-                if (streamReadFuncAspect != null)
-                    AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
-                if (CollectionUtils.isNotEmpty(tapdataEvents)) {
-                    long s = System.currentTimeMillis();
-                    for (TapdataEvent tapdataEvent : tapdataEvents) {
-                        this.enqueue(tapdataEvent);
-                    }
-                    cast = System.currentTimeMillis() - s;
-                    if (streamReadFuncAspect != null)
-                        AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
-                }
-            }
-        } catch (Throwable throwable) {
-            errorHandle(throwable, "Error processing incremental data, error: " + throwable.getMessage());
-        }
-        return cast;
-    }
+//    public long handleStreamInsertEventsReceived(List<Map<String, Object>> events, Object offsetObj, String tableId){
+//        long cast = 0;
+//        try {
+//            if (events != null && !events.isEmpty()) {
+//                List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj, tableId);
+//                if (logger.isDebugEnabled()) {
+//                    logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
+//                }
+//                if (streamReadFuncAspect != null)
+//                    AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
+//                if (CollectionUtils.isNotEmpty(tapdataEvents)) {
+//                    long s = System.currentTimeMillis();
+//                    for (TapdataEvent tapdataEvent : tapdataEvents) {
+//                        this.enqueue(tapdataEvent);
+//                    }
+//                    cast = System.currentTimeMillis() - s;
+//                    if (streamReadFuncAspect != null)
+//                        AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
+//                }
+//            }
+//        } catch (Throwable throwable) {
+//            errorHandle(throwable, "Error processing incremental data, error: " + throwable.getMessage());
+//        }
+//        return cast;
+//    }
 
     public long handleStreamEventsReceived(List<TapEvent> events, Object offsetObj) {
         long cast = 0;
@@ -574,12 +575,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
             if (null == tapdataEvent) {
                 continue;
             }
-            if(removeTables == null || !removeTables.contains(tableId)){
-                if (nodeId != null) {
-                    tapdataEvent.addNodeId(nodeId);
-                }
-                tapdataEvents.add(tapdataEvent);
-            }
+			tapdataEvents.add(tapdataEvent);
         }
         if (streamReadFuncAspect != null) {
             AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), tapdataEvents.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));
@@ -624,39 +620,39 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
         }
     }
 
-    public void enqueue(TapdataEvent tapdataEvent) {
-        try {
-            while (isRunning()) {
-                if (eventQueue.offer(tapdataEvent, 3, TimeUnit.SECONDS)) {
-                    break;
-                }
-            }
-        }
-        catch (Throwable throwable) {
-            throw new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
-        }
-    }
+//    public void enqueue(TapdataEvent tapdataEvent) {
+//        try {
+//            while (isRunning()) {
+//                if (eventQueue.offer(tapdataEvent, 3, TimeUnit.SECONDS)) {
+//                    break;
+//                }
+//            }
+//        }
+//        catch (Throwable throwable) {
+//            throw new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
+//        }
+//    }
 
-    protected boolean offer(TapdataEvent dataEvent) {
-        if (dataEvent != null) {
-            Outbox outbox = getOutbox();
-            if (null != outbox) {
-                final int bucketCount = outbox.bucketCount();
-                if (bucketCount > 1) {
-                    for (bucketIndex = Math.min(bucketIndex, bucketCount); bucketIndex < bucketCount; bucketIndex++) {
-                        final TapdataEvent cloneEvent = (TapdataEvent) dataEvent.clone();
-                        if (!tryEmit(bucketIndex, cloneEvent)) {
-                            return false;
-                        }
-                    }
-                } else if (!tryEmit(dataEvent)) {
-                    return false;
-                }
-            }
-        }
-        bucketIndex = 0; // reset to 0 of return true
-        return true;
-    }
+//    protected boolean offer(TapdataEvent dataEvent) {
+//        if (dataEvent != null) {
+//            Outbox outbox = getOutbox();
+//            if (null != outbox) {
+//                final int bucketCount = outbox.bucketCount();
+//                if (bucketCount > 1) {
+//                    for (bucketIndex = Math.min(bucketIndex, bucketCount); bucketIndex < bucketCount; bucketIndex++) {
+//                        final TapdataEvent cloneEvent = (TapdataEvent) dataEvent.clone();
+//                        if (!tryEmit(bucketIndex, cloneEvent)) {
+//                            return false;
+//                        }
+//                    }
+//                } else if (!tryEmit(dataEvent)) {
+//                    return false;
+//                }
+//            }
+//        }
+//        bucketIndex = 0; // reset to 0 of return true
+//        return true;
+//    }
 
 	@Override
 	public void doClose() throws Exception {
