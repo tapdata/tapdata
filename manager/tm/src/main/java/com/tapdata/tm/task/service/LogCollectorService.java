@@ -853,7 +853,7 @@ public class LogCollectorService {
         //查询获取所有源的数据源连接
         Criteria criteria = Criteria.where("_id").in(group.keySet());
         Query query = new Query(criteria);
-        query.fields().include("_id", "shareCdcEnable", "shareCdcTTL", "uniqueName", "database_type", "name", "pdkHash","shareCDCExternalStorageId");
+        query.fields().include("_id", "shareCdcEnable", "shareCdcTTL", "uniqueName", "multiConnectionInstanceId", "database_type", "name", "pdkHash","shareCDCExternalStorageId");
         List<DataSourceConnectionDto> dataSourceDtos = dataSourceService.findAllDto(query, user);
 
         //根据数据源连接
@@ -865,7 +865,7 @@ public class LogCollectorService {
                 continue;
             }
 
-            String uniqueName = dataSourceDto.getUniqueName();
+            String uniqueName = dataSourceDto.getMultiConnectionInstanceId();
 
             if (sourceUniqSet.contains(uniqueName)) {
                 _dataSourceDtos.add(dataSourceDto);
@@ -880,7 +880,7 @@ public class LogCollectorService {
         _dataSourceDtos.addAll(createLogCollects);
         dataSourceDtos = _dataSourceDtos;
 
-        Map<String, List<DataSourceConnectionDto>> datasourceMap = dataSourceDtos.stream().collect(Collectors.groupingBy(d -> StringUtils.isBlank(d.getUniqueName()) ? d.getId().toHexString() : d.getUniqueName()));
+        Map<String, List<DataSourceConnectionDto>> datasourceMap = dataSourceDtos.stream().collect(Collectors.groupingBy(d -> StringUtils.isBlank(d.getMultiConnectionInstanceId()) ? d.getId().toHexString() : d.getMultiConnectionInstanceId()));
 
         //不同类型数据源的id缓存
         Map<String, List<DataSourceConnectionDto>> dataSourceCacheByType = new HashMap<>();
@@ -918,19 +918,19 @@ public class LogCollectorService {
             List<String> ids = new ArrayList<>();
 
             //如果没有uniqname,则唯一键采用的id，所以不会存在相似的数据源
-            if (StringUtils.isBlank(dataSource.getUniqueName())) {
+            if (StringUtils.isBlank(dataSource.getMultiConnectionInstanceId())) {
                 ids.add(dataSource.getId().toHexString());
             } else {
                 List<DataSourceConnectionDto> cache = dataSourceCacheByType.get(dataSource.getDatabase_type());
                 if (CollectionUtils.isEmpty(cache)) {
                     Criteria criteria1 = Criteria.where("database_type").is(dataSource.getDatabase_type());
                     Query query1 = new Query(criteria1);
-                    query1.fields().include("_id", "uniqueName");
+                    query1.fields().include("_id", "uniqueName", "multiConnectionInstanceId");
                     cache = dataSourceService.findAllDto(query1, user);
                     dataSourceCacheByType.put(dataSource.getDatabase_type(), cache);
 
                 }
-                ids = cache.stream().filter(c -> dataSource.getUniqueName().equals(c.getUniqueName())).map(d -> d.getId().toHexString()).collect(Collectors.toList());
+                ids = cache.stream().filter(c -> dataSource.getMultiConnectionInstanceId().equals(c.getMultiConnectionInstanceId())).map(d -> d.getId().toHexString()).collect(Collectors.toList());
             }
 
             Criteria criteria1 = Criteria.where("is_deleted").is(false).and("dag.nodes").elemMatch(Criteria.where("type").is("logCollector").and("connectionIds").elemMatch(Criteria.where("$in").is(ids)));
@@ -941,6 +941,7 @@ public class LogCollectorService {
             if (oldLogCollectorTask != null) {
                 List<Node> sources1 = oldLogCollectorTask.getDag().getSources();
                 LogCollectorNode logCollectorNode = (LogCollectorNode) sources1.get(0);
+                boolean updateConfig = convertLogCollectorNode(logCollectorNode);
                 Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
                 for (String id : ids) {
                     newLogCollectorMap.put(id, oldLogCollectorTask.getId().toHexString());
@@ -948,7 +949,6 @@ public class LogCollectorService {
 
 
 
-                boolean updateConfig = false;
 //                for (String connectionId : connectionIds) {
 //                    if (!oldConnectionIds.contains(connectionId)) {
 //                        oldConnectionIds.add(connectionId);
@@ -1185,7 +1185,7 @@ public class LogCollectorService {
         List<String> ids = new ArrayList<>();
 
         //如果没有uniqname,则唯一键采用的id，所以不会存在相似的数据源
-        if (StringUtils.isBlank(dataSource.getUniqueName())) {
+        if (StringUtils.isBlank(dataSource.getMultiConnectionInstanceId())) {
             ids.add(dataSource.getId().toHexString());
 
         } else {
@@ -1201,7 +1201,7 @@ public class LogCollectorService {
             }
 
 
-            ids = cache.stream().filter(c -> dataSource.getUniqueName().equals(c.getUniqueName())).map(d -> d.getId().toHexString()).collect(Collectors.toList());
+            ids = cache.stream().filter(c -> dataSource.getMultiConnectionInstanceId().equals(c.getMultiConnectionInstanceId())).map(d -> d.getId().toHexString()).collect(Collectors.toList());
         }
         return ids;
     }
@@ -1322,5 +1322,33 @@ public class LogCollectorService {
         Update update = new Update();
         update.set("shareCdcTaskId", shareCdcTaskId);
         taskService.updateById(taskDto.getId(), update, user);
+    }
+
+
+    private boolean convertLogCollectorNode(LogCollectorNode logCollectorNode) {
+
+
+        Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
+        if (logCollectorConnConfigs != null && logCollectorConnConfigs.size() != 0) {
+            return false;
+        }
+
+        List<String> connectionIds = logCollectorNode.getConnectionIds();
+        List<String> tableNames = logCollectorNode.getTableNames();
+        logCollectorConnConfigs = new HashMap<>();
+        if (CollectionUtils.isNotEmpty(connectionIds)) {
+            logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
+            return true;
+        }
+
+        for (String connectionId : connectionIds) {
+            logCollectorConnConfigs.put(connectionId, new LogCollecotrConnConfig(connectionId, tableNames));
+        }
+
+        logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
+
+        logCollectorNode.setConnectionIds(null);
+        logCollectorNode.setTableNames(null);
+        return true;
     }
 }

@@ -328,6 +328,8 @@ public class DataSourceEntity extends BaseEntity {
     /** 是否开启心跳写入，默认：false */
     private Boolean heartbeatEnable;
 
+    private String multiConnectionInstanceId;
+
     /**
      * 后续 开放可以多选 flow engine 的话，这里一定要删除
      *
