@@ -67,8 +67,8 @@ public class PartitionsCompletedRunnable implements Runnable {
 		}
 
 		aspectManager.executeAspect(batchReadFuncAspect.state(DataFunctionAspect.STATE_END));
-		jobCompleted.completed(null, null);
 		//partition split done and read partitions done, start entering CDC stage.
 		sourcePdkDataNodeEx1.handleEnterCDCStage(partitionsReader, tapTable);
+		jobCompleted.completed(null, null);
 	}
 }

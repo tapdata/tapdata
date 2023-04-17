@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -62,6 +61,7 @@ public class ReadPartitionUnKVStorageHandler extends PartitionFieldParentHandler
             LongAdder filterTakes = new LongAdder();
             LongAdder counter = new LongAdder();
 //            LongAdder jetTakes = new LongAdder();
+            BatchReadFuncAspect batchReadFuncAspect = readPartitionContext.getBatchReadFuncAspect();
             TapPartitionFilter partitionFilter = readPartition.getPartitionFilter();
             TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create()
                     .match(partitionFilter.getMatch())
@@ -91,7 +91,8 @@ public class ReadPartitionUnKVStorageHandler extends PartitionFieldParentHandler
                                                 reference[0].add(insertRecordEvent(result, table).referenceTime(System.currentTimeMillis()));
                                                 int size = reference[0].size();
                                                 if (size >= tapAdvanceFilter.getBatchSize()){
-                                                    sourcePdkDataNode.handleStreamEventsReceived(reference[0], null);
+                                                    enqueueTapEvents(batchReadFuncAspect, reference[0], sourcePdkDataNode);
+//                                                    sourcePdkDataNode.handleStreamEventsReceived(reference[0], null);
 //                                                    jetTakes.add();
                                                     sentEventCount.add(size);
                                                     counter.add(size);
@@ -106,7 +107,8 @@ public class ReadPartitionUnKVStorageHandler extends PartitionFieldParentHandler
                 );
                 if (!reference[0].isEmpty()){
                     int size = reference[0].size();
-                    sourcePdkDataNode.handleStreamEventsReceived(reference[0], null);
+                    enqueueTapEvents(batchReadFuncAspect, reference[0], sourcePdkDataNode);
+//                    sourcePdkDataNode.handleStreamEventsReceived(reference[0], null);
                     sentEventCount.add(size);
                     counter.add(size);
                     //reference[0] = new ArrayList<>();
@@ -214,24 +216,6 @@ public class ReadPartitionUnKVStorageHandler extends PartitionFieldParentHandler
         finished.set(true);
     }
 
-    private void enqueueTapEvents(BatchReadFuncAspect batchReadFuncAspect, List<TapEvent> events) {
-        if(events == null || events.isEmpty())
-            return;
-        if (batchReadFuncAspect != null)
-            AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), events);
-        if (sourcePdkDataNode.logger.isDebugEnabled()) {
-            sourcePdkDataNode.logger.debug("Batch read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(sourcePdkDataNode.getConnectorNode()));
-        }
-        List<TapdataEvent> tapdataEvents = sourcePdkDataNode.wrapTapdataEvent(events);
-        if (batchReadFuncAspect != null)
-            AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_PROCESS_COMPLETE).getProcessCompleteConsumers(), tapdataEvents);
-
-        if (CollectionUtil.isNotEmpty(tapdataEvents)) {
-            tapdataEvents.forEach(sourcePdkDataNode::enqueue);
-            if (batchReadFuncAspect != null)
-                AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_ENQUEUED).getEnqueuedConsumers(), tapdataEvents);
-        }
-    }
 
     @Override
     public void handleUpdateRecordEvent(TapUpdateRecordEvent updateRecordEvent, Map<String, Object> after, Map<String, Object> key) {

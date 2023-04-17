@@ -212,8 +212,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
         if (null != newTables && !newTables.isEmpty()){
             super.handleNewTables(newTables);
         } else {
-            //Don't change to CDC stage for partition read.
-            this.endSnapshotLoop.set(true);
+			super.enterCDCStage();
         }
 	}
 
@@ -313,7 +312,6 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 		if(eventPartitionDispatcher != null) {
 			eventPartitionDispatcher.readPartitionFinished();
 		}
-		super.enterCDCStage();
 	}
 
 	private JobContext handleStreamRead(JobContext jobContext) {
@@ -696,9 +694,13 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 	@Override
 	protected boolean handleNewTables(List<String> addList){
         if (endSnapshotLoop.get()){
+			syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
             return super.handleNewTables(addList);
         }
-        newTables.addAll(addList);
+		for(String str : addList) {
+			if(!newTables.contains(str))
+				newTables.add(str);
+		}
         return false;
 	}
 
