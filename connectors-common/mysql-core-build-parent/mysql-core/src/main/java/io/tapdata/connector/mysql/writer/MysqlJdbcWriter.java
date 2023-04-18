@@ -8,7 +8,6 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -52,7 +51,7 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
 		this.jdbcCacheMap = jdbcCacheMap;
 	}
 
-	protected JdbcCache getJdbcCache() {
+	public JdbcCache getJdbcCache() {
 		String name = Thread.currentThread().getName();
 		JdbcCache jdbcCache = jdbcCacheMap.get(name);
 		if (null == jdbcCache) {
@@ -243,12 +242,18 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
 		if (MapUtils.isEmpty(before) && MapUtils.isEmpty(after)) {
 			throw new Exception("Set prepared statement where clause failed, before and after both empty: " + tapRecordEvent);
 		}
+		Map<String, Object> data;
+		if (MapUtils.isNotEmpty(before)) {
+			data = before;
+		} else {
+			data = after;
+		}
 		Collection<String> uniqueKeys = getUniqueKeys(tapTable);
 		for (String uniqueKey : uniqueKeys) {
-			if (!after.containsKey(uniqueKey) && !(EmptyKit.isNotEmpty(before) && before.containsKey(uniqueKey))) {
+			if (!data.containsKey(uniqueKey)) {
 				throw new Exception("Set prepared statement where clause failed, unique key \"" + uniqueKey + "\" not exists in data: " + tapRecordEvent);
 			}
-			Object value = (EmptyKit.isNotEmpty(before) && before.containsKey(uniqueKey)) ? before.get(uniqueKey) : after.get(uniqueKey);
+			Object value = data.get(uniqueKey);
 			preparedStatement.setObject(parameterIndex++, value);
 		}
 	}
@@ -308,6 +313,12 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
 		return sql;
 	}
 
+	@Override
+	public void selfCheck() {
+		synchronized (this.jdbcCacheMap) {
+			jdbcCacheMap.values().removeIf(jdbcCache -> !jdbcCache.checkAlive());
+		}
+	}
 	protected static class JdbcCache {
 		private Connection connection;
 		private final Map<String, PreparedStatement> insertMap = new LRUOnRemoveMap<>(10, entry -> JdbcUtil.closeQuietly(entry.getValue()));
@@ -340,6 +351,14 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
 				throw new IllegalArgumentException("Cannot create sql statement when connection is null");
 			if (!connection.isValid(5)) throw new RuntimeException("Connection is invalid");
 			return connection.createStatement();
+		}
+
+		public boolean checkAlive() {
+			try {
+				return connection.isValid(5);
+			} catch (SQLException ignored) {
+				return false;
+			}
 		}
 
 		public Connection getConnection() {
