@@ -13,6 +13,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 
 public class TDSqlWriter extends MysqlSqlBatchWriter {
+    public static final String NORMAL_TABLE = "NORMAL";
+    public static final String PARTITION_TABLE = "PARTITION";
+    private String tableType = "NORMAL";;
+    public TDSqlWriter type(String tableType){
+        this.tableType = tableType;
+        return this;
+    }
+
     public TDSqlWriter(MysqlJdbcContext mysqlJdbcContext) throws Throwable {
         super(mysqlJdbcContext);
     }
@@ -23,11 +31,15 @@ public class TDSqlWriter extends MysqlSqlBatchWriter {
 
     @Override
     protected String appendLargeInsertOnDuplicateUpdateSql(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) {
+        if ( !PARTITION_TABLE.equals(tableType)) return super.appendLargeInsertOnDuplicateUpdateSql(tapConnectorContext, tapTable, tapRecordEvents);
         return appendReplaceIntoSql(tapConnectorContext, tapTable, tapRecordEvents);
     }
 
     @Override
     protected List<String> updateKeyValues(LinkedHashMap<String, TapField> nameFieldMap, TapRecordEvent tapRecordEvent) {
+        if ( !PARTITION_TABLE.equals(tableType)){
+            return super.updateKeyValues(nameFieldMap, tapRecordEvent);
+        }
         List<String> setList = new ArrayList<>();
         nameFieldMap.forEach((fieldName, field) -> {
             if (!needAddIntoPreparedStatementValues(field, tapRecordEvent)) {
@@ -39,5 +51,4 @@ public class TDSqlWriter extends MysqlSqlBatchWriter {
         });
         return setList;
     }
-
 }

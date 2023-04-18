@@ -224,7 +224,16 @@
             }
           ],
           "x-index": 10,
-          "required": true
+          "x-reactions": {
+              "fulfill": {
+                "state": {
+                  "display": "{{$values.$outputs.length === 0 ? \"visible\" : \"hidden\"}}"
+                },
+                "schema": {
+                  "required": "{{$values.$outputs.length === 0 ? true : false}}"
+                }
+              }
+          }
         },
         "partitionKey": {
           "type": "string",
@@ -249,13 +258,13 @@
                 "nodeConfig.tableCreateType"
               ],
               "fulfill": {
-                "run": "if (!$self.value && $self.dataSource && $self.dataSource.length) {let isPrimaryKeyList = $self.dataSource.filter(item => item.isPrimaryKey); let indicesUniqueList = $self.dataSource.filter(item => item.indicesUnique); $self.setValue((isPrimaryKeyList.length ? isPrimaryKeyList : indicesUniqueList).map(item => item.value)); $self.validate();}"
-              },
-              "state": {
-                "display": "{{$deps[0] === \"PartitionTable\" ? \"visible\" : \"hidden\"}}"
-              },
-              "schema": {
-                "required": "{{$deps[0] === \"PartitionTable\" ? true : false}}"
+                "run": "if (!$self.value && $self.dataSource && $self.dataSource.length) {let isPrimaryKeyList = $self.dataSource.filter(item => item.isPrimaryKey); let indicesUniqueList = $self.dataSource.filter(item => item.indicesUnique); $self.setValue((isPrimaryKeyList.length ? isPrimaryKeyList : indicesUniqueList).map(item => item.value)); $self.validate();}",
+                "state": {
+                  "display": "{{$deps[0] === \"PartitionTable\" && $values.$outputs.length === 0 ? \"visible\" : \"hidden\"}}"
+                },
+                "schema": {
+                  "required": "{{$deps[0] === \"PartitionTable\" ? true : false}}"
+                }
               }
             }
           ]

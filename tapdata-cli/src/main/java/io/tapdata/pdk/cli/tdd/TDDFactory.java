@@ -45,7 +45,7 @@ public class TDDFactory {
     public static void main(String[] args) {
         CommonUtils.setProperty("pdk_external_jar_path", "./connectors/dist");
         CommonUtils.setProperty("TDD_AUTO_EXIT","0");
-        //System.setProperty("is_debug_mode","true");
+        System.setProperty("is_debug_mode","true");
         args = new String[]{"test", "-c", null, null};
         for (TddPath tddJarPath : TddPath.values()) {
             args[2] = baseConfPath + tddJarPath.getConf();

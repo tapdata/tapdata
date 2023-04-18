@@ -21,7 +21,10 @@ import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
-import io.tapdata.entity.event.ddl.table.*;
+import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
@@ -52,6 +55,7 @@ import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
+import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -74,7 +78,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
 
     private MysqlJdbcContext tdSqlJdbcContext;
     private MysqlReader tdSqlReader;
-    private MysqlWriter tdSqlWriter;
+    private TDSqlWriter tdSqlWriter;
     private MysqlJdbcOneByOneWriter tdSqlJdbcOneByOneWriter;
     private String version;
     private String connectionTimezone;
@@ -82,6 +86,8 @@ public class TencentDBMySQLConnector extends MysqlConnector {
     private DDLSqlMaker ddlSqlMaker;
     Map<String, List<String>> tableTypeMap = new ConcurrentHashMap<>();
     Map<String, MysqlReader> readers = new HashMap<>();
+    private AtomicBoolean started = new AtomicBoolean(false);
+    private final AtomicReference<String> tableType = new AtomicReference<>("NORMAL");
 
     void initStreamRead(TapConnectionContext tapConnectionContext) throws Throwable {
         for (Map.Entry<String, MysqlJdbcContext> entry : getPartitionSetMap().entrySet()) {
@@ -124,7 +130,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
         if (tapConnectionContext instanceof TapConnectorContext) {
             this.tdSqlWriter = new TDSqlWriter(tdSqlJdbcContext, map -> {
                 try {
-                    return new TDSqlJdbcOneByOneWriter(tdSqlJdbcContext, map);
+                    return new TDSqlJdbcOneByOneWriter(tdSqlJdbcContext, map).type(tableType);
                 } catch (Throwable throwable) {
                     return null;
                 }
@@ -133,11 +139,15 @@ public class TencentDBMySQLConnector extends MysqlConnector {
             this.version = tdSqlJdbcContext.getMysqlVersion();
             this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
             if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
-                this.connectionTimezone = tdSqlJdbcContext.timezone();
+                this.connectionTimezone = tdSqlJdbcContext.timezone().substring(3);
             }
+            loader = new TDSqlDiscoverSchema(tdSqlJdbcContext);
         }
         ddlSqlMaker = new MysqlDDLSqlMaker(version);
         initStreamRead(tapConnectionContext);
+        synchronized (this) {
+            started.set(true);
+        }
         //fieldDDLHandlers = new BiClassHandlers<>();
         //fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
         //fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
@@ -147,6 +157,9 @@ public class TencentDBMySQLConnector extends MysqlConnector {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
+        synchronized (this) {
+            started.set(false);
+        }
         try {
             super.onStop(connectionContext);
             try {
@@ -221,22 +234,20 @@ public class TencentDBMySQLConnector extends MysqlConnector {
 
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
             if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
-                tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+                tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(ZoneId.of(this.connectionTimezone)));
             }
             return formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS");
         });
-
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> {
             if (tapDateValue.getValue() != null && tapDateValue.getValue().getTimeZone() == null) {
-                tapDateValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+                tapDateValue.getValue().setTimeZone(TimeZone.getTimeZone(ZoneId.of(this.connectionTimezone)));
             }
             return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
         });
-
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTimeStr());
         codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
             if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
-                tapYearValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+                tapYearValue.getValue().setTimeZone(TimeZone.getTimeZone(ZoneId.of(this.connectionTimezone)));
             }
             return formatTapDateTime(tapYearValue.getValue(), "yyyy");
         });
@@ -270,6 +281,9 @@ public class TencentDBMySQLConnector extends MysqlConnector {
     private Throwable streamReadFailed = null;
 
     private void streamRead(TapConnectorContext tapConnectorContext, List<String> tables, Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
+        if (!(offset instanceof MySqlPartitionBinlogPosition)){
+            offset = timestampToStreamOffset(tapConnectorContext, null);
+        }
         //mysqlJdbcContext.execute("/*proxy*/ set binlog_dump_sticky_backend=set_1681181636_1");
         //DataMap nodeConfig = tapConnectorContext.getNodeConfig();
         //Object caseSensitive = nodeConfig.get("caseSensitive");
@@ -293,6 +307,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
             for (Map.Entry<String, MysqlReader> entry : readers.entrySet()) {
                 String key = entry.getKey();
                 MysqlReader value = entry.getValue();
+                Object finalOffset = offset;
                 this.sourceConsumer.execute(() -> {
                     Thread.currentThread().setUncaughtExceptionHandler((thread, throwable) -> {
                         synchronized (binlogFlag) {
@@ -303,13 +318,13 @@ public class TencentDBMySQLConnector extends MysqlConnector {
                     });
                     try {
                         Object position = null;
-                        if (offset instanceof MySqlPartitionBinlogPosition) {
-                            position = ((MySqlPartitionBinlogPosition) offset).getPosition(key);
+                        if (finalOffset instanceof MySqlPartitionBinlogPosition) {
+                            position = ((MySqlPartitionBinlogPosition) finalOffset).getPosition(key);
                         }
                         value.readBinlog(
                                 tapConnectorContext,
                                 tables,
-                                Optional.ofNullable(position).orElse(offset),
+                                Optional.ofNullable(position).orElse(finalOffset),
                                 batchSize,
                                 DDLParserType.MYSQL_CCJ_SQL_PARSER,
                                 consumer,
@@ -326,7 +341,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
             synchronized (binlogLock) {
                 while (isAlive()) {
                     try {
-                        binlogLock.wait(3000);
+                        binlogLock.wait(1500);
                     } catch (Exception ignored) {
                     }
                     synchronized (binlogFlag) {
@@ -342,10 +357,11 @@ public class TencentDBMySQLConnector extends MysqlConnector {
             }
         } finally {
             consumer.streamReadEnded();
+            binlogLock.notifyAll();
             if (null != sourceConsumer && !sourceConsumer.isShutdown()) {
                 sourceConsumer.shutdown();
-                sourceConsumer = null;
             }
+            sourceConsumer = null;
         }
         if (streamReadFailed != null)
             throw new CoreException(TDSQLErrors.STREAM_READ_FAILED, streamReadFailed, "stream read occurred error {}", streamReadFailed.getMessage());
@@ -447,12 +463,11 @@ public class TencentDBMySQLConnector extends MysqlConnector {
             throw new Exception("Create table failed, message: " + t.getMessage(), t);
         }
     }
-
+    TDSqlDiscoverSchema loader;
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
         List<String> type = tableTypeMap.get(tapTable.getId());
         if (type == null) {
             type = tableTypeMap.computeIfAbsent(tapTable.getId(), id -> {
-                TDSqlDiscoverSchema loader = new TDSqlDiscoverSchema(tdSqlJdbcContext);
                 Object database = tapConnectorContext.getConnectionConfig().get("database");
                 return loader.getAllPartitionKey((String) database, id);
             });
@@ -461,16 +476,20 @@ public class TencentDBMySQLConnector extends MysqlConnector {
         WriteListResult<TapRecordEvent> writeListResult;
         if (type.isEmpty()) {
             //普通表
-            synchronized (this) {
-                if (null == this.tdSqlWriter || this.tdSqlWriter instanceof TDSqlWriter) {
-                    this.tdSqlWriter = new MysqlSqlBatchWriter(this.tdSqlJdbcContext);
-                }
+            synchronized (tableType) {
+                tableType.set(TDSqlWriter.NORMAL_TABLE);
             }
-            writeListResult = this.tdSqlWriter.write(tapConnectorContext, tapTable, tapRecordEvents);
+            writeListResult = this.tdSqlWriter.type(TDSqlWriter.NORMAL_TABLE)
+                    .write(tapConnectorContext, tapTable, tapRecordEvents);
         } else {
             //分区表
+            synchronized (tableType) {
+                tableType.set(TDSqlWriter.PARTITION_TABLE);
+            }
             setPartitionInfo(type, tapTable);
-            writeListResult = this.tdSqlWriter.write(tapConnectorContext, tapTable, tapRecordEvents);
+            writeListResult = this.tdSqlWriter
+                    .type(TDSqlWriter.PARTITION_TABLE)
+                    .write(tapConnectorContext, tapTable, tapRecordEvents);
         }
         consumer.accept(writeListResult);
     }
@@ -605,25 +624,58 @@ public class TencentDBMySQLConnector extends MysqlConnector {
     }
 
     protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+        RetryOptions handle = super.errorHandle(tapConnectionContext, pdkMethod, throwable);
         RetryOptions retryOptions = RetryOptions.create();
-        if (throwable instanceof CoreException) {
-            switch (((CoreException) throwable).getCode()) {
-                case TDSQLErrors.STREAM_READ_FAILED:
-                    retryOptions.needRetry(false);
-                    break;
-                default:
-                    retryOptions.setNeedRetry(true);
-                    retryOptions.beforeRetryMethod(() -> {
-                        try {
+        retryOptions.setNeedRetry(null == handle || handle.isNeedRetry());
+        retryOptions.beforeRetryMethod(() -> {
+            try {
+                synchronized (this) {
+                    //mysqlJdbcContext是否有效
+                    if (tdSqlJdbcContext == null || !checkValid() || !started.get()) {
+                        //如果无效执行onStop,有效就return
+                        this.onStop(tapConnectionContext);
+                        if (isAlive()) {
                             this.onStart(tapConnectionContext);
-                        } catch (Throwable ignore) {
                         }
-                    });
-                    break;
+                    } else {
+                        tdSqlWriter.selfCheck();
+                    }
+                }
+            } catch (Throwable ignore) {
             }
-        }
+        });
         return retryOptions;
     }
+
+    private boolean checkValid() {
+        try {
+            tdSqlJdbcContext.getMysqlVersion();
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+//    protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+//        RetryOptions retryOptions = RetryOptions.create();
+//        if (throwable instanceof CoreException) {
+//            switch (((CoreException) throwable).getCode()) {
+//                case TDSQLErrors.STREAM_READ_FAILED:
+//                    retryOptions.needRetry(false);
+//                    break;
+//                default:
+//                    retryOptions.setNeedRetry(true);
+//                    retryOptions.beforeRetryMethod(() -> {
+//                        try {
+//                            this.onStart(tapConnectionContext);
+//                        } catch (Throwable ignore) {
+//                        }
+//                    });
+//                    break;
+//            }
+//        }
+//        return retryOptions;
+//    }
 
     private void getReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions options) {
         DatabaseReadPartitionSplitter.calculateDatabaseReadPartitions(connectorContext, table, options)

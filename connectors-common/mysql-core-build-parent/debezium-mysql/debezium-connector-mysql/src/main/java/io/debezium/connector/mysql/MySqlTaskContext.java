@@ -38,7 +38,7 @@ public class MySqlTaskContext extends CdcSourceTaskContext {
                 if(tdsqlPartition != null) {
                     tdsqlPartition = tdsqlPartition.trim();
                     Class<? extends BinaryLogClient> clientClass = binaryLogClient.getClass();
-                    Field sql = clientClass.getDeclaredField("setPartitionId");
+                    Field sql = clientClass.getDeclaredField("partitionId");
                     sql.setAccessible(true);
                     sql.set(binaryLogClient,  tdsqlPartition);
                     //LOGGER.info("Partition of TD-SQL BinaryLog.");

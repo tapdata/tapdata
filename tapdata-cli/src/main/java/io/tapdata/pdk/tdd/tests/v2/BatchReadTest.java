@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 都需使用随机ID建表， 如果有DropTableFunction实现， 测试用例应该自动删除创建的临时表（无论成功或是失败）
  */
 @DisplayName("batchRead")//BatchReadFunction全量读数据（依赖WriteRecordFunction）
-@TapGo(tag = "V2", sort = 120, debug = true)
+@TapGo(tag = "V2", sort = 120, debug = false)
 public class BatchReadTest extends PDKTestBase {
     {
         if (PDKTestBase.testRunning) {

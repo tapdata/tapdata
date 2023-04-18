@@ -225,7 +225,7 @@ public class BinlogReader extends AbstractReader {
                 if(tdsqlPartition != null) {
                     tdsqlPartition = tdsqlPartition.trim();
                     Class<? extends BinaryLogClient> clientClass = client.getClass();
-                    Field sql = clientClass.getDeclaredField("setPartitionId");
+                    Field sql = clientClass.getDeclaredField("partitionId");
                     sql.setAccessible(true);
                     sql.set(client,  tdsqlPartition);
                     //LOGGER.info("Partition of TD-SQL BinaryLog.");
