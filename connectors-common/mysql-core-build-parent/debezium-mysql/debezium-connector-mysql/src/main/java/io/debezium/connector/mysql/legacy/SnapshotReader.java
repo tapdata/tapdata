@@ -70,7 +70,11 @@ public class SnapshotReader extends AbstractReader {
     private final boolean useGlobalLock;
 
     private final MySqlConnectorConfig.SnapshotLockingMode snapshotLockingMode;
+    private String partitionSetId;
 
+    private String sqlPrefix(){
+        return "";// null == partitionSetId ? "" : "/*sets:" + partitionSetId + "*/";
+    }
     /**
      * Create a snapshot reader.
      *
@@ -91,12 +95,12 @@ public class SnapshotReader extends AbstractReader {
      */
     SnapshotReader(String name, MySqlTaskContext context, boolean useGlobalLock) {
         super(name, context, null);
-
         this.includeData = context.snapshotMode().includeData();
         this.snapshotLockingMode = context.getConnectorConfig().getSnapshotLockingMode();
         recorder = this::recordRowAsRead;
         metrics = new SnapshotReaderMetrics(context, context.dbSchema(), changeEventQueueMetrics);
         this.useGlobalLock = useGlobalLock;
+        partitionSetId = context.config().getString("tdsql.partition");
     }
 
     /**
@@ -907,7 +911,7 @@ public class SnapshotReader extends AbstractReader {
         }
         else {
             logger.info("Step {}: read binlog position of MySQL primary server", step);
-            String showMasterStmt = "SHOW MASTER STATUS";
+            String showMasterStmt = sqlPrefix() + "SHOW MASTER STATUS";
             sql.set(showMasterStmt);
             mysql.query(sql.get(), rs -> {
                 if (rs.next()) {

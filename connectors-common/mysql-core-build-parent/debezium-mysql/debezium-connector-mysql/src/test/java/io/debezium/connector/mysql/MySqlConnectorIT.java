@@ -76,6 +76,14 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
 
     private Configuration config;
 
+    private String partitionSetId;
+    private String sqlPrefix(){
+        if (null == partitionSetId){
+            partitionSetId = config.getString("tdsql.partition");
+        }
+        return null == partitionSetId ? "" : "/*sets:" + partitionSetId + "*/";
+    }
+
     @Before
     public void beforeEach() {
         stopConnector();
@@ -628,7 +636,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
         BinlogPosition positionAfterUpdate = new BinlogPosition();
         try (MySqlTestConnection db = MySqlTestConnection.forTestDatabase(DATABASE.getDatabaseName());) {
             try (JdbcConnection connection = db.connect()) {
-                connection.query("SHOW MASTER STATUS", positionBeforeInserts::readFromDatabase);
+                connection.query(sqlPrefix() + "SHOW MASTER STATUS", positionBeforeInserts::readFromDatabase);
                 connection.execute("INSERT INTO products(id,name,description,weight,volume,alias) VALUES "
                         + "(3001,'ashley','super robot',34.56,0.00,'ashbot'), "
                         + "(3002,'arthur','motorcycle',87.65,0.00,'arcycle'), "
@@ -638,7 +646,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                         connection.print(rs);
                     }
                 });
-                connection.query("SHOW MASTER STATUS", positionAfterInserts::readFromDatabase);
+                connection.query(sqlPrefix() + "SHOW MASTER STATUS", positionAfterInserts::readFromDatabase);
                 // Change something else that is unrelated ...
                 connection.execute("UPDATE products_on_hand SET quantity=40 WHERE product_id=109");
                 connection.query("SELECT * FROM products_on_hand", rs -> {
@@ -646,7 +654,7 @@ public class MySqlConnectorIT extends AbstractConnectorTest {
                         connection.print(rs);
                     }
                 });
-                connection.query("SHOW MASTER STATUS", positionAfterUpdate::readFromDatabase);
+                connection.query(sqlPrefix() + "SHOW MASTER STATUS", positionAfterUpdate::readFromDatabase);
             }
         }
 

@@ -54,10 +54,15 @@ public class MySqlJdbcContext implements AutoCloseable {
     protected final Configuration config;
     protected final JdbcConnection jdbc;
     private final Map<String, String> originalSystemProperties = new HashMap<>();
+    private String partitionSetId;
+
+    private String sqlPrefix(){
+        return null == partitionSetId ? "" : "/*sets:" + partitionSetId + "*/";
+    }
 
     public MySqlJdbcContext(MySqlConnectorConfig config) {
         this.config = config.getConfig(); // must be set before most methods are used
-
+        partitionSetId = this.config.getString("tdsql.partition");
         // Set up the JDBC connection without actually connecting, with extra MySQL-specific properties
         // to give us better JDBC database metadata behavior, including using UTF-8 for the client-side character encoding
         // per https://dev.mysql.com/doc/connector-j/5.1/en/connector-j-reference-charsets.html
@@ -203,7 +208,7 @@ public class MySqlJdbcContext implements AutoCloseable {
     public String knownGtidSet() {
         AtomicReference<String> gtidSetStr = new AtomicReference<String>();
         try {
-            jdbc.query("SHOW MASTER STATUS", rs -> {
+            jdbc.query(sqlPrefix() + "SHOW MASTER STATUS", rs -> {
                 if (rs.next() && rs.getMetaData().getColumnCount() > 4) {
                     gtidSetStr.set(rs.getString(5)); // GTID set, may be null, blank, or contain a GTID set
                 }

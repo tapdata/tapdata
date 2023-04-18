@@ -134,7 +134,7 @@ public class CreateTableTest extends PDKTestBase {
 
     TapTable getTableForAllTapType() {
         return table(tableNameCreator.tableName())
-                .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+                .add(field("id", JAVA_Integer).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))))
                 .add(field("TYPE_ARRAY", JAVA_Array).tapType(tapArray()))
                 .add(field("TYPE_BINARY", JAVA_Binary).tapType(tapBinary().bytes(100L)))
                 .add(field("TYPE_BOOLEAN", JAVA_Boolean).tapType(tapBoolean()))
@@ -221,7 +221,7 @@ public class CreateTableTest extends PDKTestBase {
 
     TapTable getTable() {
         return table(UUID.randomUUID().toString())
-                .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+                .add(field("id", JAVA_Integer).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))))
                 .add(field("TYPE_ARRAY", JAVA_Array).tapType(tapArray()))
                 .add(field("TYPE_BINARY", JAVA_Binary).tapType(tapBinary().bytes(100L)))
                 .add(field("TYPE_BOOLEAN", JAVA_Boolean).tapType(tapBoolean()))

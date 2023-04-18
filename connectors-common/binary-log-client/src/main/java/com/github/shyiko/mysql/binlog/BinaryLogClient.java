@@ -119,10 +119,10 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
     private final String schema;
     private final String username;
     private final String password;
-    private String setPartitionId;
+    private String partitionId;
 
     private String setNameToProxy(){
-        return null == setPartitionId && !"".equals(setPartitionId.trim()) ? "" : "/*sets:" + setPartitionId.trim() + "*/ ";
+        return null == partitionId && !"".equals(partitionId.trim()) ? "" : "/*sets:" + partitionId.trim() + "*/ ";
     }
 
     private boolean blocking = true;
@@ -203,7 +203,7 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
         this.schema = schema;
         this.username = username;
         this.password = password;
-        this.setPartitionId = setId;
+        this.partitionId = setId;
         this.masterServerId = -1L;
     }
     public long getMasterServerId() {
@@ -561,8 +561,8 @@ public class BinaryLogClient implements BinaryLogClientMXBean {
             GreetingPacket greetingPacket = receiveGreeting(channel);
             authenticate(channel, greetingPacket);
             connectionId = greetingPacket.getThreadId();
-            if (null != setPartitionId && !"".equals(setPartitionId.trim())){
-                channel.write(new QueryCommand("/*proxy*/ set binlog_dump_sticky_backend=" + setPartitionId));
+            if (null != partitionId && !"".equals(partitionId.trim())){
+                channel.write(new QueryCommand("/*proxy*/ set binlog_dump_sticky_backend=" + partitionId));
             }
             if ("".equals(binlogFilename)) {
                 synchronized (gtidSetAccessLock) {

@@ -21,7 +21,6 @@ public class TDSqlWriter extends MysqlSqlBatchWriter {
         super(mysqlJdbcContext, jdbcOneByOneWriterSetter);
     }
 
-
     @Override
     protected String appendLargeInsertOnDuplicateUpdateSql(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) {
         return appendReplaceIntoSql(tapConnectorContext, tapTable, tapRecordEvents);

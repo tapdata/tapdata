@@ -31,10 +31,14 @@ public class MysqlBinlogPositionUtil implements AutoCloseable {
     private final int fileBegin;
     private final int fileEnd;
     private final BinaryLogClient client;
-    private String partition;
+    private String partitionSetId;
 
-    public MysqlBinlogPositionUtil partition(String partitionId){
-        this.partition = partitionId;
+    private String sqlPrefix(){
+        return null == partitionSetId ? "" : "/*sets:" + partitionSetId + "*/";
+    }
+
+    public MysqlBinlogPositionUtil partition(String partitionSetId){
+        this.partitionSetId = partitionSetId;
         return this;
     }
 
@@ -43,7 +47,7 @@ public class MysqlBinlogPositionUtil implements AutoCloseable {
             String firstBinlogFilename = queryOneString(conn, "show binlog events limit 1");
             if (null == firstBinlogFilename) throw new RuntimeException("not found first binlog filename.");
 
-            String lastBinlogFilename = queryOneString(conn, "show master status");
+            String lastBinlogFilename = queryOneString(conn, sqlPrefix() + "show master status");
             if (null == lastBinlogFilename) throw new RuntimeException("not found first binlog filename.");
 
             this.fileBegin = Integer.parseInt(firstBinlogFilename.substring(firstBinlogFilename.indexOf(".") + 1));

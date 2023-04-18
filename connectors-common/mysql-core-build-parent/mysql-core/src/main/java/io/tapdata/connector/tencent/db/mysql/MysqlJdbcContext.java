@@ -46,6 +46,21 @@ public class MysqlJdbcContext implements AutoCloseable {
 
 	public static final String FIELD_TEMPLATE = "`%s`";
 
+	private String partitionSetId;
+
+	private String sqlPrefix(){
+		return null == partitionSetId ? "" : "/*sets:" + partitionSetId + "*/";
+	}
+
+	public MysqlJdbcContext partitionSetId(String partitionSetId){
+		this.partitionSetId = partitionSetId;
+		return this;
+	}
+
+	public String getPartitionSetId(){
+		return this.partitionSetId;
+	}
+
     private static final Map<String, String> DEFAULT_PROPERTIES = new HashMap<String, String>() {{
 		put("rewriteBatchedStatements", "true");
 		put("useCursorFetch", "true");
@@ -287,7 +302,7 @@ public class MysqlJdbcContext implements AutoCloseable {
 
 	public MysqlBinlogPosition readBinlogPosition() throws Throwable {
 		AtomicReference<MysqlBinlogPosition> mysqlBinlogPositionAtomicReference = new AtomicReference<>();
-		query("SHOW MASTER STATUS", rs -> {
+		query(sqlPrefix() + "SHOW MASTER STATUS", rs -> {
 			if (rs.next()) {
 				String binlogFilename = rs.getString(1);
 				long binlogPosition = rs.getLong(2);

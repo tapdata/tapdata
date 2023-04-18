@@ -14,7 +14,6 @@ import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 public class TDSqlDiscoverSchema extends MysqlSchemaLoader {
     public final static String TAG = TDSqlDiscoverSchema.class.getSimpleName();
@@ -39,13 +38,13 @@ public class TDSqlDiscoverSchema extends MysqlSchemaLoader {
         super(mysqlJdbcContext);
     }
 
-    private List<String> fullPartitionKey(String partitionRegex){
+    private List<String> fullPartitionKey(String partitionRegex) {
         List<String> keys = new ArrayList<>();
         if (null == partitionRegex || partitionRegex.trim().equals("")) return keys;
         int start = 21;
         int end = 0;
-        while ((end = partitionRegex.indexOf(",", start)) > 0){
-            String key = partitionRegex.substring(start, end).replaceAll("`","");
+        while ((end = partitionRegex.indexOf(",", start)) > 0) {
+            String key = partitionRegex.substring(start, end).replaceAll("`", "");
             keys.add(key);
             partitionRegex = partitionRegex.substring(end);
             start = 1;
@@ -63,10 +62,10 @@ public class TDSqlDiscoverSchema extends MysqlSchemaLoader {
         columnList.forEach(dataMap -> {
             String columnName = dataMap.getString("COLUMN_NAME");
             String columnType = dataMap.getString("COLUMN_TYPE");
-            Boolean partitionKey = (Boolean)dataMap.get("IS_PARTITION_EXPRESSION");
+            Boolean partitionKey = (Boolean) dataMap.get("IS_PARTITION_EXPRESSION");
             TapField field = TapSimplify.field(columnName, columnType);
             field.setPartitionKey(partitionKey);
-            field.setComment(Optional.ofNullable(partitionKey).orElse(false) ? PARTITION_KEY_SINGLE :PARTITION_KEY_SINGLE_NOT);
+            field.setComment(Optional.ofNullable(partitionKey).orElse(false) ? PARTITION_KEY_SINGLE : PARTITION_KEY_SINGLE_NOT);
 
             tableFieldTypesGenerator.autoFill(field, dataTypesMap);
 
@@ -86,7 +85,7 @@ public class TDSqlDiscoverSchema extends MysqlSchemaLoader {
         });
     }
 
-    public List<String> getAllPartitionKey(String database, String tableName){
+    public List<String> getAllPartitionKey(String database, String tableName) {
         List<String> keys = new ArrayList<>();
         String sql = String.format(PARTITION_SQL_0, database, tableName);
         try {
@@ -95,7 +94,7 @@ public class TDSqlDiscoverSchema extends MysqlSchemaLoader {
                 while (resultSet.next()) {
                     DataMap map = DbKit.getRowFromResultSet(resultSet, columnNames);
                     Object expression = map.get("PARTITION_EXPRESSION");
-                    if (null != expression && tableName.equals(map.get("TABLE_NAME"))){
+                    if (null != expression && tableName.equals(map.get("TABLE_NAME"))) {
                         List<String> list = fullPartitionKey((String) expression);
                         if (!list.isEmpty()) {
                             keys.addAll(list);
@@ -112,7 +111,7 @@ public class TDSqlDiscoverSchema extends MysqlSchemaLoader {
     protected List<DataMap> queryAllColumns(String database, String tableNames) {
         TapLogger.debug(TAG, "Query all columns, database: {}, tableNames:{}", database, tableNames);
 
-        Map<String,String> partitionMap = new HashMap<>();
+        Map<String, String> partitionMap = new HashMap<>();
         String sql = String.format(PARTITION_SQL, "'" + database + "'", tableNames);
         try {
             mysqlJdbcContext.query(sql, resultSet -> {
@@ -134,13 +133,13 @@ public class TDSqlDiscoverSchema extends MysqlSchemaLoader {
                 List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
                 while (resultSet.next()) {
                     DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
-                    String tableName = (String)dataMap.get("TABLE_NAME");
+                    String tableName = (String) dataMap.get("TABLE_NAME");
                     String partitionName = partitionMap.get(tableName);
-                    if (Objects.nonNull(partitionName)){
+                    if (Objects.nonNull(partitionName)) {
                         List<String> partitionNameArr = fullPartitionKey(partitionName);
                         String columnName = dataMap.getString("COLUMN_NAME");
                         dataMap.put("IS_PARTITION_EXPRESSION", partitionNameArr.contains(columnName));
-                    }else {
+                    } else {
                         dataMap.put("IS_PARTITION_EXPRESSION", false);
                     }
                     columnList.add(dataMap);

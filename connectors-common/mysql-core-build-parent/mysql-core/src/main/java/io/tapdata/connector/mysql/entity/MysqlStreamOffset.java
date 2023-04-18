@@ -1,6 +1,7 @@
 package io.tapdata.connector.mysql.entity;
 
 import java.io.Serializable;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -14,11 +15,14 @@ public class MysqlStreamOffset implements Serializable {
 	private String name;
 	private Map<String, String> offset;
 
+	private Map<String, Map<String,String>> offsetMap = new HashMap<>();
+
 	public String getName() {
 		return name;
 	}
 
 	public void setName(String name) {
+		offsetMap.put(name, new HashMap<String,String>());
 		this.name = name;
 	}
 
@@ -26,8 +30,20 @@ public class MysqlStreamOffset implements Serializable {
 		return offset;
 	}
 
+	public Map<String, Map<String,String>> getOffsetMap(){
+		return offsetMap;
+	}
+
 	public void setOffset(Map<String, String> offset) {
 		this.offset = offset;
+	}
+
+	public void setOffsetMap(String name, Map<String, String> offsetMap){
+		this.offsetMap.put(name, offsetMap);
+	}
+
+	public Map<String, String> getOffset(String setName) {
+		return offsetMap.get(setName);
 	}
 
 	@Override

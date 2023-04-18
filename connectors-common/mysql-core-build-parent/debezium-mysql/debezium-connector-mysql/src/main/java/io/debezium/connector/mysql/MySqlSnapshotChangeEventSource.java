@@ -66,6 +66,11 @@ public class MySqlSnapshotChangeEventSource extends RelationalSnapshotChangeEven
     private Set<TableId> delayedSchemaSnapshotTables = Collections.emptySet();
     private final BlockingConsumer<Function<SourceRecord, SourceRecord>> lastEventProcessor;
 
+    private String partitionSetId;
+    private String sqlPrefix(){
+        return null == partitionSetId ? "" : "/*sets:" + partitionSetId + "*/";
+    }
+
     public MySqlSnapshotChangeEventSource(MySqlConnectorConfig connectorConfig, MySqlOffsetContext previousOffset, MySqlConnection connection,
                                           MySqlDatabaseSchema schema, EventDispatcher<TableId> dispatcher, Clock clock,
                                           MySqlSnapshotChangeEventSourceMetrics metrics,
@@ -78,6 +83,9 @@ public class MySqlSnapshotChangeEventSource extends RelationalSnapshotChangeEven
         this.previousOffset = previousOffset;
         this.databaseSchema = schema;
         this.lastEventProcessor = lastEventProcessor;
+        if (null != this.connectorConfig && null != this.connectorConfig.getConfig()) {
+            partitionSetId = this.connectorConfig.getConfig().getString("tdsql.partition");
+        }
     }
 
     @Override
@@ -302,7 +310,7 @@ public class MySqlSnapshotChangeEventSource extends RelationalSnapshotChangeEven
         final MySqlOffsetContext offsetContext = MySqlOffsetContext.initial(connectorConfig);
         ctx.offset = offsetContext;
         LOGGER.info("Read binlog position of MySQL primary server");
-        final String showMasterStmt = "SHOW MASTER STATUS";
+        final String showMasterStmt = sqlPrefix() + "SHOW MASTER STATUS";
         connection.query(showMasterStmt, rs -> {
             if (rs.next()) {
                 final String binlogFilename = rs.getString(1);
@@ -483,7 +491,7 @@ public class MySqlSnapshotChangeEventSource extends RelationalSnapshotChangeEven
     /**
      * As MySQL connector/J implementation is broken for MySQL type "TIME" we have to use a binary-ish workaround
      *
-     * @see https://issues.jboss.org/browse/DBZ-342
+     * @link https://issues.jboss.org/browse/DBZ-342
      */
     private Object readTimeField(ResultSet rs, int fieldNo) throws SQLException {
         Blob b = rs.getBlob(fieldNo);

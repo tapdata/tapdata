@@ -19,20 +19,21 @@ import java.util.*;
  **/
 public class TDSqlJdbcOneByOneWriter extends MysqlJdbcOneByOneWriter {
     public static final String TAG = TDSqlJdbcOneByOneWriter.class.getSimpleName();
+
     public TDSqlJdbcOneByOneWriter(MysqlJdbcContext mysqlJdbcContext, Object jdbcCacheMap) throws Throwable {
         super(mysqlJdbcContext, jdbcCacheMap);
     }
 
     @Override
-    protected List<String> updateKeyValues(LinkedHashMap<String, TapField> nameFieldMap, TapRecordEvent tapRecordEvent){
+    protected List<String> updateKeyValues(LinkedHashMap<String, TapField> nameFieldMap, TapRecordEvent tapRecordEvent) {
         List<String> setList = new ArrayList<>();
         nameFieldMap.forEach((fieldName, field) -> {
             if (!needAddIntoPreparedStatementValues(field, tapRecordEvent)) {
                 return;
             }
-//            if (null == field.getPartitionKey() || !field.getPartitionKey()) {
-//                setList.add("`" + fieldName + "`=?");
-//            }
+            //if (null == field.getPartitionKey() || !field.getPartitionKey()) {
+            //    setList.add("`" + fieldName + "`=?");
+            //}
             if (null == field.getComment() || !TDSqlDiscoverSchema.PARTITION_KEY_SINGLE.equals(field.getComment())) {
                 setList.add("`" + fieldName + "`=?");
             }

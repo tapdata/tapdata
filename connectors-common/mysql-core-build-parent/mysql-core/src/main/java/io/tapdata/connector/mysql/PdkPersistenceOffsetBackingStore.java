@@ -47,25 +47,29 @@ public class PdkPersistenceOffsetBackingStore extends MemoryOffsetBackingStore {
 		TapLogger.info(TAG, "Load offset with string: " + offsetStr);
 		if (StringUtils.isBlank(offsetStr)) return;
 		MysqlStreamOffset mysqlStreamOffset = InstanceFactory.instance(JsonParser.class).fromJson(offsetStr, MysqlStreamOffset.class);
-		String name = mysqlStreamOffset.getName();
-		Map<String, String> offset = mysqlStreamOffset.getOffset();
-		if (MapUtils.isEmpty(offset)) return;
-		for (Map.Entry<String, String> entry : offset.entrySet()) {
-			String key = entry.getKey();
-			String value = entry.getValue();
-			ByteBuffer keyByteBuffer = null;
-			ByteBuffer valueByteBuffer = null;
-			if (StringUtils.isNotBlank(key)) {
-				Map<?, ?> keyMap = InstanceFactory.instance(JsonParser.class).fromJson(entry.getKey(), Map.class);
-				byte[] keyBytes = keyConverter.fromConnectData(name, null, Arrays.asList(name, keyMap));
-				keyByteBuffer = ByteBuffer.wrap(keyBytes);
+		Map<String, Map<String,String>> offsetMap = mysqlStreamOffset.getOffsetMap();
+		for (Map.Entry<String, Map<String, String>> entry : offsetMap.entrySet()) {
+			String name = entry.getKey();//mysqlStreamOffset.getName();
+			Map<String, String> offset = entry.getValue();//mysqlStreamOffset.getOffset();
+			if (MapUtils.isEmpty(offset)) return;
+			for (Map.Entry<String, String> subEntry : offset.entrySet()) {
+				String key = subEntry.getKey();
+				String value = subEntry.getValue();
+				ByteBuffer keyByteBuffer = null;
+				ByteBuffer valueByteBuffer = null;
+				if (StringUtils.isNotBlank(key)) {
+					Map<?, ?> keyMap = InstanceFactory.instance(JsonParser.class).fromJson(subEntry.getKey(), Map.class);
+					byte[] keyBytes = keyConverter.fromConnectData(name, null, Arrays.asList(name, keyMap));
+					keyByteBuffer = ByteBuffer.wrap(keyBytes);
+				}
+				if (StringUtils.isNotBlank(value)) {
+					Map<?, ?> valueMap = InstanceFactory.instance(JsonParser.class).fromJson(subEntry.getValue(), Map.class);
+					byte[] valueBytes = valueConverter.fromConnectData(name, null, valueMap);
+					valueByteBuffer = ByteBuffer.wrap(valueBytes);
+				}
+				data.put(keyByteBuffer, valueByteBuffer);
 			}
-			if (StringUtils.isNotBlank(value)) {
-				Map<?, ?> valueMap = InstanceFactory.instance(JsonParser.class).fromJson(entry.getValue(), Map.class);
-				byte[] valueBytes = valueConverter.fromConnectData(name, null, valueMap);
-				valueByteBuffer = ByteBuffer.wrap(valueBytes);
-			}
-			data.put(keyByteBuffer, valueByteBuffer);
 		}
+
 	}
 }

@@ -191,7 +191,7 @@ public class MySqlOffsetContext implements OffsetContext {
 
         @Override
         public Map<String, ?> getPartition() {
-            return Collections.singletonMap(SERVER_PARTITION_KEY, connectorConfig.getLogicalName());
+            return new HashMap<String, Object>(){{put(SERVER_PARTITION_KEY, connectorConfig.getLogicalName());}};
         }
 
         @Override

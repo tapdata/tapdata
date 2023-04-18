@@ -8,10 +8,7 @@ import io.tapdata.common.ddl.DDLFactory;
 import io.tapdata.common.ddl.ccj.CCJBaseDDLWrapper;
 import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.common.ddl.wrapper.DDLWrapperConfig;
-import io.tapdata.connector.mysql.entity.MysqlBinlogPosition;
-import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
-import io.tapdata.connector.mysql.entity.MysqlStreamEvent;
-import io.tapdata.connector.mysql.entity.MysqlStreamOffset;
+import io.tapdata.connector.mysql.entity.*;
 import io.tapdata.connector.mysql.util.MysqlBinlogPositionUtil;
 import io.tapdata.connector.mysql.util.MysqlUtil;
 import io.tapdata.connector.mysql.util.StringCompressUtil;
@@ -92,9 +89,9 @@ public class MysqlReader implements Closeable {
 	public static final String FIRST_TIME_KEY = "FIRST_TIME";
 	private static final DDLWrapperConfig DDL_WRAPPER_CONFIG = CCJBaseDDLWrapper.CCJDDLWrapperConfig.create().split("`");
 	public static final long SAVE_DEBEZIUM_SCHEMA_HISTORY_INTERVAL_SEC = 2L;
-	private String serverName;
+	protected String serverName;
 	private AtomicBoolean running;
-	private MysqlJdbcContext mysqlJdbcContext;
+	protected MysqlJdbcContext mysqlJdbcContext;
 	private EmbeddedEngine embeddedEngine;
 	private LinkedBlockingQueue<MysqlStreamEvent> eventQueue;
 	private StreamReadConsumer streamReadConsumer;
@@ -104,6 +101,7 @@ public class MysqlReader implements Closeable {
 	private final int MIN_BATCH_SIZE = 1000;
 	private String DB_TIME_ZONE;
 	private AtomicReference<Throwable> throwableAtomicReference = new AtomicReference<>();
+
 
 	public MysqlReader(MysqlJdbcContext mysqlJdbcContext) {
 		this.mysqlJdbcContext = mysqlJdbcContext;
@@ -366,7 +364,7 @@ public class MysqlReader implements Closeable {
 		throwableAtomicReference.set(new RuntimeException(throwable));
 	}
 
-	private MysqlStreamOffset binlogPosition2MysqlStreamOffset(MysqlBinlogPosition offset, JsonParser jsonParser) throws Throwable {
+	protected MysqlStreamOffset binlogPosition2MysqlStreamOffset(MysqlBinlogPosition offset, JsonParser jsonParser) throws Throwable {
 		String serverId = mysqlJdbcContext.getServerId();
 		Map<String, Object> partitionMap = new HashMap<>();
 		partitionMap.put("server", serverName);
@@ -416,7 +414,7 @@ public class MysqlReader implements Closeable {
 		}
 	}
 
-	private void initDebeziumServerName(TapConnectorContext tapConnectorContext) {
+	protected void initDebeziumServerName(TapConnectorContext tapConnectorContext) {
 		this.serverName = UUID.randomUUID().toString().toLowerCase();
 		KVMap<Object> stateMap = tapConnectorContext.getStateMap();
 		Object serverNameFromStateMap = stateMap.get(SERVER_NAME_KEY);
@@ -429,6 +427,32 @@ public class MysqlReader implements Closeable {
 			stateMap.put(SERVER_NAME_KEY, this.serverName);
 		}
 	}
+//	private void initPartitionDebeziumServerName(TapConnectorContext tapConnectorContext) {
+//		if (null == this.partitionSetId){
+//			initDebeziumServerName(tapConnectorContext);
+//			return;
+//		}
+//		this.serverName = UUID.randomUUID().toString().toLowerCase() + "_" + this.partitionSetId;
+//		KVMap<Object> stateMap = tapConnectorContext.getStateMap();
+//		Object serverNameFromStateMap = stateMap.get(SERVER_NAME_KEY);
+//		if (serverNameFromStateMap instanceof String) {
+//			String serverNameFromServer = String.valueOf(serverNameFromStateMap);
+//			String[] split = serverNameFromServer.split("_set");
+//			if (split.length == 2) {
+//				String tempPartitionSetId = "set" + split[1];
+//				if (tempPartitionSetId.equals(this.partitionSetId)) {
+//					this.serverName = serverNameFromServer;
+//					stateMap.put(FIRST_TIME_KEY, false);
+//					return;
+//				}
+//			}
+//			stateMap.put(SERVER_NAME_KEY, serverNameFromStateMap);
+//			stateMap.put(FIRST_TIME_KEY, true);
+//		} else {
+//			stateMap.put(FIRST_TIME_KEY, true);
+//			stateMap.put(SERVER_NAME_KEY, this.serverName);
+//		}
+//	}
 
 	@Override
 	public void close() {

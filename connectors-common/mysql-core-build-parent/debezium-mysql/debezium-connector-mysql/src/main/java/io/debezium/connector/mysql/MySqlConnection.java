@@ -51,6 +51,11 @@ public class MySqlConnection extends JdbcConnection {
     private final Map<String, String> originalSystemProperties = new HashMap<>();
     private final MySqlConnectionConfiguration connectionConfig;
 
+    private String partitionSetId;
+
+    private String sqlPrefix(){
+        return null == partitionSetId ? "" : "/*sets:" + partitionSetId + "*/";
+    }
     /**
      * Creates a new connection using the supplied configuration.
      *
@@ -64,11 +69,13 @@ public class MySqlConnection extends JdbcConnection {
     public MySqlConnection(MySqlConnectionConfiguration connectionConfig) {
         super(connectionConfig.config(), connectionConfig.factory());
         this.connectionConfig = connectionConfig;
+        partitionSetId = connectionConfig.config.getString("tdsql.partition");
     }
 
     public MySqlConnection(MySqlConnectionConfiguration connectionConfig,Operations initialOperations) {
         super(connectionConfig.config(), connectionConfig.factory(), initialOperations);
         this.connectionConfig = connectionConfig;
+        partitionSetId = connectionConfig.config.getString("tdsql.partition");
     }
 
     public Configuration getConfiguration() {
@@ -226,7 +233,7 @@ public class MySqlConnection extends JdbcConnection {
      */
     public boolean isGtidModeEnabled() {
         try {
-            return queryAndMap("SHOW GLOBAL VARIABLES LIKE 'GTID_MODE'", rs -> {
+            return queryAndMap(sqlPrefix() + "SHOW GLOBAL VARIABLES LIKE 'GTID_MODE'", rs -> {
                 if (rs.next()) {
                     return !"OFF".equalsIgnoreCase(rs.getString(2));
                 }
@@ -245,7 +252,7 @@ public class MySqlConnection extends JdbcConnection {
      */
     public String knownGtidSet() {
         try {
-            return queryAndMap("SHOW MASTER STATUS", rs -> {
+            return queryAndMap(sqlPrefix() + "SHOW MASTER STATUS", rs -> {
                 if (rs.next() && rs.getMetaData().getColumnCount() > 4) {
                     return rs.getString(5); // GTID set, may be null, blank, or contain a GTID set
                 }
@@ -288,7 +295,7 @@ public class MySqlConnection extends JdbcConnection {
      */
     public GtidSet purgedGtidSet() {
         try {
-            return queryAndMap("SELECT @@global.gtid_purged", rs -> {
+            return queryAndMap(sqlPrefix() + "SELECT @@global.gtid_purged", rs -> {
                 if (rs.next() && rs.getMetaData().getColumnCount() > 0) {
                     return new GtidSet(rs.getString(1)); // GTID set, may be null, blank, or contain a GTID set
                 }
@@ -339,7 +346,7 @@ public class MySqlConnection extends JdbcConnection {
         List<String> logNames = new ArrayList<>();
         try {
             LOGGER.info("Checking all known binlogs from MySQL");
-            query("SHOW BINARY LOGS", rs -> {
+            query(sqlPrefix() + "SHOW BINARY LOGS", rs -> {
                 while (rs.next()) {
                     logNames.add(rs.getString(1));
                 }
@@ -403,7 +410,7 @@ public class MySqlConnection extends JdbcConnection {
         List<String> logNames = new ArrayList<>();
         try {
             LOGGER.info("Get all known binlogs from MySQL");
-            query("SHOW BINARY LOGS", rs -> {
+            query(sqlPrefix() + "SHOW BINARY LOGS", rs -> {
                 while (rs.next()) {
                     logNames.add(rs.getString(1));
                 }

@@ -1,0 +1,14 @@
+{
+  "connection": {
+    "host": "gz-tdsqlshard-mc4o2pmv.sql.tencentcdb.com",
+    "port": 23115,
+    "username": "tapdata",
+    "password": "Gotapd8!",
+    "database": "test"
+  },
+  "node": {
+    "tableCreateType": "PartitionTable",
+    "partitionKey": "id",
+    "caseSensitive": true
+  }
+}
