@@ -8,6 +8,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -242,18 +243,12 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
 		if (MapUtils.isEmpty(before) && MapUtils.isEmpty(after)) {
 			throw new Exception("Set prepared statement where clause failed, before and after both empty: " + tapRecordEvent);
 		}
-		Map<String, Object> data;
-		if (MapUtils.isNotEmpty(before)) {
-			data = before;
-		} else {
-			data = after;
-		}
 		Collection<String> uniqueKeys = getUniqueKeys(tapTable);
 		for (String uniqueKey : uniqueKeys) {
-			if (!data.containsKey(uniqueKey)) {
+			if (!after.containsKey(uniqueKey) && !(EmptyKit.isNotEmpty(before) && before.containsKey(uniqueKey))) {
 				throw new Exception("Set prepared statement where clause failed, unique key \"" + uniqueKey + "\" not exists in data: " + tapRecordEvent);
 			}
-			Object value = data.get(uniqueKey);
+			Object value = (EmptyKit.isNotEmpty(before) && before.containsKey(uniqueKey)) ? before.get(uniqueKey) : after.get(uniqueKey);
 			preparedStatement.setObject(parameterIndex++, value);
 		}
 	}
