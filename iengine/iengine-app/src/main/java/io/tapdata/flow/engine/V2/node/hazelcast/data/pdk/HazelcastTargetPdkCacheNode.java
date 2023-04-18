@@ -1,10 +1,8 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
-import com.hazelcast.jet.core.Inbox;
 import com.tapdata.cache.CacheUtil;
 import com.tapdata.cache.ICacheService;
 import com.tapdata.constant.HazelcastUtil;
-import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -14,19 +12,22 @@ import io.tapdata.construct.constructImpl.ConstructIMap;
 import io.tapdata.construct.constructImpl.DocumentIMap;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
-import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.error.TapEventException;
+import io.tapdata.error.TaskTargetPdkCacheProcessorExCode_20;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
-import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-public class HazelcastTargetPdkCacheNode extends HazelcastPdkBaseNode {
+public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkCacheNode.class);
 
@@ -55,75 +56,43 @@ public class HazelcastTargetPdkCacheNode extends HazelcastPdkBaseNode {
 		this.dataFlowCacheConfig = cacheService.getConfig(cacheName);
 	}
 
-	@Override
-	public void process(int ordinal, @NotNull Inbox inbox) {
-		try {
-			if (!inbox.isEmpty()) {
-				while (isRunning()) {
-					List<TapdataEvent> tapdataEvents = new ArrayList<>();
-					final int count = inbox.drainTo(tapdataEvents, 1000);
-					if (count > 0) {
-						List<TapEvent> tapEvents = new ArrayList<>();
-						for (TapdataEvent tapdataEvent : tapdataEvents) {
+	void processEvents(List<TapEvent> tapEvents) {
+		for (TapEvent tapEvent : tapEvents) {
+			try {
+				Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
+				Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
+				if (MapUtils.isEmpty(before)) {
+					before = after;
+				}
 
-							if (tapdataEvent.isDML()) {
-								TapRecordEvent tapRecordEvent = (TapRecordEvent) tapdataEvent.getTapEvent();
-								fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager);
-								fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager);
-								tapEvents.add(tapRecordEvent);
-							} else {
-								if (null != tapdataEvent.getTapEvent()) {
-									obsLogger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
-								}
-							}
-						}
-						if (CollectionUtils.isNotEmpty(tapEvents)) {
-							processEvents(tapEvents);
-						}
+				String beforeCacheKey = getCacheKey(before);
+				String beforePk = CacheUtil.getPk(dataFlowCacheConfig.getPrimaryKeys(), before);
+				String afterCacheKey = getCacheKey(after);
+				String afterPk = CacheUtil.getPk(dataFlowCacheConfig.getPrimaryKeys(), after);
+				if (tapEvent instanceof TapUpdateRecordEvent) {
+					CacheUtil.removeRecord(dataMap, beforeCacheKey, beforePk);
+					Map<String, Map<String, Object>> recordMap;
+					if (dataMap.exists(afterCacheKey)) {
+						recordMap = dataMap.find(afterCacheKey);
 					} else {
-						break;
+						recordMap = new HashMap<>();
+					}
+					recordMap.put(afterPk, after);
+					dataMap.insert(afterCacheKey, recordMap);
+
+				} else if (tapEvent instanceof TapDeleteRecordEvent) {
+					CacheUtil.removeRecord(dataMap, beforeCacheKey, beforePk);
+				} else {
+					if (logger.isDebugEnabled()) {
+						logger.debug("Cache row is not update or delete, will abort it, msg {}", tapEvent);
 					}
 				}
-			}
-		} catch (Throwable e) {
-			String msg = String.format("Target process failed: %s", e.getMessage());
-			errorHandle(new RuntimeException(msg, e), msg);
-		}
-	}
-
-	void processEvents(List<TapEvent> tapEvents) throws Throwable {
-		for (TapEvent tapEvent : tapEvents) {
-
-			Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
-			Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
-			if (MapUtils.isEmpty(before)) {
-				before = after;
-			}
-
-			String beforeCacheKey = getCacheKey(before);
-			String beforePk = CacheUtil.getPk(dataFlowCacheConfig.getPrimaryKeys(), before);
-			String afterCacheKey = getCacheKey(after);
-			String afterPk = CacheUtil.getPk(dataFlowCacheConfig.getPrimaryKeys(), after);
-			if (tapEvent instanceof TapUpdateRecordEvent) {
-				CacheUtil.removeRecord(dataMap, beforeCacheKey, beforePk);
-				Map<String, Map<String, Object>> recordMap;
-				if (dataMap.exists(afterCacheKey)) {
-					recordMap = dataMap.find(afterCacheKey);
-				} else {
-					recordMap = new HashMap<>();
-				}
-				recordMap.put(afterPk, after);
-				dataMap.insert(afterCacheKey, recordMap);
-
-			} else if (tapEvent instanceof TapDeleteRecordEvent) {
-				CacheUtil.removeRecord(dataMap, beforeCacheKey, beforePk);
-			} else {
-				if (logger.isDebugEnabled()) {
-					logger.debug("Cache row is not update or delete, will abort it, msg {}", tapEvent);
-				}
+			} catch (Throwable e) {
+				throw new TapEventException(TaskTargetPdkCacheProcessorExCode_20.WRITE_SHARE_CACHE_FAILED, e).addEvent(tapEvent);
 			}
 		}
 	}
+
 	@NotNull
 	private String getCacheKey(Map<String, Object> row) {
 		final String cacheKeys = dataFlowCacheConfig.getCacheKeys();
