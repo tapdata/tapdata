@@ -534,6 +534,66 @@
               }
             }
           ]
+        },
+        "separator": {
+          "type": "string",
+          "title": "${separator}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "separator",
+          "x-index": 15,
+          "required": true,
+          "default": ",",
+          "x-reactions": [
+            {
+              "dependencies": ["$inputs"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
+        },
+        "quoteChar": {
+          "type": "string",
+          "title": "${quoteChar}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "quoteChar",
+          "x-index": 16,
+          "required": true,
+          "default": "\"",
+          "x-reactions": [
+            {
+              "dependencies": ["$inputs"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
+        },
+        "lineEnd": {
+          "type": "string",
+          "title": "${lineEnd}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "lineEnd",
+          "x-index": 17,
+          "required": true,
+          "default": "\\n",
+          "x-reactions": [
+            {
+              "dependencies": ["$inputs"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
         }
       }
     }
@@ -578,7 +638,10 @@
       "writeFilePath": "File Path",
       "fileNameExpression": "File Name Expression",
       "offStandard": "Off Standard CSV",
-      "lineExpression": "Expression Each Line"
+      "lineExpression": "Expression Each Line",
+      "separator": "Separator(single-character)",
+      "quoteChar": "Quote Character(single-character)",
+      "lineEnd": "Line End"
     },
     "zh_CN": {
       "doc": "docs/csv_zh_CN.md",
@@ -618,7 +681,10 @@
       "writeFilePath": "文件路径",
       "fileNameExpression": "文件名表达式",
       "offStandard": "非标准CSV格式",
-      "lineExpression": "行表达式"
+      "lineExpression": "行表达式",
+      "separator": "列间隔符（单字符）",
+      "quoteChar": "列引号（单字符）",
+      "lineEnd": "换行符"
     },
     "zh_TW": {
       "doc": "docs/csv_zh_TW.md",
@@ -658,7 +724,10 @@
       "writeFilePath": "檔案路徑",
       "fileNameExpression": "檔名運算式",
       "offStandard": "非標準CSV格式",
-      "lineExpression": "行運算式"
+      "lineExpression": "行運算式",
+      "separator": "列間隔符（單字元）",
+      "quoteChar": "列引號（單字元）",
+      "lineEnd": "分行符號"
     }
   },
   "dataTypes": {
