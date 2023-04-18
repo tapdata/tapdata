@@ -55,10 +55,10 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	static final String CURR_SNAPSHOT_TABLE = "currentSnapshotTable";
 	static final String CURR_SNAPSHOT_TABLE_ROW_TOTAL = "currentSnapshotTableRowTotal";
 	static final String CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL = "currentSnapshotTableInsertRowTotal";
-
 	public DataNodeSampleHandler(TaskDto task, Node<?> node) {
 		super(task, node);
 	}
+
 
 	private final AtomicLong tableTotal = new AtomicLong();
 	private CounterSampler snapshotTableCounter;
@@ -71,6 +71,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	private final Set<String> nodeTables = new HashSet<>();
 
 	private String currentSnapshotTable = null;
+	private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
 	private Long currentSnapshotTableRowTotal = null;
 	private Long currentSnapshotTableInsertRowTotal = null;
 
@@ -140,16 +141,16 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 			return snapshotDoneAt;
 		});
 
-		// TODO(dexter): find a way to record the current table name
-		collector.addSampler(CURR_SNAPSHOT_TABLE, () -> null);
 		collector.addSampler(CURR_SNAPSHOT_TABLE_ROW_TOTAL, () -> {
-			if (null == currentSnapshotTable) return null;
+			if (null == currentSnapshotTable) return currentSnapshotTableRowTotal;
+			currentSnapshotTableRowTotal = currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
 			return currentSnapshotTableRowTotal;
 		});
 		collector.addSampler(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL, () -> {
 			if (Objects.nonNull(snapshotTableCounter.value()) && CollectionUtils.isNotEmpty(nodeTables) &&
-					snapshotTableCounter.value().intValue() == nodeTables.size()) {
-				return currentSnapshotTableRowTotal;
+					snapshotTableCounter.value().intValue() == nodeTables.size() && Objects.nonNull(currentSnapshotTable)) {
+				currentSnapshotTableInsertRowTotal = currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
+				return currentSnapshotTableInsertRowTotal;
 			}
 			return currentSnapshotTableInsertRowTotal;
 		});
@@ -208,7 +209,6 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	public void handleBatchReadFuncEnd(long endAt) {
 		Optional.ofNullable(snapshotTableCounter).ifPresent(CounterSampler::inc);
 		tableSnapshotDoneAtMap.put(currentSnapshotTable, endAt);
-		currentSnapshotTableInsertRowTotal = null;
 	}
 
 
@@ -397,13 +397,8 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 
 	AtomicBoolean firstTableCount = new AtomicBoolean(true);
 
-	public void handleTableCountAccept(String table, long count) {
-//		if (firstTableCount.get()) {
-//			Optional.ofNullable(snapshotRowCounter).ifPresent(CounterSampler::reset);
-//			firstTableCount.set(false);
-//		}
-
-		currentSnapshotTableRowTotal = count;
+	public void handleTableCountAccept(String table ,long count) {
+		currentSnapshotTableRowTotalMap.putIfAbsent(table, count);
 		Optional.ofNullable(snapshotRowCounter).ifPresent(counter -> counter.inc(count));
 	}
 
