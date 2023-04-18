@@ -72,38 +72,38 @@ public class HiveJdbcContext extends JdbcContext {
                     tapField.setComment(resultSet.getString("comment"));
                     nameFieldMap.put(title, tapField);
                     break;
-                case "partition_info":
-                    TapField field = nameFieldMap.get(title);
-                    field.setPartitionKeyPos(partitionKeyPos.incrementAndGet());
-                    field.setPartitionKey(true);
-                    break;
+//                case "partition_info":
+//                    TapField field = nameFieldMap.get(title);
+//                    field.setPartitionKeyPos(partitionKeyPos.incrementAndGet());
+//                    field.setPartitionKey(true);
+//                    break;
             }
-//            if ("Constraints".equals(title)) {
-//                Pattern pattern = Pattern.compile("Primary Key for .*:\\[(.*)].*");
-//                Matcher matcher = pattern.matcher(resultSet.getString("data_type"));
-//                if (matcher.find()) {
-//                    AtomicInteger primaryKeyPos = new AtomicInteger(0);
-//                    Arrays.stream(matcher.group(1).split(",")).forEach(v -> {
-//                        TapField field = nameFieldMap.get(v);
-//                        field.setPrimaryKey(true);
-//                        field.setPrimaryKeyPos(primaryKeyPos.incrementAndGet());
-//                    });
-//                }
-//            } else if (title.startsWith("Not Null Constraints for ")) {
-//                Pattern pattern = Pattern.compile("\\{Constraint Name: [\\w\\s]+, Column Name: ([\\w\\s]+)}");
-//                Matcher matcher = pattern.matcher(title);
-//                while (matcher.find()) {
-//                    TapField field = nameFieldMap.get(matcher.group(1));
-//                    field.setNullable(false);
-//                }
-//            } else if (title.startsWith("Default Constraints for ")) {
-//                Pattern pattern = Pattern.compile("\\{Constraint Name: [\\w\\s]+, \\(Column Name: ([\\w\\s]+), Default Value: ([\\w\\s()]+)\\)}");
-//                Matcher matcher = pattern.matcher(title);
-//                while (matcher.find()) {
-//                    TapField field = nameFieldMap.get(matcher.group(1));
-//                    field.setDefaultValue(matcher.group(2));
-//                }
-//            }
+            if ("Constraints".equals(title)) {
+                Pattern pattern = Pattern.compile("Primary Key for .*:\\[(.*)].*");
+                Matcher matcher = pattern.matcher(resultSet.getString("data_type"));
+                if (matcher.find()) {
+                    AtomicInteger primaryKeyPos = new AtomicInteger(0);
+                    Arrays.stream(matcher.group(1).split(",")).forEach(v -> {
+                        TapField field = nameFieldMap.get(v);
+                        field.setPrimaryKey(true);
+                        field.setPrimaryKeyPos(primaryKeyPos.incrementAndGet());
+                    });
+                }
+            } else if (title.startsWith("Not Null Constraints for ")) {
+                Pattern pattern = Pattern.compile("\\{Constraint Name: [\\w\\s]+, Column Name: ([\\w\\s]+)}");
+                Matcher matcher = pattern.matcher(title);
+                while (matcher.find()) {
+                    TapField field = nameFieldMap.get(matcher.group(1));
+                    field.setNullable(false);
+                }
+            } else if (title.startsWith("Default Constraints for ")) {
+                Pattern pattern = Pattern.compile("\\{Constraint Name: [\\w\\s]+, \\(Column Name: ([\\w\\s]+), Default Value: ([\\w\\s()]+)\\)}");
+                Matcher matcher = pattern.matcher(title);
+                while (matcher.find()) {
+                    TapField field = nameFieldMap.get(matcher.group(1));
+                    field.setDefaultValue(matcher.group(2));
+                }
+            }
         }
         tapTable.setNameFieldMap(nameFieldMap);
         return tapTable;
