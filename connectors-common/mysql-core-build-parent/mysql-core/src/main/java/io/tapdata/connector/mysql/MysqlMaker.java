@@ -68,7 +68,7 @@ public class MysqlMaker implements SqlMaker {
         String tablePropertiesSql = "";
         // table comment
         if (StringUtils.isNotBlank(tapTable.getComment())) {
-            tablePropertiesSql += " COMMENT='" + tapTable.getComment() + "'";
+            tablePropertiesSql += " COMMENT='" + tapTable.getComment().replaceAll("\\\\", "\\\\\\\\") + "'";
         }
 
         String sql = String.format(CREATE_TABLE_TEMPLATE, database, tapTable.getId(), fieldSql, tablePropertiesSql);
