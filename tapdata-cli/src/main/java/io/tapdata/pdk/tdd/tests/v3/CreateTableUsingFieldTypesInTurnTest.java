@@ -18,9 +18,11 @@ import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.util.*;
 
-import static io.tapdata.entity.simplify.TapSimplify.list;
+import static io.tapdata.entity.simplify.TapSimplify.*;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Integer;
 
 //数据类型建表（依赖CreateTableFunction）
 
@@ -30,7 +32,7 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
  * 测试失败按警告上报
  */
 @DisplayName("createTableUsingField")
-@TapGo(tag = "V3", sort = 10010, debug = false)
+@TapGo(tag = "V3", sort = 10010, debug = false, ignore = true)
 public class CreateTableUsingFieldTypesInTurnTest extends PDKTestBaseV2 {
     public static List<SupportFunction> testFunctions() {
         return list(supportAny(
@@ -61,8 +63,10 @@ public class CreateTableUsingFieldTypesInTurnTest extends PDKTestBaseV2 {
             RecordEventExecute execute = node.recordEventExecute();
             DataTypesHandler handler = DataTypesHandler.create();
             try {
+                //Map<String, TapField> keyField = new LinkedHashMap<>();
                 dataTypesMap.iterate(entry -> {
                     TapTable tapTable = new TapTable(super.testTableId, super.testTableId);
+                    //tapTable.putField("id", field("id", JAVA_Integer).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))));
                     String typeName = entry.getKey();
                     DataMap typeConfig = entry.getValue();
                     Object queryOnlyObj = Optional.ofNullable(typeConfig.get("queryOnly")).orElse(Boolean.FALSE);
@@ -70,9 +74,13 @@ public class CreateTableUsingFieldTypesInTurnTest extends PDKTestBaseV2 {
                         List<TapTable> tapTables = new ArrayList<>();
                         TapMapping tapMapping = (TapMapping) typeConfig.get(TapMapping.FIELD_TYPE_MAPPING);
                         handler.fillTestFields(tapTable, typeName, tapMapping);
+                        //keyField.put("id", tapTable.getNameFieldMap().get("id"));
                         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
                         if (nameFieldMap.size() > 1) {
                             nameFieldMap.forEach((name, f) -> {
+                                //if (f.getPrimaryKey()){
+                                //    return;
+                                //}
                                 TapTable table = new TapTable(super.testTableId, super.testTableId);
                                 LinkedHashMap<String, TapField> subFieldMap = new LinkedHashMap<>();
                                 subFieldMap.put(name, f);

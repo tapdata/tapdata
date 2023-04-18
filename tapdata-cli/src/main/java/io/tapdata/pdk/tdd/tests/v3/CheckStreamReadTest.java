@@ -96,6 +96,18 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
                 return;
             }
 
+            ConnectorFunctions connectorFunctions = node.connectorNode().getConnectorFunctions();
+            TimestampToStreamOffsetFunction timestampToStreamOffsetFunction = connectorFunctions.getTimestampToStreamOffsetFunction();
+            Object streamOffset = null;
+            if (timestampToStreamOffsetFunction == null){
+                streamOffset = System.currentTimeMillis();
+            }else {
+                try {
+                    streamOffset = timestampToStreamOffsetFunction.timestampToStreamOffset(node.connectorNode().getConnectorContext(), null);
+                } catch (Throwable throwable) {
+                    streamOffset = System.currentTimeMillis();
+                }
+            }
             Record[] records = Record.testRecordWithTapTable(super.targetTable, recordCount);
             StreamReadConsumer consumerRead = StreamReadConsumer.create((events, offset) -> {
                 if (Objects.nonNull(events) && !events.isEmpty()) {
@@ -154,12 +166,13 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
             });
             ConnectorFunctions functions = node.connectorNode().getConnectorFunctions();
             StreamReadFunction streamRead = functions.getStreamReadFunction();
+            Object finalStreamOffset = streamOffset;
             task.schedule(()->{
                 try {
                     streamRead.streamRead(
                             node.connectorNode().getConnectorContext(),
                             list(super.targetTable.getId()),
-                            null,
+                            finalStreamOffset,
                             200,
                             consumerRead);
                 } catch (Throwable throwable) {
