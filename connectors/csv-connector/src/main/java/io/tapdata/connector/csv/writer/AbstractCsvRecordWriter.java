@@ -114,6 +114,8 @@ public abstract class AbstractCsvRecordWriter extends AbstractFileRecordWriter {
             }
         } else {
             csvFileWriter = new CsvFileWriter(storage, uniquePath, fileConfig.getFileEncoding());
+            CsvConfig csvConfig = (CsvConfig) fileConfig;
+            csvFileWriter.setRule(csvConfig.getSeparator().charAt(0), csvConfig.getQuoteChar().charAt(0), csvConfig.getLineEnd());
             fileWriterMap.put(uniquePath, csvFileWriter);
         }
         if (!lastWriteMap.containsKey(uniquePath) || EmptyKit.isNull(lastWriteMap.get(uniquePath))) {
