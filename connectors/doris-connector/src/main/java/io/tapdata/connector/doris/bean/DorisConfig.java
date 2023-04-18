@@ -18,6 +18,7 @@ public class DorisConfig extends CommonDbConfig implements Serializable {
     private String databaseUrlPattern = "jdbc:mysql://%s:%s/%s?rewriteBatchedStatements=true";
     private int insertBatchSize = 1000;
     private String dorisHttp;
+    private String catalog;
 
     //customize
     public DorisConfig() {
