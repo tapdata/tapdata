@@ -618,7 +618,7 @@
       "defaultFraction": 0,
       "withTimeZone": true
     },
-    "year[($fraction)]": {
+    "year": {
       "to": "TapYear",
       "range": [
         "1901",
