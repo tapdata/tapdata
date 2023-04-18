@@ -4,12 +4,15 @@ import com.hazelcast.jet.core.Inbox;
 import com.tapdata.cache.CacheUtil;
 import com.tapdata.cache.ICacheService;
 import com.tapdata.constant.HazelcastUtil;
+import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import io.tapdata.aspect.taskmilestones.CDCWriteBeginAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotWriteBeginAspect;
 import io.tapdata.construct.constructImpl.ConstructIMap;
 import io.tapdata.construct.constructImpl.DocumentIMap;
 import io.tapdata.entity.event.TapEvent;
@@ -25,6 +28,8 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public class HazelcastTargetPdkCacheNode extends HazelcastPdkBaseNode {
 
@@ -35,6 +40,16 @@ public class HazelcastTargetPdkCacheNode extends HazelcastPdkBaseNode {
 	private DataFlowCacheConfig dataFlowCacheConfig;
 
 	private final ConstructIMap<Map<String, Map<String, Object>>> dataMap;
+	private Consumer<Supplier<Boolean>> snapshotWriteBeginCallOnce = supplier -> {
+		if (supplier.get()) {
+			snapshotWriteBeginCallOnce = s -> {};
+		}
+	};
+	private Consumer<Supplier<Boolean>> cdcWriteBeginCallOnce = supplier -> {
+		if (supplier.get()) {
+			cdcWriteBeginCallOnce = s -> {};
+		}
+	};
 
 	public HazelcastTargetPdkCacheNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -68,6 +83,22 @@ public class HazelcastTargetPdkCacheNode extends HazelcastPdkBaseNode {
 
 							if (tapdataEvent.isDML()) {
 								TapRecordEvent tapRecordEvent = (TapRecordEvent) tapdataEvent.getTapEvent();
+
+								snapshotWriteBeginCallOnce.accept(() -> {
+									if (SyncStage.INITIAL_SYNC == tapdataEvent.getSyncStage()) {
+										executeAspect(new SnapshotWriteBeginAspect().dataProcessorContext(dataProcessorContext));
+										return true;
+									}
+									return false;
+								});
+								cdcWriteBeginCallOnce.accept(() -> {
+									if (SyncStage.CDC == tapdataEvent.getSyncStage()) {
+										executeAspect(new CDCWriteBeginAspect().dataProcessorContext(dataProcessorContext));
+										return true;
+									}
+									return false;
+								});
+
 								fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager);
 								fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager);
 								tapEvents.add(tapRecordEvent);
