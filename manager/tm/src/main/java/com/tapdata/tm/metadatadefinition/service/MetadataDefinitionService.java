@@ -165,6 +165,10 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
                 if (saveValue.getItemType().contains("database")){
                     mongoTemplate.updateMulti(new Query(criteria), update, DataSourceEntity.class);
                 }
+
+                if (saveValue.getItemType().contains("app")){
+                    mongoTemplate.updateMulti(new Query(criteria), update, ModulesEntity.class);
+                }
             }
 
         }
