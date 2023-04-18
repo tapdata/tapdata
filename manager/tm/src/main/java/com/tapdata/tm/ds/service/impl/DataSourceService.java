@@ -1581,6 +1581,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			String connId = connectionDto.getId().toHexString();
 			Query query = new Query(Criteria.where("_id").is(connectionDto.getId()));
 			query.fields().include("_id");
+			connectionDto.setListtags(null);
 			DataSourceConnectionDto connection = findOne(query);
 			if (connection == null) {
 				while (checkRepeatNameBool(user, connectionDto.getName(), null)) {
@@ -1594,7 +1595,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 						connectionDto.setName(connectionDto.getName() + "_import");
 					}
 
-					connectionDto.setListtags(null);
 					connectionDto.setAccessNodeProcessId(null);
 					connectionDto.setAccessNodeProcessIdList(new ArrayList<>());
 					connectionDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
