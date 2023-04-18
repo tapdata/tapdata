@@ -143,6 +143,8 @@ public class LdpServiceImpl implements LdpService {
 
         repeatTable(targetTableNames, task.getId() == null ? null : task.getId().toHexString(), fdmConnId, user);
 
+        taskSaveService.supplementAlarm(task, user);
+
         TaskDto taskDto;
         if (oldTask != null) {
             sourceTableNames.removeAll(oldTableNames);
@@ -366,6 +368,7 @@ public class LdpServiceImpl implements LdpService {
     public TaskDto createMdmTask(TaskDto task, String tagId, UserDetail user) {
 
         try {
+            taskSaveService.supplementAlarm(task, user);
             //check mdm task
             checkMdmTask(task, user);
             //add mmd type
