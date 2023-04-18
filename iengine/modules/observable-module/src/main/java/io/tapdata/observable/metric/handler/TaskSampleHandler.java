@@ -217,16 +217,16 @@ public class TaskSampleHandler extends AbstractHandler {
             return snapshotDoneCost;
         });
 
-        // TODO(dexter): find a way to record the current table name
-        collector.addSampler(CURR_SNAPSHOT_TABLE, () -> null);
         collector.addSampler(CURR_SNAPSHOT_TABLE_ROW_TOTAL, () -> {
-            if (null == currentSnapshotTable) return null;
-            return currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
+            if (null != currentSnapshotTable) {
+                currentSnapshotTableRowTotal = currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
+            }
+            return currentSnapshotTableRowTotal;
         });
         collector.addSampler(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL, () -> {
             if (Objects.nonNull(snapshotTableTotal.value()) && CollectionUtils.isNotEmpty(taskTables) &&
             snapshotTableTotal.value().intValue() == taskTables.size() && Objects.nonNull(currentSnapshotTable)) {
-                return currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
+                currentSnapshotTableInsertRowTotal = currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
             }
             return currentSnapshotTableInsertRowTotal;
         });
