@@ -630,7 +630,9 @@ public class MongodbConnector extends ConnectorBase {
 						keys.append(indexField.getName(), 1);
 					}
 					final IndexOptions indexOptions = new IndexOptions();
-					indexOptions.unique(tapIndex.isUnique());
+					if (indexFields.size() != 1 || !"_id".equals(indexFields.stream().findFirst().get().getName())) {
+						indexOptions.unique(tapIndex.isUnique());
+					}
 					if (EmptyKit.isNotEmpty(tapIndex.getName())) {
 						indexOptions.name(tapIndex.getName());
 					}
