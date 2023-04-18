@@ -2340,7 +2340,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Query query1 = new Query(in);
         query1.fields().include("ss", "tags");
         DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
-        List<MeasurementEntity> measurementEntities = repository.getMongoOperations().find(query1, MeasurementEntity.class, "AgentMeasurementV2");
+        List<MeasurementEntity> measurementEntities = measurementServiceV2.find(query1);
 
         Map<String, List<MeasurementEntity>> taskMap = measurementEntities.stream().collect(Collectors.groupingBy(m -> m.getTags().get("taskId")));
 
