@@ -1427,7 +1427,9 @@ class TargetTypesGeneratorTest {
     public void oracleNumberToMySQLDecimal() {
 
         String sourceTypeExpression = "{" +
-                "\"NUMBER[($precision,$scale)]\": {\"precision\": [1,38],\"scale\": [-84,127],\"fixed\": true,\"preferPrecision\": 20,\"defaultPrecision\": 38,\"preferScale\": 8,\"defaultScale\": 0,\"priority\": 1,\"to\": \"TapNumber\"}" +
+                "\"NUMBER($precision)\": {\"precision\": [1,38],\"scale\": [-84,127],\"fixed\": true,\"preferPrecision\": 20,\"defaultPrecision\": 38,\"preferScale\": 8,\"defaultScale\": 0,\"priority\": 1,\"to\": \"TapNumber\"}," +
+                "\"NUMBER[($precision,$scale)]\": {\"precision\": [1,38],\"scale\": [-84,127],\"fixed\": true,\"preferPrecision\": 20,\"defaultPrecision\": 38,\"preferScale\": 8,\"defaultScale\": 0,\"priority\": 1,\"to\": \"TapNumber\"}," +
+                "\"NUMBER(*,$scale)\": {\"precision\": [1,38],\"scale\": [-84,127],\"fixed\": true,\"preferPrecision\": 20,\"defaultPrecision\": 38,\"preferScale\": 8,\"defaultScale\": 0,\"priority\": 1,\"to\": \"TapNumber\"}," +
                 "}";
 
         String targetTypeExpression = "{\n" +
@@ -1470,7 +1472,10 @@ class TargetTypesGeneratorTest {
 
         TapTable sourceTable = table("test");
         sourceTable
-                .add(field("NUMBER", "NUMBER"))
+                .add(field("NUMBER(5,2)", "NUMBER(5,2)"))
+                .add(field("NUMBER(*,10)", "NUMBER(*,10)"))
+                .add(field("NUMBER(50)", "NUMBER(50)"))
+                .add(field("NUMBER(50,*,b)", "NUMBER(50,*,b)"))
         ;
 
         tableFieldTypesGenerator.autoFill(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(sourceTypeExpression));
@@ -1479,8 +1484,17 @@ class TargetTypesGeneratorTest {
         LinkedHashMap<String, TapField> nameFieldMap = tapResult.getData();
 
 
-        TapField upperVarchar50 = nameFieldMap.get("NUMBER");
-        assertEquals("decimal(20,8)", upperVarchar50.getDataType());
+        TapField number52 = nameFieldMap.get("NUMBER(5,2)");
+        assertEquals("decimal(5,2)", number52.getDataType());
+
+        TapField numberStar10 = nameFieldMap.get("NUMBER(*,10)");
+        assertEquals("decimal(20,10)", numberStar10.getDataType());
+
+        TapField number50 = nameFieldMap.get("NUMBER(50)");
+        assertEquals("decimal(50,8)", number50.getDataType());
+
+        TapField number50StarB = nameFieldMap.get("NUMBER(50,*,b)");
+        assertEquals(null, number50StarB.getDataType());
     }
 
 

@@ -142,7 +142,7 @@ public class ApiAppServiceImpl implements ApiAppService {
             List<ModulesDto> modulesDtos1 = map.get(metadata.getId().toHexString());
             boolean empty = CollectionUtils.isEmpty(modulesDtos1);
             int apiCount = empty ? 0 : modulesDtos1.size();
-            int publishedApiCount = empty ? 0 : (int) modulesDtos1.stream().map(s -> ModuleStatusEnum.ACTIVE.getValue().equals(s.getStatus())).count();
+            int publishedApiCount = empty ? 0 : (int) modulesDtos1.stream().filter(s -> ModuleStatusEnum.ACTIVE.getValue().equals(s.getStatus())).count();
             metadata.setApiCount(apiCount);
             metadata.setPublishedApiCount(publishedApiCount);
         }

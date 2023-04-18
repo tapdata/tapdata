@@ -137,7 +137,7 @@ public class TapConnectorAnnotationHandler extends TapBaseAnnotationHandler {
                             TapLogger.error(TAG, "Handle tap node specification failed, path {} error {}", tapConnectorClass.value(), throwable.getMessage());
                         }
                     } else {
-                        TapLogger.error(TAG, "Resource {} doesn't be found, connector class {} will be ignored", tapConnectorClass.value(), clazz);
+                        TapLogger.error(TAG, "Resource {} not found, connector class {} will be ignored", tapConnectorClass.value(), clazz);
                     }
                 }
             }

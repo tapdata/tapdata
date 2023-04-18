@@ -71,7 +71,7 @@ public class TapProcessorAnnotationHandler extends TapBaseAnnotationHandler {
                             TapLogger.error(TAG, "Handle tap node specification failed, path {} error {}", tapProcessorClass.value(), throwable.getMessage());
                         }
                     } else {
-                        TapLogger.error(TAG, "Resource {} doesn't be found, processor class {} will be ignored", tapProcessorClass.value(), clazz);
+                        TapLogger.error(TAG, "Resource {} not found, processor class {} will be ignored", tapProcessorClass.value(), clazz);
                     }
                 }
             }

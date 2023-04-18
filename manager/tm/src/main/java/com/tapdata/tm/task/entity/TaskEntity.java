@@ -154,6 +154,8 @@ public class TaskEntity extends BaseEntity {
     private Boolean isAutoInspect = false;
     private Boolean canOpenInspect = false;
 
+    private SkipErrorEventDto skipErrorEvent;
+
     /**
      * 计划开始时间
      */
@@ -239,6 +241,8 @@ public class TaskEntity extends BaseEntity {
 
     /** ldp需要新增的表名列表 */
     private List<String> ldpNewTables;
+
+    private String pageVersion;
 
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";

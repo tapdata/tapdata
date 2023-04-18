@@ -15,9 +15,6 @@ import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.milestone.constants.MilestoneStatus;
 import io.tapdata.milestone.entity.MilestoneEntity;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -49,7 +46,6 @@ import java.util.function.Consumer;
  */
 @AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_CONN_HEARTBEAT, TaskDto.SYNC_TYPE_LOG_COLLECTOR})
 public class MilestoneAspectTask extends AbstractAspectTask {
-    private final static Logger logger = LogManager.getLogger(MilestoneAspectTask.class);
 
     private final static String KPI_TASK = "TASK";
     private final static String KPI_DATA_NODE_INIT = "DATA_NODE_INIT";
@@ -151,7 +147,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
 
     @Override
     public void onStart(TaskStartAspect startAspect) {
-        logger.info("Start task milestones: {}({})", task.getId().toHexString(), task.getName());
+        log.info("Start task milestones: {}({})", task.getId().toHexString(), task.getName());
 
         taskMilestone(KPI_TASK, this::setFinish);
         if (!TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(task.getSyncType())) {
@@ -173,7 +169,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
 
     @Override
     public void onStop(TaskStopAspect stopAspect) {
-        logger.info("Stop task milestones: {}({}) ", task.getId().toHexString(), task.getName());
+        log.info("Stop task milestones: {}({}) ", task.getId().toHexString(), task.getName());
         try {
             // Release resources
             executorService.shutdown();
@@ -323,7 +319,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
                     , Update.update("attrs.milestone", milestones).set("attrs.nodeMilestones", nodeMilestones)
                     , ConnectorConstant.TASK_COLLECTION);
         } catch (Exception e) {
-            logger.warn("Save milestone failed: {}", e.getMessage(), e);
+            log.warn("Save milestone failed: {}", e.getMessage(), e);
         }
     }
 

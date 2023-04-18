@@ -47,7 +47,6 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>pdk-error-code</artifactId>
-            <version>${pdk-error-code.version}</version>
         </dependency>
     </dependencies>
 

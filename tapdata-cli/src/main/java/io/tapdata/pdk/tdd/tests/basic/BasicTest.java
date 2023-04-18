@@ -80,7 +80,7 @@ public class BasicTest extends PDKTestBase {
 
     private void verifyConnection(DataMap configOptions, DataMap connectionInputs) {
         Map<String, Object> connectionMap = (Map<String, Object>) configOptions.get("connection");
-        Assertions.assertNotNull(connectionMap, "The key \"configOptions.connection\" doesn't be found in spec json file.");
+        Assertions.assertNotNull(connectionMap, "The key \"configOptions.connection\" not found in spec json file.");
 
         Set<String> missingInConnection = new HashSet<>();
 

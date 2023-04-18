@@ -43,6 +43,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 
 @TapConnectorClass("spec_mariadb.json")
@@ -115,7 +116,7 @@ public class MariadbConnector extends ConnectorBase {
         connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
         connectorFunctions.supportQueryByAdvanceFilter(this::query);
         connectorFunctions.supportWriteRecord(this::writeRecord);
-//        connectorFunctions.supportCreateIndex(this::createIndex);
+        connectorFunctions.supportCreateIndex(this::createIndex);
         connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
@@ -199,7 +200,9 @@ public class MariadbConnector extends ConnectorBase {
     private void createIndex(TapConnectorContext tapConnectorContext, TapTable tapTable, TapCreateIndexEvent tapCreateIndexEvent) {
         List<TapIndex> indexList = tapCreateIndexEvent.getIndexList();
         SqlMaker sqlMaker = new MysqlMaker();
-        for (TapIndex tapIndex : indexList) {
+        String database = tapConnectorContext.getConnectionConfig().getString("database");
+        for (TapIndex tapIndex : indexList.stream().filter(v -> queryExistIndexes(database, tapTable.getId()).stream()
+                .noneMatch(i -> DbKit.ignoreCreateIndex(i, v))).collect(Collectors.toList())) {
             String createIndexSql;
             try {
                 createIndexSql = sqlMaker.createIndex(tapConnectorContext, tapTable, tapIndex);
@@ -209,8 +212,22 @@ public class MariadbConnector extends ConnectorBase {
             try {
                 this.mysqlJdbcContext.execute(createIndexSql);
             } catch (Throwable e) {
-                throw new RuntimeException("Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                // mysql index  less than  3072 bytes。
+                if (e.getMessage() != null && e.getMessage().contains("42000 1071")) {
+                    TapLogger.warn(TAG, "Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                } else {
+                    throw new RuntimeException("Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                }
             }
+        }
+    }
+
+    private List<TapIndex> queryExistIndexes(String database, String tableName) {
+        MysqlSchemaLoader mysqlSchemaLoader = new MysqlSchemaLoader(mysqlJdbcContext);
+        try {
+            return mysqlSchemaLoader.discoverIndexes(database, tableName);
+        } catch (Throwable throwable) {
+            return Collections.emptyList();
         }
     }
 

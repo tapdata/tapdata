@@ -450,7 +450,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         boolean agentReq = isAgentReq();
         if (!agentReq) {
             if (taskDto.getEditVersion() != null && !oldTaskDto.getEditVersion().equals(taskDto.getEditVersion())) {
-                throw new BizException("Task.OldVersion");
+                if (taskDto.getPageVersion() != null && oldTaskDto.getPageVersion() != null && !oldTaskDto.getPageVersion().equals(taskDto.getPageVersion())) {
+                    throw new BizException("Task.OldVersion");
+                }
             }
         }
 
@@ -1778,7 +1780,18 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             tableNode.setType("table");
             tableNode.setDatabaseType((String) sourceNodeMap.get("databaseType"));
             tableNode.setConnectionId((String) sourceNodeMap.get("connectionId"));
-            tableNode.setName(tableNode.getConnectionId() + "-" + tableNode.getTableName());
+
+            String connectionName = Optional.ofNullable(tableNode.getConnectionId())
+                    .map(ObjectId::new)
+                    .map(connId -> {
+                        return dataSourceService.findById(connId, new Field() {{
+                            put("name", true);
+                        }});
+                    }).map(DataSourceConnectionDto::getName).orElse(null);
+            if (null == connectionName) {
+                throw new BizException("Datasource.NotFound");
+            }
+            tableNode.setName(connectionName + "-" + tableNode.getTableName());
 
             Map<String, Object> attrs = new HashMap();
             if (null != sourceNodeMap.get("attrs")) {
@@ -2870,6 +2883,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             taskDto.getAttrs().remove("milestone");
             taskDto.getAttrs().remove("nodeMilestones");
             taskDto.getAttrs().remove(TaskDto.ATTRS_USED_SHARE_CACHE);
+            taskDto.getAttrs().remove(TaskDto.ATTRS_SKIP_ERROR_EVENT);
             AutoInspectUtil.removeProgress(taskDto.getAttrs());
 
             set.set("attrs", taskDto.getAttrs());

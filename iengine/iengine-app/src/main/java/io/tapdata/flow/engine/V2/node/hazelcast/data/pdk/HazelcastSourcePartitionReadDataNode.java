@@ -212,8 +212,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
         if (null != newTables && !newTables.isEmpty()){
             super.handleNewTables(newTables);
         } else {
-            //Don't change to CDC stage for partition read.
-            this.endSnapshotLoop.set(true);
+			super.enterCDCStage();
         }
 	}
 
@@ -495,38 +494,56 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 		syncProgress.setStreamOffsetObj(offset);
 	}
 
-    public long handleStreamInsertEventsReceived(List<Map<String, Object>> events, Object offsetObj, String tableId){
-        long cast = 0;
-        try {
-            if (events != null && !events.isEmpty()) {
-                List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj, tableId);
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
-                }
-                if (streamReadFuncAspect != null)
-                    AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
-                if (CollectionUtils.isNotEmpty(tapdataEvents)) {
-                    long s = System.currentTimeMillis();
-                    for (TapdataEvent tapdataEvent : tapdataEvents) {
-                        this.enqueue(tapdataEvent);
-                    }
-                    cast = System.currentTimeMillis() - s;
-                    if (streamReadFuncAspect != null)
-                        AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
-                }
-            }
-        } catch (Throwable throwable) {
-            errorHandle(throwable, "Error processing incremental data, error: " + throwable.getMessage());
-        }
-        return cast;
-    }
+//    public long handleStreamInsertEventsReceived(List<Map<String, Object>> events, Object offsetObj, String tableId){
+//        long cast = 0;
+//        try {
+//            if (events != null && !events.isEmpty()) {
+//                List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj, tableId);
+//                if (logger.isDebugEnabled()) {
+//                    logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
+//                }
+//                if (streamReadFuncAspect != null)
+//                    AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
+//                if (CollectionUtils.isNotEmpty(tapdataEvents)) {
+//                    long s = System.currentTimeMillis();
+//                    for (TapdataEvent tapdataEvent : tapdataEvents) {
+//                        this.enqueue(tapdataEvent);
+//                    }
+//                    cast = System.currentTimeMillis() - s;
+//                    if (streamReadFuncAspect != null)
+//                        AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
+//                }
+//            }
+//        } catch (Throwable throwable) {
+//            errorHandle(throwable, "Error processing incremental data, error: " + throwable.getMessage());
+//        }
+//        return cast;
+//    }
 
-    public long handleStreamEventsReceived(List<TapEvent> events, Object offsetObj) {
-        long cast = 0;
+	public void handleStreamEventsReceived(List<TapEvent> events, Object offsetObj) {
 		try {
+//			while (isRunning()) {
+//				try {
+//					if (sourceRunnerLock.tryLock(1L, TimeUnit.SECONDS)) {
+//						break;
+//					}
+//				} catch (InterruptedException e) {
+//					break;
+//				}
+//			}
 			if (events != null && !events.isEmpty()) {
-                List<TapdataEvent> tapdataEvents = new ArrayList<>();
-                wrapTapdataEvent(events, tapdataEvents, SyncStage.CDC, offsetObj);
+				events.forEach(event -> {
+					if (null == event.getTime()) {
+						throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
+					}
+					event.addInfo("eventId", UUID.randomUUID().toString());
+				});
+
+				if (streamReadFuncAspect != null) {
+					AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), events);
+				}
+
+				List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj);
 				if (logger.isDebugEnabled()) {
 					logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
 				}
@@ -535,11 +552,8 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 					AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
 
 				if (CollectionUtils.isNotEmpty(tapdataEvents)) {
-                    long s = System.currentTimeMillis();
-                    for (TapdataEvent tapdataEvent : tapdataEvents) {
-                        this.enqueue(tapdataEvent);
-                    }
-                    cast = System.currentTimeMillis() - s;
+					tapdataEvents.forEach(this::enqueue);
+//					syncProgress.setStreamOffsetObj(offsetObj);
 					if (streamReadFuncAspect != null)
 						AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
 				}
@@ -552,8 +566,6 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 			} catch (Exception ignored) {
 			}
 		}*/
-
-        return cast;
 	}
 
     private List<TapdataEvent> wrapTapdataEvent(List<Map<String, Object>> events, SyncStage syncStage, Object offsetObj, String tableId) {
@@ -574,12 +586,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
             if (null == tapdataEvent) {
                 continue;
             }
-            if(removeTables == null || !removeTables.contains(tableId)){
-                if (nodeId != null) {
-                    tapdataEvent.addNodeId(nodeId);
-                }
-                tapdataEvents.add(tapdataEvent);
-            }
+			tapdataEvents.add(tapdataEvent);
         }
         if (streamReadFuncAspect != null) {
             AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), tapdataEvents.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));
@@ -624,39 +631,39 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
         }
     }
 
-    public void enqueue(TapdataEvent tapdataEvent) {
-        try {
-            while (isRunning()) {
-                if (eventQueue.offer(tapdataEvent, 3, TimeUnit.SECONDS)) {
-                    break;
-                }
-            }
-        }
-        catch (Throwable throwable) {
-            throw new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
-        }
-    }
+//    public void enqueue(TapdataEvent tapdataEvent) {
+//        try {
+//            while (isRunning()) {
+//                if (eventQueue.offer(tapdataEvent, 3, TimeUnit.SECONDS)) {
+//                    break;
+//                }
+//            }
+//        }
+//        catch (Throwable throwable) {
+//            throw new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
+//        }
+//    }
 
-    protected boolean offer(TapdataEvent dataEvent) {
-        if (dataEvent != null) {
-            Outbox outbox = getOutbox();
-            if (null != outbox) {
-                final int bucketCount = outbox.bucketCount();
-                if (bucketCount > 1) {
-                    for (bucketIndex = Math.min(bucketIndex, bucketCount); bucketIndex < bucketCount; bucketIndex++) {
-                        final TapdataEvent cloneEvent = (TapdataEvent) dataEvent.clone();
-                        if (!tryEmit(bucketIndex, cloneEvent)) {
-                            return false;
-                        }
-                    }
-                } else if (!tryEmit(dataEvent)) {
-                    return false;
-                }
-            }
-        }
-        bucketIndex = 0; // reset to 0 of return true
-        return true;
-    }
+//    protected boolean offer(TapdataEvent dataEvent) {
+//        if (dataEvent != null) {
+//            Outbox outbox = getOutbox();
+//            if (null != outbox) {
+//                final int bucketCount = outbox.bucketCount();
+//                if (bucketCount > 1) {
+//                    for (bucketIndex = Math.min(bucketIndex, bucketCount); bucketIndex < bucketCount; bucketIndex++) {
+//                        final TapdataEvent cloneEvent = (TapdataEvent) dataEvent.clone();
+//                        if (!tryEmit(bucketIndex, cloneEvent)) {
+//                            return false;
+//                        }
+//                    }
+//                } else if (!tryEmit(dataEvent)) {
+//                    return false;
+//                }
+//            }
+//        }
+//        bucketIndex = 0; // reset to 0 of return true
+//        return true;
+//    }
 
 	@Override
 	public void doClose() throws Exception {
@@ -687,9 +694,13 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 	@Override
 	protected boolean handleNewTables(List<String> addList){
         if (endSnapshotLoop.get()){
+			syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
             return super.handleNewTables(addList);
         }
-        newTables.addAll(addList);
+		for(String str : addList) {
+			if(!newTables.contains(str))
+				newTables.add(str);
+		}
         return false;
 	}
 

@@ -19,7 +19,8 @@
         <module>api-loader-core</module>
 		<module>js-connector-core</module>
 		<module>read-partition</module>
-<!--		<module>dependency-core</module>-->
+        <module>hive-core</module>
+        <!--		<module>dependency-core</module>-->
     </modules>
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
@@ -34,6 +35,7 @@
 		<fastjson.version>1.2.76</fastjson.version>
 		<commons.collections4.version>4.4</commons.collections4.version>
 		<log4j.version>2.17.1</log4j.version>
+		<pdk-error-code.version>1.0-SNAPSHOT</pdk-error-code.version>
 	</properties>
 
 	<dependencies>
@@ -112,6 +114,12 @@
 				<groupId>org.apache.commons</groupId>
 				<artifactId>commons-collections4</artifactId>
 				<version>${commons.collections4.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.tapdata</groupId>
+				<artifactId>pdk-error-code</artifactId>
+				<version>${pdk-error-code.version}</version>
+				<scope>provided</scope>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
