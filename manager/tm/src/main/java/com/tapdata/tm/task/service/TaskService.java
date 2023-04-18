@@ -193,6 +193,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
 
     private LockControlService lockControlService;
+
+    private TaskUpdateDagService taskUpdateDagService;
     public TaskService(@NonNull TaskRepository repository) {
         super(repository, TaskDto.class, TaskEntity.class);
     }
@@ -3719,27 +3721,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return findOne(query, user);
     }
 
-    public void updateDag(TaskDto TaskDto, UserDetail user, boolean saveHistory) {
-        TaskDto TaskDto1 = checkExistById(TaskDto.getId(), user);
-
-        Criteria criteria = Criteria.where("_id").is(TaskDto.getId());
-        Update update = Update.update("dag", TaskDto.getDag());
-        long tmCurrentTime = System.currentTimeMillis();
-        if (saveHistory) {
-            update.set("tmCurrentTime", tmCurrentTime);
-        }
-        repository.update(new Query(criteria), update, user);
-
-        if (saveHistory) {
-            TaskHistory taskHistory = new TaskHistory();
-            BeanUtils.copyProperties(TaskDto1, taskHistory);
-            taskHistory.setTaskId(TaskDto1.getId().toHexString());
-            taskHistory.setId(ObjectId.get());
-
-            //保存任务历史
-            repository.getMongoOperations().insert(taskHistory, "DDlTaskHistories");
-        }
-
+    public void updateDag(TaskDto taskDto, UserDetail user, boolean saveHistory) {
+        TaskDto oldTask = checkExistById(taskDto.getId(), user);
+        taskUpdateDagService.updateDag(taskDto, oldTask, user, saveHistory);
     }
 
     public TaskDto findByVersionTime(String id, Long time) {
