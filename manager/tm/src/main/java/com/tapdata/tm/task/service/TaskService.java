@@ -1778,7 +1778,18 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             tableNode.setType("table");
             tableNode.setDatabaseType((String) sourceNodeMap.get("databaseType"));
             tableNode.setConnectionId((String) sourceNodeMap.get("connectionId"));
-            tableNode.setName(tableNode.getConnectionId() + "-" + tableNode.getTableName());
+
+            String connectionName = Optional.ofNullable(tableNode.getConnectionId())
+                    .map(ObjectId::new)
+                    .map(connId -> {
+                        return dataSourceService.findById(connId, new Field() {{
+                            put("name", true);
+                        }});
+                    }).map(DataSourceConnectionDto::getName).orElse(null);
+            if (null == connectionName) {
+                throw new BizException("Datasource.NotFound");
+            }
+            tableNode.setName(connectionName + "-" + tableNode.getTableName());
 
             Map<String, Object> attrs = new HashMap();
             if (null != sourceNodeMap.get("attrs")) {
