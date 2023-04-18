@@ -1,0 +1,31 @@
+[
+  {
+    "delete": "Settings_Alarm",
+    "deletes": [
+      {
+        "q": {
+          "key": "TASK_STATUS_STOP"
+        }
+      }
+    ]
+  },
+  {
+    "update": "AlarmInfo",
+    "updates": [
+      {
+        "q": {
+          "status": {
+            "$in" : ["ING","RECOVER"]
+          }
+        },
+        "u": {
+          "$set": {
+            "status": "CLOESE"
+          }
+        },
+        "upsert": false,
+        "multi": true
+      }
+    ]
+  }
+]

@@ -74,6 +74,11 @@ public class HttpPutBuilder {
         return this;
     }
 
+    public HttpPutBuilder enableAppend() {
+        header.put("merge_type", "APPEND");
+        return this;
+    }
+
     public HttpPutBuilder enable2PC() {
         header.put("two_phase_commit", "true");
         return this;

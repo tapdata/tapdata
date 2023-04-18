@@ -459,10 +459,10 @@
     "datetime[($fraction)]": {
       "to": "TapDateTime",
       "range": [
-        "1000-01-01 00:00:00.000000",
-        "9999-12-31 23:59:59.999999"
+        "1000-01-01 00:00:00",
+        "9999-12-31 23:59:59"
       ],
-      "pattern": "yyyy-MM-dd HH:mm:ss.SSSSSS",
+      "pattern": "yyyy-MM-dd HH:mm:ss",
       "fraction": [
         0,
         6
@@ -472,10 +472,10 @@
     "timestamp[($fraction)]": {
       "to": "TapDateTime",
       "range": [
-        "1970-01-01 00:00:01.000000",
-        "2038-01-19 03:14:07.999999"
+        "1970-01-01 00:00:01",
+        "2038-01-19 03:14:07"
       ],
-      "pattern": "yyyy-MM-dd HH:mm:ss.SSSSSS",
+      "pattern": "yyyy-MM-dd HH:mm:ss",
       "fraction": [
         0,
         6

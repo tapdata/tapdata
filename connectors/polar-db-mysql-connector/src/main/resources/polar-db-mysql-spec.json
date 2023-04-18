@@ -213,7 +213,7 @@
       "password": "password",
       "addtionalString": "Connection Parameter String",
       "timezone": "timezone",
-      "doc": "docs/aliyun_rds_mysql_en_US.md"
+      "doc": "docs/polar_db_mysql_en_US.md"
     },
     "zh_CN": {
       "host": "地址",
@@ -223,7 +223,7 @@
       "password": "密码",
       "addtionalString": "连接参数",
       "timezone": "时区",
-      "doc": "docs/aliyun_rds_mysql_zh_CN.md"
+      "doc": "docs/polar_db_mysql_zh_CN.md"
     },
     "zh_TW": {
       "host": "地址",
@@ -233,7 +233,7 @@
       "password": "密碼",
       "addtionalString": "連接參數",
       "timezone": "時區",
-      "doc": "docs/aliyun_rds_mysql_zh_TW.md"
+      "doc": "docs/polar_db_mysql_zh_TW.md"
     }
   },
   "dataTypes": {
@@ -284,7 +284,7 @@
     },
     "varbinary[($byte)]": {
       "to": "TapBinary",
-      "byte": 65532,
+      "byte": 65524,
       "defaultByte": 1
     },
     "tinyblob": {
@@ -508,10 +508,10 @@
     "datetime[($fraction)]": {
       "to": "TapDateTime",
       "range": [
-        "1000-01-01 00:00:00.000000",
-        "9999-12-31 23:59:59.999999"
+        "1000-01-01 00:00:00",
+        "9999-12-31 23:59:59"
       ],
-      "pattern": "yyyy-MM-dd HH:mm:ss.SSSSSS",
+      "pattern": "yyyy-MM-dd HH:mm:ss",
       "fraction": [
         0,
         6
@@ -521,10 +521,10 @@
     "timestamp[($fraction)]": {
       "to": "TapDateTime",
       "range": [
-        "1970-01-01 00:00:01.000000",
-        "2038-01-19 03:14:07.999999"
+        "1970-01-01 00:00:01",
+        "2038-01-19 03:14:07"
       ],
-      "pattern": "yyyy-MM-dd HH:mm:ss.SSSSSS",
+      "pattern": "yyyy-MM-dd HH:mm:ss",
       "fraction": [
         0,
         6

@@ -248,7 +248,11 @@ public class MongodbConnector extends ConnectorBase {
 						stringTypeValueMap.put(fieldName, currentLength);
 					}
 					if (null != stringTypeValueMap.get(fieldName)) {
-						field = TapSimplify.field(fieldName, bsonType.name() + String.format("(%s)", stringTypeValueMap.get(fieldName)));
+						int length = stringTypeValueMap.get(fieldName);
+						length = length * 5;
+						if(length < 100)
+							length = 100;
+						field = TapSimplify.field(fieldName, bsonType.name() + String.format("(%s)", length));
 					} else {
 						field = TapSimplify.field(fieldName, bsonType.name());
 					}
@@ -639,6 +643,7 @@ public class MongodbConnector extends ConnectorBase {
 						keys.append(indexField.getName(), 1);
 					}
 					final IndexOptions indexOptions = new IndexOptions();
+					indexOptions.unique(tapIndex.isUnique());
 					if (EmptyKit.isNotEmpty(tapIndex.getName())) {
 						indexOptions.name(tapIndex.getName());
 					}
@@ -929,22 +934,30 @@ public class MongodbConnector extends ConnectorBase {
 			}
 		}
 
-		Document lastDocument = null;
+		Document lastDocument;
 
-		while (mongoCursor.hasNext()) {
-			if (!isAlive()) return;
-			lastDocument = mongoCursor.next();
-			tapEvents.add(insertRecordEvent(lastDocument, table.getId()));
+		try {
+			while (mongoCursor.hasNext()) {
+				if (!isAlive()) return;
+				lastDocument = mongoCursor.next();
+				tapEvents.add(insertRecordEvent(lastDocument, table.getId()));
 
-			if (tapEvents.size() == eventBatchSize) {
-				Object value = lastDocument.get(COLLECTION_ID_FIELD);
-				batchOffset = new MongoBatchOffset(COLLECTION_ID_FIELD, value);
-				tapReadOffsetConsumer.accept(tapEvents, batchOffset);
-				tapEvents = list();
+				if (tapEvents.size() == eventBatchSize) {
+					Object value = lastDocument.get(COLLECTION_ID_FIELD);
+					batchOffset = new MongoBatchOffset(COLLECTION_ID_FIELD, value);
+					tapReadOffsetConsumer.accept(tapEvents, batchOffset);
+					tapEvents = list();
+				}
 			}
-		}
-		if (!tapEvents.isEmpty()) {
-			tapReadOffsetConsumer.accept(tapEvents, null);
+			if (!tapEvents.isEmpty()) {
+				tapReadOffsetConsumer.accept(tapEvents, null);
+			}
+		} catch (Exception e) {
+			if (!isAlive() && e instanceof MongoInterruptedException) {
+				// ignored
+			} else {
+				throw e;
+			}
 		}
 	}
 
@@ -1014,9 +1027,10 @@ public class MongodbConnector extends ConnectorBase {
 	private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) throws Throwable {
 		String database = mongoConfig.getDatabase();
 		List<String> temp = new ArrayList<>();
-		MongoCursor<String> iterator = mongoClient.getDatabase(database).listCollectionNames().iterator();
-		while (iterator.hasNext()) {
-			String tableName = iterator.next();
+		for (String tableName : mongoClient.getDatabase(database).listCollectionNames()) {
+			if (getMongoCollection(tableName).estimatedDocumentCount() <= 0) {
+				continue;
+			}
 			temp.add(tableName);
 			if (temp.size() >= batchSize) {
 				listConsumer.accept(temp);

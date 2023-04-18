@@ -29,7 +29,9 @@ function discoverSchema(connectionConfig) {
 }
 
 function clearSpecial(str) {
-    return str.replaceAll(/\^|\.|\s+|\*|\?|\!|\/|\\|\$|\—+|\@|\%|\*|\~|\;|\:|\'|\"|\#|\&|\||\，|\,|\。|\`|\！|\[|\]|\？|\{|\}|\(|\)|\（|\）|\＜|\＞|\<|\>|\≤|\≥|\《|\》|\-|\+|\=/g, "");
+    let pattern = new RegExp('[^\\w\\s\\u4e00-\\u9fa5]', 'g');
+    let matches = str.match(pattern);
+    return str.replaceAll(matches, '');
 }
 
 function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
