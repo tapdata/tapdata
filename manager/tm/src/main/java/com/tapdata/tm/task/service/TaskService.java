@@ -2540,6 +2540,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                                 dataSourceConnectionDto.setCustomId(null);
                                 dataSourceConnectionDto.setLastUpdBy(null);
                                 dataSourceConnectionDto.setUserId(null);
+                                dataSourceConnectionDto.setListtags(null);
                                 String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", dataSourceConnectionDto, null);
                                 MetadataInstancesDto dataSourceMetadataInstance = metadataInstancesService.findOne(
                                         Query.query(Criteria.where("qualified_name").is(databaseQualifiedName).and("is_deleted").ne(true)), user);

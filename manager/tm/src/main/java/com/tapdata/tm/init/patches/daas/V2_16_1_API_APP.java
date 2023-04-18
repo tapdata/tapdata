@@ -17,6 +17,8 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
+import java.util.Date;
+
 
 /**
  *
@@ -45,6 +47,7 @@ public class V2_16_1_API_APP extends AbsPatch {
             MetadataDefinitionEntity entity = new MetadataDefinitionEntity();
             entity.setValue("default_app_api");
             entity.setItemType(Lists.of("app"));
+            entity.setCreateAt(new Date());
             entity.setReadOnly(true);
 
             metadataDefinition = mongoTemplate.save(entity);
