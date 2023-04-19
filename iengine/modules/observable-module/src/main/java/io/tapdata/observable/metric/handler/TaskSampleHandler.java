@@ -170,17 +170,19 @@ public class TaskSampleHandler extends AbstractHandler {
         });
         collector.addSampler(Constants.REPLICATE_LAG, () -> {
             AtomicReference<Long> replicateLagRef = new AtomicReference<>(null);
-            for (DataNodeSampleHandler h : targetNodeHandlers.values()) {
-                Optional.ofNullable(h.getReplicateLag()).ifPresent(sampler -> {
-                    Number value = sampler.getTemp();
-                    if (Objects.nonNull(value)) {
-                        long v = value.longValue();
-                        if (null == replicateLagRef.get() || replicateLagRef.get() < v) {
-                            replicateLagRef.set(v);
-                        }
-                    }
-                });
 
+            if (snapshotDoneAt != null) {
+                for (DataNodeSampleHandler h : targetNodeHandlers.values()) {
+                    Optional.ofNullable(h.getReplicateLag()).ifPresent(sampler -> {
+                        Number value = sampler.getTemp();
+                        if (Objects.nonNull(value)) {
+                            long v = value.longValue();
+                            if (null == replicateLagRef.get() || replicateLagRef.get() < v) {
+                                replicateLagRef.set(v);
+                            }
+                        }
+                    });
+                }
             }
             return replicateLagRef.get();
         });
