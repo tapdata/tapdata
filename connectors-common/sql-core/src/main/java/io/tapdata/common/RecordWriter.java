@@ -1,5 +1,6 @@
 package io.tapdata.common;
 
+import io.tapdata.common.exception.AbstractExceptionCollector;
 import io.tapdata.common.exception.ExceptionCollector;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -26,7 +27,8 @@ public class RecordWriter {
     protected String version;
     protected Connection connection;
     protected final TapTable tapTable;
-    protected ExceptionCollector exceptionCollector;
+    protected ExceptionCollector exceptionCollector = new AbstractExceptionCollector() {
+    };
 
     public RecordWriter(JdbcContext jdbcContext, TapTable tapTable) throws SQLException {
         this.connection = jdbcContext.getConnection();
