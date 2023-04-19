@@ -2,6 +2,7 @@ package io.tapdata.common;
 
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.ddl.DDLSqlGenerator;
+import io.tapdata.common.exception.AbstractExceptionCollector;
 import io.tapdata.common.exception.ExceptionCollector;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -43,7 +44,8 @@ public abstract class CommonDbConnector extends ConnectorBase {
     protected JdbcContext jdbcContext;
     protected CommonDbConfig commonDbConfig;
     protected CommonSqlMaker commonSqlMaker;
-    protected ExceptionCollector exceptionCollector;
+    protected ExceptionCollector exceptionCollector = new AbstractExceptionCollector() {
+    };
 
     @Override
     public int tableCount(TapConnectionContext connectionContext) throws SQLException {
