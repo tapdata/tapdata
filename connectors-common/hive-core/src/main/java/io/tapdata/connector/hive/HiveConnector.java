@@ -1,16 +1,18 @@
 package io.tapdata.connector.hive;
 
 import io.tapdata.common.CommonDbConnector;
+import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.hive.config.HiveConfig;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.pdk.apis.entity.ConnectionOptions;
-import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import org.apache.commons.codec.binary.Base64;
 
@@ -30,6 +32,7 @@ public class HiveConnector extends CommonDbConnector {
         hiveJdbcContext = new HiveJdbcContext(hiveConfig);
         commonDbConfig = hiveConfig;
         jdbcContext = hiveJdbcContext;
+        commonSqlMaker = new CommonSqlMaker('`');
     }
 
     @Override
@@ -71,9 +74,9 @@ public class HiveConnector extends CommonDbConnector {
 
         //source 暂不支持
         connectorFunctions.supportBatchCount(this::batchCount);
-        connectorFunctions.supportBatchRead(this::batchReadV3);
+        connectorFunctions.supportBatchRead(this::batchReadWithoutOffset);
         //query
-//        connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilter);
+        connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilterWithOffset);
 
         // ddl 暂不支持
 //        connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
@@ -101,4 +104,5 @@ public class HiveConnector extends CommonDbConnector {
         List<TapTable> tapTableList = hiveJdbcContext.queryTablesDesc(subList.stream().map(v -> v.getString("tab_name")).collect(Collectors.toList()));
         syncSchemaSubmit(tapTableList, consumer);
     }
+
 }
