@@ -6,6 +6,7 @@ import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.pdk.apis.entity.Projection;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 
 import java.text.DecimalFormat;
@@ -103,6 +104,25 @@ public class CommonSqlMaker {
         buildWhereClause(builder, filter);
         buildOrderClause(builder, filter);
         buildLimitOffsetClause(builder, filter);
+        return builder.toString();
+    }
+
+    public String buildSelectClause(TapTable tapTable, TapAdvanceFilter filter) {
+        StringBuilder builder = new StringBuilder("SELECT ");
+        Projection projection = filter.getProjection();
+        if (EmptyKit.isNull(projection) || (EmptyKit.isEmpty(projection.getIncludeFields()) && EmptyKit.isEmpty(projection.getExcludeFields()))) {
+            builder.append("*");
+        } else {
+            builder.append(escapeChar);
+            if (EmptyKit.isNotEmpty(filter.getProjection().getIncludeFields())) {
+                builder.append(String.join(escapeChar + "," + escapeChar, filter.getProjection().getIncludeFields()));
+            } else {
+                builder.append(tapTable.getNameFieldMap().keySet().stream()
+                        .filter(tapField -> !filter.getProjection().getExcludeFields().contains(tapField)).collect(Collectors.joining(escapeChar + "," + escapeChar)));
+            }
+            builder.append(escapeChar);
+        }
+        builder.append(" FROM ");
         return builder.toString();
     }
 

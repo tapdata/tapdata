@@ -193,6 +193,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
 
     private LockControlService lockControlService;
+
+    private TaskUpdateDagService taskUpdateDagService;
+
+    private DateNodeService dateNodeService;
     public TaskService(@NonNull TaskRepository repository) {
         super(repository, TaskDto.class, TaskEntity.class);
     }
@@ -232,6 +236,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         checkTaskName(taskDto.getName(), user, taskDto.getId());
 
         customSqlService.checkCustomSqlTask(taskDto, user);
+        dateNodeService.checkTaskDateNode(taskDto, user);
 
         boolean rename = false;
         if (taskDto.getId() != null) {
@@ -444,11 +449,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
 
         customSqlService.checkCustomSqlTask(taskDto, user);
+        dateNodeService.checkTaskDateNode(taskDto, user);
 
         boolean agentReq = isAgentReq();
         if (!agentReq) {
             if (taskDto.getEditVersion() != null && !oldTaskDto.getEditVersion().equals(taskDto.getEditVersion())) {
-                throw new BizException("Task.OldVersion");
+                if (taskDto.getPageVersion() != null && oldTaskDto.getPageVersion() != null && !oldTaskDto.getPageVersion().equals(taskDto.getPageVersion())) {
+                    throw new BizException("Task.OldVersion");
+                }
             }
         }
 
@@ -1776,7 +1784,18 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             tableNode.setType("table");
             tableNode.setDatabaseType((String) sourceNodeMap.get("databaseType"));
             tableNode.setConnectionId((String) sourceNodeMap.get("connectionId"));
-            tableNode.setName(tableNode.getConnectionId() + "-" + tableNode.getTableName());
+
+            String connectionName = Optional.ofNullable(tableNode.getConnectionId())
+                    .map(ObjectId::new)
+                    .map(connId -> {
+                        return dataSourceService.findById(connId, new Field() {{
+                            put("name", true);
+                        }});
+                    }).map(DataSourceConnectionDto::getName).orElse(null);
+            if (null == connectionName) {
+                throw new BizException("Datasource.NotFound");
+            }
+            tableNode.setName(connectionName + "-" + tableNode.getTableName());
 
             Map<String, Object> attrs = new HashMap();
             if (null != sourceNodeMap.get("attrs")) {
@@ -2325,7 +2344,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Query query1 = new Query(in);
         query1.fields().include("ss", "tags");
         DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
-        List<MeasurementEntity> measurementEntities = repository.getMongoOperations().find(query1, MeasurementEntity.class, "AgentMeasurementV2");
+        List<MeasurementEntity> measurementEntities = measurementServiceV2.find(query1);
 
         Map<String, List<MeasurementEntity>> taskMap = measurementEntities.stream().collect(Collectors.groupingBy(m -> m.getTags().get("taskId")));
 
@@ -2525,6 +2544,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                                 dataSourceConnectionDto.setCustomId(null);
                                 dataSourceConnectionDto.setLastUpdBy(null);
                                 dataSourceConnectionDto.setUserId(null);
+                                dataSourceConnectionDto.setListtags(null);
                                 String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", dataSourceConnectionDto, null);
                                 MetadataInstancesDto dataSourceMetadataInstance = metadataInstancesService.findOne(
                                         Query.query(Criteria.where("qualified_name").is(databaseQualifiedName).and("is_deleted").ne(true)), user);
@@ -3720,27 +3740,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return findOne(query, user);
     }
 
-    public void updateDag(TaskDto TaskDto, UserDetail user, boolean saveHistory) {
-        TaskDto TaskDto1 = checkExistById(TaskDto.getId(), user);
-
-        Criteria criteria = Criteria.where("_id").is(TaskDto.getId());
-        Update update = Update.update("dag", TaskDto.getDag());
-        long tmCurrentTime = System.currentTimeMillis();
-        if (saveHistory) {
-            update.set("tmCurrentTime", tmCurrentTime);
-        }
-        repository.update(new Query(criteria), update, user);
-
-        if (saveHistory) {
-            TaskHistory taskHistory = new TaskHistory();
-            BeanUtils.copyProperties(TaskDto1, taskHistory);
-            taskHistory.setTaskId(TaskDto1.getId().toHexString());
-            taskHistory.setId(ObjectId.get());
-
-            //保存任务历史
-            repository.getMongoOperations().insert(taskHistory, "DDlTaskHistories");
-        }
-
+    public void updateDag(TaskDto taskDto, UserDetail user, boolean saveHistory) {
+        TaskDto oldTask = checkExistById(taskDto.getId(), user);
+        taskUpdateDagService.updateDag(taskDto, oldTask, user, saveHistory);
     }
 
     public TaskDto findByVersionTime(String id, Long time) {

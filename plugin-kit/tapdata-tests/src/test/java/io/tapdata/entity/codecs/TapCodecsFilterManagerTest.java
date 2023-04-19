@@ -576,4 +576,51 @@ public class TapCodecsFilterManagerTest {
 
         assertEquals(2, counter.get());
     }
+
+    @Test
+    public void testSupportWrongModel() {
+        TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
+        tapCodecsRegistry.registerToTapValue(TDDUser.class, (ToTapValueCodec<TapValue<?, ?>>) (value, tapType) -> new TapStringValue(InstanceFactory.instance(JsonParser.class).toJson(value)));
+        TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
+        Map<String, Object> map = map(
+                entry("id", "id_1"),
+                entry("tapString", "123"),
+                entry("tddUser", new TDDUser("uid_" + 1, "name_" + 1, "desp_" + 1, (int) 1, TDDUser.GENDER_FEMALE)),
+                entry("tapString10", "1234567890"),
+                entry("tapString10Fixed", "1"),
+                entry("tapInt", 123123),
+                entry("tapBoolean", true),
+                entry("tapDate", new Date()),
+
+                entry("tapArrayString", list("1", "2", "3")),
+                entry("tapArrayDouble", list(1.1, 2.2, 3.3)),
+                entry("tapArrayTDDUser", list(new TDDUser("a", "n", "d", 1, TDDUser.GENDER_MALE), new TDDUser("b", "a", "b", 2, TDDUser.GENDER_FEMALE))),
+                entry("tapRawTDDUser", new TDDUser("a1", "n1", "d1", 11, TDDUser.GENDER_MALE)),
+                entry("tapNumber", 123.0),
+//                        entry("tapNumber(8)", 1111),
+                entry("tapNumber52", 343.22),
+                entry("tapBinary", new byte[]{123, 21, 3, 2}),
+                entry("tapTime", new Date()),
+                entry("tapMapStringString", map(entry("a", "a"), entry("b", "b"))),
+                entry("tapMapStringDouble", map(entry("a", 1.0), entry("b", 2.0))),
+                entry("tapMapStringList", map(entry("a", list("a", "b", map(entry("1", "1")))), entry("b", list("1", "2", list("m", "n"))))),
+                entry("tapArrayMap", list("1", map(entry("n", list("1", "2", map(entry("k", "v"))))), "3")),
+                entry("tapMapStringTDDUser", map(entry("a", new TDDUser("a1", "n1", "d1", 11, TDDUser.GENDER_MALE)))),
+                entry("tapDateTime", new Date()),
+                entry("tapDateTimeTimeZone", new Date())
+        );
+
+        Map<String, TapField> sourceNameFieldMap = new HashMap<>();
+        sourceNameFieldMap.put("tapArrayMap", field("string", "varchar").tapType(tapString().bytes(50L)));
+        sourceNameFieldMap.put("tapMapStringString", field("int", "number(32)").tapType(tapNumber().bit(32).maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))));
+        sourceNameFieldMap.put("tapMapStringDouble", field("long", "number(64)").tapType(tapNumber().bit(64).minValue(BigDecimal.valueOf(Long.MIN_VALUE)).maxValue(BigDecimal.valueOf(Long.MAX_VALUE))));
+        sourceNameFieldMap.put("tapTime", field("double", "double").tapType(tapNumber().scale(3).bit(64).minValue(BigDecimal.valueOf(Double.MIN_VALUE)).maxValue(BigDecimal.valueOf(Double.MAX_VALUE))));
+
+        codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap);
+
+        assertEquals(map.get("tapArrayMap").getClass(), TapArrayValue.class);
+        assertEquals(map.get("tapMapStringString").getClass(), TapMapValue.class);
+        assertEquals(map.get("tapMapStringDouble").getClass(), TapMapValue.class);
+        assertEquals(map.get("tapTime").getClass(), TapDateTimeValue.class);
+    }
 }

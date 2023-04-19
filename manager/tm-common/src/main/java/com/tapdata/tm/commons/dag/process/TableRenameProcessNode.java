@@ -80,15 +80,36 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
 
         inputSchemas.get(0).forEach(schema -> {
             String originalName = schema.getAncestorsName();
-            if (originalMap().containsKey(originalName)) {
-                String currentTableName = originalMap().get(originalName).getCurrentTableName();
+            Map<String, TableRenameTableInfo> originalMap = originalMap();
+            if (originalMap.containsKey(originalName)) {
+                String currentTableName = originalMap.get(originalName).getCurrentTableName();
                 schema.setName(currentTableName);
                 schema.setOriginalName(currentTableName);
                 schema.setAncestorsName(originalName);
                 //schema.setDatabaseId(null);
                 //schema.setQualifiedName(MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), getId()));
+            } else {
+                String currentTableName = convertTableName(schema.getOriginalName());
+                TableRenameTableInfo tableInfo = new TableRenameTableInfo(originalName, schema.getOriginalName(), currentTableName);
+                tableNames.add(tableInfo);
+                schema.setName(currentTableName);
+                schema.setOriginalName(currentTableName);
+                schema.setAncestorsName(originalName);
             }
         });
+
+        Set<String> lastTable = inputSchemas.get(0).stream().map(Schema::getAncestorsName).collect(Collectors.toSet());
+
+        List<TableRenameTableInfo> removeTables = new ArrayList<>();
+        if (CollectionUtils.isNotEmpty(tableNames)) {
+            for (TableRenameTableInfo tableName : tableNames) {
+                if (!lastTable.contains(tableName.getOriginTableName())) {
+                    removeTables.add(tableName);
+                }
+            }
+
+            removeTables.forEach(tableNames::remove);
+        }
 
         return inputSchemas.get(0);
     }

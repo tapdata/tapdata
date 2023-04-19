@@ -412,7 +412,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 			if (OperationType.DELETE.getOp().equals(opType)) {
 				deleteRowFromCache(beforeJoinKey, beforeLeftKey, leftJoinCache);
 			} else {
-				final Map<String, Map<String, Object>> leftKeyCache = leftJoinCache.find(joinKey);
+				final Map<String, Map<String, Object>> leftKeyCache = Optional.ofNullable(leftJoinCache.find(joinKey)).orElse(new HashMap<>());
 				if (MapUtils.isNotEmpty(beforeLeftRow) && leftKeyCache.containsKey(key)) {
 					beforeLeftRow = leftKeyCache.get(key);
 					beforeLeftKey = project(beforeLeftRow, leftPrimaryKeys);
@@ -482,7 +482,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 			if (OperationType.DELETE.getOp().equals(opType)) {
 				deleteRowFromCache(beforeJoinKey, beforeRightKey, rightJoinCache);
 			} else {
-				final Map<String, Map<String, Object>> rightKeyCache = rightJoinCache.find(afterJoinKey);
+				final Map<String, Map<String, Object>> rightKeyCache = Optional.ofNullable(rightJoinCache.find(afterJoinKey)).orElse(new HashMap<>());
 				if (MapUtils.isEmpty(beforeRightRow) && rightKeyCache.containsKey(beforeRightKey)) {
 					beforeRightRow = rightKeyCache.get(beforeRightKey);
 					beforeRightKey = project(beforeRightRow, rightPrimaryKeys);
@@ -575,7 +575,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		String joinKey = StringUtils.isNotBlank(afterJoinKey) ? afterJoinKey : beforeJoinKey;
 
 		if (leftJoinCache.exists(joinKey)) {
-			final Map<String, Map<String, Object>> leftKeyCache = leftJoinCache.find(joinKey);
+			final Map<String, Map<String, Object>> leftKeyCache = Optional.ofNullable(leftJoinCache.find(joinKey)).orElse(new HashMap<>());
 			joinResults = new ArrayList<>(leftKeyCache.size());
 			for (Map<String, Object> beforeLeftRow : leftKeyCache.values()) {
 

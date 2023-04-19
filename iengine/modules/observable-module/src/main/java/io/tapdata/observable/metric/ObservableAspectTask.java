@@ -79,6 +79,13 @@ public class ObservableAspectTask extends AspectTask {
 				handler.close();
 			}
 		}
+
+		if (null != dataNodeSampleHandlers) {
+			for (DataNodeSampleHandler handler : dataNodeSampleHandlers.values()) {
+				handler.close();
+			}
+		}
+
 		taskSampleHandler.close();
 	}
 
