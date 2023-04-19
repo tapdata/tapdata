@@ -10,6 +10,7 @@ public class CalculationEngineVo {
     private String ProcessId;
     private String filter;
     private ArrayList<BasicDBObject> threadLog;
-    private Integer available;
+    private int available;
     private boolean manually;
+    private int taskAvailable;
 }

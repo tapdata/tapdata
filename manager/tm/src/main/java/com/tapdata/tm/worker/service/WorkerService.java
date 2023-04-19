@@ -285,7 +285,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
      */
     public CalculationEngineVo scheduleTaskToEngine(SchedulableDto entity, UserDetail userDetail, String type, String name) throws BizException {
 
-        CalculationEngineVo calculationEngineVo = calculationEngine(entity, userDetail);
+        CalculationEngineVo calculationEngineVo = calculationEngine(entity, userDetail, type);
         String processId = calculationEngineVo.getProcessId();
         String filter = calculationEngineVo.getFilter();
         ArrayList<BasicDBObject> threadLog = calculationEngineVo.getThreadLog();
@@ -307,7 +307,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         return calculationEngineVo;
     }
 
-    private CalculationEngineVo calculationEngine(SchedulableDto entity, UserDetail userDetail) {
+    private CalculationEngineVo calculationEngine(SchedulableDto entity, UserDetail userDetail, String type) {
         CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
         String filter;
         int availableNum;
@@ -328,24 +328,28 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                     .and("isDeleted").ne(true)
                     .and("stopping").ne(true)
                     .and("process_id").is(agentId);
-            Worker worker = repository.findOne(Query.query(where)).orElse(null);
+            WorkerDto worker = findOne(Query.query(where));
+
+            int num = taskService.runningTaskNum(agentId, userDetail);
             if (Objects.nonNull(worker)) {
-                calculationEngineVo.setProcessId(agentId);
-                calculationEngineVo.setManually(true);
+                if (worker.getLimitTaskNum() > num || !type.equals("task")) {
+                    calculationEngineVo.setProcessId(agentId);
+                    calculationEngineVo.setManually(true);
 
-                calculationEngineVo.setFilter(where.toString());
-                ArrayList<BasicDBObject> threadLog = new ArrayList<>();
-                threadLog.add(new BasicDBObject()
-                        .append("process_id", worker.getProcessId())
-                        .append("weight", worker.getWeight())
-                        .append("running_thread", worker.getRunningThread())
-                );
-                calculationEngineVo.setThreadLog(threadLog);
+                    calculationEngineVo.setFilter(where.toString());
+                    ArrayList<BasicDBObject> threadLog = new ArrayList<>();
+                    threadLog.add(new BasicDBObject()
+                            .append("process_id", worker.getProcessId())
+                            .append("weight", worker.getWeight())
+                            .append("running_thread", worker.getRunningThread())
+                    );
+                    calculationEngineVo.setThreadLog(threadLog);
 
+                    entity.setAgentId(calculationEngineVo.getProcessId());
+                    entity.setScheduleTime(System.currentTimeMillis());
+                    return calculationEngineVo;
+                }
             }
-            entity.setAgentId(calculationEngineVo.getProcessId());
-            entity.setScheduleTime(System.currentTimeMillis());
-            return calculationEngineVo;
         }
         // 53迭代Task上增加了指定Flow Engine的功能 --end
         BasicDBObject thread = new BasicDBObject();
@@ -396,35 +400,44 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             }
 
             Query query = Query.query(where);
-            List<Worker> workers = repository.findAll(query);
+            List<WorkerDto> workers = findAllDto(query, userDetail);
+            int workerNum = 0;
             for (int i = 0; i < workers.size(); i++) {
-                Worker worker = workers.get(i);
+                WorkerDto worker = workers.get(i);
                 if (worker.getWeight() == null) {
                     worker.setWeight(1);
                 }
-                long workNum = taskService.count(Query.query(Criteria.where("agentId").is(worker.getProcessId())
-                        .and("is_deleted").ne(true)
-                        .and("status").is(TaskDto.STATUS_RUNNING)));
+                long num = taskService.runningTaskNum(worker.getProcessId(), userDetail);
+                if (worker.getLimitTaskNum() > num || !type.equals("task")) {
+                    workerNum++;
 
-                worker.setRunningThread((int) workNum);
-                threadLog.add(new BasicDBObject()
-                        .append("process_id", worker.getProcessId())
-                        .append("weight", worker.getWeight())
-                        .append("running_thread", worker.getRunningThread())
-                );
-                float load = (float) (worker.getRunningThread() / worker.getWeight());
-                if (i == 0) {
-                    thread.append("load", load);
-                    thread.append("process_id", worker.getProcessId());
-                } else if (load < (float) thread.get("load")) {
-                    thread.append("load", load);
-                    thread.append("process_id", worker.getProcessId());
+                    worker.setRunningThread((int) num);
+                    threadLog.add(new BasicDBObject()
+                            .append("process_id", worker.getProcessId())
+                            .append("weight", worker.getWeight())
+                            .append("running_thread", worker.getRunningThread())
+                    );
+                    float load = (float) (worker.getRunningThread() / worker.getWeight());
+                    if (i == 0) {
+                        thread.append("load", load);
+                        thread.append("process_id", worker.getProcessId());
+                    } else if (load < (float) thread.get("load")) {
+                        thread.append("load", load);
+                        thread.append("process_id", worker.getProcessId());
+                    }
+                }
+            }
+
+            if (StringUtils.isBlank((String) thread.get("process_id"))) {
+                if (workerNum < workers.size()) {
+                    calculationEngineVo.setTaskAvailable(workerNum);
                 }
             }
 
             filter = where.toString();
             availableNum = workers.size();
         }
+
 
         String processId = (String) thread.get("process_id");
 
@@ -640,5 +653,15 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         updataStatusRequest.setOperation("stop");
         updataStatusRequest.setServer("backend");
         clusterStateService.updateStatus(updataStatusRequest, userDetail);
+    }
+
+
+    public WorkerDto findByProcessId(String processId, UserDetail userDetail, String... fields) {
+        Criteria criteria = Criteria.where("process_id").is(processId);
+        Query query = new Query(criteria);
+        if (fields != null && fields.length != 0) {
+            query.fields().include(fields);
+        }
+        return findOne(query, userDetail);
     }
 }
