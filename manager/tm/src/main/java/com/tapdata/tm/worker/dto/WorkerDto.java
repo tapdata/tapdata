@@ -2,11 +2,14 @@ package com.tapdata.tm.worker.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.base.Splitter;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.Date;
 import java.util.List;
@@ -85,4 +88,40 @@ public class WorkerDto extends BaseDto {
 
     private String gitCommitId;
     private String singletonLock; // 单例锁标记，每次启动都会更新
+
+
+    public int getLimitTaskNum() {
+        if (CollectionUtils.isEmpty(this.getAgentTags())) {
+            return Integer.MAX_VALUE;
+        }
+
+        String limitString = null;
+        for (String agentTag : this.agentTags) {
+            if (agentTag.startsWith("limitScheduleTask")) {
+                limitString = agentTag;
+                break;
+            }
+        }
+
+        if (StringUtils.isBlank(limitString)) {
+            return Integer.MAX_VALUE;
+        }
+
+        List<String> list = Splitter.on(':')
+                .trimResults()
+                .omitEmptyStrings()
+                .splitToList(limitString);
+
+        if (list.size() < 2) {
+            return Integer.MAX_VALUE;
+        }
+
+        int limit = Integer.MAX_VALUE;
+        try {
+            limit = Integer.parseInt(list.get(1));
+        } catch (Exception ignore) {
+        }
+
+        return limit;
+    }
 }

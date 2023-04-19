@@ -4107,4 +4107,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         return deleteSize;
     }
+
+
+    public int runningTaskNum(String processId, UserDetail user) {
+        long workNum = count(Query.query(Criteria.where("agentId").is(processId)
+                .and("is_deleted").ne(true)
+                .and("status").is(TaskDto.STATUS_RUNNING)), user);
+        return (int) workNum;
+    }
 }
