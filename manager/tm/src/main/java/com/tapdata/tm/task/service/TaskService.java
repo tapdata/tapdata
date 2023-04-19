@@ -195,6 +195,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private LockControlService lockControlService;
 
     private TaskUpdateDagService taskUpdateDagService;
+
+    private DateNodeService dateNodeService;
     public TaskService(@NonNull TaskRepository repository) {
         super(repository, TaskDto.class, TaskEntity.class);
     }
@@ -234,6 +236,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         checkTaskName(taskDto.getName(), user, taskDto.getId());
 
         customSqlService.checkCustomSqlTask(taskDto, user);
+        dateNodeService.checkTaskDateNode(taskDto, user);
 
         boolean rename = false;
         if (taskDto.getId() != null) {
@@ -446,6 +449,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
 
         customSqlService.checkCustomSqlTask(taskDto, user);
+        dateNodeService.checkTaskDateNode(taskDto, user);
 
         boolean agentReq = isAgentReq();
         if (!agentReq) {
