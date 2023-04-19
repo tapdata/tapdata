@@ -1,6 +1,7 @@
 package io.tapdata.connector.tencent.db.table;
 
 import io.tapdata.connector.mysql.util.MysqlUtil;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
@@ -11,6 +12,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -23,8 +25,19 @@ public class PartitionTable extends CreateTable {
     private static final String CREATE_TABLE_TEMPLATE = "CREATE TABLE `%s`.`%s` (\n%s) %s `%s`";
     private String partitionKey;
 
-    public PartitionTable partitionKey(String partitionKey) {
-        this.partitionKey = partitionKey;
+    public PartitionTable partitionKey(Object partitionKey) {
+        if ( partitionKey instanceof List){
+            List<?> list = (List<?>) partitionKey;
+            if (list.isEmpty() || null == list.get(0) || !(list.get(0) instanceof String)){
+                this.partitionKey = (String) ((List<?>) partitionKey).get(0);
+            }else {
+                throw new CoreException("Partition table is need shardKey,  Please select a suitable primary key as the shardkey.");
+            }
+        } else if (partitionKey instanceof String){
+            this.partitionKey = (String) partitionKey;
+        } else {
+            throw new CoreException("Partition table is need shardKey,  Please select a suitable primary key as the shardkey.");
+        }
         return this;
     }
 

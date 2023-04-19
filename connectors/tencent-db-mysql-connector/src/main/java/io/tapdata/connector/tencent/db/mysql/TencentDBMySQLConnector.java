@@ -78,7 +78,6 @@ public class TencentDBMySQLConnector extends MysqlConnector {
 
     private MysqlJdbcContext tdSqlJdbcContext;
     private MysqlReader tdSqlReader;
-    private TDSqlWriter tdSqlWriter;
     private MysqlJdbcOneByOneWriter tdSqlJdbcOneByOneWriter;
     private String version;
     private String connectionTimezone;
@@ -141,7 +140,6 @@ public class TencentDBMySQLConnector extends MysqlConnector {
             if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
                 this.connectionTimezone = tdSqlJdbcContext.timezone().substring(3);
             }
-            loader = new TDSqlDiscoverSchema(tdSqlJdbcContext);
         }
         ddlSqlMaker = new MysqlDDLSqlMaker(version);
         initStreamRead(tapConnectionContext);
@@ -173,7 +171,6 @@ public class TencentDBMySQLConnector extends MysqlConnector {
             if (null != tdSqlJdbcContext) {
                 try {
                     this.tdSqlJdbcContext.close();
-                    this.tdSqlJdbcContext = null;
                 } catch (Exception e) {
                     TapLogger.error(TAG, "Release connector failed, error: " + e.getMessage() + "\n" + getStackString(e));
                 }
@@ -246,10 +243,11 @@ public class TencentDBMySQLConnector extends MysqlConnector {
         });
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTimeStr());
         codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
-            if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
-                tapYearValue.getValue().setTimeZone(TimeZone.getTimeZone(ZoneId.of(this.connectionTimezone)));
+            DateTime value = tapYearValue.getValue();
+            if (value != null && value.getTimeZone() == null) {
+                value.setTimeZone(TimeZone.getTimeZone(ZoneId.of(this.connectionTimezone)));
             }
-            return formatTapDateTime(tapYearValue.getValue(), "yyyy");
+            return formatTapDateTime(value, "yyyy");
         });
 
         codecRegistry.registerFromTapValue(TapBooleanValue.class, "tinyint(1)", TapValue::getValue);
@@ -285,15 +283,34 @@ public class TencentDBMySQLConnector extends MysqlConnector {
             offset = timestampToStreamOffset(tapConnectorContext, null);
         }
         //mysqlJdbcContext.execute("/*proxy*/ set binlog_dump_sticky_backend=set_1681181636_1");
-        //DataMap nodeConfig = tapConnectorContext.getNodeConfig();
-        //Object caseSensitive = nodeConfig.get("caseSensitive");
-        //if (null == caseSensitive || "false".equals(caseSensitive)){
-        //    List<String> table = new ArrayList<>();
-        //    for (String t : tables) {
-        //        table.add(t.toLowerCase(Locale.ROOT));
-        //    }
-        //    tables = table;
-        //}
+//        DataMap nodeConfig = tapConnectorContext.getConnectionConfig();
+//        Object caseSensitive = nodeConfig.get("caseSensitive");
+//        if (null == caseSensitive || "false".equals(caseSensitive)){
+//            List<String> table = new ArrayList<>();
+//            for (String t : tables) {
+//                table.add(t.toLowerCase(Locale.ROOT));
+//            }
+//            tables.clear();
+//            tables.addAll(table);
+//        }
+
+//        List<String> type = tableTypeMap.get(tapTable.getId());
+//        Object database = tapConnectorContext.getConnectionConfig().get("database");
+//        Object caseSensitive = tapConnectorContext.getConnectionConfig().get("caseSensitive");
+//        if (null == loader){
+//            synchronized (this){
+//                if ( null == loader) {
+//                    loader = new TDSqlDiscoverSchema(tdSqlJdbcContext).caseSensitive(caseSensitive);
+//                }
+//            }
+//        }
+//        if (type == null) {
+//            type = tableTypeMap.computeIfAbsent(tapTable.getId(), id -> {
+//                List<String> list = loader.getAllPartitionKey((String) database, id);
+//                return list;
+//            });
+//        }
+
         try {
             consumer.streamReadStarted();
             if (sourceConsumer == null) {
@@ -357,7 +374,9 @@ public class TencentDBMySQLConnector extends MysqlConnector {
             }
         } finally {
             consumer.streamReadEnded();
-            binlogLock.notifyAll();
+            synchronized (binlogLock){
+                binlogLock.notifyAll();
+            }
             if (null != sourceConsumer && !sourceConsumer.isShutdown()) {
                 sourceConsumer.shutdown();
             }
@@ -372,7 +391,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
         try {
             count = tdSqlJdbcContext.count(tapTable.getName());
         } catch (Exception e) {
-            throw new RuntimeException("Count table " + tapTable.getName() + " error: " + e.getMessage(), e);
+            throw new CoreException("Count table " + tapTable.getName() + " error: " + e.getMessage(), e);
         }
         return count;
     }
@@ -398,6 +417,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
 
     private TapRecordEvent tapRecordWrapper(TapConnectorContext tapConnectorContext, Map<String, Object> before, Map<String, Object> after, TapTable tapTable, String op) {
         TapRecordEvent tapRecordEvent;
+        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         switch (op) {
             case "i":
                 tapRecordEvent = TapSimplify.insertRecordEvent(after, tapTable.getId());
@@ -411,9 +431,25 @@ public class TencentDBMySQLConnector extends MysqlConnector {
             default:
                 throw new IllegalArgumentException("Operation " + op + " not support");
         }
+        nameFieldMap.entrySet().stream().filter(ent -> {
+            TapField value = ent.getValue();
+            return null != value.getDataType() && "YEAR".equals(value.getDataType().toUpperCase(Locale.ROOT));
+        }).forEach(entry -> {
+            warpInteger(after,entry.getKey());
+            warpInteger(before, entry.getKey());
+        });
         tapRecordEvent.setConnector(tapConnectorContext.getSpecification().getId());
         tapRecordEvent.setConnectorVersion(version);
         return tapRecordEvent;
+    }
+
+    private void warpInteger(Map<String, Object> warpMap, String key){
+        if (null != warpMap && !warpMap.isEmpty()) {
+            Object o = warpMap.get(key);
+            if (o instanceof Integer) {
+                warpMap.put(key, "" + o);
+            }
+        }
     }
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws Throwable {
@@ -443,7 +479,7 @@ public class TencentDBMySQLConnector extends MysqlConnector {
             } else {
                 String mysqlVersion = tdSqlJdbcContext.getMysqlVersion();
                 DataMap nodeConfig = tapConnectorContext.getNodeConfig();
-                SqlMaker sqlMaker = CreateTable.sqlMaker((String) nodeConfig.get("tableCreateType"), (String) nodeConfig.get("partitionKey"));
+                SqlMaker sqlMaker = CreateTable.sqlMaker((String) nodeConfig.get("tableCreateType"),  nodeConfig.get("partitionKey"));
                 if (null == tapCreateTableEvent.getTable()) {
                     TapLogger.warn(TAG, "Create table event's tap table is null, will skip it: " + tapCreateTableEvent);
                     return createTableOptions;
@@ -453,58 +489,79 @@ public class TencentDBMySQLConnector extends MysqlConnector {
                     try {
                         tdSqlJdbcContext.execute(createTableSql);
                     } catch (Throwable e) {
-                        throw new Exception("Execute create table failed, sql: " + createTableSql + ", message: " + e.getMessage(), e);
+                        TapLogger.warn(TAG,"Create table failed, message: {}", e.getMessage());
+                        throw new CoreException("Execute create table failed, sql: " + createTableSql + ", message: " + e.getMessage());
                     }
                 }
                 createTableOptions.setTableExists(false);
             }
             return createTableOptions;
         } catch (Throwable t) {
-            throw new Exception("Create table failed, message: " + t.getMessage(), t);
+            TapLogger.warn(TAG,"Create table failed, message: {}", t.getMessage());
+            throw new CoreException("Create table failed, message: " + t.getMessage());
         }
     }
+
     TDSqlDiscoverSchema loader;
-    private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
+    TDSqlWriter tdSqlWriter;
+    private synchronized void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
         List<String> type = tableTypeMap.get(tapTable.getId());
+        Object database = tapConnectorContext.getConnectionConfig().get("database");
+        Object caseSensitive = tapConnectorContext.getConnectionConfig().get("caseSensitive");
+        if (null == loader){
+            synchronized (this){
+                if ( null == loader) {
+                    loader = new TDSqlDiscoverSchema(tdSqlJdbcContext).caseSensitive(caseSensitive);
+                }
+            }
+        }
         if (type == null) {
             type = tableTypeMap.computeIfAbsent(tapTable.getId(), id -> {
-                Object database = tapConnectorContext.getConnectionConfig().get("database");
-                return loader.getAllPartitionKey((String) database, id);
+                List<String> list = loader.getAllPartitionKey((String) database, id);
+                return list;
             });
         }
 
+
         WriteListResult<TapRecordEvent> writeListResult;
         if (type.isEmpty()) {
-            //普通表
-            synchronized (tableType) {
+            synchronized (tableType){
                 tableType.set(TDSqlWriter.NORMAL_TABLE);
             }
-            writeListResult = this.tdSqlWriter.type(TDSqlWriter.NORMAL_TABLE)
-                    .write(tapConnectorContext, tapTable, tapRecordEvents);
+            //普通表
+            writeListResult = tdSqlWriter.type(TDSqlWriter.NORMAL_TABLE).write(tapConnectorContext, tapTable, tapRecordEvents);
         } else {
             //分区表
-            synchronized (tableType) {
+            synchronized (tableType){
                 tableType.set(TDSqlWriter.PARTITION_TABLE);
             }
-            setPartitionInfo(type, tapTable);
-            writeListResult = this.tdSqlWriter
+            //setPartitionInfo(type, tapTable);
+            if (!type.isEmpty()){
+                for (Map.Entry<String, TapField> entry : tapTable.getNameFieldMap().entrySet()) {
+                    if (type.contains(loader.caseSensitive() ? entry.getKey() : entry.getKey().toLowerCase(Locale.ROOT))){
+                        TapField value = entry.getValue();
+                        value.setComment(TDSqlDiscoverSchema.PARTITION_KEY_SINGLE);
+                    }
+                }
+            }
+            writeListResult = tdSqlWriter
                     .type(TDSqlWriter.PARTITION_TABLE)
                     .write(tapConnectorContext, tapTable, tapRecordEvents);
         }
         consumer.accept(writeListResult);
     }
 
-    private TapTable setPartitionInfo(List<String> type, TapTable tapTable) {
-        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-        if (!(null == nameFieldMap || nameFieldMap.isEmpty())) {
-            nameFieldMap.forEach((name, field) -> {
-                field.setComment(null != name && type.contains(name.trim()) ?
-                        TDSqlDiscoverSchema.PARTITION_KEY_SINGLE :
-                        TDSqlDiscoverSchema.PARTITION_KEY_SINGLE_NOT);
-            });
-        }
-        return tapTable;
-    }
+//    private TapTable setPartitionInfo(List<String> type, TapTable tapTable) {
+//        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+//        if (!(null == nameFieldMap || nameFieldMap.isEmpty())) {
+//            nameFieldMap.forEach((name, field) -> {
+//                field.setComment(null != name && type.contains(name.trim()) ?
+//                        TDSqlDiscoverSchema.PARTITION_KEY_SINGLE :
+//                        TDSqlDiscoverSchema.PARTITION_KEY_SINGLE_NOT);
+//            });
+//        }
+//        return tapTable;
+//    }
 
     private void query(TapConnectorContext tapConnectorContext, TapAdvanceFilter tapAdvanceFilter, TapTable tapTable, Consumer<FilterResults> consumer) {
         FilterResults filterResults = new FilterResults();
@@ -568,7 +625,9 @@ public class TencentDBMySQLConnector extends MysqlConnector {
 
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-        MysqlSchemaLoader mysqlSchemaLoader = new TDSqlDiscoverSchema(tdSqlJdbcContext);
+        DataMap nodeConfig = connectionContext.getConnectionConfig();
+        Object caseSensitive = nodeConfig.get("caseSensitive");
+        MysqlSchemaLoader mysqlSchemaLoader = new TDSqlDiscoverSchema(tdSqlJdbcContext).caseSensitive(caseSensitive);
         mysqlSchemaLoader.discoverSchema(tables, consumer, tableSize);
     }
 
@@ -638,7 +697,9 @@ public class TencentDBMySQLConnector extends MysqlConnector {
                             this.onStart(tapConnectionContext);
                         }
                     } else {
-                        tdSqlWriter.selfCheck();
+                        if (null != tdSqlWriter){
+                            tdSqlWriter.selfCheck();
+                        }
                     }
                 }
             } catch (Throwable ignore) {

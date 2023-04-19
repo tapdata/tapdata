@@ -2,7 +2,9 @@ package io.tapdata.connector.tencent.db.core;
 
 import io.tapdata.connector.mysql.writer.MysqlJdbcOneByOneWriter;
 import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
@@ -25,7 +27,7 @@ public class TDSqlJdbcOneByOneWriter extends MysqlJdbcOneByOneWriter {
     public static final String TAG = TDSqlJdbcOneByOneWriter.class.getSimpleName();
     public static final String NORMAL_TABLE = "NORMAL";
     public static final String PARTITION_TABLE = "PARTITION";
-    private AtomicReference<String> tableType = new AtomicReference<>("NORMAL");
+    private AtomicReference<String> tableType = new AtomicReference<String>("NORMAL");
     public TDSqlJdbcOneByOneWriter type(AtomicReference<String> tableType){
         this.tableType = tableType;
         return this;
@@ -86,7 +88,6 @@ public class TDSqlJdbcOneByOneWriter extends MysqlJdbcOneByOneWriter {
         }
         return parameterIndex;
     }
-
 
     protected PreparedStatement getUpdatePreparedStatement(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
         JdbcCache jdbcCache = getJdbcCache();

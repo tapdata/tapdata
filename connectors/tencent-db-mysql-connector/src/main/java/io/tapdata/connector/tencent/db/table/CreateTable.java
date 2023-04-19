@@ -8,7 +8,7 @@ import io.tapdata.connector.mysql.MysqlMaker;
  * @create 2023/4/14 13:39
  **/
 public abstract class CreateTable extends MysqlMaker {
-    public static MysqlMaker sqlMaker(String createType, String partitionKey) {
+    public static MysqlMaker sqlMaker(String createType, Object partitionKey) {
         switch (createType) {
             case "BroadcastTable":
                 return new BroadcastTable();

@@ -19,6 +19,22 @@ public class TDSqlDiscoverSchema extends MysqlSchemaLoader {
     public final static String TAG = TDSqlDiscoverSchema.class.getSimpleName();
     public final static String PARTITION_KEY_SINGLE = "IS_PARTITION_KEY";
     public final static String PARTITION_KEY_SINGLE_NOT = "NOT_PARTITION_KEY";
+    public boolean caseSensitive = false;
+
+    public boolean caseSensitive() {
+        return this.caseSensitive;
+    }
+
+    public TDSqlDiscoverSchema caseSensitive(Object caseSensitive) {
+        if (caseSensitive instanceof Boolean) {
+            this.caseSensitive = (Boolean) caseSensitive;
+        } else if (caseSensitive instanceof String) {
+            this.caseSensitive = Boolean.getBoolean((String) caseSensitive);
+        } else {
+            this.caseSensitive = false;
+        }
+        return this;
+    }
 
     public static final String PARTITION_SQL = "Select PARTITION_EXPRESSION, TABLE_NAME\n" +
             "from information_schema.PARTITIONS\n" +
@@ -45,7 +61,7 @@ public class TDSqlDiscoverSchema extends MysqlSchemaLoader {
         int end = 0;
         while ((end = partitionRegex.indexOf(",", start)) > 0) {
             String key = partitionRegex.substring(start, end).replaceAll("`", "");
-            keys.add(key);
+            keys.add(caseSensitive ? key : key.toLowerCase(Locale.ROOT));
             partitionRegex = partitionRegex.substring(end);
             start = 1;
         }
@@ -94,7 +110,7 @@ public class TDSqlDiscoverSchema extends MysqlSchemaLoader {
                 while (resultSet.next()) {
                     DataMap map = DbKit.getRowFromResultSet(resultSet, columnNames);
                     Object expression = map.get("PARTITION_EXPRESSION");
-                    if (null != expression && tableName.equals(map.get("TABLE_NAME"))) {
+                    if (null != expression && (caseSensitive ? tableName : tableName.toLowerCase(Locale.ROOT)).equals(map.get("TABLE_NAME"))) {
                         List<String> list = fullPartitionKey((String) expression);
                         if (!list.isEmpty()) {
                             keys.addAll(list);
@@ -106,6 +122,10 @@ public class TDSqlDiscoverSchema extends MysqlSchemaLoader {
             TapLogger.error(TAG, "Execute queryAllColumns partition failed, error: " + e.getMessage(), e);
         }
         return keys;
+    }
+
+    public MysqlJdbcContext mysqlJdbcContext() {
+        return mysqlJdbcContext;
     }
 
     protected List<DataMap> queryAllColumns(String database, String tableNames) {
@@ -134,11 +154,11 @@ public class TDSqlDiscoverSchema extends MysqlSchemaLoader {
                 while (resultSet.next()) {
                     DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
                     String tableName = (String) dataMap.get("TABLE_NAME");
-                    String partitionName = partitionMap.get(tableName);
+                    String partitionName = partitionMap.get((caseSensitive ? tableName : tableName.toLowerCase(Locale.ROOT)));
                     if (Objects.nonNull(partitionName)) {
                         List<String> partitionNameArr = fullPartitionKey(partitionName);
                         String columnName = dataMap.getString("COLUMN_NAME");
-                        dataMap.put("IS_PARTITION_EXPRESSION", partitionNameArr.contains(columnName));
+                        dataMap.put("IS_PARTITION_EXPRESSION", partitionNameArr.contains(null == columnName ? columnName : (caseSensitive ? columnName : columnName.toLowerCase(Locale.ROOT))));
                     } else {
                         dataMap.put("IS_PARTITION_EXPRESSION", false);
                     }

@@ -94,13 +94,13 @@ public class MysqlReader implements Closeable {
 	protected MysqlJdbcContext mysqlJdbcContext;
 	private EmbeddedEngine embeddedEngine;
 	private LinkedBlockingQueue<MysqlStreamEvent> eventQueue;
-	private StreamReadConsumer streamReadConsumer;
+	protected StreamReadConsumer streamReadConsumer;
 	private ScheduledExecutorService mysqlSchemaHistoryMonitor;
 	private KVReadOnlyMap<TapTable> tapTableMap;
 	private DDLParserType ddlParserType = DDLParserType.MYSQL_CCJ_SQL_PARSER;
 	private final int MIN_BATCH_SIZE = 1000;
 	private String DB_TIME_ZONE;
-	private AtomicReference<Throwable> throwableAtomicReference = new AtomicReference<>();
+	protected AtomicReference<Throwable> throwableAtomicReference = new AtomicReference<>();
 
 
 	public MysqlReader(MysqlJdbcContext mysqlJdbcContext) {
@@ -467,7 +467,7 @@ public class MysqlReader implements Closeable {
 		Optional.ofNullable(mysqlSchemaHistoryMonitor).ifPresent(ExecutorService::shutdownNow);
 	}
 
-	private void sourceRecordConsumer(SourceRecord record) {
+	protected void sourceRecordConsumer(SourceRecord record) {
 		if (null != throwableAtomicReference.get()) {
 			throw new RuntimeException(throwableAtomicReference.get());
 		}
@@ -497,7 +497,7 @@ public class MysqlReader implements Closeable {
 		}
 	}
 
-	private MysqlStreamEvent wrapDML(SourceRecord record) {
+	protected MysqlStreamEvent wrapDML(SourceRecord record) {
 		TapRecordEvent tapRecordEvent = null;
 		MysqlStreamEvent mysqlStreamEvent;
 		Schema valueSchema = record.valueSchema();
@@ -556,7 +556,7 @@ public class MysqlReader implements Closeable {
 		return mysqlStreamEvent;
 	}
 
-	private List<MysqlStreamEvent> wrapDDL(SourceRecord record) {
+	protected List<MysqlStreamEvent> wrapDDL(SourceRecord record) {
 		List<MysqlStreamEvent> mysqlStreamEvents = new ArrayList<>();
 		Object value = record.value();
 		if (!(value instanceof Struct)) {
@@ -661,7 +661,7 @@ public class MysqlReader implements Closeable {
 		return value;
 	}
 
-	private MysqlStreamOffset getMysqlStreamOffset(SourceRecord record) {
+	protected MysqlStreamOffset getMysqlStreamOffset(SourceRecord record) {
 		MysqlStreamOffset mysqlStreamOffset = new MysqlStreamOffset();
 		Map<String, Object> partition = (Map<String, Object>) record.sourcePartition();
 		Map<String, Object> offset = (Map<String, Object>) record.sourceOffset();

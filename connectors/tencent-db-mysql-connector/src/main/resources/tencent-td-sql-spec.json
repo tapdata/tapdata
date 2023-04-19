@@ -38,7 +38,7 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_host",
-          "x-index": 1,
+          "x-index": 10,
           "required": true
         },
         "port": {
@@ -47,7 +47,7 @@
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
           "apiServerKey": "database_port",
-          "x-index": 2,
+          "x-index": 20,
           "required": true
         },
         "database": {
@@ -56,7 +56,7 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_name",
-          "x-index": 3,
+          "x-index": 30,
           "required": true
         },
         "username": {
@@ -65,7 +65,7 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_username",
-          "x-index": 4,
+          "x-index": 40,
           "required": true
         },
         "password": {
@@ -74,7 +74,28 @@
           "x-decorator": "FormItem",
           "x-component": "Password",
           "apiServerKey": "database_password",
-          "x-index": 5
+          "x-index": 50
+        },
+        "caseSensitive":{
+          "type": "boolean",
+          "default": false,
+          "title": "${isCaseSensitive}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "enum": [
+            {
+              "label": "${lower_case_table_names_not}",
+              "value": true
+            },
+            {
+              "label": "${lower_case_table_names_is}",
+              "value": false
+            }
+          ],
+          "x-index": 55,
+          "x-decorator-props": {
+            "tooltip": "${case_sensitive_tip}"
+          }
         },
         "addtionalString": {
           "type": "string",
@@ -82,7 +103,7 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "additionalString",
-          "x-index": 6
+          "x-index": 60
         },
         "timezone": {
           "type": "string",
@@ -90,7 +111,7 @@
           "default": "",
           "x-decorator": "FormItem",
           "x-component": "Select",
-          "x-index": 7,
+          "x-index": 70,
           "enum": [
             {
               "label": "Database Timezone",
@@ -243,7 +264,8 @@
           "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
           "x-decorator": "FormItem",
           "x-decorator-props": {
-            "wrapperWidth": 300
+            "wrapperWidth": 300,
+            "tooltip": "${partition_key_tip}"
           },
           "x-component": "FieldSelect",
           "x-component-props": {
@@ -252,7 +274,7 @@
             "filterable": true
           },
           "x-reactions": [
-            "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+            "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0], 'isPrimaryKey')}}",
             {
               "dependencies": [
                 "nodeConfig.tableCreateType"
@@ -268,14 +290,6 @@
               }
             }
           ]
-        },
-        "caseSensitive": {
-          "type": "boolean",
-          "title": "${isCaseSensitive}",
-          "x-decorator": "FormItem",
-          "x-component": "Switch",
-          "default": false,
-          "x-index": 30
         }
       }
     }
@@ -294,9 +308,13 @@
       "create_table_type": " Table creation type when table does not exist ",
       "partition_key": "Partition key",
       "Single_Table": " Single Table ",
+      "partition_key_tip": "The sharding key must be a primary key index or a unique key index. For detailed sharding key requirements, please refer to: https://cloud.tencent.com/document/product/557/8767 ",
       "Partition_Table": " Partition Table ",
       "Broadcast_Table": " Broadcast Table ",
-      "isCaseSensitive":" Is case sensitive "
+      "isCaseSensitive":" Table name case sensitive ",
+      "lower_case_table_names_not": "Sensitive (lower_case_table_names = 0)",
+      "lower_case_table_names_is": "Insensitive (lower_case_table_names = 1)",
+      "case_sensitive_tip": "This parameter is the initialization parameter for creating a new distributed database instance of TD-SQL MySQL version"
     },
     "zh_CN": {
       "host": "地址",
@@ -308,11 +326,15 @@
       "timezone": "时区",
       "doc": "docs/tencent_db_mysql_zh_CN.md",
       "create_table_type": "表不存在时的建表类型",
+      "partition_key_tip": "分片键必须为主键索引或者 unique key 索引，详细的分片键要求请查看：https://cloud.tencent.com/document/product/557/8767 ",
       "partition_key": "分片键",
       "Single_Table": "单表",
       "Partition_Table": "分区表",
       "Broadcast_Table": "广播表",
-      "isCaseSensitive":"是否大小写敏感"
+      "isCaseSensitive":"表名大小写敏感",
+      "lower_case_table_names_not": "敏感（lower_case_table_names = 0）",
+      "lower_case_table_names_is": "不敏感（lower_case_table_names = 1）",
+      "case_sensitive_tip": "该参数为新建分布式数据库 TD-SQL MySQL 版实例的初始化参数"
     },
     "zh_TW": {
       "host": "地址",
@@ -324,11 +346,15 @@
       "timezone": "時區",
       "doc": "docs/tencent_db_mysql_zh_TW.md",
       "create_table_type": " 錶不存在時的建錶類型 ",
+      "partition_key_tip": "分片鍵必須為主鍵索引或者unique key索引，詳細的分片鍵要求請查看：https://cloud.tencent.com/document/product/557/8767 ",
       "partition_key": "分片鍵",
       "Single_Table": "單表",
       "Partition_Table": "分區表",
       "Broadcast_Table": "廣播表",
-      "isCaseSensitive":" 是否大小寫敏感 "
+      "isCaseSensitive":"錶名大小寫敏感",
+      "lower_case_table_names_not": "敏感（lower_case_table_names = 0）",
+      "lower_case_table_names_is": "不敏感（lower_case_table_names = 1）",
+      "case_sensitive_tip": "該參數為新建分佈式數據庫TD-SQL MySQL版實例的初始化參數"
     }
   },
   "dataTypes": {

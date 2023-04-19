@@ -2,15 +2,25 @@ package io.tapdata.connector.tencent.db.core;
 
 import io.tapdata.connector.mysql.MysqlReader;
 import io.tapdata.connector.mysql.entity.MysqlBinlogPosition;
+import io.tapdata.connector.mysql.entity.MysqlStreamEvent;
 import io.tapdata.connector.mysql.entity.MysqlStreamOffset;
 import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
+import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.cache.KVMap;
+import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.source.SourceRecord;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 import static io.tapdata.base.ConnectorBase.entry;
 import static io.tapdata.base.ConnectorBase.map;
@@ -78,5 +88,65 @@ public class TDSqlReader extends MysqlReader {
         //mysqlStreamOffset.setName(serverName);
         //mysqlStreamOffset.setOffset();
         return mysqlStreamOffset;
+    }
+
+    @Override
+    protected void sourceRecordConsumer(SourceRecord record) {
+        if (null != throwableAtomicReference.get()) {
+            throw new RuntimeException(throwableAtomicReference.get());
+        }
+        if (null == record || null == record.value()) return;
+        Schema valueSchema = record.valueSchema();
+        List<MysqlStreamEvent> mysqlStreamEvents = new ArrayList<>();
+        if (null != valueSchema.field("op")) {
+            MysqlStreamEvent mysqlStreamEvent = wrapDML(record);
+            Optional.ofNullable(mysqlStreamEvent).ifPresent(mysqlStreamEvents::add);
+        } else if (null != valueSchema.field("ddl")) {
+            mysqlStreamEvents = wrapDDL(record);
+        } else if ("io.debezium.connector.common.Heartbeat".equals(valueSchema.name())) {
+            Optional.ofNullable((Struct) record.value())
+                    .map(value -> value.getInt64("ts_ms"))
+                    .map(TapSimplify::heartbeatEvent)
+                    .map(heartbeatEvent -> new MysqlStreamEvent(heartbeatEvent, getMysqlStreamOffset(record)))
+                    .ifPresent(mysqlStreamEvents::add);
+        }
+        if (CollectionUtils.isNotEmpty(mysqlStreamEvents)) {
+            List<TapEvent> tapEvents = new ArrayList<>();
+            MysqlStreamOffset mysqlStreamOffset = null;
+            KVReadOnlyMap<TapTable> tableMap = ((TapConnectorContext) mysqlJdbcContext.getTapConnectionContext()).getTableMap();
+            for (MysqlStreamEvent mysqlStreamEvent : mysqlStreamEvents) {
+                TapEvent tapEvent = mysqlStreamEvent.getTapEvent();
+                if (tapEvent instanceof TapInsertRecordEvent) {
+                    Map<String, Object> after = ((TapInsertRecordEvent) tapEvent).getAfter();
+                    TapTable tapTable = tableMap.get(((TapInsertRecordEvent) tapEvent).getTableId());
+                    LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+                    nameFieldMap.entrySet().stream().filter(ent -> {
+                        TapField value = ent.getValue();
+                        return null != value.getDataType() && "YEAR".equals(value.getDataType().toUpperCase(Locale.ROOT));
+                    }).forEach(entry -> {
+                        Object o = after.get(entry.getKey());
+                        if (o instanceof Integer){
+                            after.put(entry.getKey(), "" + o);
+                        }
+                    });
+                } else if (tapEvent instanceof TapUpdateRecordEvent) {
+                    Map<String, Object> after = ((TapUpdateRecordEvent) tapEvent).getAfter();
+                    TapTable tapTable = tableMap.get(((TapUpdateRecordEvent) tapEvent).getTableId());
+                    LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+                    nameFieldMap.entrySet().stream().filter(ent -> {
+                        TapField value = ent.getValue();
+                        return null != value.getDataType() && "YEAR".equals(value.getDataType().toUpperCase(Locale.ROOT));
+                    }).forEach(entry -> {
+                        Object o = after.get(entry.getKey());
+                        if (o instanceof Integer){
+                            after.put(entry.getKey(), "" + o);
+                        }
+                    });
+                }
+                tapEvents.add(tapEvent);
+                mysqlStreamOffset = mysqlStreamEvent.getMysqlStreamOffset();
+            }
+            streamReadConsumer.accept(tapEvents, mysqlStreamOffset);
+        }
     }
 }

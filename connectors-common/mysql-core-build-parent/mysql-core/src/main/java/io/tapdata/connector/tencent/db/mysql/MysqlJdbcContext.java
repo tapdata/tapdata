@@ -318,7 +318,7 @@ public class MysqlJdbcContext implements AutoCloseable {
 
 	public String getServerId() throws Throwable {
 		AtomicReference<String> serverId = new AtomicReference<>();
-		query("SHOW VARIABLES LIKE 'SERVER_ID'", rs -> {
+		query(sqlPrefix() + "SHOW VARIABLES LIKE 'SERVER_ID'", rs -> {
 			if (rs.next()) {
 				serverId.set(rs.getString("Value"));
 			}
