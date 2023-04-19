@@ -421,7 +421,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                     if (i == 0) {
                         thread.append("load", load);
                         thread.append("process_id", worker.getProcessId());
-                    } else if (load < (float) thread.get("load")) {
+                    } else if (thread.get("load") != null && load < (float) thread.get("load")) {
                         thread.append("load", load);
                         thread.append("process_id", worker.getProcessId());
                     }
