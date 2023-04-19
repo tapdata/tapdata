@@ -2,13 +2,9 @@ package io.tapdata.mongodb.net.dao;
 
 import com.mongodb.client.result.DeleteResult;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.modules.api.net.entity.NodeRegistry;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.mongodb.annotation.MongoDAO;
-import io.tapdata.mongodb.dao.AbstractMongoDAO;
-import io.tapdata.mongodb.entity.IdEntity;
 import io.tapdata.mongodb.entity.NodeRegistryEntity;
-import io.tapdata.mongodb.entity.ProxySubscriptionEntity;
 import org.bson.Document;
 
 import static io.tapdata.mongodb.entity.ToDocument.FIELD_ID;

@@ -39,11 +39,18 @@ public class DateUtil {
 		if (millSeconds == null || millSeconds.isEmpty() || millSeconds.equals("null")) {
 			return "";
 		}
+		return timeStamp2Date(Long.parseLong(millSeconds), format);
+	}
+
+	/**
+	 * timeStamp2Date 时间戳转日期
+	 */
+	public static String timeStamp2Date(long millSeconds, String format) {
 		if (format == null || format.isEmpty()) {
 			format = "yyyy-MM-dd HH:mm:ss";
 		}
 		SimpleDateFormat sdf = new SimpleDateFormat(format);
-		return sdf.format(new Date(Long.valueOf(millSeconds)));
+		return sdf.format(new Date(millSeconds));
 	}
 
 	public static Instant string2Instant(ZoneId zoneId, String dateString) {
