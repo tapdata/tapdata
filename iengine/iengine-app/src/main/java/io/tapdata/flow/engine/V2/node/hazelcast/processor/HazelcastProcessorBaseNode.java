@@ -7,6 +7,7 @@ import io.tapdata.aspect.ProcessorNodeProcessAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.commons.collections4.CollectionUtils;
@@ -87,7 +88,11 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 					});
 				});
 			} catch (Throwable throwable) {
-				throw new TapEventException(TaskProcessorExCode_11.UNKNOWN_ERROR, throwable).addEvent(tapdataEvent.getTapEvent());
+				if (throwable instanceof TapCodeException) {
+					throw (TapCodeException) throwable;
+				} else {
+					throw new TapEventException(TaskProcessorExCode_11.UNKNOWN_ERROR, throwable).addEvent(tapdataEvent.getTapEvent());
+				}
 			}
 
 			if (CollectionUtils.isNotEmpty(processedEventList)) {
