@@ -574,26 +574,6 @@
               }
             }
           ]
-        },
-        "lineEnd": {
-          "type": "string",
-          "title": "${lineEnd}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "lineEnd",
-          "x-index": 17,
-          "required": true,
-          "default": "\\n",
-          "x-reactions": [
-            {
-              "dependencies": ["$inputs"],
-              "fulfill": {
-                "state": {
-                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
-                }
-              }
-            }
-          ]
         }
       }
     }
