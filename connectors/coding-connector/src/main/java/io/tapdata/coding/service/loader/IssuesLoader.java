@@ -427,9 +427,9 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             TapLogger.warn(TAG, "offsetState is Empty or not Exist. Stop to stream read.");
             return;
         }
-        String currentTable = tableList.get(0);
+        //String currentTable = tableList.get(0);
         consumer.streamReadStarted();
-        long current = tableUpdateTimeMap.get(currentTable);
+        long current = tableUpdateTimeMap.get(TABLE_NAME);
         Long last = Long.MAX_VALUE;
         this.read(current, last, recordSize, codingOffset, consumer, true);
     }
@@ -729,13 +729,13 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             Long readStartTime,
             Long readEndTime,
             int readSize,
-            Object offsetState,
+            CodingOffset offsetState,
             BiConsumer<List<TapEvent>, Object> consumer,
             boolean isStreamRead) {
-        if (Checker.isEmpty(offsetState)) {
-            offsetState = new CodingOffset();
-        }
-        CodingOffset offset = (CodingOffset) offsetState;
+        //if (Checker.isEmpty(offsetState)) {
+        //    offsetState = new CodingOffset();
+        //}
+        //CodingOffset offset = (CodingOffset) offsetState;
         long readStart = System.currentTimeMillis();
         if (isStreamRead) {
             TapLogger.info(TAG, "Stream read is starting at {}. Everything be ready.", longToDateTimeStr(readStart));
@@ -819,11 +819,10 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                         }
                         lastTimeSplitIssueCode.add(issueDetailHash);
                     }
-                    if (Checker.isEmpty(offsetState)) {
-                        offsetState = new CodingOffset();
-                    }
-                    ((CodingOffset) offsetState).getTableUpdateTimeMap().put(TABLE_NAME, referenceTime);
-
+                    //if (Checker.isEmpty(offsetState)) {
+                    //    offsetState = new CodingOffset();
+                    //}
+                    offsetState.getTableUpdateTimeMap().put(TABLE_NAME, referenceTime);
                     if (events[0].size() == readSize) {
                         consumer.accept(events[0], offsetState);
                         events[0] = new ArrayList<>();
@@ -832,7 +831,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             }
         } while (currentQueryCount >= batchReadPageSize && !stopRead.get());
         if (!events[0].isEmpty()) {
-            consumer.accept(events[0], offset);
+            consumer.accept(events[0], offsetState);
         }
         long readEnd = System.currentTimeMillis();
         if (isStreamRead) {
