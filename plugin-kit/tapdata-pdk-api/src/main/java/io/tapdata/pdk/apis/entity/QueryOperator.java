@@ -2,6 +2,9 @@ package io.tapdata.pdk.apis.entity;
 
 import java.io.Serializable;
 
+import static io.tapdata.entity.simplify.TapSimplify.entry;
+import static io.tapdata.entity.simplify.TapSimplify.map;
+
 public class QueryOperator implements Serializable {
     public static final int GT = 1;
     public static final int GTE = 2;
@@ -89,9 +92,13 @@ public class QueryOperator implements Serializable {
         if(value instanceof Number) {
             sb.append(value);
         } else {
-            sb.append("'").append(value.toString()).append("'");
+            sb.append("'").append(value).append("'");
         }
         return sb.toString();
     }
 
+    public static void main(String[] args) {
+        QueryOperator queryOperator = new QueryOperator("a", map(entry("aa", "aa")), LT);
+        System.out.println(queryOperator);
+    }
 }
