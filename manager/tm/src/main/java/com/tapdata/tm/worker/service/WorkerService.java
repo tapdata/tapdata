@@ -318,7 +318,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         if ((userDetail.getUserId() == null || userDetail.getUserId().equals("")) && isCloud) {
             throw new BizException("NotFoundUserId");
         }
-        Long findTime = 0L;
+        Long findTime = System.currentTimeMillis() - Long.parseLong((String) jobHeartTimeout) * 1000L;
 
         // 53迭代Task上增加了指定Flow Engine的功能 --start
         String agentId = entity.getAgentId();
