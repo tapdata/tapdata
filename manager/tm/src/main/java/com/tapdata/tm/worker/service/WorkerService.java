@@ -418,7 +418,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                             .append("running_thread", worker.getRunningThread())
                     );
                     float load = (float) (worker.getRunningThread() / worker.getWeight());
-                    if (i == 0) {
+                    if (i == 0 && thread.get("load") == null) {
                         thread.append("load", load);
                         thread.append("process_id", worker.getProcessId());
                     } else if (thread.get("load") != null && load < (float) thread.get("load")) {
