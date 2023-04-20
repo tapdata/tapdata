@@ -318,7 +318,8 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         if ((userDetail.getUserId() == null || userDetail.getUserId().equals("")) && isCloud) {
             throw new BizException("NotFoundUserId");
         }
-        Long findTime = System.currentTimeMillis() - Long.parseLong((String) jobHeartTimeout) * 1000L;
+        //Long findTime = System.currentTimeMillis() - Long.parseLong((String) jobHeartTimeout) * 1000L;
+        Long findTime = 0L;
 
         // 53迭代Task上增加了指定Flow Engine的功能 --start
         String agentId = entity.getAgentId();
@@ -418,7 +419,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                             .append("running_thread", worker.getRunningThread())
                     );
                     float load = (float) (worker.getRunningThread() / worker.getWeight());
-                    if (i == 0 && thread.get("load") == null) {
+                    if (i == 0 || thread.get("load") == null) {
                         thread.append("load", load);
                         thread.append("process_id", worker.getProcessId());
                     } else if (thread.get("load") != null && load < (float) thread.get("load")) {
