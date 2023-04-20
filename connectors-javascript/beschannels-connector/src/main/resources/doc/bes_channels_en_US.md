@@ -3,7 +3,10 @@
     Focusing on the B2B track, helping the B2B marketing department obtain more leads, improve lead conversion rates, and deliver more business opportunities for sales
 
 ### As Target
+
 Connect users registered through WeChat QR code scanning with the BesChannels marketing platform to achieve automatic labeling of users by the BesChannels platform.
+
+***more***: [http://wiki.martech-global.com/web/?from_wecom=1#/19/354](http://wiki.martech-global.com/web/?from_wecom=1#/19/354)
 
 #### Create Connection
 
