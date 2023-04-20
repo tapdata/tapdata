@@ -113,12 +113,14 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 			UpdateResult updateResult = clientMongoOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);
 			// 任务状态异常，应该将任务停止
 			if (updateResult.getModifiedCount() == 0) {
-				logger.warn("Send task ping time failed, will stop task");
-				stopTask.get();
+				if (!AppType.init().isCloud()) {
+					logger.warn("Send task ping time failed, will stop task");
+					stopTask.get();
+				}
 			}
 		} catch (Exception e) {
-			logger.warn("Send task ping time failed, will stop task: {}", e.getMessage(), e);
 			if (!AppType.init().isCloud()) {
+				logger.warn("Send task ping time failed, will stop task: {}", e.getMessage(), e);
 				stopTask.get();
 			}
 		}
