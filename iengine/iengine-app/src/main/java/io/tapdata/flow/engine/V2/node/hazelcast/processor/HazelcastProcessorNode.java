@@ -92,7 +92,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		final List<MessageEntity> processedMessages = dataFlowProcessor.process(Collections.singletonList(messageEntity));
 		if (CollectionUtils.isNotEmpty(processedMessages)) {
 			for (MessageEntity processedMessage : processedMessages) {
-				TapdataEvent processedEvent = new TapdataEvent();
+				TapdataEvent processedEvent = (TapdataEvent) tapdataEvent.clone();
 				TapRecordEvent tapRecordEvent = message2TapEvent(processedMessage);
 				if (tapRecordEvent != null) {
 					processedEvent.setTapEvent(tapRecordEvent);
