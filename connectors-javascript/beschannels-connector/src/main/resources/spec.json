@@ -3,7 +3,9 @@
     "name": "BesChannels",
     "icon": "icon/bes-channels.png",
     "doc" : "${doc}",
-    "id": "bes-channels"
+    "id": "bes-channels",
+    "authentication": "Beta",
+    "tags": ["SaaS"]
   },
   "configOptions": {
     "pdkExpansion": [],
