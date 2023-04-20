@@ -102,6 +102,7 @@ public abstract class AbstractCsvRecordWriter extends AbstractFileRecordWriter {
 
     protected CsvFileWriter getCsvFileWriterAndInit(String uniquePath) throws Exception {
         CsvFileWriter csvFileWriter;
+        CsvConfig csvConfig = (CsvConfig) fileConfig;
         if (fileWriterMap.containsKey(uniquePath)) {
             csvFileWriter = (CsvFileWriter) fileWriterMap.get(uniquePath);
             if (csvFileWriter.isClosed()) {
@@ -109,13 +110,17 @@ public abstract class AbstractCsvRecordWriter extends AbstractFileRecordWriter {
                     csvFileWriter.init();
                 } else {
                     csvFileWriter = new CsvFileWriter(storage, getNewCacheFileName(csvFileWriter.getPath()), fileConfig.getFileEncoding());
+                    csvFileWriter.setRule(csvConfig.getSeparator().replaceAll("\\[", "").replaceAll("]", "").charAt(0),
+                            csvConfig.getQuoteChar().charAt(0), csvConfig.getLineEnd());
+                    csvFileWriter.init();
                     fileWriterMap.put(uniquePath, csvFileWriter);
                 }
             }
         } else {
             csvFileWriter = new CsvFileWriter(storage, uniquePath, fileConfig.getFileEncoding());
-            CsvConfig csvConfig = (CsvConfig) fileConfig;
-            csvFileWriter.setRule(csvConfig.getSeparator().charAt(0), csvConfig.getQuoteChar().charAt(0), csvConfig.getLineEnd());
+            csvFileWriter.setRule(csvConfig.getSeparator().replaceAll("\\[", "").replaceAll("]", "").charAt(0),
+                    csvConfig.getQuoteChar().charAt(0), csvConfig.getLineEnd());
+            csvFileWriter.init();
             fileWriterMap.put(uniquePath, csvFileWriter);
         }
         if (!lastWriteMap.containsKey(uniquePath) || EmptyKit.isNull(lastWriteMap.get(uniquePath))) {
