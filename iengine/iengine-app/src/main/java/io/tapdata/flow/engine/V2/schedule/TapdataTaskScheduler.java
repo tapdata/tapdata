@@ -123,7 +123,7 @@ public class TapdataTaskScheduler {
 					TaskClient<TaskDto> subTaskDtoTaskClient = entry.getValue();
 					final TaskDto taskDto = subTaskDtoTaskClient.getTask();
 					String taskId = taskDto.getId().toHexString();
-					Criteria rescheduleCriteria = where("_id").is(taskId).andOperator(where("agentId").ne(instanceNo));
+					Criteria rescheduleCriteria = where("_id").is(taskId).andOperator(where("agentId").ne(instanceNo), where("agentId").ne(null));
 
 					Query query = new Query(rescheduleCriteria);
 					query.fields().include("id").include("status");
