@@ -1,0 +1,362 @@
+{
+	"info": {
+		"_postman_id": "6c3ef639-bae9-4f57-a086-f738c0145099",
+		"name": "HubSpot Apis",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "26626965"
+	},
+	"item": [
+		{
+			"name": "getCompanies",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{access_token}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://api.hubapi.com/crm/v3/objects/companies?sort={{sort}}&limit={{limit}}&{{after}}",
+					"protocol": "https",
+					"host": [
+						"api",
+						"hubapi",
+						"com"
+					],
+					"path": [
+						"crm",
+						"v3",
+						"objects",
+						"companies"
+					],
+					"query": [
+						{
+							"key": "sort",
+							"value": "{{sort}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						},
+						{
+							"key": "page",
+							"value": "{{page}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "getContacts",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{access_token}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://api.hubapi.com/crm/v3/objects/contacts?sort={{sort}}&limit={{limit}}&{{after}}",
+					"protocol": "https",
+					"host": [
+						"api",
+						"hubapi",
+						"com"
+					],
+					"path": [
+						"crm",
+						"v3",
+						"objects",
+						"contacts"
+					],
+					"query": [
+						{
+							"key": "sort",
+							"value": "{{sort}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						},
+						{
+							"key": "page",
+							"value": "{{page}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "getDeals",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{access_token}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://api.hubapi.com/crm/v3/objects/deals?sort={{sort}}&limit={{limit}}&{{after}}",
+					"protocol": "https",
+					"host": [
+						"api",
+						"hubapi",
+						"com"
+					],
+					"path": [
+						"crm",
+						"v3",
+						"objects",
+						"deals"
+					],
+					"query": [
+						{
+							"key": "sort",
+							"value": "{{sort}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						},
+						{
+							"key": "next",
+							"value": "{{next}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "getOwners",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{access_token}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://api.hubapi.com/crm/v3/owners?sort={{sort}}&limit={{limit}}&{{after}}",
+					"protocol": "https",
+					"host": [
+						"api",
+						"hubapi",
+						"com"
+					],
+					"path": [
+						"crm",
+						"v3",
+						"owners"
+					],
+					"query": [
+						{
+							"key": "sort",
+							"value": "{{sort}}"
+						},
+						{
+							"key": "limit",
+							"value": "{{limit}}"
+						},
+						{
+							"key": "next",
+							"value": "{{next}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "accessToken",
+			"protocolProfileBehavior": {
+				"disabledSystemHeaders": {}
+			},
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/x-www-form-urlencoded",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "grant_type",
+							"value": "authorization_code",
+							"type": "text"
+						},
+						{
+							"key": "code",
+							"value": "{{code}}",
+							"type": "text"
+						},
+						{
+							"key": "redirect_uri",
+							"value": "https://redirect.tapdata.io/oauth/complete/hubspot",
+							"type": "text"
+						},
+						{
+							"key": "client_id",
+							"value": "{{client_id}}",
+							"type": "text"
+						},
+						{
+							"key": "client_secret",
+							"value": "{{client_secret}}",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://api.hubapi.com/oauth/v1/token",
+					"protocol": "https",
+					"host": [
+						"api",
+						"hubapi",
+						"com"
+					],
+					"path": [
+						"oauth",
+						"v1",
+						"token"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "refreshAccessToken",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/x-www-form-urlencoded",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "grant_type",
+							"value": "refresh_token",
+							"type": "text"
+						},
+						{
+							"key": "client_id",
+							"value": "{{client_id}}",
+							"type": "text"
+						},
+						{
+							"key": "client_secret",
+							"value": "{{client_secret}}",
+							"type": "text"
+						},
+						{
+							"key": "refresh_token",
+							"value": "{{refresh_token}}",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://api.hubapi.com/oauth/v1/token",
+					"protocol": "https",
+					"host": [
+						"api",
+						"hubapi",
+						"com"
+					],
+					"path": [
+						"oauth",
+						"v1",
+						"token"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "limit",
+			"value": "100",
+			"type": "string"
+		},
+		{
+			"key": "client_id",
+			"value": "0ee7b2fa-1f60-4bf4-878e-d332796afdfc",
+			"type": "string"
+		},
+		{
+			"key": "sort",
+			"value": "updatedAt",
+			"type": "string"
+		},
+		{
+			"key": "client_secret",
+			"value": "6822db21-0521-4b98-9680-239d0febbc87",
+			"type": "string"
+		},
+		{
+			"key": "redirect_uri",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "code",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "26abc25e-fa24-4f80-9ead-85d05d42421f",
+			"type": "string"
+		},
+		{
+			"key": "after",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
