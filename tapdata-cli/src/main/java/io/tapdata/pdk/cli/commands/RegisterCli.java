@@ -23,9 +23,13 @@ import picocli.CommandLine;
 
 import java.io.File;
 import java.io.InputStream;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @CommandLine.Command(
         description = "Push PDK jar file into Tapdata",
@@ -113,7 +117,6 @@ public class RegisterCli extends CommonCli {
                     o.put("pdkAPIBuildNumber", pdkAPIBuildNumber);
 
                     o.put("beta", "beta".equals(specification.getManifest().get("Authentication")));
-
                     String nodeType = null;
                     switch (nodeInfo.getNodeType()) {
                         case TapNodeInfo.NODE_TYPE_SOURCE:

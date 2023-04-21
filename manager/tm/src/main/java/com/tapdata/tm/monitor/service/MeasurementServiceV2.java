@@ -19,20 +19,20 @@ import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
+import com.tapdata.tm.task.bean.TableStatusInfoDto;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.TimeUtil;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.common.sample.request.SampleRequest;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -51,11 +51,16 @@ import java.util.stream.Collectors;
 
 @Service
 @Slf4j
-@Setter(onMethod_ = {@Autowired})
 public class MeasurementServiceV2 {
-    private MongoTemplate mongoOperations;
-    private MetadataInstancesService metadataInstancesService;
-    private TaskService taskService;
+    private final MongoTemplate mongoOperations;
+    private final MetadataInstancesService metadataInstancesService;
+    private final TaskService taskService;
+
+    public MeasurementServiceV2(@Qualifier(value = "obsMongoTemplate") MongoTemplate mongoOperations, MetadataInstancesService metadataInstancesService, TaskService taskService) {
+        this.mongoOperations = mongoOperations;
+        this.metadataInstancesService = metadataInstancesService;
+        this.taskService = taskService;
+    }
 
     public List<MeasurementEntity> find(Query query) {
         return mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
@@ -364,10 +369,6 @@ public class MeasurementServiceV2 {
             }
         }
 
-//        Number snapshotStartAtTemp = null;
-//        if (typeIsTask && MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT.equals(querySample.getType())) {
-//            snapshotStartAtTemp = getSnapshotStartAt(querySample);
-//        }
         for (String hash : data.keySet()) {
             Sample sample = data.get(hash);
 
@@ -378,13 +379,6 @@ public class MeasurementServiceV2 {
                 }
             }
 
-//            Number snapshotRowTotal = values.get("snapshotRowTotal");
-//            Number snapshotInsertRowTotal = values.get("snapshotInsertRowTotal");
-//            if (Objects.nonNull(snapshotRowTotal) && Objects.nonNull(snapshotInsertRowTotal)
-//                    && snapshotInsertRowTotal.longValue() > snapshotRowTotal.longValue()) {
-//                values.put("snapshotRowTotal", snapshotInsertRowTotal);
-//            }
-
             if (typeIsTask && MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT.equals(querySample.getType())) {
                 Number currentEventTimestamp = values.get("currentEventTimestamp");
                 Number snapshotStartAt = values.get("snapshotStartAt");
@@ -394,10 +388,6 @@ public class MeasurementServiceV2 {
                     values.put("replicateLag", maxRep);
                 }
 
-//                Number snapshotDoneAt = values.get("snapshotDoneAt");
-//                if (Objects.nonNull(snapshotDoneAt) && Objects.isNull(snapshotStartAt)) {
-//                    values.put("snapshotStartAt", snapshotStartAtTemp);
-//                }
             }
             sample.setVs(values);
         }
@@ -956,5 +946,37 @@ public class MeasurementServiceV2 {
         query.fields().include("ss", "tags");
         query.with(Sort.by("date").descending());
         return mongoOperations.findOne(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+    }
+
+
+    public void queryTableMeasurement(String taskId, TableStatusInfoDto tableStatusInfoDto) {
+        Criteria criteria = Criteria.where("tags.taskId").is(taskId)
+                .and("grnty").is("minute")
+                .and("tags.type").is("task");
+        Query query = new Query(criteria);
+        query.fields().include("ss", "tags");
+        query.with(Sort.by("last").descending());
+        MeasurementEntity measurementEntity = mongoOperations.findOne(query, MeasurementEntity.class, "AgentMeasurementV2");
+        if (measurementEntity == null) {
+            return;
+        }
+        List<Sample> samples = measurementEntity.getSamples();
+        if (org.apache.commons.collections4.CollectionUtils.isNotEmpty(samples)) {
+            Sample sample = samples.get(0);
+            Long cdcDelayTime = null;
+            Date lastData = null;
+            if (sample.getVs().get("replicateLag") != null) {
+                cdcDelayTime = Long.valueOf(sample.getVs().get("replicateLag").toString());
+            }
+            tableStatusInfoDto.setCdcDelayTime(cdcDelayTime);
+            if (sample.getVs().get("currentEventTimestamp") != null) {
+                long LastDataChangeTime = sample.getVs().get("currentEventTimestamp").longValue();
+                if (LastDataChangeTime != 0) {
+                    lastData = new Date(LastDataChangeTime);
+                }
+            }
+            tableStatusInfoDto.setLastDataChangeTime(lastData);
+        }
+
     }
 }

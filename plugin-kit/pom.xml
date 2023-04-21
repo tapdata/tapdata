@@ -105,7 +105,6 @@
 				<version>${error-code-scanner.version}</version>
 			</dependency>
 		</dependencies>
-
 	</dependencyManagement>
 
     <build>

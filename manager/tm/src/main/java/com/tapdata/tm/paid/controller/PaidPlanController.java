@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 @RequestMapping("/api/paid")
 @Profile("dfs")
+@Deprecated
 public class PaidPlanController extends BaseController {
 
     @Autowired

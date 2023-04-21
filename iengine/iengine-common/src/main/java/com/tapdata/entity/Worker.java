@@ -71,7 +71,8 @@ public class Worker implements Serializable {
 
 	private Map<String, String> platformInfo;
 
-	private boolean isDeleted;
+	private boolean deleted;
+	private Boolean isDeleted;
 
 	private boolean stopping;
 
@@ -212,7 +213,7 @@ public class Worker implements Serializable {
 	}
 
 	public void setDeleted(boolean deleted) {
-		isDeleted = deleted;
+		deleted = deleted;
 	}
 
 	public void setStopping(boolean stopping) {
@@ -220,7 +221,15 @@ public class Worker implements Serializable {
 	}
 
 	public boolean isDeleted() {
+		return deleted;
+	}
+
+	public Boolean getIsDeleted() {
 		return isDeleted;
+	}
+
+	public void setIsDeleted(Boolean deleted) {
+		isDeleted = deleted;
 	}
 
 	public boolean isStopping() {

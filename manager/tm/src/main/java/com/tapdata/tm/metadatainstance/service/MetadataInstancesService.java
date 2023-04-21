@@ -17,16 +17,29 @@ import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DataNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.*;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.process.ProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.SchemaUtils;
+import com.tapdata.tm.commons.schema.TableIndex;
+import com.tapdata.tm.commons.schema.TableIndexColumn;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.*;
+import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
+import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.commons.util.MetaType;
+import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dag.service.DAGService;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -36,7 +49,12 @@ import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.param.ClassificationParam;
 import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
 import com.tapdata.tm.metadatainstance.repository.MetadataInstancesRepository;
-import com.tapdata.tm.metadatainstance.vo.*;
+import com.tapdata.tm.metadatainstance.vo.MetaTableCheckVo;
+import com.tapdata.tm.metadatainstance.vo.MetaTableVo;
+import com.tapdata.tm.metadatainstance.vo.MetadataInstancesVo;
+import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
+import com.tapdata.tm.metadatainstance.vo.TableListVo;
+import com.tapdata.tm.metadatainstance.vo.TableSupportInspectVo;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
@@ -61,18 +79,35 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.aggregation.*;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
+import org.springframework.data.mongodb.core.aggregation.GraphLookupOperation;
+import org.springframework.data.mongodb.core.aggregation.LimitOperation;
+import org.springframework.data.mongodb.core.aggregation.LookupOperation;
+import org.springframework.data.mongodb.core.aggregation.ProjectionOperation;
+import org.springframework.data.mongodb.core.aggregation.SkipOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static com.tapdata.tm.utils.MongoUtils.*;
+import static com.tapdata.tm.utils.MongoUtils.applyField;
+import static com.tapdata.tm.utils.MongoUtils.applySort;
+import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
 /**
  * @Author: Zed
@@ -1144,7 +1179,6 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         List<MetadataInstancesEntity> list = mongoTemplate.find(query, MetadataInstancesEntity.class);
         return list.stream().map(MetadataInstancesEntity::getOriginalName).collect(Collectors.toList());
     }
-
 
     public List<Map<String, String>> tableValues(String connectId, String sourceType) {
         Criteria criteria = Criteria.where("source._id").is(connectId)
