@@ -154,7 +154,7 @@ public class TaskEntity extends BaseEntity {
     private Boolean isAutoInspect = false;
     private Boolean canOpenInspect = false;
 
-    private SkipErrorEventEntity skipErrorEvent;
+    private TaskDto.SkipErrorEvent skipErrorEvent;
 
     /**
      * 计划开始时间

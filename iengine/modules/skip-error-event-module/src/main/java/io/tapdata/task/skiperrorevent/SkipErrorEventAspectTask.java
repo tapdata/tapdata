@@ -4,7 +4,6 @@ import com.alibaba.fastjson.JSON;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.tm.commons.task.dto.SkipErrorEventDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.ErrorCodeConfig;
 import io.tapdata.ErrorCodeEntity;
@@ -28,27 +27,30 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 @AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC}, ignoreErrors = false)
 public class SkipErrorEventAspectTask extends AbstractAspectTask {
     private final static Logger logger = LogManager.getLogger(SkipErrorEventAspectTask.class);
+    // Set a maximum of 10 threads to report status, if delay please check the net work and DB stress
+    private final static ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(10);
     public final static Marker skipEventMaker = MarkerManager.getMarker(SkipErrorEventAppenderAspectHandle.SKIP_ERROR_EVENT_MARKER);
 
     private static final String METRICS_SYNC = "sync";
     private static final String METRICS_SKIP = "skip";
 
     private String taskId;
-    private SkipErrorEventDto skipErrorEvent;
+    private TaskDto.SkipErrorEvent skipErrorEvent;
     private final Map<String, Map<String, AtomicLong>> syncAndSkipMap = new ConcurrentHashMap<>();
 
     private Function<SkipErrorDataAspect, AspectInterceptResult> skipErrorDataNoeAspect = aspect -> null;
     private long lastSkipTimes;
     private long nextPrintTimes;
     private ClientMongoOperator clientMongoOperator;
-    private Thread storeThread;
+    private final AtomicReference<Future<?>> storeFuture = new AtomicReference<>();
 
     public SkipErrorEventAspectTask() {
         interceptHandlers.register(SkipErrorDataAspect.class, this::skipErrorDataNoeAspectHandle);
@@ -106,7 +108,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     }
 
     private boolean checkSkipByLimitMode(long syncCounts, long skipCounts) {
-        switch (skipErrorEvent.getLimitMode()) {
+        switch (skipErrorEvent.getLimitModeEnum()) {
             case SkipByLimit:
                 if (skipErrorEvent.getLimit() >= skipCounts) {
                     return true;
@@ -141,89 +143,91 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
 
     @Override
     public void onStart(TaskStartAspect startAspect) {
-        this.taskId = getTask().getId().toHexString();
-        this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
+        try {
+            this.taskId = getTask().getId().toHexString();
+            this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 
-        synchronized (this) {
-            if (null != storeThread) {
-                storeThread.interrupt();
-            }
-            String storeThreadName = String.format("%s-skipErrorEvent", taskId);
-            storeThread = new Thread(() -> {
-                long lastStoreTimes = System.currentTimeMillis();
-                log.info("Start store runner: {}", storeThreadName);
-                while (!Thread.interrupted()) {
-                    long nowTime = System.currentTimeMillis();
+            synchronized (storeFuture) {
+                stopStoreFuture();
+                AtomicLong lastStoreTimes = new AtomicLong(System.currentTimeMillis());
+                storeFuture.set(EXECUTOR.scheduleWithFixedDelay(() -> {
                     try {
-                        if (lastStoreTimes < lastSkipTimes) {
+                        long nowTime = System.currentTimeMillis();
+                        if (lastStoreTimes.get() < lastSkipTimes) {
+                            Thread.currentThread().setName(String.format("%s-skipErrorEvent", taskId));
                             save2TaskAttrs();
-                            lastStoreTimes = nowTime;
-                        } else {
-                            Thread.sleep(1000);
+                            lastStoreTimes.set(nowTime);
                         }
-                    } catch (InterruptedException ignoreEx) {
-                        break;
                     } catch (Exception e) {
-                        logger.warn("Store skipErrorEvent failed: {}", e.getMessage());
+                        logger.warn("Skip error event store failed: {}", e.getMessage());
                     }
+                }, 0, 5, TimeUnit.SECONDS));
+            }
+
+            Optional.ofNullable(getTask().getAttrs()).map(
+                    attrs -> (Map<String, Map<String, Object>>) attrs.get(TaskDto.ATTRS_SKIP_ERROR_EVENT)
+            ).map(m -> {
+                Map<String, AtomicLong> subMap;
+                for (Map.Entry<String, Map<String, Object>> tabEn : m.entrySet()) {
+                    if (null == tabEn.getKey() || null == tabEn.getValue()) continue;
+                    subMap = new ConcurrentHashMap<>();
+                    for (Map.Entry<String, Object> subEn : tabEn.getValue().entrySet()) {
+                        if (null == subEn.getKey() || null == subEn.getValue()) continue;
+                        if (subEn.getValue() instanceof Integer) {
+                            subMap.put(subEn.getKey(), new AtomicLong((int) subEn.getValue()));
+                        } else if (subEn.getValue() instanceof Long) {
+                            subMap.put(subEn.getKey(), new AtomicLong((int) subEn.getValue()));
+                        }
+                    }
+                    syncAndSkipMap.put(tabEn.getKey(), subMap);
                 }
-                log.info("End store runner: {}", storeThreadName);
+                return null;
             });
-            storeThread.setName(storeThreadName);
-            storeThread.start();
-        }
 
-        Optional.ofNullable(getTask().getAttrs()).map(
-                attrs -> (Map<String, Map<String, Object>>) attrs.get(TaskDto.ATTRS_SKIP_ERROR_EVENT)
-        ).map(m -> {
-            Map<String, AtomicLong> subMap;
-            for (Map.Entry<String, Map<String, Object>> tabEn : m.entrySet()) {
-                if (null == tabEn.getKey() || null == tabEn.getValue()) continue;
-                subMap = new ConcurrentHashMap<>();
-                for (Map.Entry<String, Object> subEn : tabEn.getValue().entrySet()) {
-                    if (null == subEn.getKey() || null == subEn.getValue()) continue;
-                    if (subEn.getValue() instanceof Integer) {
-                        subMap.put(subEn.getKey(), new AtomicLong((int) subEn.getValue()));
-                    } else if (subEn.getValue() instanceof Long) {
-                        subMap.put(subEn.getKey(), new AtomicLong((int) subEn.getValue()));
-                    }
+            this.skipErrorEvent = getTask().getSkipErrorEvent();
+            if (Optional.ofNullable(this.skipErrorEvent).map(vo -> {
+                if (null == vo.getErrorMode()) vo.setErrorMode(TaskDto.SkipErrorEvent.ErrorMode.Disable);
+                if (null == vo.getLimitMode()) vo.setLimitMode(TaskDto.SkipErrorEvent.LimitMode.Disable);
+                if (null == vo.getLimit() || vo.getLimit() < 0) vo.setLimit(0L);
+                if (null == vo.getRate() || vo.getRate() < 0) vo.setRate(0);
+
+                switch (vo.getErrorModeEnum()) {
+                    case SkipTable:
+                        // has one error skip table
+                        vo.setLimitMode(TaskDto.SkipErrorEvent.LimitMode.SkipByLimit);
+                        vo.setLimit(0L);
+                        return true;
+                    case SkipData:
+                        return true;
+                    default:
+                        return false;
                 }
-                syncAndSkipMap.put(tabEn.getKey(), subMap);
+            }).orElse(false)) {
+                this.skipErrorDataNoeAspect = this::skipErrorDataNoeAspectImpl;
             }
-            return null;
-        });
-
-        this.skipErrorEvent = getTask().getSkipErrorEvent();
-        if (Optional.ofNullable(this.skipErrorEvent).map(vo -> {
-            if (null == vo.getErrorMode()) vo.setErrorMode(SkipErrorEventDto.ErrorMode.Disable);
-            if (null == vo.getLimitMode()) vo.setLimitMode(SkipErrorEventDto.LimitMode.Disable);
-            if (null == vo.getLimit() || vo.getLimit() < 0) vo.setLimit(0L);
-            if (null == vo.getRate() || vo.getRate() < 0) vo.setRate(0);
-
-            switch (vo.getErrorMode()) {
-                case SkipTable:
-                    // has one error skip table
-                    vo.setLimitMode(SkipErrorEventDto.LimitMode.SkipByLimit);
-                    vo.setLimit(0L);
-                    return true;
-                case SkipData:
-                    return true;
-                default:
-                    return false;
-            }
-        }).orElse(false)) {
-            this.skipErrorDataNoeAspect = this::skipErrorDataNoeAspectImpl;
+        } catch (Exception e) {
+            log.warn("Skip error event is not enable: {}", e.getMessage(), e);
         }
     }
 
     @Override
     public void onStop(TaskStopAspect stopAspect) {
+        stopStoreFuture();
         super.onStop(stopAspect);
-        synchronized (this) {
-            if (null != storeThread) {
-                storeThread.interrupt();
+    }
+
+    private void stopStoreFuture() {
+        synchronized (storeFuture) {
+            Future<?> future = storeFuture.get();
+            if (null == future) return;
+
+            while (!Thread.interrupted()) {
+                future.cancel(true);
+                if (future.isDone() || future.isCancelled()) {
+                    break;
+                }
             }
-            storeThread = null;
+            storeFuture.set(null);
         }
     }
 
