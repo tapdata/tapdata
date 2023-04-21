@@ -76,9 +76,20 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
                     .and(String.format("attrs.%s.%s", TaskDto.ATTRS_USED_SHARE_CACHE, taskDto.getName())).exists(true);
         } else if (StringUtils.isBlank(request.getType())
                 || RelationTaskRequest.type_shareCache.equals(request.getType())) {
-            Map<String, Set<String>> usedShareCache = (Map<String, Set<String>>)taskDto.getAttrs().get(TaskDto.ATTRS_USED_SHARE_CACHE);
-            if (null == usedShareCache || usedShareCache.isEmpty()) return;
-            Set<String> allCache = usedShareCache.keySet();
+            Set<String> allCache = Optional.ofNullable(taskDto.getAttrs()).map(m -> {
+                Object o = m.get(TaskDto.ATTRS_USED_SHARE_CACHE);
+                if (o instanceof Map && !((Map<?, ?>) o).isEmpty()) {
+                    return (Map) o;
+                }
+                return null;
+            }).map(m -> {
+                Set<String> keys = new HashSet<>();
+                for (Object k : m.keySet()) {
+                    keys.add(String.valueOf(k));
+                }
+                return keys;
+            }).orElse(null);
+            if (null == allCache) return;
 
             cacheCriteria = Criteria.where("is_deleted").is(false)
                     .and("shareCache").is(true)
