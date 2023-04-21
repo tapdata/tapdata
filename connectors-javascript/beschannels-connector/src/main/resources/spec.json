@@ -5,6 +5,7 @@
     "doc" : "${doc}",
     "id": "bes-channels",
     "authentication": "Beta",
+    "group": "io.tapdata",
     "tags": ["SaaS"]
   },
   "configOptions": {
