@@ -317,7 +317,7 @@ public class MysqlMaker implements SqlMaker {
         String comment = tapField.getComment();
         if (StringUtils.isNotBlank(comment)) {
             // try to escape the single quote in comments
-            comment = comment.replace("'", "\\'");
+            comment = comment.replace("'", "\\'").replace("\\", "\\\\");
             fieldSql += " comment '" + comment + "'";
         }
 

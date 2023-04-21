@@ -175,7 +175,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
     private void initTapEventFilter() {
         this.targetTapEventFilter = TargetTapEventFilter.create();
-        this.targetTapEventFilter.addFilter(new DeleteConditionFieldFilter());
+        //this.targetTapEventFilter.addFilter(new DeleteConditionFieldFilter());
     }
 
     @Override

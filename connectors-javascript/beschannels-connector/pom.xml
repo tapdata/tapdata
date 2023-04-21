@@ -1,67 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
     <parent>
+        <artifactId>connectors-javascript</artifactId>
         <groupId>io.tapdata</groupId>
-        <artifactId>connectors</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
-    <artifactId>mysql-connector</artifactId>
-    <name>Mysql Connector</name>
-    <version>1.0-SNAPSHOT</version>
-    <packaging>jar</packaging>
-    <developers>
-        <developer>
-            <name>sam</name>
-            <email>sam@tapdata.io</email>
-        </developer>
-    </developers>
-    <modules>
+    <modelVersion>4.0.0</modelVersion>
 
-    </modules>
+    <artifactId>beschannels-connector</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <name>beschannels-connector</name>
+    <packaging>jar</packaging>
 
     <properties>
-        <java.version>8</java.version>
-        <tapdata.pdk.api.version>1.2.2-SNAPSHOT</tapdata.pdk.api.version>
+        <maven.compiler.source>8</maven.compiler.source>
+        <maven.compiler.target>8</maven.compiler.target>
     </properties>
     <dependencies>
         <dependency>
             <groupId>io.tapdata</groupId>
-            <artifactId>tapdata-pdk-api</artifactId>
-            <version>${tapdata.pdk.api.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.tapdata</groupId>
-            <artifactId>tapdata-api</artifactId>
-            <version>${tapdata.pdk.api.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.tapdata</groupId>
-            <artifactId>read-partition</artifactId>
+            <artifactId>js-connector-core</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
         <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
-			<version>5.8.1</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
             <groupId>io.tapdata</groupId>
-            <artifactId>mysql-core</artifactId>
+            <artifactId>js-core</artifactId>
             <version>1.0-SNAPSHOT</version>
-        </dependency>
-<!--        <dependency>-->
-<!--            <groupId>io.tapdata</groupId>-->
-<!--            <artifactId>class-supervisor</artifactId>-->
-<!--            <version>1.0-SNAPSHOT</version>-->
-<!--        </dependency>-->
-        <dependency>
-            <groupId>io.tapdata</groupId>
-            <artifactId>pdk-error-code</artifactId>
         </dependency>
     </dependencies>
     <build>
@@ -86,7 +52,7 @@
                                 <PDK-API-Version>${tapdata.pdk.api.version}</PDK-API-Version>
                                 <Tapdata-API-Version>${tapdata.pdk.api.version}</Tapdata-API-Version>
                                 <Version>${project.version}</Version>
-                                <Authentication>GA</Authentication>
+                                <Authentication>Alpha</Authentication>
                                 <Git-Build-Time>${git.build.time}</Git-Build-Time>
                                 <Git-Branch>${git.branch}</Git-Branch>
                                 <Git-Commit-Id>${git.commit.id}</Git-Commit-Id>
@@ -116,8 +82,24 @@
                             </filters>
                         </configuration>
                     </execution>
+<!--                    <execution>-->
+<!--                        <phase>package</phase>-->
+<!--                        <goals>-->
+<!--                            <goal>shade</goal>-->
+<!--                        </goals>-->
+<!--                        <configuration>-->
+<!--                            <relocations>-->
+<!--                                <relocation>-->
+<!--                                    <pattern>${basedir}</pattern>-->
+<!--                                    <shadedPattern>_js</shadedPattern>-->
+<!--                                    <includes>-->
+<!--                                        <include>**/*.js</include>-->
+<!--                                    </includes>-->
+<!--                                </relocation>-->
+<!--                            </relocations>-->
+<!--                        </configuration>-->
+<!--                    </execution>-->
                 </executions>
-
             </plugin>
             <plugin>
                 <groupId>pl.project13.maven</groupId>
@@ -152,7 +134,7 @@
                         </goals>
 
                         <configuration>
-                            <outputDirectory>../dist</outputDirectory>
+                            <outputDirectory>../../connectors/dist</outputDirectory>
                             <resources>
                                 <resource>
                                     <directory>${basedir}/target/</directory>
@@ -179,62 +161,23 @@
                     <target>8</target>
                 </configuration>
             </plugin>
-            <!--            <plugin>-->
-            <!--                <groupId>org.apache.maven.plugins</groupId>-->
-            <!--                <artifactId>maven-source-plugin</artifactId>-->
-            <!--                <executions>-->
-            <!--                    <execution>-->
-            <!--                        <id>attach-sources</id>-->
-            <!--                        <goals>-->
-            <!--                            <goal>jar</goal>-->
-            <!--                        </goals>-->
-            <!--                    </execution>-->
-            <!--                </executions>-->
-            <!--            </plugin>-->
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>build-helper-maven-plugin</artifactId>
-                <version>3.2.0</version>
-                <executions>
-                    <execution>
-                        <id>add-source</id>
-                        <phase>generate-sources</phase>
-                        <goals>
-                            <goal>add-source</goal>
-                        </goals>
-                        <configuration>
-                            <sources>
-                                <source>src/main/overwrite/</source>
-                            </sources>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-<!--            <plugin>-->
-<!--                <groupId>org.codehaus.mojo</groupId>-->
-<!--                <artifactId>exec-maven-plugin</artifactId>-->
-<!--                <version>3.0.0</version>-->
-<!--                <executions>-->
-<!--                    <execution>-->
-<!--                        <phase>install</phase>-->
-<!--                        <goals>-->
-<!--                            <goal>exec</goal>-->
-<!--                        </goals>-->
-<!--                    </execution>-->
-<!--                </executions>-->
-<!--                <configuration>-->
-<!--                    <executable>java</executable>-->
-<!--                    <arguments>-->
-<!--                        <argument>-jar</argument>-->
-<!--                        <argument>${basedir}/../../tapdata-cli/target/pdk.jar</argument>-->
-<!--                        <argument>supervisor</argument>-->
-<!--                        <argument>${basedir}/../dist/${project.artifactId}-v${project.version}.jar</argument>-->
-<!--                    </arguments>-->
-<!--                    <environmentVariables>-->
-<!--                        <LANG>en_US</LANG>-->
-<!--                    </environmentVariables>-->
-<!--                </configuration>-->
-<!--            </plugin>-->
+
         </plugins>
+        <resources>
+            <resource>
+                <directory>src/main/javascript</directory>
+                <includes>
+                    <include>**/*.js</include>
+                </includes>
+                <targetPath>./${project.parent.artifactId}/${project.artifactId}/src/main/javascript/</targetPath>
+            </resource>
+            <resource>
+                <directory>${project.basedir}/src/main/resources</directory>
+                <includes>
+                    <include>**/*</include>
+                </includes>
+                <targetPath>./</targetPath>
+            </resource>
+        </resources>
     </build>
 </project>
