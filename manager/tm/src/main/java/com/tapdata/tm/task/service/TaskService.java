@@ -20,6 +20,7 @@ import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.handler.ExceptionHandler;
 import com.tapdata.tm.base.service.BaseService;
+import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.*;
@@ -42,6 +43,7 @@ import com.tapdata.tm.customNode.service.CustomNodeService;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
+import com.tapdata.tm.ds.entity.DataSourceDefinitionEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.file.service.FileService;
@@ -4133,5 +4135,19 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 .and("is_deleted").ne(true)
                 .and("status").is(TaskDto.STATUS_RUNNING)), user);
         return (int) workNum;
+    }
+
+    @Override
+    public TaskEntity convertToEntity(Class entityClass, BaseDto dto, String... ignoreProperties) {
+        if (entityClass == null || dto == null)
+            return null;
+        try {
+            TaskEntity entity = new TaskEntity();
+            BeanUtils.copyProperties(dto, entity, "agentId", "startTime", "lastStartDate");
+            return entity;
+        } catch (Exception e) {
+            log.error("Convert entity " + entityClass + " failed. {}", ThrowableUtils.getStackTraceByPn(e));
+        }
+        return null;
     }
 }
