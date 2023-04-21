@@ -208,6 +208,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 	}
 
 	protected void enterCDCStageFinally() {
+		executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
         // 如果有新增表， 重启connector
         if (null != newTables && !newTables.isEmpty()){
             super.handleNewTables(newTables);
