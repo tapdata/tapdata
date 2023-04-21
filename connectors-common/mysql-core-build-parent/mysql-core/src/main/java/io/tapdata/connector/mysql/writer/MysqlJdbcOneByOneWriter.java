@@ -134,7 +134,7 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 		try {
 			return insertPreparedStatement.executeUpdate();
 		} catch (Throwable e) {
-			throw ExceptionWrapper.wrap(tapConnectorContext, tapTable, tapRecordEvent, e, (ex) -> {
+			throw exceptionWrapper.wrap(tapConnectorContext, tapTable, tapRecordEvent, e, (ex) -> {
 				if (null == ex) {
 					return new RuntimeException(String.format("Insert data failed: %s\n Sql: %s", e.getMessage(), insertPreparedStatement), e);
 				}
@@ -162,7 +162,7 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 		try {
 			return updatePreparedStatement.executeUpdate();
 		} catch (Exception e) {
-			throw ExceptionWrapper.wrap(tapConnectorContext, tapTable, tapRecordEvent, e, (ex) -> {
+			throw exceptionWrapper.wrap(tapConnectorContext, tapTable, tapRecordEvent, e, (ex) -> {
 				if (null == ex) {
 					throw new RuntimeException(String.format("Update data failed: %s\n Sql: %s", e.getMessage(), updatePreparedStatement), e);
 				}
@@ -178,7 +178,12 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 		try {
 			row = deletePreparedStatement.executeUpdate();
 		} catch (Throwable e) {
-			throw new Exception(String.format("Delete data failed: %s\n Sql: %s", e.getMessage(), deletePreparedStatement), e);
+			throw exceptionWrapper.wrap(tapConnectorContext, tapTable, tapRecordEvent, e, (ex) -> {
+				if (null == ex) {
+					throw new RuntimeException(String.format("Delete data failed: %s\n Sql: %s", e.getMessage(), deletePreparedStatement), e);
+				}
+				return ex;
+			});
 		}
 		return row;
 	}
