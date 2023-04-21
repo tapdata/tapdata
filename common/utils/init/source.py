@@ -6,7 +6,7 @@ data_path = os.path.dirname(os.path.abspath(__file__)) + r'\..\..\..\data\init_d
 
 
 # parse datasource from config.yaml
-def get_sources():
+def get_sources(*args: str):
     datasources = {}
     tables = []
     for f in os.listdir(data_path):
@@ -24,9 +24,11 @@ def get_sources():
                 "tables": tables,
                 "config": config,
             }
+    datasources = datasources if not args \
+        else {"qa_" + source: datasources["qa_" + source] for source in args}
     return datasources
 
 
 if __name__ == "__main__":
-    print(json.dumps(get_sources(), indent=4))
+    print(json.dumps(get_sources("dummy", "mysql"), indent=4))
 

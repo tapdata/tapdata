@@ -1,7 +1,7 @@
 {
   "jobs_infos": [
     {
-      "job_name": "",
+      "job_name": "test_dummy_dummy_1681704023194_3778",
       "dag": {
         "node": {
           "source_db_type": "dummy",
@@ -12,39 +12,25 @@
       "table_fields": "100",
       "job_test_res": [
         {
-          "sync_type": "initial_sync",
           "row_num": "100000",
-          "metrics": {}
-        },
-        {
           "sync_type": "initial_sync",
-          "row_num": "300000",
-          "metrics": {}
+          "metrics": {
+            "qps": 19773.676152381584,
+            "sync_time": 3080
+          }
         },
         {
+          "row_num": "300000",
           "sync_type": "initial_sync",
-          "row_num": "500000",
-          "metrics": {}
-        },
-        {
-          "sync_type": "cdc",
-          "row_num": "100000",
-          "metrics": {}
-        },
-        {
-          "sync_type": "cdc",
-          "row_num": "300000",
-          "metrics": {}
-        },
-        {
-          "sync_type": "cdc",
-          "row_num": "500000",
-          "metrics": {}
+          "metrics": {
+            "qps": 32729.269346416502,
+            "sync_time": 9126
+          }
         }
       ]
     },
     {
-      "job_name": "",
+      "job_name": "test_dummy_dummy_1681704023194_3778",
       "dag": {
         "node": {
           "source_db_type": "dummy",
@@ -55,39 +41,25 @@
       "table_fields": "179",
       "job_test_res": [
         {
-          "sync_type": "initial_sync",
           "row_num": "100000",
-          "metrics": {}
-        },
-        {
           "sync_type": "initial_sync",
-          "row_num": "300000",
-          "metrics": {}
+          "metrics": {
+            "qps": 15102.899718082965,
+            "sync_time": 5173
+          }
         },
         {
+          "row_num": "300000",
           "sync_type": "initial_sync",
-          "row_num": "500000",
-          "metrics": {}
-        },
-        {
-          "sync_type": "cdc",
-          "row_num": "100000",
-          "metrics": {}
-        },
-        {
-          "sync_type": "cdc",
-          "row_num": "300000",
-          "metrics": {}
-        },
-        {
-          "sync_type": "cdc",
-          "row_num": "500000",
-          "metrics": {}
+          "metrics": {
+            "qps": 18474.72250320417,
+            "sync_time": 15691
+          }
         }
       ]
     },
     {
-      "job_name": "",
+      "job_name": "test_dummy_dummy_1681704023194_3778",
       "dag": {
         "node": {
           "source_db_type": "dummy",
@@ -98,34 +70,12 @@
       "table_fields": "500",
       "job_test_res": [
         {
-          "sync_type": "initial_sync",
           "row_num": "100000",
-          "metrics": {}
-        },
-        {
           "sync_type": "initial_sync",
-          "row_num": "300000",
-          "metrics": {}
-        },
-        {
-          "sync_type": "initial_sync",
-          "row_num": "500000",
-          "metrics": {}
-        },
-        {
-          "sync_type": "cdc",
-          "row_num": "100000",
-          "metrics": {}
-        },
-        {
-          "sync_type": "cdc",
-          "row_num": "300000",
-          "metrics": {}
-        },
-        {
-          "sync_type": "cdc",
-          "row_num": "500000",
-          "metrics": {}
+          "metrics": {
+            "qps": 6162.176038586177,
+            "sync_time": 14482
+          }
         }
       ]
     }

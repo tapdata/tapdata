@@ -1,16 +1,19 @@
 from typing import Union
-import os, sys, copy
+import os, sys, copy, argparse, inspect, time
 from importlib import import_module
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../../lib")
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../../common")
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../../data/init_data")
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../../test_cases")
 
 init_data_path = os.path.dirname(os.path.abspath(__file__)) + '/../../../data/init_data'
+test_cases_path = os.path.dirname(os.path.abspath(__file__)) + '/../../../test_cases'
+cache_file_path = os.path.dirname(os.path.abspath(__file__)) + '/../../../common/helper/.table_suffix_cache_file'
 
-from factory import newDB
 from helper.suffix import get_test_table, get_suffix
+from tapdata_cli import cli
 from create_datasource import *
 from config_parser import config
 from tapdata_cli.cli import (
@@ -23,32 +26,120 @@ from tapdata_cli.cli import (
 init()
 
 
-def gen_config():
-    return get_sources()
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--case', help="test case file, choose it from test_.* from this path",
+                        default="test_sync")
+    parser.add_argument('--source', help="datasource name, if None, will run dummy", default="dummy")
+    parser.add_argument('--target', help="datasource sink name, if None, will run dummy", default="dummy")
+    parser.add_argument('--processing', help="processing name, if None, No processing nodes will be used", default=None)
+    parser.add_argument('--clean', help="clean cache file", default=False, action='store_true')
+    args = parser.parse_args()
+    return args
+
+
+def clean_cache_file():
+    if parse_args().clean:
+        if os.path.isfile(cache_file_path):
+            os.remove(cache_file_path)
+            return
+        else:
+            logger.info("There is no cached file, a cached file will be created 【.table_suffix_cache_file】", "")
+            return
+
+
+class TestCase:
+
+    _reality_test_case = []
+    _name_l = []
+
+    def __new__(cls, test_case: Union[list, str], *args: str):
+        if isinstance(test_case, list):
+            for pt in test_case:
+                if pt in cls._test_cases_module():
+                    cls._reality_test_case.append(pt)
+        elif isinstance(test_case, str):
+            if test_case in cls._test_cases_module():
+                cls._reality_test_case.append(test_case)
+        cls._reality_test_case = set(cls._reality_test_case)
+        cls._reality_test_case = list(cls._reality_test_case)
+        return super().__new__(cls, *args)
+
+    def __get__(self, instance, owner) -> dict:
+        if self._reality_test_case:
+            for tc in self._reality_test_case:
+                inst = owner()
+                inst.test_case = import_module(tc).test
+                form_parameter = inst.test_case.__code__.co_varnames[0:inst.test_case.__code__.co_argcount]
+                _params_template = dict([(import_module(tc).__name__, form_parameter)])
+                inst.name = import_module(tc).__name__ + get_suffix()
+                cli.job_name = inst.name
+                inst.job_infos["job_name"] = inst.name
+                inst._params_template = _params_template
+                for res in inst:
+                    pass
+                return res
+
+    def __set__(self, instance, value) -> None:
+        mods_params = value.values()
+        instance.gen_params = {}
+        source_params = []  # Reserved multi-table list
+        target_params = []
+        for param in list(mods_params)[0]:
+            if param == "Pipeline":
+                instance.gen_params.update(Pipeline=Pipeline)
+                continue
+            if param.startswith("source"):
+                instance.source_table_name = "%s_%s_%s%s" % (instance.dummy_source_name,
+                                                             list(value)[0], param, get_suffix())
+                exec_param = "%s.%s" % (instance.dummy_source, instance.source_table_name)
+                source_params.append(exec_param)
+                continue
+            if param.startswith("target"):
+                instance.target_table_name = "%s_%s_%s%s" % (instance.dummy_source_name,
+                                                             list(value)[0], param, get_suffix())
+                exec_param = "%s.%s" % (instance.datasource_name_l[-1], instance.target_table_name)
+                target_params.append(exec_param)
+                continue
+        instance.gen_params.update(source=source_params, target=target_params)
+
+    @classmethod
+    def _test_cases_module(cls):
+        test_cases_mod = []
+        for f in os.listdir(test_cases_path):
+            if not f.endswith(".py"):
+                continue
+            test_cases_mod.append(f.split(".")[0])
+        return test_cases_mod
 
 
 class Job:
 
-    _datasource_name = [datasource + get_suffix() for datasource in get_sources()]
+    _args = parse_args()
+    run_test_case = TestCase(_args.case)
+    exec_parameter = []
 
-    def __init__(self, **kwargs: Union[str, list]):
-        self.name = ''
-        self.source = kwargs.get("source", "dummy")
-        self.target = kwargs.get("target", "dummy")
-        self.processing = kwargs.get("processing", None)
+    def __init__(self):
+
+        self.source = self._args.source
+        self.target = self._args.target
+        self.processing = self._args.processing
+        self.dummy_source_name = ''
         self.init_config = self._parse_init_config
         self.field_mod = self._field_module
+        self.datasource_name_l = self._datasource_name
         self.index = 0
         self.datasource_cfg = {
             "name": [name["name"] for name in config],
             "connection_type": [connection_type["connection_type"] for connection_type in config]
         }
+        self.dummy_source = ''
+        self.pipeline_ins = None
         self.cfg = {}
         self.jobs_infos = []
         self.job_test_res = []
-        self.metrics = {}
         self.job_infos = {
-            "job_name": self.name,
+            "job_name": "",
             "dag": {
                 "node": {
                     "source_db_type": self.source,
@@ -59,11 +150,7 @@ class Job:
             "table_fields": 1,
             "job_test_res": self.job_test_res
         }
-        self.test_res = {
-            "sync_type": "",
-            "row_num": 1,
-            "metrics": self.metrics
-        }
+        self.test_res = {}
         self.result = {
             "jobs_infos": self.jobs_infos
         }
@@ -76,24 +163,90 @@ class Job:
             raise StopIteration
         field_mod = import_module(self.field_mod[self.index])
         columns = field_mod.columns
+        self.dummy_source_name = self.datasource_cfg["name"][self.index]
+        self.dummy_source = self.dummy_source_name + get_suffix()
+        self.run_test_case = self._params_template
         self.job_infos = copy.copy(self.job_infos)
         self.job_infos["table_fields"] = str(len(columns))
+        self.job_infos["job_test_res"] = self.job_test_res
+        self.cfg.update({
+            "table_name": self.source_table_name,
+            "table_fields": columns
+        })
         for sync_tp, step_size in self.init_config().items():
             for step in step_size:
-                self.cfg.update({
-                    "initial_totals": step,
-                    "table_fields": columns
-                })
-                self.row_num = step
+                self.Metrics = self._Metrics()
+                if self._args.source == "dummy" and sync_tp == "cdc":
+                    self.cfg.update({
+                        "incremental_interval": 1000,
+                        "incremental_interval_totals": step
+                    })
+                else:
+                    self.cfg.update({
+                        "initial_totals": step,
+                        "incremental_interval": 10000000,
+                        "incremental_interval_totals": 1
+                    })
                 self.test_res = copy.copy(self.test_res)
-                self.test_res.update(row_num=step, sync_type=sync_tp)
-                # self._dummy_source(self.index, self.cfg)
-
+                self.row_num = step
+                self._dummy_source(self.index, self.cfg)  # 后续更改为 _dummy_init_job
+                self.pipeline_ins = self._gen_job()
+                self.continuous_testing(self.pipeline_ins, sync_tp)
+                self.test_res.update(row_num=step, sync_type=sync_tp, metrics=self.Metrics.__dict__)
                 self.job_test_res.append(self.test_res)
-        self.job_test_res = []
         self.jobs_infos.append(self.job_infos)
+        self.job_test_res = []
         self.index += 1
         return self.result
+
+    class _Metrics:
+        pass
+
+    def continuous_testing(self, p, sync_type: str) -> bool:
+        if sync_type == "initial_sync":
+            try:
+                p.job.reset()
+            except AttributeError as e:
+                pass
+            s = time.time()
+            if p.wait_status(["stop", "complete", "wait_start"]):
+                p.start()
+            else:
+                logger.error("Task {} current status is {}, cannot start, skip this scenario...",
+                             p.job.name, p.job.stats())
+                return False
+            logger.info("Job {} starts with {} test ...", p.job.name, sync_type)
+            if p.wait_status("running"):
+                logger.info("wait job start running cost: {} seconds", int(time.time() - s))
+            else:
+                logger.error("wait job running timeout: {} seconds, will skip it", int(time.time() - s))
+
+            qps_metrics = []
+            while True:
+                # status = p.job.status()
+                stats = p.job.stats()
+                if stats.snapshot_start_at:
+                    qps_metrics.append(stats.qps)
+                if stats.snapshot_done_at:
+                    sync_time = stats.snapshot_done_at - stats.snapshot_start_at
+                    p.stop()
+                    break
+            qps = int(sum(qps_metrics) / len(qps_metrics))
+            self._metrics_collect(qps=qps, sync_time=sync_time)  # Pass the metrics you want to add into the method
+
+        logger.info(
+            "job {} finish, status: {},\n" + \
+            "input_stats: insert: {}, update: {}, delete: {}\n" + \
+            "output_stats: insert: {}, update: {}, delete: {}",
+            p.job.name, p.job.status(),
+            stats.input_insert, stats.input_update, stats.input_delete,
+            stats.output_insert, stats.output_update, stats.output_Delete,
+            "notice", "notice", "notice", "info", "info", "info", "info", "info", "info"
+        )
+
+    def _metrics_collect(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self.Metrics, k, v)
 
     @property
     def _field_module(self) -> list:
@@ -104,27 +257,25 @@ class Job:
             field_mod.append(f.split(".")[0])
         return field_mod
 
-    def _dummy_source(self, index: int, config: dict):
-        dummy_source = DataSource("dummy", self.datasource_cfg["name"][index],
-                                  self.datasource_cfg["connection_type"][index])
-        info = dummy_source.get(connector_name=self.datasource_cfg["name"][index])
+    def _dummy_source(self, index: int, config: dict) -> bool:
+        dum_source = DataSource("dummy", self.datasource_cfg["name"][index] + get_suffix(),
+                                self.datasource_cfg["connection_type"][index])
+        info = dum_source.get(connector_name=self.datasource_cfg["name"][index] + get_suffix())
+        dum_source.pdk_setting.update(config)
         if info is not None:
-            dummy_source.pdk_setting.update(config)
-            dummy_source.update_save(info.get('id'))
+            dum_source.update_save(info.get('id'))
             logger.info("Updated dummy data source {} succeeded, with data volume of {}",
-                        self.datasource_cfg["name"][index],
+                        self.datasource_cfg["name"][index] + get_suffix(),
                         self.row_num)
         else:
-            dummy_source.save()
-
-    @property
-    def _create_datasource(self):
-        try:
-            create_datasource()
-        except Exception as e:
-            logger.error("{}", e)
-            return False
+            dum_source.save()
         return True
+
+    # TODO:
+    #  1、源是dummy，目标为包括dummy在内的任意一个数据源：运行以"初始dummy源"为源头的该任务;
+    #  2、源不是dummy，目标为包括dummy在内的任意一个数据源：运行以"初始dummy源"为源头，到任意"非dummy"为目标源的该任务来造数据
+    def _dummy_init_job(self):  # source is not an initialization task that runs on dummy to make data
+        pass
 
     @property
     def _parse_init_config(self):
@@ -149,18 +300,31 @@ class Job:
             return init_config
         return inner
 
-    def _create_job(self):
-        if isinstance(self.source, str):
-            pass
+    def _gen_job(self):
+        p = self.gen_params.get("Pipeline", Pipeline)
+        source = self.gen_params.get("source", "")
+        target = self.gen_params.get("target", "")
+        func_code = inspect.getsource(self.test_case)
+        func_code = func_code + '    return p\n'
+        new_func = {}
+        exec(func_code, {}, new_func)
+        return new_func["test"](p, *source, *target)
 
-
-class TestCases:
-
-    pass
+    @property
+    def _datasource_name(self):
+        try:
+            create_datasource(self._args.source, self._args.target)
+        except Exception as e:
+            logger.error("{}", e)
+            print("-------------------------------------------------")
+            return False
+        else:
+            _datasource_name = [datasource + get_suffix() for datasource in
+                                get_sources(self._args.source, self._args.target)]
+            return _datasource_name
 
 
 if __name__ == '__main__':
+    clean_cache_file()
     j = Job()
-    # for i in j:
-    #     print(i)
-    # print(j._datasource_name)
+    print(j.run_test_case)

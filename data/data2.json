@@ -1,52 +1,934 @@
 {
-  "name": "的",
-  "connection_type": "source_and_target",
-  "loadAllTables": true,
-  "shareCdcEnable": false,
-  "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION",
-  "openTableExcludeFilter": false,
-  "shareCDCExternalStorageId": "64114cafc1df2b65cfb1274a",
-  "schemaUpdateHour": "02:00",
-  "heartbeatEnable": false,
-  "database_type": "Dummy",
-  "pdkHash": "f45ed8744261175abce5f902473472866aa1ffc40cccec0a0d2abceef4a338c2",
-  "status": "testing",
-  "schema": {},
-  "retry": 0,
-  "nextRetry": null,
-  "response_body": {},
-  "project": "",
-  "submit": true,
-  "pdkType": "pdk",
-  "config": {
-    "initial_totals": 10,
-    "incremental_interval": 1000,
-    "incremental_interval_totals": 1,
-    "incremental_types": [
-      1
-    ],
-    "write_interval": 1000,
-    "write_interval_totals": 1,
-    "write_log": false,
-    "table_name": "dummy_test",
-    "table_fields": [
+  "id": "64410868aa880e7c00d40070",
+  "editVersion": "1681994119770",
+  "dag": {
+    "nodes": [
       {
-        "pri": true,
-        "name": "id",
-        "type": "uuid"
+        "tableName": "iiii",
+        "isFilter": false,
+        "increaseReadSize": 500,
+        "maxTransactionDuration": 12,
+        "existDataProcessMode": "keepData",
+        "updateConditionFields": [
+          "id"
+        ],
+        "xmlIncludeFile": false,
+        "esFragmentNum": 3,
+        "cdcPollingInterval": 0,
+        "cdcPollingBatchSize": 0,
+        "enableCustomCommand": false,
+        "connectionId": "642f80bc06e74f4bb59a95db",
+        "databaseType": "Dummy",
+        "initialConcurrent": false,
+        "initialConcurrentWriteNum": 8,
+        "cdcConcurrent": false,
+        "cdcConcurrentWriteNum": 4,
+        "readBatchSize": 500,
+        "writeStrategy": "updateOrInsert",
+        "type": "table",
+        "catalog": "data",
+        "isTransformed": false,
+        "alarmSettings": [
+          {
+            "type": "DATANODE",
+            "open": true,
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "sort": 4,
+            "notify": [
+              "SYSTEM"
+            ],
+            "interval": 300,
+            "unit": "SECOND"
+          }
+        ],
+        "alarmRules": [
+          {
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "point": 12,
+            "equalsFlag": 1,
+            "ms": 5000
+          }
+        ],
+        "id": "c72372a1-ffb1-423e-948d-9e937cffde1b",
+        "name": "iiii",
+        "elementType": "Node",
+        "attrs": {
+          "accessNodeProcessId": "",
+          "capabilities": [
+            {
+              "type": 11,
+              "id": "batch_read_function"
+            },
+            {
+              "type": 11,
+              "id": "stream_read_function"
+            },
+            {
+              "type": 11,
+              "id": "batch_count_function"
+            },
+            {
+              "type": 11,
+              "id": "timestamp_to_stream_offset_function"
+            },
+            {
+              "type": 11,
+              "id": "write_record_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_attributes_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_name_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_field_function"
+            },
+            {
+              "type": 11,
+              "id": "new_field_function"
+            },
+            {
+              "type": 11,
+              "id": "get_table_names_function"
+            },
+            {
+              "type": 11,
+              "id": "error_handle_function"
+            }
+          ],
+          "connectionName": "performance_test_dummy_target",
+          "connectionType": "source_and_target",
+          "pdkHash": "f45ed8744261175abce5f902473472866aa1ffc40cccec0a0d2abceef4a338c2",
+          "pdkType": "pdk",
+          "position": [
+            330,
+            50
+          ]
+        },
+        "$inputs": [
+          "a38dc4fc-332e-4a8f-8fa8-a3eef43c8a01"
+        ],
+        "$outputs": []
       },
       {
-        "pri": false,
-        "name": "title",
-        "type": "rstring"
-      },
-      {
-        "pri": false,
-        "name": "created",
-        "type": "now"
+        "tableName": "columns_100_test_dummy_dummy_source_1681704023194_3778",
+        "isFilter": false,
+        "increaseSyncInterval": 500,
+        "increaseReadSize": 100,
+        "maxTransactionDuration": 12,
+        "existDataProcessMode": "keepData",
+        "xmlIncludeFile": false,
+        "esFragmentNum": 3,
+        "nodeConfig": {},
+        "cdcPollingInterval": 0,
+        "cdcPollingBatchSize": 0,
+        "enableCustomCommand": false,
+        "connectionId": "6441070caa880e7c00d3e5d6",
+        "databaseType": "Dummy",
+        "disabledEvents": [],
+        "readBatchSize": 500,
+        "writeStrategy": "updateOrInsert",
+        "type": "table",
+        "catalog": "data",
+        "isTransformed": false,
+        "alarmSettings": [
+          {
+            "type": "DATANODE",
+            "open": true,
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "sort": 4,
+            "notify": [
+              "SYSTEM"
+            ],
+            "interval": 300,
+            "unit": "SECOND"
+          }
+        ],
+        "alarmRules": [
+          {
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "point": 12,
+            "equalsFlag": 1,
+            "ms": 5000
+          }
+        ],
+        "id": "a38dc4fc-332e-4a8f-8fa8-a3eef43c8a01",
+        "name": "columns_100_test_dummy_dummy_source_1681704023194_3778",
+        "elementType": "Node",
+        "attrs": {
+          "accessNodeProcessId": "",
+          "capabilities": [
+            {
+              "type": 11,
+              "id": "batch_read_function"
+            },
+            {
+              "type": 11,
+              "id": "stream_read_function"
+            },
+            {
+              "type": 11,
+              "id": "batch_count_function"
+            },
+            {
+              "type": 11,
+              "id": "timestamp_to_stream_offset_function"
+            },
+            {
+              "type": 11,
+              "id": "write_record_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_attributes_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_name_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_field_function"
+            },
+            {
+              "type": 11,
+              "id": "new_field_function"
+            },
+            {
+              "type": 11,
+              "id": "get_table_names_function"
+            },
+            {
+              "type": 11,
+              "id": "error_handle_function"
+            }
+          ],
+          "connectionName": "columns_100_1681704023194_3778",
+          "connectionType": "source",
+          "pdkHash": "f45ed8744261175abce5f902473472866aa1ffc40cccec0a0d2abceef4a338c2",
+          "pdkType": "pdk",
+          "position": [
+            50,
+            50
+          ]
+        },
+        "$inputs": [],
+        "$outputs": [
+          "c72372a1-ffb1-423e-948d-9e937cffde1b"
+        ],
+        "nodeSchema": [
+          {
+            "label": "id",
+            "value": "id",
+            "isPrimaryKey": true,
+            "indicesUnique": false,
+            "type": "uuid"
+          },
+          {
+            "label": "column10",
+            "value": "column10",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column100",
+            "value": "column100",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column11",
+            "value": "column11",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column12",
+            "value": "column12",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column13",
+            "value": "column13",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column14",
+            "value": "column14",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column15",
+            "value": "column15",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column16",
+            "value": "column16",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column17",
+            "value": "column17",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column18",
+            "value": "column18",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column19",
+            "value": "column19",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column2",
+            "value": "column2",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column20",
+            "value": "column20",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column21",
+            "value": "column21",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column22",
+            "value": "column22",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column23",
+            "value": "column23",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column24",
+            "value": "column24",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column25",
+            "value": "column25",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column26",
+            "value": "column26",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column27",
+            "value": "column27",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column28",
+            "value": "column28",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column29",
+            "value": "column29",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column3",
+            "value": "column3",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column30",
+            "value": "column30",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column31",
+            "value": "column31",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column32",
+            "value": "column32",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column33",
+            "value": "column33",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column34",
+            "value": "column34",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column35",
+            "value": "column35",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column36",
+            "value": "column36",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column37",
+            "value": "column37",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column38",
+            "value": "column38",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column39",
+            "value": "column39",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column4",
+            "value": "column4",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column40",
+            "value": "column40",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column41",
+            "value": "column41",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column42",
+            "value": "column42",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column43",
+            "value": "column43",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column44",
+            "value": "column44",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column45",
+            "value": "column45",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column46",
+            "value": "column46",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column47",
+            "value": "column47",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column48",
+            "value": "column48",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column49",
+            "value": "column49",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column5",
+            "value": "column5",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column50",
+            "value": "column50",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column51",
+            "value": "column51",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column52",
+            "value": "column52",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column53",
+            "value": "column53",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column54",
+            "value": "column54",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column55",
+            "value": "column55",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column56",
+            "value": "column56",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column57",
+            "value": "column57",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column58",
+            "value": "column58",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column59",
+            "value": "column59",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column6",
+            "value": "column6",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column60",
+            "value": "column60",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column61",
+            "value": "column61",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column62",
+            "value": "column62",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column63",
+            "value": "column63",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column64",
+            "value": "column64",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column65",
+            "value": "column65",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column66",
+            "value": "column66",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column67",
+            "value": "column67",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column68",
+            "value": "column68",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column69",
+            "value": "column69",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column7",
+            "value": "column7",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column70",
+            "value": "column70",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column71",
+            "value": "column71",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column72",
+            "value": "column72",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column73",
+            "value": "column73",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column74",
+            "value": "column74",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column75",
+            "value": "column75",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column76",
+            "value": "column76",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column77",
+            "value": "column77",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column78",
+            "value": "column78",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column79",
+            "value": "column79",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column8",
+            "value": "column8",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column80",
+            "value": "column80",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column81",
+            "value": "column81",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column82",
+            "value": "column82",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column83",
+            "value": "column83",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column84",
+            "value": "column84",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column85",
+            "value": "column85",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column86",
+            "value": "column86",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column87",
+            "value": "column87",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column88",
+            "value": "column88",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column89",
+            "value": "column89",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column9",
+            "value": "column9",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column90",
+            "value": "column90",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column91",
+            "value": "column91",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column92",
+            "value": "column92",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column93",
+            "value": "column93",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column94",
+            "value": "column94",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column95",
+            "value": "column95",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column96",
+            "value": "column96",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column97",
+            "value": "column97",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column98",
+            "value": "column98",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          },
+          {
+            "label": "column99",
+            "value": "column99",
+            "isPrimaryKey": false,
+            "indicesUnique": false,
+            "type": "rstring"
+          }
+        ]
       }
     ],
-    "__connectionType": "source_and_target"
-  },
-  "id": "643ae4d9825a3821aa01f834"
+    "edges": [
+      {
+        "source": "a38dc4fc-332e-4a8f-8fa8-a3eef43c8a01",
+        "target": "c72372a1-ffb1-423e-948d-9e937cffde1b"
+      }
+    ]
+  }
 }

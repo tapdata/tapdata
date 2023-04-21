@@ -1,28 +1,154 @@
 {
-  "jobs_infos": [
+  "edges": [
     {
-      "job_name": str,
-      "dag": {
-        "node": {
-          "source": [],
-          "target": [],
-          "processing": []
-        }
-      },
-      "table_fields": str,
-      "job_test_res": [
-        {
-          "sync_type": str,
-          "row_num": str,
-          "metrics": {
-            "qps": str,
-            "cpu": str,
-            "mem": str,
-            "processing_time": str,
-            "incremental_delay": str
+      "source": "1f76d5e4-dbcd-44c4-83ea-f197b2ae7aeb",
+      "target": "5b9785eb-03ec-4a1f-91d0-e3e66de5cf4d"
+    }
+  ],
+  "nodes": [
+    {
+      "attrs": {
+        "accessNodeProcessId": "",
+        "capabilities": [
+          {
+            "type": 11,
+            "id": "batch_read_function"
+          },
+          {
+            "type": 11,
+            "id": "stream_read_function"
+          },
+          {
+            "type": 11,
+            "id": "batch_count_function"
+          },
+          {
+            "type": 11,
+            "id": "timestamp_to_stream_offset_function"
+          },
+          {
+            "type": 11,
+            "id": "write_record_function"
+          },
+          {
+            "type": 11,
+            "id": "alter_field_attributes_function"
+          },
+          {
+            "type": 11,
+            "id": "alter_field_name_function"
+          },
+          {
+            "type": 11,
+            "id": "drop_field_function"
+          },
+          {
+            "type": 11,
+            "id": "new_field_function"
+          },
+          {
+            "type": 11,
+            "id": "get_table_names_function"
+          },
+          {
+            "type": 11,
+            "id": "error_handle_function"
           }
-        }
-      ]
+        ],
+        "connectionName": "columns_179_1681704023194_3778",
+        "connectionType": "source",
+        "pdkHash": "f45ed8744261175abce5f902473472866aa1ffc40cccec0a0d2abceef4a338c2",
+        "pdkType": "pdk",
+        "position": [
+          0,
+          0
+        ]
+      },
+      "connectionId": "64410727aa880e7c00d3e88c",
+      "databaseType": "Dummy",
+      "disabledEvents": [],
+      "id": "1f76d5e4-dbcd-44c4-83ea-f197b2ae7aeb",
+      "increaseReadSize": 100,
+      "increaseSyncInterval": 500,
+      "name": "columns_179_test_dummy_dummy_source_1681704023194_3778_in",
+      "tableName": "columns_179_test_dummy_dummy_source_1681704023194_3778",
+      "type": "table",
+      "node_config": {}
+    },
+    {
+      "node_config": {},
+      "attrs": {
+        "accessNodeProcessId": "",
+        "capabilities": [
+          {
+            "type": 11,
+            "id": "batch_read_function"
+          },
+          {
+            "type": 11,
+            "id": "stream_read_function"
+          },
+          {
+            "type": 11,
+            "id": "batch_count_function"
+          },
+          {
+            "type": 11,
+            "id": "timestamp_to_stream_offset_function"
+          },
+          {
+            "type": 11,
+            "id": "write_record_function"
+          },
+          {
+            "type": 11,
+            "id": "alter_field_attributes_function"
+          },
+          {
+            "type": 11,
+            "id": "alter_field_name_function"
+          },
+          {
+            "type": 11,
+            "id": "drop_field_function"
+          },
+          {
+            "type": 11,
+            "id": "new_field_function"
+          },
+          {
+            "type": 11,
+            "id": "get_table_names_function"
+          },
+          {
+            "type": 11,
+            "id": "error_handle_function"
+          }
+        ],
+        "connectionName": "performance_test_dummy_target",
+        "connectionType": "source_and_target",
+        "pdkHash": "f45ed8744261175abce5f902473472866aa1ffc40cccec0a0d2abceef4a338c2",
+        "pdkType": "pdk",
+        "position": [
+          0,
+          0
+        ]
+      },
+      "connectionId": "642f80bc06e74f4bb59a95db",
+      "databaseType": "Dummy",
+      "id": "5b9785eb-03ec-4a1f-91d0-e3e66de5cf4d",
+      "name": "www_tw",
+      "writeStrategy": "updateOrInsert",
+      "initialConcurrent": False,
+      "initialConcurrentWriteNum": 8,
+      "cdcConcurrent": False,
+      "cdcConcurrentWriteNum": 4,
+      "tableName": "www",
+      "type": "table",
+      "updateConditionFields": [
+        "id"
+      ],
+      "existDataProcessMode": "keepData"
     }
   ]
 }

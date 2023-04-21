@@ -8,6 +8,7 @@ import time
 import traceback
 import uuid
 import re
+import random
 from logging import *
 from platform import python_version
 from typing import Iterable, Tuple, Sequence
@@ -27,6 +28,7 @@ os.environ['PYTHONSTARTUP'] = '>>>'
 os.environ["PROJECT_PATH"] = os.sep.join([os.path.dirname(os.path.abspath(__file__)), ".."])
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../..")
 
 from graph import Node, Graph
 from check import ConfigCheck
@@ -1579,6 +1581,7 @@ class JobStats:
     output_update = 0
     output_Delete = 0
     snapshot_done_at = 0
+    snapshot_start_at = 0
 
 
 class LogMinerMode:
@@ -1591,7 +1594,8 @@ class Pipeline:
     @help_decorate("__init__ method", args="p = Pipeline($name)")
     def __init__(self, name=None, mode="migrate"):
         if name is None:
-            name = str(uuid.uuid4())
+            # name = str(uuid.uuid4())
+            name = job_name
         self.dag = Dag(name="name")
         self.dag.config({})
         self.dag.jobType = mode
@@ -1608,6 +1612,18 @@ class Pipeline:
 
     def mode(self, value):
         self.dag.jobType = value
+
+    def _patch_dag(self, dag_d: dict):
+        dag = {}
+        dag.update({
+            "id": self.job.id,
+            "editVersion": int(time.time() * 1000),
+            "dag": dag_d
+        })
+        try:
+            req.patch("/Task", json=dag)
+        except Exception as e:
+            logger.error("{}", e)
 
     @help_decorate("read data from source", args="p.readFrom($source)")
     def readFrom(self, source):
@@ -1643,7 +1659,10 @@ class Pipeline:
 
         self.dag.edge(self.stage, sink)
         self.sinks.append({"sink": sink})
-        return self._clone(sink)
+        dag_obj = self._clone(sink)
+        if self.job is not None:
+            self._patch_dag(dag_obj.dag.dag)
+        return dag_obj
 
     def _common_stage(self, f):
         self.dag.edge(self.stage, f)
@@ -2067,7 +2086,8 @@ class BaseNode:
             "connectionId": self.connectionId,
             "databaseType": self.databaseType,
             "id": self.id,
-            "name": self.connection.c["name"] if mode == JobType.migrate else self.tableName,
+            "name": self.connection.c["name"] if mode == JobType.
+            migrate else self.tableName + f"_{''.join(random.sample('zyxwvutsrqponmlkjihgfedcba',2))}",
             "attrs": {
                 "connectionType": self.connection.c["connection_type"],
                 "position": [0, 0],
@@ -2648,7 +2668,8 @@ class Job:
                     "fields": [
                         "inputInsertTotal", "inputUpdateTotal", "inputDeleteTotal",
                         "outputInsertTotal", "outputUpdateTotal", "outputDeleteTotal",
-                        "tableTotal", "outputQps", "snapshotDoneAt", "createTableTotal", "snapshotTableTotal"
+                        "tableTotal", "outputQps", "snapshotDoneAt", "createTableTotal",
+                        "snapshotTableTotal", "snapshotStartAt"
                     ],
                     "tags": {
                         "taskId": self.id,
@@ -2677,6 +2698,7 @@ class Job:
             job_stats.output_update = stats.get("outputUpdateTotal", 0)
             job_stats.output_Delete = stats.get("outputDeleteTotal", 0)
             job_stats.snapshot_done_at = stats.get("snapshotDoneAt", 0)
+            job_stats.snapshot_start_at = stats.get("snapshotStartAt", 0)
         return job_stats
 
     def logs(self, res=None, limit=100, level="info", t=30, tail=False, quiet=True):
@@ -3011,10 +3033,10 @@ class DataSource:
         if data["code"] == "ok":
             self.id = data["data"]["id"]
             self.setting = DataSource.get(datasource_id)
-            self.validate(quiet=False)
+            # self.validate(quiet=False)
             return True
         else:
-            self.validate(quiet=False, load_schema=True)
+            # self.validate(quiet=False, load_schema=True)
             logger.warn("save Connection fail, err is: {}", data["message"])
         return False
 

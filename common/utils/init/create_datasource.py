@@ -5,8 +5,8 @@ from helper.suffix import get_suffix
 
 
 # create datasource in tapdata server
-def create_datasource():
-    datasources = get_sources()
+def create_datasource(*args: str):
+    datasources = get_sources(*args)
     for datasource in datasources:
         config = datasources[datasource]["config"]
         connector = config.get("connector")
