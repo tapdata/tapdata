@@ -194,9 +194,9 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 			});
 			//Go to CDC stage after all tables finished initial sync.
 			tableParallelWorker.finished(this::enterCDCStageFinally);
-			if(((pdkSourceContext.isNeedCDC() && streamReadStarted.get()) || !streamReadStarted.get()) && !tableParallelWorkerStarted.get()) {
+			if((!pdkSourceContext.isNeedCDC() || streamReadStarted.get()) && !tableParallelWorkerStarted.get()) {
 				synchronized (streamReadStarted) {
-					if(((pdkSourceContext.isNeedCDC() && streamReadStarted.get()) || !streamReadStarted.get()) && tableParallelWorkerStarted.compareAndSet(false, true))
+					if((!pdkSourceContext.isNeedCDC() || streamReadStarted.get()) && tableParallelWorkerStarted.compareAndSet(false, true))
 						tableParallelWorker.start();
 				}
 			}
