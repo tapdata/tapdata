@@ -77,7 +77,9 @@ public class TaskResetSchedule {
                     .collect(Collectors.groupingBy(TaskResetEventDto::getTaskId));
 
 
-            List<TaskDto> updateTask = new ArrayList<>();
+            List<TaskDto> updateTasks = new ArrayList<>();
+            List<TaskDto> successTasks = new ArrayList<>();
+            List<TaskDto> failedTasks = new ArrayList<>();
             long curr = System.currentTimeMillis();
 
             int timeout = timeoutInterval * 1000;
@@ -87,30 +89,34 @@ public class TaskResetSchedule {
                     List<TaskResetEventDto.ResetStatusEnum> enums = taskResetEvents.stream().map(TaskResetEventDto::getStatus)
                             .distinct().collect(Collectors.toList());
                     if (enums.contains(TaskResetEventDto.ResetStatusEnum.TASK_SUCCEED)) {
-
+                        successTasks.add(taskDto);
                         continue;
                     } else if (enums.contains(TaskResetEventDto.ResetStatusEnum.TASK_FAILED)) {
-                        updateTask.add(taskDto);
+                        failedTasks.add(taskDto);
                         continue;
                     }
 
                     TaskResetEventDto taskResetEventDto = taskResetEvents.stream().max(Comparator.comparing(TaskResetEventDto::getTime)).get();
                     if (curr - taskResetEventDto.getTime().getTime() >= timeout) {
-                        updateTask.add(taskDto);
+                        updateTasks.add(taskDto);
                     }
 
                 } else {
                     if (curr - taskDto.getLastUpdAt().getTime() >= timeout) {
-                        updateTask.add(taskDto);
+                        updateTasks.add(taskDto);
                     }
                 }
 
             }
-            List<String> userLists = updateTask.stream().map(BaseDto::getUserId).collect(Collectors.toList());
+            List<String> userLists = updateTasks.stream().map(BaseDto::getUserId).collect(Collectors.toList());
+            Set<String> successUserSet = successTasks.stream().map(BaseDto::getUserId).collect(Collectors.toSet());
+            Set<String> failedUserSet = failedTasks.stream().map(BaseDto::getUserId).collect(Collectors.toSet());
+            userLists.addAll(successUserSet);
+            userLists.addAll(failedUserSet);
 
             Map<String, UserDetail> userDetailMap = userService.getUserMapByIdList(userLists);
 
-            for (TaskDto taskDto : updateTask) {
+            for (TaskDto taskDto : updateTasks) {
                 try {
 
                     UserDetail user = userDetailMap.get(taskDto.getUserId());
@@ -136,6 +142,40 @@ public class TaskResetSchedule {
                 }
             }
 
+            for (TaskDto taskDto : successTasks) {
+                try {
+
+                    UserDetail user = userDetailMap.get(taskDto.getUserId());
+                    if (user == null) {
+                        continue;
+                    }
+                    if (TaskDto.STATUS_RENEWING.equals(taskDto.getStatus())) {
+                        taskService.afterRenew(taskDto, user);
+                    } else if (TaskDto.STATUS_DELETING.equals(taskDto.getStatus())) {
+                        taskService.afterRemove(taskDto, user);
+                    }
+                } catch (Exception e) {
+                    log.info("check reset no response, task id = {}", taskDto.getId().toHexString());
+                }
+            }
+
+            for (TaskDto taskDto : failedTasks) {
+                try {
+
+                    UserDetail user = userDetailMap.get(taskDto.getUserId());
+                    if (user == null) {
+                        continue;
+                    }
+                    StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.RENEW_DEL_FAILED, user);
+                    if (stateMachineResult.isOk()) {
+                        Query query = Query.query(Criteria.where("_id").is(taskDto.getId()));
+                        Update update = Update.update("last_updated", new Date());
+                        taskService.update(query, update);
+                    }
+                } catch (Exception e) {
+                    log.info("check reset no response, task id = {}", taskDto.getId().toHexString());
+                }
+            }
 
         } catch (Exception e) {
             log.warn("check task reset no response error");
