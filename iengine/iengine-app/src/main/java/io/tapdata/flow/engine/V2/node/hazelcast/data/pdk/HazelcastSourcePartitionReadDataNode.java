@@ -194,12 +194,13 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 			});
 			//Go to CDC stage after all tables finished initial sync.
 			tableParallelWorker.finished(this::enterCDCStageFinally);
-			if(streamReadStarted.get() && !tableParallelWorkerStarted.get()) {
+			if((!pdkSourceContext.isNeedCDC() || streamReadStarted.get()) && !tableParallelWorkerStarted.get()) {
 				synchronized (streamReadStarted) {
-					if(streamReadStarted.get() && tableParallelWorkerStarted.compareAndSet(false, true))
+					if((!pdkSourceContext.isNeedCDC() || streamReadStarted.get()) && tableParallelWorkerStarted.compareAndSet(false, true))
 						tableParallelWorker.start();
 				}
 			}
+
 		} else {
 			doSnapshot(pendingInitialSyncTables);
 		}
@@ -208,12 +209,12 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 	}
 
 	protected void enterCDCStageFinally() {
+		executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
         // 如果有新增表， 重启connector
         if (null != newTables && !newTables.isEmpty()){
             super.handleNewTables(newTables);
         } else {
-            //Don't change to CDC stage for partition read.
-            this.endSnapshotLoop.set(true);
+			super.enterCDCStage();
         }
 	}
 
@@ -223,29 +224,29 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 
 	private void handleReadPartitionsForTable(PDKSourceContext pdkSourceContext, GetReadPartitionsFunction getReadPartitionsFunction, ReadPartitionOptions finalReadPartitionOptions,final String tableId, AsyncJobCompleted jobCompleted) {
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableId);
-		tablePartitionReaderMap.computeIfAbsent(tableId, table -> asyncMaster.createAsyncParallelWorker("PartitionsReader_" + table, partitionReaderThreadCount));
-		ParallelWorker partitionsReader = tablePartitionReaderMap.get(tableId);//asyncMaster.createAsyncParallelWorker("PartitionsReader_" + tapTable.getId(), 8);
-		obsLogger.info("Stream read started already, now start read partitions for table {}", tableId);
+		tablePartitionReaderMap.computeIfAbsent(tapTable.getId(), table -> asyncMaster.createAsyncParallelWorker("PartitionsReader_" + table, partitionReaderThreadCount));
+		ParallelWorker partitionsReader = tablePartitionReaderMap.get(tapTable.getId());//asyncMaster.createAsyncParallelWorker("PartitionsReader_" + tapTable.getId(), 8);
+		obsLogger.info("Stream read started already, now start read partitions for table {}", tapTable.getId());
 		AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);
-		tableEventPartitionDispatcher.putIfAbsent(tableId, new TapEventPartitionDispatcher(tapTable, obsLogger));
-        ConnectorNode node = getConnectorNode();
-        TapConnectorContext context = node.getConnectorContext();
+		tableEventPartitionDispatcher.putIfAbsent(tapTable.getId(), new TapEventPartitionDispatcher(tapTable, obsLogger));
+        //ConnectorNode node = getConnectorNode();
+        //TapConnectorContext context = node.getConnectorContext();
         executeDataFuncAspect(
 				GetReadPartitionsFuncAspect.class, () -> new GetReadPartitionsFuncAspect()
-						.connectorContext(context)
+						.connectorContext(getConnectorNode().getConnectorContext())
 						.dataProcessorContext(this.getDataProcessorContext())
 						.splitType(finalReadPartitionOptions.getSplitType())
 						.maxRecordInPartition(finalReadPartitionOptions.getMaxRecordInPartition())
 						.start()
 						.table(tapTable),
 				getReadPartitionsFuncAspect -> PDKInvocationMonitor.invoke(
-                        node,
+						getConnectorNode(),
                         PDKMethod.SOURCE_GET_READ_PARTITIONS,
 						createPdkMethodInvoker().runnable(() ->
 						{
 							BatchReadFuncAspect batchReadFuncAspect = new BatchReadFuncAspect()
 									.eventBatchSize(batchSize)
-									.connectorContext(context)
+									.connectorContext(getConnectorNode().getConnectorContext())
 									.offsetState(null)
 									.dataProcessorContext(dataProcessorContext)
 									.start()
@@ -260,7 +261,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 							Boolean tableCompleted = null;
 							Object batchOffsetObj = syncProgress.getBatchOffsetObj();
 							if(batchOffsetObj instanceof Map) {
-								PartitionTableOffset partitionTableOffset = (PartitionTableOffset) ((Map<?, ?>) batchOffsetObj).get(tableId);
+								PartitionTableOffset partitionTableOffset = (PartitionTableOffset) ((Map<?, ?>) batchOffsetObj).get(tapTable.getId());
 								if(partitionTableOffset != null) {
 									recoveredPartitions = partitionTableOffset.getPartitions();
 									completedPartitionIds = partitionTableOffset.getCompletedPartitions();
@@ -273,11 +274,9 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 								//Table has been read completed, ignore this table.
 							} else if(recoveredPartitions != null && !recoveredPartitions.isEmpty()) {
 								//Read partition has been split, recover reading partitions.
-                                Map<String, Long> completedPartitionIdsCache = Optional.ofNullable(completedPartitionIds).orElse(new HashMap<>());
 								for(ReadPartition readPartition : recoveredPartitions) {
-                                    String partitionId = readPartition.getId();
-                                    if(completedPartitionIdsCache.containsKey(partitionId)) {
-										obsLogger.info("Read partition {} has read completed, count {}", readPartition, completedPartitionIds.get(partitionId));
+                                    if(completedPartitionIds != null && completedPartitionIds.containsKey(readPartition.getId())) {
+										obsLogger.info("Read partition {} has read completed, count {}", readPartition, completedPartitionIds.get(readPartition.getId()));
 										continue;
 									}
 									partitionConsumer.accept(readPartition);
@@ -288,7 +287,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 								//Can not recover from TM, split read partitions through PDK function.
 								TypeSplitterMap typeSplitterMap = new TypeSplitterMap();
 								getReadPartitionsFunction.getReadPartitions(
-                                        context,
+										getConnectorNode().getConnectorContext(),
 										tapTable,
 										GetReadPartitionOptions.create().maxRecordInPartition(finalReadPartitionOptions.getMaxRecordInPartition())
 												.minMaxSplitPieces(finalReadPartitionOptions.getMinMaxSplitPieces())
@@ -394,13 +393,12 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 								});
 							}
 							TapIndexEx partitionIndex = tapTable.partitionIndex();
-                            Map<String, Long> completedPartitionIdsCache = completedPartitionIds != null ? completedPartitionIds : new HashMap<>();
                             for(ReadPartition readPartition : recoveredPartitions) {
 								readPartition.partitionIndex(partitionIndex);
-								if(completedPartitionIdsCache.containsKey(readPartition.getId())) {
+								if(completedPartitionIds != null && completedPartitionIds.containsKey(readPartition.getId())) {
 									ReadPartitionHandler readPartitionHandler = ReadPartitionHandler.createReadPartitionHandler(sourceContext, tapTable, readPartition, this);
 									readPartitionHandler.finish();
-									obsLogger.info("Table {} partition {} has read finished by last time, count {}, will be skipped.", entryKey, readPartition, completedPartitionIdsCache.get(readPartition.getId()));
+									obsLogger.info("Table {} partition {} has read finished by last time, count {}, will be skipped.", entryKey, readPartition, completedPartitionIds.get(readPartition.getId()));
 									eventPartitionDispatcher.register(readPartition, readPartitionHandler);
 								} else {
 									ReadPartitionHandler readPartitionHandler = ReadPartitionHandler.createReadPartitionHandler(sourceContext, tapTable, readPartition, this);
@@ -495,38 +493,57 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 		syncProgress.setStreamOffsetObj(offset);
 	}
 
-    public long handleStreamInsertEventsReceived(List<Map<String, Object>> events, Object offsetObj, String tableId){
-        long cast = 0;
-        try {
-            if (events != null && !events.isEmpty()) {
-                List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj, tableId);
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
-                }
-                if (streamReadFuncAspect != null)
-                    AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
-                if (CollectionUtils.isNotEmpty(tapdataEvents)) {
-                    long s = System.currentTimeMillis();
-                    for (TapdataEvent tapdataEvent : tapdataEvents) {
-                        this.enqueue(tapdataEvent);
-                    }
-                    cast = System.currentTimeMillis() - s;
-                    if (streamReadFuncAspect != null)
-                        AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
-                }
-            }
-        } catch (Throwable throwable) {
-            errorHandle(throwable, "Error processing incremental data, error: " + throwable.getMessage());
-        }
-        return cast;
-    }
+//    public long handleStreamInsertEventsReceived(List<Map<String, Object>> events, Object offsetObj, String tableId){
+//        long cast = 0;
+//        try {
+//            if (events != null && !events.isEmpty()) {
+//                List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj, tableId);
+//                if (logger.isDebugEnabled()) {
+//                    logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
+//                }
+//                if (streamReadFuncAspect != null)
+//                    AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
+//                if (CollectionUtils.isNotEmpty(tapdataEvents)) {
+//                    long s = System.currentTimeMillis();
+//                    for (TapdataEvent tapdataEvent : tapdataEvents) {
+//                        this.enqueue(tapdataEvent);
+//                    }
+//                    cast = System.currentTimeMillis() - s;
+//                    if (streamReadFuncAspect != null)
+//                        AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
+//                }
+//            }
+//        } catch (Throwable throwable) {
+//            errorHandle(throwable, "Error processing incremental data, error: " + throwable.getMessage());
+//        }
+//        return cast;
+//    }
 
-    public long handleStreamEventsReceived(List<TapEvent> events, Object offsetObj) {
-        long cast = 0;
+	public void handleStreamEventsReceived(List<TapEvent> events, Object offsetObj) {
 		try {
+//			while (isRunning()) {
+//				try {
+//					if (sourceRunnerLock.tryLock(1L, TimeUnit.SECONDS)) {
+//						break;
+//					}
+//				} catch (InterruptedException e) {
+//					break;
+//				}
+//			}
 			if (events != null && !events.isEmpty()) {
-                List<TapdataEvent> tapdataEvents = new ArrayList<>();
-                wrapTapdataEvent(events, tapdataEvents, SyncStage.CDC, offsetObj);
+				events.stream().map(event -> {
+					if (null == event.getTime()) {
+						throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
+					}
+					event.addInfo("eventId", UUID.randomUUID().toString());
+					return cdcDelayCalculation.filterAndCalcDelay(event, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
+				});
+
+				if (streamReadFuncAspect != null) {
+					AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), events);
+				}
+
+				List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj);
 				if (logger.isDebugEnabled()) {
 					logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
 				}
@@ -535,11 +552,8 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 					AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
 
 				if (CollectionUtils.isNotEmpty(tapdataEvents)) {
-                    long s = System.currentTimeMillis();
-                    for (TapdataEvent tapdataEvent : tapdataEvents) {
-                        this.enqueue(tapdataEvent);
-                    }
-                    cast = System.currentTimeMillis() - s;
+					tapdataEvents.forEach(this::enqueue);
+//					syncProgress.setStreamOffsetObj(offsetObj);
 					if (streamReadFuncAspect != null)
 						AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
 				}
@@ -552,8 +566,6 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 			} catch (Exception ignored) {
 			}
 		}*/
-
-        return cast;
 	}
 
     private List<TapdataEvent> wrapTapdataEvent(List<Map<String, Object>> events, SyncStage syncStage, Object offsetObj, String tableId) {
@@ -574,12 +586,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
             if (null == tapdataEvent) {
                 continue;
             }
-            if(removeTables == null || !removeTables.contains(tableId)){
-                if (nodeId != null) {
-                    tapdataEvent.addNodeId(nodeId);
-                }
-                tapdataEvents.add(tapdataEvent);
-            }
+			tapdataEvents.add(tapdataEvent);
         }
         if (streamReadFuncAspect != null) {
             AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), tapdataEvents.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));
@@ -624,40 +631,6 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
         }
     }
 
-    public void enqueue(TapdataEvent tapdataEvent) {
-        try {
-            while (isRunning()) {
-                if (eventQueue.offer(tapdataEvent, 3, TimeUnit.SECONDS)) {
-                    break;
-                }
-            }
-        }
-        catch (Throwable throwable) {
-            throw new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
-        }
-    }
-
-    protected boolean offer(TapdataEvent dataEvent) {
-        if (dataEvent != null) {
-            Outbox outbox = getOutbox();
-            if (null != outbox) {
-                final int bucketCount = outbox.bucketCount();
-                if (bucketCount > 1) {
-                    for (bucketIndex = Math.min(bucketIndex, bucketCount); bucketIndex < bucketCount; bucketIndex++) {
-                        final TapdataEvent cloneEvent = (TapdataEvent) dataEvent.clone();
-                        if (!tryEmit(bucketIndex, cloneEvent)) {
-                            return false;
-                        }
-                    }
-                } else if (!tryEmit(dataEvent)) {
-                    return false;
-                }
-            }
-        }
-        bucketIndex = 0; // reset to 0 of return true
-        return true;
-    }
-
 	@Override
 	public void doClose() throws Exception {
 		try {
@@ -687,196 +660,16 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 	@Override
 	protected boolean handleNewTables(List<String> addList){
         if (endSnapshotLoop.get()){
+			syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
             return super.handleNewTables(addList);
         }
-        newTables.addAll(addList);
+		for(String str : addList) {
+			if(!newTables.contains(str))
+				newTables.add(str);
+		}
         return false;
 	}
-
 	public List<String> removeTables(){
 		return removeTables;
 	}
-
-
-//	@SneakyThrows
-//	private void doCdc() {
-//		if (!isRunning()) {
-//			return;
-//		}
-//		this.endSnapshotLoop.set(true);
-//		if (null == syncProgress.getStreamOffsetObj()) {
-//			throw new NodeException("Starting stream read failed, errors: start point offset is null").context(getProcessorBaseContext());
-//		} else {
-//			TapdataStartCdcEvent tapdataStartCdcEvent = new TapdataStartCdcEvent();
-//			tapdataStartCdcEvent.setSyncStage(SyncStage.CDC);
-//			enqueue(tapdataStartCdcEvent);
-//		}
-//		// MILESTONE-READ_CDC_EVENT-RUNNING
-//		TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.RUNNING);
-//		MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.RUNNING);
-//		syncProgress.setSyncStage(SyncStage.CDC.name());
-//		Node<?> node = dataProcessorContext.getNode();
-//		if (node.isLogCollectorNode()) {
-//			// Mining tasks force traditional increments
-//			doNormalCDC();
-//		} else {
-//			try {
-//				// Try to start with share cdc
-//				doShareCdc();
-//			} catch (ShareCdcUnsupportedException e) {
-//				if (e.isContinueWithNormalCdc()) {
-//					// If share cdc is unavailable, and continue with normal cdc is true
-//					logger.info("Share cdc unusable, will use normal cdc mode, reason: " + e.getMessage());
-//					obsLogger.info("Share cdc unusable, will use normal cdc mode, reason: " + e.getMessage());
-//					doNormalCDC();
-//				} else {
-//					throw new NodeException("Read share cdc log failed: " + e.getMessage(), e).context(getProcessorBaseContext());
-//				}
-//			} catch (Exception e) {
-//				throw new NodeException("Read share cdc log failed: " + e.getMessage(), e).context(getProcessorBaseContext());
-//			}
-//		}
-//	}
-
-//    public boolean complete() {
-//        try {
-//            TaskDto taskDto = dataProcessorContext.getTaskDto();
-//            if (firstComplete) {
-//                Thread.currentThread().setName(String.format("Source-Complete-%s[%s]", getNode().getName(), getNode().getId()));
-//                firstComplete = false;
-//            }
-//            List<TapdataEvent> dataEvent = null;
-//            if (!isRunning()) {
-//                return null == error;
-//            }
-//            if (pendingEvent0 != null && !pendingEvent0.isEmpty()) {
-//                dataEvent = new ArrayList<>();
-//                dataEvent.addAll(pendingEvent0);
-//                pendingEvent0 = null;
-//            }
-////            else if(pendingEvent != null){
-////                dataEvent = new ArrayList<>();
-////                dataEvent.add(pendingEvent);
-////                pendingEvent = null;
-////            }
-//            else {
-//                try {
-//                    dataEvent = queue().poll(500, TimeUnit.MILLISECONDS);
-//                    if (null == dataEvent) dataEvent = new ArrayList<>();
-//                    Optional.ofNullable(eventQueue.poll(500, TimeUnit.MILLISECONDS)).ifPresent(dataEvent::add);
-//                } catch (InterruptedException ignored) {
-//                }
-//                if (null != dataEvent && !dataEvent.isEmpty()) {
-//                    // covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
-//                    // the event is considered been output to the next node.
-//                    TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
-//                    for (TapdataEvent event : dataEvent) {
-//                        TapEvent tapEvent = event.getTapEvent();
-//                        tapRecordToTapValue(tapEvent, codecsFilterManager);
-//                    }
-//                }
-//            }
-//
-//            if (null != dataEvent && !dataEvent.isEmpty()) {
-//                for (TapdataEvent tapdataEvent : dataEvent) {
-//                    if (!offer(tapdataEvent)) {
-//                        if (null == pendingEvent0) pendingEvent0 = new ArrayList<>();
-//                        pendingEvent0.add(tapdataEvent);
-//                        continue;
-//                    }
-//                }
-//            }
-//
-//            if (sourceRunnerFuture != null && sourceRunnerFuture.isDone() && sourceRunnerFirstTime.get()
-//                    && (null == pendingEvent0 || pendingEvent0.isEmpty()) && eventQueue0.isEmpty()) {
-//                if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())) {
-//                    Object residueSnapshot = getGlobalMap(getCompletedInitialKey());
-//                    if (residueSnapshot instanceof Integer) {
-//                        int residueSnapshotInt = (int) residueSnapshot;
-//                        if (residueSnapshotInt <= 0) {
-//                            this.running.set(false);
-//                        }
-//                    }
-//                } else {
-//                    this.running.set(false);
-//                }
-//            }
-//			/*if (1 == 1) {
-//				Thread.sleep(5000L);
-//				throw new RuntimeException("test");
-//			}*/
-//        } catch (Exception e) {
-//            String errorMsg = String.format("Source sync failed: %s", e.getMessage());
-//            obsLogger.error(errorMsg, e);
-////			throw new RuntimeException(errorMsg, e);
-//            errorHandle(e, errorMsg);
-//        } finally {
-//            ThreadContext.clearAll();
-//        }
-//
-//        return false;
-//    }
-//    public void startSourceConsumer() {
-//        while (isRunning()) {
-//            try {
-//                List<TapdataEvent> dataEvent;
-//                AtomicBoolean isPending = new AtomicBoolean();
-//                if (pendingEvent0 != null && !pendingEvent0.isEmpty()) {
-//                    dataEvent = new ArrayList<>();
-//                    dataEvent.addAll(pendingEvent0);
-//                    pendingEvent0 = null;
-//                } else if (pendingEvent != null){
-//                    dataEvent = new ArrayList<>();
-//                    dataEvent.add(pendingEvent);
-//                    pendingEvent = null;
-//                } else {
-//                    try {
-//                        dataEvent = eventQueue0.poll(5, TimeUnit.SECONDS);
-//                        if(null == dataEvent){
-//                            dataEvent = new ArrayList<>();
-//                        }
-//                        Optional.ofNullable(eventQueue.poll(500, TimeUnit.MILLISECONDS)).ifPresent(dataEvent::add);
-//                    } catch (InterruptedException e) {
-//                        break;
-//                    }
-//                    isPending.compareAndSet(true, false);
-//                }
-//
-//                if (null != dataEvent && !dataEvent.isEmpty()) {
-//                    for (TapdataEvent tapEvent : dataEvent) {
-//                        TapEvent event = null;
-//                        if (!isPending.get()) {
-//                            TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
-//                            event = tapEvent.getTapEvent();
-//                            tapRecordToTapValue(event, codecsFilterManager);
-//                        }
-//                        if (!offer(tapEvent)) {
-//                            if (null == pendingEvent0 ) pendingEvent0 = new ArrayList<>();
-//                            pendingEvent0.add(tapEvent);
-//                            continue;
-//                        }
-//                        Optional.ofNullable(getSnapshotProgressManager())
-//                                .ifPresent(s -> s.incrementEdgeFinishNumber(TapEventUtil.getTableId(tapEvent.getTapEvent())));
-//                    }
-//                }
-//            } catch (Throwable e) {
-//                errorHandle(e, "start source consumer failed: " + e.getMessage());
-//                break;
-//            }
-//        }
-//    }
-//    public void enqueue(List<TapdataEvent> tapdataEvent) {
-//        try {
-//            while (isRunning()) {
-//                //LinkedBlockingQueue<TapdataEvent> queue = queueMap.computeIfAbsent(Thread.currentThread().getId() + "_" + Thread.currentThread().getName(), key -> new LinkedBlockingQueue<>(sourceQueueCapacity));
-//                if (eventQueue0.offer(tapdataEvent, 3, TimeUnit.SECONDS)) {
-//                    break;
-//                }
-//            }
-//        }
-//        catch (Throwable throwable) {
-//            throw new NodeException(throwable).context(getDataProcessorContext()).events(tapdataEvent.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));
-//        }
-//    }
-
 }

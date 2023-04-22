@@ -174,7 +174,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                     if (Objects.nonNull(findPossibleDataTypes)) {
                         findPossibleDataTypes.forEach((k, v) -> {
                             if (Objects.isNull(v.getLastMatchedDataType())) {
-                                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_FIELD"), node.getName(), metadata.getName(), k);
+                                TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_FIELD"), node.getName(), metadata.getName(), k);
                                 result.add(log);
                             } else {
                                 Map<String, String> dataTypeMap = metadata.getFields().stream().collect(Collectors.toMap(Field::getFieldName, Field::getDataType, (pre, aft) -> pre));

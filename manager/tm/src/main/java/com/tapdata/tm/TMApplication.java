@@ -1,8 +1,7 @@
 package com.tapdata.tm;
 
-import com.tapdata.tm.ds.service.impl.RepairCreateTimeComponent;
-import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
+import com.tapdata.tm.ds.service.impl.RepairCreateTimeComponent;
 import com.tapdata.tm.listener.StartupListener;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
@@ -11,8 +10,9 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.core.runtime.TapRuntime;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration;
+import org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.web.servlet.ServletComponentScan;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -20,7 +20,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.mongodb.config.EnableMongoAuditing;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
 import org.springframework.scheduling.annotation.EnableAsync;
 
 import java.util.TimeZone;
@@ -34,9 +33,8 @@ import static io.tapdata.pdk.core.utils.CommonUtils.dateString;
  */
 @Import(cn.hutool.extra.spring.SpringUtil.class)
 @ServletComponentScan("com.tapdata.tm.monitor.servlet")
-@SpringBootApplication
+@SpringBootApplication(exclude = {MongoAutoConfiguration.class, MongoDataAutoConfiguration.class})
 @EnableMongoAuditing
-@EnableMongoRepositories
 @EnableAsync
 @Slf4j
 public class TMApplication {

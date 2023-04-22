@@ -607,6 +607,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                     tapCreateTableEvent.table(addTapTable);
                     tapCreateTableEvent.setTableId(addTapTable.getId());
                     TapdataEvent tapdataEvent = wrapTapdataEvent(tapCreateTableEvent, SyncStage.valueOf(syncProgress.getSyncStage()), null, false);
+
                     if (null == tapdataEvent) {
                         String error = "Wrap create table tapdata event failed: " + addTapTable;
                         errorHandle(new RuntimeException(error), error);

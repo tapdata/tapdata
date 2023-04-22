@@ -146,6 +146,9 @@ public class ExpressionMatchingMap<T> {
      * @return
      */
     public TypeExprResult<T> get(String key) {
+        return get(key, null);
+    }
+    public TypeExprResult<T> get(String key, Set<String> ignoreExpressionSet) {
         if(key == null)
             return null;
         T value = exactlyMatchMap.get(key.toLowerCase());
@@ -158,6 +161,9 @@ public class ExpressionMatchingMap<T> {
                 if(typeExprList == null)
                     continue;
                 for(TypeExpr<T> typeExpr : typeExprList) {
+                    if(ignoreExpressionSet != null && ignoreExpressionSet.contains(typeExpr.getExpression()))
+                        continue;
+
                     TypeExprResult<T> result = typeExpr.verifyValue(key);
                     if(result == null)
                         continue;

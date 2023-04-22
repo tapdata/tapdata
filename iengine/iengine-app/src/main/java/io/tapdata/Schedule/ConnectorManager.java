@@ -287,6 +287,12 @@ public class ConnectorManager {
 			params.clear();
 			for (Worker worker : workers) {
 				String id = worker.getId();
+
+				if (worker.getIsDeleted() != null && worker.getIsDeleted()) {
+					exit(worker.getProcess_id());
+					return;
+				}
+
 				params.put("id", id);
 
 				Map<String, Object> updateData = new HashMap<>();
@@ -1418,6 +1424,8 @@ public class ConnectorManager {
 								throw stopError;
 							}
 							throw new RuntimeException("Failed to send worker heartbeat use websocket, will retry http, message: " + errorMessage);
+						} else if (PingDto.PingResult.DELETED.name().equalsIgnoreCase(pingResult)) {
+							exit(value != null ? value.get("process_id") : null);
 						}
 					});
 			if (!handleResponse) {
@@ -1427,6 +1435,11 @@ public class ConnectorManager {
 			logger.warn(e.getMessage());
 			executeWhenError.accept(value);
 		}
+	}
+
+	private static void exit(Object processId) {
+		logger.warn("This instance({}) has been deleted on the server side and cannot continue to run", processId);
+		System.exit(1);
 	}
 
 	/**

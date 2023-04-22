@@ -47,7 +47,7 @@ public class PatchesRunner implements ApplicationRunner {
     @Value("#{'${spring.profiles.include:idaas}'.split(',')}")
     private List<String> productList;
 
-    @Value("${spring.data.mongodb.uri}")
+    @Value("${spring.data.mongodb.default.uri}")
     private String mongodbUri;
 
     @Override

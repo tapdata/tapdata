@@ -271,9 +271,9 @@ public class MongodbMergeOperate {
 			mergeResult.getFilter().putAll(filter);
 
 			if (operation == MergeBundle.EventOperation.UPDATE) {
-				final List<Document> arrayFilter = arrayFilter(
+				final List<Document> arrayFilter = arrayFilterForArrayMerge(
 						MapUtils.isNotEmpty(mergeBundle.getBefore()) ? mergeBundle.getBefore() : mergeBundle.getAfter(),
-						currentProperty.getJoinKeys(),
+						currentProperty.getArrayKeys(),
 						currentProperty.getTargetPath()
 				);
 				mergeResult.getUpdateOptions().arrayFilters(arrayFilter);
@@ -378,6 +378,17 @@ public class MongodbMergeOperate {
 			Document filter = new Document();
 			String[] paths = joinKey.get("target").split("\\.");
 			filter.put("element1." + paths[paths.length - 1], MapUtil.getValueByKey(data, joinKey.get("source")));
+			arrayFilter.add(filter);
+		}
+		return arrayFilter;
+	}
+
+	private static List<Document> arrayFilterForArrayMerge(Map<String, Object> data, List<String> arrayKeys, String targetPath) {
+		List<Document> arrayFilter = new ArrayList<>();
+		for (String arrayKey : arrayKeys) {
+			Document filter = new Document();
+			String[] paths = arrayKey.split("\\.");
+			filter.put("element1." + paths[paths.length - 1], MapUtil.getValueByKey(data, arrayKey));
 			arrayFilter.add(filter);
 		}
 		return arrayFilter;

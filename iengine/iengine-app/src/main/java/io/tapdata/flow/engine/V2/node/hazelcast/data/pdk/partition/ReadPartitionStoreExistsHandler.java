@@ -145,12 +145,12 @@ public class ReadPartitionStoreExistsHandler extends PartitionFieldParentHandler
 											events.add(insertRecordEvent(value, table));
 											sentEventCount.increment();
 											if(events.size() >= sourcePdkDataNode.batchSize) {
-												enqueueTapEvents(batchReadFuncAspect, events);
+												enqueueTapEvents(batchReadFuncAspect, events, sourcePdkDataNode);
 												events = new ArrayList<>();
 											}
 
 										}
-										enqueueTapEvents(batchReadFuncAspect, events);
+										enqueueTapEvents(batchReadFuncAspect, events, sourcePdkDataNode);
 									}
 								})
 						));
@@ -200,13 +200,13 @@ public class ReadPartitionStoreExistsHandler extends PartitionFieldParentHandler
 			sentEventCount.increment();
 			if(reference.get().size() >= sourcePdkDataNode.batchSize) {
 //				long theTime = System.currentTimeMillis();
-				enqueueTapEvents(batchReadFuncAspect, reference.get());
+				enqueueTapEvents(batchReadFuncAspect, reference.get(), sourcePdkDataNode);
 //				sourcePdkDataNode.getObsLogger().info("enqueueTapEvents sequence events {} takes {}", reference.get().size(), (System.currentTimeMillis() - theTime));
 				reference.set(new ArrayList<>());
 			}
 			return null;
 		});
-		enqueueTapEvents(batchReadFuncAspect, reference.get());
+		enqueueTapEvents(batchReadFuncAspect, reference.get(), sourcePdkDataNode);
 
 		/*partitionSequenceStorage.foreachValues((value, value1) -> {
 			Map<String, Object> record = (Map<String, Object>) value;
@@ -246,47 +246,16 @@ public class ReadPartitionStoreExistsHandler extends PartitionFieldParentHandler
 			newInsertReference.get().add(insertRecordEvent(dataFromCDC, table));
 			sentEventCount.increment();
 			if(newInsertReference.get().size() >= sourcePdkDataNode.batchSize) {
-				enqueueTapEvents(batchReadFuncAspect, newInsertReference.get());
+				enqueueTapEvents(batchReadFuncAspect, newInsertReference.get(), sourcePdkDataNode);
 				newInsertReference.set(new ArrayList<>());
 			}
 			return null;
 		});
-		enqueueTapEvents(batchReadFuncAspect, newInsertReference.get());
+		enqueueTapEvents(batchReadFuncAspect, newInsertReference.get(), sourcePdkDataNode);
 		sourcePdkDataNode.getObsLogger().info("Consumer rest cdc events {} takes {}", sentEventCount.longValue(), (System.currentTimeMillis() - theTime));
 
 		sourcePdkDataNode.getObsLogger().info("Send {} events to next node for read partition {} takes {}", sentEventCount.longValue(), readPartition, (System.currentTimeMillis() - time));
 		return null;
-	}
-
-	private void enqueueTapEvents(BatchReadFuncAspect batchReadFuncAspect, List<TapEvent> events) {
-		if(events == null || events.isEmpty())
-			return;
-//		long time = System.currentTimeMillis();
-		if (batchReadFuncAspect != null)
-			AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), events);
-//		sourcePdkDataNode.getObsLogger().info("STATE_READ_COMPLETE events {} takes {}", events.size(), (System.currentTimeMillis() - time));
-
-		if (sourcePdkDataNode.logger.isDebugEnabled()) {
-			sourcePdkDataNode.logger.debug("Batch read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(sourcePdkDataNode.getConnectorNode()));
-		}
-//					((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(tapTable.getId(), offsetObject);
-//		time = System.currentTimeMillis();
-		List<TapdataEvent> tapdataEvents = sourcePdkDataNode.wrapTapdataEvent(events);
-//		sourcePdkDataNode.getObsLogger().info("wrapTapdataEvent events {} takes {}", events.size(), (System.currentTimeMillis() - time));
-
-		if (batchReadFuncAspect != null)
-			AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_PROCESS_COMPLETE).getProcessCompleteConsumers(), tapdataEvents);
-
-		if (CollectionUtil.isNotEmpty(tapdataEvents)) {
-//			long time = System.currentTimeMillis();
-			tapdataEvents.forEach(sourcePdkDataNode::enqueue);
-//			sourcePdkDataNode.getObsLogger().info("enqueue events {} takes {}", tapdataEvents.size(), (System.currentTimeMillis() - time));
-
-//			time = System.currentTimeMillis();
-			if (batchReadFuncAspect != null)
-				AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_ENQUEUED).getEnqueuedConsumers(), tapdataEvents);
-//			sourcePdkDataNode.getObsLogger().info("STATE_ENQUEUED events {} takes {}", tapdataEvents.size(), (System.currentTimeMillis() - time));
-		}
 	}
 
 	public JobContext handleFinishedPartition(JobContext jobContext) {

@@ -26,23 +26,29 @@ public class Header {
     public static List<Header> create(List<Map<String,Object>> list){
         List<Header> headers = new ArrayList<>();
         try {
-            list.stream().filter(Objects::nonNull).forEach(head -> headers.add(Header.create(head)));
+            list.stream().filter(Objects::nonNull).forEach(head -> {
+                Header header = Header.create(head);
+                if (null != header){
+                    headers.add(header);
+                }
+            });
         }catch (Exception e){}
         return headers;
     }
     public static Header create(Map<String,Object> map){
         try {
             Object keyObj = map.get(PostParam.KEY);
+            String key = Objects.isNull(keyObj)? null : (String) keyObj;
+            if (null == key || "".equals(key.trim())) return null;
             Object valueObj = map.get(PostParam.VALUE);
             Object typeObj = map.get(PostParam.TYPE);
             Object disabledObj = map.get(PostParam.DISABLED);
-            String key = Objects.isNull(keyObj)?null : (String) keyObj;
             boolean disabled = Objects.nonNull(disabledObj) && (disabledObj instanceof Boolean ? (Boolean) disabledObj : "true".equals(String.valueOf(disabledObj)));
             String value = Objects.isNull(valueObj)?null : (String) valueObj;
             String type = Objects.isNull(typeObj)?null : (String) typeObj;
             return Header.create().key(key).value(value).type(type).disabled(disabled);
         }catch (Exception e){}
-        return new Header();
+        return null;
     }
     public String key(){
         return this.key;

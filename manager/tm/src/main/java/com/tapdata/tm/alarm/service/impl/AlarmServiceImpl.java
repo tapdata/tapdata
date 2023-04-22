@@ -242,9 +242,9 @@ public class AlarmServiceImpl implements AlarmService {
             FunctionUtils.ignoreAnyError(() -> {
                 boolean reuslt = sendMessage(info, taskDto, userDetail,null);
                 if (!reuslt) {
-                    info.setLastNotifyTime(null);
                     DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(),30);
-                    info.setLastNotifyTime(dateTime);save(info);
+                    info.setLastNotifyTime(dateTime);
+                    save(info);
                 }
             });
             FunctionUtils.ignoreAnyError(() -> {

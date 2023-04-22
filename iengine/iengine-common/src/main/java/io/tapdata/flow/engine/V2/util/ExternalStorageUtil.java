@@ -289,7 +289,7 @@ public class ExternalStorageUtil {
 			externalStorageDto = externalStorageDtoMap.values().stream().filter(e -> e.getName().equals(ConnectorConstant.TAPDATA_MONGO_DB_EXTERNAL_STORAGE_NAME)).findFirst().orElse(null);
 		}
 		if (null != externalStorageDto) {
-			logger.info("Node {}(id: {}, type: {}) use default external storage config: {}", node.getName(), node.getId(), node.getClass().getSimpleName(), externalStorageDto);
+			logger.info("Node {}(id: {}, type: {}) use default external storage config: {}", node.getName(), node.getId(), node.getClass().getSimpleName(), externalStorageDto.getName());
 		}
 		return externalStorageDto;
 	}
@@ -307,7 +307,7 @@ public class ExternalStorageUtil {
 			externalStorageDto = clientMongoOperator.findOne(query, ConnectorConstant.EXTERNAL_STORAGE_COLLECTION, ExternalStorageDto.class);
 		}
 		if (null != externalStorageDto) {
-			logger.info("Node {}(id: {}, type: {}) use default external storage config: {}", node.getName(), node.getId(), node.getClass().getSimpleName(), externalStorageDto);
+			logger.info("Node {}(id: {}, type: {}) use default external storage config: {}", node.getName(), node.getId(), node.getClass().getSimpleName(), externalStorageDto.getName());
 		}
 		return externalStorageDto;
 	}
@@ -322,7 +322,7 @@ public class ExternalStorageUtil {
 		if (StringUtils.isNotBlank(externalStorageId)) {
 			externalStorageDto = externalStorageDtoMap.get(externalStorageId);
 			if (null != externalStorageDto) {
-				logger.info("Node {}(id: {}, type: {}) use external storage config: {}", node.getName(), node.getId(), node.getClass().getSimpleName(), externalStorageDto);
+				logger.info("Node {}(id: {}, type: {}) use external storage config: {}", node.getName(), node.getId(), node.getClass().getSimpleName(), externalStorageDto.getName());
 			}
 		}
 		return externalStorageDto;
@@ -339,7 +339,7 @@ public class ExternalStorageUtil {
 			Query query = Query.query(where("_id").is(externalStorageId));
 			externalStorageDto = clientMongoOperator.findOne(query, ConnectorConstant.EXTERNAL_STORAGE_COLLECTION, ExternalStorageDto.class);
 			if (null != externalStorageDto) {
-				logger.info("Node {}(id: {}, type: {}) use external storage config: {}", node.getName(), node.getId(), node.getClass().getSimpleName(), externalStorageDto);
+				logger.info("Node {}(id: {}, type: {}) use external storage config: {}", node.getName(), node.getId(), node.getClass().getSimpleName(), externalStorageDto.getName());
 			}
 		}
 		return externalStorageDto;
@@ -369,7 +369,7 @@ public class ExternalStorageUtil {
 				if (null != logCollectorNodeConn && StringUtils.isNotBlank(logCollectorNodeConn.getShareCDCExternalStorageId())) {
 					externalStorageDto = externalStorageDtoMap.get(logCollectorNodeConn.getShareCDCExternalStorageId());
 					if (null != externalStorageDto) {
-						logger.info("Node {}(id: {}, type: {}) use external storage config: {}", node.getName(), node.getId(), node.getClass().getSimpleName(), externalStorageDto);
+						logger.info("Node {}(id: {}, type: {}) use external storage config: {}", node.getName(), node.getId(), node.getClass().getSimpleName(), externalStorageDto.getName());
 					}
 				}
 			}
@@ -401,7 +401,7 @@ public class ExternalStorageUtil {
 					Query query = Query.query(where("_id").is(logCollectorNodeConn.getShareCDCExternalStorageId()));
 					externalStorageDto = clientMongoOperator.findOne(query, ConnectorConstant.EXTERNAL_STORAGE_COLLECTION, ExternalStorageDto.class);
 					if (null != externalStorageDto) {
-						logger.info("Node {}(id: {}, type: {}) use external storage config: {}", node.getName(), node.getId(), node.getClass().getSimpleName(), externalStorageDto);
+						logger.info("Node {}(id: {}, type: {}) use external storage config: {}", node.getName(), node.getId(), node.getClass().getSimpleName(), externalStorageDto.getName());
 					}
 				}
 			}
@@ -421,7 +421,7 @@ public class ExternalStorageUtil {
 				externalStorageDto = externalStorageDtoMap.values().stream().filter(e -> e.getName().equals(ConnectorConstant.TAPDATA_MONGO_DB_EXTERNAL_STORAGE_NAME)).findFirst().orElse(null);
 			}
 			if (null != externalStorageDto) {
-				logger.info("Node {}(id: {}, type: {}) use external storage config: {}", node.getName(), node.getId(), node.getClass().getSimpleName(), externalStorageDto);
+				logger.info("Node {}(id: {}, type: {}) use external storage config: {}", node.getName(), node.getId(), node.getClass().getSimpleName(), externalStorageDto.getName());
 			}
 		}
 		return externalStorageDto;
@@ -440,7 +440,7 @@ public class ExternalStorageUtil {
 				externalStorageDto = clientMongoOperator.findOne(query, ConnectorConstant.EXTERNAL_STORAGE_COLLECTION, ExternalStorageDto.class);
 			}
 			if (null != externalStorageDto) {
-				logger.info("Node {}(id: {}, type: {}) use external storage config: {}", node.getName(), node.getId(), node.getClass().getSimpleName(), externalStorageDto);
+				logger.info("Node {}(id: {}, type: {}) use external storage config: {}", node.getName(), node.getId(), node.getClass().getSimpleName(), externalStorageDto.getName());
 			}
 		}
 		return externalStorageDto;
