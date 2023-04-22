@@ -232,7 +232,9 @@ class Job:
                     p.stop()
                     break
             qps = int(sum(qps_metrics) / len(qps_metrics))
-            self._metrics_collect(qps=qps, sync_time=sync_time)  # Pass the metrics you want to add into the method
+            self._metrics_collect(qps=qps,
+                                  sync_time=sync_time
+                                  )  # Pass the metrics you want to add into the method
 
         logger.info(
             "job {} finish, status: {},\n" + \
@@ -316,7 +318,6 @@ class Job:
             create_datasource(self._args.source, self._args.target)
         except Exception as e:
             logger.error("{}", e)
-            print("-------------------------------------------------")
             return False
         else:
             _datasource_name = [datasource + get_suffix() for datasource in
@@ -327,4 +328,5 @@ class Job:
 if __name__ == '__main__':
     clean_cache_file()
     j = Job()
-    print(j.run_test_case)
+    print(j.run_test_case, '\n########################################################################################')
+

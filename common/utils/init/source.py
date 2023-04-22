@@ -2,7 +2,7 @@
 import os, sys, yaml, json
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-data_path = os.path.dirname(os.path.abspath(__file__)) + r'\..\..\..\data\init_data'
+data_path = os.path.dirname(os.path.abspath(__file__)) + '/../../../data/init_data'
 
 
 # parse datasource from config.yaml

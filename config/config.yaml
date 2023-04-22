@@ -1,6 +1,6 @@
 qa_mongodb:
   connector: "mongodb"
-  uri: "mongodb://root:Gotapd8!@139.198.127.204:32550/qa2?authSource=admin"
+  uri: "mongodb://root:Gotapd8!@139.198.127.204:32550/performance_test?authSource=admin"
   __core: true
   __type: ["source", "sink", "cdc"]
 
