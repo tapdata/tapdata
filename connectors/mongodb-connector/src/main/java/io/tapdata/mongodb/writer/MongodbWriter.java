@@ -244,14 +244,20 @@ public class MongodbWriter {
 			TapUpdateRecordEvent updateRecordEvent = (TapUpdateRecordEvent) recordEvent;
 			Map<String, Object> after = updateRecordEvent.getAfter();
 			Map<String, Object> before = updateRecordEvent.getBefore();
-			final Document pkFilter = getPkFilter(pks, before != null && !before.isEmpty() ? before : after);
-
-			if (ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS.equals(mongodbConfig.getUpdateDmlPolicy())) {
-				options.upsert(false);
-			}
-			MongodbUtil.removeIdIfNeed(pks, after);
-			Document u = new Document().append("$set", after);
 			Map<String, Object> info = recordEvent.getInfo();
+			Document pkFilter;
+			if (after == null && info != null) {
+				pkFilter = new Document("_id", info.get("_id"));
+				after = (Map<String, Object>) info.get("$set");
+				options.upsert(false);
+			} else {
+				pkFilter = getPkFilter(pks, before != null && !before.isEmpty() ? before : after);
+				if (ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS.equals(mongodbConfig.getUpdateDmlPolicy())) {
+					options.upsert(false);
+				}
+				MongodbUtil.removeIdIfNeed(pks, after);
+			}
+			Document u = new Document().append("$set", after);
 			if (info != null) {
 				Object unset = info.get("$unset");
 				if (unset != null) {
