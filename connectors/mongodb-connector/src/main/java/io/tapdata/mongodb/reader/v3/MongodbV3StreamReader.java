@@ -347,8 +347,8 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 								} else if ("i".equalsIgnoreCase(event.getString("op"))) {
 										tapBaseEvent = insertRecordEvent(o, collectionName);
 								} else if ("d".equalsIgnoreCase(event.getString("op"))) {
-										final Map lookupData = MongodbLookupUtil.findDeleteCacheByOid(connectionString, collectionName, o.get("_id"), globalStateMap);
-										tapBaseEvent = deleteDMLEvent(lookupData != null ? (Map)lookupData.get("data") : o, collectionName);
+										//final Map lookupData = MongodbLookupUtil.findDeleteCacheByOid(connectionString, collectionName, o.get("_id"), globalStateMap);
+										tapBaseEvent = deleteDMLEvent(o, collectionName);
 								}
 //								try {
 //										factory.recordEvent(event, clock.currentTimeInMillis(), true);
