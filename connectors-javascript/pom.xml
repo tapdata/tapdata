@@ -18,6 +18,7 @@
 		<module>lark-task-connector</module>
 		<module>salesforce-connector</module>
 		<module>beschannels-connector</module>
+		<module>shopify-ecomm-connector</module>
 	</modules>
 
 	<properties>

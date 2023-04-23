@@ -73,6 +73,7 @@ public class RegisterMain {
         Salesforce(BASE_PATH + "connectors/dist/salesforce-connector-v1.0-SNAPSHOT.jar", "all", "salesforce"),
         Hive3(BASE_PATH + "connectors/dist/hive3-connector-v1.0-SNAPSHOT.jar", "all", "hive3"),
         BesChannels(BASE_PATH + "connectors/dist/beschannels-connector-v1.0-SNAPSHOT.jar", "all", "bes-channels"),
+        ShopifyEComm(BASE_PATH + "connectors/dist/shopify-ecomm-connector-v1.0-SNAPSHOT.jar", "all", "shopify-ecomm"),
 
         ;
 

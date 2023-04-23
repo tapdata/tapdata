@@ -1,0 +1,146 @@
+{
+  "properties": {
+    "name": "Shopify EComm",
+    "icon": "icon/shopify.png",
+    "doc" : "${doc}",
+    "id": "shopify-ecomm"
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+        "shopName": {
+          "type": "String",
+          "title": "${c_shop_name}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 10,
+          "required": true
+        },
+        "token": {
+          "type": "String",
+          "title": "${c_token}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 20,
+          "required": true,
+          "x-display": "hidden"
+        },
+        "code": {
+          "type": "String",
+          "title": "${c_oauth_code}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-decorator-props": {
+            "style": {"display": "none"}
+          },
+          "apiServerKey": "code",
+          "x-index": 30,
+          "required": true
+        },
+        "line": {
+          "type": "void",
+          "x-component": "Space",
+          "x-reactions": [
+            {
+              "dependencies": ["shopName"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0] ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ],
+          "x-decorator": "FormItem",
+          "title": " ",
+          "x-decorator-props": {
+            "colon": false
+          },
+          "properties": {
+            "authButton": {
+              "type": "void",
+              "x-decorator": "FormItem",
+              "x-component": "Button",
+              "x-content": "${c_oauth_title}",
+              "title": "",
+              "x-index": 40,
+              "x-component-props": {
+                "type": "primary",
+                "onClick": "{{useAsyncDataSourceByConfig({service: goToAuthorized, withoutField: true}, { target: 'https://redirect.tapdata.io/oauth/complete', pdkId: 'coding', oauthUrl: 'https://@{shopName}@.coding.net/oauth_authorize.html?client_id=f62b86d98192df7d72f286fa086d3d85&redirect_uri=https://redirect.tapdata.io/oauth/complete/coding&response_type=code&scope=user,user:email,project,project:issue,project:members'})}}"
+              },
+              "x-decorator-props":{"style":{"width":"120px"}}
+            },
+            "OAuthStatus": {
+              "type": "void",
+              "title": "",
+              "x-decorator": "FormItem",
+              "x-component": "Text",
+              "apiServerKey": "AAA",
+              "x-index": 50,
+              "required": true,
+              "x-component-props": {
+                "content": "{{$values.code ? '${c_oauth_ok}' : '${c_oauth_msg}'}}",
+                "style": {"color": "{{ $values.code ? 'green' : 'rgb(83, 95, 114)' }}"}
+              }
+            }
+          },
+          "x-index": 50
+        },
+        "clientId": {
+          "type": "String",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "f62b86d98192df7d72f286fa086d3d85",
+          "x-display": "hidden",
+          "index": 998
+        },
+        "clientSecret":{
+          "type": "String",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": "b76e9308d43810ed775d953d8b3a33c1ad2fd5db",
+          "x-display": "hidden",
+          "index": 999
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "doc/shopify_en_US.md",
+      "c_shop_name": "The name of the merchant’s shop",
+      "c_token": " ",
+      "c_oauth_code": "Authorize",
+      "c_oauth_title": "Authorize",
+      "c_oauth_ok": "Authorization successfully",
+      "c_oauth_msg": "Please authorize before connection test and save"
+    },
+    "zh_CN": {
+      "doc": "doc/shopify_zh_CN.md",
+      "c_shop_name": "商户店铺名称",
+      "c_token": " ",
+      "c_oauth_code": "授权",
+      "c_oauth_title": "授权",
+      "c_oauth_ok": "授权成功",
+      "c_oauth_msg": "请先授权成功再点击连接测试或保存"
+    },
+    "zh_TW": {
+      "doc": "doc/shopify_zh_TW.md",
+      "c_shop_name": "商戶店鋪名稱",
+      "c_token": " ",
+      "c_oauth_code": "授權",
+      "c_oauth_title": "授權",
+      "c_oauth_ok": "授權成功",
+      "c_oauth_msg": "請先授權成功再點擊鏈接測試或保存"
+    }
+  }
+}
