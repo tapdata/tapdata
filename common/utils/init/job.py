@@ -1,6 +1,8 @@
 from typing import Union
-import os, sys, copy, argparse, inspect, time
+import os, sys, copy, argparse, inspect, time, random
+from enum import Enum
 from importlib import import_module
+
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../../lib")
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../../common")
@@ -32,7 +34,7 @@ def parse_args():
                         default="test_sync")
     parser.add_argument('--source', help="datasource name, if None, will run dummy", default="dummy")
     parser.add_argument('--target', help="datasource sink name, if None, will run dummy", default="dummy")
-    parser.add_argument('--processing', help="processing name, if None, No processing nodes will be used", default=None)
+    parser.add_argument('--processor', help="processing name, if None, No processing nodes will be used", default=None)
     parser.add_argument('--clean', help="clean cache file", default=False, action='store_true')
     args = parser.parse_args()
     return args
@@ -46,6 +48,32 @@ def clean_cache_file():
         else:
             logger.info("There is no cached file, a cached file will be created 【.table_suffix_cache_file】", "")
             return
+
+
+class Processor(Enum):
+    """
+    the following is an enumeration of all supported processor types:
+    1 -> sync
+    2 -> merge
+    3 -> join
+    4 -> union
+    5 -> js
+    6 -> rowFilter
+    7 -> fieldCalc
+    8 -> fieldModType
+    9 -> fieldRename
+    10 -> fieldAddDel
+    """
+    sync = "sync"
+    merge = "merge"
+    join = "join"
+    union = "union"
+    js = "js"
+    rowFilter = "rowFilter"
+    fieldCalc = "fieldCalc"
+    fieldModType = "fieldModType"
+    fieldRename = "fieldRename"
+    fieldAddDel = "fieldAddDel"
 
 
 class TestCase:
@@ -76,6 +104,11 @@ class TestCase:
                 cli.job_name = inst.name
                 inst.job_infos["job_name"] = inst.name
                 inst._params_template = _params_template
+                if tc[5:] in Processor.__dict__["_member_map_"]:
+                    inst.job_infos["dag"]["node"]["processor"] = tc[5:]
+                else:
+                    logger.warn("{} in the name of the test case does not "
+                                "conform to the specification, please modify,{}", tc[5:], Processor.__doc__)
                 for res in inst:
                     pass
                 return res
@@ -83,25 +116,31 @@ class TestCase:
     def __set__(self, instance, value) -> None:
         mods_params = value.values()
         instance.gen_params = {}
-        source_params = []  # Reserved multi-table list
-        target_params = []
+        instance.source_params = []  # Reserved multi-table list
+        instance.target_params = []
+        instance.dummy_source_table = "%s_%s%s" % (instance.dummy_source_name,
+                                                   list(value)[0], get_suffix())
         for param in list(mods_params)[0]:
             if param == "Pipeline":
                 instance.gen_params.update(Pipeline=Pipeline)
                 continue
             if param.startswith("source"):
-                instance.source_table_name = "%s_%s_%s%s" % (instance.dummy_source_name,
-                                                             list(value)[0], param, get_suffix())
-                exec_param = "%s.%s" % (instance.dummy_source, instance.source_table_name)
-                source_params.append(exec_param)
+                instance.source_table_name = "%s_%s_%s_%s" % \
+                                             (instance.datasource_name_l[0],
+                                              list(value)[0], param,
+                                              f"{''.join(random.sample('zyxwvutsrqponmlkjihgfedcba',2))}")
+                exec_param = "%s.%s" % (instance.datasource_name_l[0], instance.source_table_name)
+                instance.source_params.append(exec_param)
                 continue
             if param.startswith("target"):
-                instance.target_table_name = "%s_%s_%s%s" % (instance.dummy_source_name,
-                                                             list(value)[0], param, get_suffix())
+                instance.target_table_name = "%s_%s_%s_%s" % \
+                                             (instance.datasource_name_l[-1],
+                                              list(value)[0], param,
+                                              f"{''.join(random.sample('zyxwvutsrqponmlkjihgfedcba',2))}")
                 exec_param = "%s.%s" % (instance.datasource_name_l[-1], instance.target_table_name)
-                target_params.append(exec_param)
+                instance.target_params.append(exec_param)
                 continue
-        instance.gen_params.update(source=source_params, target=target_params)
+        instance.gen_params.update(source=instance.source_params, target=instance.target_params)
 
     @classmethod
     def _test_cases_module(cls):
@@ -123,7 +162,6 @@ class Job:
 
         self.source = self._args.source
         self.target = self._args.target
-        self.processing = self._args.processing
         self.dummy_source_name = ''
         self.init_config = self._parse_init_config
         self.field_mod = self._field_module
@@ -134,6 +172,7 @@ class Job:
             "connection_type": [connection_type["connection_type"] for connection_type in config]
         }
         self.dummy_source = ''
+        self.dummy_source_table = ''
         self.pipeline_ins = None
         self.cfg = {}
         self.jobs_infos = []
@@ -142,9 +181,9 @@ class Job:
             "job_name": "",
             "dag": {
                 "node": {
-                    "source_db_type": self.source,
+                    "source": self.source,
                     "target": self.target,
-                    "processing": self.processing
+                    "processor": None
                 }
             },
             "table_fields": 1,
@@ -170,26 +209,34 @@ class Job:
         self.job_infos["table_fields"] = str(len(columns))
         self.job_infos["job_test_res"] = self.job_test_res
         self.cfg.update({
-            "table_name": self.source_table_name,
+            "table_name": self.dummy_source_table,
             "table_fields": columns
         })
         for sync_tp, step_size in self.init_config().items():
+            if sync_tp == "initial_sync":
+                last_time_step = 0
             for step in step_size:
                 self.Metrics = self._Metrics()
                 if self._args.source == "dummy" and sync_tp == "cdc":
                     self.cfg.update({
                         "incremental_interval": 1000,
-                        "incremental_interval_totals": step
+                        "incremental_interval_totals": int(int(step)/len(self.source_params))
                     })
                 else:
+                    if self._args.source == "dummy":
+                        actual_step = int(int(step)/len(self.source_params))
+                    else:
+                        if sync_tp == "initial_sync":
+                            actual_step = int(int(step)/len(self.source_params)) - last_time_step
+                            last_time_step = actual_step
                     self.cfg.update({
-                        "initial_totals": step,
+                        "initial_totals": actual_step,
                         "incremental_interval": 10000000,
                         "incremental_interval_totals": 1
                     })
                 self.test_res = copy.copy(self.test_res)
                 self.row_num = step
-                self._dummy_source(self.index, self.cfg)  # 后续更改为 _dummy_init_job
+                self._dummy_source(self.index, self.cfg)
                 self.pipeline_ins = self._gen_job()
                 self.continuous_testing(self.pipeline_ins, sync_tp)
                 self.test_res.update(row_num=step, sync_type=sync_tp, metrics=self.Metrics.__dict__)
@@ -271,13 +318,26 @@ class Job:
                         self.row_num)
         else:
             dum_source.save()
+        self._dummy_init_job()
         return True
 
     # TODO:
     #  1、源是dummy，目标为包括dummy在内的任意一个数据源：运行以"初始dummy源"为源头的该任务;
     #  2、源不是dummy，目标为包括dummy在内的任意一个数据源：运行以"初始dummy源"为源头，到任意"非dummy"为目标源的该任务来造数据
     def _dummy_init_job(self):  # source is not an initialization task that runs on dummy to make data
-        pass
+        init_dummy_source_t = "%s.%s" % (self.dummy_source, self.dummy_source_table)
+        job_name = "Data_creation_from_dummy_to_%s%s" % (self._args.target, get_suffix())
+        for s_param in self.source_params:
+            p = Pipeline(job_name, mode="sync")
+            p.config({"type": "initial_sync"})
+            p.readFrom(init_dummy_source_t).writeTo(s_param)
+            p.start()
+            logger.info("Start running task {} to create data for {}...", job_name, s_param)
+            while True:
+                if p.wait_status("complete"):
+                    p.job.reset()
+                    break
+            logger.info("Job {} data creation is complete", job_name)
 
     @property
     def _parse_init_config(self):
