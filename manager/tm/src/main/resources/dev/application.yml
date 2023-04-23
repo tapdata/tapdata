@@ -7,10 +7,10 @@ spring:
         mongodb:
             cursorBatchSize: 1000
             default:
-                uri: 'mongodb://139.198.115.191:32000/dfs-tm'
+                uri: 'mongodb://127.0.0.1:27017/tapdata_v29'
             obs:
-                uri: 'mongodb://139.198.115.191:32000/dfs-tm-obs'
+                uri: 'mongodb://127.0.0.1:27017/tapdata_v29'
             log:
-                uri: 'mongodb://139.198.115.191:32000/dfs-tm-log'
+                uri: 'mongodb://127.0.0.1:27017/tapdata_v29'
 tcm:
     url: http://139.198.127.226:30103
