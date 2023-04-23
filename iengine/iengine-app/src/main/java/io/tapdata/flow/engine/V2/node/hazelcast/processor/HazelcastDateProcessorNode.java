@@ -102,7 +102,7 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
     }
 
     if (tapTable == null) {
-      throw new TapCodeException(TaskDateProcessorExCode_17.INIT_TARGET_TABLE_TAP_TABLE_NULL, "Table name: "+ tableName);
+      throw new TapCodeException(TaskDateProcessorExCode_17.INIT_TARGET_TABLE_TAP_TABLE_NULL, "Table name: "+ tableName + "node id: " + getNode().getId());
     }
 
     LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
@@ -146,8 +146,8 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
             v = ((Instant) v).minus(hours, ChronoUnit.HOURS);
           }
           after.replace(k, new DateTime((Instant) v));
-        } else {
-          throw new TapCodeException(TaskDateProcessorExCode_17.SELECTED_TYPE_IS_NON_TIME + "type :" + v.toString());
+        } else if (v != null) {
+          throw new TapCodeException(TaskDateProcessorExCode_17.SELECTED_TYPE_IS_NON_TIME + "type :" + v);
         }
       }
     }
