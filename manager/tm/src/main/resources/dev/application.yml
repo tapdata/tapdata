@@ -3,11 +3,11 @@ spring:
     active: '@profile.active@'
     include: '@env.PRODUCT@,default'
 
-    data:
-        mongodb:
+  data:
+      mongodb:
             cursorBatchSize: 1000
             default:
-                uri: 'mongodb://139.198.115.191:32000/dfs-tm'
+                uri: 'mongodb://139.198.115.191:32000/dfs_tm'
             obs:
                 uri: 'mongodb://139.198.115.191:32000/dfs-tm-obs'
             log:
