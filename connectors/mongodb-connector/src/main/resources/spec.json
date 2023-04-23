@@ -257,6 +257,30 @@
           "x-index": 120
         }
       }
+    },
+    "node":{
+      "properties": {
+        "enableFillingModifiedData": {
+          "title": "${FillingModifiedData}",
+          "type": "boolean",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "x-decorator-props": {
+            "layout": "horizontal"
+          },
+          "default": false,
+          "x-reactions": {
+            "dependencies": [
+              "$outputs"
+            ],
+            "fulfill": {
+              "state": {
+                "visible": "{{$deps[0].length>0}}"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "messages": {
@@ -284,7 +308,8 @@
       "dataForm_form_sslKey": "Client private key",
       "dataForm_form_sslPass": "Private key password",
       "dataForm_form_sslValidate": "Validate server certificate",
-      "dataForm_form_sslCA": "Certificate Authority"
+      "dataForm_form_sslCA": "Certificate Authority",
+      "FillingModifiedData": "Filling Modified Data"
     },
     "zh_CN": {
       "doc": "docs/mongodb_zh_CN.md",
@@ -309,7 +334,8 @@
       "dataForm_form_sslKey": "客户端私钥",
       "dataForm_form_sslPass": "私钥密码",
       "dataForm_form_sslValidate": "验证服务端证书",
-      "dataForm_form_sslCA": "证书颁发机构"
+      "dataForm_form_sslCA": "证书颁发机构",
+      "FillingModifiedData": "补充更新数据的完整字段"
     },
     "zh_TW": {
       "doc": "docs/mongodb_zh_TW.md",
@@ -334,7 +360,9 @@
       "dataForm_form_sslKey": "客戶端私鑰",
       "dataForm_form_sslPass": "私鑰密碼",
       "dataForm_form_sslValidate": "驗證服務端證書",
-      "dataForm_form_sslCA": "證書頒發機構"
+      "dataForm_form_sslCA": "證書頒發機構",
+      "FillingModifiedData": "補充更新數據的完整字段"
+
     }
   },
   "dataTypes": {
