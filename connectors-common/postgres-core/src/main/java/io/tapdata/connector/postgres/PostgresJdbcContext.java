@@ -147,7 +147,7 @@ public class PostgresJdbcContext extends JdbcContext {
                     "          AND a.attname = col.column_name\n" +
                     "          AND NOT a.attisdropped\n" +
                     "          AND a.attrelid =\n" +
-                    "              (SELECT cl.oid\n" +
+                    "              (SELECT max(cl.oid)\n" +
                     "               FROM pg_catalog.pg_class cl\n" +
                     "               WHERE cl.relname = col.table_name))\n" +
                     "FROM information_schema.columns col\n" +
