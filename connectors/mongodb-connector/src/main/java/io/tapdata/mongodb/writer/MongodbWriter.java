@@ -118,7 +118,11 @@ public class MongodbWriter {
 			} catch (MongoBulkWriteException e) {
 				Consumer<MongoBulkWriteException> errorConsumer = mongoBulkWriteException::set;
 				if (!handleBulkWriteError(e, bulkWriteModel, bulkWriteOptions, collection, errorConsumer)) {
-					throw mongoBulkWriteException.get();
+					if (null != mongoBulkWriteException.get()) {
+						throw mongoBulkWriteException.get();
+					} else {
+						throw e;
+					}
 				}
 			}
 		}
@@ -179,7 +183,7 @@ public class MongodbWriter {
 	}
 
 	private BulkWriteModel buildBulkWriteModel(List<TapRecordEvent> tapRecordEvents, TapTable table, AtomicLong inserted, AtomicLong updated, AtomicLong deleted, MongoCollection<Document> collection, Collection<String> pks) {
-		BulkWriteModel bulkWriteModel = new BulkWriteModel();
+		BulkWriteM odel bulkWriteModel = new BulkWriteModel();
 		for (TapRecordEvent recordEvent : tapRecordEvents) {
 			if (!(recordEvent instanceof TapInsertRecordEvent)) {
 				bulkWriteModel.setAllInsert(false);
