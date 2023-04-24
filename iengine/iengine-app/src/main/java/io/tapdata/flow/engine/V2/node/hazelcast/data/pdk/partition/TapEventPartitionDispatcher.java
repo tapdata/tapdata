@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.tapdata.entity.simplify.TapSimplify.deleteDMLEvent;
+import static io.tapdata.entity.simplify.TapSimplify.insertRecordEvent;
 
 /**
  * @author aplomb
@@ -79,10 +80,13 @@ public class TapEventPartitionDispatcher extends PartitionFieldParentHandler {
 		if(readPartitionHandler == null) {
 			throw new CoreException(PartitionErrorCodes.PARTITION_NOT_FOUND_FOR_VALUE, "ReadPartition {} failed to find readPartitionHandler for key {} while update", readPartition, key);
 		}
-        readPartitionHandler.handleUpdateRecordEvent(updateRecordEvent, after, key);
+
 		if(!checkKeyChanged(before, after)) {
 			obsLogger.info("Partition key has changed in UpdateRecordEvent {} for table {}, will remove the old key from partition. ", updateRecordEvent, table);
 			deleteFromPartition(deleteDMLEvent(before, table));
+			readPartitionHandler.handleInsertRecordEvent(insertRecordEvent(after, table), after, key);
+		} else {
+			readPartitionHandler.handleUpdateRecordEvent(updateRecordEvent, after, key);
 		}
 		return null;
 	}
