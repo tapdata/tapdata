@@ -55,6 +55,7 @@ import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.service.InspectResultService;
 import com.tapdata.tm.inspect.service.InspectService;
+import com.tapdata.tm.lock.annotation.Lock;
 import com.tapdata.tm.lock.service.LockControlService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
@@ -1082,10 +1083,16 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //afterRenew(taskDto, user);
     }
 
+
     public void afterRenew(TaskDto taskDto, UserDetail user) {
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.RENEW_DEL_SUCCESS, user);
         if (stateMachineResult.isFail()) {
             log.info("modify renew success failed, task id = {}", taskDto.getId());
+            return;
+        }
+
+        TaskDto status = findByTaskId(taskDto.getId(), "status");
+        if (!TaskDto.STATUS_WAIT_START.equals(status.getStatus())) {
             return;
         }
 
