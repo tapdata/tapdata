@@ -15,10 +15,7 @@ import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.exception.TapCodeException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.Marker;
-import org.apache.logging.log4j.MarkerManager;
+import org.apache.logging.log4j.*;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -34,10 +31,8 @@ import java.util.function.Function;
 
 @AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC}, ignoreErrors = false)
 public class SkipErrorEventAspectTask extends AbstractAspectTask {
-    private final static Logger logger = LogManager.getLogger(SkipErrorEventAspectTask.class);
     // Set a maximum of 10 threads to report status, if delay please check the net work and DB stress
     private final static ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(10);
-    public final static Marker skipEventMaker = MarkerManager.getMarker(SkipErrorEventAppenderAspectHandle.SKIP_ERROR_EVENT_MARKER);
 
     private static final String METRICS_SYNC = "sync";
     private static final String METRICS_SKIP = "skip";
@@ -51,6 +46,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     private long nextPrintTimes;
     private ClientMongoOperator clientMongoOperator;
     private final AtomicReference<Future<?>> storeFuture = new AtomicReference<>();
+    private SplitFileLogger logger;
 
     public SkipErrorEventAspectTask() {
         interceptHandlers.register(SkipErrorDataAspect.class, this::skipErrorDataNoeAspectHandle);
@@ -62,8 +58,8 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     }
 
     private synchronized void logSkipEvent(TapRecordEvent tapRecordEvent, Throwable ex) {
-        logger.info(skipEventMaker, "task-{} skip event: {}", taskId, tapRecordEvent);
-        logger.info(skipEventMaker, "task-{} skip exception: {}", taskId, ex.getMessage(), ex.getCause());
+        logger.info("task-{} skip event: {}", taskId, tapRecordEvent);
+        logger.info("task-{} skip exception: {}", taskId, ex.getMessage(), ex.getCause());
 
         long now = System.currentTimeMillis();
         if (now > nextPrintTimes) {
@@ -146,6 +142,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         try {
             this.taskId = getTask().getId().toHexString();
             this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
+            this.logger = new SplitFileLogger(Level.INFO, taskId);
 
             synchronized (storeFuture) {
                 stopStoreFuture();
@@ -212,8 +209,14 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
 
     @Override
     public void onStop(TaskStopAspect stopAspect) {
-        stopStoreFuture();
-        super.onStop(stopAspect);
+        try {
+            stopStoreFuture();
+        } finally {
+            try {
+                this.logger.close();
+            } catch (Exception ignore) {
+            }
+        }
     }
 
     private void stopStoreFuture() {

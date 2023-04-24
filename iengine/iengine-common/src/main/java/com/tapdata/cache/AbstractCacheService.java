@@ -1,16 +1,20 @@
 package com.tapdata.cache;
 
+import com.tapdata.cache.exception.EncoderCacheNameException;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.error.ShareCacheExCode_20;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.data.mongodb.core.query.Query;
 import org.voovan.tools.collection.CacheMap;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -54,8 +58,14 @@ public abstract class AbstractCacheService implements ICacheService {
     this.cacheStatusLockMap = new ConcurrentHashMap<>();
     this.cacheConfigMap = new CacheMap<>();
     this.cacheConfigMap.autoRemove(true).maxSize(100).interval(60).expire(600).supplier(cacheName -> {
+      String encodeCacheName;
+      try {
+        encodeCacheName = URLEncoder.encode(cacheName, "UTF-8");
+      } catch (UnsupportedEncodingException e) {
+        throw new EncoderCacheNameException(ShareCacheExCode_20.ENCODE_CACHE_NAME, e).cacheName(cacheName);
+      }
       // 如果不存在，则向tm查询
-      TaskDto taskDto = clientMongoOperator.findOne(new Query(), ConnectorConstant.TASK_COLLECTION + "/byCacheName/" + cacheName, TaskDto.class);
+      TaskDto taskDto = clientMongoOperator.findOne(new Query(), ConnectorConstant.TASK_COLLECTION + "/byCacheName/" + encodeCacheName, TaskDto.class);
       DataFlowCacheConfig cacheConfig = CacheUtil.getCacheConfig(taskDto, clientMongoOperator);
       logger.warn("The cache task [{}] is abnormal, query by tm...", cacheName);
       if (logger.isDebugEnabled()) {
