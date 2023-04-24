@@ -62,9 +62,6 @@ public class ApiAppController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-
-        //数据目录不需要分页
-        filter.setLimit(10000);
         return success(apiAppService.find(filter, getLoginUser()));
     }
 
