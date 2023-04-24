@@ -113,7 +113,8 @@ public class MongodbWriter {
 		while (!bulkWriteModel.isEmpty()) {
 			bulkWriteOptions = buildBulkWriteOptions(bulkWriteModel);
 			try {
-				collection.bulkWrite(bulkWriteModel.getWriteModels(), bulkWriteOptions);
+				List<WriteModel<Document>> writeModels = bulkWriteModel.getWriteModels();
+				collection.bulkWrite(writeModels, bulkWriteOptions);
 				bulkWriteModel.clearAll();
 			} catch (MongoBulkWriteException e) {
 				Consumer<MongoBulkWriteException> errorConsumer = mongoBulkWriteException::set;
@@ -183,7 +184,7 @@ public class MongodbWriter {
 	}
 
 	private BulkWriteModel buildBulkWriteModel(List<TapRecordEvent> tapRecordEvents, TapTable table, AtomicLong inserted, AtomicLong updated, AtomicLong deleted, MongoCollection<Document> collection, Collection<String> pks) {
-		BulkWriteModel bulkWriteModel = new BulkWriteModel();
+		BulkWriteModel bulkWriteModel = new BulkWriteModel(pks.contains("_id"));
 		for (TapRecordEvent recordEvent : tapRecordEvents) {
 			if (!(recordEvent instanceof TapInsertRecordEvent)) {
 				bulkWriteModel.setAllInsert(false);

@@ -7,7 +7,10 @@ import com.mongodb.client.model.BulkWriteOptions;
 import com.mongodb.client.model.WriteModel;
 import io.tapdata.mongodb.writer.BulkWriteModel;
 import io.tapdata.mongodb.writer.error.BulkWriteErrorHandler;
+import org.apache.commons.collections4.CollectionUtils;
 import org.bson.Document;
+
+import java.util.List;
 
 /**
  * @author samuel
@@ -24,7 +27,19 @@ public class Code11000Handler implements BulkWriteErrorHandler {
 			BulkWriteError writeError,
 			MongoCollection<Document> collection
 	) {
-		bulkWriteModel.setAllInsert(false);
-		return writeModel;
+		if (bulkWriteModel.isAllInsert()) {
+			int index = writeError.getIndex();
+			List<WriteModel<Document>> allOpWriteModels = bulkWriteModel.getAllOpWriteModels();
+			if (CollectionUtils.isEmpty(allOpWriteModels)) {
+				return null;
+			}
+			try {
+				return allOpWriteModels.get(index);
+			} catch (Exception ignored) {
+				return null;
+			}
+		} else {
+			return null;
+		}
 	}
 }

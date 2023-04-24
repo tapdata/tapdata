@@ -21,6 +21,10 @@ public class BulkWriteModel {
 	// 如果都是写入事件，则使用这个write model list，会有更好的性能
 	private List<WriteModel<Document>> onlyInsertWriteModels;
 
+	public BulkWriteModel(boolean allInsert) {
+		this.allInsert = allInsert;
+	}
+
 	public boolean isAllInsert() {
 		return allInsert;
 	}
@@ -64,7 +68,7 @@ public class BulkWriteModel {
 
 	public List<WriteModel<Document>> getWriteModels() {
 		if (allInsert) {
-			return onlyInsertWriteModels;
+			return CollectionUtils.isNotEmpty(onlyInsertWriteModels) ? onlyInsertWriteModels : allOpWriteModels;
 		} else {
 			return allOpWriteModels;
 		}

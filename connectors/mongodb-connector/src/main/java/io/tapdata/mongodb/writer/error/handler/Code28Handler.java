@@ -88,7 +88,6 @@ public class Code28Handler implements BulkWriteErrorHandler {
 		} else {
 			return null;
 		}
-		System.out.println(writeModel);
 		return writeModel;
 	}
 
