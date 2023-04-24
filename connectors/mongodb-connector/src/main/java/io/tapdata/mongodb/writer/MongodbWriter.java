@@ -6,12 +6,7 @@ import com.mongodb.bulk.BulkWriteError;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
-import com.mongodb.client.model.BulkWriteOptions;
-import com.mongodb.client.model.DeleteOneModel;
-import com.mongodb.client.model.InsertOneModel;
-import com.mongodb.client.model.UpdateManyModel;
-import com.mongodb.client.model.UpdateOptions;
-import com.mongodb.client.model.WriteModel;
+import com.mongodb.client.model.*;
 import io.tapdata.constant.AppType;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -31,11 +26,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.bson.Document;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -246,25 +237,32 @@ public class MongodbWriter {
 			Map<String, Object> before = updateRecordEvent.getBefore();
 			Map<String, Object> info = recordEvent.getInfo();
 			Document pkFilter;
+			Document u = new Document();
 			if (after == null && info != null) {
 				pkFilter = new Document("_id", info.get("_id"));
-				after = (Map<String, Object>) info.get("$set");
-				options.upsert(false);
+				u.putAll((Map<String, Object>) info.get("$op"));
+				boolean isUpdate = u.keySet().stream().anyMatch(k -> k.startsWith("$"));
+				if (isUpdate) {
+					writeModel = new UpdateManyModel<>(pkFilter, u, options);
+					options.upsert(false);
+				} else {
+					writeModel = new ReplaceOneModel<>(pkFilter, u, new ReplaceOptions().upsert(false));
+				}
 			} else {
 				pkFilter = getPkFilter(pks, before != null && !before.isEmpty() ? before : after);
 				if (ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS.equals(mongodbConfig.getUpdateDmlPolicy())) {
 					options.upsert(false);
 				}
 				MongodbUtil.removeIdIfNeed(pks, after);
-			}
-			Document u = new Document().append("$set", after);
-			if (info != null) {
-				Object unset = info.get("$unset");
-				if (unset != null) {
-					u.append("$unset", unset);
+				u.append("$set", after);
+				if (info != null) {
+					Object unset = info.get("$unset");
+					if (unset != null) {
+						u.append("$unset", unset);
+					}
 				}
+				writeModel = new UpdateManyModel<>(pkFilter, u, options);
 			}
-			writeModel = new UpdateManyModel<>(pkFilter, u, options);
 			updated.incrementAndGet();
 		} else if (recordEvent instanceof TapDeleteRecordEvent && CollectionUtils.isNotEmpty(pks)) {
 
