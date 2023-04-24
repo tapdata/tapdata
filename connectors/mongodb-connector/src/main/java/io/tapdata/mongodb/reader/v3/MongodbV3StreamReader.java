@@ -315,7 +315,8 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 										final Document o2 = event.get("o2", Document.class);
 										Object _id = o2 != null ? o2.get("_id") : o.get("_id");
 										Document after = null;
-										if (!mongodbConfig.isEnableFillingModifiedData()) {
+										Map<String, Object> info = new HashMap<>();
+										if (mongodbConfig.isEnableFillingModifiedData()) {
 											try (final MongoCursor<Document> mongoCursor = mongoClient.getDatabase(dbName).getCollection(collectionName).find(new Document("_id", _id)).iterator();) {
 												if (mongoCursor.hasNext()) {
 													after = mongoCursor.next();
@@ -325,6 +326,9 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 												TapLogger.warn(TAG, "Found update event _id {} already deleted in collection {}, event {}", _id, collectionName, event.toJson());
 												return null;
 											}
+										} else {
+											info.put("_id", _id);
+											info.put("$op", o);
 										}
 										tapBaseEvent = updateDMLEvent(null, after, collectionName);
 										Map<String, Object> originUnset = o.get("$unset", Map.class);
@@ -341,14 +345,8 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 //												}
 											}
 										}
-										Map<String, Object> info = new HashMap<>();
 										if (finalUnset.size() > 0) {
 											info.put("$unset", finalUnset);
-										}
-										Map<String, Object> originSetMap = o.get("$set", Map.class);
-										if (originSetMap!= null ) {
-											info.put("_id", _id);
-											info.put("$set", originSetMap);
 										}
 										tapBaseEvent.setInfo(info);
 								} else if ("i".equalsIgnoreCase(event.getString("op"))) {

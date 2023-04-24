@@ -5,7 +5,6 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.*;
-import com.mongodb.client.model.changestream.UpdateDescription;
 import io.tapdata.constant.AppType;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -16,7 +15,6 @@ import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.mongodb.MongodbUtil;
 import io.tapdata.mongodb.entity.MongodbConfig;
 import io.tapdata.mongodb.reader.MongodbV4StreamReader;
-import io.tapdata.mongodb.util.MongodbLookupUtil;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
@@ -167,25 +165,32 @@ public class MongodbWriter {
 			Map<String, Object> before = updateRecordEvent.getBefore();
 			Map<String, Object> info = recordEvent.getInfo();
 			Document pkFilter;
+			Document u = new Document();
 			if (after == null && info != null) {
 				pkFilter = new Document("_id", info.get("_id"));
-				after = (Map<String, Object>) info.get("$set");
-				options.upsert(false);
+				u.putAll((Map<String, Object>) info.get("$op"));
+				boolean isUpdate = u.keySet().stream().anyMatch(k -> k.startsWith("$"));
+				if (isUpdate) {
+					writeModel = new UpdateManyModel<>(pkFilter, u, options);
+					options.upsert(false);
+				} else {
+					writeModel = new ReplaceOneModel<>(pkFilter, u, new ReplaceOptions().upsert(false));
+				}
 			} else {
 				pkFilter = getPkFilter(pks, before != null && !before.isEmpty() ? before : after);
 				if (ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS.equals(mongodbConfig.getUpdateDmlPolicy())) {
 					options.upsert(false);
 				}
 				MongodbUtil.removeIdIfNeed(pks, after);
-			}
-			Document u = new Document().append("$set", after);
-			if (info != null) {
-				Object unset = info.get("$unset");
-				if (unset != null) {
-					u.append("$unset", unset);
+				u.append("$set", after);
+				if (info != null) {
+					Object unset = info.get("$unset");
+					if (unset != null) {
+						u.append("$unset", unset);
+					}
 				}
+				writeModel = new UpdateManyModel<>(pkFilter, u, options);
 			}
-			writeModel = new UpdateManyModel<>(pkFilter, u, options);
 			updated.incrementAndGet();
 		} else if (recordEvent instanceof TapDeleteRecordEvent && CollectionUtils.isNotEmpty(pks)) {
 
