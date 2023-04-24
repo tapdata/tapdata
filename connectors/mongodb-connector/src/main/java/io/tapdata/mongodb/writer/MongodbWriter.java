@@ -183,7 +183,7 @@ public class MongodbWriter {
 	}
 
 	private BulkWriteModel buildBulkWriteModel(List<TapRecordEvent> tapRecordEvents, TapTable table, AtomicLong inserted, AtomicLong updated, AtomicLong deleted, MongoCollection<Document> collection, Collection<String> pks) {
-		BulkWriteM odel bulkWriteModel = new BulkWriteModel();
+		BulkWriteModel bulkWriteModel = new BulkWriteModel();
 		for (TapRecordEvent recordEvent : tapRecordEvents) {
 			if (!(recordEvent instanceof TapInsertRecordEvent)) {
 				bulkWriteModel.setAllInsert(false);
