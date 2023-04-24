@@ -14,7 +14,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.error.TapEventException;
-import io.tapdata.error.TaskTargetPdkCacheProcessorExCode_20;
+import io.tapdata.error.ShareCacheExCode_20;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.commons.collections4.MapUtils;
@@ -88,7 +88,7 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 					}
 				}
 			} catch (Throwable e) {
-				throw new TapEventException(TaskTargetPdkCacheProcessorExCode_20.WRITE_SHARE_CACHE_FAILED, e).addEvent(tapEvent);
+				throw new TapEventException(ShareCacheExCode_20.PDK_WRITE_SHARE_CACHE_FAILED, e).addEvent(tapEvent);
 			}
 		}
 	}
