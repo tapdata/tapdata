@@ -10,7 +10,6 @@ import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.serializer.JavaCustomSerializer;
-import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.entity.utils.io.BinarySerializable;
@@ -19,6 +18,7 @@ import io.tapdata.entity.utils.io.DataOutputStreamEx;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.service.ArgumentsSerializer;
 import io.tapdata.modules.api.service.SkeletonService;
+import io.tapdata.entity.tracker.MessageTracker;
 import io.tapdata.pdk.apis.entity.message.ServiceCaller;
 import io.tapdata.pdk.core.utils.TapConstants;
 import org.apache.commons.lang3.exception.ExceptionUtils;
@@ -28,8 +28,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
-
-import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 @Implementation(ArgumentsSerializer.class)
 public class ArgumentsSerializerImpl implements ArgumentsSerializer {
@@ -268,6 +266,10 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 
 	@Override
 	public Object returnObjectFrom(DataInputStreamEx dis, String contentClass) throws IOException {
+		return returnObjectFrom(dis, contentClass, null);
+	}
+	@Override
+	public Object returnObjectFrom(DataInputStreamEx dis, String contentClass, MessageTracker messageTracker) throws IOException {
 		Class<?> clazz = null;
 		if(contentClass != null && !contentClass.equals("java.lang.Object")) {
 			try {
@@ -286,18 +288,20 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 		switch (argumentType) {
 			case MethodRequest.ARGUMENT_TYPE_BYTES:
 				int length = dis.getDataInputStream().readInt();
+				if(messageTracker != null) messageTracker.responseBytes(length);
 				byte[] bytes2 = new byte[length];
 				dis.getDataInputStream().readFully(bytes2);
 				content = bytes2;
 				break;
 			case MethodRequest.ARGUMENT_TYPE_JAVA_BINARY:
 				int length1 = dis.getDataInputStream().readInt();
+				if(messageTracker != null) messageTracker.responseBytes(length1);
 				byte[] bytes1 = new byte[length1];
 				dis.getDataInputStream().readFully(bytes1);
-				if(returnClass == null) {
-					TapLogger.debug(TAG, "");
-					break;
-				}
+//				if(returnClass == null) {
+//					TapLogger.debug(TAG, "");
+//					break;
+//				}
 				if(ReflectionUtil.canBeInitiated(returnClass)) {
 					try {
 						BinarySerializable binarySerializable = (BinarySerializable) returnClass.getConstructor().newInstance();
@@ -313,9 +317,10 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 				break;
 			case MethodRequest.ARGUMENT_TYPE_JAVA_CUSTOM:
 				int length3 = dis.getDataInputStream().readInt();
+				if(messageTracker != null) messageTracker.responseBytes(length3);
 				byte[] bytes3 = new byte[length3];
 				dis.getDataInputStream().readFully(bytes3);
-				if (JavaCustomSerializer.class.isAssignableFrom(returnClass)) {
+				if (returnClass != null && JavaCustomSerializer.class.isAssignableFrom(returnClass)) {
 					if(ReflectionUtil.canBeInitiated(returnClass)) {
 						try {
 							JavaCustomSerializer binarySerializable = (JavaCustomSerializer) returnClass.getConstructor().newInstance();
@@ -331,7 +336,7 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 				}
 				break;
 			case MethodRequest.ARGUMENT_TYPE_JSON:
-				String jsonString = dis.readLongString();
+				String jsonString = dis.readLongString(messageTracker);
 				if(returnClass == null || returnClass.equals(JSONObject.class)) {
 					content = JSON.parse(jsonString, TapConstants.tapdataParserConfig, Feature.DisableCircularReferenceDetect);
 				} else {
