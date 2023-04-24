@@ -1,8 +1,8 @@
 package io.tapdata.modules.api.net.message;
 
-import io.tapdata.entity.serializer.JavaCustomSerializer;
+import io.tapdata.entity.tracker.MessageTracker;
 
-public abstract class TapEntityEx implements TapEntity {
+public abstract class TapEntityEx extends MessageTracker implements TapEntity {
 	private Throwable parseError;
 
 	public Throwable getParseError() {
