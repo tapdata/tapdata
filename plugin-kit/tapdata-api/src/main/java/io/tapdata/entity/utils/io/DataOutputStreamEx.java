@@ -8,6 +8,8 @@ import io.tapdata.entity.utils.ObjectSerializable;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -220,14 +222,22 @@ public class DataOutputStreamEx extends OutputStream {
 		}
 	}
   public void writeLongString(String str) throws IOException {
-	  if(str == null) {
-		  dos.writeInt(NOVALUE);
-		  return;
-	  } else {
-		  dos.writeInt(str.getBytes().length);
-	  }
-	  dos.write(str.getBytes());
+	  writeLongString(str, null);
   }
+
+	public void writeLongString(String str, Charset charset) throws IOException {
+		if(str == null) {
+			dos.writeInt(NOVALUE);
+			return;
+		}
+		byte[] data;
+		if(charset != null)
+			data = str.getBytes(charset);
+		else
+			data = str.getBytes();
+		dos.writeInt(data.length);
+		dos.write(data);
+	}
 
   public <T extends BinarySerializable> void writeBinaryObjectArray(T[] array) throws IOException {
 	  if(array == null) {

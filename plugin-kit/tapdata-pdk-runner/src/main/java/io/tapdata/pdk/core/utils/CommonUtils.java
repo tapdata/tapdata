@@ -3,7 +3,6 @@ package io.tapdata.pdk.core.utils;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.functions.ConnectionFunctions;

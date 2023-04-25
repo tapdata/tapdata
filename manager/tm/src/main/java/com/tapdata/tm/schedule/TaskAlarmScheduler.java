@@ -16,6 +16,7 @@ import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
+import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.FunctionUtils;
@@ -23,6 +24,7 @@ import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
+import io.tapdata.common.executor.ExecutorsManager;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
@@ -37,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -51,6 +54,10 @@ public class TaskAlarmScheduler {
     private WorkerService workerService;
     private UserService userService;
     private SettingsService settingsService;
+
+    private MeasurementServiceV2 measurementServiceV2;
+
+    private final ExecutorService executorService = ExecutorsManager.getInstance().getExecutorService();
 
     @Scheduled(cron = "0 0/5 * * * ? ")
     @SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")

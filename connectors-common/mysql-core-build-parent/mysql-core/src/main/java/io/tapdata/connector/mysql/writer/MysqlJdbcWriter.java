@@ -52,7 +52,7 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
 		this.jdbcCacheMap = jdbcCacheMap;
 	}
 
-	protected JdbcCache getJdbcCache() {
+	public JdbcCache getJdbcCache() {
 		String name = Thread.currentThread().getName();
 		JdbcCache jdbcCache = jdbcCacheMap.get(name);
 		if (null == jdbcCache) {
@@ -308,6 +308,12 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
 		return sql;
 	}
 
+	@Override
+	public void selfCheck() {
+		synchronized (this.jdbcCacheMap) {
+			jdbcCacheMap.values().removeIf(jdbcCache -> !jdbcCache.checkAlive());
+		}
+	}
 	protected static class JdbcCache {
 		private Connection connection;
 		private final Map<String, PreparedStatement> insertMap = new LRUOnRemoveMap<>(10, entry -> JdbcUtil.closeQuietly(entry.getValue()));
@@ -340,6 +346,14 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
 				throw new IllegalArgumentException("Cannot create sql statement when connection is null");
 			if (!connection.isValid(5)) throw new RuntimeException("Connection is invalid");
 			return connection.createStatement();
+		}
+
+		public boolean checkAlive() {
+			try {
+				return connection.isValid(5);
+			} catch (SQLException ignored) {
+				return false;
+			}
 		}
 
 		public Connection getConnection() {

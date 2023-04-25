@@ -20,6 +20,7 @@ import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.handler.ExceptionHandler;
 import com.tapdata.tm.base.service.BaseService;
+import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.*;
@@ -42,6 +43,7 @@ import com.tapdata.tm.customNode.service.CustomNodeService;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
+import com.tapdata.tm.ds.entity.DataSourceDefinitionEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.file.service.FileService;
@@ -53,6 +55,7 @@ import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.service.InspectResultService;
 import com.tapdata.tm.inspect.service.InspectService;
+import com.tapdata.tm.lock.annotation.Lock;
 import com.tapdata.tm.lock.service.LockControlService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
@@ -1094,10 +1097,16 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //afterRenew(taskDto, user);
     }
 
+
     public void afterRenew(TaskDto taskDto, UserDetail user) {
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.RENEW_DEL_SUCCESS, user);
         if (stateMachineResult.isFail()) {
             log.info("modify renew success failed, task id = {}", taskDto.getId());
+            return;
+        }
+
+        TaskDto status = findByTaskId(taskDto.getId(), "status");
+        if (!TaskDto.STATUS_WAIT_START.equals(status.getStatus())) {
             return;
         }
 
@@ -2177,7 +2186,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             list.add(taskDto);
             deleteNotifyEnumData(list);
 
-       }
+        }
         return transformSchemaService.getTransformParam(taskDto, user, true);
     }
 
@@ -2253,7 +2262,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         List<DataFlowInsightStatisticsDto.DataStatisticInfo> inputDataStatistics = new ArrayList<>();
-        
+
         final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
         for (LocalDate localDate : localDates) {
             String time = localDate.format(format);
@@ -3710,8 +3719,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 .and("crontabExpression").exists(true)
                 .and("is_deleted").is(false)
                 .andOperator(Criteria.where("status").nin(TaskDto.STATUS_EDIT,TaskDto.STATUS_STOPPING,
-                        TaskDto.STATUS_RUNNING,TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING,
-                        TaskDto.STATUS_SCHEDULING, TaskDto.STATUS_DELETE_FAILED));
+                        TaskDto.STATUS_RUNNING,TaskDto.STATUS_RENEWING,TaskDto.STATUS_DELETING,TaskDto.STATUS_SCHEDULING,
+                        TaskDto.STATUS_DELETE_FAILED));
         Query taskQuery = new Query(migrateCriteria);
         List<TaskDto> taskList = findAll(taskQuery);
         if (CollectionUtils.isNotEmpty(taskList)) {
@@ -3951,7 +3960,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         TableStatusInfoDto tableStatusInfoDto = new TableStatusInfoDto();
         Criteria criteria = new Criteria();
         // tableName 不为空根据表查询。否则根据连接查询
-        criteria.and("dag.nodes.connectionId").is(connectionId);
+        criteria.and("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true);
         criteria.orOperator(new Criteria().and("dag.nodes.tableName").is(tableName),
                 new Criteria().and("dag.nodes.tableNames").in(tableName),
                 new Criteria().and("dag.nodes.syncObjects.objectNames").in(tableName));
@@ -3977,7 +3986,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         taskEditStatus = TableStatusEnum.STATUS_DRAFT.getValue();
                     } else {
                         taskErrorStatus = TableStatusEnum.STATUS_ERROR.getValue();
-                        break;
                     }
                 }
             }
@@ -3990,7 +3998,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (StringUtils.isNotEmpty(taskSuccessStatus)) {
             if(judgeTargetInspect(connectionId, tableName, userDetail)){
                 tableStatus=  TableStatusEnum.STATUS_NORMAL.getValue();
-                queryTableMeasurement(taskId,tableStatusInfoDto);
+                measurementServiceV2.queryTableMeasurement(taskId,tableStatusInfoDto);
             }else {
                 tableStatus = TableStatusEnum.STATUS_ERROR.getValue();
             }
@@ -4001,34 +4009,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         tableStatusInfoDto.setStatus(tableStatus);
         return tableStatusInfoDto;
     }
-
-
-    public void queryTableMeasurement(String taskId, TableStatusInfoDto tableStatusInfoDto) {
-        Criteria criteria = Criteria.where("tags.taskId").is(taskId)
-                .and("grnty").is("minute")
-                .and("tags.type").is("task");
-        Query query = new Query(criteria);
-        query.fields().include("ss", "tags");
-        query.with(Sort.by("last").descending());
-        MeasurementEntity measurementEntity = repository.getMongoOperations().findOne(query, MeasurementEntity.class, "AgentMeasurementV2");
-        List<Sample> samples = measurementEntity.getSamples();
-        if (CollectionUtils.isNotEmpty(samples)) {
-            Sample sample = samples.get(0);
-            Long cdcDelayTime = null;
-            Date lastData = null;
-            if (sample.getVs().get("replicateLag") != null) {
-                cdcDelayTime = Long.valueOf(sample.getVs().get("replicateLag").toString());
-            }
-            tableStatusInfoDto.setCdcDelayTime(cdcDelayTime);
-            long  LastDataChangeTime = sample.getVs().get("currentEventTimestamp").longValue();
-            if(LastDataChangeTime !=0){
-                lastData = new Date(LastDataChangeTime);
-            }
-            tableStatusInfoDto.setLastDataChangeTime(lastData);
-        }
-
-    }
-
 
 
     public boolean judgeTargetInspect(String connectionId, String tableName, UserDetail userDetail) {
@@ -4154,5 +4134,27 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             }
         }
         return deleteSize;
+    }
+
+
+    public int runningTaskNum(String processId, UserDetail user) {
+        long workNum = count(Query.query(Criteria.where("agentId").is(processId)
+                .and("is_deleted").ne(true)
+                .and("status").is(TaskDto.STATUS_RUNNING)), user);
+        return (int) workNum;
+    }
+
+    @Override
+    public TaskEntity convertToEntity(Class entityClass, BaseDto dto, String... ignoreProperties) {
+        if (entityClass == null || dto == null)
+            return null;
+        try {
+            TaskEntity entity = new TaskEntity();
+            BeanUtils.copyProperties(dto, entity, "agentId", "startTime", "lastStartDate");
+            return entity;
+        } catch (Exception e) {
+            log.error("Convert entity " + entityClass + " failed. {}", ThrowableUtils.getStackTraceByPn(e));
+        }
+        return null;
     }
 }

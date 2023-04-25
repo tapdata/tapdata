@@ -1,11 +1,11 @@
 {
-  "connection": {
-	"host": "127.0.0.1",
-	"port": 3306,
-	"username": "root",
-	"password": "root",
-	"database": "TEST"
-  },
-  "node": {
-  }
+	"connection": {
+		"host": "139.198.127.666",
+		"port": 3306,
+		"username": "****",
+		"password": "******!",
+		"database": "tapdata"
+	},
+	"node": {
+	}
 }

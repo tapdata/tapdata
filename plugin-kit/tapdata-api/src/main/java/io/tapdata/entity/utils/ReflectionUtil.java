@@ -90,6 +90,8 @@ public class ReflectionUtil {
     }
 
     public static boolean canBeInitiated(Class<?> clazz) {
+        if(clazz == null)
+            return false;
         if (isPrimitiveOrWrapper(clazz))
             return true;
         if (clazz.isArray()) {

@@ -5,6 +5,11 @@ spring:
 
   data:
     mongodb:
-      uri: 'mongodb://127.0.0.1:27017/tapdata_v29'
       cursorBatchSize: 1000
+      default:
+        uri: 'mongodb://127.0.0.1:27017/tapdata_v29'
+      obs:
+        uri: 'mongodb://127.0.0.1:27017/tapdata_v29'
+      log:
+        uri: 'mongodb://127.0.0.1:27017/tapdata_v29'
 

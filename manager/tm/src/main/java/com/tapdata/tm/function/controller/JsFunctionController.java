@@ -1,9 +1,9 @@
 package com.tapdata.tm.function.controller;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.function.dto.JsFunctionDto;
 import com.tapdata.tm.function.service.JsFunctionService;
 import com.tapdata.tm.utils.MongoUtils;
@@ -85,6 +85,10 @@ public class JsFunctionController extends BaseController {
         Filter filter = parseFilter(filterJson);
         if (filter == null) {
             filter = new Filter();
+        }
+        Where where = filter.getWhere();
+        if (where != null && "system".equals(where.get("type"))) {
+            return success(jsFunctionService.find(filter));
         }
         return success(jsFunctionService.find(filter, getLoginUser()));
     }

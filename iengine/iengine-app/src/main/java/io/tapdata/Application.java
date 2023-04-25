@@ -168,7 +168,7 @@ public class Application {
 
 			AspectUtils.executeAspect(LoggerInitAspect.class, () -> new LoggerInitAspect()
 					.defaultLogLevel(defaultLogLevel)
-					.logsPath(logsPath)
+					.workDir(tapdataWorkDir)
 			);
 			AspectUtils.executeAspect(ApplicationStartAspect.class, ApplicationStartAspect::new);
 			run.getBean(TapdataTaskScheduler.class).stopTaskIfNeed();

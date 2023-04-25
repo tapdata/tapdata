@@ -345,8 +345,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			} finally {
 				if (isRunning()) {
 					enqueue(new TapdataCompleteSnapshotEvent());
-					AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
+					//AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
 				}
+				AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
 			}
 		} else {
 			throw new NodeException("PDK node does not support batch read: " + dataProcessorContext.getDatabaseType())
@@ -364,6 +365,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (!isRunning()) {
 			return;
 		}
+		AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
 		enterCDCStage();
 		ConnectorNode connectorNode = getConnectorNode();
 		if (connectorNode == null) {

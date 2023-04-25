@@ -18,6 +18,7 @@
 		<module>lark-task-connector</module>
 		<module>salesforce-connector</module>
 		<module>hubspot-connector</module>
+		<module>beschannels-connector</module>
 	</modules>
 
 	<properties>
