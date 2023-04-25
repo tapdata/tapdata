@@ -19,6 +19,7 @@
 		<module>salesforce-connector</module>
 		<module>hubspot-connector</module>
 		<module>beschannels-connector</module>
+		<module>lark-doc-connector</module>
 	</modules>
 
 	<properties>
