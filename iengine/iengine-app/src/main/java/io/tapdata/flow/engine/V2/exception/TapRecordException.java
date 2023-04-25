@@ -2,7 +2,6 @@ package io.tapdata.flow.engine.V2.exception;
 
 import io.tapdata.exception.TapCodeException;
 
-import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 

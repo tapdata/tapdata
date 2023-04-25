@@ -39,7 +39,12 @@ import org.voovan.tools.collection.CacheMap;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -124,7 +129,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 						}
 						ObsScriptLogger scriptLogger = new ObsScriptLogger(obsLogger);
 						engine = ScriptUtil.getScriptEngine(realDeclareScript, null, null,
-										((DataProcessorContext) processorBaseContext).getCacheService(), scriptLogger
+								((DataProcessorContext) processorBaseContext).getCacheService(), scriptLogger
 						);
 						TapModelDeclare tapModelDeclare = new TapModelDeclare(scriptLogger);
 						((ScriptEngine) engine).put("TapModelDeclare", tapModelDeclare);
@@ -139,9 +144,9 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 				};
 				defaultDeclareFunctionMap.put(schemaKey, declareFunction);
 				if (multipleTables) {
-					defaultSchemaApplyResultSupplierMap.put(schemaKey, ()-> (List<SchemaApplyResult>) declareFunction.apply(new ArrayList<>()));
+					defaultSchemaApplyResultSupplierMap.put(schemaKey, () -> (List<SchemaApplyResult>) declareFunction.apply(new ArrayList<>()));
 				} else {
-					defaultTapTableSupplierMap.put(schemaKey, ()-> {
+					defaultTapTableSupplierMap.put(schemaKey, () -> {
 						List<TapTable> tapTables = TapTableUtil.getTapTables(deductionSchemaNode);
 						if (CollectionUtils.isNotEmpty(tapTables)) {
 							return (TapTable) declareFunction.apply(tapTables.get(0));
@@ -247,7 +252,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 				if (oldNameFieldMap != null) {
 					TapField oldTapField = oldNameFieldMap.get(fieldName);
 					if (oldTapField != null && oldTapField.getTapType() != null
-									&& oldTapField.getTapType().getType() == tapType.getType()) {
+							&& oldTapField.getTapType().getType() == tapType.getType()) {
 						tapField = oldTapField;
 					}
 				}

@@ -70,7 +70,7 @@ public class SampleTask extends AspectTask {
 	public List<Class<? extends Aspect>> observeAspects() {
 		List<Class<?>> classes = observerClassHandlers.keyList();
 		List<Class<? extends Aspect>> aspectClasses = new ArrayList<>();
-		for(Class<?> clazz : classes) {
+		for (Class<?> clazz : classes) {
 			aspectClasses.add((Class<? extends Aspect>) clazz);
 		}
 		return aspectClasses;

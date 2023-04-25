@@ -1,6 +1,5 @@
 package io.tapdata.aspect;
 
-import io.tapdata.aspect.ApplicationStartAspect;
 import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.aspect.annotations.AspectObserverClass;
 

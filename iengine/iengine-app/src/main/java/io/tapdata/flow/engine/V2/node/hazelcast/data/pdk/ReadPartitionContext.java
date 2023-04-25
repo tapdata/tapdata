@@ -9,10 +9,12 @@ import io.tapdata.pdk.apis.partition.ReadPartition;
  */
 public class ReadPartitionContext {
 	private TapTable table;
+
 	public ReadPartitionContext table(TapTable table) {
 		this.table = table;
 		return this;
 	}
+
 	private PDKSourceContext pdkSourceContext;
 
 	public static ReadPartitionContext create() {
@@ -25,12 +27,14 @@ public class ReadPartitionContext {
 	}
 
 	private ReadPartition readPartition;
+
 	public ReadPartitionContext readPartition(ReadPartition readPartition) {
 		this.readPartition = readPartition;
 		return this;
 	}
 
 	private BatchReadFuncAspect batchReadFuncAspect;
+
 	public ReadPartitionContext batchReadFuncAspect(BatchReadFuncAspect batchReadFuncAspect) {
 		this.batchReadFuncAspect = batchReadFuncAspect;
 		return this;

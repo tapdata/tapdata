@@ -36,7 +36,6 @@ import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
-import io.tapdata.pdk.core.api.impl.serialize.ObjectSerializableImplV2;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.collections4.CollectionUtils;

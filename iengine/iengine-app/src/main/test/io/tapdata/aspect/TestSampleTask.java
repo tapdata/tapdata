@@ -10,9 +10,11 @@ public class TestSampleTask extends SampleTask {
 	LongAdder onStartCounter = new LongAdder();
 	LongAdder onStopCounter = new LongAdder();
 	ProcessorNodeProcessAspect nodeProcessAspect;
+
 	public TestSampleTask() {
 		super();
 	}
+
 	@Override
 	public void onStart(TaskStartAspect startAspect) {
 		//TaskStartAspect
@@ -23,6 +25,7 @@ public class TestSampleTask extends SampleTask {
 	public void onObserveAspect(Aspect aspect) {
 		super.onObserveAspect(aspect);
 	}
+
 	@Override
 	protected Void handleProcessorNodeProcess(ProcessorNodeProcessAspect nodeProcessAspect) {
 		this.nodeProcessAspect = nodeProcessAspect;

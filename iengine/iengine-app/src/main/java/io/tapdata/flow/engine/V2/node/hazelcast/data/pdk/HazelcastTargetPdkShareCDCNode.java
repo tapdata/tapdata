@@ -39,7 +39,6 @@ import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.collections.map.LRUMap;
@@ -157,7 +156,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		} catch (Exception e) {
 			if (!(e instanceof TapCodeException)) {
 				throw new TapCodeException(TaskTargetShareCDCProcessorExCode_19.UNKNOWN_ERROR, e);
-			}else{
+			} else {
 				throw e;
 			}
 		}

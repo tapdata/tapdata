@@ -49,240 +49,240 @@ import java.util.concurrent.TimeUnit;
 @RemoteService
 public class TestRunService {
 
-  private final Logger log = LogManager.getLogger(TestRunService.class);
+	private final Logger log = LogManager.getLogger(TestRunService.class);
 
-  public static final String TAG = TestRunService.class.getSimpleName();
+	public static final String TAG = TestRunService.class.getSimpleName();
 
-  @Data
-  private static class Request {
+	@Data
+	private static class Request {
 //    private String connectionsId;
 
 
-    /**
-     * type of test run: source or target
-     */
-    private String type;
+		/**
+		 * type of test run: source or target
+		 */
+		private String type;
 
-    /**
-     * initial_sync
-     * cdc
-     * initial_sync+cdc
-     */
-    private String syncType;
+		/**
+		 * initial_sync
+		 * cdc
+		 * initial_sync+cdc
+		 */
+		private String syncType;
 
-    private int timeout;
+		private int timeout;
 
-    /**
-     * connections
-     */
-    private Connections connections;
+		/**
+		 * connections
+		 */
+		private Connections connections;
 
-    private List<Map<String, Object>> params;
+		private List<Map<String, Object>> params;
 
-    private String version;
-
-
-  }
-
-  @Data
-  @NoArgsConstructor
-  private static class Response {
-
-    private List<CollectLog.Log> logs;
-
-    /**
-     * target
-     */
-    private long insertedCount;
-    private long removedCount;
-    private long modifiedCount;
-
-    private String version;
-
-    public Response(List<CollectLog.Log> logs, String version) {
-      this.logs = logs;
-      this.version = version;
-    }
-
-    public void incrementInserted(long value) {
-      this.insertedCount = this.insertedCount + value;
-    }
-
-    public void incrementModified(long value) {
-      this.modifiedCount = this.modifiedCount + value;
-    }
-
-    public void incrementRemove(long value) {
-      this.removedCount = this.removedCount + value;
-    }
-  }
+		private String version;
 
 
-  public Response testRun(final Request request) throws Throwable {
-    long ts = System.currentTimeMillis();
-    final CollectLog collectLog = getCollectLog();
-    String version = request == null ? "" : request.getVersion();
-    final Response response = new Response(collectLog.getLogs(), version);
-    try {
-      if (request == null) {
-        throw new IllegalArgumentException("request param is null");
-      }
+	}
 
-      final Connections connections = request.getConnections();
-      if (connections == null) {
-        throw new IllegalArgumentException("connections is null");
-      }
-      final String pdkType = connections.getPdkType();
-      if (StringUtils.isBlank(pdkType)) {
-        throw new ConnectionException("Unknown connection pdk type");
-      }
-      String associateId = "TEST_RUN-" + connections.getName() + "_" + ts;
-      collectLog.info("start {}...", associateId);
+	@Data
+	@NoArgsConstructor
+	private static class Response {
 
-      Runnable runnable = () -> {
-        Thread.currentThread().setName(associateId);
-        ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
-        DatabaseTypeEnum.DatabaseType databaseDefinition = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
-        if (databaseDefinition == null) {
-          collectLog.error(String.format("Unknown database type %s", connections.getDatabase_type()));
-          return;
-        }
+		private List<CollectLog.Log> logs;
 
-        PDKUtils pdkUtils = InstanceFactory.instance(PDKUtils.class);
-        pdkUtils.downloadPdkFileIfNeed(connections.getPdkHash());
+		/**
+		 * target
+		 */
+		private long insertedCount;
+		private long removedCount;
+		private long modifiedCount;
 
-        ConnectorNode connectorNode = null;
-        try {
-          String tableName = (String) connections.getConfig().get("collectionName");
-          TapTable tapTable = TapTableUtil.getTapTableByConnectionId(connections.getId(), tableName);
-          String nodeId = connections.getId();
-          TapTableMap<String, TapTable> tapTableMap = TapTableMap.create(nodeId, tapTable);
-          PdkTableMap pdkTableMap = new PdkTableMap(tapTableMap);
-          HazelcastInstance hazelcastInstance = HazelcastUtil.getInstance();
-          PdkStateMap pdkStateMap = new PdkStateMap(nodeId, hazelcastInstance);
-          PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
+		private String version;
 
-          connectorNode = PDKIntegration.createConnectorBuilder()
-                  .withDagId(String.valueOf(ts))
-                  .withGroup(databaseDefinition.getGroup())
-                  .withPdkId(databaseDefinition.getPdkId())
-                  .withVersion(databaseDefinition.getVersion())
-                  .withAssociateId(associateId)
-                  .withConnectionConfig(DataMap.create(connections.getConfig()))
-                  .withLog(collectLog)
-                  .withTableMap(pdkTableMap)
-                  .withStateMap(pdkStateMap)
-                  .withGlobalStateMap(globalStateMap)
-                  .build();
+		public Response(List<CollectLog.Log> logs, String version) {
+			this.logs = logs;
+			this.version = version;
+		}
 
-          PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, "Init PDK", TAG);
+		public void incrementInserted(long value) {
+			this.insertedCount = this.insertedCount + value;
+		}
 
-          try {
-            TapConnectorContext connectorContext = connectorNode.getConnectorContext();
-            ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+		public void incrementModified(long value) {
+			this.modifiedCount = this.modifiedCount + value;
+		}
 
-            String type = request.getType();
-            if (StringUtils.equals(type, "source")) {
-              String syncType = request.getSyncType();
-              if (StringUtils.contains(syncType, "initial_sync")) {
-                // initial_sync
-                collectLog.info("Source starts to initial sync ");
-                BatchReadFunction batchReadFunction = connectorFunctions.getBatchReadFunction();
-                PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_BATCH_READ,
-                        () -> batchReadFunction.batchRead(connectorContext, tapTable, null, 512,
-                                (events, offsetObject) -> collectLog.info("initial_sync: {} {}", events, offsetObject)),
-                        TAG);
-                collectLog.info("initial sync end...");
-              }
-              if (StringUtils.contains(syncType, "cdc")) {
-                // cdc
-                collectLog.info("Source starts to incremental sync");
-                StreamReadFunction streamReadFunction = connectorFunctions.getStreamReadFunction();
-                PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_STREAM_READ,
-                        () -> streamReadFunction.streamRead(connectorContext, Collections.singletonList("tableName"), null, 512,
-                                StreamReadConsumer.create((events, offsetObject) -> collectLog.info("cdc: {} {}", events, offsetObject))),
-                        TAG);
-                collectLog.info("is complete");
-              }
+		public void incrementRemove(long value) {
+			this.removedCount = this.removedCount + value;
+		}
+	}
 
-            } else if (StringUtils.equals(type, "target")) {
-              collectLog.info("The target starts processing the data");
-              List<TapRecordEvent> recordEvents = new ArrayList<>();
-              WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
-              PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,
-                      () -> writeRecordFunction.writeRecord(connectorContext, recordEvents, tapTable, writeListResult -> {
-                        Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
-                        if (MapUtils.isNotEmpty(errorMap)) {
-                          for (Map.Entry<TapRecordEvent, Throwable> entry : errorMap.entrySet()) {
-                            collectLog.error("Error record {} {}", entry.getKey(), entry.getValue());
-                          }
-                        }
-                        response.incrementInserted(writeListResult.getInsertedCount());
-                        response.incrementModified(writeListResult.getModifiedCount());
-                        response.incrementRemove(writeListResult.getRemovedCount());
-                      }),
-                      TAG);
-              collectLog.info("The target processing data is complete");
-            } else {
-              collectLog.error("Unsupported type: {}", type);
-            }
-          } finally {
-            PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, "Stop PDK", TAG);
-          }
-        } finally {
-          if(connectorNode != null) {
-            connectorNode.unregisterMemoryFetcher();
-          }
-          PDKIntegration.releaseAssociateId(associateId);
-        }
-      };
-      Future<?> future = ThreadUtil.execAsync(runnable);
-      future.get(request.getTimeout(), TimeUnit.SECONDS);
-      collectLog.info("test run end, cost {}ms", (System.currentTimeMillis() - ts));
-    } catch (Throwable t) {
-      collectLog.error("execute test run error: {}", t);
-    }
-    return response;
-  }
 
-  @NotNull
-  private CollectLog getCollectLog() {
-    return new CollectLog() {
-      @Override
-      public void debug(String message, Object... params) {
-        super.debug(message, params);
-        log.debug(FormatUtils.format(message, params));
-      }
+	public Response testRun(final Request request) throws Throwable {
+		long ts = System.currentTimeMillis();
+		final CollectLog collectLog = getCollectLog();
+		String version = request == null ? "" : request.getVersion();
+		final Response response = new Response(collectLog.getLogs(), version);
+		try {
+			if (request == null) {
+				throw new IllegalArgumentException("request param is null");
+			}
 
-      @Override
-      public void info(String message, Object... params) {
-        super.info(message, params);
-        log.info(FormatUtils.format(message, params));
-      }
+			final Connections connections = request.getConnections();
+			if (connections == null) {
+				throw new IllegalArgumentException("connections is null");
+			}
+			final String pdkType = connections.getPdkType();
+			if (StringUtils.isBlank(pdkType)) {
+				throw new ConnectionException("Unknown connection pdk type");
+			}
+			String associateId = "TEST_RUN-" + connections.getName() + "_" + ts;
+			collectLog.info("start {}...", associateId);
 
-      @Override
-      public void warn(String message, Object... params) {
-        super.warn(message, params);
-        log.warn(FormatUtils.format(message, params));
-      }
+			Runnable runnable = () -> {
+				Thread.currentThread().setName(associateId);
+				ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
+				DatabaseTypeEnum.DatabaseType databaseDefinition = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
+				if (databaseDefinition == null) {
+					collectLog.error(String.format("Unknown database type %s", connections.getDatabase_type()));
+					return;
+				}
 
-      @Override
-      public void error(String message, Object... params) {
-        super.error(message, params);
-        log.error(FormatUtils.format(message, params));
-      }
+				PDKUtils pdkUtils = InstanceFactory.instance(PDKUtils.class);
+				pdkUtils.downloadPdkFileIfNeed(connections.getPdkHash());
 
-      @Override
-      public void error(String message, Throwable throwable) {
-        super.error(message, throwable);
-        log.error(message, throwable);
-      }
+				ConnectorNode connectorNode = null;
+				try {
+					String tableName = (String) connections.getConfig().get("collectionName");
+					TapTable tapTable = TapTableUtil.getTapTableByConnectionId(connections.getId(), tableName);
+					String nodeId = connections.getId();
+					TapTableMap<String, TapTable> tapTableMap = TapTableMap.create(nodeId, tapTable);
+					PdkTableMap pdkTableMap = new PdkTableMap(tapTableMap);
+					HazelcastInstance hazelcastInstance = HazelcastUtil.getInstance();
+					PdkStateMap pdkStateMap = new PdkStateMap(nodeId, hazelcastInstance);
+					PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
 
-      @Override
-      public void fatal(String message, Object... params) {
-        super.fatal(message, params);
-        log.fatal(FormatUtils.format(message, params));
-      }
-    };
-  }
+					connectorNode = PDKIntegration.createConnectorBuilder()
+							.withDagId(String.valueOf(ts))
+							.withGroup(databaseDefinition.getGroup())
+							.withPdkId(databaseDefinition.getPdkId())
+							.withVersion(databaseDefinition.getVersion())
+							.withAssociateId(associateId)
+							.withConnectionConfig(DataMap.create(connections.getConfig()))
+							.withLog(collectLog)
+							.withTableMap(pdkTableMap)
+							.withStateMap(pdkStateMap)
+							.withGlobalStateMap(globalStateMap)
+							.build();
+
+					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, "Init PDK", TAG);
+
+					try {
+						TapConnectorContext connectorContext = connectorNode.getConnectorContext();
+						ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+
+						String type = request.getType();
+						if (StringUtils.equals(type, "source")) {
+							String syncType = request.getSyncType();
+							if (StringUtils.contains(syncType, "initial_sync")) {
+								// initial_sync
+								collectLog.info("Source starts to initial sync ");
+								BatchReadFunction batchReadFunction = connectorFunctions.getBatchReadFunction();
+								PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_BATCH_READ,
+										() -> batchReadFunction.batchRead(connectorContext, tapTable, null, 512,
+												(events, offsetObject) -> collectLog.info("initial_sync: {} {}", events, offsetObject)),
+										TAG);
+								collectLog.info("initial sync end...");
+							}
+							if (StringUtils.contains(syncType, "cdc")) {
+								// cdc
+								collectLog.info("Source starts to incremental sync");
+								StreamReadFunction streamReadFunction = connectorFunctions.getStreamReadFunction();
+								PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_STREAM_READ,
+										() -> streamReadFunction.streamRead(connectorContext, Collections.singletonList("tableName"), null, 512,
+												StreamReadConsumer.create((events, offsetObject) -> collectLog.info("cdc: {} {}", events, offsetObject))),
+										TAG);
+								collectLog.info("is complete");
+							}
+
+						} else if (StringUtils.equals(type, "target")) {
+							collectLog.info("The target starts processing the data");
+							List<TapRecordEvent> recordEvents = new ArrayList<>();
+							WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
+							PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,
+									() -> writeRecordFunction.writeRecord(connectorContext, recordEvents, tapTable, writeListResult -> {
+										Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
+										if (MapUtils.isNotEmpty(errorMap)) {
+											for (Map.Entry<TapRecordEvent, Throwable> entry : errorMap.entrySet()) {
+												collectLog.error("Error record {} {}", entry.getKey(), entry.getValue());
+											}
+										}
+										response.incrementInserted(writeListResult.getInsertedCount());
+										response.incrementModified(writeListResult.getModifiedCount());
+										response.incrementRemove(writeListResult.getRemovedCount());
+									}),
+									TAG);
+							collectLog.info("The target processing data is complete");
+						} else {
+							collectLog.error("Unsupported type: {}", type);
+						}
+					} finally {
+						PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, "Stop PDK", TAG);
+					}
+				} finally {
+					if (connectorNode != null) {
+						connectorNode.unregisterMemoryFetcher();
+					}
+					PDKIntegration.releaseAssociateId(associateId);
+				}
+			};
+			Future<?> future = ThreadUtil.execAsync(runnable);
+			future.get(request.getTimeout(), TimeUnit.SECONDS);
+			collectLog.info("test run end, cost {}ms", (System.currentTimeMillis() - ts));
+		} catch (Throwable t) {
+			collectLog.error("execute test run error: {}", t);
+		}
+		return response;
+	}
+
+	@NotNull
+	private CollectLog getCollectLog() {
+		return new CollectLog() {
+			@Override
+			public void debug(String message, Object... params) {
+				super.debug(message, params);
+				log.debug(FormatUtils.format(message, params));
+			}
+
+			@Override
+			public void info(String message, Object... params) {
+				super.info(message, params);
+				log.info(FormatUtils.format(message, params));
+			}
+
+			@Override
+			public void warn(String message, Object... params) {
+				super.warn(message, params);
+				log.warn(FormatUtils.format(message, params));
+			}
+
+			@Override
+			public void error(String message, Object... params) {
+				super.error(message, params);
+				log.error(FormatUtils.format(message, params));
+			}
+
+			@Override
+			public void error(String message, Throwable throwable) {
+				super.error(message, throwable);
+				log.error(message, throwable);
+			}
+
+			@Override
+			public void fatal(String message, Object... params) {
+				super.fatal(message, params);
+				log.fatal(FormatUtils.format(message, params));
+			}
+		};
+	}
 }

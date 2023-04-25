@@ -10,7 +10,11 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
-import static io.tapdata.entity.simplify.TapSimplify.*;
+import static io.tapdata.entity.simplify.TapSimplify.field;
+import static io.tapdata.entity.simplify.TapSimplify.list;
+import static io.tapdata.entity.simplify.TapSimplify.table;
+import static io.tapdata.entity.simplify.TapSimplify.tapNumber;
+import static io.tapdata.entity.simplify.TapSimplify.tapString;
 
 @RemoteService
 public class ConnectionTestService {
@@ -19,7 +23,7 @@ public class ConnectionTestService {
 	}
 
 	public List<TapTable> testTable(TapTable tapTable, TapTable tapTable1, String comment) {
-		if(tapTable1 != null)
+		if (tapTable1 != null)
 			tapTable1.setComment(comment);
 		return list(tapTable, tapTable1);
 	}
@@ -30,6 +34,7 @@ public class ConnectionTestService {
 		return list(event, event1);
 	}
 
-	public void get() {}
+	public void get() {
+	}
 
 }

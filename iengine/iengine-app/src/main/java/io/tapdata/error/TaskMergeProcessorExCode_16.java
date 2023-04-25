@@ -15,7 +15,7 @@ public interface TaskMergeProcessorExCode_16 {
 
 	@TapExCode(
 			describe = "Failed to look up data from the cache based on the federated key when looking up the data in the subtable",
-			describeCN= "反查子表数据时，根据联合键从缓存中查找数据失败"
+			describeCN = "反查子表数据时，根据联合键从缓存中查找数据失败"
 	)
 	String LOOK_UP_FIND_BY_JOIN_KEY_FAILED = "16002";
 
@@ -51,7 +51,7 @@ public interface TaskMergeProcessorExCode_16 {
 
 	@TapExCode(
 			describe = "Updating or writing to the cache, finding data from the cache based on the federated key failed",
-			describeCN= "更新或写入缓存，根据联合键从缓存中查找数据失败"
+			describeCN = "更新或写入缓存，根据联合键从缓存中查找数据失败"
 	)
 	String UPSERT_CACHE_FIND_BY_JOIN_KEY_FAILED = "16008";
 
@@ -63,7 +63,7 @@ public interface TaskMergeProcessorExCode_16 {
 
 	@TapExCode(
 			describe = "Deleting cache, finding data from the cache based on the federated key failed",
-			describeCN= "删除缓存，根据联合键从缓存中查找数据失败"
+			describeCN = "删除缓存，根据联合键从缓存中查找数据失败"
 	)
 	String DELETE_CACHE_FIND_BY_JOIN_KEY_FAILED = "16010";
 

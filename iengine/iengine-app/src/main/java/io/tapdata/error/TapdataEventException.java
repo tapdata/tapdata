@@ -31,6 +31,7 @@ public class TapdataEventException extends TapCodeException {
 	public TapdataEventException(String code, Throwable cause) {
 		super(code, cause);
 	}
+
 	public TapdataEventException events(List<TapdataEvent> events) {
 		this.events = events;
 		return this;

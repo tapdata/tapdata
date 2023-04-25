@@ -304,8 +304,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																		tempList.clear();
 																	}
 																});
-															}
-															else if (tableNode.isEnableCustomCommand() && executeCommandFunction != null) {
+															} else if (tableNode.isEnableCustomCommand() && executeCommandFunction != null) {
 																Map<String, Object> customCommand = tableNode.getCustomCommand();
 																customCommand.put("batchSize", readBatchSize);
 																executeCommandFunction.execute(getConnectorNode().getConnectorContext(), TapExecuteCommand.create()
@@ -321,12 +320,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																	List<TapEvent> events = maps.stream().map(m -> TapSimplify.insertRecordEvent(m, tableName)).collect(Collectors.toList());
 																	consumer.accept(events, null);
 																});
-															}
-															else {
+															} else {
 																batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
 															}
-														}
-														else {
+														} else {
 															batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
 														}
 													}

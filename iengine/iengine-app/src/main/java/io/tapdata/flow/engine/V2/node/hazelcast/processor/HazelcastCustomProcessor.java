@@ -16,8 +16,8 @@ import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.utils.cache.KVMap;
-import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -74,11 +74,11 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 					ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class, n -> !running.get());
 			try {
 				engine = ScriptUtil.getScriptEngine(
-								customNodeTempDto.getTemplate(),
-								javaScriptFunctions,
-								clientMongoOperator,
-								((DataProcessorContext) processorBaseContext).getCacheService(),
-								new ObsScriptLogger(obsLogger, logger));
+						customNodeTempDto.getTemplate(),
+						javaScriptFunctions,
+						clientMongoOperator,
+						((DataProcessorContext) processorBaseContext).getCacheService(),
+						new ObsScriptLogger(obsLogger, logger));
 				stateMap = getStateMap(context.hazelcastInstance(), node.getId());
 				((ScriptEngine) engine).put("state", stateMap);
 			} catch (ScriptException e) {
@@ -192,7 +192,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 			return this;
 		}
 
-//		private IMap<String, Object> map;
+		//		private IMap<String, Object> map;
 		private Map<String, Object> map;
 
 		@Override
