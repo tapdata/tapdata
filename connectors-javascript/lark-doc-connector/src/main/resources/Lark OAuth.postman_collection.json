@@ -6,77 +6,6 @@
 	},
 	"item": [
 		{
-		"name": "GetAppToken",
-		"request": {
-			"method": "POST",
-			"header": [
-				{
-					"key": "Content-Type",
-					"value": "application/json"
-				}
-			],
-			"body": {
-				"mode": "raw",
-				"raw": "{\n    \"app_id\": \"{{app_id}}\",\n    \"app_secret\": \"{{app_secret}}\"\n}\n"
-			},
-			"url": {
-				"raw": "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
-				"protocol": "https",
-				"host": [
-					"open",
-					"feishu",
-					"cn"
-				],
-				"path": [
-					"open-apis",
-					"auth",
-					"v3",
-					"tenant_access_token",
-					"internal"
-				]
-			}
-		},
-		"response": []
-	},
-		{
-			"name": "AppInfo",
-			"request": {
-				"method": "GET",
-				"header": [
-					{
-						"key": "Authorization",
-						"value": "Bearer {{access_token}}"
-					},
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"url": {
-					"raw": "https://open.feishu.cn/open-apis/application/v6/applications/:app_id?lang=zh_cn",
-					"protocol": "https",
-					"host": [
-						"open",
-						"feishu",
-						"cn"
-					],
-					"path": [
-						"open-apis",
-						"application",
-						"v6",
-						"applications"
-					],
-					"variable": [
-						{
-							"key": "app_id",
-							"value": "{{app_id}}"
-						}
-					]
-				}
-			},
-			"response": []
-		},
-		{
 			"name": "Get AccessToken",
 			"request": {
 				"method": "POST",
@@ -94,7 +23,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\"grant_type\": \"authorization_code\",\"code\": \"{{code}}\"}",
+					"raw": "{\r\n    \"grant_type\": \"authorization_code\",\r\n    \"code\": \"{{code}}\"\r\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -137,7 +66,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\"grant_type\": \"refresh_token\",\"refresh_token\": \"{{refresh_token}}\"}",
+					"raw": "{\r\n    \"grant_type\": \"refresh_token\",\r\n    \"refresh_token\": \"{{refresh_token}}\"\r\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -174,7 +103,7 @@
 					}
 				],
 				"url": {
-					"raw": "https://open.feishu.cn/open-apis/drive/v1/files?page_size=200&page_token=",
+					"raw": "https://open.feishu.cn/open-apis/drive/v1/files?page_size=200&page_token&folder_token",
 					"protocol": "https",
 					"host": [
 						"open",
@@ -190,15 +119,15 @@
 					"query": [
 						{
 							"key": "page_size",
-							"value": 200
+							"value": "200"
 						},
 						{
 							"key": "page_token",
-							"value": ""
+							"value": null
 						},
 						{
 							"key": "folder_token",
-							"value": ""
+							"value": null
 						}
 					]
 				}
@@ -217,7 +146,7 @@
 					}
 				],
 				"url": {
-					"raw": "https://open.feishu.cn/open-apis/docx/v1/documents/:docToken/raw_content?lang={{lang}}",
+					"raw": "https://open.feishu.cn/open-apis/docx/v1/documents/:document_id/raw_content?lang=0",
 					"protocol": "https",
 					"host": [
 						"open",
@@ -229,7 +158,7 @@
 						"docx",
 						"v1",
 						"documents",
-						":docToken",
+						":document_id",
 						"raw_content"
 					],
 					"query": [
@@ -240,8 +169,8 @@
 					],
 					"variable": [
 						{
-							"key": "docToken",
-							"value": "{{docToken}}"
+							"key": "document_id",
+							"value": "{{document_id}}"
 						}
 					]
 				}
@@ -307,7 +236,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\"request_docs\": {{infoConfig}},\"with_url\": false}"
+					"raw": "{\"request_docs\": [{\"doc_token\": \"{{doc_token}}\",\"doc_type\": \"{{doc_type}}\"\r\n        }\r\n    ],\r\n    \"with_url\": false\r\n}"
 				},
 				"url": {
 					"raw": "https://open.feishu.cn/open-apis/drive/v1/metas/batch_query",
@@ -329,26 +258,21 @@
 			"response": []
 		},
 		{
-			"name": "Get User Info",
+			"name": "Get App AccessToken",
 			"request": {
-				"method": "GET",
-				"header": [
-					{
-						"key": "Authorization",
-						"value": "Bearer {{access_token}}",
-						"type": "default"
-					},
-					{
-						"key": "Content-Type",
-						"value": "application/json; charset=utf-8",
-						"type": "default"
-					}
-				],
+				"method": "POST",
+				"header": [],
 				"body": {
-					"mode": "none"
+					"mode": "raw",
+					"raw": "{\r\n    \"app_id\": \"cli_a375a91e7879900b\",\r\n    \"app_secret\": \"SUMqcjOnPvoARvOlz0ErTcjJnQaG1X03\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
 				},
 				"url": {
-					"raw": "https://open.feishu.cn/open-apis/authen/v1/user_info",
+					"raw": "https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal",
 					"protocol": "https",
 					"host": [
 						"open",
@@ -357,9 +281,10 @@
 					],
 					"path": [
 						"open-apis",
-						"authen",
-						"v1",
-						"user_info"
+						"auth",
+						"v3",
+						"app_access_token",
+						"internal"
 					]
 				}
 			},
@@ -377,17 +302,29 @@
 					}
 				],
 				"url": {
-					"raw": "https://open.feishu.cn/open-apis/wiki/v2/spaces?page_size=50&page_token=",
+					"raw": "https://open.feishu.cn/open-apis/wiki/v2/spaces?page_size=50&page_token",
 					"protocol": "https",
-					"host": ["open","feishu", "cn"],
-					"path": ["open-apis","wiki", "v2", "spaces"],
-					"query": [{
+					"host": [
+						"open",
+						"feishu",
+						"cn"
+					],
+					"path": [
+						"open-apis",
+						"wiki",
+						"v2",
+						"spaces"
+					],
+					"query": [
+						{
 							"key": "page_size",
 							"value": "50"
-						}, {
+						},
+						{
 							"key": "page_token",
-							"value": ""
-					}]
+							"value": null
+						}
+					]
 				}
 			},
 			"response": []
@@ -404,7 +341,7 @@
 					}
 				],
 				"url": {
-					"raw": "https://open.feishu.cn/open-apis/wiki/v2/spaces/:space_id/nodes?page_size=50&page_token={{page_token}}&parent_node_token={{parent_node_token}}",
+					"raw": "https://open.feishu.cn/open-apis/wiki/v2/spaces/:space_id/nodes?page_size=50&page_token={{page_token}}&parent_node_token={{parent}}",
 					"protocol": "https",
 					"host": [
 						"open",
@@ -430,7 +367,7 @@
 						},
 						{
 							"key": "parent_node_token",
-							"value": "{{parent_node_token}}"
+							"value": "{{parent}}"
 						}
 					],
 					"variable": [
@@ -445,6 +382,24 @@
 		}
 	],
 	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
 	],
 	"variable": [
 		{
@@ -466,9 +421,6 @@
 			"key": "document_id",
 			"value": "",
 			"type": "default"
-		},{
-			"key": "lang",
-			"value": "0"
 		}
 	]
 }
