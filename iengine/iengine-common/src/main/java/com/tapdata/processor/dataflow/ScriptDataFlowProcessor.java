@@ -1,7 +1,11 @@
 package com.tapdata.processor.dataflow;
 
 import com.tapdata.cache.ICacheService;
-import com.tapdata.constant.*;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.MapUtil;
+import com.tapdata.constant.MessageUtil;
+import com.tapdata.constant.OffsetUtil;
+import com.tapdata.constant.TapdataOffset;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.TapLog;
@@ -60,7 +64,7 @@ public class ScriptDataFlowProcessor implements DataFlowProcessor {
 				sourceScriptConnection,
 				targetScriptConnection,
 				cacheService,
-						logger);
+				logger);
 
 		processContext = new ConcurrentHashMap<>();
 

@@ -7,11 +7,9 @@ import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.data.mongodb.core.query.Query;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.HashMap;
 import java.util.Map;
 
 /**

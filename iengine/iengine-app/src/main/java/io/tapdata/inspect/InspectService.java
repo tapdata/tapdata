@@ -5,7 +5,12 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.constant.MongodbUtil;
 import com.tapdata.entity.Connections;
-import com.tapdata.entity.inspect.*;
+import com.tapdata.entity.inspect.Inspect;
+import com.tapdata.entity.inspect.InspectDataSource;
+import com.tapdata.entity.inspect.InspectDetail;
+import com.tapdata.entity.inspect.InspectMethod;
+import com.tapdata.entity.inspect.InspectResult;
+import com.tapdata.entity.inspect.InspectStatus;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.common.SettingService;
 import io.tapdata.inspect.cdc.InspectCdcUtils;
@@ -21,8 +26,17 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.util.StringUtils;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>

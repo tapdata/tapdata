@@ -22,7 +22,11 @@ import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePartitionReadDataNode;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import static io.tapdata.entity.simplify.TapSimplify.map;
 
@@ -49,70 +53,71 @@ public class PartitionFieldParentHandler {
 //			//}
 //			//return;
 //		}
-        partitionFields = new ArrayList<>();
-        if(partitionIndex != null) {
-            LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-            for(TapIndexField field : partitionIndex.getIndexFields()) {
-                partitionFields.add(field.getName());
-                if(nameFieldMap != null) {
-                    TapField tapField = nameFieldMap.get(field.getName());
-                    if(tapField != null && tapField.getTapType() != null) {
-                        if(tapField.getTapType() instanceof TapDateTime) {
-                            Integer fraction = ((TapDateTime) tapField.getTapType()).getFraction();
-                            if(fraction == null)
-                                fraction = 3;
-                            dateFieldFactionMap.put(field.getName(), fraction);
-                        } else if(tapField.getTapType() instanceof TapDate || tapField.getTapType() instanceof TapTime || tapField.getTapType() instanceof TapYear) {
-                            dateFieldFactionMap.put(field.getName(), 3);
-                        }
-                    }
-                }
-            }
-        }
+		partitionFields = new ArrayList<>();
+		if (partitionIndex != null) {
+			LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+			for (TapIndexField field : partitionIndex.getIndexFields()) {
+				partitionFields.add(field.getName());
+				if (nameFieldMap != null) {
+					TapField tapField = nameFieldMap.get(field.getName());
+					if (tapField != null && tapField.getTapType() != null) {
+						if (tapField.getTapType() instanceof TapDateTime) {
+							Integer fraction = ((TapDateTime) tapField.getTapType()).getFraction();
+							if (fraction == null)
+								fraction = 3;
+							dateFieldFactionMap.put(field.getName(), fraction);
+						} else if (tapField.getTapType() instanceof TapDate || tapField.getTapType() instanceof TapTime || tapField.getTapType() instanceof TapYear) {
+							dateFieldFactionMap.put(field.getName(), 3);
+						}
+					}
+				}
+			}
+		}
 	}
 
 	protected Map<String, Object> getKeyFromData(Map<String, Object> before) {
 		return getKeyFromData(before, null);
 	}
+
 	protected Map<String, Object> getKeyFromData(Map<String, Object> before, Map<String, Object> after) {
 		Map<String, Object> map = map();
-        if(partitionFields == null || partitionFields.isEmpty()) {
-            Map<String, Object> data = null;
-            if(before != null) {
-                data = before;
-            } else if(after != null) {
-                data = after;
-            }
-            if(data != null) {
-                TreeMap<String, Object> sortMap = new TreeMap<>(String::compareTo) ;
-                sortMap.putAll(data);
-                String md5 = MD5.create().digestHex(InstanceFactory.instance(ObjectSerializable.class).fromObject(sortMap));
-                map.put("md5", md5);
-            }
-        } else {
-            if(before != null) {
-                for(String field : partitionFields) {
-                    map.put(field, before.get(field));
-                }
-            } else if(after != null) {
-                for(String field : partitionFields) {
-                    map.put(field, after.get(field));
-                }
-            }
-        }
+		if (partitionFields == null || partitionFields.isEmpty()) {
+			Map<String, Object> data = null;
+			if (before != null) {
+				data = before;
+			} else if (after != null) {
+				data = after;
+			}
+			if (data != null) {
+				TreeMap<String, Object> sortMap = new TreeMap<>(String::compareTo);
+				sortMap.putAll(data);
+				String md5 = MD5.create().digestHex(InstanceFactory.instance(ObjectSerializable.class).fromObject(sortMap));
+				map.put("md5", md5);
+			}
+		} else {
+			if (before != null) {
+				for (String field : partitionFields) {
+					map.put(field, before.get(field));
+				}
+			} else if (after != null) {
+				for (String field : partitionFields) {
+					map.put(field, after.get(field));
+				}
+			}
+		}
 		return map;
 	}
 
 	protected boolean checkKeyChanged(Map<String, Object> before, Map<String, Object> after) {
-		if(before == null || after == null)
+		if (before == null || after == null)
 			return true;
 
-		for(String field : partitionFields) {
+		for (String field : partitionFields) {
 			Object afterF = after.get(field);
 			Object beforeF = before.get(field);
-			if(afterF != null && beforeF != null) {
+			if (afterF != null && beforeF != null) {
 				boolean bool = afterF.equals(beforeF);
-				if(!bool)
+				if (!bool)
 					return false;
 			} else {
 				return true;
@@ -123,24 +128,25 @@ public class PartitionFieldParentHandler {
 
 	/**
 	 * As PDK connector may give different types for date field on batch/stream stages.
-	 *
+	 * <p>
 	 * Make it the same to DateTime.
 	 *
 	 * @param data
 	 * @return
 	 */
 	protected Map<String, Object> reviseData(Map<String, Object> data) {
-		if(data != null) {
-			if(dateFieldFactionMap != null && !dateFieldFactionMap.isEmpty()) {
-				for(Map.Entry<String, Integer> entry : dateFieldFactionMap.entrySet()) {
+		if (data != null) {
+			if (dateFieldFactionMap != null && !dateFieldFactionMap.isEmpty()) {
+				for (Map.Entry<String, Integer> entry : dateFieldFactionMap.entrySet()) {
 					data.put(entry.getKey(), AnyTimeToDateTime.toDateTime(data.get(entry.getKey()), entry.getValue()));
 				}
 			}
 		}
 		return data;
 	}
+
 	protected void enqueueTapEvents(BatchReadFuncAspect batchReadFuncAspect, List<TapEvent> events, HazelcastSourcePartitionReadDataNode sourcePdkDataNode) {
-		if(events == null || events.isEmpty())
+		if (events == null || events.isEmpty())
 			return;
 //		long time = System.currentTimeMillis();
 		if (batchReadFuncAspect != null)
@@ -177,5 +183,5 @@ public class PartitionFieldParentHandler {
 //			sourcePdkDataNode.getObsLogger().info("STATE_ENQUEUED events {} takes {}", tapdataEvents.size(), (System.currentTimeMillis() - time));
 		}
 	}
-	
+
 }

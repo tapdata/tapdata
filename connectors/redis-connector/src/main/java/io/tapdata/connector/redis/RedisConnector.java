@@ -23,7 +23,6 @@ import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import redis.clients.jedis.Jedis;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -134,7 +133,7 @@ public class RedisConnector extends ConnectorBase {
         if (EmptyKit.isBlank(keyName)) {
             return;
         }
-        try (Jedis jedis = redisContext.getJedis()) {
+        try (CommonJedis jedis = redisContext.getJedis()) {
             jedis.del(keyName);
         }
     }
@@ -150,7 +149,7 @@ public class RedisConnector extends ConnectorBase {
         if (!redisConfig.getListHead()) {
             return;
         }
-        try (Jedis jedis = redisContext.getJedis()) {
+        try (CommonJedis jedis = redisContext.getJedis()) {
             List<String> fieldList = createTableEvent.getTable().getNameFieldMap().entrySet().stream().sorted(Comparator.comparing(v ->
                     EmptyKit.isNull(v.getValue().getPos()) ? 99999 : v.getValue().getPos())).map(Map.Entry::getKey).collect(Collectors.toList());
             if (redisConfig.getOneKey()) {

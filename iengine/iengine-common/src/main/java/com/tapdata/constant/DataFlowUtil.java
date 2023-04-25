@@ -2,7 +2,11 @@ package com.tapdata.constant;
 
 import com.tapdata.entity.Job;
 import com.tapdata.entity.Mapping;
-import com.tapdata.entity.dataflow.*;
+import com.tapdata.entity.dataflow.Capitalized;
+import com.tapdata.entity.dataflow.CloneFieldProcess;
+import com.tapdata.entity.dataflow.DataFlow;
+import com.tapdata.entity.dataflow.Stage;
+import com.tapdata.entity.dataflow.StageRuntimeStats;
 import com.tapdata.mongo.ClientMongoOperator;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -10,7 +14,13 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**

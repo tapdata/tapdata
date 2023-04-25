@@ -12,7 +12,6 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -24,7 +23,7 @@ public class PostgresWriteRecorder extends WriteRecorder {
 
     public PostgresWriteRecorder(Connection connection, TapTable tapTable, String schema, boolean hasUnique) {
         super(connection, tapTable, schema);
-//        uniqueConditionIsIndex = uniqueConditionIsIndex && hasUnique;
+        uniqueConditionIsIndex = uniqueConditionIsIndex && hasUnique;
     }
 
     @Override
@@ -33,7 +32,7 @@ public class PostgresWriteRecorder extends WriteRecorder {
             return;
         }
         if (EmptyKit.isNotEmpty(uniqueCondition)) {
-            if (Integer.parseInt(version) > 90500) {
+            if (Integer.parseInt(version) > 90500 && uniqueConditionIsIndex) {
                 if (insertPolicy.equals("ignore-on-exists")) {
                     conflictIgnoreInsert(after);
                 } else {

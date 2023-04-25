@@ -12,7 +12,11 @@ import org.bson.Document;
 import org.springframework.data.mongodb.core.MongoTemplate;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 @TaskType(type = "API_STATS_ALLTIME_ALLUSER_ALLAPI")

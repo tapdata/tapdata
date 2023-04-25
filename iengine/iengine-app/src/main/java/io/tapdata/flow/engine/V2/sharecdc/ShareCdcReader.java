@@ -1,12 +1,9 @@
 package io.tapdata.flow.engine.V2.sharecdc;
 
-import io.tapdata.entity.event.TapEvent;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.StreamReadContext;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 
 import java.io.Closeable;
-import java.util.function.BiConsumer;
 
 /**
  * @author samuel

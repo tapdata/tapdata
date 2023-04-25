@@ -1,7 +1,5 @@
 package io.tapdata.flow.engine.V2.sharecdc.impl;
 
-import com.tapdata.constant.Log4jUtil;
-import com.tapdata.entity.hazelcast.PersistenceStorageConfig;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcContext;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 

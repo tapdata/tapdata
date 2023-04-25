@@ -22,30 +22,30 @@ import java.util.concurrent.TimeUnit;
 @EventHandlerAnnotation(type = "autoInspectAgain")
 public class AutoInspectAgainHandler implements WebSocketEventHandler<WebSocketEventResult> {
 
-    private final static Logger logger = LogManager.getLogger(AutoInspectAgainHandler.class);
-    private static final ExecutorService EXECUTORS = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS, new SynchronousQueue<>());
+	private final static Logger logger = LogManager.getLogger(AutoInspectAgainHandler.class);
+	private static final ExecutorService EXECUTORS = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS, new SynchronousQueue<>());
 
-    private ClientMongoOperator clientMongoOperator;
-    private SettingService settingService;
+	private ClientMongoOperator clientMongoOperator;
+	private SettingService settingService;
 
-    @Override
-    public void initialize(ClientMongoOperator clientMongoOperator) {
-        this.clientMongoOperator = clientMongoOperator;
-    }
+	@Override
+	public void initialize(ClientMongoOperator clientMongoOperator) {
+		this.clientMongoOperator = clientMongoOperator;
+	}
 
-    @Override
-    public void initialize(TaskService<TaskDto> taskService, ClientMongoOperator clientMongoOperator, SettingService settingService) {
-        this.initialize(clientMongoOperator, settingService);
-        this.settingService = settingService;
-    }
+	@Override
+	public void initialize(TaskService<TaskDto> taskService, ClientMongoOperator clientMongoOperator, SettingService settingService) {
+		this.initialize(clientMongoOperator, settingService);
+		this.settingService = settingService;
+	}
 
-    @Override
-    public WebSocketEventResult handle(Map event) {
-        String taskId = (String) event.get("taskId");
-        CheckAgainProgress progress = JSON.parseObject((String) event.get("data"), CheckAgainProgress.class);
+	@Override
+	public WebSocketEventResult handle(Map event) {
+		String taskId = (String) event.get("taskId");
+		CheckAgainProgress progress = JSON.parseObject((String) event.get("data"), CheckAgainProgress.class);
 
-        EXECUTORS.submit(new CheckAgainRunner(taskId, progress, clientMongoOperator, settingService));
+		EXECUTORS.submit(new CheckAgainRunner(taskId, progress, clientMongoOperator, settingService));
 
-        return WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.AUTO_INSPECT_AGAIN, true);
-    }
+		return WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.AUTO_INSPECT_AGAIN, true);
+	}
 }

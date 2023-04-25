@@ -20,10 +20,10 @@ public class PDKUtilsImpl implements PDKUtils {
 
 	@Override
 	public Map<String, Object> getConnectionConfig(String connectionId) {
-		if(connectionId == null)
+		if (connectionId == null)
 			throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "connectionId is null");
 		Connections connections = HazelcastTaskService.taskService().getConnection(connectionId);
-		if(connections == null)
+		if (connections == null)
 			throw new CoreException(NetErrors.CONNECTIONS_NOT_FOUND, "Connections {} not found", connectionId);
 
 		return connections.getConfig();
@@ -34,12 +34,12 @@ public class PDKUtilsImpl implements PDKUtils {
 		ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 		//TODO should optimize to cache pdkHash -> databaseType.
 		DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, pdkHash);
-		if(databaseType == null) {
+		if (databaseType == null) {
 			throw new CoreException(NetErrors.PDK_HASH_NOT_FOUND, "PDK hash {} can not be found", pdkHash);
 		}
-		if(databaseType.getPdkId() == null || databaseType.getGroup() == null || databaseType.getVersion() == null || databaseType.getJarFile() == null)
+		if (databaseType.getPdkId() == null || databaseType.getGroup() == null || databaseType.getVersion() == null || databaseType.getJarFile() == null)
 			throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "Illegal arguments, pdkId {}, group {}, version {}, jarFile {}", databaseType.getPdkId(), databaseType.getGroup(), databaseType.getVersion(), databaseType.getJarFile());
-		if(clientMongoOperator instanceof HttpClientMongoOperator)
+		if (clientMongoOperator instanceof HttpClientMongoOperator)
 			PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator, pdkHash, databaseType.getJarFile(), databaseType.getJarRid());
 		else
 			throw new CoreException(NetErrors.UNEXPECTED_MONGO_OPERATOR, "Unexpected mongodb operator");

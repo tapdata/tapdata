@@ -1,6 +1,11 @@
 package io.tapdata.inspect.cdc;
 
-import com.tapdata.entity.inspect.*;
+import com.tapdata.entity.inspect.Inspect;
+import com.tapdata.entity.inspect.InspectCdcRunProfiles;
+import com.tapdata.entity.inspect.InspectMethod;
+import com.tapdata.entity.inspect.InspectResult;
+import com.tapdata.entity.inspect.InspectResultStats;
+import com.tapdata.entity.inspect.InspectTask;
 import io.tapdata.inspect.InspectService;
 import io.tapdata.inspect.cdc.exception.InspectCdcConfException;
 import io.tapdata.inspect.cdc.exception.InspectCdcRunProfilesException;

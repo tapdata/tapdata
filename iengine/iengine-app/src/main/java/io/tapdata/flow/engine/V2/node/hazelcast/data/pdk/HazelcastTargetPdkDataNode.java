@@ -11,9 +11,18 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.*;
+import io.tapdata.aspect.AlterFieldAttributesFuncAspect;
+import io.tapdata.aspect.AlterFieldNameFuncAspect;
+import io.tapdata.aspect.ClearTableFuncAspect;
+import io.tapdata.aspect.CreateIndexFuncAspect;
+import io.tapdata.aspect.CreateTableFuncAspect;
+import io.tapdata.aspect.DropFieldFuncAspect;
+import io.tapdata.aspect.DropTableFuncAspect;
+import io.tapdata.aspect.NewFieldFuncAspect;
+import io.tapdata.aspect.SkipErrorDataAspect;
+import io.tapdata.aspect.TableInitFuncAspect;
+import io.tapdata.aspect.WriteRecordFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
-import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
@@ -183,7 +192,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		AtomicReference<TapCreateIndexEvent> indexEvent = new AtomicReference<>();
 		try {
 			List<TapIndex> tapIndices = new ArrayList<>();
-			TapIndex tapIndex = new TapIndex().unique(true);
+			TapIndex tapIndex = new TapIndex();
 			List<TapIndexField> tapIndexFields = new ArrayList<>();
 			List<String> updateConditionFields = null;
 			if (node instanceof TableNode) {

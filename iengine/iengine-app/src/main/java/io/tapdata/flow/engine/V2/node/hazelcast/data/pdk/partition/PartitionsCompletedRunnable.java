@@ -4,7 +4,6 @@ import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.DataFunctionAspect;
 import io.tapdata.async.master.AsyncJobCompleted;
 import io.tapdata.async.master.ParallelWorker;
-import io.tapdata.async.master.ParallelWorkerStateListener;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePartitionReadDataNode;
@@ -24,6 +23,7 @@ public class PartitionsCompletedRunnable implements Runnable {
 	private List<ReadPartition> readPartitionList;
 	private HazelcastSourcePartitionReadDataNode sourcePdkDataNodeEx1;
 	private AsyncJobCompleted jobCompleted;
+
 	public PartitionsCompletedRunnable(TapTable tapTable, ParallelWorker partitionsReader, AspectManager aspectManager, BatchReadFuncAspect batchReadFuncAspect, List<ReadPartition> readPartitionList, HazelcastSourcePartitionReadDataNode sourcePdkDataNodeEx1, AsyncJobCompleted jobCompleted) {
 		this.tapTable = tapTable;
 		this.partitionsReader = partitionsReader;
@@ -34,14 +34,15 @@ public class PartitionsCompletedRunnable implements Runnable {
 		this.jobCompleted = jobCompleted;
 
 	}
+
 	@Override
 	public void run() {
 		sourcePdkDataNodeEx1.getObsLogger().info("Partitions has been split for table {}, wait until all partitions has been read. readPartition size {} list {}", tapTable.getId(), readPartitionList.size(), readPartitionList);
 		Object batchOffsetObj = sourcePdkDataNodeEx1.getSyncProgress().getBatchOffsetObj();
 		PartitionTableOffset partitionTableOffset = null;
-		if(batchOffsetObj instanceof Map) {
+		if (batchOffsetObj instanceof Map) {
 			partitionTableOffset = (PartitionTableOffset) ((Map<?, ?>) batchOffsetObj).get(tapTable.getId());
-			if(partitionTableOffset == null) {
+			if (partitionTableOffset == null) {
 				partitionTableOffset = new PartitionTableOffset();
 				partitionTableOffset.partitions(readPartitionList);
 				((Map<String, PartitionTableOffset>) batchOffsetObj).put(tapTable.getId(), partitionTableOffset);
@@ -56,11 +57,11 @@ public class PartitionsCompletedRunnable implements Runnable {
 	private void handleStateChanged() {
 		Object batchOffsetObj = sourcePdkDataNodeEx1.getSyncProgress().getBatchOffsetObj();
 		PartitionTableOffset partitionTableOffset = null;
-		if(batchOffsetObj instanceof Map) {
+		if (batchOffsetObj instanceof Map) {
 			partitionTableOffset = (PartitionTableOffset) ((Map<?, ?>) batchOffsetObj).get(tapTable.getId());
 		}
 
-		if(partitionTableOffset != null) {
+		if (partitionTableOffset != null) {
 			partitionTableOffset.setTableCompleted(true);
 			partitionTableOffset.setPartitions(null);
 			partitionTableOffset.setCompletedPartitions(null);

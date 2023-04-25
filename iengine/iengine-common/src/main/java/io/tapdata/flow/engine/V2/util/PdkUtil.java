@@ -11,26 +11,20 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
-import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.pdk.apis.context.ConfigContext;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections4.MapUtils;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.filefilter.*;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.net.util.Base64;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
-import java.io.InputStream;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
 
 /**
  * @author jackin
@@ -47,7 +41,7 @@ public class PdkUtil {
 
 	public static Object pdkDownloadLock(String pdkHash) {
 		Object lock = pdkHashDownloadLockMap.get(pdkHash);
-		if(lock == null) {
+		if (lock == null) {
 			return pdkHashDownloadLockMap.computeIfAbsent(pdkHash, s -> new int[0]);
 		}
 		return lock;
@@ -101,7 +95,7 @@ public class PdkUtil {
 	public static String encodeOffset(Object offsetObject) {
 		if (null != offsetObject) {
 			byte[] offsetBytes = InstanceFactory.instance(ObjectSerializable.class).fromObject(offsetObject);
-			if(offsetBytes == null)
+			if (offsetBytes == null)
 				TapLogger.error(TAG, "Serialize offsetObject {} failed, as returned null", offsetObject);
 			return Base64.encodeBase64String(offsetBytes);
 		}
@@ -128,6 +122,7 @@ public class PdkUtil {
 										   Log log) {
 		return createNode(dagId, databaseType, clientMongoOperator, associateId, connectionConfig, pdkTableMap, pdkStateMap, globalStateMap, null, log);
 	}
+
 	public static ConnectorNode createNode(String dagId,
 										   DatabaseTypeEnum.DatabaseType databaseType,
 										   ClientMongoOperator clientMongoOperator,

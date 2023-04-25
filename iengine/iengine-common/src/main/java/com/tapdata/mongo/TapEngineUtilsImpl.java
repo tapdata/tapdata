@@ -12,7 +12,7 @@ import java.net.URL;
 public class TapEngineUtilsImpl implements TapEngineUtils {
 	@Override
 	public String signUrl(String reqMethod, String url) {
-		if(CloudSignUtil.isNeedSign()) {
+		if (CloudSignUtil.isNeedSign()) {
 			return CloudSignUtil.getQueryStr(reqMethod, url);
 		}
 		return url;
@@ -20,14 +20,14 @@ public class TapEngineUtilsImpl implements TapEngineUtils {
 
 	@Override
 	public String signUrl(String reqMethod, String url, String bodyStr) {
-		if(CloudSignUtil.isNeedSign())
+		if (CloudSignUtil.isNeedSign())
 			return CloudSignUtil.getQueryStr(reqMethod, url, bodyStr);
 		return url;
 	}
 
 	@Override
 	public Integer getRealWsPort(Integer wsPort, String baseUrl) {
-		if(CloudSignUtil.isNeedSign()) {
+		if (CloudSignUtil.isNeedSign()) {
 			URL url;
 			try {
 				url = new URL(baseUrl);
@@ -35,21 +35,22 @@ public class TapEngineUtilsImpl implements TapEngineUtils {
 				throw new RuntimeException(e);
 			}
 			int port = url.getPort();
-			if(port > 0) {
+			if (port > 0) {
 				return port;
 			} else {
-				if(url.getProtocol().equals("http")) {
+				if (url.getProtocol().equals("http")) {
 					return 80;
-				} else if(url.getProtocol().equals("https")) {
+				} else if (url.getProtocol().equals("https")) {
 					return 443;
 				}
 			}
 		} else {
 			String port = CommonUtils.getProperty("proxy_port");
-			if(port != null) {
+			if (port != null) {
 				try {
 					return Integer.parseInt(port);
-				} catch (Throwable ignored) {}
+				} catch (Throwable ignored) {
+				}
 			}
 		}
 		return wsPort;
@@ -58,18 +59,18 @@ public class TapEngineUtilsImpl implements TapEngineUtils {
 	@Override
 	public String getRealWsPath(String wsPath, String loginUrl) {
 		int pos = wsPath.indexOf("engine/");
-		if(pos < 0)
+		if (pos < 0)
 			throw new IllegalArgumentException("wsPath doesn't contain \"engine\", wsPath " + wsPath);
 		String suffix = wsPath.substring(pos);
 		try {
 			URL url = new URL(loginUrl);
 			String path = url.getPath();
 			int proxyPos = path.indexOf("api/proxy");
-			if(proxyPos < 0) {
+			if (proxyPos < 0) {
 				throw new IllegalArgumentException("loginUrl doesn't contain \"api/proxy\", loginUrl " + loginUrl);
 			}
 			String prefix = path.substring(0, proxyPos);
-			if(prefix.startsWith("/")) {
+			if (prefix.startsWith("/")) {
 				prefix = prefix.substring(1);
 			}
 			return prefix + suffix;

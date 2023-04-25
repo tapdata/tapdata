@@ -13,7 +13,15 @@ import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.*;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -56,7 +64,7 @@ public class DefaultCompare implements CompareFunction<Map<String, Object>, Stri
 		Set<String> differentFields;
 		if (isSetColumns) {
 			differentFields = new LinkedHashSet<>();
-			for (int i = 0, len = sourceColumns.size(); i < len; i ++) {
+			for (int i = 0, len = sourceColumns.size(); i < len; i++) {
 				Object val1 = t1.get(sourceColumns.get(i));
 				Object val2 = t2.get(targetColumns.get(i));
 				if (compare(val1, val2)) {
