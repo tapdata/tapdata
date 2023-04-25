@@ -12,6 +12,7 @@ import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.service.node.connection.NodeConnection;
 import io.tapdata.modules.api.net.service.node.connection.entity.NodeMessage;
 import io.tapdata.modules.api.proxy.constants.ProxyConstants;
+import io.tapdata.entity.tracker.MessageTracker;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.queue.SingleThreadBlockingQueue;
@@ -277,7 +278,7 @@ public class NodeConnectionHttpImpl implements NodeConnection {
 	}
 
 	@Override
-	public <Request, Response> Response send(String type, Request request, Type responseClass) throws IOException {
+	public <Request extends MessageTracker, Response> Response send(String type, Request request, Type responseClass) throws IOException {
 		if(!stateMachine.getCurrentState().equals(STATE_READY))
 			throw new IOException(FormatUtils.format("NodeConnection's state is not ready, nodeRegistry {}", nodeRegistry));
 
@@ -288,20 +289,35 @@ public class NodeConnectionHttpImpl implements NodeConnection {
 		String ip = workableIps.get(0);
 		String url = "http://" + ip + ":" + port + "/api/proxy/internal?key=" + ProxyConstants.INTERNAL_KEY;
 		String nodeId = CommonUtils.getProperty("tapdata_node_id");
-		NodeMessage responseMessage = post(url, new NodeMessage()
+		NodeMessage requestMessage = new NodeMessage()
 				.toNodeId(nodeRegistry.id())
 				.fromNodeId(nodeId)
 				.type(type)
 				.encode(Data.ENCODE_JSON)
 				.data(toJson(request).getBytes(StandardCharsets.UTF_8))
-				.time(System.currentTimeMillis()));
+				.time(System.currentTimeMillis());
+		request.requestBytes(requestMessage.getData());
+		long time = System.currentTimeMillis();
+		NodeMessage responseMessage;
+		try {
+			responseMessage = post(url, requestMessage);
+			request.throwable(null);
+		} catch (Throwable throwable) {
+			request.throwable(throwable);
+			throw throwable;
+		} finally {
+			request.takes(System.currentTimeMillis() - time);
+		}
+		if(responseMessage != null) {
+			request.responseBytes(responseMessage.getData());
+		}
 		if(responseMessage != null && responseMessage.getData() != null)
 			return fromJson(new String(responseMessage.getData(), StandardCharsets.UTF_8), responseClass);
 		return null;
 	}
 
 	@Override
-	public <Request, Response> void sendAsync(String type, Request request, Type responseClass, BiConsumer<Response, Throwable> biConsumer) throws IOException {
+	public <Request extends MessageTracker, Response> void sendAsync(String type, Request request, Type responseClass, BiConsumer<Response, Throwable> biConsumer) throws IOException {
 		if(!stateMachine.getCurrentState().equals(STATE_READY))
 			throw new IOException(FormatUtils.format("NodeConnection's state is not ready, nodeRegistry {}", nodeRegistry));
 
@@ -343,6 +359,18 @@ public class NodeConnectionHttpImpl implements NodeConnection {
 		if(stateMachine != null && !stateMachine.getCurrentState().equals(STATE_TERMINATED)) {
 			stateMachine.gotoState(STATE_TERMINATED, FormatUtils.format("Close NodeConnection, nodeRegistry {}", nodeRegistry));
 		}
+	}
+
+	@Override
+	public String getWorkingIpPort() {
+		if(workableIps.isEmpty())
+			return null;
+		return workableIps.get(0) + ":" + nodeRegistry.getHttpPort();
+	}
+
+	@Override
+	public String getId() {
+		return nodeRegistry.id();
 	}
 
 	public List<String> getWorkableIps() {

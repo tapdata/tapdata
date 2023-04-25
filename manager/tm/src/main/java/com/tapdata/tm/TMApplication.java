@@ -10,6 +10,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.core.runtime.TapRuntime;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration;
 import org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration;
@@ -40,7 +41,7 @@ import static io.tapdata.pdk.core.utils.CommonUtils.dateString;
 public class TMApplication {
 
 	private static final String TAG = TMApplication.class.getSimpleName();
-
+	private static final Logger pdkLog = org.slf4j.LoggerFactory.getLogger("PDK");
 
 	/**
 	 * 切记：在这个面里面加东西，一定要在企业版的启动类里面一起加，不然，企业版的启动类缺少这里的执行步骤，会让你怀疑人生
@@ -73,39 +74,39 @@ public class TMApplication {
 		TimeZone.setDefault(TimeZone.getTimeZone("Asia/Shanghai"));
 		TapLogger.setLogListener(new TapLogger.LogListener() {
 			String format(String msg) {
-				return "PDK - " + dateString() + " " + Thread.currentThread().getName() + ": " + msg;
+				return msg;
 			}
 			@Override
 			public void debug(String msg) {
-				log.debug(format(msg));
+				pdkLog.debug(format(msg));
 //				System.out.println(msg);
 			}
 
 			@Override
 			public void info(String msg) {
-				log.info(format(msg));
+				pdkLog.info(format(msg));
 //					System.out.println(log);
 			}
 
 			@Override
 			public void warn(String msg) {
-				log.warn(format(msg));
+				pdkLog.warn(format(msg));
 //				System.out.println(msg);
 			}
 
 			@Override
 			public void error(String msg) {
-				log.error(format(msg));
+				pdkLog.error(format(msg));
 			}
 
 			@Override
 			public void fatal(String msg) {
-				log.error(format(msg));
+				pdkLog.error(format(msg));
 			}
 
 			@Override
 			public void memory(String msg) {
-				log.info(format(msg));
+				pdkLog.info(format(msg));
 			}
 		});
 

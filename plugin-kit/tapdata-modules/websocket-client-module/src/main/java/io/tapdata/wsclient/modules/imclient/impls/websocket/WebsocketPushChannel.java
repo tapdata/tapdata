@@ -340,7 +340,7 @@ public class WebsocketPushChannel extends PushChannel {
 
     public void ping() throws IOException {
         if(!isAlive()) return;
-        if(pingFuture == null) {
+        if(pingFuture == null || pingFuture.isCancelled()) {
             Ping ping = new Ping();
             pingFuture = TimerEx.scheduleInSeconds(() -> {
                 pingFuture = null;

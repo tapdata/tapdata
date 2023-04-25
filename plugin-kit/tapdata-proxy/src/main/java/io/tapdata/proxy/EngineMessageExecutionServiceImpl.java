@@ -4,6 +4,8 @@ import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.modules.api.net.entity.NodeHealth;
 import io.tapdata.modules.api.net.error.NetErrors;
@@ -14,6 +16,7 @@ import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.modules.api.net.service.EngineMessageExecutionService;
 import io.tapdata.pdk.apis.entity.message.EngineMessage;
 import io.tapdata.pdk.apis.entity.message.ServiceCaller;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.RandomDraw;
 import io.tapdata.wsserver.channels.gateway.GatewaySessionHandler;
@@ -24,10 +27,11 @@ import io.tapdata.wsserver.channels.health.NodeHealthManager;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 
 @Implementation(EngineMessageExecutionService.class)
-public class EngineMessageExecutionServiceImpl implements EngineMessageExecutionService {
+public class EngineMessageExecutionServiceImpl implements EngineMessageExecutionService, MemoryFetcher {
 	private static final String TAG = EngineMessageExecutionServiceImpl.class.getSimpleName();
 	@Bean
 	private GatewaySessionManager gatewaySessionManager;
@@ -40,26 +44,74 @@ public class EngineMessageExecutionServiceImpl implements EngineMessageExecution
 	private SubscribeMap subscribeMap;
 	@Bean
 	private ProxySubscriptionService proxySubscriptionService;
+	private final Map<String, EngineMessageCollector> messageCollectorMap = new ConcurrentHashMap<>();
 
+	public EngineMessageExecutionServiceImpl() {
+		PDKIntegration.registerMemoryFetcher(EngineMessageExecutionServiceImpl.class.getSimpleName(), this);
+	}
 	@Override
-	public boolean callLocal(EngineMessage commandInfo, BiConsumer<Object, Throwable> biConsumer) {
-		return handleEngineMessageInLocal(commandInfo, biConsumer);
+	public void callLocal(EngineMessage engineMessage, BiConsumer<Object, Throwable> biConsumer) {
+		BiConsumer<Object, Throwable> newConsumer = wrapEngineMessageConsumer(engineMessage, biConsumer, false);
+		boolean bool = handleEngineMessageInLocal(engineMessage, newConsumer);
+		if(!bool) {
+			newConsumer.accept(null, new CoreException(NetErrors.ENGINE_MESSAGE_CALL_LOCAL_FAILED, "Call failed, no session available"));
+		}
 	}
 	@Override
 	public void call(EngineMessage engineMessage, BiConsumer<Object, Throwable> biConsumer) {
-		if (handleEngineMessageInLocal(engineMessage, biConsumer)) return;
+		BiConsumer<Object, Throwable> newConsumer = wrapEngineMessageConsumer(engineMessage, biConsumer, true);
+		if (handleEngineMessageInLocal(engineMessage, newConsumer)) return;
 
 		String currentNodeId = CommonUtils.getProperty("tapdata_node_id");
 		Set<String> subscribeIds = engineMessage.getSubscribeIds();
 
 		if(subscribeIds == null || subscribeIds.isEmpty()) {
-			send(engineMessage.getClass().getSimpleName(), engineMessage, Object.class, biConsumer, null);
+			send(engineMessage.getClass().getSimpleName(), engineMessage, Object.class, newConsumer, null);
 		} else {
 			List<String> nodeIds = proxySubscriptionService.subscribedNodeIds("engine", subscribeIds);
 			nodeIds.remove(currentNodeId);
-			send(engineMessage.getClass().getSimpleName(), engineMessage, Object.class, biConsumer, nodeIds);
+			send(engineMessage.getClass().getSimpleName(), engineMessage, Object.class, newConsumer, nodeIds);
 		}
 
+	}
+
+	private BiConsumer<Object, Throwable> wrapEngineMessageConsumer(EngineMessage engineMessage, BiConsumer<Object, Throwable> biConsumer, boolean startPlace) {
+		String key = engineMessage.key();
+		engineMessage.internalRequest(!startPlace);
+		EngineMessageCollector collector = messageCollectorMap.get(key);
+		if(collector == null) {
+			collector = messageCollectorMap.computeIfAbsent(engineMessage.key(), s -> new EngineMessageCollector());
+		}
+		final String invokeId = CommonUtils.processUniqueId();
+		collector.getInvokeIdEngineMessageMap().put(invokeId, engineMessage);
+		EngineMessageCollector finalCollector = collector;
+		return (o, throwable) -> {
+			biConsumer.accept(o, throwable);
+
+			EngineMessage engineMessage1 = finalCollector.getInvokeIdEngineMessageMap().remove(invokeId);
+			if(engineMessage1 != null) {
+				finalCollector.getCounter().increment();
+				long takes = System.currentTimeMillis() - engineMessage1.getCreateTime();
+				finalCollector.getTotalTakes().add(takes);
+
+				Integer requestBytes = engineMessage.getRequestBytes();
+				if(requestBytes != null)
+					finalCollector.getRequestBytes().add(requestBytes);
+				Integer responseBytes = engineMessage.getResponseBytes();
+				if(responseBytes != null)
+					finalCollector.getResponseBytes().add(responseBytes);
+				if(throwable != null)
+					finalCollector.lastError(throwable);
+//				if(error != null && logTag != null) {
+//					TapLogger.info(logTag, "methodEnd - {} | message - ({})", method, error.getMessage());//ExceptionUtils.getStackTrace(error)
+//					//throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, error.getMessage(), error);
+//				} else {
+////                    TapLogger.info(logTag, "methodEnd {} invokeId {} successfully, message {} takes {}", method, invokeId, message, takes);
+//				}
+//				return takes;
+			}
+			TapLogger.info(TAG, "{}call {} {}, subscribeIds {}, request length {}, response length {}, takes {}{}", (startPlace ? "External " : "Internal "), engineMessage.key(), (throwable != null ? "failed, " + throwable.getMessage() : "successfully"), engineMessage.getSubscribeIds(), engineMessage.getRequestBytes(), engineMessage.getResponseBytes(), System.currentTimeMillis() - engineMessage.getCreateTime(), (engineMessage.getOtherTMIpPort() != null ? " on another TM " + engineMessage.getOtherTMIpPort() : ""));
+		};
 	}
 
 	private boolean handleEngineMessageInLocal(EngineMessage engineMessage, BiConsumer<Object, Throwable> biConsumer) {
@@ -133,6 +185,7 @@ public class EngineMessageExecutionServiceImpl implements EngineMessageExecution
 				NodeConnection nodeConnection = nodeConnectionFactory.getNodeConnection(id);
 				if (nodeConnection != null && nodeConnection.isReady() && nodeHealthManager.getAliveNode(id) != null) {
 					try {
+						engineMessage.setOtherTMIpPort(nodeConnection.getWorkingIpPort());
 						//noinspection unchecked
 						T response = nodeConnection.send(type, engineMessage, tClass);
 						biConsumer.accept(response, null);
@@ -149,5 +202,16 @@ public class EngineMessageExecutionServiceImpl implements EngineMessageExecution
 		} else {
 			biConsumer.accept(null, new CoreException(NetErrors.NO_AVAILABLE_ENGINE, "No available engine"));
 		}
+	}
+
+	@Override
+	public DataMap memory(String keyRegex, String memoryLevel) {
+		DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
+		for(Map.Entry<String, EngineMessageCollector> entry : messageCollectorMap.entrySet()) {
+			if(keyRegex != null && !keyRegex.isEmpty() && !keyRegex.contains(entry.getKey()))
+				continue;
+			dataMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));
+		}
+		return dataMap;
 	}
 }
