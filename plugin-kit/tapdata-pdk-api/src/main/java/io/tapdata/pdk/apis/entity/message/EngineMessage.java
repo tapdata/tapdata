@@ -1,13 +1,11 @@
 package io.tapdata.pdk.apis.entity.message;
 
-import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.tracker.MessageTracker;
 
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
-public abstract class EngineMessage {
+public abstract class EngineMessage extends MessageTracker {
 	protected Integer timeoutSeconds;
 	protected String id;
 
