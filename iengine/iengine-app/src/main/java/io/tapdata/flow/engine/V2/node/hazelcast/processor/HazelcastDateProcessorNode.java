@@ -21,8 +21,10 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.util.TapCodecUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import lombok.SneakyThrows;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.bson.Document;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -128,27 +130,39 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
     final Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
 
     if (after != null) {
-      addTime(addTimeFields, after);
+      addTime(addTimeFields, after, tableName, null);
     }
     consumer.accept(tapdataEvent, processResult);
   }
 
-  private void addTime(List<String> addTimeFields, final Map<String, Object> after) {
+  private void addTime(List<String> addTimeFields, final Map<String, Object> after, String tableName, String pre) {
     Set<String> set = new HashSet<>(after.keySet());
     for (String k : set) {
       Object v = after.get(k);
-      if (addTimeFields.contains(k)) {
-        if (v instanceof DateTime) {
-          v = ((DateTime) v).toInstant();
-          if (add) {
-            v = ((Instant) v).plus(hours, ChronoUnit.HOURS);
-          } else {
-            v = ((Instant) v).minus(hours, ChronoUnit.HOURS);
-          }
-          after.replace(k, new DateTime((Instant) v));
-        } else if (v != null) {
-          throw new TapCodeException(TaskDateProcessorExCode_17.SELECTED_TYPE_IS_NON_TIME + "type :" + v);
+      String oldK = k;
+      if (StringUtils.isNotBlank(pre)) {
+        k = pre + "." + k;
+      }
+      if (v instanceof Map) {
+        addTime(addTimeFields, (Map)v, tableName, k);
+      } else {
+        addTime(addTimeFields, after, tableName, k, oldK, v);
+      }
+    }
+  }
+
+  private void addTime(List<String> addTimeFields, Map<String, Object> after, String tableName, String k, String oldK, Object v) {
+    if (addTimeFields.contains(k)) {
+      if (v instanceof DateTime) {
+        v = ((DateTime) v).toInstant();
+        if (add) {
+          v = ((Instant) v).plus(hours, ChronoUnit.HOURS);
+        } else {
+          v = ((Instant) v).minus(hours, ChronoUnit.HOURS);
         }
+        after.replace(oldK, new DateTime((Instant) v));
+      } else if (v != null) {
+        throw new TapCodeException(TaskDateProcessorExCode_17.SELECTED_TYPE_IS_NON_TIME + "table: " + tableName + "type :" + k + "value: " + v);
       }
     }
   }
