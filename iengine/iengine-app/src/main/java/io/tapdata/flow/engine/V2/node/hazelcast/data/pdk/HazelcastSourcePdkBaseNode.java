@@ -3,8 +3,19 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import cn.hutool.core.util.ReUtil;
 import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.tapdata.constant.*;
-import com.tapdata.entity.*;
+import com.tapdata.constant.ConnectionUtil;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.ExecutorUtil;
+import com.tapdata.constant.JSONUtil;
+import com.tapdata.constant.Log4jUtil;
+import com.tapdata.constant.MapUtil;
+import com.tapdata.entity.Connections;
+import com.tapdata.entity.DatabaseTypeEnum;
+import com.tapdata.entity.SyncStage;
+import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TapdataHeartbeatEvent;
+import com.tapdata.entity.TapdataShareLogEvent;
+import com.tapdata.entity.TapdataTaskErrorEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.cdcdelay.CdcDelay;
@@ -57,7 +68,6 @@ import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import io.tapdata.schema.TapTableMap;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
@@ -70,8 +80,22 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
@@ -705,13 +729,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 if (isLast && !StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
                         TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
                     Map<String, Object> batchOffsetObj = (Map<String, Object>) syncProgress.getBatchOffsetObj();
-//					Map<String, Object> newMap = new HashMap<>();
-//					try {
-//						MapUtil.deepCloneMap(batchOffsetObj, newMap);
-//					} catch (IllegalAccessException | InstantiationException e) {
-//						throw new RuntimeException("Deep clone batch offset map failed: " + e.getMessage(), e);
-//					}
-                    tapdataEvent.setBatchOffset(batchOffsetObj);
+					Map<String, Object> newMap = new HashMap<>();
+					try {
+						MapUtil.deepCloneMap(batchOffsetObj, newMap);
+					} catch (IllegalAccessException | InstantiationException e) {
+						throw new RuntimeException("Deep clone batch offset map failed: " + e.getMessage(), e);
+					}
+                    tapdataEvent.setBatchOffset(newMap);
                     tapdataEvent.setSourceTime(syncProgress.getSourceTime());
                 }
             } else if (SyncStage.CDC == syncStage) {
