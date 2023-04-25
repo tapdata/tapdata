@@ -156,6 +156,10 @@ public class TaskStateMachineConfig extends AbstractStateMachineConfigurer<TaskS
 					log.error("Trace task status behavior failed", e);
 				}
 
+				if (updateResult.getModifiedCount() == 0) {
+					return StateMachineResult.fail("update status failed");
+				}
+
 				if (updateResult.wasAcknowledged() && updateResult.getModifiedCount() > 0){
 					stateContext.setNeedPostProcessor(true);
 					((TaskStateContext)stateContext).getData().setStatus(stateContext.getTarget().getName());
