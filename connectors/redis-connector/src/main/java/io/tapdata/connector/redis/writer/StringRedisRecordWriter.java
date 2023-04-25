@@ -1,13 +1,13 @@
 package io.tapdata.connector.redis.writer;
 
 import io.tapdata.connector.redis.RedisContext;
+import io.tapdata.connector.redis.RedisPipeline;
 import io.tapdata.connector.redis.constant.ValueDataEnum;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.kit.EmptyKit;
-import redis.clients.jedis.Pipeline;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -19,14 +19,14 @@ public class StringRedisRecordWriter extends AbstractRedisRecordWriter {
     }
 
     @Override
-    protected void handleInsertEvent(TapInsertRecordEvent event, Pipeline pipelined) {
+    protected void handleInsertEvent(TapInsertRecordEvent event, RedisPipeline pipelined) {
         Map<String, Object> value = event.getAfter();
         String strValue = ValueDataEnum.JSON.getType().equals(redisConfig.getValueData()) ? getJsonValue(value) : getTextValue(value);
         pipelined.set(getRedisKey(value), strValue);
     }
 
     @Override
-    protected void handleUpdateEvent(TapUpdateRecordEvent event, Pipeline pipelined) {
+    protected void handleUpdateEvent(TapUpdateRecordEvent event, RedisPipeline pipelined) {
         Map<String, Object> beforeValue = event.getBefore();
         Map<String, Object> afterValue = event.getAfter();
         Map<String, Object> lastBefore = new HashMap<>();
@@ -41,7 +41,7 @@ public class StringRedisRecordWriter extends AbstractRedisRecordWriter {
     }
 
     @Override
-    protected void handleDeleteEvent(TapDeleteRecordEvent event, Pipeline pipelined) {
+    protected void handleDeleteEvent(TapDeleteRecordEvent event, RedisPipeline pipelined) {
         pipelined.del(getRedisKey(event.getBefore()));
     }
 

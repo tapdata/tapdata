@@ -1,8 +1,6 @@
 package io.tapdata.connector.redis;
 
-import redis.clients.jedis.GeoCoordinate;
-import redis.clients.jedis.Response;
-import redis.clients.jedis.StreamEntryID;
+import redis.clients.jedis.*;
 import redis.clients.jedis.args.*;
 import redis.clients.jedis.commands.PipelineCommands;
 import redis.clients.jedis.params.*;
@@ -31,6 +29,16 @@ public class RedisPipeline implements PipelineCommands, Closeable {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+        }
+    }
+
+    public void sync() {
+        if (pipelineCommands instanceof Pipeline) {
+            ((Pipeline) pipelineCommands).sync();
+        } else if (pipelineCommands instanceof ClusterPipeline) {
+            ((ClusterPipeline) pipelineCommands).sync();
+        } else if (pipelineCommands instanceof ShardedPipeline) {
+            ((ShardedPipeline) pipelineCommands).sync();
         }
     }
 
