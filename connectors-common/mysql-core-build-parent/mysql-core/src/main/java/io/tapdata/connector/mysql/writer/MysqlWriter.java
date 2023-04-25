@@ -67,6 +67,10 @@ public abstract class MysqlWriter {
         this.running.set(false);
     }
 
+    public void selfCheck() {
+        
+    }
+
     protected String getKey(TapTable tapTable, TapRecordEvent tapRecordEvent) {
         Map<String, Object> after = getAfter(tapRecordEvent);
         Map<String, Object> before = getBefore(tapRecordEvent);
