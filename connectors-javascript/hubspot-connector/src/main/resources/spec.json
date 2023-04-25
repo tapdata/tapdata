@@ -71,8 +71,8 @@
     "default": "en_US",
     "en_US": {
       "doc": "doc/demo_en_US.md",
-      "owner": "GitHub owner",
-      "repo": "GitHub repo",
+      "owner": "HubSpot owner",
+      "repo": "HubSpot repo",
       "code": "Authorize",
       "OAuthButtonTitle": "Authorize",
       "OAuthButton": "Please authorize API access to continue",
@@ -80,8 +80,8 @@
     },
     "zh_CN": {
       "doc": "doc/demo_zh_CN.md",
-      "owner": "GitHub owner",
-      "repo": "GitHub repo",
+      "owner": "HubSpot owner",
+      "repo": "HubSpot repo",
       "code": "授权",
       "OAuthButtonTitle": "授权",
       "OAuthButton": "请先授权成功再点击连接测试或保存",
@@ -89,8 +89,8 @@
     },
     "zh_TW": {
       "doc": "doc/demo_zh_TW.md",
-      "owner": "GitHub owner",
-      "repo": "GitHub repo",
+      "owner": "HubSpot owner",
+      "repo": "HubSpot repo",
       "code": "授權",
       "OAuthButtonTitle": "授權",
       "OAuthButton": "請先授權成功再點擊鏈接測試或保存",
