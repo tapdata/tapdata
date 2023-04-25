@@ -150,7 +150,13 @@ public class LdpServiceImpl implements LdpService {
         if (oldTask != null) {
             sourceTableNames.removeAll(oldTableNames);
             if (CollectionUtils.isNotEmpty(sourceTableNames)) {
-                task.setLdpNewTables(sourceTableNames);
+                if (CollectionUtils.isNotEmpty(oldTask.getLdpNewTables())) {
+                    List<String> ldpNewTables = oldTask.getLdpNewTables();
+                    ldpNewTables.addAll(sourceTableNames);
+                    task.setLdpNewTables(ldpNewTables);
+                } else {
+                    task.setLdpNewTables(sourceTableNames);
+                }
             }
             taskDto = taskService.updateById(task, user);
         } else {
