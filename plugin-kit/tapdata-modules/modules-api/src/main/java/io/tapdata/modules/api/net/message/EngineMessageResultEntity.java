@@ -66,7 +66,7 @@ public class EngineMessageResultEntity extends TapEntityEx {
 
 		contentClass = dis.readUTF();
 		ArgumentsSerializer argumentsSerializer = InstanceFactory.instance(ArgumentsSerializer.class);
-		content = Objects.requireNonNull(argumentsSerializer).returnObjectFrom(dis, contentClass);
+		content = Objects.requireNonNull(argumentsSerializer).returnObjectFrom(dis, contentClass, this);
 	}
 
 	@Override

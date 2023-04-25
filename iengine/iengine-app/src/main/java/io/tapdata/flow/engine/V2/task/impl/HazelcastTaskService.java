@@ -25,6 +25,7 @@ import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.exception.AutoInspectException;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Element;
@@ -233,7 +234,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
                 DatabaseTypeEnum.DatabaseType databaseType = null;
                 TapTableMap<String, TapTable> tapTableMap = getTapTableMap(taskDto, tmCurrentTime, node);
                 if (CollectionUtils.isEmpty(tapTableMap.keySet())
-                        && !(node instanceof AutoInspectNode)
                         && !(node instanceof CacheNode)
                         && !(node instanceof HazelCastImdgNode)
                         && !(node instanceof TableRenameProcessNode)
@@ -304,7 +304,9 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
     private static TapTableMap<String, TapTable> getTapTableMap(TaskDto taskDto, Long tmCurrentTime, Node node) {
         TapTableMap<String, TapTable> tapTableMap;
-        if (StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(),
+        if (node instanceof AutoInspectNode) {
+            tapTableMap = TapTableUtil.getTapTableMapByNodeId(AutoInspectConstants.MODULE_NAME, ((AutoInspectNode) node).getTargetNodeId(), System.currentTimeMillis());
+        } else if (StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(),
 //						TaskDto.SYNC_TYPE_TEST_RUN,
                 TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
             tapTableMap = TapTableUtil.getTapTableMap(node, tmCurrentTime);

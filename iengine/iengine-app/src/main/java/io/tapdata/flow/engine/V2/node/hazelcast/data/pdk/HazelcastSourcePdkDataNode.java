@@ -347,6 +347,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					enqueue(new TapdataCompleteSnapshotEvent());
 					//AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
 				}
+				AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
 			}
 		} else {
 			throw new NodeException("PDK node does not support batch read: " + dataProcessorContext.getDatabaseType())

@@ -63,7 +63,6 @@ public class MysqlJdbcContext implements AutoCloseable {
 
 	public MysqlJdbcContext(TapConnectionContext tapConnectionContext) {
 		this.tapConnectionContext = tapConnectionContext;
-
 		this.jdbcUrl = jdbcUrl();
 		this.hikariDataSource = HikariConnection.getHikariDataSource(tapConnectionContext, jdbcUrl);
 	}

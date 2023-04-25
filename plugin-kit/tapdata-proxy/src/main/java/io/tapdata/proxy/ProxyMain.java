@@ -9,6 +9,7 @@ import io.tapdata.modules.api.net.service.EventQueueService;
 import io.tapdata.modules.api.net.service.node.connection.NodeConnectionFactory;
 import io.tapdata.modules.api.proxy.data.NewDataReceived;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
+import io.tapdata.pdk.apis.entity.message.EngineMessage;
 import io.tapdata.pdk.apis.entity.message.ServiceCaller;
 
 import java.util.function.BiConsumer;
@@ -32,19 +33,7 @@ public class ProxyMain {
 	}
 
 	private void handleServiceCaller(String nodeId, ServiceCaller serviceCaller, BiConsumer<Object, Throwable> biConsumer) {
-		if(!engineMessageExecutionService.callLocal(serviceCaller, (result, throwable) -> {
-			CoreException coreException = null;
-			if(throwable != null) {
-				if(throwable instanceof CoreException) {
-					coreException = (CoreException) throwable;
-				} else {
-					coreException = new CoreException(NetErrors.UNKNOWN_ERROR, throwable.getClass().getSimpleName() + ": " + throwable.getMessage());
-				}
-			}
-			biConsumer.accept(result, coreException);
-		})) {
-			biConsumer.accept(null, new CoreException(NetErrors.ENGINE_MESSAGE_CALL_LOCAL_FAILED, "Call RPCCall failed, no session available"));
-		}
+		handleEngineMessage(serviceCaller, biConsumer);
 	}
 
 	private void handleNewDataReceived(String nodeId, NewDataReceived newDataReceived, BiConsumer<Object, Throwable> biConsumer) {
@@ -53,7 +42,11 @@ public class ProxyMain {
 	}
 
 	private void handleCommandInfo(String nodeId, CommandInfo commandInfo, BiConsumer<Object, Throwable> biConsumer) {
-		if(!engineMessageExecutionService.callLocal(commandInfo, (result, throwable) -> {
+		handleEngineMessage(commandInfo, biConsumer);
+	}
+
+	private void handleEngineMessage(EngineMessage engineMessage, BiConsumer<Object, Throwable> biConsumer) {
+		engineMessageExecutionService.callLocal(engineMessage, (result, throwable) -> {
 			CoreException coreException = null;
 			if(throwable != null) {
 				if(throwable instanceof CoreException) {
@@ -63,8 +56,6 @@ public class ProxyMain {
 				}
 			}
 			biConsumer.accept(result, coreException);
-		})) {
-			biConsumer.accept(null, new CoreException(NetErrors.ENGINE_MESSAGE_CALL_LOCAL_FAILED, "Call command failed, no session available"));
-		}
+		});
 	}
 }

@@ -71,6 +71,7 @@ public class RegisterMain {
         LarkTask(BASE_PATH + "connectors/dist/lark-task-connector-v1.0-SNAPSHOT.jar", "all", "lark-task"),
         OpenGauss(BASE_PATH + "connectors/dist/openGauss-connector-v1.0-SNAPSHOT.jar", "all", "open-gauss", "basic", "jdbc"),
         Salesforce(BASE_PATH + "connectors/dist/salesforce-connector-v1.0-SNAPSHOT.jar", "all", "salesforce"),
+        HubSpot(BASE_PATH + "connectors/dist/hubspot-connector-v1.0-SNAPSHOT.jar", "all", "hubspot"),
         Hive3(BASE_PATH + "connectors/dist/hive3-connector-v1.0-SNAPSHOT.jar", "all", "hive3"),
         BesChannels(BASE_PATH + "connectors/dist/beschannels-connector-v1.0-SNAPSHOT.jar", "all", "bes-channels"),
         LarkDoc(BASE_PATH + "connectors/dist/lark-doc-connector-v1.0-SNAPSHOT.jar", "all", "lark-doc"),
@@ -116,7 +117,7 @@ public class RegisterMain {
 //        String server = System.getProperty("server", "https://uat.cloud.tapdata.net:9443/tm");
         String server = System.getProperty("server", "http://localhost:3000");
         //String server = System.getProperty("server", "http://192.168.1.189:30205");
-        Collections.addAll(postList, "register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-ak", "gmA3K4lt3gG6VyXkwAfyLyYBubeUcucU", "-sk", "ylKkPytK7R9834e7BPVbizGrDKroKSzS", "-t", server);
+        Collections.addAll(postList, "register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-ak", "", "-sk", "", "-t", server);
         String[] tags = System.getProperty("tags", "all").split(",");
         ConnectorEnums.addByTags(postList, tags);
         Main.registerCommands().execute(postList.toArray(new String[0]));

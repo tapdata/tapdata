@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.hazelcast.jet.core.Outbox;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.entity.SyncStage;
+import com.tapdata.entity.TapdataCompleteSnapshotEvent;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -209,12 +210,17 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 	}
 
 	protected void enterCDCStageFinally() {
-		executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
         // 如果有新增表， 重启connector
         if (null != newTables && !newTables.isEmpty()){
             super.handleNewTables(newTables);
         } else {
-			super.enterCDCStage();
+			enqueue(new TapdataCompleteSnapshotEvent());
+			executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
+			Snapshot2CDCAspect.execute(dataProcessorContext);
+        	if(need2CDC()) {
+				executeAspect(new CDCReadBeginAspect().dataProcessorContext(dataProcessorContext));
+				super.enterCDCStage();
+			}
         }
 	}
 
@@ -315,7 +321,11 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 	}
 
 	private JobContext handleStreamRead(JobContext jobContext) {
-		doCdc();
+		try {
+			doCdc();
+		} finally {
+			executeAspect(new CDCReadEndAspect().dataProcessorContext(dataProcessorContext));
+		}
 		return null;
 	}
 
@@ -413,18 +423,16 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 
 			initialSyncWorker = asyncMaster.createAsyncQueueWorker("InitialSync " + getNode().getId()).setAsyncJobErrorListener(this::handleWorkerError)
 					.job("batchRead", this::handleBatchReadForTables).finished().start(JobContext.create(null).context(sourceContext));
+		} else {
+			Snapshot2CDCAspect.execute(dataProcessorContext);
 		}
 
-		Snapshot2CDCAspect.execute(dataProcessorContext);
-
 		if(sourceContext.isNeedCDC()) {
-			executeAspect(new CDCReadBeginAspect().dataProcessorContext(dataProcessorContext));
 			streamReadWorker = asyncMaster.createAsyncQueueWorker("StreamRead_tableSize_" + sourceContext.getPendingInitialSyncTables().size())
 					.setAsyncJobErrorListener(this::handleWorkerError)
 					.job(this::handleStreamRead).finished()
 					.start(JobContext.create().context(
 							StreamReadContext.create().streamStage(false).tables(sourceContext.getPendingInitialSyncTables())), true);
-			executeAspect(new CDCReadEndAspect().dataProcessorContext(dataProcessorContext));
 		} else {
 			BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClient(dataProcessorContext.getTaskDto().getId().toHexString()).terminalMode(TerminalMode.COMPLETE);
 		}
@@ -553,7 +561,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 
 				if (CollectionUtils.isNotEmpty(tapdataEvents)) {
 					tapdataEvents.forEach(this::enqueue);
-//					syncProgress.setStreamOffsetObj(offsetObj);
+					//syncProgress.setStreamOffsetObj(offsetObj);
 					if (streamReadFuncAspect != null)
 						AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
 				}
@@ -568,68 +576,68 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 		}*/
 	}
 
-    private List<TapdataEvent> wrapTapdataEvent(List<Map<String, Object>> events, SyncStage syncStage, Object offsetObj, String tableId) {
-        int size = events.size();
-        String nodeId = null;
-        if (processorBaseContext.getNode() != null) {
-            nodeId = processorBaseContext.getNode().getId();
-        }
-        List<TapdataEvent> tapdataEvents = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            Map<String, Object> tapEventMap = events.get(i);
-            TapInsertRecordEvent tapEvent = insertRecordEvent(tapEventMap, tableId).referenceTime(System.currentTimeMillis());
-            tapEvent.addInfo("eventId", UUID.randomUUID().toString());
-            TapEvent tapEventCache = cdcDelayCalculation.filterAndCalcDelay(tapEvent, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
-            boolean isLast = i == (size - 1);
-            TapdataEvent tapdataEvent;
-            tapdataEvent = wrapTapdataEvent(tapEventCache, syncStage, offsetObj, isLast);
-            if (null == tapdataEvent) {
-                continue;
-            }
-			tapdataEvents.add(tapdataEvent);
-        }
-        if (streamReadFuncAspect != null) {
-            AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), tapdataEvents.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));
-        }
-        return tapdataEvents;
-    }
-
-    @NotNull
-    protected void wrapTapdataEvent(List<TapEvent> events, List<TapdataEvent> tapdataEvents, SyncStage syncStage, Object offsetObj) {
-        int size = events.size();
-        String nodeId = null;
-        if (processorBaseContext.getNode() != null) {
-            nodeId = processorBaseContext.getNode().getId();
-        }
-        List<TapEvent> eventCache = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            TapEvent tapEvent = events.get(i);
-            if (null == tapEvent.getTime()) {
-                throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(tapEvent);
-            }
-            tapEvent.addInfo("eventId", UUID.randomUUID().toString());
-            TapEvent tapEventCache = cdcDelayCalculation.filterAndCalcDelay(tapEvent, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
-            eventCache.add(tapEventCache);
-            boolean isLast = i == (size - 1);
-            TapdataEvent tapdataEvent;
-            tapdataEvent = wrapTapdataEvent(tapEventCache, syncStage, offsetObj, isLast);
-            if (null == tapdataEvent) {
-                continue;
-            }
-            if (tapEvent instanceof TapRecordEvent) {
-                String tableId = ((TapRecordEvent)tapEvent).getTableId();
-                if(removeTables == null || !removeTables.contains(tableId)){
-                    if (nodeId != null) {
-                        tapdataEvent.addNodeId(nodeId);
-                    }
-                    tapdataEvents.add(tapdataEvent);
-                }
-            }
-        }
-        if (streamReadFuncAspect != null) {
-            AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), eventCache);
-        }
-    }
+//    private List<TapdataEvent> wrapTapdataEvent(List<Map<String, Object>> events, SyncStage syncStage, Object offsetObj, String tableId) {
+//        int size = events.size();
+//        String nodeId = null;
+//        if (processorBaseContext.getNode() != null) {
+//            nodeId = processorBaseContext.getNode().getId();
+//        }
+//        List<TapdataEvent> tapdataEvents = new ArrayList<>();
+//        for (int i = 0; i < size; i++) {
+//            Map<String, Object> tapEventMap = events.get(i);
+//            TapInsertRecordEvent tapEvent = insertRecordEvent(tapEventMap, tableId).referenceTime(System.currentTimeMillis());
+//            tapEvent.addInfo("eventId", UUID.randomUUID().toString());
+//            TapEvent tapEventCache = cdcDelayCalculation.filterAndCalcDelay(tapEvent, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
+//            boolean isLast = i == (size - 1);
+//            TapdataEvent tapdataEvent;
+//            tapdataEvent = wrapTapdataEvent(tapEventCache, syncStage, offsetObj, isLast);
+//            if (null == tapdataEvent) {
+//                continue;
+//            }
+//			tapdataEvents.add(tapdataEvent);
+//        }
+//        if (streamReadFuncAspect != null) {
+//            AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), tapdataEvents.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));
+//        }
+//        return tapdataEvents;
+//    }
+//
+//    @NotNull
+//    protected void wrapTapdataEvent(List<TapEvent> events, List<TapdataEvent> tapdataEvents, SyncStage syncStage, Object offsetObj) {
+//        int size = events.size();
+//        String nodeId = null;
+//        if (processorBaseContext.getNode() != null) {
+//            nodeId = processorBaseContext.getNode().getId();
+//        }
+//        List<TapEvent> eventCache = new ArrayList<>();
+//        for (int i = 0; i < size; i++) {
+//            TapEvent tapEvent = events.get(i);
+//            if (null == tapEvent.getTime()) {
+//                throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(tapEvent);
+//            }
+//            tapEvent.addInfo("eventId", UUID.randomUUID().toString());
+//            TapEvent tapEventCache = cdcDelayCalculation.filterAndCalcDelay(tapEvent, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
+//            eventCache.add(tapEventCache);
+//            boolean isLast = i == (size - 1);
+//            TapdataEvent tapdataEvent;
+//            tapdataEvent = wrapTapdataEvent(tapEventCache, syncStage, offsetObj, isLast);
+//            if (null == tapdataEvent) {
+//                continue;
+//            }
+//            if (tapEvent instanceof TapRecordEvent) {
+//                String tableId = ((TapRecordEvent)tapEvent).getTableId();
+//                if(removeTables == null || !removeTables.contains(tableId)){
+//                    if (nodeId != null) {
+//                        tapdataEvent.addNodeId(nodeId);
+//                    }
+//                    tapdataEvents.add(tapdataEvent);
+//                }
+//            }
+//        }
+//        if (streamReadFuncAspect != null) {
+//            AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), eventCache);
+//        }
+//    }
 
 	@Override
 	public void doClose() throws Exception {
