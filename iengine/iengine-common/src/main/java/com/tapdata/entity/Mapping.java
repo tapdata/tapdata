@@ -3,7 +3,11 @@ package com.tapdata.entity;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.DataFlowStageUtil;
 import com.tapdata.constant.FileProperty;
-import com.tapdata.entity.dataflow.*;
+import com.tapdata.entity.dataflow.Capitalized;
+import com.tapdata.entity.dataflow.CloneFieldProcess;
+import com.tapdata.entity.dataflow.LogCollectorSetting;
+import com.tapdata.entity.dataflow.Stage;
+import com.tapdata.entity.dataflow.SyncPoint;
 import io.tapdata.exception.DataFlowException;
 import io.tapdata.schema.SchemaList;
 import org.apache.commons.collections.CollectionUtils;
@@ -11,7 +15,12 @@ import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static com.tapdata.entity.FieldProcess.FieldOp.OP_REMOVE;
 import static com.tapdata.entity.FieldProcess.FieldOp.OP_RENAME;

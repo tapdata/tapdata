@@ -1,6 +1,13 @@
 package com.tapdata.processor;
 
-import com.tapdata.constant.*;
+import com.tapdata.constant.CollectionUtil;
+import com.tapdata.constant.JSONUtil;
+import com.tapdata.constant.JdbcUtil;
+import com.tapdata.constant.MapUtil;
+import com.tapdata.constant.MapUtilV2;
+import com.tapdata.constant.NotExistsNode;
+import com.tapdata.constant.StringUtil;
+import com.tapdata.constant.TapList;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.FieldProcess;
 import com.tapdata.entity.TableIndex;
@@ -20,7 +27,14 @@ import org.apache.logging.log4j.Logger;
 
 import java.math.BigDecimal;
 import java.text.ParseException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**

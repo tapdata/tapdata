@@ -1,7 +1,12 @@
 package com.tapdata.processor.dataflow.aggregation;
 
 import com.mongodb.client.MongoCursor;
-import com.tapdata.constant.*;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.DataFlowStageUtil;
+import com.tapdata.constant.Log4jUtil;
+import com.tapdata.constant.MapUtil;
+import com.tapdata.constant.MongodbUtil;
+import com.tapdata.constant.TapdataOffset;
 import com.tapdata.entity.DataQualityTag;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
@@ -21,7 +26,11 @@ import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 
 import java.math.BigDecimal;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;

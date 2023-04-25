@@ -1,7 +1,11 @@
 package com.tapdata.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.tapdata.constant.*;
+import com.tapdata.constant.AES256Util;
+import com.tapdata.constant.AvroUtil;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.DataFlowUtil;
+import com.tapdata.constant.FileProperty;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.entity.dataflow.Stage;
 import io.tapdata.schema.SchemaList;
@@ -13,7 +17,11 @@ import org.springframework.data.mongodb.core.query.Query;
 
 import java.io.Serializable;
 import java.time.ZoneId;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -2039,7 +2047,6 @@ public class Connections implements Serializable {
 	public boolean isSsl() {
 		return ssl;
 	}
-
 
 
 	@Override
