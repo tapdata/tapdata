@@ -7,13 +7,14 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.kit.EmptyKit;
 
 import java.sql.SQLException;
+import java.util.Collections;
 
 public class PostgresRecordWriter extends RecordWriter {
 
     public PostgresRecordWriter(PostgresJdbcContext jdbcContext, TapTable tapTable) throws SQLException {
         super(jdbcContext, tapTable);
         openIdentity(jdbcContext);
-        insertRecorder = new PostgresWriteRecorder(connection, tapTable, jdbcContext.getConfig().getSchema());
+        insertRecorder = new PostgresWriteRecorder(connection, tapTable, jdbcContext.getConfig().getSchema(), makeSureHasUnique(jdbcContext, tapTable));
         updateRecorder = new PostgresWriteRecorder(connection, tapTable, jdbcContext.getConfig().getSchema());
         deleteRecorder = new PostgresWriteRecorder(connection, tapTable, jdbcContext.getConfig().getSchema());
     }
@@ -25,8 +26,8 @@ public class PostgresRecordWriter extends RecordWriter {
         }
     }
 
-//    protected boolean makeSureHasUnique(PostgresJdbcContext jdbcContext, TapTable tapTable) {
-//        return jdbcContext.queryAllIndexes(Collections.singletonList(tapTable.getId())).stream().anyMatch(v -> (boolean) v.get("is_unique"));
-//    }
+    protected boolean makeSureHasUnique(PostgresJdbcContext jdbcContext, TapTable tapTable) {
+        return jdbcContext.queryAllIndexes(Collections.singletonList(tapTable.getId())).stream().anyMatch(v -> (boolean) v.get("is_unique"));
+    }
 
 }
