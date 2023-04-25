@@ -166,7 +166,7 @@ public class MongodbWriter {
 			Map<String, Object> info = recordEvent.getInfo();
 			Document pkFilter;
 			Document u = new Document();
-			if (after == null && info != null) {
+			if (info != null && info.get("$op") != null) {
 				pkFilter = new Document("_id", info.get("_id"));
 				u.putAll((Map<String, Object>) info.get("$op"));
 				boolean isUpdate = u.keySet().stream().anyMatch(k -> k.startsWith("$"));
