@@ -6,3 +6,5 @@ logs/
 /practice*/
 __pycache__/
 .table_suffix_cache_file
+/test_cases/t.py
+/test_cases/temp.py

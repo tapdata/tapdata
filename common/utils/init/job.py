@@ -1,6 +1,7 @@
 from typing import Union
 import os, sys, copy, argparse, inspect, time, random
 from enum import Enum
+from types import FunctionType
 from importlib import import_module
 
 
@@ -16,6 +17,7 @@ cache_file_path = os.path.dirname(os.path.abspath(__file__)) + '/../../../common
 
 from helper.suffix import get_test_table, get_suffix
 from tapdata_cli import cli
+from create_temp_file import ManageTempFile
 from create_datasource import *
 from config_parser import config
 from tapdata_cli.cli import (
@@ -129,7 +131,9 @@ class TestCase:
                                              (instance.datasource_name_l[0],
                                               list(value)[0], param,
                                               f"{''.join(random.sample('zyxwvutsrqponmlkjihgfedcba',2))}")
-                exec_param = "%s.%s" % (instance.datasource_name_l[0], instance.source_table_name)
+                source_name = instance.dummy_source if \
+                    instance._args.source == "dummy" else instance.datasource_name_l[0]
+                exec_param = "%s.%s" % (source_name, instance.source_table_name)
                 instance.source_params.append(exec_param)
                 continue
             if param.startswith("target"):
@@ -210,7 +214,8 @@ class Job:
         self.job_infos["job_test_res"] = self.job_test_res
         self.cfg.update({
             "table_name": self.dummy_source_table,
-            "table_fields": columns
+            "table_fields": columns,
+            "write_interval_totals": 0
         })
         for sync_tp, step_size in self.init_config().items():
             if sync_tp == "initial_sync":
@@ -363,14 +368,13 @@ class Job:
         return inner
 
     def _gen_job(self):
-        p = self.gen_params.get("Pipeline", Pipeline)
+        pipline = self.gen_params.get("Pipeline", Pipeline)
         source = self.gen_params.get("source", "")
         target = self.gen_params.get("target", "")
         func_code = inspect.getsource(self.test_case)
         func_code = func_code + '    return p\n'
-        new_func = {}
-        exec(func_code, {}, new_func)
-        return new_func["test"](p, *source, *target)
+        with ManageTempFile(content=func_code) as t:
+            return t(pipline, *source, *target)
 
     @property
     def _datasource_name(self):

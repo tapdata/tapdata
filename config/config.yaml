@@ -10,7 +10,7 @@ qa_mysql:
   port: 32409
   username: "root"
   password: "Gotapd8!"
-  database: "tapdata"
+  database: "performance_test"
   __core: true
   __type: ["source", "sink", "cdc"]
 
@@ -33,7 +33,7 @@ qa_sqlserver:
   schema: "dbo"
   user: "sa"
   password: "Gotapd8!"
-  database: "TAPDATA"
+  database: "performance_test"
   __core: true
   __type: ["source", "sink", "cdc"]
 
@@ -67,4 +67,5 @@ qa_kafka:
 qa_dummy:
   connector: "dummy"
   table_name: "dummy_test1"
+  write_interval_totals: 0
   __type: ["sink"]
