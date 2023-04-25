@@ -53,6 +53,7 @@ import java.net.URLDecoder;
 import java.nio.ByteBuffer;
 import java.sql.ResultSetMetaData;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -268,7 +269,7 @@ public class MysqlReader implements Closeable {
 //					.with("time.schema.name", "io.debezium.mysql.type.Time")
 					.with("snapshot.locking.mode", "none");
 			if (EmptyKit.isNotBlank(connectionConfig.getString("timezone"))) {
-				builder.with("database.serverTimezone", TimeZone.getTimeZone(connectionConfig.getString("timezone")).toZoneId());
+				builder.with("database.serverTimezone", TimeZone.getTimeZone(ZoneId.of(connectionConfig.getString("timezone"))).toZoneId());
 			}
 			List<String> dbTableNames = tables.stream().map(t -> database + "." + t).collect(Collectors.toList());
 			builder.with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, database);

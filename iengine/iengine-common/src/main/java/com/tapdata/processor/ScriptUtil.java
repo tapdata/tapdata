@@ -65,7 +65,6 @@ public class ScriptUtil {
     }
 
     static {
-        ClassLoaderUtil.recursivePrint(Thread.currentThread().getContextClassLoader());
         ServiceLoader<AbstractPolyglotImpl> polyglotServiceLoader = ServiceLoader.load(AbstractPolyglotImpl.class);
 
         for (AbstractPolyglotImpl polyglot : polyglotServiceLoader) {
@@ -83,7 +82,6 @@ public class ScriptUtil {
         JSEngineEnum jsEngineEnum = JSEngineEnum.getByEngineName(jsEngineName);
         ScriptEngine scriptEngine;
         if (jsEngineEnum == JSEngineEnum.GRAALVM_JS) {
-            ClassLoaderUtil.recursivePrint(Thread.currentThread().getContextClassLoader());
             scriptEngine = GraalJSScriptEngine
                     .create(Engine.newBuilder()
                                     .allowExperimentalOptions(true)

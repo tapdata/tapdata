@@ -1,5 +1,6 @@
 package io.tapdata.connector.mysql.writer;
 
+import io.tapdata.connector.mysql.util.ExceptionWrapper;
 import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -29,11 +30,17 @@ public abstract class MysqlWriter {
 
     private static final String TAG = MysqlWriter.class.getSimpleName();
     protected MysqlJdbcContext mysqlJdbcContext;
+    protected ExceptionWrapper exceptionWrapper;
     private final AtomicBoolean running;
 
     public MysqlWriter(MysqlJdbcContext mysqlJdbcContext) throws Throwable {
         this.mysqlJdbcContext = mysqlJdbcContext;
+        this.exceptionWrapper = new ExceptionWrapper();
         this.running = new AtomicBoolean(true);
+    }
+
+    public void setExceptionWrapper(ExceptionWrapper exceptionWrapper) {
+        this.exceptionWrapper = exceptionWrapper;
     }
 
     protected String getDmlInsertPolicy(TapConnectorContext tapConnectorContext) {

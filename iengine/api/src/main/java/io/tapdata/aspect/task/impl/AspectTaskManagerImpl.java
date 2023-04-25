@@ -59,8 +59,21 @@ public class AspectTaskManagerImpl implements AspectTaskManager {
 						}
 						Collection<TaskSessionClassHolder> classHolders = taskSessionMap.get("default");
 						if (classHolders != null) {
+							RuntimeException runtimeException = null;
 							for (TaskSessionClassHolder classHolder : classHolders) {
-								classHolder.ensureTaskSessionStopped(aspect);
+								try {
+									classHolder.ensureTaskSessionStopped(aspect);
+								} catch (Throwable throwable) {
+									if(!classHolder.isIgnoreErrors()) {
+										if(runtimeException == null)
+											runtimeException = new RuntimeException(throwable);
+										else
+											runtimeException.addSuppressed(throwable);
+									}
+								}
+							}
+							if(runtimeException != null) {
+								throw runtimeException;
 							}
 						}
 					}, false);

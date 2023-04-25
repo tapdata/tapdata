@@ -17,11 +17,9 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.error.TaskDateProcessorExCode_17;
-import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.util.TapCodecUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
-import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -104,7 +102,7 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
     }
 
     if (tapTable == null) {
-      throw new TapCodeException(TaskDateProcessorExCode_17.INIT_TARGET_TABLE_TAP_TABLE_NULL, "Table name: "+ tableName);
+      throw new TapCodeException(TaskDateProcessorExCode_17.INIT_TARGET_TABLE_TAP_TABLE_NULL, "Table name: "+ tableName + "node id: " + getNode().getId());
     }
 
     LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
@@ -148,8 +146,8 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
             v = ((Instant) v).minus(hours, ChronoUnit.HOURS);
           }
           after.replace(k, new DateTime((Instant) v));
-        } else {
-          throw new TapCodeException(TaskDateProcessorExCode_17.SELECTED_TYPE_IS_NON_TIME + "type :" + v.toString());
+        } else if (v != null) {
+          throw new TapCodeException(TaskDateProcessorExCode_17.SELECTED_TYPE_IS_NON_TIME + "type :" + v);
         }
       }
     }

@@ -1,7 +1,30 @@
 package io.tapdata.mongodb;
 
-import com.mongodb.*;
-import com.mongodb.client.*;
+import com.mongodb.MongoClientException;
+import com.mongodb.MongoCommandException;
+import com.mongodb.MongoConfigurationException;
+import com.mongodb.MongoConnectionPoolClearedException;
+import com.mongodb.MongoInterruptedException;
+import com.mongodb.MongoNodeIsRecoveringException;
+import com.mongodb.MongoNotPrimaryException;
+import com.mongodb.MongoQueryException;
+import com.mongodb.MongoSecurityException;
+import com.mongodb.MongoServerUnavailableException;
+import com.mongodb.MongoSocketClosedException;
+import com.mongodb.MongoSocketException;
+import com.mongodb.MongoSocketOpenException;
+import com.mongodb.MongoSocketReadException;
+import com.mongodb.MongoSocketReadTimeoutException;
+import com.mongodb.MongoSocketWriteException;
+import com.mongodb.MongoTimeoutException;
+import com.mongodb.MongoWriteConcernException;
+import com.mongodb.MongoWriteException;
+import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.MongoIterable;
 import com.mongodb.client.model.IndexOptions;
 import com.mongodb.client.model.Sorts;
 import io.tapdata.base.ConnectorBase;
@@ -14,9 +37,21 @@ import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.schema.*;
+import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapIndex;
+import io.tapdata.entity.schema.TapIndexEx;
+import io.tapdata.entity.schema.TapIndexField;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapNumber;
-import io.tapdata.entity.schema.value.*;
+import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.schema.value.TapBinaryValue;
+import io.tapdata.entity.schema.value.TapDateTimeValue;
+import io.tapdata.entity.schema.value.TapDateValue;
+import io.tapdata.entity.schema.value.TapMapValue;
+import io.tapdata.entity.schema.value.TapNumberValue;
+import io.tapdata.entity.schema.value.TapStringValue;
+import io.tapdata.entity.schema.value.TapTimeValue;
+import io.tapdata.entity.schema.value.TapYearValue;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -32,7 +67,17 @@ import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.*;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
+import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
+import io.tapdata.pdk.apis.entity.ExecuteResult;
+import io.tapdata.pdk.apis.entity.FilterResults;
+import io.tapdata.pdk.apis.entity.Projection;
+import io.tapdata.pdk.apis.entity.QueryOperator;
+import io.tapdata.pdk.apis.entity.SortOn;
+import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
+import io.tapdata.pdk.apis.entity.TapExecuteCommand;
+import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
@@ -45,13 +90,28 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.bson.*;
+import org.bson.BsonArray;
+import org.bson.BsonDocument;
+import org.bson.BsonString;
+import org.bson.BsonType;
+import org.bson.BsonValue;
+import org.bson.Document;
 import org.bson.conversions.Bson;
-import org.bson.types.*;
+import org.bson.types.Binary;
+import org.bson.types.Code;
+import org.bson.types.Decimal128;
+import org.bson.types.ObjectId;
+import org.bson.types.Symbol;
 
 import java.io.Closeable;
 import java.math.BigDecimal;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -60,10 +120,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static com.mongodb.client.model.Filters.*;
+import static com.mongodb.client.model.Filters.and;
+import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Filters.gt;
+import static com.mongodb.client.model.Filters.gte;
+import static com.mongodb.client.model.Filters.lt;
+import static com.mongodb.client.model.Filters.lte;
 import static java.util.Collections.singletonList;
 
 /**
@@ -78,8 +144,8 @@ public class MongodbConnector extends ConnectorBase {
 	public static final String TAG = MongodbConnector.class.getSimpleName();
 	private final AtomicLong counter = new AtomicLong();
 	private final AtomicBoolean isShutDown = new AtomicBoolean(false);
-	protected  MongodbConfig mongoConfig;
-	protected  MongoClient mongoClient;
+	protected MongodbConfig mongoConfig;
+	protected MongoClient mongoClient;
 	private MongoDatabase mongoDatabase;
 	private final int[] lock = new int[0];
 	MongoCollection<Document> mongoCollection;
@@ -209,7 +275,7 @@ public class MongodbConnector extends ConnectorBase {
 	}
 
 	public void getRelateDatabaseField(TapConnectionContext connectionContext, TableFieldTypesGenerator tableFieldTypesGenerator, BsonValue value, String fieldName, TapTable table) {
-	if (value instanceof BsonDocument) {
+		if (value instanceof BsonDocument) {
 			BsonDocument bsonDocument = (BsonDocument) value;
 			for (Map.Entry<String, BsonValue> entry : bsonDocument.entrySet()) {
 				getRelateDatabaseField(connectionContext, tableFieldTypesGenerator, entry.getValue(), fieldName + "." + entry.getKey(), table);
@@ -220,9 +286,9 @@ public class MongodbConnector extends ConnectorBase {
 			for (BsonValue bsonValue : bsonArray) {
 				if (bsonValue instanceof BsonDocument) {
 					BsonDocument theDoc = (BsonDocument) bsonValue;
-					for(Map.Entry<String, BsonValue> entry : theDoc.entrySet()) {
+					for (Map.Entry<String, BsonValue> entry : theDoc.entrySet()) {
 						BsonValue bsonValue1 = bsonDocument.get(entry.getKey());
-						if((bsonValue1 == null || bsonValue1.isNull()) || !entry.getValue().isNull()) {
+						if ((bsonValue1 == null || bsonValue1.isNull()) || !entry.getValue().isNull()) {
 							bsonDocument.put(entry.getKey(), entry.getValue());
 						}
 					}
@@ -250,7 +316,7 @@ public class MongodbConnector extends ConnectorBase {
 					if (null != stringTypeValueMap.get(fieldName)) {
 						int length = stringTypeValueMap.get(fieldName);
 						length = length * 5;
-						if(length < 100)
+						if (length < 100)
 							length = 100;
 						field = TapSimplify.field(fieldName, bsonType.name() + String.format("(%s)", length));
 					} else {
@@ -268,9 +334,9 @@ public class MongodbConnector extends ConnectorBase {
 			field.primaryKeyPos(1);
 		}
 		TapField currentFiled = null;
-		if(table.getNameFieldMap() != null)
+		if (table.getNameFieldMap() != null)
 			currentFiled = table.getNameFieldMap().get(fieldName);
-		if(currentFiled != null &&
+		if (currentFiled != null &&
 				currentFiled.getDataType() != null &&
 				!currentFiled.getDataType().equals(BsonType.NULL.name()) &&
 				field.getDataType() != null && field.getDataType().equals(BsonType.NULL.name())
@@ -299,12 +365,12 @@ public class MongodbConnector extends ConnectorBase {
 		try {
 			onStart(connectionContext);
 			try (
-					MongodbTest mongodbTest = new MongodbTest(mongoConfig, consumer,mongoClient)
+					MongodbTest mongodbTest = new MongodbTest(mongoConfig, consumer, mongoClient)
 			) {
 				mongodbTest.testOneByOne();
 			}
 		} catch (Throwable throwable) {
-			TapLogger.error(TAG,throwable.getMessage());
+			TapLogger.error(TAG, throwable.getMessage());
 			consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Failed, " + throwable.getMessage()));
 		} finally {
 			onStop(connectionContext);
@@ -387,13 +453,13 @@ public class MongodbConnector extends ConnectorBase {
 		});
 
 		codecRegistry.registerToTapValue(Document.class, (value, tapType) -> {
-			Document  document  = (Document) value;
+			Document document = (Document) value;
 			for (Map.Entry<String, Object> entry : document.entrySet()) {
 				if (entry.getValue() instanceof Double && entry.getValue().toString().contains("E")) {
 					entry.setValue(new BigDecimal(entry.getValue().toString()).toString());
 				}
 			}
-				return new TapMapValue(document);
+			return new TapMapValue(document);
 		});
 		codecRegistry.registerToTapValue(Symbol.class, (value, tapType) -> {
 			Symbol symbol = (Symbol) value;
@@ -449,7 +515,7 @@ public class MongodbConnector extends ConnectorBase {
 	}
 
 
-		private void executeCommand(TapConnectorContext tapConnectorContext, TapExecuteCommand tapExecuteCommand, Consumer<ExecuteResult> executeResultConsumer) {
+	private void executeCommand(TapConnectorContext tapConnectorContext, TapExecuteCommand tapExecuteCommand, Consumer<ExecuteResult> executeResultConsumer) {
 		try {
 			Map<String, Object> executeObj = tapExecuteCommand.getParams();
 			String command = tapExecuteCommand.getCommand();
@@ -464,7 +530,7 @@ public class MongodbConnector extends ConnectorBase {
 				executeResultConsumer.accept(new ExecuteResult<Long>().result(mongodbExecuteCommandFunction.count(executeObj, mongoClient)));
 			} else if ("aggregate".equals(command)) {
 				mongodbExecuteCommandFunction.aggregate(executeObj, mongoClient, list -> executeResultConsumer.accept(new ExecuteResult<List<Map<String, Object>>>().result(list)), this::isAlive);
-			} else  {
+			} else {
 				throw new NotSupportedException(command);
 			}
 		} catch (Exception e) {
@@ -475,7 +541,7 @@ public class MongodbConnector extends ConnectorBase {
 	private FieldMinMaxValue queryFieldMinMaxValue(TapConnectorContext connectorContext, TapTable table, TapAdvanceFilter partitionFilter, String fieldName) {
 		MongoCollection<Document> collection = getMongoCollection(table.getId());
 		TapIndexEx partitionIndex = table.partitionIndex();
-		if(partitionIndex == null)
+		if (partitionIndex == null)
 			throw new CoreException(MongoErrors.NO_INDEX_FOR_PARTITION, "No index to do partition");
 
 		Bson query = queryForPartitionFilter(partitionFilter, partitionIndex);
@@ -483,22 +549,22 @@ public class MongodbConnector extends ConnectorBase {
 		List<TapIndexField> indexFields = partitionIndex.getIndexFields();
 		Document sort = new Document();
 		Boolean fieldAsc = null;
-		for(TapIndexField indexField : indexFields) {
+		for (TapIndexField indexField : indexFields) {
 			Boolean asc = indexField.getFieldAsc();
-			if(asc == null)
+			if (asc == null)
 				asc = true;
-			if(indexField.getName().equals(fieldName)) {
+			if (indexField.getName().equals(fieldName)) {
 				fieldAsc = asc;
 			}
 			sort.put(indexField.getName(), asc ? 1 : -1);
 		}
-		if(fieldAsc == null)
+		if (fieldAsc == null)
 			throw new CoreException(MongoErrors.FIELD_NOT_IN_PARTITION_INDEXES, "field {} not found in partition indexes {}", fieldName, partitionIndex.getIndexMap().keySet());
 		FieldMinMaxValue fieldMinMaxValue = FieldMinMaxValue.create().fieldName(fieldName);
 
 		Document minSort;
 		Document maxSort;
-		if(fieldAsc) {
+		if (fieldAsc) {
 			minSort = sort;
 			maxSort = reverseSort(minSort);
 		} else {
@@ -508,7 +574,7 @@ public class MongodbConnector extends ConnectorBase {
 		//Get min value
 		FindIterable<Document> minIterable = collection.find(query).sort(minSort).projection(new Document().append(fieldName, 1)).limit(1);
 		Document minDoc = minIterable.first();
-		if(minDoc == null) {
+		if (minDoc == null) {
 //			throw new CoreException(MongoErrors.NO_RECORD_WHILE_GET_MIN, "No record while get min for field {}, query {}, sort {}", fieldName, query, sort);
 			TapLogger.info(TAG, "No record while get min for field {}, query {}, sort {}", fieldName, query, sort);
 			return null;
@@ -524,7 +590,7 @@ public class MongodbConnector extends ConnectorBase {
 		//Get max value
 		FindIterable<Document> maxIterable = collection.find(query).sort(maxSort).projection(new Document().append(fieldName, 1)).limit(1);
 		Document maxDoc = maxIterable.first();
-		if(maxDoc == null) {
+		if (maxDoc == null) {
 //			throw new CoreException(MongoErrors.NO_RECORD_WHILE_GET_MAX, "No record while get max for field {}, query {}, sort {}", fieldName, query, sort);
 			TapLogger.info(TAG, "No record while get max for field {}, query {}, sort {}", fieldName, query, sort);
 			return null;
@@ -542,7 +608,7 @@ public class MongodbConnector extends ConnectorBase {
 
 	private Document reverseSort(Document sort) {
 		Document newSort = new Document();
-		for(Map.Entry<String, Object> entry : sort.entrySet()) {
+		for (Map.Entry<String, Object> entry : sort.entrySet()) {
 			int value = (int) entry.getValue();
 			newSort.put(entry.getKey(), -value);
 		}
@@ -557,11 +623,11 @@ public class MongodbConnector extends ConnectorBase {
 	private Bson queryForPartitionFilter(TapAdvanceFilter partitionFilter, TapIndexEx partitionKeys) {
 		List<Bson> bsonList = new ArrayList<>();
 		List<QueryOperator> ops = partitionFilter.getOperators();
-		if(ops != null)
+		if (ops != null)
 			for (QueryOperator op : ops) {
-				if(op == null)
+				if (op == null)
 					continue;
-				if(!partitionKeys.getIndexMap().containsKey(op.getKey())) {
+				if (!partitionKeys.getIndexMap().containsKey(op.getKey())) {
 					throw new CoreException(MongoErrors.KEY_OUTSIDE_OF_PARTITION_KEYS, "Key {} is not in partition keys {} in operators", op.getKey(), partitionKeys);
 				}
 				switch (op.getOperator()) {
@@ -582,7 +648,7 @@ public class MongodbConnector extends ConnectorBase {
 		DataMap match = partitionFilter.getMatch();
 		if (match != null) {
 			for (Map.Entry<String, Object> entry : match.entrySet()) {
-				if(!partitionKeys.getIndexMap().containsKey(entry.getKey())) {
+				if (!partitionKeys.getIndexMap().containsKey(entry.getKey())) {
 					throw new CoreException(MongoErrors.KEY_OUTSIDE_OF_PARTITION_KEYS, "Key {} is not in partition keys {} in match", entry.getKey(), partitionKeys);
 				}
 				bsonList.add(eq(entry.getKey(), entry.getValue()));
@@ -607,7 +673,7 @@ public class MongodbConnector extends ConnectorBase {
 
 	protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
 		RetryOptions retryOptions = RetryOptions.create();
-		if ( null != matchThrowable(throwable, MongoClientException.class)
+		if (null != matchThrowable(throwable, MongoClientException.class)
 				|| null != matchThrowable(throwable, MongoSocketException.class)
 				|| null != matchThrowable(throwable, MongoConnectionPoolClearedException.class)
 				|| null != matchThrowable(throwable, MongoSecurityException.class)
@@ -624,9 +690,18 @@ public class MongodbConnector extends ConnectorBase {
 				|| null != matchThrowable(throwable, MongoNotPrimaryException.class)
 				|| null != matchThrowable(throwable, MongoServerUnavailableException.class)
 				|| null != matchThrowable(throwable, MongoQueryException.class)
+				|| null != matchThrowable(throwable, MongoCommandException.class)
 				|| null != matchThrowable(throwable, MongoInterruptedException.class)) {
 			retryOptions.needRetry(true);
 			return retryOptions;
+		}
+		if (null != matchThrowable(throwable, MongoCommandException.class)) {
+			MongoCommandException mongoCommandException = (MongoCommandException) throwable;
+			Pattern pattern = Pattern.compile("Cache Reader No keys found for .* that is valid for time.*");
+			if (mongoCommandException.getErrorCode() == 211 && pattern.matcher(mongoCommandException.getErrorMessage()).matches()) {
+				retryOptions.needRetry(true);
+				return retryOptions;
+			}
 		}
 		return retryOptions;
 	}
@@ -643,7 +718,9 @@ public class MongodbConnector extends ConnectorBase {
 						keys.append(indexField.getName(), 1);
 					}
 					final IndexOptions indexOptions = new IndexOptions();
-					indexOptions.unique(tapIndex.isUnique());
+					if (indexFields.size() != 1 || !"_id".equals(indexFields.stream().findFirst().get().getName())) {
+						indexOptions.unique(tapIndex.isUnique());
+					}
 					if (EmptyKit.isNotEmpty(tapIndex.getName())) {
 						indexOptions.name(tapIndex.getName());
 					}
@@ -664,7 +741,7 @@ public class MongodbConnector extends ConnectorBase {
 		if (MapUtils.isEmpty(connectionConfig)) {
 			throw new RuntimeException("connection config cannot be empty");
 		}
-		mongoConfig =(MongodbConfig) new MongodbConfig().load(connectionConfig);
+		mongoConfig = (MongodbConfig) new MongodbConfig().load(connectionConfig);
 		mongoConfig.load(connectionContext.getNodeConfig());
 		if (mongoConfig == null) {
 			throw new RuntimeException("load mongo config failed from connection config");
@@ -710,7 +787,7 @@ public class MongodbConnector extends ConnectorBase {
 	 * @param writeListResultConsumer
 	 */
 	private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
-	    if (mongodbWriter == null) {
+		if (mongodbWriter == null) {
 			synchronized (this) {
 				if (mongodbWriter == null) {
 					mongodbWriter = new MongodbWriter(connectorContext.getGlobalStateMap(), mongoConfig, mongoClient);
@@ -735,11 +812,11 @@ public class MongodbConnector extends ConnectorBase {
 		MongoCollection<Document> collection = getMongoCollection(table.getId());
 		List<Bson> bsonList = new ArrayList<>();
 		DataMap match = tapAdvanceFilter.getMatch();
-		Map<String,TapField> map = table.getNameFieldMap();
+		Map<String, TapField> map = table.getNameFieldMap();
 		if (match != null) {
 			for (Map.Entry<String, Object> entry : match.entrySet()) {
 				TapField tapField = map.get(entry.getKey());
-				entry.setValue(formatValue(tapField,entry.getKey(),entry.getValue()));
+				entry.setValue(formatValue(tapField, entry.getKey(), entry.getValue()));
 				bsonList.add(eq(entry.getKey(), entry.getValue()));
 			}
 		}
@@ -748,7 +825,7 @@ public class MongodbConnector extends ConnectorBase {
 		if (ops != null) {
 			for (QueryOperator op : ops) {
 				TapField tapField = map.get(op.getKey());
-				op.setValue(formatValue(tapField,op.getKey(),op.getValue()));
+				op.setValue(formatValue(tapField, op.getKey(), op.getValue()));
 				switch (op.getOperator()) {
 					case QueryOperator.GT:
 						bsonList.add(gt(op.getKey(), op.getValue()));
@@ -794,7 +871,7 @@ public class MongodbConnector extends ConnectorBase {
 		FindIterable<Document> iterable = collection.find(query).projection(projectionDoc);
 
 		Integer limit = tapAdvanceFilter.getLimit();
-		if(limit != null) {
+		if (limit != null) {
 			iterable.limit(limit);
 		}
 		Integer skip = tapAdvanceFilter.getSkip();
@@ -821,7 +898,7 @@ public class MongodbConnector extends ConnectorBase {
 		}
 		FilterResults filterResults = new FilterResults();
 		Integer batchSize = tapAdvanceFilter.getBatchSize();
-		if(batchSize == null) {
+		if (batchSize == null) {
 			batchSize = 1000;
 		}
 		iterable.batchSize(batchSize);
@@ -829,13 +906,13 @@ public class MongodbConnector extends ConnectorBase {
 		try (final MongoCursor<Document> mongoCursor = iterable.iterator()) {
 			while (mongoCursor.hasNext()) {
 				filterResults.add(mongoCursor.next());
-				if(filterResults.resultSize() >= batchSize) {
+				if (filterResults.resultSize() >= batchSize) {
 					consumer.accept(filterResults);
 					filterResults = new FilterResults();
 				}
 			}
 		}
-		if(filterResults.resultSize() > 0)
+		if (filterResults.resultSize() > 0)
 			consumer.accept(filterResults);
 	}
 
@@ -1066,7 +1143,7 @@ public class MongodbConnector extends ConnectorBase {
 
 	private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
 		String database = mongoConfig.getDatabase();
-		MongoDatabase mongoDatabase = 	mongoClient.getDatabase(database);
+		MongoDatabase mongoDatabase = mongoClient.getDatabase(database);
 		Document collStats = mongoDatabase.runCommand(new Document("collStats", tableName));
 		TableInfo tableInfo = TableInfo.create();
 		tableInfo.setNumOfRows(Long.valueOf(collStats.getInteger("count")));

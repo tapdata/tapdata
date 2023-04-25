@@ -56,7 +56,7 @@ public class BigQueryConnector extends ConnectorBase {
     private MergeHandel merge;
     private final AtomicBoolean running = new AtomicBoolean(Boolean.TRUE);
     private String tableId;
-    private WriteValve valve;
+    //private WriteValve valve;
 
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
@@ -91,7 +91,7 @@ public class BigQueryConnector extends ConnectorBase {
             this.notify();
         }
         Optional.ofNullable(this.writeRecord).ifPresent(WriteRecord::onDestroy);
-        Optional.ofNullable(this.valve).ifPresent(WriteValve::close);
+        //Optional.ofNullable(this.valve).ifPresent(WriteValve::close);
         this.running.set(false);
         Optional.ofNullable(this.merge).ifPresent(MergeHandel::stop);
         //Optional.ofNullable(this.stream).ifPresent(BigQueryStream::closeStream);
@@ -184,19 +184,25 @@ public class BigQueryConnector extends ConnectorBase {
     }
 
     private void writeRecordStream(TapConnectorContext context, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> consumer) {
-        if (Objects.isNull(this.valve)) {
-            this.valve = WriteValve.open(
-                    BigQueryConnector.STREAM_SIZE,
-                    BigQueryConnector.CUMULATIVE_TIME_INTERVAL,
-                    (writeConsumer, writeList, targetTable) -> {
-                        try {
-                            writeConsumer.accept(this.stream.writeRecord(writeList, targetTable));
-                        } catch (Exception e) {
-                            TapLogger.warn(TAG, "uploadEvents size {} to table {} failed, {}", writeList.size(), targetTable.getId(), e.getMessage());
-                        }
-                    },
-                    consumer
-            ).write(events,table);
+        //if (Objects.isNull(this.valve)) {
+        //    this.valve = WriteValve.open(
+        //            BigQueryConnector.STREAM_SIZE,
+        //            BigQueryConnector.CUMULATIVE_TIME_INTERVAL,
+        //            (writeConsumer, writeList, targetTable) -> {
+        //                try {
+        //                    writeConsumer.accept(this.stream.writeRecord(writeList, targetTable));
+        //                } catch (Exception e) {
+        //                    TapLogger.warn(TAG, "uploadEvents size {} to table {} failed, {}", writeList.size(), targetTable.getId(), e.getMessage());
+        //                }
+        //            },
+        //            consumer
+        //    ).write(events,table);
+        //}
+
+        try {
+            consumer.accept(this.stream.writeRecord(events, table));
+        } catch (Exception e) {
+            TapLogger.warn(TAG, "uploadEvents size {} to table {} failed, {}", events.size(), table.getId(), e.getMessage());
         }
     }
 

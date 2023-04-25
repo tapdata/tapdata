@@ -32,7 +32,7 @@ public class SourceStateAspect extends DataNodeAspect<SourceStateAspect> {
 	}
 
 	private int state;
-	public SourceStateAspect state(int state) {
+	public synchronized SourceStateAspect state(int state) {
 		switch (state) {
 			case STATE_CDC_START:
 				cdcStartTime = System.currentTimeMillis();

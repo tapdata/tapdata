@@ -136,9 +136,13 @@ public class WorkerSingletonLock implements AutoCloseable {
         return url;
     }
 
-    public static boolean checkDBTag(String tag, String workType, Supplier<String> getDBTag) {
+    public static boolean checkDBTag(String tag, String workType, boolean cloud, Supplier<String> getDBTag) {
         if (ENABLE && "connector".equals(workType)) {
-            return null != tag && tag.equals(getDBTag.get());
+            String dbTag = getDBTag.get();
+            if (tag == null && dbTag == null && cloud) {
+                return true;
+            }
+            return null != tag && tag.equals(dbTag);
         }
         return true;
     }

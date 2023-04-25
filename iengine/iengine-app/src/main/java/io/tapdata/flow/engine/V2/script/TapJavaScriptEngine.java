@@ -7,7 +7,6 @@ import com.tapdata.constant.JobUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.JavaScriptFunctions;
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.processor.ClassLoaderUtil;
 import com.tapdata.processor.LoggingOutputStream;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
@@ -66,7 +65,6 @@ public class TapJavaScriptEngine implements ScriptEngine, Invocable, Closeable {
             //need to change as engine classLoader
             Thread.currentThread().setContextClassLoader(Application.class.getClassLoader());
             if (jsEngineEnum == JSEngineEnum.GRAALVM_JS) {
-                ClassLoaderUtil.recursivePrint(Thread.currentThread().getContextClassLoader());
                 scriptEngine = GraalJSScriptEngine
                         .create(Engine.newBuilder()
                                         .allowExperimentalOptions(true)

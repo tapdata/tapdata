@@ -17,13 +17,12 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import okhttp3.Response;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
@@ -103,19 +102,19 @@ public class SelectDbStreamLoader extends Throwable {
         final byte[] finalBytes = byteArrayOutputStream.toByteArray();
         String uuid = UUID.randomUUID().toString() + "_" + System.currentTimeMillis();
         CopyIntoUtils.upload(uuid, finalBytes);
-        CopyIntoUtils.copyInto(table);
+        Response response = CopyIntoUtils.copyInto(table);
         HashMap<String, String> selectDBCopyIntoLog;
         selectDBCopyIntoLog = this.selectDbJdbcContext.getSelectDBCopyIntoLog(uuid);
         if (!"FINISHED".equals(selectDBCopyIntoLog.get("State"))
                 && !"ETL:100%; LOAD:100%".equals(selectDBCopyIntoLog.get("Progress"))
                 && "CANCELLED".equals(selectDBCopyIntoLog.get("State"))) {
-            //Task should be error now.
-            selectDbContext.tapConnectionContext().getLog().error("ErrorMsg: " + selectDBCopyIntoLog.get("ErrorMsg")
-                    + ";   Log URL: [" + selectDBCopyIntoLog.get("URL")
-                    + "]   CreateTime:" + selectDBCopyIntoLog.get("CreateTime"));
             throw new CoreException(SelectDbErrorCodes.ERROR_SDB_COPY_INTO_CANCELLED, "ErrorMsg: " + selectDBCopyIntoLog.get("ErrorMsg")
                     + ";   Log URL: [" + selectDBCopyIntoLog.get("URL")
                     + "]   CreateTime:" + selectDBCopyIntoLog.get("CreateTime"));
+        }
+        int statusCode = response.code();
+        if (!(statusCode >= 200 && statusCode < 300) || null == selectDBCopyIntoLog.get("State") || null == selectDBCopyIntoLog.get("JobId")) {
+            throw new CoreException(SelectDbErrorCodes.ERROR_SDB_COPY_INTO_STATE_NULL, "HttpCode: " + statusCode + " Response.body: "  +  response.body() + " Response: " + response +   " State: "  + selectDBCopyIntoLog.get("State") +  " JobId: " + selectDBCopyIntoLog.get("JobId"));
         }
         return listResult;
     }

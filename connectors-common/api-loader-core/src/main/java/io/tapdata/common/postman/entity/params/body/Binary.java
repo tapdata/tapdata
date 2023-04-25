@@ -20,7 +20,7 @@ public class Binary extends Body<Map<String, Object>> {
 
     @Override
     public Body<Map<String, Object>> autoSupplementData(Map<String, Object> bodyMap) {
-        return this.raw((Map<String, Object>) Optional.ofNullable(bodyMap.get(String.valueOf(bodyMap.get(PostParam.METHOD)))).orElse(new HashMap<>()));
+        return this.raw((Map<String, Object>) Optional.ofNullable(bodyMap.get(String.valueOf(bodyMap.get(PostParam.MODE)))).orElse(new HashMap<>()));
     }
 
     /**

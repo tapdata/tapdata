@@ -4,39 +4,22 @@ import java.sql.SQLException;
 import java.util.List;
 
 public interface ExceptionCollector {
-    default void collectTerminateByServer(SQLException cause) throws SQLException {
-        throw cause;
-    }
 
-    default void collectUserPwdInvalid(String username, SQLException cause) throws SQLException {
-        throw cause;
-    }
+    void collectTerminateByServer(SQLException cause) throws SQLException;
 
-    default void collectOffsetInvalid(Object offset, SQLException cause) throws SQLException {
-        throw cause;
-    }
+    void collectUserPwdInvalid(String username, SQLException cause) throws SQLException;
 
-    default void collectReadPrivileges(Object operation, List<String> privileges, SQLException cause) throws SQLException {
-        throw cause;
-    }
+    void collectOffsetInvalid(Object offset, SQLException cause) throws SQLException;
 
-    default void collectWritePrivileges(Object operation, List<String> privileges, SQLException cause) throws SQLException {
-        throw cause;
-    }
+    void collectReadPrivileges(Object operation, List<String> privileges, SQLException cause) throws SQLException;
 
-    default void collectWriteType(String targetFieldName, String targetFieldType, Object data, SQLException cause) throws SQLException {
-        throw cause;
-    }
+    void collectWritePrivileges(Object operation, List<String> privileges, SQLException cause) throws SQLException;
 
-    default void collectWriteLength(String targetFieldName, String targetFieldType, Object data, SQLException cause) throws SQLException {
-        throw cause;
-    }
+    void collectWriteType(String targetFieldName, String targetFieldType, Object data, SQLException cause) throws SQLException;
 
-    default void collectViolateUnique(String targetFieldName, Object data, Object constraint, SQLException cause) throws SQLException {
-        throw cause;
-    }
+    void collectWriteLength(String targetFieldName, String targetFieldType, Object data, SQLException cause) throws SQLException;
 
-    default void collectViolateNull(String targetFieldName, SQLException cause) throws SQLException {
-        throw cause;
-    }
+    void collectViolateUnique(String targetFieldName, Object data, Object constraint, SQLException cause) throws SQLException;
+
+    void collectViolateNull(String targetFieldName, SQLException cause) throws SQLException;
 }

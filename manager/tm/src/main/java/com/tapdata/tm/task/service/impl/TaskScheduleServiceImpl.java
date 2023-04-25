@@ -24,6 +24,7 @@ import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
@@ -85,7 +86,28 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             }
         }
 
+        if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(taskDto.getAccessNodeType())
+                && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
+            int num = taskService.runningTaskNum(taskDto.getAgentId(), user);
+            WorkerDto workerDto = workerService.findByProcessId(taskDto.getAgentId(), user, "agentTags");
+            int limitTaskNum = workerDto.getLimitTaskNum();
+            if (limitTaskNum <= num) {
+                StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
+                if (stateMachineResult.isOk()) {
+                    throw new BizException("Task.ScheduleLimit");
+                }
+            }
+        }
+
         CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
+
+        if (StringUtils.isBlank(taskDto.getAgentId()) && calculationEngineVo.getTaskAvailable() != calculationEngineVo.getAvailable()) {
+            StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
+            if (stateMachineResult.isOk()) {
+                throw new BizException("Task.ScheduleLimit");
+            }
+        }
+
         FunctionUtils.ignoreAnyError(() -> {
             String template = "Scheduling calculation results: {0}, all agent data: {1}.";
             String msg = MessageFormat.format(template, calculationEngineVo.getProcessId() , JSON.toJSONString(calculationEngineVo.getThreadLog()));

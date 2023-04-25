@@ -4,6 +4,7 @@ import io.tapdata.common.postman.entity.params.Body;
 import io.tapdata.common.postman.enums.PostParam;
 import io.tapdata.common.postman.util.ReplaceTagUtil;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
@@ -23,7 +24,7 @@ public class FormUrlEncoded extends Body<Map<String, Object>> {
         binary.mode(super.mode);
         binary.raw(super.raw);
         binary.options(super.options);
-        binary.contentType = super.contentType;
+        binary.contentType = setContentType().contentType();
         return binary;
     }
 
@@ -34,11 +35,12 @@ public class FormUrlEncoded extends Body<Map<String, Object>> {
         this.raw.entrySet().stream().filter(Objects::nonNull).forEach(ent -> {
             String key = ent.getKey();
             Object valueObj = ent.getValue();
-            jsonObj.put(key, Optional.ofNullable(param.get(key)).orElse(valueObj));
+            jsonObj.put(key, null == valueObj ? (null == param.get(key) || "".equals(param.get(key)) ? param.get(key) : valueObj ) : valueObj);
             if (valueObj instanceof String && ReplaceTagUtil.hasReplace((String) valueObj)) {
                 jsonObj.put(key, ReplaceTagUtil.replace((String) valueObj, param));
             }
         });
+        this.raw.putAll(jsonObj);
         return this;
     }
 
@@ -53,7 +55,11 @@ public class FormUrlEncoded extends Body<Map<String, Object>> {
                 jsonObj.put(key, Optional.ofNullable(appendMap.get(key)).orElse(map.getValue()));
             });
         }
-        return toJson(jsonObj);
+        StringJoiner joiner = new StringJoiner("&");
+        jsonObj.forEach((k,v)->{
+            joiner.add(k + "=" + new String(String.valueOf(v).getBytes(StandardCharsets.UTF_8),StandardCharsets.UTF_8));
+        });
+        return joiner.toString();
     }
 
     @Override
