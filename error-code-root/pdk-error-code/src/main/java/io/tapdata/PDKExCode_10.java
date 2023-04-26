@@ -150,4 +150,16 @@ public interface PDKExCode_10 {
 			seeAlso = {"https://docs.tapdata.io/enterprise/user-guide/connect-database/"}
 	)
 	String WRITE_VIOLATE_NULLABLE_CONSTRAINT = "10009";
+
+	@TapExCode(
+			describe = "Due to the data itself, an error occurred: \n" +
+					"1. When the error data tolerance function is enabled, error data can be skipped for processing.",
+			describeCN = "由数据本身原因，导致错误：\n" +
+					"1. 当开启错误数据容忍功能时，错误数据可被跳过处理；",
+			solution = "1. Check the correctness of the data.",
+			solutionCN = "1. 检查数据的正确性；",
+			skippable = true,
+			seeAlso = {"https://docs.tapdata.io/enterprise/user-guide/connect-database/"}
+	)
+	String SKIPPABLE_DATA = "10010";
 }
