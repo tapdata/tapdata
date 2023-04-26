@@ -20,12 +20,7 @@ import io.tapdata.aspect.taskmilestones.Snapshot2CDCAspect;
 import io.tapdata.aspect.taskmilestones.SnapshotReadBeginAspect;
 import io.tapdata.aspect.taskmilestones.SnapshotReadEndAspect;
 import io.tapdata.aspect.utils.AspectUtils;
-import io.tapdata.async.master.AsyncJobCompleted;
-import io.tapdata.async.master.JobBase;
-import io.tapdata.async.master.JobContext;
-import io.tapdata.async.master.JobMaster;
-import io.tapdata.async.master.ParallelWorker;
-import io.tapdata.async.master.QueueWorker;
+import io.tapdata.async.master.*;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapBaseEvent;
@@ -33,6 +28,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapIndexEx;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.PartitionConsumer;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.PartitionErrorCodes;
@@ -114,7 +110,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 		try {
 			startAsyncJobs();
 		} catch (Throwable throwable) {
-			errorHandle(throwable, throwable.getMessage());
+			listenerError( () -> errorHandle(throwable, throwable.getMessage()));
 		}
 	}
 
@@ -136,7 +132,9 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 			//this.eventQueue0 = new LinkedBlockingQueue<>(sourceQueueCapacity);
 		} catch (Throwable e) {
 			//Notify error for task.
-			throw errorHandle(e, "init failed");
+			if (isRunning()) {
+				throw errorHandle(e, "init failed");
+			}
 		}
 	}
 
@@ -162,7 +160,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 
 		if (null == getConnectorNode()) {
 			String error = "Connector node is null";
-			errorHandle(new RuntimeException(error), error);
+			listenerError(() -> errorHandle(new RuntimeException(error), error));
 			return jobContext;
 		}
 
@@ -207,10 +205,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 									handleReadPartitionsForTable(pdkSourceContext, getReadPartitionsFunction, finalReadPartitionOptions, tableName, jobCompleted);
 								})
 								.finished()
-								.setAsyncJobErrorListener((id, asyncJob, throwable) -> {
-											this.errorHandle(throwable, throwable.getMessage());
-										}
-								));
+								.setAsyncJobErrorListener((id, job ,t) -> listenerError(() -> errorHandle(id,job,t))));
 				return null;
 			});
 			//Go to CDC stage after all tables finished initial sync.
@@ -227,6 +222,11 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 		}
 		executeAspect(new SnapshotReadEndAspect().dataProcessorContext(dataProcessorContext));
 		return null;
+	}
+
+
+	public TapCodeException errorHandle(String id, JobBase asyncJob, Throwable throwable){
+		return this.errorHandle(throwable, throwable.getMessage());
 	}
 
 	protected void enterCDCStageFinally() {
@@ -355,7 +355,8 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 			throwableWrapper = new NodeException(throwableWrapper).context(getProcessorBaseContext());
 		}
 		//noinspection ThrowableNotThrown
-		errorHandle(throwableWrapper, throwable.getMessage());
+		Throwable finalThrowableWrapper = throwableWrapper;
+		listenerError(()-> errorHandle(finalThrowableWrapper, throwable.getMessage()));
 	}
 
 	public void startAsyncJobs() {
@@ -441,7 +442,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 				}
 			}
 
-			initialSyncWorker = asyncMaster.createAsyncQueueWorker("InitialSync " + getNode().getId()).setAsyncJobErrorListener(this::handleWorkerError)
+			initialSyncWorker = asyncMaster.createAsyncQueueWorker("InitialSync " + getNode().getId()).setAsyncJobErrorListener((id, job ,t) -> listenerError(() -> errorHandle(id,job,t)))
 					.job("batchRead", this::handleBatchReadForTables).finished().start(JobContext.create(null).context(sourceContext));
 		} else {
 			Snapshot2CDCAspect.execute(dataProcessorContext);
@@ -449,7 +450,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 
 		if (sourceContext.isNeedCDC()) {
 			streamReadWorker = asyncMaster.createAsyncQueueWorker("StreamRead_tableSize_" + sourceContext.getPendingInitialSyncTables().size())
-					.setAsyncJobErrorListener(this::handleWorkerError)
+					.setAsyncJobErrorListener((id, job ,t) -> listenerError(() -> errorHandle(id,job,t)))
 					.job(this::handleStreamRead).finished()
 					.start(JobContext.create().context(
 							StreamReadContext.create().streamStage(false).tables(sourceContext.getPendingInitialSyncTables())), true);
@@ -587,7 +588,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 				}
 			}
 		} catch (Throwable throwable) {
-			errorHandle(throwable, "Error processing incremental data, error: " + throwable.getMessage());
+			listenerError(()-> errorHandle(throwable, "Error processing incremental data, error: " + throwable.getMessage()));
 		} /*finally {
 			try {
 				sourceRunnerLock.unlock();
@@ -666,7 +667,11 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 
 			obsLogger.info("task {} closed", dataProcessorContext.getTaskDto().getId().toHexString());
 			for (ParallelWorker tablePartitionReader : tablePartitionReaderMap.values()) {
-				tablePartitionReader.stop();
+				try {
+					tablePartitionReader.stop();
+				}catch (Exception e){
+					//error stop this reader.
+				}
 			}
 			tablePartitionReaderMap.clear();
 
@@ -700,5 +705,11 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 
 	public List<String> removeTables() {
 		return removeTables;
+	}
+
+	public void listenerError(Runnable run){
+		if (isRunning()){
+			run.run();
+		}
 	}
 }
