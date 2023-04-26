@@ -251,10 +251,9 @@ public class TaskSampleHandler extends AbstractHandler {
         taskTables.addAll(Arrays.asList(tables));
     }
 
-    public void handleTableCountAccept(long count) {
+    public void handleTableCountAccept(String table, long count) {
         snapshotRowTotal.inc(count);
-        currentSnapshotTableInsertRowTotal = 0L;
-        currentSnapshotTableRowTotal = count;
+        currentSnapshotTableRowTotalMap.putIfAbsent(table, count);
     }
 
     public void handleCreateTableEnd() {
