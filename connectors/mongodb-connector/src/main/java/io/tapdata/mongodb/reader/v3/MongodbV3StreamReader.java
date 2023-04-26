@@ -8,7 +8,6 @@ import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.Filters;
-import io.tapdata.constant.AppType;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
@@ -18,7 +17,6 @@ import io.tapdata.mongodb.MongodbConnector;
 import io.tapdata.mongodb.MongodbUtil;
 import io.tapdata.mongodb.entity.MongodbConfig;
 import io.tapdata.mongodb.reader.MongodbStreamReader;
-import io.tapdata.mongodb.util.MongodbLookupUtil;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import org.apache.commons.collections4.CollectionUtils;
@@ -69,8 +67,6 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 
 		private ConnectionString connectionString;
 
-		private boolean is_cloud;
-
 		@Override
 		public void onStart(MongodbConfig mongodbConfig) {
 				this.mongodbConfig = mongodbConfig;
@@ -80,7 +76,6 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 				running.compareAndSet(false, true);
 				connectionString = new ConnectionString(mongodbConfig.getUri());
 				replicaSetReadThreadPool = new ThreadPoolExecutor(nodesURI.size(), nodesURI.size(), 60L, TimeUnit.SECONDS, new LinkedBlockingDeque<>());
-				this.is_cloud = AppType.init().isCloud();
 		}
 
 		@Override
@@ -358,11 +353,8 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 								} else if ("i".equalsIgnoreCase(event.getString("op"))) {
 										tapBaseEvent = insertRecordEvent(o, collectionName);
 								} else if ("d".equalsIgnoreCase(event.getString("op"))) {
-										Map lookupData = null;
-										if (!is_cloud && mongodbConfig.isEnableSaveDeleteData()) {
-											lookupData = MongodbLookupUtil.findDeleteCacheByOid(connectionString, collectionName, o.get("_id"), globalStateMap);
-										}
-										tapBaseEvent = deleteDMLEvent(lookupData != null ? (Map)lookupData.get("data") : o, collectionName);
+										//final Map lookupData = MongodbLookupUtil.findDeleteCacheByOid(connectionString, collectionName, o.get("_id"), globalStateMap);
+										tapBaseEvent = deleteDMLEvent(o, collectionName);
 								}
 //								try {
 //										factory.recordEvent(event, clock.currentTimeInMillis(), true);
