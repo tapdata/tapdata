@@ -60,9 +60,19 @@ public class ApiAppServiceImpl implements ApiAppService {
 
     @Override
     public Page<MetadataDefinitionDto> find(Filter filter, UserDetail user) {
+
+        boolean addModel = false;
+        if (filter != null) {
+            if (filter.getWhere() != null) {
+                Object addMode = filter.getWhere().get("addMode");
+                if (addMode != null) {
+                    addModel = (boolean) addMode;
+                }
+            }
+        }
         Page<MetadataDefinitionDto> page = metadataDefinitionService.find(filter, user);
         //添加api总数，跟已发布的api数量。
-        addApiCount(page.getItems(), user, true);
+        addApiCount(page.getItems(), user, addModel);
 
         return page;
     }
