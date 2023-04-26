@@ -163,8 +163,8 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> mysqlJdbcContext.getConnection(), this::isAlive, c));
         connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
-        connectorFunctions.supportQueryFieldMinMaxValueFunction(this::minMaxValue);
-        connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
+        //connectorFunctions.supportQueryFieldMinMaxValueFunction(this::minMaxValue);
+        //connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
         connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
     }
 
@@ -440,6 +440,7 @@ public class MysqlConnector extends ConnectorBase {
         consumer.accept(writeListResult);
     }
 
+    public static final AtomicInteger TOTAL = new AtomicInteger(0);
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offset, int batchSize, BiConsumer<List<TapEvent>, Object> consumer) throws Throwable {
         MysqlSnapshotOffset mysqlSnapshotOffset;
         if (offset instanceof MysqlSnapshotOffset) {
@@ -453,12 +454,21 @@ public class MysqlConnector extends ConnectorBase {
             tempList.add(tapRecordEvent);
             if (tempList.size() == batchSize) {
                 consumer.accept(tempList, mysqlSnapshotOffset);
+                synchronized (TOTAL){
+                    TOTAL.addAndGet(tempList.size());
+                }
                 tempList.clear();
             }
         });
         if (CollectionUtils.isNotEmpty(tempList)) {
             consumer.accept(tempList, mysqlSnapshotOffset);
+            synchronized (TOTAL){
+                TOTAL.addAndGet(tempList.size());
+            }
             tempList.clear();
+        }
+        synchronized (TOTAL) {
+            TapLogger.warn(TAG,"TOTAL: " + TOTAL.get());
         }
     }
 
@@ -475,16 +485,26 @@ public class MysqlConnector extends ConnectorBase {
                 filterResults.add(data);
                 if (filterResults.getResults().size() == finalBatchSize) {
                     consumer.accept(filterResults);
+                    synchronized (TOTAL){
+                        TOTAL.addAndGet(filterResults.getResults().size());
+                    }
                     filterResults.getResults().clear();
                 }
             });
             if (CollectionUtils.isNotEmpty(filterResults.getResults())) {
                 consumer.accept(filterResults);
+                synchronized (TOTAL){
+                    TOTAL.addAndGet(filterResults.getResults().size());
+                }
                 filterResults.getResults().clear();
             }
         } catch (Throwable e) {
             filterResults.setError(e);
             consumer.accept(filterResults);
+        }finally {
+            synchronized (TOTAL) {
+                TapLogger.warn(TAG,"TOTAL: " + TOTAL.get());
+            }
         }
     }
 
