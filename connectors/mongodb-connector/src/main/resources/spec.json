@@ -289,7 +289,7 @@
           "x-decorator-props": {
             "layout": "horizontal"
           },
-          "default": false,
+          "default": true,
           "x-reactions": {
             "dependencies": [
               "$outputs"
