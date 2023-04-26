@@ -23,8 +23,8 @@ import java.util.stream.Collectors;
 
 public class HiveConnector extends CommonDbConnector {
 
-    private HiveConfig hiveConfig;
-    private HiveJdbcContext hiveJdbcContext;
+    protected HiveConfig hiveConfig;
+    protected HiveJdbcContext hiveJdbcContext;
 
     @Override
     public void onStart(TapConnectionContext connectionContext) {
