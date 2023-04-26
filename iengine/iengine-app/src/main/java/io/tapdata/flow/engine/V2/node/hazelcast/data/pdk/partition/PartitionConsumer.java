@@ -67,6 +67,6 @@ public class PartitionConsumer implements Consumer<ReadPartition> {
 								job("readPartition", readPartitionHandler::handleReadPartition).
 								job("sendingDataFromPartition", readPartitionHandler::handleSendingDataFromPartition).
 								finished("finishedPartition", readPartitionHandler::handleFinishedPartition))
-				.setAsyncJobErrorListener((id, asyncJob, throwable) -> sourcePdkDataNodeEx1.errorHandle(throwable, throwable.getMessage()));
+				.setAsyncJobErrorListener((id, asyncJob, throwable) -> sourcePdkDataNodeEx1.listenerError(() -> sourcePdkDataNodeEx1.errorHandle(id, asyncJob, throwable)));
 	}
 }

@@ -49,6 +49,7 @@ public class ReadPartitionUnKVStorageHandler extends PartitionFieldParentHandler
 
 	//[INFO ] 2023-04-07 11:39:56.336  [] job-file-log-6426c6a1c0253f6338896f7f - [Partition-Mongo-Dummy - Copy][BigData] - Stored the readPartition ReadPartition TapPartitionFilter rightBoundary _id<'6424344e01172f3ebd000000'; , takes 25060, storage takes 6400, filter takes 16226, total 1088484
 	public JobContext handleReadPartition(JobContext jobContext) {
+		if (null == sourcePdkDataNode.getConnectorNode()) return null;
 		ReadPartitionContext readPartitionContext = jobContext.getContext(ReadPartitionContext.class);
 		sourcePdkDataNode.getObsLogger().info("Start storing partition {} into local, batchSize {} ", readPartition, sourcePdkDataNode.batchSize);
 		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = sourcePdkDataNode.getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
