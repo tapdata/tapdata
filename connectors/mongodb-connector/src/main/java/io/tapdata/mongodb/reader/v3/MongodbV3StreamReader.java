@@ -17,7 +17,6 @@ import io.tapdata.mongodb.MongodbConnector;
 import io.tapdata.mongodb.MongodbUtil;
 import io.tapdata.mongodb.entity.MongodbConfig;
 import io.tapdata.mongodb.reader.MongodbStreamReader;
-import io.tapdata.mongodb.util.MongodbLookupUtil;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import org.apache.commons.collections4.CollectionUtils;
@@ -27,7 +26,10 @@ import org.bson.Document;
 import org.bson.conversions.Bson;
 
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.tapdata.base.ConnectorBase.*;
@@ -315,14 +317,21 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 										final Document o2 = event.get("o2", Document.class);
 										Object _id = o2 != null ? o2.get("_id") : o.get("_id");
 										Document after = null;
-										try (final MongoCursor<Document> mongoCursor = mongoClient.getDatabase(dbName).getCollection(collectionName).find(new Document("_id", _id)).iterator();) {
+										Map<String, Object> info = new HashMap<>();
+										if (mongodbConfig.isEnableFillingModifiedData()) {
+											try (final MongoCursor<Document> mongoCursor = mongoClient.getDatabase(dbName).getCollection(collectionName).find(new Document("_id", _id)).iterator();) {
 												if (mongoCursor.hasNext()) {
-														after = mongoCursor.next();
+													after = mongoCursor.next();
 												}
-										}
-										if (after == null) {
+											}
+											if (after == null) {
 												TapLogger.warn(TAG, "Found update event _id {} already deleted in collection {}, event {}", _id, collectionName, event.toJson());
 												return null;
+											}
+										} else {
+											after = new Document("_id", _id);
+											info.put("_id", _id);
+											info.put("$op", o);
 										}
 										tapBaseEvent = updateDMLEvent(null, after, collectionName);
 										Map<String, Object> originUnset = o.get("$unset", Map.class);
@@ -331,7 +340,7 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 											Iterator<Map.Entry<String, Object>> entryIterator = originUnset.entrySet().iterator();
 											while (entryIterator.hasNext()) {
 												Map.Entry<String, Object> entry = entryIterator.next();
-												if (after.keySet().stream().noneMatch(v -> v.equals(entry.getKey()) || v.startsWith(entry.getKey() + ".") || entry.getKey().startsWith(v + "."))) {
+												if (after == null || after.keySet().stream().noneMatch(v -> v.equals(entry.getKey()) || v.startsWith(entry.getKey() + ".") || entry.getKey().startsWith(v + "."))) {
 													finalUnset.put(entry.getKey(), true);
 												}
 //												if (!after.containsKey(entry.getKey())) {
@@ -339,7 +348,6 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 //												}
 											}
 										}
-										Map<String, Object> info = new HashMap<>();
 										if (finalUnset.size() > 0) {
 											info.put("$unset", finalUnset);
 										}
@@ -347,8 +355,8 @@ public class MongodbV3StreamReader implements MongodbStreamReader {
 								} else if ("i".equalsIgnoreCase(event.getString("op"))) {
 										tapBaseEvent = insertRecordEvent(o, collectionName);
 								} else if ("d".equalsIgnoreCase(event.getString("op"))) {
-										final Map lookupData = MongodbLookupUtil.findDeleteCacheByOid(connectionString, collectionName, o.get("_id"), globalStateMap);
-										tapBaseEvent = deleteDMLEvent(lookupData != null ? (Map)lookupData.get("data") : o, collectionName);
+										//final Map lookupData = MongodbLookupUtil.findDeleteCacheByOid(connectionString, collectionName, o.get("_id"), globalStateMap);
+										tapBaseEvent = deleteDMLEvent(o, collectionName);
 								}
 //								try {
 //										factory.recordEvent(event, clock.currentTimeInMillis(), true);
