@@ -1,7 +1,12 @@
 package io.tapdata.schema;
 
 import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.entity.*;
+import com.tapdata.entity.Connections;
+import com.tapdata.entity.DatabaseTypeEnum;
+import com.tapdata.entity.RelateDataBaseTable;
+import com.tapdata.entity.RelateDatabaseField;
+import com.tapdata.entity.TableIndex;
+import com.tapdata.entity.TableIndexColumn;
 import com.tapdata.mongo.ClientMongoOperator;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.map.LRUMap;
@@ -9,7 +14,17 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.Spliterator;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;

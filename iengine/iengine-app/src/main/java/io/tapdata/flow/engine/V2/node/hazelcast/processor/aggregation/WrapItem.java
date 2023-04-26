@@ -16,49 +16,49 @@ import java.math.BigDecimal;
 @Setter
 @Getter
 public class WrapItem implements Cloneable {
-    private Object message;
-    /**
-     * 事件造成行数的变化
-     */
-    private BigDecimal changedCount;
+	private Object message;
+	/**
+	 * 事件造成行数的变化
+	 */
+	private BigDecimal changedCount;
 
-    private Object originalMessage;
+	private Object originalMessage;
 
-    private String cachedGroupByKey;
+	private String cachedGroupByKey;
 
-    private BigDecimal cachedRollingAggregateCounter;
+	private BigDecimal cachedRollingAggregateCounter;
 
-    /***
-     * 把输入参数带着输出
-     * FinishP中带出去
-     */
-    private TapdataEvent event;
+	/***
+	 * 把输入参数带着输出
+	 * FinishP中带出去
+	 */
+	private TapdataEvent event;
 
-    @Override
-    public WrapItem clone() {
-        WrapItem newItem = new WrapItem();
-        newItem.setMessage(message);
-        newItem.setOriginalMessage(originalMessage);
-        newItem.setChangedCount(changedCount);
-        newItem.setCachedGroupByKey(cachedGroupByKey);
-        newItem.setCachedRollingAggregateCounter(cachedRollingAggregateCounter);
-        newItem.setEvent((TapdataEvent) event.clone());
-        return newItem;
-    }
+	@Override
+	public WrapItem clone() {
+		WrapItem newItem = new WrapItem();
+		newItem.setMessage(message);
+		newItem.setOriginalMessage(originalMessage);
+		newItem.setChangedCount(changedCount);
+		newItem.setCachedGroupByKey(cachedGroupByKey);
+		newItem.setCachedRollingAggregateCounter(cachedRollingAggregateCounter);
+		newItem.setEvent((TapdataEvent) event.clone());
+		return newItem;
+	}
 
-    public boolean isEvent() {
-        return this.message instanceof MessageEntity || this.message instanceof TapRecordEvent;
-    }
+	public boolean isEvent() {
+		return this.message instanceof MessageEntity || this.message instanceof TapRecordEvent;
+	}
 
-    public boolean isNotEvent() {
-        return !isEvent();
-    }
+	public boolean isNotEvent() {
+		return !isEvent();
+	}
 
-    public boolean isMessageEntity() {
-        return this.message instanceof MessageEntity;
-    }
+	public boolean isMessageEntity() {
+		return this.message instanceof MessageEntity;
+	}
 
-    public boolean isTapRecordEvent() {
-        return this.message instanceof TapRecordEvent;
-    }
+	public boolean isTapRecordEvent() {
+		return this.message instanceof TapRecordEvent;
+	}
 }

@@ -8,18 +8,18 @@ import java.util.Arrays;
 
 public class ClassLoaderUtil {
 
-  private static final Logger logger = LogManager.getLogger(ClassLoaderUtil.class);
+	private static final Logger logger = LogManager.getLogger(ClassLoaderUtil.class);
 
 
-  public static void recursivePrint(ClassLoader classLoader) {
+	public static void recursivePrint(ClassLoader classLoader) {
 
-    do {
-      logger.info("class loader: {}", classLoader);
-      if (classLoader instanceof URLClassLoader) {
-        logger.info("url:  {}", Arrays.asList(((URLClassLoader) classLoader).getURLs()));
-      }
-      classLoader = classLoader != null ? classLoader.getParent() : null;
-    } while (classLoader != null);
+		do {
+			logger.info("class loader: {}", classLoader);
+			if (classLoader instanceof URLClassLoader) {
+				logger.info("url:  {}", Arrays.asList(((URLClassLoader) classLoader).getURLs()));
+			}
+			classLoader = classLoader != null ? classLoader.getParent() : null;
+		} while (classLoader != null);
 
-  }
+	}
 }

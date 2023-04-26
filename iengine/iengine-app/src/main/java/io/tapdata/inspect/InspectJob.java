@@ -21,7 +21,12 @@ import org.bson.types.ObjectId;
 
 import java.lang.reflect.Array;
 import java.time.Instant;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -124,29 +129,29 @@ public abstract class InspectJob implements Runnable {
 
 	@Override
 	public final void run() {
-        boolean initSource = false, initTarget = false;
-        try {
-            Thread.currentThread().setName(name);
-            logger.info("Inspect '{}' start in table {}.{} and table {}.{}, the taskId is {}"
-                    , this.getClass().getSimpleName()
-                    , source.getName(), inspectTask.getSource().getTable()
-                    , target.getName(), inspectTask.getTarget().getTable()
-                    , inspectTask.getTaskId()
-            );
+		boolean initSource = false, initTarget = false;
+		try {
+			Thread.currentThread().setName(name);
+			logger.info("Inspect '{}' start in table {}.{} and table {}.{}, the taskId is {}"
+					, this.getClass().getSimpleName()
+					, source.getName(), inspectTask.getSource().getTable()
+					, target.getName(), inspectTask.getTarget().getTable()
+					, inspectTask.getTaskId()
+			);
 
 			PDKInvocationMonitor.invoke(sourceNode, PDKMethod.INIT, sourceNode::connectorInit, TAG);
 			initSource = true;
 			PDKInvocationMonitor.invoke(targetNode, PDKMethod.INIT, targetNode::connectorInit, TAG);
 			initTarget = true;
 
-            doRun();
-        } catch (Exception e) {
-            logger.error("Inspect execute failed for task {}, error: {}", inspectTask.getTaskId(), e.getMessage(), e);
-            stats.setStatus(InspectStatus.ERROR.getCode());
-            stats.setErrorMsg(e.getMessage());
-            stats.setEnd(new Date());
-            stats.setResult("failed");
-        } finally {
+			doRun();
+		} catch (Exception e) {
+			logger.error("Inspect execute failed for task {}, error: {}", inspectTask.getTaskId(), e.getMessage(), e);
+			stats.setStatus(InspectStatus.ERROR.getCode());
+			stats.setErrorMsg(e.getMessage());
+			stats.setEnd(new Date());
+			stats.setResult("failed");
+		} finally {
 			logger.info(String.format("Inspect completed for task %s", inspectTask.getTaskId()));
 			CommonUtils.handleAnyError(() -> progressUpdateCallback.progress(inspectTask, stats, null));
 			if (initSource) {
@@ -155,8 +160,8 @@ public abstract class InspectJob implements Runnable {
 			if (initTarget) {
 				CommonUtils.handleAnyError(() -> PDKInvocationMonitor.invoke(targetNode, PDKMethod.STOP, targetNode::connectorStop, TAG));
 			}
-        }
-    }
+		}
+	}
 
 	protected abstract void doRun();
 }

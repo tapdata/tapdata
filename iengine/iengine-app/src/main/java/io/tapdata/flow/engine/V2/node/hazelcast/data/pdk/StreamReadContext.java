@@ -9,16 +9,19 @@ import java.util.List;
  */
 public class StreamReadContext {
 	private ParallelWorker partitionsReader;
-//	public StreamReadContext partitionsReader(AsyncParallelWorker partitionsReader) {
+	//	public StreamReadContext partitionsReader(AsyncParallelWorker partitionsReader) {
 //		this.partitionsReader = partitionsReader;
 //		return this;
 //	}
 	private List<String> tables;
+
 	public StreamReadContext tables(List<String> tables) {
 		this.tables = tables;
 		return this;
 	}
+
 	private boolean streamStage;
+
 	public StreamReadContext streamStage(boolean streamStage) {
 		this.streamStage = streamStage;
 		return this;

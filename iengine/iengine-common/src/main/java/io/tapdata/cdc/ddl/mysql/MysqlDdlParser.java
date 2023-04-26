@@ -5,7 +5,11 @@ import io.tapdata.cdc.ddl.DdlParser;
 import io.tapdata.cdc.ddl.exception.DdlException;
 import io.tapdata.cdc.ddl.exception.DdlParserException;
 import io.tapdata.cdc.ddl.sql.SqlParser;
-import io.tapdata.cdc.ddl.sql.parser.*;
+import io.tapdata.cdc.ddl.sql.parser.AddColumn;
+import io.tapdata.cdc.ddl.sql.parser.DropColumn;
+import io.tapdata.cdc.ddl.sql.parser.DropTable;
+import io.tapdata.cdc.ddl.sql.parser.Rename;
+import io.tapdata.cdc.ddl.sql.parser.Table;
 import io.tapdata.cdc.ddl.utils.StringReader;
 
 import java.util.ArrayList;

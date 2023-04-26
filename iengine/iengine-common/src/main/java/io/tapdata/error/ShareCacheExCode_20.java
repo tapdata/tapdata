@@ -9,14 +9,14 @@ import io.tapdata.exception.TapExCode;
  */
 @TapExClass(code = 19, module = "Share Cache", prefix = "SC", describe = "Share cache")
 public interface ShareCacheExCode_20 {
-    @TapExCode(
-            describe = "Write to share cache failed",
-            describeCN = "写入共享缓存失败"
-    )
-    String PDK_WRITE_SHARE_CACHE_FAILED = "20001";
-    @TapExCode(
-            describe = "Encode cache name failed",
-            describeCN = "缓存名编码失败"
-    )
-    String ENCODE_CACHE_NAME = "20002";
+	@TapExCode(
+			describe = "Write to share cache failed",
+			describeCN = "写入共享缓存失败"
+	)
+	String PDK_WRITE_SHARE_CACHE_FAILED = "20001";
+	@TapExCode(
+			describe = "Encode cache name failed",
+			describeCN = "缓存名编码失败"
+	)
+	String ENCODE_CACHE_NAME = "20002";
 }

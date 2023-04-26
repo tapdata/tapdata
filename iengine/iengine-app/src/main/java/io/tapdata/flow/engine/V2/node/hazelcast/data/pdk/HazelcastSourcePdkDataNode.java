@@ -2,18 +2,35 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.CollectionUtil;
-import com.tapdata.constant.Log4jUtil;
-import com.tapdata.entity.*;
+import com.tapdata.entity.SyncStage;
+import com.tapdata.entity.TapdataCompleteSnapshotEvent;
+import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TapdataHeartbeatEvent;
+import com.tapdata.entity.TapdataStartedCdcEvent;
+import com.tapdata.entity.TapdataStartingCdcEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
-import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.*;
-import io.tapdata.aspect.taskmilestones.*;
+import io.tapdata.aspect.BatchReadFuncAspect;
+import io.tapdata.aspect.SourceCDCDelayAspect;
+import io.tapdata.aspect.SourceJoinHeartbeatAspect;
+import io.tapdata.aspect.SourceStateAspect;
+import io.tapdata.aspect.StreamReadFuncAspect;
+import io.tapdata.aspect.TaskMilestoneFuncAspect;
+import io.tapdata.aspect.taskmilestones.CDCReadBeginAspect;
+import io.tapdata.aspect.taskmilestones.CDCReadEndAspect;
+import io.tapdata.aspect.taskmilestones.CDCReadErrorAspect;
+import io.tapdata.aspect.taskmilestones.CDCReadStartedAspect;
+import io.tapdata.aspect.taskmilestones.Snapshot2CDCAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadBeginAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadEndAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadErrorAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadTableBeginAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadTableEndAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadTableErrorAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
@@ -42,10 +59,18 @@ import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
-import io.tapdata.pdk.apis.entity.*;
+import io.tapdata.pdk.apis.entity.FilterResults;
+import io.tapdata.pdk.apis.entity.QueryOperator;
+import io.tapdata.pdk.apis.entity.SortOn;
+import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
+import io.tapdata.pdk.apis.entity.TapExecuteCommand;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.source.*;
+import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
+import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunction;
+import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunctionV2;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
@@ -66,7 +91,13 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -240,8 +271,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																if (batchReadFuncAspect != null)
 																	AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), events);
 
-																if (logger.isDebugEnabled()) {
-																	logger.debug("Batch read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
+																if (obsLogger.isDebugEnabled()) {
+																	obsLogger.debug("Batch read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
 																}
 																((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(tapTable.getId(), offsetObject);
 																flushPollingCDCOffset(events);
@@ -273,8 +304,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																		tempList.clear();
 																	}
 																});
-															}
-															else if (tableNode.isEnableCustomCommand() && executeCommandFunction != null) {
+															} else if (tableNode.isEnableCustomCommand() && executeCommandFunction != null) {
 																Map<String, Object> customCommand = tableNode.getCustomCommand();
 																customCommand.put("batchSize", readBatchSize);
 																executeCommandFunction.execute(getConnectorNode().getConnectorContext(), TapExecuteCommand.create()
@@ -290,12 +320,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																	List<TapEvent> events = maps.stream().map(m -> TapSimplify.insertRecordEvent(m, tableName)).collect(Collectors.toList());
 																	consumer.accept(events, null);
 																});
-															}
-															else {
+															} else {
 																batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
 															}
-														}
-														else {
+														} else {
 															batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
 														}
 													}

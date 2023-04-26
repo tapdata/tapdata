@@ -4,7 +4,11 @@ import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.UUIDGenerator;
-import com.tapdata.entity.*;
+import com.tapdata.entity.Connections;
+import com.tapdata.entity.DatabaseTypeEnum;
+import com.tapdata.entity.LoadSchemaProgress;
+import com.tapdata.entity.RelateDataBaseTable;
+import com.tapdata.entity.Schema;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.validator.SchemaFactory;
 import io.tapdata.TapInterface;
@@ -72,6 +76,7 @@ public class LoadSchemaRunner implements Runnable {
 	public LoadSchemaRunner(Connections connections, ClientMongoOperator clientMongoOperator, int tableCount) {
 		this(connections, clientMongoOperator, tableCount, null);
 	}
+
 	public LoadSchemaRunner(Connections connections, ClientMongoOperator clientMongoOperator, int tableCount, Map<String, Object> nodeConfig) {
 		this.connections = connections;
 		this.clientMongoOperator = clientMongoOperator;
@@ -183,8 +188,7 @@ public class LoadSchemaRunner implements Runnable {
 					} catch (Throwable throwable) {
 						TapLogger.error(TAG, "Load schema failed: {}", InstanceFactory.instance(TapUtils.class).getStackTrace(throwable));
 						throw throwable;
-					}
-					finally {
+					} finally {
 //            Optional.ofNullable(connectionNode).ifPresent(c -> PDKInvocationMonitor.invoke(c, PDKMethod.DESTROY, c::connectorDestroy, "Destroy PDK", TAG));
 						//TODO Stop is enough here right?
 						if (connectionNode != null)

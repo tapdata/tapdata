@@ -20,7 +20,7 @@ public class NodeException extends FlowEngineException {
 	public NodeException(String message, Throwable cause) {
 		super(message, cause);
 		// unwrap  cause NodeException into this
-		if (cause instanceof  NodeException) {
+		if (cause instanceof NodeException) {
 			NodeException nodeException = (NodeException) cause;
 			this.context(nodeException.getContext()).events(nodeException.getEvents());
 		}
@@ -34,12 +34,14 @@ public class NodeException extends FlowEngineException {
 	}
 
 	private ProcessorBaseContext context;
+
 	public NodeException context(ProcessorBaseContext context) {
 		this.context = context;
 		return this;
 	}
 
 	private List<TapEvent> events;
+
 	public NodeException events(List<TapEvent> events) {
 		if (null == this.events) {
 			this.events = new ArrayList<>();
@@ -55,6 +57,7 @@ public class NodeException extends FlowEngineException {
 		}
 		return this;
 	}
+
 	public NodeException event(TapEvent event) {
 		if (null == event) {
 			return this;

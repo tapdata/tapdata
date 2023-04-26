@@ -2,7 +2,11 @@ package io.tapdata.common;
 
 import com.tapdata.constant.ConnectorContext;
 import com.tapdata.constant.DateUtil;
-import com.tapdata.entity.*;
+import com.tapdata.entity.Event;
+import com.tapdata.entity.Job;
+import com.tapdata.entity.JobMessagePayload;
+import com.tapdata.entity.MessageEntity;
+import com.tapdata.entity.OperationType;
 import io.tapdata.exception.SourceException;
 import org.apache.commons.lang3.StringUtils;
 

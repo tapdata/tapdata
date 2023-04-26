@@ -64,7 +64,7 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 	@Override
 	public T find(String key) throws Exception {
 		Object obj = iMap.get(key);
-		if(obj == null)
+		if (obj == null)
 			return null;
 		if (!obj.getClass().getClassLoader().equals(this.getClass().getClassLoader())) {
 			if (obj.getClass().getName().equals(Document.class.getName())) {

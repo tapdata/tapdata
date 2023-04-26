@@ -8,30 +8,30 @@ import io.tapdata.exception.TapCodeException;
  */
 public class ShareCacheException extends TapCodeException {
 
-    private String cacheName;
+	private String cacheName;
 
-    public ShareCacheException(String code) {
-        super(code);
-    }
+	public ShareCacheException(String code) {
+		super(code);
+	}
 
-    public ShareCacheException(String code, String message) {
-        super(code, message);
-    }
+	public ShareCacheException(String code, String message) {
+		super(code, message);
+	}
 
-    public ShareCacheException(String code, String message, Throwable cause) {
-        super(code, message, cause);
-    }
+	public ShareCacheException(String code, String message, Throwable cause) {
+		super(code, message, cause);
+	}
 
-    public ShareCacheException(String code, Throwable cause) {
-        super(code, cause);
-    }
+	public ShareCacheException(String code, Throwable cause) {
+		super(code, cause);
+	}
 
-    public ShareCacheException cacheName(String value) {
-        this.cacheName = value;
-        return this;
-    }
+	public ShareCacheException cacheName(String value) {
+		this.cacheName = value;
+		return this;
+	}
 
-    public String getCacheName() {
-        return cacheName;
-    }
+	public String getCacheName() {
+		return cacheName;
+	}
 }

@@ -8,11 +8,11 @@ import org.mapdb.Serializer;
 
 public class MapdbCacheStore extends AbstractSerializerCacheStore {
 
-  public MapdbCacheStore(DataFlowCacheConfig cacheConfig, DB db) {
-    super(cacheConfig,
-            db.hashMap(CacheUtil.cacheDataKey(cacheConfig.getCacheName()), Serializer.STRING, Serializer.JAVA).counterEnable().createOrOpen(),
-            db.hashMap(CacheUtil.cacheIndexKey(cacheConfig.getCacheName()), Serializer.STRING, Serializer.JAVA).counterEnable().createOrOpen());
-  }
+	public MapdbCacheStore(DataFlowCacheConfig cacheConfig, DB db) {
+		super(cacheConfig,
+				db.hashMap(CacheUtil.cacheDataKey(cacheConfig.getCacheName()), Serializer.STRING, Serializer.JAVA).counterEnable().createOrOpen(),
+				db.hashMap(CacheUtil.cacheIndexKey(cacheConfig.getCacheName()), Serializer.STRING, Serializer.JAVA).counterEnable().createOrOpen());
+	}
 
 
 }

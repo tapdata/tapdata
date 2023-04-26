@@ -13,40 +13,40 @@ import javax.script.ScriptException;
 
 @Implementation(value = ScriptFactory.class, type = "engine")
 public class ScriptFactoryImpl implements ScriptFactory {
-    public static void main(String[] args) {
-        ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class);
-        ScriptEngine engine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().customEngine(ScriptFactory.TYPE_JAVASCRIPT, TapJavaScriptEngine.class));
-        try {
-            engine.eval("alert('aaa')");
-        } catch (ScriptException e) {
-            throw new RuntimeException(e);
-        }
-        if (engine instanceof Invocable) {
-            Invocable invocable = (Invocable) engine;
-            try {
-                invocable.invokeFunction("main", "hello");
-            } catch (ScriptException | NoSuchMethodException e) {
-                throw new RuntimeException(e);
-            }
-        }
-    }
+	public static void main(String[] args) {
+		ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class);
+		ScriptEngine engine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().customEngine(ScriptFactory.TYPE_JAVASCRIPT, TapJavaScriptEngine.class));
+		try {
+			engine.eval("alert('aaa')");
+		} catch (ScriptException e) {
+			throw new RuntimeException(e);
+		}
+		if (engine instanceof Invocable) {
+			Invocable invocable = (Invocable) engine;
+			try {
+				invocable.invokeFunction("main", "hello");
+			} catch (ScriptException | NoSuchMethodException e) {
+				throw new RuntimeException(e);
+			}
+		}
+	}
 
-    @Override
-    public ScriptEngine create(String type, ScriptOptions scriptOptions) {
-        switch (type) {
-            case TYPE_PYTHON:
-                break;
-            case TYPE_JAVASCRIPT:
-                Class<? extends ScriptEngine> engineClass = scriptOptions.getEngineCustomClass(type);
-                if(engineClass != null) {
-                    try {
-                        return engineClass.getConstructor(ScriptOptions.class).newInstance(scriptOptions);
-                    } catch (Throwable e) {
-                        throw new CoreException(TapAPIErrorCodes.ERROR_INSTANTIATE_ENGINE_CLASS_FAILED, e, "Instantiate engine class {} failed, {}", engineClass, e.getMessage());
-                    }
-                }
-                return new TapJavaScriptEngine(scriptOptions);
-        }
-        return null;
-    }
+	@Override
+	public ScriptEngine create(String type, ScriptOptions scriptOptions) {
+		switch (type) {
+			case TYPE_PYTHON:
+				break;
+			case TYPE_JAVASCRIPT:
+				Class<? extends ScriptEngine> engineClass = scriptOptions.getEngineCustomClass(type);
+				if (engineClass != null) {
+					try {
+						return engineClass.getConstructor(ScriptOptions.class).newInstance(scriptOptions);
+					} catch (Throwable e) {
+						throw new CoreException(TapAPIErrorCodes.ERROR_INSTANTIATE_ENGINE_CLASS_FAILED, e, "Instantiate engine class {} failed, {}", engineClass, e.getMessage());
+					}
+				}
+				return new TapJavaScriptEngine(scriptOptions);
+		}
+		return null;
+	}
 }

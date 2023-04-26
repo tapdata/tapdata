@@ -32,7 +32,11 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.core.io.Resource;
-import org.springframework.http.*;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.http.converter.HttpMessageConversionException;
@@ -48,7 +52,11 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -178,17 +186,17 @@ public class RestTemplateOperator {
 
 	public boolean postOne(Object obj, String resource) {
 		return retryWrap((retryInfo) -> {
-            String url = retryInfo.getURL(resource);
-            ResponseEntity<ResponseBody> responseEntity = restTemplate.postForEntity(url, obj, ResponseBody.class);
-            if (successResp(responseEntity)) {
-                return true;
-            }
+			String url = retryInfo.getURL(resource);
+			ResponseEntity<ResponseBody> responseEntity = restTemplate.postForEntity(url, obj, ResponseBody.class);
+			if (successResp(responseEntity)) {
+				return true;
+			}
 
-            handleRequestFailed(url, HttpMethod.POST.name(), obj,
-                    responseEntity != null && responseEntity.hasBody() ? responseEntity.getBody() : null
-            );
-            return false;
-        }, null);
+			handleRequestFailed(url, HttpMethod.POST.name(), obj,
+					responseEntity != null && responseEntity.hasBody() ? responseEntity.getBody() : null
+			);
+			return false;
+		}, null);
 	}
 
 	public boolean post(Object request, String resource, Map<String, Object> params) {
@@ -201,14 +209,14 @@ public class RestTemplateOperator {
 			ResponseEntity<ResponseBody> responseEntity = restTemplate.postForEntity(uri, request, ResponseBody.class);
 			if (successResp(responseEntity)) {
 				ResponseBody responseBody = responseEntity.getBody();
-						Object bodyMapOrList = getBodyMapOrList(responseBody);
-						if (bodyMapOrList instanceof Map) {
-							setId(request, (Map<?, ?>) bodyMapOrList);
-						} else if (bodyMapOrList instanceof List) {
-							List<?> list = (List<?>) bodyMapOrList;
-							for (Object o : list) {
-								if (o instanceof Map) {
-									setId(request, (Map<?, ?>) o);
+				Object bodyMapOrList = getBodyMapOrList(responseBody);
+				if (bodyMapOrList instanceof Map) {
+					setId(request, (Map<?, ?>) bodyMapOrList);
+				} else if (bodyMapOrList instanceof List) {
+					List<?> list = (List<?>) bodyMapOrList;
+					for (Object o : list) {
+						if (o instanceof Map) {
+							setId(request, (Map<?, ?>) o);
 						}
 					}
 				}
@@ -490,15 +498,15 @@ public class RestTemplateOperator {
 			ResponseEntity<Resource> responseEntity = restTemplate.exchange(uri, HttpMethod.GET, httpEntity, Resource.class);
 			if (MediaType.APPLICATION_OCTET_STREAM.includes(responseEntity.getHeaders().getContentType())) {
 				File file = new File(path + ".bak");
-				if(file.exists()) {
+				if (file.exists()) {
 					FileUtils.deleteQuietly(file);
 				}
-				if(responseEntity.getBody() == null) {
+				if (responseEntity.getBody() == null) {
 					return null;
 				}
 				FileUtils.copyInputStreamToFile(responseEntity.getBody().getInputStream(), file);
 				File realFile = new File(path);
-				if(realFile.exists()) {
+				if (realFile.exists()) {
 					FileUtils.deleteQuietly(realFile);
 				}
 				FileUtils.moveFile(file, realFile);
@@ -545,8 +553,8 @@ public class RestTemplateOperator {
 
 	private void handleRequestFailed(String uri, String method, Object param, ResponseBody responseBody) throws JsonProcessingException {
 		if (TmStatusService.isEnable()) {
-			if((TmStatusService.isNotAvailable() ||
-										(responseBody != null && StringUtils.containsAny(responseBody.getCode(), ResponseCode.UN_AVAILABLE.getCode())))) {
+			if ((TmStatusService.isNotAvailable() ||
+					(responseBody != null && StringUtils.containsAny(responseBody.getCode(), ResponseCode.UN_AVAILABLE.getCode())))) {
 				if (logCount.incrementAndGet() % 1000 == 0) {
 					logger.warn("tm unavailable...");
 				}
@@ -683,7 +691,7 @@ public class RestTemplateOperator {
 					// 'NoHttpResponseException' may occur with multithreaded requests, There is no need to switch services
 					Throwable ex = e;
 					while (null != ex) {
-						if ( ex instanceof NoHttpResponseException) {
+						if (ex instanceof NoHttpResponseException) {
 							changeURL = false;
 							break;
 						}
@@ -694,7 +702,7 @@ public class RestTemplateOperator {
 				// Print the first exception message
 				if (null == retryInfo.lastError) {
 					logger.warn("RestApi '{}' failed, use {}ms, retryTime {}ms, retryInterval {}ms, reqURL: {}, reqParams: {}, error message: {}"
-							, retryInfo.reqId, System.currentTimeMillis()- retryInfo.begin, retryInfo.timeout, retryInterval, retryInfo.reqURL, retryInfo.reqParams, e.getMessage(), e);
+							, retryInfo.reqId, System.currentTimeMillis() - retryInfo.begin, retryInfo.timeout, retryInterval, retryInfo.reqURL, retryInfo.reqParams, e.getMessage(), e);
 				}
 
 				try {
@@ -712,7 +720,7 @@ public class RestTemplateOperator {
 			}
 		} while (
 				System.currentTimeMillis() < retryInfo.begin + retryInfo.timeout
-				&& (null == stop || !stop.test(null))
+						&& (null == stop || !stop.test(null))
 		);
 
 		if (null == retryInfo.lastError) {
@@ -720,7 +728,7 @@ public class RestTemplateOperator {
 		} else if (null != retryInfo.reqParams) {
 			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(),
 					" data size " + (retryInfo.reqParams.toString().getBytes().length / 1024 / 1024) + "M,"
-					+ " " + retryInfo.lastError.getMessage()), retryInfo.lastError);
+							+ " " + retryInfo.lastError.getMessage()), retryInfo.lastError);
 		} else {
 			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), retryInfo.lastError.getMessage()), retryInfo.lastError);
 		}

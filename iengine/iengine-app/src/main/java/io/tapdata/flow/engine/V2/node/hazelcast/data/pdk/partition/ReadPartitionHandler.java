@@ -23,57 +23,60 @@ import java.util.Map;
  **/
 public interface ReadPartitionHandler {
 
-    public static ReadPartitionHandler createReadPartitionHandler(PDKSourceContext pdkSourceContext, TapTable tapTable, ReadPartition readPartition, HazelcastSourcePartitionReadDataNode sourcePdkDataNode){
-        Node<?> node = pdkSourceContext.getSourcePdkDataNode().getProcessorBaseContext().getNode();
-        if (node instanceof DataParentNode) {
-            DataParentNode<?> databaseNode = (DataParentNode<?>) node;
-            ReadPartitionOptions readPartitionOptions = databaseNode.getReadPartitionOptions();
-            if (readPartitionOptions.hasKVStorage()) {
-                return new ReadPartitionKVStorageHandler(pdkSourceContext, tapTable, readPartition, sourcePdkDataNode);
-            } else {
-                return new ReadPartitionUnKVStorageHandler(pdkSourceContext, tapTable, readPartition, sourcePdkDataNode);
-            }
-        }
-        return new ReadPartitionUnKVStorageHandler(pdkSourceContext, tapTable, readPartition, sourcePdkDataNode);
-    }
+	public static ReadPartitionHandler createReadPartitionHandler(PDKSourceContext pdkSourceContext, TapTable tapTable, ReadPartition readPartition, HazelcastSourcePartitionReadDataNode sourcePdkDataNode) {
+		Node<?> node = pdkSourceContext.getSourcePdkDataNode().getProcessorBaseContext().getNode();
+		if (node instanceof DataParentNode) {
+			DataParentNode<?> databaseNode = (DataParentNode<?>) node;
+			ReadPartitionOptions readPartitionOptions = databaseNode.getReadPartitionOptions();
+			if (readPartitionOptions.hasKVStorage()) {
+				return new ReadPartitionKVStorageHandler(pdkSourceContext, tapTable, readPartition, sourcePdkDataNode);
+			} else {
+				return new ReadPartitionUnKVStorageHandler(pdkSourceContext, tapTable, readPartition, sourcePdkDataNode);
+			}
+		}
+		return new ReadPartitionUnKVStorageHandler(pdkSourceContext, tapTable, readPartition, sourcePdkDataNode);
+	}
 
-    public default void writeIntoKVStorage(Map<String, Object> key, Map<String, Object> after, TapRecordEvent recordEvent){
+	public default void writeIntoKVStorage(Map<String, Object> key, Map<String, Object> after, TapRecordEvent recordEvent) {
 
-    }
+	}
 
-    public default void deleteFromKVStorage(Map<String, Object> key){
+	public default void deleteFromKVStorage(Map<String, Object> key) {
 
-    }
+	}
 
-    public default void justDeleteFromKVStorage(Map<String, Object> key){
+	public default void justDeleteFromKVStorage(Map<String, Object> key) {
 
-    }
+	}
 
-    public default JobContext handleStartCachingStreamData(JobContext jobContext1){
-        return jobContext1;
-    }
+	public default JobContext handleStartCachingStreamData(JobContext jobContext1) {
+		return jobContext1;
+	}
 
-    public JobContext handleReadPartition(JobContext jobContext);
+	public JobContext handleReadPartition(JobContext jobContext);
 
-    public default JobContext handleSendingDataFromPartition(JobContext jobContext){
-        return null;
-    }
+	public default JobContext handleSendingDataFromPartition(JobContext jobContext) {
+		return null;
+	}
 
-    public JobContext handleFinishedPartition(JobContext jobContext);
+	public JobContext handleFinishedPartition(JobContext jobContext);
 
-    public void passThrough(TapEvent event);
+	public void passThrough(TapEvent event);
 
-    public default Map<String, Object> getExistDataFromKVMap(Map<String, Object> key){
-        return null;
-    }
+	public default Map<String, Object> getExistDataFromKVMap(Map<String, Object> key) {
+		return null;
+	}
 
-    public boolean isFinished();
+	public boolean isFinished();
 
-    public void finish();
+	public void finish();
 
 
-    public void handleUpdateRecordEvent(TapUpdateRecordEvent updateRecordEvent, Map<String, Object> after, Map<String, Object> key);
-    public void handleInsertRecordEvent(TapInsertRecordEvent insertRecordEvent, Map<String, Object> after, Map<String, Object> key);
-    public void handleDeleteRecordEvent(TapDeleteRecordEvent deleteRecordEvent, Map<String, Object> key);
-    public void deleteFromPartition(TapDeleteRecordEvent deleteRecordEvent, Map<String, Object> key);
+	public void handleUpdateRecordEvent(TapUpdateRecordEvent updateRecordEvent, Map<String, Object> after, Map<String, Object> key);
+
+	public void handleInsertRecordEvent(TapInsertRecordEvent insertRecordEvent, Map<String, Object> after, Map<String, Object> key);
+
+	public void handleDeleteRecordEvent(TapDeleteRecordEvent deleteRecordEvent, Map<String, Object> key);
+
+	public void deleteFromPartition(TapDeleteRecordEvent deleteRecordEvent, Map<String, Object> key);
 }

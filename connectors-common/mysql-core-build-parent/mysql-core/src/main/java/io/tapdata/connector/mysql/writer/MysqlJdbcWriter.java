@@ -8,6 +8,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.exception.runtime.TapPdkSkippableDataEx;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import org.apache.commons.collections4.CollectionUtils;
@@ -210,7 +211,7 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
 		return preparedStatement;
 	}
 
-	protected int setPreparedStatementValues(TapTable tapTable, TapRecordEvent tapRecordEvent, PreparedStatement preparedStatement) throws Throwable {
+	protected int setPreparedStatementValues(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent, PreparedStatement preparedStatement) throws Throwable {
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 		int parameterIndex = 1;
 		Map<String, Object> after = getAfter(tapRecordEvent);
@@ -219,12 +220,21 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
 		}
 		List<String> afterKeys = new ArrayList<>(after.keySet());
 		for (String fieldName : nameFieldMap.keySet()) {
-			TapField tapField = nameFieldMap.get(fieldName);
-			if (!needAddIntoPreparedStatementValues(tapField, tapRecordEvent)) {
-				continue;
+			try {
+				TapField tapField = nameFieldMap.get(fieldName);
+				if (!needAddIntoPreparedStatementValues(tapField, tapRecordEvent)) {
+					continue;
+				}
+				preparedStatement.setObject(parameterIndex++, after.get(fieldName));
+				afterKeys.remove(fieldName);
+			} catch (SQLException e) {
+				throw new TapPdkSkippableDataEx(String.format("Set prepared statement values failed: %s, field: '%s', value '%s', record: %s"
+						, e.getMessage()
+						, fieldName
+						, after.get(fieldName)
+						, tapRecordEvent
+				), tapConnectorContext.getSpecification().getId(), e);
 			}
-			preparedStatement.setObject(parameterIndex++, after.get(fieldName));
-			afterKeys.remove(fieldName);
 		}
 		if (CollectionUtils.isNotEmpty(afterKeys)) {
 			Map<String, Object> missingAfter = new HashMap<>();

@@ -23,8 +23,18 @@ import org.springframework.scheduling.concurrent.ConcurrentTaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.scheduling.support.PeriodicTrigger;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -173,10 +183,10 @@ public class TapdataTaskScheduler {
 		try {
 			Set<BeanDefinition> taskDefinitions = PkgAnnoUtil.getBeanSetWithAnno(Arrays.asList(PKG_PATH), Arrays.asList(TaskType.class));
 			for (BeanDefinition beanDefinition : taskDefinitions) {
-				if(null == beanDefinition || null == beanDefinition.getBeanClassName()) continue;
+				if (null == beanDefinition || null == beanDefinition.getBeanClassName()) continue;
 				Class<Task> aClass = (Class<Task>) Class.forName(beanDefinition.getBeanClassName());
 				TaskType annotation = aClass.getAnnotation(TaskType.class);
-				if(null == annotation || null == annotation.type()) continue;
+				if (null == annotation || null == annotation.type()) continue;
 				if (task_type.equals(annotation.type())) {
 					task = aClass.newInstance();
 				}
