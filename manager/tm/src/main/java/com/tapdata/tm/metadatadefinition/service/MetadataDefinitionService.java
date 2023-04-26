@@ -267,12 +267,14 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
     @Override
     public Page<MetadataDefinitionDto> find(Filter filter, UserDetail user) {
         Page<MetadataDefinitionDto> dtoPage = super.find(filter, user);
-        dtoPage.getItems().sort(Comparator.comparing(MetadataDefinitionDto::getValue));
-        dtoPage.getItems().sort(Comparator.comparing(s -> {
-            List<String> itemType = s.getItemType();
+        if (filter.getOrder() == null) {
+            dtoPage.getItems().sort(Comparator.comparing(MetadataDefinitionDto::getValue));
+            dtoPage.getItems().sort(Comparator.comparing(s -> {
+                List<String> itemType = s.getItemType();
 
-            return itemType != null && !itemType.contains("default");
-        }));
+                return itemType != null && !itemType.contains("default");
+            }));
+        }
         Field fields = filter.getFields();
         if (fields != null) {
             Object objCount = fields.get("objCount");
