@@ -465,7 +465,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             }
             TapdataEvent dataEvent = null;
             if (!isRunning()) {
-                return null == error;
+				return true;
             }
             if (pendingEvent != null) {
                 dataEvent = pendingEvent;
@@ -505,14 +505,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                     this.running.set(false);
                 }
             }
-			/*if (1 == 1) {
-				Thread.sleep(5000L);
-				throw new RuntimeException("test");
-			}*/
         } catch (Exception e) {
             String errorMsg = String.format("Source sync failed: %s", e.getMessage());
-            obsLogger.error(errorMsg, e);
-//			throw new RuntimeException(errorMsg, e);
             errorHandle(e, errorMsg);
         } finally {
             ThreadContext.clearAll();
@@ -736,6 +730,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						throw new RuntimeException("Deep clone batch offset map failed: " + e.getMessage(), e);
 					}
                     tapdataEvent.setBatchOffset(newMap);
+					tapdataEvent.setStreamOffset(syncProgress.getStreamOffsetObj());
                     tapdataEvent.setSourceTime(syncProgress.getSourceTime());
                 }
             } else if (SyncStage.CDC == syncStage) {
