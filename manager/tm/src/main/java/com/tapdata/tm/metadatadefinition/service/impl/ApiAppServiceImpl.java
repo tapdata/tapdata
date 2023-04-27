@@ -64,10 +64,11 @@ public class ApiAppServiceImpl implements ApiAppService {
         boolean addModel = false;
         if (filter != null) {
             if (filter.getWhere() != null) {
-                Object addMode = filter.getWhere().get("addMode");
+                Object addMode = filter.getWhere().get("addModel");
                 if (addMode != null) {
                     addModel = (boolean) addMode;
                 }
+                filter.getWhere().remove("addModel");
             }
         }
         Page<MetadataDefinitionDto> page = metadataDefinitionService.find(filter, user);
