@@ -120,15 +120,15 @@ public class NodeConnectionFactoryHttpImpl implements NodeConnectionFactory {
 				.kv("disconnectedNodeIds", disconnectedNodeIds)
 				;
 		DataMap typeNodeIdBiFunctionMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
-		dataMap.kv("typeNodeIdBiFunctionMap", typeNodeIdBiFunctionMap);
-		for(Map.Entry<String, ReceiverEntity<?, ?>> entry : this.typeNodeIdBiFunctionMap.entrySet()) {
-			typeNodeIdBiFunctionMap.kv(entry.getKey(), entry.getValue());
-		}
+//		dataMap.kv("typeNodeIdBiFunctionMap", typeNodeIdBiFunctionMap);
+//		for(Map.Entry<String, ReceiverEntity<?, ?>> entry : this.typeNodeIdBiFunctionMap.entrySet()) {
+//			typeNodeIdBiFunctionMap.kv(entry.getKey(), entry.getValue());
+//		}
 		DataMap nodeIdConnectionMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
 		dataMap.kv("nodeIdConnectionMap", nodeIdConnectionMap);
 		for(Map.Entry<String, NodeConnection> entry : this.nodeIdConnectionMap.entrySet()) {
 			nodeIdConnectionMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));
 		}
-		return null;
+		return dataMap;
 	}
 }
