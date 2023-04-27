@@ -72,6 +72,7 @@ public class RegisterMain {
         OpenGauss(BASE_PATH + "connectors/dist/openGauss-connector-v1.0-SNAPSHOT.jar", "all", "open-gauss", "basic", "jdbc"),
         Salesforce(BASE_PATH + "connectors/dist/salesforce-connector-v1.0-SNAPSHOT.jar", "all", "salesforce"),
         Hive3(BASE_PATH + "connectors/dist/hive3-connector-v1.0-SNAPSHOT.jar", "all", "hive3"),
+        LarkContact(BASE_PATH + "connectors/dist/lark-contact-connector-v1.0-SNAPSHOT.jar", "all", "lark-contact"),
         ;
 
         private final String path;
