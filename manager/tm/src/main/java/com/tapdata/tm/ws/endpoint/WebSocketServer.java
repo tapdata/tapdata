@@ -50,7 +50,7 @@ import java.util.stream.Stream;
 @Slf4j
 @Component
 public class WebSocketServer extends TextWebSocketHandler {
-	private final static long MAX_INTERVAL_BEFORE_CLOSE_SESSION_AFTER_NO_PONG = 60 * 1000;
+	private final static long MAX_INTERVAL_BEFORE_CLOSE_SESSION_AFTER_NO_PONG = 15 * 3 * 1000;
 
 	@Autowired
 	private UserService userService;
@@ -77,6 +77,7 @@ public class WebSocketServer extends TextWebSocketHandler {
 				// pong over MAX_INTERVAL_BEFORE_CLOSE_SESSION_AFTER_NO_PONG
 				if (System.currentTimeMillis() - webSocketInfo.getLastKeepAliveTimestamp() > MAX_INTERVAL_BEFORE_CLOSE_SESSION_AFTER_NO_PONG) {
 					webSocketInfo.getSession().close();
+					WebSocketManager.removeSession(webSocketInfo.getId());
 					return false;
 				}
 				webSocketInfo.getSession().sendMessage(new PingMessage());
@@ -94,7 +95,6 @@ public class WebSocketServer extends TextWebSocketHandler {
 	 * @author Berry
 	 * 每十分钟自动断联一次agent的ws session.
 	 */
-	@Scheduled(fixedDelay = 1000 * 60 * 10)
 	public void autoCloseSession() {
 		log.info("auto close all agent ws session within ten minutes");
 		WebSocketManager.autoCloseAgentSession();
