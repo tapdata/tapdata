@@ -307,20 +307,20 @@ public class SelectDbConnector extends ConnectorBase {
     private final Object lock = new int[0];
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
-        if (Objects.isNull(this.valve)) {
-            synchronized (lock) {
-                if (Objects.isNull(this.valve)) {
-                    this.valve = WriteValve.open(
-                            50000,
-                            10,
-                            this::uploadEvents,
-                            writeListResultConsumer
-                    ).start();
-                }
-            }
-
-        }
-        this.valve.write(tapRecordEvents, tapTable);
+//        if (Objects.isNull(this.valve)) {
+//            synchronized (lock) {
+//                if (Objects.isNull(this.valve)) {
+//                    this.valve = WriteValve.open(
+//                            50000,
+//                            10,
+//                            this::uploadEvents,
+//                            writeListResultConsumer
+//                    ).start();
+//                }
+//            }
+//        }
+//        this.valve.write(tapRecordEvents, tapTable);
+        uploadEvents(writeListResultConsumer, tapRecordEvents, tapTable);
     }
 
     /**

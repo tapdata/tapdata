@@ -2,6 +2,8 @@ package io.tapdata.construct.constructImpl;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.ObjectSerializable;
 import org.bson.Document;
 import org.bson.types.Decimal128;
 
@@ -44,7 +46,7 @@ public class DocumentIMap<T> extends ConstructIMap<T> {
 
 	@Override
 	public T find(String key) throws Exception {
-		Object obj = iMap.get(key);
+		Object obj = super.find(key);
 		if (obj instanceof Document && ((Document) obj).containsKey(DOCUMENT_KEY)) {
 			Object data = ((Document) obj).get(DOCUMENT_KEY);
 			if (data instanceof Decimal128) {

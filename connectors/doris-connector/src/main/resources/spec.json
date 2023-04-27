@@ -37,6 +37,14 @@
           "required": true,
           "x-index": 30
         },
+        "catalog": {
+          "type": "string",
+          "title": "${catalog}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "catalog_name",
+          "x-index": 35
+        },
         "database": {
           "type": "string",
           "title": "${database}",
@@ -210,11 +218,71 @@
     "node": {
       "type": "object",
       "properties": {
+        "duplicateKey": {
+          "title": "${duplicateKey}",
+          "type": "array",
+          "x-index": 1,
+          "required": true,
+          "default": null,
+          "x-decorator": "FormItem",
+          "x-component": "FieldSelect",
+          "x-component-props": {
+            "allowCreate": false,
+            "multiple": true,
+            "filterable": true
+          },
+          "x-reactions": [
+            "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+            {
+              "dependencies":["writeStrategy"],
+              "fulfill":{
+                "state":{
+                  "display": "{{$deps[0] === \"appendWrite\" ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
+        },
+        "distributedKey": {
+          "title": "${distributedKey}",
+          "type": "array",
+          "x-index": 2,
+          "required": true,
+          "default": null,
+          "x-decorator": "FormItem",
+          "x-component": "FieldSelect",
+          "x-component-props": {
+            "allowCreate": false,
+            "multiple": true,
+            "filterable": true
+          },
+          "x-reactions": [
+            "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+            {
+              "dependencies":["writeStrategy"],
+              "fulfill":{
+                "state":{
+                  "display": "{{$deps[0] === \"appendWrite\" ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
+        },
+        "replicationNum": {
+          "required": true,
+          "type": "int",
+          "x-index": 3,
+          "title": "${replicationNum}",
+          "default": 1,
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber"
+        },
         "writeByteBufferCapacity": {
           "required": true,
           "type": "int",
+          "x-index": 4,
           "title": "${writeByteBufferCapacity}",
-          "default": 1024,
+          "default": 10240,
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
           "apiServerKey": "node_writeByteBufferCapacity"
@@ -223,6 +291,7 @@
           "type": "string",
           "title": "${writeFormat}",
           "default": "json",
+          "x-index": 5,
           "x-decorator": "FormItem",
           "x-decorator-props": {
             "feedbackLayout": "none"
@@ -234,11 +303,10 @@
               "value": "json"
             },
             {
-              "label": "CSV Text",
+              "label": "CSV",
               "value": "csv"
             }
-          ],
-          "x-index": 80
+          ]
         }
       }
     }
@@ -249,6 +317,7 @@
       "host": "DB Address",
       "port": "Port",
       "dorisHttp": "Http Address",
+      "catalog": "Doris Catalog",
       "database": "DB Name",
       "user": "User",
       "password": "Password",
@@ -257,12 +326,16 @@
       "timezoneTips": "Affect Type: DATE",
       "writeByteBufferCapacity": "Write buffer capacity(KB)",
       "writeFormat": "Write format",
-      "doc": "docs/readme_zh_CN.md"
+      "doc": "docs/readme_zh_CN.md",
+      "duplicateKey": "duplicateKey",
+      "distributedKey": "distributedKey",
+      "replicationNum": "replicationNum"
     },
     "zh_CN": {
       "host": "数据库地址",
       "port": "端口",
       "dorisHttp": "http接口地址",
+      "catalog": "Doris目录",
       "database": "数据库名称",
       "user": "账号",
       "password": "密码",
@@ -271,12 +344,16 @@
       "timezoneTips": "影响类型: DATE",
       "writeByteBufferCapacity": "写入缓冲区容量(KB)",
       "writeFormat": "写入格式",
-      "doc": "docs/readme_zh_CN.md"
+      "doc": "docs/readme_zh_CN.md",
+      "duplicateKey": "排序字段",
+      "distributedKey": "分区字段",
+      "replicationNum": "副本数"
     },
     "zh_TW": {
       "host": "数据库地址",
       "port": "端口",
       "dorisHttp": "http接口地址",
+      "catalog": "Doris目錄",
       "database": "数据库名称",
       "user": "账号",
       "password": "密码",
@@ -285,7 +362,10 @@
       "timezoneTips": "影響類型: DATE",
       "writeByteBufferCapacity": "寫入緩沖區容量(KB)",
       "writeFormat": "寫入格式",
-      "doc": "docs/readme_zh_CN.md"
+      "doc": "docs/readme_zh_CN.md",
+      "duplicateKey": "排序字段",
+      "distributedKey": "分区字段",
+      "replicationNum": "副本數"
     }
   },
   "dataTypes": {

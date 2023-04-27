@@ -1,5 +1,7 @@
 package com.tapdata.entity;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
  * @author samuel
  * @Description
@@ -24,9 +26,10 @@ public class TapdataStartedCdcEvent extends TapdataEvent {
 	}
 
 	@Override
-	public Object clone() {
-		TapdataStartedCdcEvent tapdataEvent = TapdataStartedCdcEvent.create();
-		tapdataEvent.setCdcStartTime(this.cdcStartTime);
-		return super.clone(tapdataEvent);
+	protected void clone(TapdataEvent tapdataEvent) {
+		super.clone(tapdataEvent);
+		if (tapdataEvent instanceof TapdataStartedCdcEvent) {
+			((TapdataStartedCdcEvent) tapdataEvent).setCdcStartTime(cdcStartTime);
+		}
 	}
 }

@@ -3,6 +3,7 @@ package io.tapdata.mongodb;
 import org.bson.types.ObjectId;
 
 import java.io.Serializable;
+import java.util.StringJoiner;
 
 public class MongoBatchOffset implements Serializable {
 
@@ -52,5 +53,14 @@ public class MongoBatchOffset implements Serializable {
 
     public void setObjectId(Boolean objectId) {
         this.objectId = objectId;
+    }
+
+    @Override
+    public String toString() {
+        return new StringJoiner(", ", MongoBatchOffset.class.getSimpleName() + "[", "]")
+                .add("sortKey='" + sortKey + "'")
+                .add("value=" + value)
+                .add("objectId=" + objectId)
+                .toString();
     }
 }

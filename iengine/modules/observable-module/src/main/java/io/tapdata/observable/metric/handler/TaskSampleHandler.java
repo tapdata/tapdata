@@ -1,8 +1,5 @@
 package io.tapdata.observable.metric.handler;
 
-import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.sampler.AverageSampler;
@@ -12,13 +9,10 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.kafka.common.metrics.stats.Max;
-import org.springframework.util.ObjectUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 /**
  * @author Dexter
@@ -67,7 +61,7 @@ public class TaskSampleHandler extends AbstractHandler {
     private Long snapshotDoneCost = null;
     private String currentSnapshotTable = null;
     private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
-    private Long currentSnapshotTableInsertRowTotal = 0L;
+    private Long currentSnapshotTableInsertRowTotal = null;
     private Long currentSnapshotTableRowTotal = null;
     private Double outputQpsMax;
     private Double outputQpsAvg;

@@ -7,7 +7,7 @@ import java.io.Serializable;
  * @Description
  * @create 2022-10-27 11:32
  **/
-public class TapdataTaskErrorEvent extends TapdataEvent implements Serializable, Cloneable {
+public class TapdataTaskErrorEvent extends TapdataEvent {
 
 	private static final long serialVersionUID = -114543737789067621L;
 	private Throwable throwable;
@@ -25,9 +25,10 @@ public class TapdataTaskErrorEvent extends TapdataEvent implements Serializable,
 	}
 
 	@Override
-	public Object clone() {
-		TapdataEvent tapdataEvent = new TapdataTaskErrorEvent(throwable);
+	protected void clone(TapdataEvent tapdataEvent) {
 		super.clone(tapdataEvent);
-		return tapdataEvent;
+		if (tapdataEvent instanceof TapdataTaskErrorEvent) {
+			((TapdataTaskErrorEvent) tapdataEvent).setThrowable(throwable);
+		}
 	}
 }

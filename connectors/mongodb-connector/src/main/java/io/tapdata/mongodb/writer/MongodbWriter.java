@@ -244,21 +244,34 @@ public class MongodbWriter {
 			TapUpdateRecordEvent updateRecordEvent = (TapUpdateRecordEvent) recordEvent;
 			Map<String, Object> after = updateRecordEvent.getAfter();
 			Map<String, Object> before = updateRecordEvent.getBefore();
-			final Document pkFilter = getPkFilter(pks, before != null && !before.isEmpty() ? before : after);
-
-			if (ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS.equals(mongodbConfig.getUpdateDmlPolicy())) {
-				options.upsert(false);
-			}
-			MongodbUtil.removeIdIfNeed(pks, after);
-			Document u = new Document().append("$set", after);
 			Map<String, Object> info = recordEvent.getInfo();
-			if (info != null) {
-				Object unset = info.get("$unset");
-				if (unset != null) {
-					u.append("$unset", unset);
+			Document pkFilter;
+			Document u = new Document();
+			if (info != null && info.get("$op") != null) {
+				pkFilter = new Document("_id", info.get("_id"));
+				u.putAll((Map<String, Object>) info.get("$op"));
+				boolean isUpdate = u.keySet().stream().anyMatch(k -> k.startsWith("$"));
+				if (isUpdate) {
+					writeModel = new UpdateManyModel<>(pkFilter, u, options);
+					options.upsert(false);
+				} else {
+					writeModel = new ReplaceOneModel<>(pkFilter, u, new ReplaceOptions().upsert(false));
 				}
+			} else {
+				pkFilter = getPkFilter(pks, before != null && !before.isEmpty() ? before : after);
+				if (ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS.equals(mongodbConfig.getUpdateDmlPolicy())) {
+					options.upsert(false);
+				}
+				MongodbUtil.removeIdIfNeed(pks, after);
+				u.append("$set", after);
+				if (info != null) {
+					Object unset = info.get("$unset");
+					if (unset != null) {
+						u.append("$unset", unset);
+					}
+				}
+				writeModel = new UpdateManyModel<>(pkFilter, u, options);
 			}
-			writeModel = new UpdateManyModel<>(pkFilter, u, options);
 			updated.incrementAndGet();
 		} else if (recordEvent instanceof TapDeleteRecordEvent && CollectionUtils.isNotEmpty(pks)) {
 

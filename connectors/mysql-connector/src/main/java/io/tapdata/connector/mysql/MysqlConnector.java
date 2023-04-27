@@ -11,14 +11,29 @@ import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
 import io.tapdata.connector.mysql.writer.MysqlWriter;
 import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
-import io.tapdata.entity.event.ddl.table.*;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
+import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.*;
+import io.tapdata.entity.schema.value.TapArrayValue;
+import io.tapdata.entity.schema.value.TapBooleanValue;
+import io.tapdata.entity.schema.value.TapDateTimeValue;
+import io.tapdata.entity.schema.value.TapDateValue;
+import io.tapdata.entity.schema.value.TapMapValue;
+import io.tapdata.entity.schema.value.TapTimeValue;
+import io.tapdata.entity.schema.value.TapValue;
+import io.tapdata.entity.schema.value.TapYearValue;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
@@ -29,7 +44,11 @@ import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.*;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
+import io.tapdata.pdk.apis.entity.FilterResults;
+import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
+import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
@@ -44,7 +63,10 @@ import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
+import java.sql.SQLException;
+import java.time.ZoneId;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -69,6 +91,7 @@ public class MysqlConnector extends ConnectorBase {
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
     private DDLSqlMaker ddlSqlMaker;
 
+    private AtomicBoolean started = new AtomicBoolean(false);
     public synchronized MysqlJdbcContext initMysqlJdbcContext(TapConnectionContext tapConnectionContext) {
         onStop(tapConnectionContext);
         return new MysqlJdbcContext(tapConnectionContext);
@@ -83,7 +106,7 @@ public class MysqlConnector extends ConnectorBase {
             this.version = mysqlJdbcContext.getMysqlVersion();
             this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
             if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
-                this.connectionTimezone = mysqlJdbcContext.timezone();
+                this.connectionTimezone = mysqlJdbcContext.timezone().substring(3);
             }
         }
         ddlSqlMaker = new MysqlDDLSqlMaker(version);
@@ -92,6 +115,7 @@ public class MysqlConnector extends ConnectorBase {
         fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
         fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
         fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
+        started.set(true);
     }
 
     @Override
@@ -100,13 +124,22 @@ public class MysqlConnector extends ConnectorBase {
         codecRegistry.registerFromTapValue(TapArrayValue.class, "json", tapValue -> toJson(tapValue.getValue()));
 
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
+            if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
+                tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(ZoneId.of(this.connectionTimezone)));
+            }
             return formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS");
         });
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> {
+            if (tapDateValue.getValue() != null && tapDateValue.getValue().getTimeZone() == null) {
+                tapDateValue.getValue().setTimeZone(TimeZone.getTimeZone(ZoneId.of(this.connectionTimezone)));
+            }
             return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
         });
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTimeStr());
         codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
+            if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
+                tapYearValue.getValue().setTimeZone(TimeZone.getTimeZone(ZoneId.of(this.connectionTimezone)));
+            }
             return formatTapDateTime(tapYearValue.getValue(), "yyyy");
         });
 
@@ -178,7 +211,7 @@ public class MysqlConnector extends ConnectorBase {
         String minSql = selectSql.replaceFirst("SELECT \\* FROM", String.format("SELECT MIN(`%s`) AS MIN_VALUE FROM", fieldName));
         AtomicReference<Object> minObj = new AtomicReference<>();
         try {
-            mysqlJdbcContext.query(minSql, rs->{
+            mysqlJdbcContext.query(minSql, rs -> {
                 if (rs.next()) {
                     minObj.set(rs.getObject("MIN_VALUE"));
                 }
@@ -191,7 +224,7 @@ public class MysqlConnector extends ConnectorBase {
         String maxSql = selectSql.replaceFirst("SELECT \\* FROM", String.format("SELECT MAX(`%s`) AS MAX_VALUE FROM", fieldName));
         AtomicReference<Object> maxObj = new AtomicReference<>();
         try {
-            mysqlJdbcContext.query(maxSql, rs->{
+            mysqlJdbcContext.query(maxSql, rs -> {
                 if (rs.next()) {
                     maxObj.set(rs.getObject("MAX_VALUE"));
                 }
@@ -209,9 +242,15 @@ public class MysqlConnector extends ConnectorBase {
         retryOptions.beforeRetryMethod(() -> {
             try {
                 synchronized (this) {
-                    this.onStop(tapConnectionContext);
-                    if (isAlive()) {
-                        this.onStart(tapConnectionContext);
+                    //mysqlJdbcContext是否有效
+                    if (mysqlJdbcContext == null || !checkValid() || !started.get()) {
+                        //如果无效执行onStop,有效就return
+                        this.onStop(tapConnectionContext);
+                        if (isAlive()) {
+                            this.onStart(tapConnectionContext);
+                        }
+                    } else {
+                        mysqlWriter.selfCheck();
                     }
                 }
             } catch (Throwable ignore) {
@@ -220,6 +259,14 @@ public class MysqlConnector extends ConnectorBase {
         return retryOptions;
     }
 
+    private boolean checkValid() {
+        try {
+            mysqlJdbcContext.getMysqlVersion();
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
         MysqlSchemaLoader mysqlSchemaLoader = new MysqlSchemaLoader(mysqlJdbcContext);
@@ -322,6 +369,7 @@ public class MysqlConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
+        started.set(false);
         try {
             Optional.ofNullable(this.mysqlReader).ifPresent(MysqlReader::close);
         } catch (Exception ignored) {
@@ -419,7 +467,7 @@ public class MysqlConnector extends ConnectorBase {
         filterResults.setFilter(tapAdvanceFilter);
         try {
             int batchSize = MAX_FILTER_RESULT_SIZE;
-            if(tapAdvanceFilter.getBatchSize() != null && tapAdvanceFilter.getBatchSize() > 0) {
+            if (tapAdvanceFilter.getBatchSize() != null && tapAdvanceFilter.getBatchSize() > 0) {
                 batchSize = tapAdvanceFilter.getBatchSize();
             }
             int finalBatchSize = batchSize;

@@ -22,7 +22,7 @@ public class AliyunADBPostgresWriteRecorder extends PostgresWriteRecorder {
 
     public AliyunADBPostgresWriteRecorder(Connection connection, TapTable tapTable, String schema, boolean hasUnique) {
         super(connection, tapTable, schema);
-//        uniqueConditionIsIndex = uniqueConditionIsIndex && hasUnique;
+        uniqueConditionIsIndex = uniqueConditionIsIndex && hasUnique;
     }
     @Override
     public void addInsertBatch(Map<String, Object> after) throws SQLException {

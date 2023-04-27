@@ -1,0 +1,401 @@
+{
+  "properties": {
+    "name": "mrs-hive3",
+    "icon": "icons/mrshive3.png",
+    "id": "mrs-hive3",
+    "doc": "${doc}",
+    "authentication": "Beta",
+    "tags": ["Database"]
+  },
+  "configOptions": {
+    "capabilities":[
+      {
+        "id": "dml_insert_policy",
+        "alternatives": ["update_on_exists", "ignore_on_exists"]
+      },
+      {
+        "id": "dml_update_policy",
+        "alternatives": ["ignore_on_nonexists", "insert_on_nonexists"]
+      }
+    ],
+    "connection": {
+      "type": "object",
+      "properties": {
+        "nameSrvAddr": {
+          "required": true,
+          "type": "string",
+          "title": "${nameSrvAddr}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "mq_nameSrvAddr",
+          "x-index": 1
+        },
+        "database": {
+          "type": "string",
+          "title": "${database}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_name",
+          "x-index": 2,
+          "required": true
+        },
+        "krb5": {
+          "type": "boolean",
+          "title": "${krb5}",
+          "default": false,
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "apiServerKey": "krb5",
+          "x-reactions": [
+            {
+              "target": "*(krb5Keytab,krb5Conf,principal,krb5ServiceName)",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value===true}}"
+                }
+              }
+            }
+          ],
+          "x-index": 3
+        },
+        "krb5Keytab": {
+          "type": "string",
+          "title": "${krb5Keytab}",
+          "x-decorator": "FormItem",
+          "x-component": "TextFileReader",
+          "x-component-props": {
+            "base64": true
+          },
+          "apiServerKey": "krb5Keytab",
+          "fileNameField": "krb5KeytabFile",
+          "required": true,
+          "x-index": 4
+        },
+        "krb5Conf": {
+          "type": "string",
+          "title": "${krb5Conf}",
+          "x-decorator": "FormItem",
+          "x-component": "TextFileReader",
+          "x-component-props": {
+            "base64": true
+          },
+          "apiServerKey": "krb5Conf",
+          "fileNameField": "krb5ConfFile",
+          "required": true,
+          "x-index": 5
+        },
+        "principal": {
+          "type": "string",
+          "title": "${principal}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "principal",
+          "required": true,
+          "x-index": 6
+        },
+        "ssl": {
+          "type": "boolean",
+          "title": "${ssl}",
+          "default": true,
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "apiServerKey": "ssl",
+          "x-index": 7
+        },
+        "user": {
+          "type": "string",
+          "title": "${user}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_username",
+          "x-index": 8
+        },
+        "password": {
+          "type": "string",
+          "title": "${password}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "database_password",
+          "x-index": 9
+        },
+        "extParams": {
+          "type": "string",
+          "title": "${extParams}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "extParams",
+          "x-index": 10
+        },
+        "timezone": {
+          "type": "string",
+          "title": "${timezone}",
+          "default": "",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-index": 11,
+          "enum": [
+            {
+              "label": "Database Timezone",
+              "value": ""
+            },
+            {
+              "label": "UTC -11",
+              "value": "-11:00"
+            },
+            {
+              "label": "UTC -10",
+              "value": "-10:00"
+            },
+            {
+              "label": "UTC -09",
+              "value": "-09:00"
+            },
+            {
+              "label": "UTC -08",
+              "value": "-08:00"
+            },
+            {
+              "label": "UTC -07",
+              "value": "-07:00"
+            },
+            {
+              "label": "UTC -06",
+              "value": "-06:00"
+            },
+            {
+              "label": "UTC -05",
+              "value": "-05:00"
+            },
+            {
+              "label": "UTC -04",
+              "value": "-04:00"
+            },
+            {
+              "label": "UTC -03",
+              "value": "-03:00"
+            },
+            {
+              "label": "UTC -02",
+              "value": "-02:00"
+            },
+            {
+              "label": "UTC -01",
+              "value": "-01:00"
+            },
+            {
+              "label": "UTC",
+              "value": "+00:00"
+            },
+            {
+              "label": "UTC +01",
+              "value": "+01:00"
+            },
+            {
+              "label": "UTC +02",
+              "value": "+02:00"
+            },
+            {
+              "label": "UTC +03",
+              "value": "+03:00"
+            },
+            {
+              "label": "UTC +04",
+              "value": "+04:00"
+            },
+            {
+              "label": "UTC +05",
+              "value": "+05:00"
+            },
+            {
+              "label": "UTC +06",
+              "value": "+06:00"
+            },
+            {
+              "label": "UTC +07",
+              "value": "+07:00"
+            },
+            {
+              "label": "UTC +08",
+              "value": "+08:00"
+            },
+            {
+              "label": "UTC +09",
+              "value": "+09:00"
+            },
+            {
+              "label": "UTC +10",
+              "value": "+10:00"
+            },
+            {
+              "label": "UTC +11",
+              "value": "+11:00"
+            },
+            {
+              "label": "UTC +12",
+              "value": "+12:00"
+            },
+            {
+              "label": "UTC +13",
+              "value": "+13:00"
+            },
+            {
+              "label": "UTC +14",
+              "value": "+14:00"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "nameSrvAddr": "Cluster Address",
+      "database": "database",
+      "krb5": "kerberos authentication",
+      "krb5Keytab": "Key representation file",
+      "krb5Conf": "Configuration file",
+      "principal": "Hive Principal",
+      "ssl": "ssl",
+      "user": "user",
+      "password": "password",
+      "extParams": "Connection Parameter String",
+      "timezone": "timezone",
+      "doc": "docs/mrshive3_en_US.md"
+    },
+    "zh_CN": {
+      "nameSrvAddr": "集群地址",
+      "database": "数据库",
+      "krb5": "kerberos 认证",
+      "krb5Keytab": "密钥表示文件",
+      "krb5Conf": "配置文件",
+      "principal": "Hive主体配置",
+      "ssl": "ssl",
+      "user": "账号",
+      "password": "密码",
+      "extParams": "连接参数",
+      "timezone": "时区",
+      "doc": "docs/mrshive3_zh_CN.md"
+    },
+    "zh_TW": {
+      "nameSrvAddr": "集群地址",
+      "database": "數據庫",
+      "krb5": "kerberos 認證",
+      "krb5Keytab": "密鑰表示文件",
+      "krb5Conf": "配置文件",
+      "principal": "Hive主体配置",
+      "ssl": "ssl",
+      "user": "賬號",
+      "password": "密碼",
+      "extParams": "連接參數",
+      "timezone": "時區",
+      "doc": "docs/mrshive3_zh_TW.md"
+    }
+  },
+
+
+  "dataTypes": {
+    "string": {
+      "to": "TapString",
+      "byte": "64k",
+      "pkEnablement": false
+    },
+    "char($byte)": {
+      "to": "TapString",
+      "byte": "255",
+      "byteRatio": 3,
+      "fixed": true
+    },
+    "varchar($byte)": {
+      "to": "TapString",
+      "byte": "65535"
+    },
+    "tinyint[($zerofill)]": {
+      "to": "TapNumber",
+      "bit": 8,
+      "precision": 3,
+      "value": [
+        -128,
+        127
+      ]
+    },
+    "smallint[($zerofill)]": {
+      "to": "TapNumber",
+      "bit": 16,
+      "precision": 5,
+      "value": [
+        -32768,
+        32767
+      ]
+    },
+    "int[($zerofill)]": {
+      "to": "TapNumber",
+      "bit": 32,
+      "precision": 10,
+      "value": [
+        -2147483648,
+        2147483647
+      ]
+    },
+    "bigint[($zerofill)]": {
+      "to": "TapNumber",
+      "bit": 64,
+      "precision": 19,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ]
+    },
+    "float": {
+      "to": "TapNumber",
+      "name": "float",
+      "bit": 32,
+      "fixed": false
+    },
+    "double": {
+      "to": "TapNumber",
+      "bit": 64,
+      "fixed": false
+    },
+    "decimal($precision,$scale)": {
+      "to": "TapNumber",
+      "precision": [
+        1,
+        38
+      ],
+      "scale": [
+        0,
+        38
+      ],
+      "defaultPrecision": 10,
+      "defaultScale": 0
+    },
+    "date": {
+      "to": "TapDate",
+      "range": [
+        "1000-01-01",
+        "9999-12-31"
+      ],
+      "pattern": "yyyy-MM-dd"
+    },
+    "timestamp": {
+      "to": "TapDateTime",
+      "range": [
+        "1970-01-01 00:00:00.000",
+        "2038-01-11 23:59:59.999"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss.SSS",
+      "fraction": [
+        0,
+        6
+      ],
+      "defaultFraction": 0,
+      "withTimeZone": true
+    },
+    "boolean": {
+      "bit": 1,
+      "name": "boolean",
+      "to": "TapBoolean"
+    }
+  }
+}
