@@ -201,7 +201,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	final public void process(int ordinal, @NotNull Inbox inbox) {
-		//threadPoolExecutorEx.submitSync(() -> {
 		try {
 			Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 			if (!inbox.isEmpty()) {
@@ -230,11 +229,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		} catch (Throwable e) {
 			RuntimeException runtimeException = new RuntimeException(String.format("Drain from inbox failed: %s", e.getMessage()), e);
-			errorHandle(runtimeException, runtimeException.getMessage());
+			errorHandle(runtimeException);
 		} finally {
 			ThreadContext.clearAll();
 		}
-		//});
 	}
 
 	private void dispatchTapdataEvents(List<TapdataEvent> tapdataEvents, Consumer<List<TapdataEvent>> consumer) {
@@ -341,63 +339,89 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	private void handleTapdataEvents(List<TapdataEvent> tapdataEvents) {
-		AtomicReference<TapdataEvent> lastDmlTapdataEvent = new AtomicReference<>();
-		try {
-			List<TapEvent> tapEvents = new ArrayList<>();
-			List<TapdataShareLogEvent> tapdataShareLogEvents = new ArrayList<>();
-			if (null != getConnectorNode()) {
-				codecsFilterManager = getConnectorNode().getCodecsFilterManager();
-			}
-			for (TapdataEvent tapdataEvent : tapdataEvents) {
-				if (!isRunning()) return;
-				try {
-					SyncStage syncStage = tapdataEvent.getSyncStage();
-					if (null != syncStage) {
-						if (syncStage == SyncStage.INITIAL_SYNC && firstBatchEvent.compareAndSet(false, true)) {
-							executeAspect(new SnapshotWriteBeginAspect().dataProcessorContext(dataProcessorContext));
-						} else if (syncStage == SyncStage.CDC && firstStreamEvent.compareAndSet(false, true)) {
-							executeAspect(new CDCWriteBeginAspect().dataProcessorContext(dataProcessorContext));
-						}
-					}
-					if (tapdataEvent instanceof TapdataHeartbeatEvent) {
-						handleTapdataHeartbeatEvent(tapdataEvent);
-					} else if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
-						handleTapdataCompleteSnapshotEvent();
-					} else if (tapdataEvent instanceof TapdataStartingCdcEvent) {
-						handleTapdataStartCdcEvent(tapdataEvent);
-					} else if (tapdataEvent instanceof TapdataStartedCdcEvent) {
-						flushShareCdcTableMetrics(tapdataEvent);
-					} else if (tapdataEvent instanceof TapdataTaskErrorEvent) {
-						throw ((TapdataTaskErrorEvent) tapdataEvent).getThrowable();
-					} else if (tapdataEvent instanceof TapdataShareLogEvent) {
-						handleTapdataShareLogEvent(tapdataShareLogEvents, tapdataEvent, lastDmlTapdataEvent::set);
-					} else {
-						if (tapdataEvent.isDML()) {
-							handleTapdataRecordEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
-						} else if (tapdataEvent.isDDL()) {
-							handleTapdataDDLEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
-						} else {
-							if (null != tapdataEvent.getTapEvent()) {
-								obsLogger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
-							}
-						}
-					}
-				} catch (Throwable throwable) {
-					throw new TapdataEventException(TaskTargetProcessorExCode_15.HANDLE_EVENTS_FAILED, throwable).addEvent(tapdataEvent);
-				}
-			}
-			if (CollectionUtils.isNotEmpty(tapEvents)) {
-				processEvents(tapEvents);
-			}
-			if (CollectionUtils.isNotEmpty(tapdataShareLogEvents)) {
-				processShareLog(tapdataShareLogEvents);
-			}
-			executeAspect(new CDCHeartbeatWriteAspect().tapdataEvents(tapdataEvents).dataProcessorContext(dataProcessorContext));
-		} finally {
-			flushSyncProgressMap(lastDmlTapdataEvent.get());
-		}
-	}
+    private void handleTapdataEvents(List<TapdataEvent> tapdataEvents) {
+        AtomicReference<TapdataEvent> lastTapdataEvent = new AtomicReference<>();
+        List<TapEvent> tapEvents = new ArrayList<>();
+        List<TapdataShareLogEvent> tapdataShareLogEvents = new ArrayList<>();
+        if (null != getConnectorNode()) {
+            codecsFilterManager = getConnectorNode().getCodecsFilterManager();
+        }
+        for (TapdataEvent tapdataEvent : tapdataEvents) {
+            if (!isRunning()) return;
+            try {
+                SyncStage syncStage = tapdataEvent.getSyncStage();
+                if (null != syncStage) {
+                    if (syncStage == SyncStage.INITIAL_SYNC && firstBatchEvent.compareAndSet(false, true)) {
+                        executeAspect(new SnapshotWriteBeginAspect().dataProcessorContext(dataProcessorContext));
+                    } else if (syncStage == SyncStage.CDC && firstStreamEvent.compareAndSet(false, true)) {
+                        executeAspect(new CDCWriteBeginAspect().dataProcessorContext(dataProcessorContext));
+                    }
+                }
+                if (tapdataEvent instanceof TapdataHeartbeatEvent) {
+                    handleTapdataHeartbeatEvent(tapdataEvent);
+                } else if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
+                    handleTapdataCompleteSnapshotEvent();
+                } else if (tapdataEvent instanceof TapdataStartingCdcEvent) {
+                    handleTapdataStartCdcEvent(tapdataEvent);
+                } else if (tapdataEvent instanceof TapdataStartedCdcEvent) {
+                    flushShareCdcTableMetrics(tapdataEvent);
+                } else if (tapdataEvent instanceof TapdataTaskErrorEvent) {
+                    throw ((TapdataTaskErrorEvent) tapdataEvent).getThrowable();
+                } else if (tapdataEvent instanceof TapdataShareLogEvent) {
+                    handleTapdataShareLogEvent(tapdataShareLogEvents, tapdataEvent, lastTapdataEvent::set);
+                } else {
+                    if (tapdataEvent.isDML()) {
+                        handleTapdataRecordEvent(tapdataEvent, tapEvents, lastTapdataEvent::set);
+                    } else if (tapdataEvent.isDDL()) {
+                        handleTapdataDDLEvent(tapdataEvent, tapEvents, lastTapdataEvent::set);
+                    } else {
+                        if (null != tapdataEvent.getTapEvent()) {
+                            obsLogger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
+                        }
+                    }
+                }
+            } catch (Throwable throwable) {
+				throw new TapdataEventException(TaskTargetProcessorExCode_15.HANDLE_EVENTS_FAILED, throwable).addEvent(tapdataEvent);
+            }
+        }
+        if (CollectionUtils.isNotEmpty(tapEvents)) {
+            try {
+                processEvents(tapEvents);
+                flushOffsetByTapdataEventForNoConcurrent(lastTapdataEvent);
+            } catch (Throwable throwable) {
+                throw new RuntimeException(String.format("Process events failed: %s", throwable.getMessage()), throwable);
+            }
+        }
+        if (CollectionUtils.isNotEmpty(tapdataShareLogEvents)) {
+            try {
+                processShareLog(tapdataShareLogEvents);
+                flushOffsetByTapdataEventForNoConcurrent(lastTapdataEvent);
+            } catch (Throwable throwable) {
+                throw new RuntimeException(String.format("Process share log failed: %s", throwable.getMessage()), throwable);
+            }
+        }
+        executeAspect(new CDCHeartbeatWriteAspect().tapdataEvents(tapdataEvents).dataProcessorContext(dataProcessorContext));
+    }
+
+    private void flushOffsetByTapdataEventForNoConcurrent(AtomicReference<TapdataEvent> lastTapdataEvent) {
+        if (null != lastTapdataEvent.get()) {
+            SyncStage syncStage = lastTapdataEvent.get().getSyncStage();
+            if (null != syncStage) {
+                switch (syncStage) {
+                    case INITIAL_SYNC:
+                        if (null != lastTapdataEvent.get().getBatchOffset() && !initialConcurrent) {
+                            flushSyncProgressMap(lastTapdataEvent.get());
+                        }
+                        break;
+                    case CDC:
+                        if (null != lastTapdataEvent.get().getStreamOffset() && !cdcConcurrent) {
+                            flushSyncProgressMap(lastTapdataEvent.get());
+                        }
+                        break;
+                }
+            }
+        }
+    }
 
 	private void flushShareCdcTableMetrics(TapdataEvent tapdataEvent) {
 		if (tapdataEvent.getType().equals(SyncProgress.Type.LOG_COLLECTOR)) {
