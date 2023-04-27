@@ -149,7 +149,7 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportBatchCount(this::batchCount);
-        connectorFunctions.supportBatchRead(this::batchRead);
+        connectorFunctions.supportBatchRead(this::batchReadV2);
         connectorFunctions.supportStreamRead(this::streamRead);
         connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
         connectorFunctions.supportQueryByAdvanceFilter(this::query);
@@ -441,6 +441,32 @@ public class MysqlConnector extends ConnectorBase {
     }
 
     public static final AtomicInteger TOTAL = new AtomicInteger(0);
+
+    private void batchReadV2(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+        String columns = tapTable.getNameFieldMap().keySet().stream().map(c -> "`" + c + "`").collect(Collectors.joining(","));
+        String sql = String.format("SELECT %s FROM `" + tapConnectorContext.getConnectionConfig().getString("database") + "`.`" + tapTable.getId() + "`", columns);
+
+        mysqlJdbcContext.query(sql, resultSet -> {
+            List<TapEvent> tapEvents = list();
+            //get all column names
+            List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
+            while (isAlive() && resultSet.next()) {
+                DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
+                assert dataMap != null;
+                tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
+                if (tapEvents.size() == eventBatchSize) {
+                    eventsOffsetConsumer.accept(tapEvents, new HashMap<>());
+                    tapEvents = list();
+                }
+            }
+            //last events those less than eventBatchSize
+            if (EmptyKit.isNotEmpty(tapEvents)) {
+                eventsOffsetConsumer.accept(tapEvents, new HashMap<>());
+            }
+        });
+
+    }
+
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offset, int batchSize, BiConsumer<List<TapEvent>, Object> consumer) throws Throwable {
         MysqlSnapshotOffset mysqlSnapshotOffset;
         if (offset instanceof MysqlSnapshotOffset) {
