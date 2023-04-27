@@ -39,6 +39,7 @@
 		<module>vika-connector</module>
 		<module>selectdb-connector</module>
 		<module>quickapi-connector</module>
+		<module>quickapi-target-connector</module>
 		<module>aliyun-adb-mysql-connector</module>
 		<module>aliyun-rds-mysql-connector</module>
 		<module>mysql-pxc-connector</module>
