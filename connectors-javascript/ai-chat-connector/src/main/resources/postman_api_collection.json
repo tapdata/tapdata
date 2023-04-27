@@ -1,0 +1,42 @@
+{
+	"info": {
+		"_postman_id": "dd67c65a-d7d3-438b-8e97-11018dcc6a7a",
+		"name": "AI Chat",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Add Content",
+			"request": {
+				"method": "POST",
+				"header": [{"key": "Authorization", "value": "Bearer {{token}}", "type": "default"}],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"append\": {{append}},\"content\": \"{{content}}\",\"data_id\": \"{{data_id}}\",\"namespace\": \"{{table}}\"}",
+					"options": {"raw": {"language": "json"}}
+				},
+				"url": {
+					"raw": "{{url}}/data",
+					"host": ["{{url}}"],
+					"path": ["data"]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Health",
+			"request": {
+				"method": "GET",
+				"header": [{"key": "Authorization", "value": "Bearer {{token}}", "type": "default"}],
+				"url": {
+					"raw": "{{url}}/heath",
+					"host": ["{{url}}"],
+					"path": ["heath"]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [],
+	"variable": [{"key": "token", "value": ""}, {"key": "url", "value": ""}]
+}
