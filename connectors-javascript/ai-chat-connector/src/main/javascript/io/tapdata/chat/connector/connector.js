@@ -56,3 +56,21 @@ function jsonToCSV(arrData) {
     }
     return csv;
 }
+function connectorWebsite(connectionConfig){
+    return {
+        'url': connectionConfig.url
+    }
+}
+function tableWebsite(connectionConfig, tableIdList){
+    return {
+        // "urls":{
+        //     "table1":{
+        //         'url': "sadf"
+        //     },
+        //     "table2":{
+        //         'url': "sadf"
+        //     }
+        // },
+        "url": connectionConfig.url + "/ns_" + tableIdList[0]
+    }
+}
