@@ -45,8 +45,8 @@ public class ExcelSchema extends FileSchema {
                         }
                         Row dataRow = sheet.getRow(excelConfig.getDataStartLine() - 1);
                         for (int i = excelConfig.getFirstColumn() - 1; i < excelConfig.getLastColumn(); i++) {
-                            String headCell = String.valueOf(ExcelUtil.getMergedCellValue(mergedList, mergedDataMap, headerRow.getCell(i), formulaEvaluator));
-                            putValidIntoMap(sampleResult, EmptyKit.isBlank(headCell) ? "column" + (i - excelConfig.getFirstColumn() + 2) : headCell,
+                            Object headCell = ExcelUtil.getMergedCellValue(mergedList, mergedDataMap, headerRow.getCell(i), formulaEvaluator);
+                            putValidIntoMap(sampleResult, (EmptyKit.isNull(headCell) || EmptyKit.isBlank(String.valueOf(headCell))) ? "column" + (i - excelConfig.getFirstColumn() + 2) : String.valueOf(headCell),
                                     ExcelUtil.getMergedCellValue(mergedList, mergedDataMap, dataRow.getCell(i), formulaEvaluator));
                         }
                     } else {
