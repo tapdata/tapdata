@@ -1,0 +1,13 @@
+[
+  {
+    "delete": "Settings_Alarm",
+      "deletes": [
+      {
+        "q": {
+          "key": "TASK_STATUS_STOP"
+        },
+        "limit": 1
+      }
+    ]
+  }
+]
