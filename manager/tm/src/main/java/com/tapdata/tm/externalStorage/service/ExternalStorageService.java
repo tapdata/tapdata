@@ -118,12 +118,14 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 	@Override
 	public Page<ExternalStorageDto> find(Filter filter, UserDetail userDetail) {
 		Page<ExternalStorageDto> externalStorageDtoPage = super.find(filter, userDetail);
-		List<ExternalStorageEntity> initExternalStorages = repository.findAll(Query.query(Criteria.where("init").is(true)));
-		List<ExternalStorageDto> items = externalStorageDtoPage.getItems();
-		for (ExternalStorageEntity initExternalStorage : initExternalStorages) {
-			if (null == items.stream().filter(i -> i.getName().equals(initExternalStorage.getName())).findFirst().orElse(null)) {
-				items.add(convertToDto(initExternalStorage, ExternalStorageDto.class));
-				externalStorageDtoPage.setTotal(externalStorageDtoPage.getTotal() + 1);
+		if (null == filter.getWhere() || filter.getWhere().isEmpty()) {
+			List<ExternalStorageEntity> initExternalStorages = repository.findAll(Query.query(Criteria.where("init").is(true)));
+			List<ExternalStorageDto> items = externalStorageDtoPage.getItems();
+			for (ExternalStorageEntity initExternalStorage : initExternalStorages) {
+				if (null == items.stream().filter(i -> i.getName().equals(initExternalStorage.getName())).findFirst().orElse(null)) {
+					items.add(convertToDto(initExternalStorage, ExternalStorageDto.class));
+					externalStorageDtoPage.setTotal(externalStorageDtoPage.getTotal() + 1);
+				}
 			}
 		}
 		return externalStorageDtoPage;
