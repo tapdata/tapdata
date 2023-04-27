@@ -1,6 +1,10 @@
 package com.tapdata.constant;
 
-import com.tapdata.entity.*;
+import com.tapdata.entity.DataQualityTag;
+import com.tapdata.entity.Mapping;
+import com.tapdata.entity.MessageEntity;
+import com.tapdata.entity.OperationType;
+import com.tapdata.entity.ProcessResult;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -8,7 +12,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.data.mongodb.core.query.Update;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 

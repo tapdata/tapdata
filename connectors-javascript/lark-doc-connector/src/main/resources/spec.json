@@ -1,0 +1,113 @@
+{
+  "properties": {
+    "name": "Lark Doc",
+    "icon": "icon/lark-doc.png",
+    "doc" : "${doc}",
+    "id": "lark-doc",
+    "authentication": "Alpha",
+    "tags": ["SaaS"]
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+        "lang": {
+          "type": "string",
+          "title": "${n_lang}",
+          "default": 0,
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-index": 10,
+          "enum": [
+            {
+              "label": "${c_lang_ch}",
+              "value": 0
+            },
+            {
+              "label": "${c_lang_en}",
+              "value": 1
+            },
+            {
+              "label": "${c_lang_jp}",
+              "value": 2
+            }
+          ]
+        }
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+        "app_id": {
+          "type": "String",
+          "title": "${app_id}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 10,
+          "required": true
+        },
+        "app_secret": {
+          "type": "String",
+          "title": "${app_secret}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 20,
+          "required": true
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "doc/lark_en_US.md",
+      "app_id": "App Id",
+      "app_secret": "App Secret",
+
+      "code": "Authorize",
+      "OAuthButtonTitle": "Authorize",
+      "OAuthButton": "Please authorize before connection test and save",
+      "OAuthButtonOK": "Authorization successfully",
+
+
+      "n_lang": "Multilingual",
+      "c_lang_ch": "Chinese",
+      "c_lang_en": "English",
+      "c_lang_jp": "Japanese"
+    },
+    "zh_CN": {
+      "doc": "doc/lark_zh_CN.md",
+      "app_id": "应用Id",
+      "app_name": "App名称",
+      "app_secret": "应用Secret",
+
+
+      "code": "授权",
+      "OAuthButtonTitle": "授权",
+      "OAuthButton": "请先授权成功再点击连接测试或保存",
+      "OAuthButtonOK": "授权成功",
+
+      "n_lang": "多语言",
+      "c_lang_ch": "简体中文",
+      "c_lang_en": "英语",
+      "c_lang_jp": "日语"
+    },
+    "zh_TW": {
+      "doc": "doc/lark_zh_TW.md",
+      "app_id": "应用Id",
+      "app_name": "App名稱",
+      "app_secret": "应用Secret",
+
+      "code": "授權",
+      "OAuthButtonTitle": "授權",
+      "OAuthButton": "請先授權成功再點擊鏈接測試或保存",
+      "OAuthButtonOK": "授權成功",
+
+      "n_lang": "多語言",
+      "c_lang_ch": "簡體中文",
+      "c_lang_en": "英文",
+      "c_lang_jp": "日文"
+    }
+  }
+}

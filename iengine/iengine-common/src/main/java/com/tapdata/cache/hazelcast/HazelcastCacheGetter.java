@@ -17,36 +17,36 @@ import org.springframework.data.mongodb.core.query.Query;
 
 public class HazelcastCacheGetter extends AbstractSerializerCacheGetter {
 
-  private final HazelcastInstance hazelcastInstance;
+	private final HazelcastInstance hazelcastInstance;
 
 
-  public HazelcastCacheGetter(DataFlowCacheConfig cacheConfig, ICacheStore cacheStore, ICacheStats cacheStats,
-                              ClientMongoOperator clientMongoOperator,
-                              HazelcastInstance hazelcastInstance) {
-    super(cacheConfig, cacheStore, cacheStats,
-            ((AbstractSerializerCacheStore) cacheStore).getIndexMap(),
-            ((AbstractSerializerCacheStore) cacheStore).getDataMap(), clientMongoOperator);
-    this.hazelcastInstance = hazelcastInstance;
-  }
+	public HazelcastCacheGetter(DataFlowCacheConfig cacheConfig, ICacheStore cacheStore, ICacheStats cacheStats,
+								ClientMongoOperator clientMongoOperator,
+								HazelcastInstance hazelcastInstance) {
+		super(cacheConfig, cacheStore, cacheStats,
+				((AbstractSerializerCacheStore) cacheStore).getIndexMap(),
+				((AbstractSerializerCacheStore) cacheStore).getDataMap(), clientMongoOperator);
+		this.hazelcastInstance = hazelcastInstance;
+	}
 
-  @Override
-  protected Connections getSourceConnection(DataFlowCacheConfig cacheConfig) {
-    Connections sourceConnection = super.getSourceConnection(cacheConfig);
-    if (sourceConnection == null && StringUtils.isNotEmpty(cacheConfig.getSourceConnectionId())) {
-      Query query = new Query(Criteria.where("_id").is(cacheConfig.getSourceConnectionId()));
-      query.fields().exclude("schema");
-      sourceConnection = MongodbUtil.getConnections(query, clientMongoOperator, true);
-      cacheConfig.setSourceConnection(sourceConnection);
-    }
-    return sourceConnection;
-  }
+	@Override
+	protected Connections getSourceConnection(DataFlowCacheConfig cacheConfig) {
+		Connections sourceConnection = super.getSourceConnection(cacheConfig);
+		if (sourceConnection == null && StringUtils.isNotEmpty(cacheConfig.getSourceConnectionId())) {
+			Query query = new Query(Criteria.where("_id").is(cacheConfig.getSourceConnectionId()));
+			query.fields().exclude("schema");
+			sourceConnection = MongodbUtil.getConnections(query, clientMongoOperator, true);
+			cacheConfig.setSourceConnection(sourceConnection);
+		}
+		return sourceConnection;
+	}
 
-  @Override
-  public IDataSourceRowsGetter getDataSourceRowsGetter() {
-    if (dataSourceRowsGetter == null) {
-      logger.info("construct a data source rows getter for cache [{}]", cacheConfig.getCacheName());
-      this.dataSourceRowsGetter = new PdkDataSourceRowsGetter(cacheConfig, clientMongoOperator, hazelcastInstance);
-    }
-    return dataSourceRowsGetter;
-  }
+	@Override
+	public IDataSourceRowsGetter getDataSourceRowsGetter() {
+		if (dataSourceRowsGetter == null) {
+			logger.info("construct a data source rows getter for cache [{}]", cacheConfig.getCacheName());
+			this.dataSourceRowsGetter = new PdkDataSourceRowsGetter(cacheConfig, clientMongoOperator, hazelcastInstance);
+		}
+		return dataSourceRowsGetter;
+	}
 }

@@ -19,48 +19,48 @@ import java.util.List;
 
 public class HazelcastJavaScriptProcessorNodeTest extends BaseTest {
 
-  private static final org.apache.logging.log4j.Logger logger = LogManager.getLogger(HazelcastJavaScriptProcessorNodeTest.class);
+	private static final org.apache.logging.log4j.Logger logger = LogManager.getLogger(HazelcastJavaScriptProcessorNodeTest.class);
 
 
-  @Test
-  public void testLog() {
-    try (Context context = Context.newBuilder("js")
-            .allowAllAccess(true)
-            .option("engine.WarnInterpreterOnly", "false")
-            .logHandler(System.err)
-            .out(new LoggingOutputStream(new Log4jScriptLogger(logger), Level.INFO)).build()) {
+	@Test
+	public void testLog() {
+		try (Context context = Context.newBuilder("js")
+				.allowAllAccess(true)
+				.option("engine.WarnInterpreterOnly", "false")
+				.logHandler(System.err)
+				.out(new LoggingOutputStream(new Log4jScriptLogger(logger), Level.INFO)).build()) {
 
-      context.eval("js", "console.info('fdasfdsafdsafad')");
-
-
-    }
-  }
-
-  @Test
-  public void testLog1() throws ScriptException {
-
-    Thread.currentThread().setName("test-->");
-
-    Engine engine = Engine.newBuilder()
-            .allowExperimentalOptions(true)
-            .option("engine.WarnInterpreterOnly", "false")
-            .build();
-    GraalJSScriptEngine graalJSScriptEngine = GraalJSScriptEngine
-            .create(engine,
-                    Context.newBuilder("js")
-                            .allowAllAccess(true)
-                            .allowHostAccess(HostAccess.newBuilder(HostAccess.ALL)
-                                    .targetTypeMapping(Value.class, Object.class,
-                                            v -> v.hasArrayElements() && v.hasMembers(), v -> v.as(List.class)).build())
-            );
+			context.eval("js", "console.info('fdasfdsafdsafad')");
 
 
-    SimpleScriptContext ctxt = new SimpleScriptContext();
-    ctxt.setWriter(new OutputStreamWriter(new LoggingOutputStream(new Log4jScriptLogger(logger), Level.INFO)));
-    graalJSScriptEngine.eval("console.info('fdasfdsafdsafad')", ctxt);
+		}
+	}
 
-    graalJSScriptEngine.close();
+	@Test
+	public void testLog1() throws ScriptException {
 
-  }
+		Thread.currentThread().setName("test-->");
+
+		Engine engine = Engine.newBuilder()
+				.allowExperimentalOptions(true)
+				.option("engine.WarnInterpreterOnly", "false")
+				.build();
+		GraalJSScriptEngine graalJSScriptEngine = GraalJSScriptEngine
+				.create(engine,
+						Context.newBuilder("js")
+								.allowAllAccess(true)
+								.allowHostAccess(HostAccess.newBuilder(HostAccess.ALL)
+										.targetTypeMapping(Value.class, Object.class,
+												v -> v.hasArrayElements() && v.hasMembers(), v -> v.as(List.class)).build())
+				);
+
+
+		SimpleScriptContext ctxt = new SimpleScriptContext();
+		ctxt.setWriter(new OutputStreamWriter(new LoggingOutputStream(new Log4jScriptLogger(logger), Level.INFO)));
+		graalJSScriptEngine.eval("console.info('fdasfdsafdsafad')", ctxt);
+
+		graalJSScriptEngine.close();
+
+	}
 
 }

@@ -12,7 +12,8 @@ public enum DeployModeEnum {
     // redis three mode
     STANDALONE("standalone"),
     SENTINEL("sentinel"),
-    MASTER_SLAVE("master-slave");
+    MASTER_SLAVE("master-slave"),
+    CLUSTER("cluster");
 
     private final String mode;
 

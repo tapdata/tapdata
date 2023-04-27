@@ -66,6 +66,7 @@ public class FormData extends Body<Map<String, Object>> {
                 jsonObj.put(key, ReplaceTagUtil.replace((String) valueObj,param));
             }
         });
+        this.raw.putAll(jsonObj);
         return this;
     }
 

@@ -56,7 +56,9 @@
 		<module>databend-connector</module>
 		<module>hazelcast-connector</module>
 		<module>opengauss-connector</module>
-	</modules>
+        <module>hive3-connector</module>
+        <module>mrs-hive3-connector</module>
+    </modules>
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
 		<java.version>8</java.version>

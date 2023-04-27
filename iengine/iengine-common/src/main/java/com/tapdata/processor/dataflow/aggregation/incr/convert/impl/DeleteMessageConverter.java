@@ -10,7 +10,11 @@ import com.tapdata.processor.dataflow.aggregation.incr.service.SnapshotService;
 import com.tapdata.processor.dataflow.aggregation.incr.service.SyncVersionService;
 import com.tapdata.processor.dataflow.aggregation.incr.service.model.AggrBucket;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 
 public class DeleteMessageConverter extends AbstractMessageConverter {
 

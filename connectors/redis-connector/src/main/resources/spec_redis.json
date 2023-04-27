@@ -26,6 +26,10 @@
             {
               "label": "${sentinel}",
               "value": "sentinel"
+            },
+            {
+              "label": "${cluster}",
+              "value": "cluster"
             }
           ],
           "x-reactions": [
@@ -41,7 +45,7 @@
               "target": "*(sentinelName,sentinelAddress)",
               "fulfill": {
                 "state": {
-                  "visible": "{{$self.value === 'sentinel'}}"
+                  "visible": "{{$self.value === 'sentinel' || $self.value === 'cluster'}}"
                 }
               }
             }
@@ -362,9 +366,10 @@
       "password": "Password",
       "deploymentMode": "Deployment mode",
       "passwordDisplay":"Whether to use a password",
-      "sentinelName": "Sentinel name",
+      "sentinelName": "Sentinel name/Cluster name",
       "standalone": "Single machine deployment",
       "sentinel": "Sentinel deployment",
+      "cluster": "Cluster deployment",
       "sentinelAddress" : "Server address",
       "Address" : "Please enter the server address",
       "sentinelPort": "Server port",
@@ -390,9 +395,10 @@
       "password": "密码",
       "deploymentMode": "部署模式",
       "passwordDisplay":"是否使用密码",
-      "sentinelName": "哨兵名称",
+      "sentinelName": "哨兵/集群名称",
       "standalone": "单机部署",
       "sentinel": "哨兵部署",
+      "cluster": "集群",
       "sentinelAddress" : "服务器地址",
       "Address" : "服务器地址",
       "sentinelPort": "端口",
@@ -418,9 +424,10 @@
       "password": "密碼",
       "deploymentMode": "部署模式",
       "passwordDisplay":"是否使用密碼",
-      "sentinelName": "哨兵名稱",
+      "sentinelName": "哨兵/集群名稱",
       "standalone": "單機部署",
       "sentinel": "哨兵部署",
+      "cluster": "集群",
       "sentinelAddress" : "服務器地址",
       "Address" : "服務器地址",
       "sentinelPort": "服務器端口",

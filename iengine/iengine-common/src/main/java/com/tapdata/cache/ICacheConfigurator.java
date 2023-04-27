@@ -10,25 +10,25 @@ import com.tapdata.entity.dataflow.DataFlowCacheConfig;
  */
 public interface ICacheConfigurator extends ICacheRuntimeStats {
 
-  /**
-   * 注册缓存
-   *
-   * @param cacheConfig 缓存配置
-   */
-  void registerCache(DataFlowCacheConfig cacheConfig);
+	/**
+	 * 注册缓存
+	 *
+	 * @param cacheConfig 缓存配置
+	 */
+	void registerCache(DataFlowCacheConfig cacheConfig);
 
-  /**
-   * 根据名称销毁缓存
-   *
-   * @param cacheName 缓存名
-   */
-  void destroy(String cacheName);
+	/**
+	 * 根据名称销毁缓存
+	 *
+	 * @param cacheName 缓存名
+	 */
+	void destroy(String cacheName);
 
-  /**
-   * 根据缓存名称获取配置
-   *
-   * @param cacheName 缓存名
-   * @return 缓存配置
-   */
-  DataFlowCacheConfig getConfig(String cacheName);
+	/**
+	 * 根据缓存名称获取配置
+	 *
+	 * @param cacheName 缓存名
+	 * @return 缓存配置
+	 */
+	DataFlowCacheConfig getConfig(String cacheName);
 }

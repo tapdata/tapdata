@@ -1,10 +1,18 @@
 package com.tapdata.constant;
 
-import com.tapdata.entity.*;
+import com.tapdata.entity.DatabaseTypeEnum;
+import com.tapdata.entity.MessageEntity;
+import com.tapdata.entity.RelateDataBaseTable;
+import com.tapdata.entity.RelateDatabaseField;
+import com.tapdata.entity.TapLog;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
-import org.apache.avro.data.TimeConversions.*;
+import org.apache.avro.data.TimeConversions.DateConversion;
+import org.apache.avro.data.TimeConversions.TimeMicrosConversion;
+import org.apache.avro.data.TimeConversions.TimeMillisConversion;
+import org.apache.avro.data.TimeConversions.TimestampMicrosConversion;
+import org.apache.avro.data.TimeConversions.TimestampMillisConversion;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericDatumWriter;

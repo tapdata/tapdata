@@ -397,11 +397,13 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 			IncomingData incomingData = new IncomingData().message(new NodeSubscribeInfo().subscribeIds(allKeys));
 			enterAsyncProcess = true;
 			imClient.sendData(incomingData).whenComplete((result1, throwable) -> {
-				if(throwable != null)
+				if(throwable != null) {
 					TapLogger.error(TAG, "Send NodeSubscribeInfo failed, {}", throwable.getMessage());
-				if(result1 != null && result1.getCode() != 1)
+					handleTaskSubscribeInfoChanged();
+				} else if(result1 != null && result1.getCode() != 1) {
 					TapLogger.error(TAG, "Send NodeSubscribeInfo failed, code {} message {}", result1.getCode(), result1.getMessage());
-//				handleTaskSubscribeInfoAfterComplete();
+					handleTaskSubscribeInfoChanged();
+				}
 			});
 		} catch(Throwable throwable) {
 			TapLogger.error(TAG, "syncSubscribeIds failed, {}", throwable.getMessage());

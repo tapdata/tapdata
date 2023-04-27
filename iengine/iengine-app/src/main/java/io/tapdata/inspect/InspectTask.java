@@ -6,7 +6,12 @@ import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
-import com.tapdata.entity.inspect.*;
+import com.tapdata.entity.inspect.Inspect;
+import com.tapdata.entity.inspect.InspectDetail;
+import com.tapdata.entity.inspect.InspectMethod;
+import com.tapdata.entity.inspect.InspectResult;
+import com.tapdata.entity.inspect.InspectResultStats;
+import com.tapdata.entity.inspect.InspectStatus;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -27,12 +32,24 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>

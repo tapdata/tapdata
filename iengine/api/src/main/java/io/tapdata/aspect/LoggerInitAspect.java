@@ -10,15 +10,15 @@ import org.apache.logging.log4j.Level;
 public class LoggerInitAspect extends Aspect {
 
     private Level defaultLogLevel;
-    private String logsPath;
+    private String workDir;
 
     public LoggerInitAspect defaultLogLevel(Level defaultLogLevel) {
         this.defaultLogLevel = defaultLogLevel;
         return this;
     }
 
-    public LoggerInitAspect logsPath(String logsPath) {
-        this.logsPath = logsPath;
+    public LoggerInitAspect workDir(String logsPath) {
+        this.workDir = logsPath;
         return this;
     }
 
@@ -26,7 +26,7 @@ public class LoggerInitAspect extends Aspect {
         return defaultLogLevel;
     }
 
-    public String getLogsPath() {
-        return logsPath;
+    public String getWorkDir() {
+        return workDir;
     }
 }

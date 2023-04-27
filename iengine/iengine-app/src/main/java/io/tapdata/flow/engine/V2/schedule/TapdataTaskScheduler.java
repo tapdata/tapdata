@@ -40,7 +40,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
+import java.time.Duration;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -66,6 +68,10 @@ public class TapdataTaskScheduler {
 	public static final String TAG = TapdataTaskScheduler.class.getSimpleName();
 	private Logger logger = LogManager.getLogger(TapdataTaskScheduler.class);
 	private Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
+	/**
+	 * Tasks that need to be stopped internally
+	 */
+	private final Map<String, TaskClient<TaskDto>> internalStopTaskClientMap = new ConcurrentHashMap<>();
 	private String instanceNo;
 	@Autowired
 	private ClientMongoOperator clientMongoOperator;
@@ -123,7 +129,8 @@ public class TapdataTaskScheduler {
 					query.fields().include("id").include("status");
 					final List<TaskDto> subTaskDtos = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 					if (CollectionUtil.isNotEmpty(subTaskDtos)) {
-						stopTaskCallAssignApi(subTaskDtoTaskClient, StopTaskResource.STOPPED);
+						internalStopTaskClientMap.put(taskId, subTaskDtoTaskClient);
+						removeTask(taskId);
 					} else {
 						TmStatusService.setAllowReport(taskId);
 					}
@@ -132,6 +139,9 @@ public class TapdataTaskScheduler {
 				logger.error("Scan reschedule task failed {}", e.getMessage(), e);
 			}
 		});
+		if (appType.isCloud()) {
+			taskScheduler.scheduleAtFixedRate(this::internalStopTask, Duration.ofSeconds(10));
+		}
 		taskOperationThreadPool.submit(() -> {
 			Thread.currentThread().setName("Task-Operation-Consumer");
 			while (true) {
@@ -300,7 +310,7 @@ public class TapdataTaskScheduler {
 	 * Run task(s) already started, find clause: status=running and agentID={@link TapdataTaskScheduler#instanceNo}
 	 */
 	public void runTaskIfNeedWhenEngineStart() {
-//		if (!appType.isCloud()) return;
+		if (!appType.isCloud()) return;
 		Query query = new Query(
 				new Criteria("agentId").is(instanceNo)
 						.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_RUNNING)
@@ -444,6 +454,30 @@ public class TapdataTaskScheduler {
 			}
 		} catch (Exception e) {
 			logger.error("Scan force stopping data flow failed {}", e.getMessage(), e);
+		}
+	}
+
+	private void internalStopTask() {
+		Thread.currentThread().setName(String.format(ConnectorConstant.CLOUD_INTERNAL_STOP_TASK_THREAD, instanceNo));
+		try {
+			Iterator<Map.Entry<String, TaskClient<TaskDto>>> iterator = internalStopTaskClientMap.entrySet().iterator();
+			while (iterator.hasNext()) {
+				Map.Entry<String, TaskClient<TaskDto>> entry = iterator.next();
+				TaskClient<TaskDto> taskClient = entry.getValue();
+				final String taskId = taskClient.getTask().getId().toHexString();
+				final boolean stop = taskClient.stop();
+				if (stop) {
+					try {
+						destroyCache(taskClient);
+						logger.info(String.format("Destroy memory task client cache succeed, task: %s[%s]", taskClient.getTask().getName(), taskId));
+					} catch (Exception e) {
+						throw new RuntimeException(String.format("Destroy memory task client cache failed, task: %s[%s]", taskClient.getTask().getName(), taskId), e);
+					}
+					iterator.remove();
+				}
+			}
+		} catch (Exception e) {
+			logger.error("Scan internal stopping data flow failed {}", e.getMessage(), e);
 		}
 	}
 

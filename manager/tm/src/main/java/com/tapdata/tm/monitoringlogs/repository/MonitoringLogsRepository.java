@@ -3,6 +3,7 @@ package com.tapdata.tm.monitoringlogs.repository;
 import com.tapdata.tm.base.reporitory.BaseRepository;
 import com.tapdata.tm.monitoringlogs.entity.MonitoringLogsEntity;
 import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -13,7 +14,7 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public class MonitoringLogsRepository extends BaseRepository<MonitoringLogsEntity, ObjectId> {
-    public MonitoringLogsRepository(MongoTemplate mongoOperations) {
+    public MonitoringLogsRepository(@Qualifier(value = "logMongoTemplate") MongoTemplate mongoOperations) {
         super(MonitoringLogsEntity.class, mongoOperations);
     }
 

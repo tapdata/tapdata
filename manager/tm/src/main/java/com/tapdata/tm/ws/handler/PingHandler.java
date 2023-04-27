@@ -116,8 +116,11 @@ public class PingHandler implements WebSocketHandler {
 				WorkerDto workerDto = JsonUtil.map2PojoUseJackson((Map<String, Object>) pingDtoData, new TypeReference<WorkerDto>() {
 				});
 				UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(context.getUserId()));
-				if (null == workerService.health(workerDto, userDetail)) {
+				WorkerDto result = workerService.health(workerDto, userDetail);
+				if (null == result) {
 					pingDto.fail(WorkerSingletonLock.STOP_AGENT);
+				} else if (result.getIsDeleted() != null && result.getIsDeleted()){
+					pingDto.deleted();
 				} else {
 					pingDto.ok();
 				}

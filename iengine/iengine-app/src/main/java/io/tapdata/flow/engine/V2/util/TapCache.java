@@ -17,18 +17,22 @@ public class TapCache<T> {
 	private LongAdder cacheHit = new LongAdder();
 	private LongAdder cacheMiss = new LongAdder();
 	private LongAdder cacheDisabled = new LongAdder();
+
 	public TapCache<T> expireTime(long expireTime) {
 		this.expireTime = expireTime;
 		return this;
 	}
+
 	private Supplier<T> supplier;
+
 	public TapCache<T> supplier(Supplier<T> supplier) {
 		this.supplier = supplier;
 		return this;
 	}
+
 	public TapCache<T> disableCacheValue(T... ts) {
-		if(ts != null && ts.length > 0) {
-			if(disableCacheValues == null)
+		if (ts != null && ts.length > 0) {
+			if (disableCacheValues == null)
 				disableCacheValues = new HashSet<>();
 			disableCacheValues.addAll(Arrays.asList(ts));
 		}
@@ -38,23 +42,23 @@ public class TapCache<T> {
 	public T get() {
 		T value = cached;
 		long oldCacheTime = cacheTime;
-		if(value != null) {
+		if (value != null) {
 			long time = System.currentTimeMillis();
-			if(time - cacheTime > expireTime) {
+			if (time - cacheTime > expireTime) {
 				value = null;
 			} else {
 				cacheHit.increment();
 				return value;
 			}
 		}
-		if(supplier != null) {
-			if(cached == null || oldCacheTime == cacheTime) {
+		if (supplier != null) {
+			if (cached == null || oldCacheTime == cacheTime) {
 				synchronized (this) {
-					if(oldCacheTime == cacheTime) {
+					if (oldCacheTime == cacheTime) {
 						value = supplier.get();
 						cacheMiss.increment();
 						cacheTime = System.currentTimeMillis();
-						if(disableCacheValues == null || !disableCacheValues.contains(value)) {
+						if (disableCacheValues == null || !disableCacheValues.contains(value)) {
 							cached = value;
 						} else {
 							cacheDisabled.increment();
@@ -64,7 +68,7 @@ public class TapCache<T> {
 				}
 			}
 		}
-		if(value == null) {
+		if (value == null) {
 			cacheHit.increment();
 			value = cached;
 		}

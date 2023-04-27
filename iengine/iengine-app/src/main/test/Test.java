@@ -1,17 +1,13 @@
 import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
-import org.apache.commons.io.IOUtils;
-import org.graalvm.polyglot.*;
+import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.HostAccess;
+import org.graalvm.polyglot.Value;
 
 import javax.script.ScriptException;
-import java.io.File;
 import java.io.IOException;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentSkipListMap;
-
-import static io.tapdata.entity.simplify.TapSimplify.entry;
-import static io.tapdata.entity.simplify.TapSimplify.map;
 
 /**
  * @author aplomb

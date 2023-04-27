@@ -69,7 +69,7 @@ public class TaskDto extends ParentTaskDto {
         return Boolean.TRUE.equals(isAutoInspect);
     }
 
-    private SkipErrorEventDto skipErrorEvent;
+    private SkipErrorEvent skipErrorEvent;
 
     private String creator;
 
@@ -244,4 +244,101 @@ public class TaskDto extends ParentTaskDto {
         return false;
     }
 
+    /**
+     * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
+     * @version v1.0 2023/4/14 15:25 Create
+     */
+    public static class SkipErrorEvent implements Serializable {
+        public enum ErrorMode {
+            Disable,
+            SkipTable,
+            SkipData,
+            ;
+        }
+
+        public enum LimitMode {
+            Disable,
+            SkipByRate,
+            SkipByLimit,
+            ;
+        }
+
+        private String errorMode;
+        private String limitMode;
+        private Long limit;
+        private Integer rate;
+
+        public SkipErrorEvent() {
+        }
+
+        public String getErrorMode() {
+            return errorMode;
+        }
+
+        public ErrorMode getErrorModeEnum() {
+            try {
+                if (null == this.errorMode) {
+                    return null;
+                }
+                return ErrorMode.valueOf(this.errorMode);
+            } catch (IllegalArgumentException e) {
+                return ErrorMode.Disable;
+            }
+        }
+
+        public String getLimitMode() {
+            return limitMode;
+        }
+
+        public LimitMode getLimitModeEnum() {
+            try {
+                if (null == this.limitMode) {
+                    return null;
+                }
+                return LimitMode.valueOf(this.limitMode);
+            } catch (IllegalArgumentException e) {
+                return LimitMode.Disable;
+            }
+        }
+
+        public void setErrorMode(String errorMode) {
+            this.errorMode = errorMode;
+        }
+
+        public void setErrorMode(ErrorMode mode) {
+            if (null == mode) {
+                this.errorMode = null;
+            } else {
+                this.errorMode = mode.name();
+            }
+        }
+
+        public void setLimitMode(String mode) {
+            this.limitMode = mode;
+        }
+
+        public void setLimitMode(LimitMode mode) {
+            if (null == mode) {
+                this.limitMode = null;
+            } else {
+                this.limitMode = mode.name();
+            }
+        }
+
+        public Long getLimit() {
+            return limit;
+        }
+
+        public void setLimit(Long limit) {
+            this.limit = limit;
+        }
+
+        public Integer getRate() {
+            return rate;
+        }
+
+        public void setRate(Integer rate) {
+            this.rate = rate;
+        }
+    }
 }

@@ -1,5 +1,6 @@
 package com.tapdata.tm.metadatadefinition.service;
 
+import com.google.common.collect.Lists;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Field;
@@ -20,6 +21,7 @@ import com.tapdata.tm.metadatadefinition.repository.MetadataDefinitionRepository
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.modules.entity.ModulesEntity;
+import com.tapdata.tm.task.constant.LdpDirEnum;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
@@ -165,6 +167,10 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
                 if (saveValue.getItemType().contains("database")){
                     mongoTemplate.updateMulti(new Query(criteria), update, DataSourceEntity.class);
                 }
+
+                if (saveValue.getItemType().contains("app")){
+                    mongoTemplate.updateMulti(new Query(criteria), update, ModulesEntity.class);
+                }
             }
 
         }
@@ -261,12 +267,14 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
     @Override
     public Page<MetadataDefinitionDto> find(Filter filter, UserDetail user) {
         Page<MetadataDefinitionDto> dtoPage = super.find(filter, user);
-        dtoPage.getItems().sort(Comparator.comparing(MetadataDefinitionDto::getValue));
-        dtoPage.getItems().sort(Comparator.comparing(s -> {
-            List<String> itemType = s.getItemType();
+        if (filter.getOrder() == null) {
+            dtoPage.getItems().sort(Comparator.comparing(MetadataDefinitionDto::getValue));
+            dtoPage.getItems().sort(Comparator.comparing(s -> {
+                List<String> itemType = s.getItemType();
 
-            return itemType != null && !itemType.contains("default");
-        }));
+                return itemType != null && !itemType.contains("default");
+            }));
+        }
         Field fields = filter.getFields();
         if (fields != null) {
             Object objCount = fields.get("objCount");
@@ -318,5 +326,35 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
             }
         }
         return dtoPage;
+    }
+
+    public Map<String, String> ldpDirKvs() {
+        Criteria criteria = oldLdpCriteria();
+
+        List<MetadataDefinitionDto> ldpDirs = findAll(new Query(criteria));
+        Map<String, String> oldLdpMap = null;
+        if (org.apache.commons.collections.CollectionUtils.isNotEmpty(ldpDirs)) {
+            oldLdpMap = ldpDirs.stream().collect(Collectors.toMap(s -> s.getValue(), s -> s.getId().toHexString()));
+
+        }
+
+        return oldLdpMap;
+    }
+
+
+    public void dellOldLdpDirs() {
+        Criteria criteria = oldLdpCriteria();
+        Query query = new Query(criteria);
+        deleteAll(query);
+    }
+
+    private Criteria oldLdpCriteria() {
+        Criteria criteria = Criteria.where("value").in(Lists.newArrayList(LdpDirEnum.LDP_DIR_SOURCE.getValue(),
+                        LdpDirEnum.LDP_DIR_FDM.getValue(), LdpDirEnum.LDP_DIR_MDM.getValue(), LdpDirEnum.LDP_DIR_TARGET.getValue()))
+                .and("item_type").in(Lists.newArrayList(LdpDirEnum.LDP_DIR_SOURCE.getItemType(),
+                        LdpDirEnum.LDP_DIR_FDM.getItemType(), LdpDirEnum.LDP_DIR_MDM.getItemType(), LdpDirEnum.LDP_DIR_TARGET.getItemType()))
+                .and("user_id").exists(false).and("parent_id").exists(false);
+
+        return criteria;
     }
 }

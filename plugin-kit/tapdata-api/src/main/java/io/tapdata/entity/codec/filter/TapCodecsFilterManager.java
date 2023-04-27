@@ -89,6 +89,26 @@ public class TapCodecsFilterManager {
                         typeFromSchema = field.getTapType();
                         if(typeFromSchema != null && valueCodec == null) {
                             valueCodec = getValueCodec(typeFromSchema);
+                            boolean isTypeQualified = true;
+                            switch (typeFromSchema.getType()) {
+                                case TapType.TYPE_ARRAY:
+                                    if(!(theValue instanceof Collection)) isTypeQualified = false;
+                                    break;
+                                case TapType.TYPE_MAP:
+                                    if(!(theValue instanceof Map)) isTypeQualified = false;
+                                    break;
+                                case TapType.TYPE_STRING:
+                                    if(!(theValue instanceof String)) isTypeQualified = false;
+                                    break;
+                                case TapType.TYPE_NUMBER:
+                                    if(!(theValue instanceof Number)) isTypeQualified = false;
+                                default:
+                                    break;
+                            }
+                            if(!isTypeQualified) {
+                                valueCodec = null;
+                                newField = true;
+                            }
                         }
                     } else {
                         newField = true;

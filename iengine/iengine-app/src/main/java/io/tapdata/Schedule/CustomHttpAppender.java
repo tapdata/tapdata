@@ -14,7 +14,11 @@ import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.ThreadContext;
-import org.apache.logging.log4j.core.*;
+import org.apache.logging.log4j.core.Appender;
+import org.apache.logging.log4j.core.Core;
+import org.apache.logging.log4j.core.Filter;
+import org.apache.logging.log4j.core.Layout;
+import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
@@ -23,7 +27,11 @@ import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import org.apache.logging.log4j.util.ReadOnlyStringMap;
 import org.bson.Document;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -176,7 +184,7 @@ public class CustomHttpAppender extends AbstractAppender {
 
 		Node<?> node = context.getNode();
 		List<Map<String, Object>> data = new ArrayList<>();
-		for(TapEvent event : events) {
+		for (TapEvent event : events) {
 			if (null == event) {
 				continue;
 			}
@@ -246,7 +254,7 @@ public class CustomHttpAppender extends AbstractAppender {
 			return Collections.emptyList();
 		}
 
-		Collection<String> pkFields =  table.primaryKeys();
+		Collection<String> pkFields = table.primaryKeys();
 		if (null == pkFields || pkFields.isEmpty()) {
 			pkFields = table.primaryKeys(true);
 		}

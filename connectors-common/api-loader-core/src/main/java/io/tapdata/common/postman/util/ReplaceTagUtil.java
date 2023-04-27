@@ -24,7 +24,7 @@ public class ReplaceTagUtil {
     }
 
     public static String replace(String valueObj, Map<String,Object> valueMap) {
-        int index = valueObj.indexOf("{{");
+        int index = valueObj.indexOf("{{") + 2;
         int bound = valueObj.indexOf("}}", index);
         String key;
         while (index >= 0 && bound > index && bound <= valueObj.length()) {
@@ -34,7 +34,7 @@ public class ReplaceTagUtil {
                 throw new CoreException(String.format("Unable to find a value for variable %s, please make sure there is a value for variable %s in the parameter list ",key,key));
             }
             valueObj = valueObj.replaceAll("\\{\\{" + key + "}}",String.valueOf(value));
-            index = valueObj.indexOf("{{");
+            index = valueObj.indexOf("{{") + 2;
             bound = valueObj.indexOf("}}", index);
         }
         return valueObj;

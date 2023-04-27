@@ -29,12 +29,21 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.*;
+import static java.util.stream.Collectors.averagingDouble;
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.summarizingDouble;
+import static java.util.stream.Collectors.toList;
 
 /**
  * 内存聚合计算处理器，将所有源数据都存储到内存中，然后通过java streams进行全量集合计算

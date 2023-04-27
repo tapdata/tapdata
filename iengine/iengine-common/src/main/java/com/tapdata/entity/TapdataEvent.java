@@ -5,10 +5,10 @@ import com.tapdata.entity.dataflow.SyncProgress;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import org.jetbrains.annotations.NotNull;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -143,18 +143,35 @@ public class TapdataEvent implements Serializable, Cloneable {
 		this.type = type;
 	}
 
-	@Override
-	public Object clone() {
-		TapdataEvent tapdataEvent = new TapdataEvent();
-		return clone(tapdataEvent);
+	public void setInfo(Map<String, Object> info) {
+		this.info = info;
 	}
 
-	@NotNull
-	protected TapdataEvent clone(TapdataEvent tapdataEvent) {
+	@Override
+	public Object clone() {
+		try {
+			TapdataEvent obj = this.getClass().newInstance();
+			clone(obj);
+			return obj;
+		} catch (Throwable e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	protected void clone(TapdataEvent tapdataEvent) {
 		tapdataEvent.setSourceTime(this.getSourceTime());
 		tapdataEvent.setSourceTime(sourceTime);
 		tapdataEvent.setSourceSerialNo(sourceSerialNo);
 		tapdataEvent.setSyncStage(syncStage);
+		tapdataEvent.setBatchOffset(batchOffset);
+		tapdataEvent.setStreamOffset(streamOffset);
+		tapdataEvent.setOffset(offset);
+		tapdataEvent.setType(type);
+		tapdataEvent.setMergeTableLookupResult(mergeTableLookupResult);
+		tapdataEvent.setFromNodeId(fromNodeId);
+		if (null != info) {
+			tapdataEvent.setInfo(new HashMap<>(info));
+		}
 		if (this.getNodeIds() != null) {
 			tapdataEvent.nodeIds = new ArrayList<>(this.getNodeIds());
 		}
@@ -173,7 +190,6 @@ public class TapdataEvent implements Serializable, Cloneable {
 				throw new RuntimeException("Clone tap event failed: " + e.getMessage(), e);
 			}
 		}
-		return tapdataEvent;
 	}
 
 	public String getFromNodeId() {

@@ -4,9 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.schema.SchemaApplyResult;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.autoinspect.utils.GZIPUtil;
 import com.tapdata.tm.commons.base.convert.DagDeserialize;
@@ -17,10 +15,15 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
-import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.MetadataTransformerDto;
+import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastSchemaTargetNode;
@@ -72,13 +75,13 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		DeduceSchemaRequest request = JsonUtil.parseJsonUseJackson(json, DeduceSchemaRequest.class);
 
 		DAGDataServiceImpl dagDataService = new DAGDataServiceImpl(
-			request.getMetadataInstancesDtoList(),
-			request.getDataSourceMap(),
-			request.getDefinitionDtoMap(),
-			request.getUserId(),
-			request.getUserName(),
-			request.getTaskDto(),
-			request.getTransformerDtoMap()
+				request.getMetadataInstancesDtoList(),
+				request.getDataSourceMap(),
+				request.getDefinitionDtoMap(),
+				request.getUserId(),
+				request.getUserName(),
+				request.getTaskDto(),
+				request.getTransformerDtoMap()
 		) {
 
 			@Override
@@ -120,8 +123,8 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 					}
 
 					if (CollectionUtils.isNotEmpty(schemaApplyResultList)) {
-						return schemaApplyResultList.stream().map(s -> new MigrateJsResultVo(s.getOp(),s.getFieldName(), s.getTapField(), s.getTapIndex()))
-										.collect(Collectors.toList());
+						return schemaApplyResultList.stream().map(s -> new MigrateJsResultVo(s.getOp(), s.getFieldName(), s.getTapField(), s.getTapIndex()))
+								.collect(Collectors.toList());
 					}
 				} catch (Exception e) {
 					obsLogger.error("An error occurred while obtaining the results of model deduction", e);
@@ -139,7 +142,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 
 		long start = System.currentTimeMillis();
 		Map<String, List<Message>> transformSchema = request.getTaskDto().getDag().transformSchema(null, dagDataService, request.getOptions());
-		logger.info("transformed cons={}", System.currentTimeMillis()-start + "ms");
+		logger.info("transformed cons={}", System.currentTimeMillis() - start + "ms");
 
 		TransformerWsMessageResult wsMessageResult = new TransformerWsMessageResult();
 		wsMessageResult.setBatchMetadataUpdateMap(dagDataService.getBatchMetadataUpdateMap());
@@ -161,9 +164,10 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		if (dag != null) {
 			List<Node> nodes = dag.getNodes();
 			if (CollectionUtils.isNotEmpty(nodes)) {
-				nodes.forEach(f-> {
+				nodes.forEach(f -> {
 					f.setOutputSchema(null);
-					f.setSchema(null);});
+					f.setSchema(null);
+				});
 			}
 		}
 		clientMongoOperator.insertOne(updateTaskDagDto, ConnectorConstant.TASK_COLLECTION + "/dagNotHistory");
@@ -278,12 +282,12 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 	@Data
 	public static class UpdateTaskDagDto {
 
-		@JsonSerialize( using = ObjectIdSerialize.class)
-		@JsonDeserialize( using = ObjectIdDeserialize.class)
+		@JsonSerialize(using = ObjectIdSerialize.class)
+		@JsonDeserialize(using = ObjectIdDeserialize.class)
 		private ObjectId id;
 
-		@JsonSerialize( using = DagSerialize.class)
-		@JsonDeserialize( using = DagDeserialize.class)
+		@JsonSerialize(using = DagSerialize.class)
+		@JsonDeserialize(using = DagDeserialize.class)
 		private DAG dag;
 	}
 

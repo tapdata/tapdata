@@ -12,7 +12,7 @@ public interface LdpService {
     TaskDto createFdmTask(TaskDto task, UserDetail user);
 
 
-    TaskDto createMdmTask(TaskDto task, String tagId, UserDetail user);
+    TaskDto createMdmTask(TaskDto task, String tagId, UserDetail user, boolean confirmTable, boolean start);
 
     void afterLdpTask(String taskId, UserDetail user);
 
@@ -20,4 +20,7 @@ public interface LdpService {
     Map<String, TaskDto> queryFdmTaskByTags(List<String> tagIds, UserDetail user);
 
     List<LdpFuzzySearchVo> fuzzySearch(String key, List<String> connectType, UserDetail loginUser);
+
+    void addLdpDirectory(UserDetail user);
+    void addLdpDirectory(UserDetail user, Map<String, String> oldLdpMap);
 }

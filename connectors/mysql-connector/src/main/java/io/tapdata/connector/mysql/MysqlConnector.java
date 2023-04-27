@@ -11,6 +11,7 @@ import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
 import io.tapdata.connector.mysql.writer.MysqlWriter;
 import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
@@ -62,8 +63,10 @@ import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
+import java.sql.SQLException;
 import java.time.ZoneId;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -88,6 +91,7 @@ public class MysqlConnector extends ConnectorBase {
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
     private DDLSqlMaker ddlSqlMaker;
 
+    private AtomicBoolean started = new AtomicBoolean(false);
     public synchronized MysqlJdbcContext initMysqlJdbcContext(TapConnectionContext tapConnectionContext) {
         onStop(tapConnectionContext);
         return new MysqlJdbcContext(tapConnectionContext);
@@ -111,6 +115,7 @@ public class MysqlConnector extends ConnectorBase {
         fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
         fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
         fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
+        started.set(true);
     }
 
     @Override
@@ -158,8 +163,8 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> mysqlJdbcContext.getConnection(), this::isAlive, c));
         connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
-        connectorFunctions.supportQueryFieldMinMaxValueFunction(this::minMaxValue);
-        connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
+        //connectorFunctions.supportQueryFieldMinMaxValueFunction(this::minMaxValue);
+        //connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
         connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
     }
 
@@ -206,7 +211,7 @@ public class MysqlConnector extends ConnectorBase {
         String minSql = selectSql.replaceFirst("SELECT \\* FROM", String.format("SELECT MIN(`%s`) AS MIN_VALUE FROM", fieldName));
         AtomicReference<Object> minObj = new AtomicReference<>();
         try {
-            mysqlJdbcContext.query(minSql, rs->{
+            mysqlJdbcContext.query(minSql, rs -> {
                 if (rs.next()) {
                     minObj.set(rs.getObject("MIN_VALUE"));
                 }
@@ -219,7 +224,7 @@ public class MysqlConnector extends ConnectorBase {
         String maxSql = selectSql.replaceFirst("SELECT \\* FROM", String.format("SELECT MAX(`%s`) AS MAX_VALUE FROM", fieldName));
         AtomicReference<Object> maxObj = new AtomicReference<>();
         try {
-            mysqlJdbcContext.query(maxSql, rs->{
+            mysqlJdbcContext.query(maxSql, rs -> {
                 if (rs.next()) {
                     maxObj.set(rs.getObject("MAX_VALUE"));
                 }
@@ -237,9 +242,15 @@ public class MysqlConnector extends ConnectorBase {
         retryOptions.beforeRetryMethod(() -> {
             try {
                 synchronized (this) {
-                    this.onStop(tapConnectionContext);
-                    if (isAlive()) {
-                        this.onStart(tapConnectionContext);
+                    //mysqlJdbcContext是否有效
+                    if (mysqlJdbcContext == null || !checkValid() || !started.get()) {
+                        //如果无效执行onStop,有效就return
+                        this.onStop(tapConnectionContext);
+                        if (isAlive()) {
+                            this.onStart(tapConnectionContext);
+                        }
+                    } else {
+                        mysqlWriter.selfCheck();
                     }
                 }
             } catch (Throwable ignore) {
@@ -248,6 +259,14 @@ public class MysqlConnector extends ConnectorBase {
         return retryOptions;
     }
 
+    private boolean checkValid() {
+        try {
+            mysqlJdbcContext.getMysqlVersion();
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
 
     private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
         MysqlSchemaLoader mysqlSchemaLoader = new MysqlSchemaLoader(mysqlJdbcContext);
@@ -350,6 +369,7 @@ public class MysqlConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
+        started.set(false);
         try {
             Optional.ofNullable(this.mysqlReader).ifPresent(MysqlReader::close);
         } catch (Exception ignored) {
@@ -420,6 +440,7 @@ public class MysqlConnector extends ConnectorBase {
         consumer.accept(writeListResult);
     }
 
+    public static final AtomicInteger TOTAL = new AtomicInteger(0);
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offset, int batchSize, BiConsumer<List<TapEvent>, Object> consumer) throws Throwable {
         MysqlSnapshotOffset mysqlSnapshotOffset;
         if (offset instanceof MysqlSnapshotOffset) {
@@ -433,12 +454,21 @@ public class MysqlConnector extends ConnectorBase {
             tempList.add(tapRecordEvent);
             if (tempList.size() == batchSize) {
                 consumer.accept(tempList, mysqlSnapshotOffset);
+                synchronized (TOTAL){
+                    TOTAL.addAndGet(tempList.size());
+                }
                 tempList.clear();
             }
         });
         if (CollectionUtils.isNotEmpty(tempList)) {
             consumer.accept(tempList, mysqlSnapshotOffset);
+            synchronized (TOTAL){
+                TOTAL.addAndGet(tempList.size());
+            }
             tempList.clear();
+        }
+        synchronized (TOTAL) {
+            TapLogger.warn(TAG,"TOTAL: " + TOTAL.get());
         }
     }
 
@@ -447,7 +477,7 @@ public class MysqlConnector extends ConnectorBase {
         filterResults.setFilter(tapAdvanceFilter);
         try {
             int batchSize = MAX_FILTER_RESULT_SIZE;
-            if(tapAdvanceFilter.getBatchSize() != null && tapAdvanceFilter.getBatchSize() > 0) {
+            if (tapAdvanceFilter.getBatchSize() != null && tapAdvanceFilter.getBatchSize() > 0) {
                 batchSize = tapAdvanceFilter.getBatchSize();
             }
             int finalBatchSize = batchSize;
@@ -455,16 +485,26 @@ public class MysqlConnector extends ConnectorBase {
                 filterResults.add(data);
                 if (filterResults.getResults().size() == finalBatchSize) {
                     consumer.accept(filterResults);
+                    synchronized (TOTAL){
+                        TOTAL.addAndGet(filterResults.getResults().size());
+                    }
                     filterResults.getResults().clear();
                 }
             });
             if (CollectionUtils.isNotEmpty(filterResults.getResults())) {
                 consumer.accept(filterResults);
+                synchronized (TOTAL){
+                    TOTAL.addAndGet(filterResults.getResults().size());
+                }
                 filterResults.getResults().clear();
             }
         } catch (Throwable e) {
             filterResults.setError(e);
             consumer.accept(filterResults);
+        }finally {
+            synchronized (TOTAL) {
+                TapLogger.warn(TAG,"TOTAL: " + TOTAL.get());
+            }
         }
     }
 

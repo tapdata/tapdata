@@ -5,7 +5,10 @@ import com.hazelcast.map.IMap;
 import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
+import org.bson.Document;
 
 /**
  * @author samuel
@@ -60,7 +63,17 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 
 	@Override
 	public T find(String key) throws Exception {
-		return (T) iMap.get(key);
+		Object obj = iMap.get(key);
+		if (obj == null)
+			return null;
+		if (!obj.getClass().getClassLoader().equals(this.getClass().getClassLoader())) {
+			if (obj.getClass().getName().equals(Document.class.getName())) {
+				ObjectSerializable serializable = InstanceFactory.instance(ObjectSerializable.class);
+				byte[] bytes = serializable.fromObject(obj);
+				obj = serializable.toObject(bytes);
+			}
+		}
+		return (T) obj;
 	}
 
 	@Override

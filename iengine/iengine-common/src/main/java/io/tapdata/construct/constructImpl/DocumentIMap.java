@@ -44,7 +44,7 @@ public class DocumentIMap<T> extends ConstructIMap<T> {
 
 	@Override
 	public T find(String key) throws Exception {
-		Object obj = iMap.get(key);
+		Object obj = super.find(key);
 		if (obj instanceof Document && ((Document) obj).containsKey(DOCUMENT_KEY)) {
 			Object data = ((Document) obj).get(DOCUMENT_KEY);
 			if (data instanceof Decimal128) {

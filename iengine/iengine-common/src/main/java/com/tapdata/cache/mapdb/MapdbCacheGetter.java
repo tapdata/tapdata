@@ -8,11 +8,11 @@ import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.mongo.ClientMongoOperator;
 
 public class MapdbCacheGetter extends AbstractSerializerCacheGetter {
-  public MapdbCacheGetter(DataFlowCacheConfig cacheConfig, ICacheStore cacheStore,
-                          ICacheStats cacheStats,
-                          ClientMongoOperator clientMongoOperator) {
-    super(cacheConfig, cacheStore, cacheStats, ((AbstractSerializerCacheStore) cacheStore).getIndexMap(),
-            ((AbstractSerializerCacheStore) cacheStore).getDataMap(), clientMongoOperator);
-  }
+	public MapdbCacheGetter(DataFlowCacheConfig cacheConfig, ICacheStore cacheStore,
+							ICacheStats cacheStats,
+							ClientMongoOperator clientMongoOperator) {
+		super(cacheConfig, cacheStore, cacheStats, ((AbstractSerializerCacheStore) cacheStore).getIndexMap(),
+				((AbstractSerializerCacheStore) cacheStore).getDataMap(), clientMongoOperator);
+	}
 
 }

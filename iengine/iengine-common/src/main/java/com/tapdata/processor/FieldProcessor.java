@@ -2,7 +2,12 @@ package com.tapdata.processor;
 
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.OffsetUtil;
-import com.tapdata.entity.*;
+import com.tapdata.entity.FieldProcess;
+import com.tapdata.entity.Job;
+import com.tapdata.entity.Mapping;
+import com.tapdata.entity.MessageEntity;
+import com.tapdata.entity.OperationType;
+import com.tapdata.entity.TapLog;
 import com.tapdata.entity.dataflow.Stage;
 import io.tapdata.indices.IndicesUtil;
 import org.apache.commons.collections.CollectionUtils;
@@ -10,7 +15,12 @@ import org.apache.commons.collections.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 

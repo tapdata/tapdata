@@ -1,11 +1,25 @@
 package io.tapdata.Schedule;
 
-import com.tapdata.constant.*;
-import com.tapdata.entity.*;
+import com.tapdata.constant.AgentUtil;
+import com.tapdata.constant.ConfigurationCenter;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.SystemUtil;
+import com.tapdata.constant.VersionCheck;
+import com.tapdata.entity.Event;
+import com.tapdata.entity.Job;
+import com.tapdata.entity.Setting;
+import com.tapdata.entity.User;
+import com.tapdata.entity.Worker;
 import com.tapdata.entity.dataflow.StageRuntimeStats;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.worker.WorkerSingletonLock;
-import io.tapdata.common.*;
+import io.tapdata.common.DDLConfirmEmailEventExecutor;
+import io.tapdata.common.EventExecutor;
+import io.tapdata.common.LogUtil;
+import io.tapdata.common.SettingService;
+import io.tapdata.common.TapdataLog4jFilter;
+import io.tapdata.common.WarningEmailEventExecutor;
+import io.tapdata.common.WarningMaker;
 import io.tapdata.dao.MessageDao;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -25,8 +39,18 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 

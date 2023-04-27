@@ -37,7 +37,7 @@ public class JSTimestampToStreamOffsetFunction extends FunctionBase implements F
         Object invoker;
         synchronized (JSConnector.execLock) {
             invoker = super.javaScripter.invoker(
-                    JSFunctionNames.BatchCountFunction.jsName(),
+                    JSFunctionNames.TimestampToStreamOffset.jsName(),
                     time
             );
         }

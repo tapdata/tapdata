@@ -2,7 +2,6 @@ package com.tapdata.entity;
 
 import com.tapdata.entity.dataflow.SyncProgress;
 
-import java.io.Serializable;
 import java.util.List;
 
 /**
@@ -10,7 +9,7 @@ import java.util.List;
  * @Description
  * @create 2022-05-19 14:57
  **/
-public class TapdataHeartbeatEvent extends TapdataEvent implements Serializable, Cloneable {
+public class TapdataHeartbeatEvent extends TapdataEvent {
 
 	private static final long serialVersionUID = -8235448692720473757L;
 
@@ -41,12 +40,5 @@ public class TapdataHeartbeatEvent extends TapdataEvent implements Serializable,
 		tapdataHeartbeatEvent.setType(type);
 		tapdataHeartbeatEvent.setSyncStage(SyncStage.CDC);
 		return tapdataHeartbeatEvent;
-	}
-
-	@Override
-	public Object clone() {
-		TapdataEvent tapdataEvent = TapdataHeartbeatEvent.create(getSourceTime(), getStreamOffset(), getNodeIds());
-		super.clone(tapdataEvent);
-		return tapdataEvent;
 	}
 }

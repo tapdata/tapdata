@@ -3,6 +3,7 @@ package io.tapdata.entity.utils.io;
 
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.serializer.JavaCustomSerializer;
+import io.tapdata.entity.tracker.MessageTracker;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.IteratorEx;
 import io.tapdata.entity.utils.ObjectSerializable;
@@ -13,6 +14,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -25,6 +28,7 @@ import static io.tapdata.entity.simplify.TapSimplify.fromJson;
 public class DataInputStreamEx extends InputStream {
 	private static final byte HASVALUE = 1;
 	private static final byte NOVALUE = 0;
+	private static final String TAG = DataInputStreamEx.class.getSimpleName();
 	private DataInputStream dis;
 	private InputStream inputStream;
 
@@ -83,8 +87,15 @@ public class DataInputStreamEx extends InputStream {
 		return readJson(null);
 	}
 	public <T> T readJson(Class<T> clazz) throws IOException {
+		return readJson(clazz, null);
+	}
+
+	public <T> T readJson(Class<T> clazz, Charset charset) throws IOException {
+		return readJson(clazz, charset, null);
+	}
+	public <T> T readJson(Class<T> clazz, Charset charset, MessageTracker tracker) throws IOException {
 		if(hasValue()) {
-			String json = readLongString();
+			String json = readLongString(charset, tracker);
 			if(clazz != null)
 				return fromJson(json, clazz);
 			else
@@ -166,21 +177,37 @@ public class DataInputStreamEx extends InputStream {
 	}
 
 	public String readLongString() throws IOException {
+		return readLongString(null);
+	}
+	public String readLongString(MessageTracker tracker) throws IOException {
+		return readLongString(null, tracker);
+	}
+
+	public String readLongString(Charset charset, MessageTracker tracker) throws IOException {
 		int size = 0;
-		ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		size = dis.readInt();
-		if(size <= 0)
-			return null;
-		int readed, total = 0;
-		byte[] data = new byte[size];
-		while (total < size) {
-			readed = dis.read(data, 0, size - total);
-			if (readed > 0) {
-				baos.write(data, 0, readed);
-				total += readed;
+		try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+			size = dis.readInt();
+			if(tracker != null) {
+				tracker.responseBytes(Math.max(size, 0));
 			}
+			if(size <= 0)
+				return null;
+			int readed, total = 0;
+			byte[] data = new byte[size];
+			while (total < size) {
+				readed = dis.read(data, 0, size - total);
+				if (readed > 0) {
+					baos.write(data, 0, readed);
+					total += readed;
+				} else if(readed < 0) {
+					throw new IOException("readLongString found EOF, total " + total + ", read " + readed);
+				}
+			}
+			if(charset == null) {
+				return baos.toString();
+			}
+			return baos.toString(charset.name());
 		}
-		return new String(baos.toByteArray());
 	}
 
 	public String[] readUTFArray() throws IOException {

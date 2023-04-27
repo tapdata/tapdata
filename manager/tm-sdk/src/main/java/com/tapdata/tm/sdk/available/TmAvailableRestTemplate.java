@@ -34,16 +34,16 @@ public class TmAvailableRestTemplate extends RestTemplate {
     Assert.notNull(url, "'url' must not be null");
     Assert.notNull(method, "'method' must not be null");
     ClientHttpResponse response = null;
-    long ttl = 0;
+    long start = 0;
     try {
 
       ClientHttpRequest request = createRequest(url, method);
       if (requestCallback != null) {
         requestCallback.doWithRequest(request);
       }
-      long start = System.currentTimeMillis();
+      start = System.currentTimeMillis();
       response = request.execute();
-      ttl = System.currentTimeMillis() - start;
+      //long ttl = System.currentTimeMillis() - start;
       HttpStatus statusCode = response.getStatusCode();
       if (statusCode.is5xxServerError() && TmStatusService.isAvailable()) {
         logger.warn("Tm not available, status code is " + response.getStatusText());
@@ -61,6 +61,7 @@ public class TmAvailableRestTemplate extends RestTemplate {
       }
     }
     catch (IOException ex) {
+      long ttl = System.currentTimeMillis() - start;
       if (TmStatusService.isAvailable()) {
         String resource = url.toString();
         String query = url.getRawQuery();

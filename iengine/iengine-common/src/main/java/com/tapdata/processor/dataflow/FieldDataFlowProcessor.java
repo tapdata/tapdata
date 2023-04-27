@@ -1,7 +1,18 @@
 package com.tapdata.processor.dataflow;
 
-import com.tapdata.constant.*;
-import com.tapdata.entity.*;
+import com.tapdata.constant.CollectionUtil;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.JdbcUtil;
+import com.tapdata.constant.MapUtilV2;
+import com.tapdata.constant.OffsetUtil;
+import com.tapdata.constant.TapList;
+import com.tapdata.entity.Connections;
+import com.tapdata.entity.DatabaseTypeEnum;
+import com.tapdata.entity.FieldProcess;
+import com.tapdata.entity.FieldScript;
+import com.tapdata.entity.MessageEntity;
+import com.tapdata.entity.OperationType;
+import com.tapdata.entity.TapLog;
 import com.tapdata.entity.dataflow.CloneFieldProcess;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.processor.FieldProcessUtil;
@@ -87,14 +98,14 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 				ScriptConnection sourceScriptConnection = context.getSourceScriptConnection();
 				ScriptConnection targetScriptConnection = context.getTargetScriptConnection();
 				Invocable engine = ScriptUtil.getScriptEngine(
-								JSEngineEnum.GRAALVM_JS.getEngineName(),
-								String.format(SCRIPT_TEMPLATE, script),
-								context.getJavaScriptFunctions(),
-								context.getClientMongoOperator(),
-								sourceScriptConnection,
-								targetScriptConnection,
-								null,
-								logger);
+						JSEngineEnum.GRAALVM_JS.getEngineName(),
+						String.format(SCRIPT_TEMPLATE, script),
+						context.getJavaScriptFunctions(),
+						context.getClientMongoOperator(),
+						sourceScriptConnection,
+						targetScriptConnection,
+						null,
+						logger);
 
 				fieldScriptEngine.put(fieldName, engine);
 			}
