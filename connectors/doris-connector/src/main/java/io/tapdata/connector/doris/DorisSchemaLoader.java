@@ -35,9 +35,9 @@ import java.util.stream.Collectors;
  */
 public class DorisSchemaLoader {
     private static final String TAG = DorisSchemaLoader.class.getSimpleName();
-    private static final String SELECT_TABLES = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE %s TABLE_SCHEMA = '%s' AND TABLE_TYPE='BASE TABLE'";
+    private static final String SELECT_TABLES = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' AND TABLE_TYPE='BASE TABLE'";
     private static final String TABLE_NAME_IN = " AND TABLE_NAME IN(%s)";
-    private static final String SELECT_COLUMNS = "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE %s TABLE_SCHEMA = '%s' AND TABLE_NAME %s";
+    private static final String SELECT_COLUMNS = "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME %s";
     private static final String TABLE_INFO_SQL = "SELECT * FROM information_schema.tables WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s'";
 
     private static final String SELECT_ALL_INDEX_SQL_JOIN = "select i.TABLE_NAME,\n" +
@@ -51,25 +51,27 @@ public class DorisSchemaLoader {
             "from INFORMATION_SCHEMA.STATISTICS i\n" +
             "inner join INFORMATION_SCHEMA.KEY_COLUMN_USAGE k\n" +
             "on k.TABLE_NAME = i.TABLE_NAME and i.COLUMN_NAME = k.COLUMN_NAME\n" +
-            "where %s k.TABLE_SCHEMA = '%s'\n" +
+            "where k.TABLE_SCHEMA = '%s'\n" +
             "and i.TABLE_SCHEMA = '%s'\n" +
             "and i.TABLE_NAME %s\n" +
             "and i.INDEX_NAME <> 'PRIMARY'";
     private static final DorisDDLInstance DDLInstance = DorisDDLInstance.getInstance();
 
-    private final DorisContext dorisContext;
-    private final DorisConfig dorisConfig;
+    private TapConnectionContext tapConnectionContext;
+    private DorisContext dorisContext;
 
     public DorisSchemaLoader(DorisContext dorisContext) {
         this.dorisContext = dorisContext;
-        dorisConfig = dorisContext.getDorisConfig();
+        this.tapConnectionContext = dorisContext.getTapConnectionContext();
     }
 
-    public void discoverSchema(final TapConnectionContext tapConnectionContext, List<String> filterTable, Consumer<List<TapTable>> consumer, int tableSize) throws Throwable {
+    public void discoverSchema(final TapConnectionContext tapConnectionContext, final DorisConfig dorisConfig, List<String> filterTable, Consumer<List<TapTable>> consumer, int tableSize) throws Throwable {
         if (null == consumer) {
             throw new IllegalArgumentException("Consumer cannot be null");
         }
-        List<String> allTables = queryAllTables(filterTable);
+
+        String database = dorisConfig.getDatabase();
+        List<String> allTables = queryAllTables(database, filterTable);
         if (CollectionUtils.isEmpty(allTables)) {
             consumer.accept(null);
             return;
@@ -82,8 +84,8 @@ public class DorisSchemaLoader {
             List<List<String>> partition = Lists.partition(allTables, tableSize);
             partition.forEach(tables -> {
                 String tableNames = StringUtils.join(tables, "','");
-                List<DataMap> columnList = queryAllColumns(tableNames);
-                List<DataMap> indexList = queryAllIndexes(tableNames);
+                List<DataMap> columnList = queryAllColumns(database, tableNames);
+                List<DataMap> indexList = queryAllIndexes(database, tableNames);
 
                 Map<String, List<DataMap>> columnMap = Maps.newHashMap();
                 if (CollectionUtils.isNotEmpty(columnList)) {
@@ -116,14 +118,12 @@ public class DorisSchemaLoader {
         }
     }
 
-    private List<DataMap> queryAllIndexes(String tableNames) {
+    private List<DataMap> queryAllIndexes(String database, String tableNames) {
+        TapLogger.debug(TAG, "Query all indexes, database: {}, tableNames:{}", database, tableNames);
         List<DataMap> indexList = TapSimplify.list();
-        String catalog = "";
-        if (EmptyKit.isNotBlank(dorisConfig.getCatalog())) {
-            catalog += "i.TABLE_CATALOG = '" + dorisConfig.getCatalog() + "' AND k.TABLE_CATALOG = '" + dorisConfig.getCatalog() + "' AND";
-        }
+
         String inTableName = new StringJoiner(tableNames).add("IN ('").add("')").toString();
-        String sql = String.format(SELECT_ALL_INDEX_SQL_JOIN, catalog, dorisConfig.getDatabase(), dorisConfig.getDatabase(), inTableName);
+        String sql = String.format(SELECT_ALL_INDEX_SQL_JOIN, database, database, inTableName);
 
         try (Statement statement = dorisContext.getConnection().createStatement()) {
             ResultSet resultSet = dorisContext.executeQuery(statement, sql);
@@ -139,11 +139,11 @@ public class DorisSchemaLoader {
         return indexList;
     }
 
-    public List<String> queryAllTables(final List<String> filterTables) {
+    public List<String> queryAllTables(String database, final List<String> filterTables) {
         final List<String> tableList = TapSimplify.list();
         final Connection connection = dorisContext.getConnection();
         try (final Statement statement = connection.createStatement();
-             final ResultSet resultSet = queryTables(statement, dorisConfig.getDatabase(), filterTables)) {
+             final ResultSet resultSet = queryTables(statement, database, filterTables)) {
             while (resultSet.next()) {
                 tableList.add(resultSet.getString("TABLE_NAME"));
             }
@@ -154,13 +154,11 @@ public class DorisSchemaLoader {
         return tableList;
     }
 
-    private List<DataMap> queryAllColumns(String tableNames) {
+    private List<DataMap> queryAllColumns(String database, String tableNames) {
+        TapLogger.debug(TAG, "Query all columns, database: {}, tableNames:{}", database, tableNames);
+
         String inTableName = new StringJoiner(tableNames).add("IN ('").add("')").toString();
-        String catalog = "";
-        if (EmptyKit.isNotBlank(dorisConfig.getCatalog())) {
-            catalog += "TABLE_CATALOG = '" + dorisConfig.getCatalog() + "' AND";
-        }
-        String sql = String.format(SELECT_COLUMNS, catalog, dorisConfig.getDatabase(), inTableName);
+        String sql = String.format(SELECT_COLUMNS, database, inTableName);
         List<DataMap> columnList = TapSimplify.list();
         try (Statement statement = dorisContext.getConnection().createStatement();
              final ResultSet resultSet = dorisContext.executeQuery(statement, sql)) {
@@ -257,7 +255,7 @@ public class DorisSchemaLoader {
             List<String> duplicateKey = (List<String>) tapConnectorContext.getNodeConfig().getObject("duplicateKey");
             List<String> distributedKey = (List<String>) tapConnectorContext.getNodeConfig().getObject("distributedKey");
             //append mode
-            if (EmptyKit.isEmpty(duplicateKey)) {
+            if(EmptyKit.isEmpty(duplicateKey)) {
                 Collection<String> allColumns = tapTable.getNameFieldMap().keySet();
                 sql = "CREATE TABLE IF NOT EXISTS " + tableName +
                         "(" + DDLInstance.buildColumnDefinition(tapTable) + ") " +
@@ -371,11 +369,7 @@ public class DorisSchemaLoader {
     }
 
     public ResultSet queryTables(final Statement statement, String database, final List<String> filterTables) throws Exception {
-        String catalog = "";
-        if (EmptyKit.isNotBlank(dorisConfig.getCatalog())) {
-            catalog += "TABLE_CATALOG = '" + dorisConfig.getCatalog() + "' AND";
-        }
-        String sql = String.format(SELECT_TABLES, catalog, database);
+        String sql = String.format(SELECT_TABLES, database);
         if (CollectionUtils.isNotEmpty(filterTables)) {
             final List<String> wrappedTables = filterTables.stream().map(t -> "'" + t + "'").collect(Collectors.toList());
             String tableNameIn = String.join(",", wrappedTables);

@@ -24,6 +24,7 @@ import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
@@ -32,6 +33,7 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
@@ -65,7 +67,7 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
      */
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-        dorisSchemaLoader.discoverSchema(connectionContext, tables, consumer, tableSize);
+        dorisSchemaLoader.discoverSchema(connectionContext, dorisContext.getDorisConfig(), tables, consumer, tableSize);
     }
 
     /**
@@ -101,7 +103,8 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
 
     @Override
     public int tableCount(TapConnectionContext connectionContext) {
-        final List<String> tables = this.dorisSchemaLoader.queryAllTables(null);
+        final String database = this.dorisContext.getDorisConfig().getDatabase();
+        final List<String> tables = this.dorisSchemaLoader.queryAllTables(database, null);
         return tables.size();
     }
 
@@ -281,8 +284,8 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
         TapLogger.debug(TAG, "Get timezone sql: " + DATABASE_TIMEZON_SQL);
         final Connection connection = dorisContext.getConnection();
 
-        try (Statement statement = connection.createStatement();
-             ResultSet resultSet = dorisContext.executeQuery(statement, DATABASE_TIMEZON_SQL)
+        try (   Statement statement = connection.createStatement();
+                ResultSet resultSet = dorisContext.executeQuery(statement,DATABASE_TIMEZON_SQL)
         ) {
             while (resultSet.next()) {
                 String timezone = resultSet.getString(1);
@@ -352,7 +355,7 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
     }
 
     private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
-        DataMap dataMap = this.dorisSchemaLoader.getTableInfo(tableName);
+        DataMap dataMap =this.dorisSchemaLoader.getTableInfo(tableName);
         TableInfo tableInfo = TableInfo.create();
         tableInfo.setNumOfRows(Long.valueOf(dataMap.getString("TABLE_ROWS")));
         tableInfo.setStorageSize(Long.valueOf(dataMap.getString("DATA_LENGTH")));
