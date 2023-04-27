@@ -18,6 +18,7 @@
         <module>file-connector-core</module>
         <module>api-loader-core</module>
 		<module>js-connector-core</module>
+		<module>js-connector-core-plus</module>
 		<module>read-partition</module>
         <module>hive-core</module>
         <!--		<module>dependency-core</module>-->

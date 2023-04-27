@@ -19,6 +19,9 @@ public enum JSFunctionNames {
     EXPIRE_STATUS("expireStatus", "ExpireStatus", ""),
     UPDATE_TOKEN("updateToken", "UpdateToken", ""),
 
+    CONNECTOR_WEBSITE("connectorWebsite","ConnectorWebSite",""),
+    TABLE_WEBSITE("tableWebsite","TableWebSite",""),
+
 
     DeleteRecordFunction("deleteRecord", "DeleteRecordFunction", "","writeRecord"),
     InsertRecordFunction("insertRecord", "InsertRecordFunction", "","writeRecord"),

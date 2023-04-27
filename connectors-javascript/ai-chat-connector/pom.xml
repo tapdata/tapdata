@@ -21,7 +21,7 @@
     <dependencies>
         <dependency>
             <groupId>io.tapdata</groupId>
-            <artifactId>js-connector-core</artifactId>
+            <artifactId>js-connector-core-plus</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
         <dependency>

@@ -15,7 +15,18 @@ import io.tapdata.js.connector.base.TapConnectorLog;
 import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.server.decorator.APIFactoryDecorator;
 import io.tapdata.js.connector.server.function.FunctionSupport;
-import io.tapdata.js.connector.server.function.support.*;
+import io.tapdata.js.connector.server.function.support.BaseConnectionTestFunction;
+import io.tapdata.js.connector.server.function.support.BaseDiscoverSchemaFunction;
+import io.tapdata.js.connector.server.function.support.BaseTableCountFunction;
+import io.tapdata.js.connector.server.function.support.BaseUpdateTokenFunction;
+import io.tapdata.js.connector.server.function.support.JSBatchCountFunction;
+import io.tapdata.js.connector.server.function.support.JSBatchReadFunction;
+import io.tapdata.js.connector.server.function.support.JSCommandFunction;
+import io.tapdata.js.connector.server.function.support.JSCreateTableV2Function;
+import io.tapdata.js.connector.server.function.support.JSRawDataCallbackFunction;
+import io.tapdata.js.connector.server.function.support.JSStreamReadFunction;
+import io.tapdata.js.connector.server.function.support.JSTimestampToStreamOffsetFunction;
+import io.tapdata.js.connector.server.function.support.JSWriteRecordFunction;
 import io.tapdata.js.connector.server.inteceptor.JSAPIInterceptorConfig;
 import io.tapdata.js.connector.server.inteceptor.JSAPIResponseInterceptor;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
@@ -26,20 +37,25 @@ import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 
 import java.net.URL;
-import java.util.*;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 @TapConnectorClass("spec.json")
 public class JSConnector extends ConnectorBase {
     private static final String TAG = JSConnector.class.getSimpleName();
-    private LoadJavaScripter javaScripter;
-    private Map<String, Object> apiParam = new HashMap<>();
-    private APIFactory apiFactory = new APIFactoryImpl();
+    protected LoadJavaScripter javaScripter;
+    protected Map<String, Object> apiParam = new HashMap<>();
+    protected APIFactory apiFactory = new APIFactoryImpl();
     public static final TapConfigContext tapConfig = new TapConfigContext();
     //private CacheContext cacheContext = new CacheContext();
 
-    private final AtomicBoolean isAlive = new AtomicBoolean(true);
+    protected final AtomicBoolean isAlive = new AtomicBoolean(true);
 
     public static final Object execLock = new Object();
 
@@ -94,7 +110,7 @@ public class JSConnector extends ConnectorBase {
         return BaseTableCountFunction.tableCount(this.javaScripter).get(connectionContext);
     }
 
-    private void instanceScript(TapConnectionContext connectionContext, Map<String, Object> configMap) {
+    protected void instanceScript(TapConnectionContext connectionContext, Map<String, Object> configMap) {
         if (Objects.isNull(this.javaScripter)) {
             synchronized (this) {
                 if (Objects.isNull(this.javaScripter)) {
@@ -160,7 +176,7 @@ public class JSConnector extends ConnectorBase {
 
     public static final String JS_FLOODER = "connectors-javascript";
 
-    private void load() {
+    protected void load() {
         try {
             ClassLoader classLoader = JSConnector.class.getClassLoader();
             Enumeration<URL> resources = classLoader.getResources(JS_FLOODER + "/");

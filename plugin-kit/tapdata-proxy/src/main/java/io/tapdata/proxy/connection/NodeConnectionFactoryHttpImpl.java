@@ -38,6 +38,9 @@ public class NodeConnectionFactoryHttpImpl implements NodeConnectionFactory {
 
 	@Override
 	public NodeConnection getNodeConnection(String nodeId) {
+		NodeConnection connection = nodeIdConnectionMap.get(nodeId);
+		if(connection != null)
+			return connection;
 		return nodeIdConnectionMap.computeIfAbsent(nodeId, nodeId1 -> {
 			NodeConnection nodeConnection = new NodeConnectionHttpImpl();
 			NodeHandler nodeHandler = nodeHealthManager.getAliveNode(nodeId1);

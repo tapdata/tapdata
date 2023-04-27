@@ -56,3 +56,24 @@ function jsonToCSV(arrData) {
     }
     return csv;
 }
+function connectorWebsite(connectionConfig){
+    return {
+        'url': connectionConfig.url
+    }
+}
+function tableWebsite(connectionConfig, tableIdList){
+    if ('undefined' === tableIdList || null == tableIdList || tableIdList.length <= 0){
+        return '';
+    }
+    return {
+        // "urls":{
+        //     "table1":{
+        //         'url': "sadf"
+        //     },
+        //     "table2":{
+        //         'url': "sadf"
+        //     }
+        // },
+        "url": connectionConfig.url + "/ns_" + tableIdList[0]
+    }
+}
