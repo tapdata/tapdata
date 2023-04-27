@@ -217,6 +217,7 @@ public class PartitionConcurrentProcessor {
 	public void process(List<TapdataEvent> tapdataEvents, boolean async) {
 		if (CollectionUtils.isNotEmpty(tapdataEvents)) {
 			AtomicBoolean singleMode = new AtomicBoolean(false);
+			TapdataEvent offsetEvent = null;
 			for (TapdataEvent tapdataEvent : tapdataEvents) {
 				if (!isRunning()) {
 					break;
@@ -270,6 +271,9 @@ public class PartitionConcurrentProcessor {
 						if (!enqueuePartitionEvent(partition, queue, normalEvent)) {
 							break;
 						}
+						if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
+							offsetEvent = tapdataEvent;
+						}
 					} catch (Exception e) {
 						String msg = String.format(" tableName: %s, %s", tableName, e.getMessage());
 						throw new RuntimeException(msg, e);
@@ -282,7 +286,9 @@ public class PartitionConcurrentProcessor {
 					}
 				}
 			}
-			generateWatermarkEvent(tapdataEvents.get(tapdataEvents.size() - 1));
+			if (null != offsetEvent) {
+				generateWatermarkEvent(offsetEvent);
+			}
 
 			if (!async) {
 				waitingForProcessToCurrent();
