@@ -76,6 +76,7 @@ public class RegisterMain {
         BesChannels(BASE_PATH + "connectors/dist/beschannels-connector-v1.0-SNAPSHOT.jar", "all", "bes-channels"),
         LarkDoc(BASE_PATH + "connectors/dist/lark-doc-connector-v1.0-SNAPSHOT.jar", "all", "lark-doc"),
         MRSHIVE3(BASE_PATH + "connectors/dist/mrs-hive3-connector-v1.0-SNAPSHOT.jar", "all", "mrs-hive3"),
+        AIChat(BASE_PATH + "connectors/dist/ai-chat-connector-v1.0-SNAPSHOT.jar", "all", "ai-chat"),
 
         ;
 
@@ -122,6 +123,7 @@ public class RegisterMain {
         String[] tags = System.getProperty("tags", "all").split(",");
         ConnectorEnums.addByTags(postList, tags);
         Main.registerCommands().execute(postList.toArray(new String[0]));
+        System.exit(0);
     }
 
     private static String basePath() {

@@ -4,6 +4,7 @@ public class JSTableKeys {
     public static final String TABLE_NAME = "name";
     public static final String TABLE_COMMENT = "comment";
     public static final String TABLE_FIELD = "fields";
+    public static final String TABLE_KEYS = "keys";
 
     public static final String TABLE_FIELD_NAME = "name";
     public static final String TABLE_FIELD_TYPE = "type";
