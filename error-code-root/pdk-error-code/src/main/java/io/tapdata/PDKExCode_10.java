@@ -162,4 +162,12 @@ public interface PDKExCode_10 {
 			seeAlso = {"https://docs.tapdata.io/enterprise/user-guide/connect-database/"}
 	)
 	String SKIPPABLE_DATA = "10010";
+
+	@TapExCode(
+			// TODO
+			describe = "",
+			describeCN = "",
+			seeAlso = {"https://docs.tapdata.io/enterprise/user-guide/connect-database/"}
+	)
+	String DB_CDC_CONFIG_INVALID = "10011";
 }
