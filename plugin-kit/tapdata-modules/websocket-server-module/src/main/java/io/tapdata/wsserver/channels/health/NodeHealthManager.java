@@ -120,12 +120,12 @@ public class NodeHealthManager implements MemoryFetcher {
 				NodeHandler existingNodeHandler = idNodeHandlerMap.computeIfAbsent(nodeHealth.getId(), id -> {
 					NodeRegistry nodeRegistry = nodeRegistryService.get(id);
 					if(nodeRegistry != null) {
-						TapLogger.debug(TAG, "Node {} added into healthy node list, nodeHealth {}, nodeRegistry {}", id, nodeHealth, nodeRegistry);
+						TapLogger.info(TAG, "Node {} added into healthy node list, nodeHealth {}, nodeRegistry {}", id, nodeHealth, nodeRegistry);
 						newAdded.set(nodeRegistry);
 						return new NodeHandler().nodeHealth(nodeHealth).nodeRegistry(nodeRegistry);
 					} else {
 						nodeHealthService.delete(nodeHealth.getId());
-						TapLogger.debug(TAG, "Node id {} can not find NodeRegistry, deleted, nodeHealth {}", id, nodeHealth);
+						TapLogger.info(TAG, "Node id {} can not find NodeRegistry, deleted, nodeHealth {}", id, nodeHealth);
 						return null;
 					}
 				});
@@ -152,7 +152,7 @@ public class NodeHealthManager implements MemoryFetcher {
 		for(String deletedId : deleted) {
 			NodeHandler nodeHandler = idNodeHandlerMap.remove(deletedId);
 			if(nodeHandler != null) {
-				TapLogger.debug(TAG, "Node {} has been removed from healthy node list, nodeHealth {}, nodeRegistry {}", deletedId, nodeHandler.getNodeHealth(), nodeHandler.getNodeRegistry());
+				TapLogger.info(TAG, "Node {} has been removed from healthy node list, nodeHealth {}, nodeRegistry {}", deletedId, nodeHandler.getNodeHealth(), nodeHandler.getNodeRegistry());
 				if(deleteNodeConsumer != null) {
 					deleteNodeConsumer.accept(nodeHandler.getNodeRegistry());
 				}
@@ -183,21 +183,21 @@ public class NodeHealthManager implements MemoryFetcher {
 //			}
 			deletedNodes.add(id);
 			if(nodeRegistryService.delete(id, nodeRegistry.getTime())) {
-				TapLogger.debug(TAG, "Found dead node registration {} time {}, deleted", id, nodeRegistry.getTime() != null ? new Date(nodeRegistry.getTime()) : null);
+				TapLogger.info(TAG, "Found dead node registration {} time {}, deleted", id, nodeRegistry.getTime() != null ? new Date(nodeRegistry.getTime()) : null);
 			} else {
-				TapLogger.debug(TAG, "Found dead node registration {} time {}, not deleted", id, nodeRegistry.getTime() != null ? new Date(nodeRegistry.getTime()) : null);
+				TapLogger.info(TAG, "Found dead node registration {} time {}, not deleted", id, nodeRegistry.getTime() != null ? new Date(nodeRegistry.getTime()) : null);
 			}
 			if(nodeHealthService.delete(id)) {
-				TapLogger.debug(TAG, "Found dead node health {} time {}, deleted", id, nodeRegistry.getTime() != null ? new Date(nodeRegistry.getTime()) : null);
+				TapLogger.info(TAG, "Found dead node health {} time {}, deleted", id, nodeRegistry.getTime() != null ? new Date(nodeRegistry.getTime()) : null);
 			} else {
-				TapLogger.debug(TAG, "Found dead node health {} time {}, not deleted", id, nodeRegistry.getTime() != null ? new Date(nodeRegistry.getTime()) : null);
+				TapLogger.info(TAG, "Found dead node health {} time {}, not deleted", id, nodeRegistry.getTime() != null ? new Date(nodeRegistry.getTime()) : null);
 			}
 			ProxySubscription proxySubscription = proxySubscriptionService.get(id);
 			if(proxySubscription != null) {
 				if(proxySubscriptionService.delete(id, proxySubscription.getTime())) {
-					TapLogger.debug(TAG, "Found dead proxy subscription {} time {}, deleted", id, proxySubscription.getTime() != null ? new Date(proxySubscription.getTime()) : null);
+					TapLogger.info(TAG, "Found dead proxy subscription {} time {}, deleted", id, proxySubscription.getTime() != null ? new Date(proxySubscription.getTime()) : null);
 				} else {
-					TapLogger.debug(TAG, "Found dead proxy subscription {} time {}, not deleted", id, proxySubscription.getTime() != null ? new Date(proxySubscription.getTime()) : null);
+					TapLogger.info(TAG, "Found dead proxy subscription {} time {}, not deleted", id, proxySubscription.getTime() != null ? new Date(proxySubscription.getTime()) : null);
 				}
 			}
 		}
