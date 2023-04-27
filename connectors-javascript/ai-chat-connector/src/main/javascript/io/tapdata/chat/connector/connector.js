@@ -62,6 +62,9 @@ function connectorWebsite(connectionConfig){
     }
 }
 function tableWebsite(connectionConfig, tableIdList){
+    if ('undefined' === tableIdList || null == tableIdList || tableIdList.length <= 0){
+        return '';
+    }
     return {
         // "urls":{
         //     "table1":{
