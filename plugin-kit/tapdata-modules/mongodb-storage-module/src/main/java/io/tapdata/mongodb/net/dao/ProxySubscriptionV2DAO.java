@@ -2,11 +2,9 @@ package io.tapdata.mongodb.net.dao;
 
 import com.mongodb.client.result.DeleteResult;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.modules.api.net.entity.ProxySubscription;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.mongodb.annotation.EnsureMongoDBIndex;
 import io.tapdata.mongodb.annotation.MongoDAO;
-import io.tapdata.mongodb.entity.NodeRegistryEntity;
 import io.tapdata.mongodb.entity.ProxySubscriptionEntity;
 import org.bson.Document;
 
@@ -14,7 +12,7 @@ import static io.tapdata.mongodb.entity.ToDocument.FIELD_ID;
 
 @MongoDAO(dbName = "proxy")
 @EnsureMongoDBIndex(value = "{\"subscription.service\" : 1, \"subscription.subscribeIds\" : 1}")
-public class ProxySubscriptionDAO extends ToDocumentMongoDAO<ProxySubscriptionEntity> {
+public class ProxySubscriptionV2DAO extends ToDocumentMongoDAO<ProxySubscriptionEntity> {
 
 	public boolean delete(String id, Long time) {
 		if(id == null)
