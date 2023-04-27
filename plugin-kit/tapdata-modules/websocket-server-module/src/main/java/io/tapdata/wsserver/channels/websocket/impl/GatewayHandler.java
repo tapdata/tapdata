@@ -20,7 +20,7 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 public class GatewayHandler extends AbstractWebSocketServerHandler {
     private final static String TAG = GatewayHandler.class.getSimpleName();
 
-    private EventBus eventBus = EventBusHolder.getEventBus();
+    private final EventBus eventBus = EventBusHolder.getEventBus();
 
     public GatewayHandler(boolean ssl) {
         super(ssl);
