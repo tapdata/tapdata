@@ -693,6 +693,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		HttpClientMongoOperator httpClientMongoOperator = (HttpClientMongoOperator) clientMongoOperator;
 	}
 
+	public synchronized TapCodeException errorHandle(Throwable throwable) {
+		return errorHandle(throwable, null);
+	}
+
 	public synchronized TapCodeException errorHandle(Throwable throwable, String errorMessage) {
 		TapCodeException currentEx;
 		Throwable matchThrowable = CommonUtils.matchThrowable(throwable, TapCodeException.class);
