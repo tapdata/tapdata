@@ -7,6 +7,7 @@ public enum LdpDirEnum {
     LDP_DIR_FDM("FDM", "fdm"),
     LDP_DIR_MDM("MDM", "mdm"),
     LDP_DIR_TARGET("TARGET", "target"),
+    LDP_DIR_API("API", "app"),
     ;
 
     @Getter

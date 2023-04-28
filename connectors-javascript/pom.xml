@@ -20,6 +20,7 @@
 		<module>hubspot-connector</module>
 		<module>beschannels-connector</module>
 		<module>lark-doc-connector</module>
+		<module>ai-chat-connector</module>
 		<module>lark-approval-connector</module>
 	</modules>
 

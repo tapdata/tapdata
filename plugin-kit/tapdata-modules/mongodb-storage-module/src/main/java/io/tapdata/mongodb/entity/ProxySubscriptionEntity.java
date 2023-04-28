@@ -11,6 +11,7 @@ import org.bson.types.ObjectId;
 public class ProxySubscriptionEntity implements ToDocument {
 	private static final String TAG = ProxySubscriptionEntity.class.getSimpleName();
 	public static final String FIELD_SUBSCRIPTION = "subscription";
+	public static final String FIELD_SUBSCRIPTION_NODE_ID = "nodeId";
 	@BsonId
 	private String id;
 	public ProxySubscriptionEntity id(String id) {

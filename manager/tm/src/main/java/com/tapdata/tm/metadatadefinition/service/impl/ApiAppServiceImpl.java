@@ -59,10 +59,45 @@ public class ApiAppServiceImpl implements ApiAppService {
     }
 
     @Override
+    public Page<ApiAppDetail> findAndModel(Filter filter, UserDetail user) {
+        Page<MetadataDefinitionDto> page = metadataDefinitionService.find(filter, user);
+        Page<ApiAppDetail> returnPage = new Page<>();
+        returnPage.setTotal(page.getTotal());
+
+        //添加api总数，跟已发布的api数量。
+        if (CollectionUtils.isNotEmpty(page.getItems())) {
+            List<ApiAppDetail> appDetails = page.getItems().stream().map(s -> {
+                ApiAppDetail apiAppDetail = new ApiAppDetail();
+                BeanUtils.copyProperties(s, apiAppDetail);
+                return apiAppDetail;
+            }).collect(Collectors.toList());
+            returnPage.setItems(appDetails);
+            addApiCount(appDetails, user, true);
+        }
+        return returnPage;
+    }
+
+    @Override
     public Page<MetadataDefinitionDto> find(Filter filter, UserDetail user) {
         Page<MetadataDefinitionDto> page = metadataDefinitionService.find(filter, user);
         //添加api总数，跟已发布的api数量。
         addApiCount(page.getItems(), user);
+        return page;
+    }
+    public Page<MetadataDefinitionDto> findPage(Filter filter, UserDetail user) {
+
+        boolean addModel = false;
+        if (filter != null) {
+            if (filter.getWhere() != null) {
+                Object addMode = filter.getWhere().get("addModel");
+                if (addMode != null) {
+                    addModel = (boolean) addMode;
+                }
+                filter.getWhere().remove("addModel");
+            }
+        }
+        Page<MetadataDefinitionDto> page = metadataDefinitionService.find(filter, user);
+
 
         return page;
     }
@@ -115,6 +150,12 @@ public class ApiAppServiceImpl implements ApiAppService {
     }
 
     private void addApiCount(List<MetadataDefinitionDto> metadatas, UserDetail user) {
+        List<ApiAppDetail> appDetails = new ArrayList<>();
+        BeanUtils.copyProperties(metadatas, appDetails);
+        addApiCount(appDetails, user, false);
+    }
+
+    private void addApiCount(List<ApiAppDetail> metadatas, UserDetail user, boolean addModel) {
         if (CollectionUtils.isEmpty(metadatas)) {
             return;
         }
@@ -123,7 +164,10 @@ public class ApiAppServiceImpl implements ApiAppService {
         Criteria criteria = Criteria.where("listtags.id").in(tagIds).and("is_deleted").ne(true);
 
         Query query = new Query(criteria);
-        query.fields().include("listtags", "status");
+        if (!addModel) {
+            String[] fields = {"listtags", "status"};
+            query.fields().include(fields);
+        }
         List<ModulesDto> modulesDtos = modulesService.findAllDto(query, user);
 
         Map<String, List<ModulesDto>> map = new HashMap<>();
@@ -140,6 +184,11 @@ public class ApiAppServiceImpl implements ApiAppService {
 
         for (MetadataDefinitionDto metadata : metadatas) {
             List<ModulesDto> modulesDtos1 = map.get(metadata.getId().toHexString());
+            if (CollectionUtils.isNotEmpty(modulesDtos1) && addModel) {
+                if (metadata instanceof ApiAppDetail) {
+                    ((ApiAppDetail) metadata).setApis(modulesDtos1);
+                }
+            }
             boolean empty = CollectionUtils.isEmpty(modulesDtos1);
             int apiCount = empty ? 0 : modulesDtos1.size();
             int publishedApiCount = empty ? 0 : (int) modulesDtos1.stream().filter(s -> ModuleStatusEnum.ACTIVE.getValue().equals(s.getStatus())).count();

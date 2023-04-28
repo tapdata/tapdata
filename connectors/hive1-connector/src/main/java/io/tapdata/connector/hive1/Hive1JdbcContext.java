@@ -35,6 +35,13 @@ public class Hive1JdbcContext extends JdbcContext {
         super(config);
     }
 
+    @Override
+    public Connection getConnection() throws SQLException {
+        Connection connection = getConnection();
+        connection.setAutoCommit(true);
+        return connection;
+    }
+
     public static void tryRollBack(Connection connection) {
         try {
             if (connection != null && !connection.getAutoCommit()) {

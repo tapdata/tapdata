@@ -92,7 +92,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
             }
             case Update: {
                 TapUpdateRecordEvent updateRecordEvent = (TapUpdateRecordEvent) recordEvent;
-                LinkedHashSet<String> uniqueCondition = new LinkedHashSet<>(tapTable.primaryKeys(false));
+                LinkedHashSet<String> uniqueCondition = new LinkedHashSet<>(tapTable.primaryKeys(true));
                 if (uniqueCondition.isEmpty()) {
                     throw new RuntimeException("DML update operations without associated conditions are not supported");
                 } else if (null == updateRecordEvent.getAfter()) {
@@ -106,7 +106,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
             }
             case Delete: {
                 TapDeleteRecordEvent deleteRecordEvent = (TapDeleteRecordEvent) recordEvent;
-                LinkedHashSet<String> uniqueCondition = new LinkedHashSet<>(tapTable.primaryKeys(false));
+                LinkedHashSet<String> uniqueCondition = new LinkedHashSet<>(tapTable.primaryKeys(true));
                 if (uniqueCondition.isEmpty()) {
                     throw new RuntimeException("DML delete operations without associated conditions are not supported");
                 } else if (null == deleteRecordEvent.getBefore()) {

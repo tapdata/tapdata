@@ -1,4 +1,6 @@
 import java.sql.*;
+import java.util.HashSet;
+import java.util.Set;
 
 public class MainDemo {
     public static void main(String[] args) throws SQLException {
@@ -12,5 +14,32 @@ public class MainDemo {
             System.out.println(r.getInt(1));
         }
         connection.close();
+        TestSql();
+    }
+
+    public static void TestSql() {
+        Set<String> fields = new HashSet<String> ();
+        fields.add("x");
+        fields.add("y");
+        StringBuilder sql = new StringBuilder("INSERT");
+        sql.append(" INTO ").append(sqlQuota(".", "db", "table")).append("(");
+
+        for (String field : fields) sql.append(sqlQuota(field)).append(",");
+        sql.setLength(sql.length() - 1);
+        sql.append(")");
+
+        sql.append(" VALUES(");
+        for (String ignore : fields) sql.append("?,");
+        sql.setLength(sql.length() - 1);
+        sql.append(")");
+        System.out.println(sql.toString());
+    }
+    private static final char QUOTA = '`';
+
+    public static String sqlQuota(String delimiter, String... names) {
+        return QUOTA + String.join(QUOTA + delimiter + QUOTA, names) + QUOTA;
+    }
+    public static String sqlQuota(String name) {
+        return QUOTA + name + QUOTA;
     }
 }

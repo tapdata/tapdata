@@ -88,16 +88,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -1617,17 +1608,15 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 } else if (node instanceof DatabaseNode) {
                     queryMetadata.addCriteria(criteriaTable);
                     DatabaseNode tableNode = (DatabaseNode) node;
-                    List<String> tableNames;
-                    if (dag.getSources().contains(tableNode)) {
+                    List<String> tableNames = Collections.emptyList();
+                    if (node.sourceType() == Node.SourceType.source) {
                         tableNames = tableNode.getTableNames();
-                    } else if (dag.getTargets().contains(tableNode)) {
-                        tableNames = tableNode.getSyncObjects().get(0).getObjectNames();
+                    } else if (node.sourceType() == Node.SourceType.target) {
+                        if (CollectionUtils.isNotEmpty(tableNode.getSyncObjects())) {
+                            tableNames = tableNode.getSyncObjects().get(0).getObjectNames();
+                        }
                     } else {
                         throw new BizException("table node is error nodeId:" + tableNode.getId());
-                    }
-
-                    if (StringUtils.isNotBlank(tableFilter)) {
-                        tableNames = tableNames.stream().filter(s -> s.contains(tableFilter)).collect(Collectors.toList());
                     }
 
                     if (StringUtils.isNotBlank(filterType)) {
@@ -1644,9 +1633,14 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                         metadatas = Lists.newArrayList();
                     } else{
                         criteriaTable.and("nodeId").is(nodeId)
-//                                .and("originalName").in(tableNames)
                                 .and("taskId").is(taskId)
                                 .and("is_deleted").ne(true);
+
+                        if (StringUtils.isNotBlank(tableFilter)) {
+                            tableNames = tableNames.stream().filter(s -> s.toUpperCase().contains(tableFilter.toUpperCase())).collect(Collectors.toList());
+                            criteriaTable.and("originalName").in(tableNames);
+                        }
+
                         metadatas = findAllDto(queryMetadata, user);
                         totals = count(new Query(criteriaTable), user);
                         //totals = tableNames.size();
