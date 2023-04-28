@@ -15,33 +15,12 @@
 
 ####飛書創建任務
 
-***創建任務必須包含以下字段內容：***：
+***注意事項：***：
 
-```json
-[
-  {
-    "richSummary": "這裏是任務的標題",
-    "richDescription": "這裏是任務的描述",
-    "time": "這裏是任務的截止時間，需要傳進來時間戳",
-    "collaboratorIds": "這裏是任務負責人的電話號碼或者郵箱",
-    "followerIds": "這裏任務關注人的電話號碼或者郵箱",
-    "title": "這裏是任務描述裏可加鏈接的標題，可配合下面的url使用",
-    "url": "這裏給上面的title加上鍊接"
-  }
-]
-```
+審批類型Code：49636CC4-9156-48C0-9609-32CAACC85E00
 
-其中：
-- cUserIds/fUserIds 爲任務所有者/任務關注者的***手機號***或***郵箱***，APP通過這個兩個字段給定的用戶創建任務或添加關注任務。
+審批類型Code需要在飛書管理員後臺獲取，如圖所示位置：
 
-- 您需要使用用戶的註冊手機號或郵箱獲取到user_id給其創建任務。
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/LarkApproval/doc/ht.jpg)
 
-- 您需要保證當前手機號或郵箱的使用者存在於此應用的可見範圍，如不在當前應用版本的可見範圍，將無法發送消息到這個用戶，如有必要，您可在應用版本管理與發佈中查看最新版本下的可見範圍，並創建新的版本並將此用戶添加到可見範圍。
-
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/FeiShu/doc/version.PNG)
-
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/FeiShu/doc/rang.PNG)
-
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/FeiShu/doc/createdVersion.PNG)
-
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/FeiShu/doc/modifyRang.PNG)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/LarkApproval/doc/code.jpg)

@@ -1,12 +1,9 @@
 function discoverSchema(connectionConfig) {
-    // TODO
     let codeArr = [];
-    codeArr.push(connectionConfig.definition_code);
-    // let nameArr = connectionConfig.conditions[value];
+    codeArr.push(connectionConfig.definitionCode + "_" + connectionConfig.code);
     let res = []
     for (let index = 0; index < codeArr.length; index++) {
         res[index] = {
-            // TODO
             "name": codeArr[index],
             "fields": {
                 'instance_code': {
@@ -109,9 +106,7 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
     if (null == offset || "undefined" === offset.firstTime || null == offset.firstTime) {
         offset = timestampToOffset(offset);
     }
-    //TODO
-    // clientInfo.approval_code = tableName.split("_")[1];
-    clientInfo.approval_code = tableName;
+    clientInfo.approval_code = tableName.split("_")[1];
     clientInfo.end_time = "" + Number(new Date(new Date().getTime()));
     let isFirst = false;
     let instancesList;
@@ -166,14 +161,12 @@ function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, ba
 }
 
 function connectionTest(connectionConfig) {
-    log.warn("connectionconfig:{}", connectionConfig)
     let instancesList;
-    let httpCode;
     let res = [];
     let app;
     try {
         // TODO
-        clientInfo.approval_code = connectionConfig.definition_code;
+        clientInfo.approval_code = connectionConfig.code;
         // TODO
         clientInfo.end_time = "" + Number(new Date(new Date().getTime()));
         clientInfo.page_token = "";
@@ -184,7 +177,6 @@ function connectionTest(connectionConfig) {
             "result": getTokenResult(app)
         })
         instancesList = invoker.invoke("getInstancesList", clientInfo).result;
-        log.warn("clientInfo1a:{} e:{} s:{}", clientInfo.approval_code, clientInfo.end_time, clientInfo.start_time)
         res.push({
             "test": "Permission check",
             "code": instancesListCode(instancesList),
@@ -210,31 +202,17 @@ function updateToken(connectionConfig, nodeConfig, apiResponse) {
 }
 
 function commandCallback(connectionConfig, nodeConfig, commandInfo) {
-    let app;
-    log.warn("commandinfo:{}",JSON.stringify(commandInfo))
-    if (commandInfo.command.substring(0, 7) === "getToken") {
-        log.warn("get token1:{}")
-        return {"setValue": {
-            "definitionCode": {
-                "data": commandInfo.command.split('getToken')[0]
-            }
-        }};
-        //return "假期申请";
-        log.warn("get token1:{}")
-        try {
-            app = invoker.invoke("getToken").result;
-            if (!(app && app.app_access_token)) {
-                throw ("Can not get App info, please check you App ID and App Secret.")
-            }
-        } catch (e) {
-            throw ("Failed to query the data. Please check the connection." + JSON.stringify(app))
-        }
-        let token = app.app_access_token;
+    if (commandInfo.command === "getToken") {
+        log.warn("command1")
         let instancesList;
         let instances;
         try {
             clientInfo.end_time = Number(new Date(new Date().getTime())) + "";
-            clientInfo.Authorization = token;
+            if (null == commandInfo.argMap.code) {
+                throw ("There is no record of this approval type.")
+            }
+            log.warn("commandInfo.argMap.code:{}", commandInfo.argMap.code)
+            clientInfo.approval_code = commandInfo.argMap.code;
             instancesList = invoker.invoke("getInstancesList", clientInfo).result;
             if (!(instancesList && instancesList.data) || instancesList.data.instance_code_list.length === 0) {
                 throw ("There is no record of this approval type.")
@@ -245,12 +223,18 @@ function commandCallback(connectionConfig, nodeConfig, commandInfo) {
             if (!(instances && instances.data && instances.data.approval_name)) {
                 throw ("Query failure")
             }
-            return instances.data.approval_name;
+            log.warn("instances.data.approval_name:{}", instances.data.approval_name)
+            return {
+                "setValue": {
+                    "definitionCode": {
+                        "data": instances.data.approval_name
+                    }
+                }
+            };
         } catch (e) {
             throw ("Failed to query the data. Please check the connection.")
         }
     }
-
     let commandName = commandInfo.command;
     let exec = new CommandStage().exec(commandInfo.command);
     if (null != exec) return exec.command(connectionConfig, nodeConfig, commandInfo);

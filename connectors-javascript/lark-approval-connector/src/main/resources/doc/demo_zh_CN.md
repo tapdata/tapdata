@@ -18,5 +18,11 @@
 
 ***注意事项：***：
 
-审批类型Code：49636CC4-9156-48C0-9609-32CAACC85E80
+审批类型Code：49636CC4-9156-48C0-9609-32CAACC85E00
+
+审批类型Code需要在飞书管理员后台获取，如图所示位置：
+
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/LarkApproval/doc/ht.jpg)
+
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/LarkApproval/doc/code.jpg)
 

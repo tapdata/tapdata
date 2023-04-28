@@ -57,10 +57,10 @@ function checkAuthority(invoke, httpCode) {
 }
 
 function result(invoke) {
-    if (invoke && invoke.data && invoke.data.instance_code_list && invoke.data.page_token && invoke.data.has_more) {
+    if (invoke && invoke.data && invoke.data.instance_code_list && invoke.data.instance_code_list.length > 0) {
         return "Pass";
-    } else if (invoke && invoke.msg && invoke.error.message) {
-        return "Error, msg:" + invoke.msg + invoke.error.message;
+    } else if (invoke && invoke.msg && invoke.error.log_id) {
+        return "Error, msg:" + invoke.msg + invoke.error.log_id;
     } else if (invoke && invoke.msg && invoke.error.field_violations && invoke.error.field_violations.description) {
         return "Error, msg:" + invoke.msg + invoke.error.field_violations.description;
     } else {
@@ -85,7 +85,7 @@ function appCode(invoke) {
 }
 
 function instancesListCode(instancesList) {
-    if (instancesList && instancesList.data && instancesList.data.instance_code_list && instancesList.data.page_token && instancesList.data.has_more) {
+    if (instancesList && instancesList.data && instancesList.data.instance_code_list) {
         return 1;
     } else {
         return -1;

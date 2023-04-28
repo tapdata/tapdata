@@ -31,66 +31,44 @@
           "x-index": 20,
           "required": true
         },
-        "definition_code": {
-          "type": "String",
-          "title": "${definition_code}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "x-index": 30,
-          "required": true
-        },
         "conditions": {
           "title": "${definition_code}",
-          "type": "array",
+          "type": "void",
           "required": true,
-          "default": [
-            {
-              "key": "",
-              "value": "",
-              "operator": 5
-            }
-          ],
           "x-decorator": "FormItem",
-          "x-component": "ArrayItems",
           "x-index": 31,
-          "items": {
-            "type": "object",
-            "properties": {
-              "space": {
-                "type": "void",
-                "x-component": "Space",
-                "properties": {
-                  "code": {
-                    "type": "string",
-                    "x-decorator": "FormItem",
-                    "x-component": "Input",
-                    "x-component-props": {
-                    },
-                    "x-reactions": [
-                      "{{$values.app_id && $values.app_secret && useAsyncDataSourceByConfig({service: getCommandAndSetValue, withoutField: true}, $form, { command: 'getToken', argMap: {code : $form, app_id: $values.app_id, token:$values.token ,app_secret:$values.app_secret }})}}",
-                      {
-                        "dependencies": [
-                          "app_id",
-                          "app_secret",
-                          "code"
-                        ],
-                        "fulfill": {
-                          "state": {
-                          }
-                        }
-                      }
-                    ]
-                  },
-                  "definitionCode": {
-                    "type": "string",
-                    "x-decorator": "FormItem",
-                    "x-component": "Input",
-                    "x-component-props": {
-                      "disabled": true
+          "x-component": "Space",
+          "properties": {
+            "code": {
+              "type": "string",
+              "x-decorator": "FormItem",
+              "x-component": "Input",
+              "x-component-props": {
+              },
+              "x-reactions": [
+                {
+                  "dependencies": [
+                    "app_id",
+                    "app_secret",
+                    "code"
+                  ],
+                  "fulfill": {
+                    "state": {
                     }
                   }
                 }
-              }
+              ]
+            },
+            "definitionCode": {
+              "type": "string",
+              "x-decorator": "FormItem",
+              "x-component": "Input",
+              "x-component-props": {
+                "disabled": true
+              },
+              "x-reactions": [
+                "{{ $values.app_id && $values.app_secret && $values.code && useAsyncDataSourceByConfig({service: getCommandAndSetValue, withoutField: true}, $form, { command: 'getToken', argMap: {code : $values.code, app_id: $values.app_id ,app_secret:$values.app_secret }})}}"
+              ]
             }
           }
         }
