@@ -4,9 +4,12 @@ import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.MainMethod;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.modules.api.net.entity.ProxySubscription;
+import io.tapdata.modules.api.net.service.ProxySubscriptionService;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.pdk.core.utils.timer.MaxFrequencyLimiter;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -18,7 +21,12 @@ import java.util.concurrent.TimeUnit;
 public class SubscribeMap implements MemoryFetcher {
 	private final Map<String, List<EngineSessionHandler>> subscribeIdSessionMap = new ConcurrentHashMap<>();
 	private final int[] cleanupLock = new int[0];
+	private MaxFrequencyLimiter maxFrequencyLimiter;
+	@Bean
+	private ProxySubscriptionService proxySubscriptionService;
 	private void start() {
+		maxFrequencyLimiter = new MaxFrequencyLimiter(500, this::syncSubscribeIds);
+
 		int subscribeMapCleanupPeriod = CommonUtils.getPropertyInt("tapdata_subscribe_map_cleanup_period", 60);
 		ExecutorsManager.getInstance().getScheduledExecutorService().scheduleWithFixedDelay(() -> {
 			Set<String> deleteList = new HashSet<>();
@@ -42,6 +50,19 @@ public class SubscribeMap implements MemoryFetcher {
 		}, subscribeMapCleanupPeriod, subscribeMapCleanupPeriod, TimeUnit.SECONDS);
 		PDKIntegration.registerMemoryFetcher(SubscribeMap.class.getSimpleName(), this);
 	}
+
+	private void syncSubscribeIds() {
+		String nodeId = CommonUtils.getProperty("tapdata_node_id");
+		Set<String> ids = new HashSet<>();
+		for(Map.Entry<String, List<EngineSessionHandler>> entry : subscribeIdSessionMap.entrySet()) {
+			List<EngineSessionHandler> list = entry.getValue();
+			if(list != null && !list.isEmpty()) {
+				ids.add(entry.getKey());
+			}
+		}
+		proxySubscriptionService.syncProxySubscription(new ProxySubscription().service("engine").nodeId(nodeId).subscribeIds(ids));
+	}
+
 	public void unbindSubscribeIds(EngineSessionHandler engineSessionHandler) {
 		for(Map.Entry<String, List<EngineSessionHandler>> entry : subscribeIdSessionMap.entrySet()) {
 			List<EngineSessionHandler> list = entry.getValue();
@@ -49,6 +70,7 @@ public class SubscribeMap implements MemoryFetcher {
 				list.remove(engineSessionHandler);
 			}
 		}
+		maxFrequencyLimiter.touch();
 	}
 
 	public Set<String> rebindSubscribeIds(EngineSessionHandler engineSessionHandler, Set<String> newSubscribeIds, Set<String> oldSubscribeIds) {
@@ -100,7 +122,7 @@ public class SubscribeMap implements MemoryFetcher {
 					engineSessionHandlers.remove(engineSessionHandler);
 			}
 		}
-
+		maxFrequencyLimiter.touch();
 		return newSubscribeIds;
 	}
 

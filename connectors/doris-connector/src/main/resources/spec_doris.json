@@ -37,14 +37,6 @@
           "required": true,
           "x-index": 30
         },
-        "catalog": {
-          "type": "string",
-          "title": "${catalog}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "catalog_name",
-          "x-index": 35
-        },
         "database": {
           "type": "string",
           "title": "${database}",
@@ -70,12 +62,12 @@
           "apiServerKey": "database_password",
           "x-index": 60
         },
-        "addtionalString": {
+        "extParams": {
           "type": "string",
-          "title": "${addtionalString}",
+          "title": "${extParams}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "apiServerKey": "additionalString",
+          "apiServerKey": "extParams",
           "x-index": 70
         },
         "timezone": {
@@ -317,11 +309,10 @@
       "host": "DB Address",
       "port": "Port",
       "dorisHttp": "Http Address",
-      "catalog": "Doris Catalog",
       "database": "DB Name",
       "user": "User",
       "password": "Password",
-      "addtionalString": "Other connection string parameters",
+      "extParams": "Other connection string parameters",
       "timeZone": "Timezone for Datetime",
       "timezoneTips": "Affect Type: DATE",
       "writeByteBufferCapacity": "Write buffer capacity(KB)",
@@ -335,11 +326,10 @@
       "host": "数据库地址",
       "port": "端口",
       "dorisHttp": "http接口地址",
-      "catalog": "Doris目录",
       "database": "数据库名称",
       "user": "账号",
       "password": "密码",
-      "addtionalString": "其他连接串参数",
+      "extParams": "其他连接串参数",
       "timezone": "时间类型的时区",
       "timezoneTips": "影响类型: DATE",
       "writeByteBufferCapacity": "写入缓冲区容量(KB)",
@@ -353,11 +343,10 @@
       "host": "数据库地址",
       "port": "端口",
       "dorisHttp": "http接口地址",
-      "catalog": "Doris目錄",
       "database": "数据库名称",
       "user": "账号",
       "password": "密码",
-      "addtionalString": "其他连接串参数",
+      "extParams": "其他连接串参数",
       "timezone": "时间类型的时区",
       "timezoneTips": "影響類型: DATE",
       "writeByteBufferCapacity": "寫入緩沖區容量(KB)",

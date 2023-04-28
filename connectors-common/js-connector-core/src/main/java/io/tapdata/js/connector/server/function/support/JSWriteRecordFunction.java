@@ -15,6 +15,7 @@ import io.tapdata.js.connector.iengine.LoadJavaScripter;
 import io.tapdata.js.connector.server.function.FunctionBase;
 import io.tapdata.js.connector.server.function.FunctionSupport;
 import io.tapdata.js.connector.server.function.JSFunctionNames;
+import io.tapdata.js.connector.server.function.base.SchemaAccept;
 import io.tapdata.js.connector.server.sender.WriteRecordRender;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -69,6 +70,7 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
             throw new CoreException("Table lists cannot not be empty.");
         }
         List<Map<String, Object>> machiningEvents = this.machiningEvents(tapRecordEvents, table.getId());
+        String tableJsonString = new SchemaAccept().tableMap(table);
 
         if (!this.doSubFunctionNotSupported()) {
             String cacheEventType = null;
@@ -77,7 +79,7 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
                 String cacheEventTypeTemp = String.valueOf(Optional.ofNullable(event.get(EventTag.EVENT_TYPE)).orElse(EventType.insert));
                 if (Objects.isNull(cacheEventType) || !cacheEventType.equals(cacheEventTypeTemp)) {
                     if (!execData.isEmpty()) {
-                        this.execDrop(cacheEventType, context, execData,writeListResultConsumer);
+                        this.execDrop(cacheEventType, context, execData, writeListResultConsumer, tableJsonString);
                         execData = new ArrayList<>();
                     }
                     cacheEventType = cacheEventTypeTemp;
@@ -85,22 +87,22 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
                 execData.add(event);
             }
             if (!execData.isEmpty()) {
-                this.execDrop(cacheEventType, context, execData,writeListResultConsumer);
+                this.execDrop(cacheEventType, context, execData, writeListResultConsumer, tableJsonString);
             }
         }
-        this.exec(context, machiningEvents, JSFunctionNames.WriteRecordFunction,writeListResultConsumer);
+        this.exec(context, machiningEvents, JSFunctionNames.WriteRecordFunction, writeListResultConsumer, tableJsonString);
         //js执行出错不需要清除缓存，重试时需要使用
         this.writeCache = new ConcurrentHashMap<>();
     }
 
-    private void execDrop(String cacheEventType, TapConnectorContext context, List<Map<String, Object>> execData,Consumer<WriteListResult<TapRecordEvent>> consumer){
+    private void execDrop(String cacheEventType, TapConnectorContext context, List<Map<String, Object>> execData,Consumer<WriteListResult<TapRecordEvent>> consumer, String tableJsonString){
         JSFunctionNames functionName = cacheEventType.equals(EventType.insert) ? JSFunctionNames.InsertRecordFunction : (cacheEventType.equals(EventType.update) ? JSFunctionNames.UpdateRecordFunction : JSFunctionNames.DeleteRecordFunction);
         for (Map<String, Object> execDatum : execData) {
-            this.exec(context, execDatum, functionName,consumer);
+            this.exec(context, execDatum, functionName, consumer, tableJsonString);
         }
     }
 
-    private void exec(TapConnectorContext context, Object execData, JSFunctionNames function,Consumer<WriteListResult<TapRecordEvent>> consumer) {
+    private void exec(TapConnectorContext context, Object execData, JSFunctionNames function,Consumer<WriteListResult<TapRecordEvent>> consumer, String tableJsonString) {
         if (!this.doNotSupport(function)) {
             WriteRecordRender writeResultCollector= data -> {
                 AtomicLong insert = new AtomicLong();
@@ -133,7 +135,8 @@ public class JSWriteRecordFunction extends FunctionBase implements FunctionSuppo
                             Optional.ofNullable(context.getConnectionConfig()).orElse(new DataMap()),
                             Optional.ofNullable(context.getNodeConfig()).orElse(new DataMap()),
                             execData,
-                            isWriteRecord ? writeResultCollector : null
+                            isWriteRecord ? writeResultCollector : tableJsonString,
+                            isWriteRecord ? tableJsonString : null
                     );
                 }
                 if (!isWriteRecord) {
