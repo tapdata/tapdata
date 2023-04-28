@@ -37,7 +37,11 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
     private static ChannelGroup clients = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
     private final WebSocketClientHandshaker handshaker;
     private ChannelPromise handshakeFuture;
-
+    int ERROR_CHANNEL_KICKED_BY_DEVICE = 6014;
+    int ERROR_CHANNEL_KICKED_BY_CONCURRENT = 6015;
+    int ERROR_LOGIN_FAILED_DEVICE_TOKEN_CHANGED = 6016;
+    int ERROR_EXCEED_USER_CHANNEL_CAPACITY = 6017;
+    int ERROR_CHANNEL_BYE_BYE = 6025;
     WebsocketPushChannel pushChannel;
 
     private EventManager eventManager;
@@ -133,11 +137,16 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
                                 eventManager.sendEvent(prefix + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_CONNECTED));
                             } else if(result.getCode() == 11) {
                                 eventManager.sendEvent(prefix + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_OFFLINEMESSAGECONSUMED));
-                            } else if(result.getCode() == 1075) { //kicked
-                                TapLogger.debug(TAG, "PushChannel kicked");
+                            } else if(
+                                            result.getCode() == ERROR_CHANNEL_KICKED_BY_DEVICE ||
+                                            result.getCode() == ERROR_CHANNEL_KICKED_BY_CONCURRENT ||
+                                            result.getCode() == ERROR_LOGIN_FAILED_DEVICE_TOKEN_CHANGED ||
+                                            result.getCode() == ERROR_EXCEED_USER_CHANNEL_CAPACITY
+                            ) { //kicked
+                                TapLogger.debug(TAG, "PushChannel kicked, code {}", result.getCode());
                                 eventManager.sendEvent(pushChannel.getImClient().getPrefix() + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_KICKED));
-                            } else if(result.getCode() == 1094) {
-                                TapLogger.debug(TAG, "PushChannel byed");
+                            } else if(result.getCode() == ERROR_CHANNEL_BYE_BYE) {
+                                TapLogger.debug(TAG, "PushChannel bye, code {}", result.getCode());
                                 eventManager.sendEvent(pushChannel.getImClient().getPrefix() + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_BYE));
                             } else {
                                 TapLogger.debug(TAG, "PushChannel receive result " + result);
