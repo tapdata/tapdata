@@ -1,8 +1,10 @@
 package io.tapdata.connector.doris;
 
+import cn.hutool.http.HttpUtil;
 import io.tapdata.common.CommonDbTest;
 import io.tapdata.connector.doris.bean.DorisConfig;
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.entity.TestItem;
 
 import java.util.ArrayList;
@@ -16,6 +18,7 @@ public class DorisTest extends CommonDbTest {
 
     public DorisTest(DorisConfig dorisConfig, Consumer<TestItem> consumer) {
         super(dorisConfig, consumer);
+        testFunctionMap.put("testStreamLoadPrivilege", this::testStreamLoadPrivilege);
         jdbcContext = new DorisJdbcContext(dorisConfig);
     }
 
@@ -60,4 +63,19 @@ public class DorisTest extends CommonDbTest {
     protected static final String TEST_DORIS_WRITE_RECORD = "insert into %s values(0,0)";
     protected static final String TEST_DORIS_UPDATE_RECORD = "update %s set col2=1 where col1=0";
     protected static final String TEST_DORIS_DELETE_RECORD = "delete from %s where col1=0";
+
+    protected Boolean testStreamLoadPrivilege() {
+        try {
+            if (HttpUtil.get("http://" + ((DorisConfig) commonDbConfig).getDorisHttp()).contains("<title>Doris</title>")) {
+                consumer.accept(testItem(STREAM_WRITE, TestItem.RESULT_SUCCESSFULLY, "StreamLoad Service is available"));
+            } else {
+                consumer.accept(testItem(STREAM_WRITE, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, "port of StreamLoad Service is not right"));
+            }
+        } catch (Exception e) {
+            consumer.accept(testItem(STREAM_WRITE, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, ErrorKit.getLastCause(e).getMessage()));
+        }
+        return true;
+    }
+
+    private static final String STREAM_WRITE = "Stream Write";
 }
