@@ -138,9 +138,9 @@ public class MeasureAOP {
 
         Number currentEventTimestamp = vs.get("currentEventTimestamp");
         boolean checkCdcOpen = alarmService.checkOpen(taskDto, null, AlarmKeyEnum.TASK_INCREMENT_START, null, userDetail);
-        if (checkCdcOpen && Objects.isNull(taskDto.getCurrentEventTimestamp()) && Objects.nonNull(currentEventTimestamp)) {
+        if (checkCdcOpen && Objects.isNull(taskDto.getCurrentEventTimestamp()) && Objects.nonNull(currentEventTimestamp) && currentEventTimestamp.longValue() > 0L) {
             Map<String, Object> param = Maps.newHashMap();
-            param.put("cdcTime", now);
+            param.put("cdcTime", DateUtil.date(currentEventTimestamp.longValue()).toDateStr());
             param.put("alarmDate", alarmDate);
             param.put("taskName", taskDto.getName());
 
