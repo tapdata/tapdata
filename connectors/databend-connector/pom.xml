@@ -44,7 +44,6 @@
         <dependency>
             <groupId>com.databend</groupId>
             <artifactId>databend-jdbc</artifactId>
-            <version>0.0.5</version>
         </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>
