@@ -75,7 +75,7 @@ public class RegisterMain {
         Hive3(BASE_PATH + "connectors/dist/hive3-connector-v1.0-SNAPSHOT.jar", "all", "hive3"),
         BesChannels(BASE_PATH + "connectors/dist/beschannels-connector-v1.0-SNAPSHOT.jar", "all", "bes-channels"),
         LarkDoc(BASE_PATH + "connectors/dist/lark-doc-connector-v1.0-SNAPSHOT.jar", "all", "lark-doc"),
-
+        LarkApproval(BASE_PATH + "connectors/dist/lark-approval-connector-v1.0-SNAPSHOT.jar", "all", "lark-approval"),
         ;
 
         private final String path;
