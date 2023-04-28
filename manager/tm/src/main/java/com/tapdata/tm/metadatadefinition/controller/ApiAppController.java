@@ -66,6 +66,20 @@ public class ApiAppController extends BaseController {
     }
 
 
+    @Operation(summary = "Find all instances and api model of the model matched by filter from the data source")
+    @GetMapping("findAndModel")
+    public ResponseMessage<Page<ApiAppDetail>> findAndModel(
+            @Parameter(in = ParameterIn.QUERY,
+                    description = "Filter defining fields, where, sort, skip, and limit - must be a JSON-encoded string (`{\"where\":{\"something\":\"value\"},\"fields\":{\"something\":true|false},\"sort\": [\"name desc\"],\"page\":1,\"size\":20}`)."
+            )
+            @RequestParam(value = "filter", required = false) String filterJson) {
+        Filter filter = parseFilter(filterJson);
+        if (filter == null) {
+            filter = new Filter();
+        }
+        return success(apiAppService.findAndModel(filter, getLoginUser()));
+    }
+
 
     /**
      *  Patch attributes for a model instance and persist it into the data source
