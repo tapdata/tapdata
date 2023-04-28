@@ -1,9 +1,11 @@
 {
   "properties": {
-    "name": "LarkApproval",
+    "name": "Lark Approval",
     "icon": "icon/task.png",
     "doc": "${doc}",
-    "id": "lark-approval"
+    "id": "lark-approval",
+    "authentication": "Alpha",
+    "tags": ["SaaS"]
   },
   "configOptions": {
     "pdkExpansion": [],
