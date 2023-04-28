@@ -1,80 +1,106 @@
 {
   "jobs_infos": [
     {
-      "job_name": "test_dummy_dummy_1681704023194_3778",
+      "job_name": "test_sync_1682652521769_799",
       "dag": {
         "node": {
           "source_db_type": "dummy",
           "target": "dummy",
-          "processing": None
+          "processing": "sync"
+        }
+      },
+      "table_fields": "10",
+      "job_test_res": [
+        {
+          "row_num": "700000",
+          "sync_type": "initial_sync",
+          "metrics": {
+            "qps": 44551,
+            "sync_time": 5562
+          }
+        }
+      ]
+    },
+    {
+      "job_name": "test_sync_1682652521769_799",
+      "dag": {
+        "node": {
+          "source_db_type": "dummy",
+          "target": "dummy",
+          "processing": "sync"
         }
       },
       "table_fields": "100",
       "job_test_res": [
         {
-          "row_num": "100000",
+          "row_num": "500000",
           "sync_type": "initial_sync",
           "metrics": {
-            "qps": 19773.676152381584,
-            "sync_time": 3080
-          }
-        },
-        {
-          "row_num": "300000",
-          "sync_type": "initial_sync",
-          "metrics": {
-            "qps": 32729.269346416502,
-            "sync_time": 9126
+            "qps": 25316,
+            "sync_time": 19694
           }
         }
       ]
     },
     {
-      "job_name": "test_dummy_dummy_1681704023194_3778",
+      "job_name": "test_sync_1682652521769_799",
       "dag": {
         "node": {
           "source_db_type": "dummy",
           "target": "dummy",
-          "processing": None
+          "processing": "sync"
         }
       },
       "table_fields": "179",
       "job_test_res": [
         {
-          "row_num": "100000",
+          "row_num": "500000",
           "sync_type": "initial_sync",
           "metrics": {
-            "qps": 15102.899718082965,
-            "sync_time": 5173
-          }
-        },
-        {
-          "row_num": "300000",
-          "sync_type": "initial_sync",
-          "metrics": {
-            "qps": 18474.72250320417,
-            "sync_time": 15691
+            "qps": 15025,
+            "sync_time": 33241
           }
         }
       ]
     },
     {
-      "job_name": "test_dummy_dummy_1681704023194_3778",
+      "job_name": "test_sync_1682652521769_799",
       "dag": {
         "node": {
           "source_db_type": "dummy",
           "target": "dummy",
-          "processing": None
+          "processing": "sync"
+        }
+      },
+      "table_fields": "50",
+      "job_test_res": [
+        {
+          "row_num": "500000",
+          "sync_type": "initial_sync",
+          "metrics": {
+            "qps": 38606,
+            "sync_time": 11188
+          }
+        }
+      ]
+    },
+    {
+      "job_name": "test_sync_1682652521769_799",
+      "dag": {
+        "node": {
+          "source_db_type": "dummy",
+          "target": "dummy",
+          "processing": "sync"
         }
       },
       "table_fields": "500",
       "job_test_res": [
         {
-          "row_num": "100000",
+          "row_num": "500000",
           "sync_type": "initial_sync",
           "metrics": {
-            "qps": 6162.176038586177,
-            "sync_time": 14482
+            "qps": 5741,
+            "sync_time": 85571
           }
         }
       ]

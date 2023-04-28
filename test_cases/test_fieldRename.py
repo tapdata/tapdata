@@ -1,4 +1,4 @@
-# desc: 一个主从合并的全量+增量数据开发任务
+# desc: 一个左连接的全量+增量数据开发任务
 
 
 def test(Pipeline, source1, source2, target):

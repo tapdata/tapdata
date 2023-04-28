@@ -18,6 +18,7 @@ cache_file_path = os.path.dirname(os.path.abspath(__file__)) + '/../../../common
 from helper.suffix import get_test_table, get_suffix
 from tapdata_cli import cli
 from create_temp_file import ManageTempFile
+from req import Request
 from create_datasource import *
 from config_parser import config
 from tapdata_cli.cli import (
@@ -107,7 +108,7 @@ class TestCase:
                 inst.job_infos["job_name"] = inst.name
                 inst._params_template = _params_template
                 if tc[5:] in Processor.__dict__["_member_map_"]:
-                    inst.job_infos["dag"]["node"]["processor"] = tc[5:]
+                    inst.job_infos["dag"]["node"]["processing"] = tc[5:]
                 else:
                     logger.warn("{} in the name of the test case does not "
                                 "conform to the specification, please modify,{}", tc[5:], Processor.__doc__)
@@ -171,10 +172,6 @@ class Job:
         self.field_mod = self._field_module
         self.datasource_name_l = self._datasource_name
         self.index = 0
-        self.datasource_cfg = {
-            "name": [name["name"] for name in config],
-            "connection_type": [connection_type["connection_type"] for connection_type in config]
-        }
         self.dummy_source = ''
         self.dummy_source_table = ''
         self.pipeline_ins = None
@@ -185,9 +182,9 @@ class Job:
             "job_name": "",
             "dag": {
                 "node": {
-                    "source": self.source,
+                    "source_db_type": self.source,
                     "target": self.target,
-                    "processor": None
+                    "processing": None
                 }
             },
             "table_fields": 1,
@@ -206,7 +203,7 @@ class Job:
             raise StopIteration
         field_mod = import_module(self.field_mod[self.index])
         columns = field_mod.columns
-        self.dummy_source_name = self.datasource_cfg["name"][self.index]
+        self.dummy_source_name = "columns_%s" % str(len(columns))
         self.dummy_source = self.dummy_source_name + get_suffix()
         self.run_test_case = self._params_template
         self.job_infos = copy.copy(self.job_infos)
@@ -234,6 +231,8 @@ class Job:
                         if sync_tp == "initial_sync":
                             actual_step = int(int(step)/len(self.source_params)) - last_time_step
                             last_time_step = actual_step
+                        else:
+                            actual_step = int(int(step)/len(self.source_params))
                     self.cfg.update({
                         "initial_totals": actual_step,
                         "incremental_interval": 10000000,
@@ -241,7 +240,7 @@ class Job:
                     })
                 self.test_res = copy.copy(self.test_res)
                 self.row_num = step
-                self._dummy_source(self.index, self.cfg)
+                self._dummy_source(self.cfg)
                 self.pipeline_ins = self._gen_job()
                 self.continuous_testing(self.pipeline_ins, sync_tp)
                 self.test_res.update(row_num=step, sync_type=sync_tp, metrics=self.Metrics.__dict__)
@@ -311,15 +310,14 @@ class Job:
             field_mod.append(f.split(".")[0])
         return field_mod
 
-    def _dummy_source(self, index: int, config: dict) -> bool:
-        dum_source = DataSource("dummy", self.datasource_cfg["name"][index] + get_suffix(),
-                                self.datasource_cfg["connection_type"][index])
-        info = dum_source.get(connector_name=self.datasource_cfg["name"][index] + get_suffix())
+    def _dummy_source(self, config: dict) -> bool:
+        dum_source = DataSource("dummy", self.dummy_source, "source_and_target")
+        info = dum_source.get(connector_name=self.dummy_source)
         dum_source.pdk_setting.update(config)
         if info is not None:
             dum_source.update_save(info.get('id'))
             logger.info("Updated dummy data source {} succeeded, with data volume of {}",
-                        self.datasource_cfg["name"][index] + get_suffix(),
+                        self.dummy_source,
                         self.row_num)
         else:
             dum_source.save()
@@ -392,5 +390,5 @@ class Job:
 if __name__ == '__main__':
     clean_cache_file()
     j = Job()
-    print(j.run_test_case, '\n########################################################################################')
-
+    Request('/performance_test').post(json=j.run_test_case)
+    # print(j.run_test_case, '\n######################################################################################')

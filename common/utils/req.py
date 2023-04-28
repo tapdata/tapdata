@@ -19,7 +19,7 @@ def get_task_name(task):
 
 
 class Request:
-    def __init__(self, api, host=r'http://139.198.127.204:31196/', bash_path='api/'):
+    def __init__(self, api, host=r'http://139.198.127.204:31589', bash_path=''):
         self.url = host + bash_path + api
 
     def _res_dict(self, resp):
@@ -48,6 +48,8 @@ class Request:
 
     def post(self, **kwargs):
         res = requests.post(self.url, **kwargs)
+        res_data = self._res_dict(res)
+        return res_data
 
     def patch(self, **kwargs):
         res = requests.patch(self.url, **kwargs)
@@ -57,6 +59,6 @@ class Request:
 
 if __name__ == '__main__':
     # print(get_test_table("autmated_test"))
-    re = Request('Task')
-    res = re.get(id='64181c364365264fe06e297a?access_token=a3f045cf08db462c8617cb97cfde48b2bf7763ae11ad499da69924685fa195e5')
+    re = Request('/performance_test')
+    res = re.post(json='performance_test')
     print(res['data'])
