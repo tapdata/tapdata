@@ -30,7 +30,10 @@ public class ExternalStorageDto extends BaseDto {
 
 	public String maskUriPassword() {
 		if (ExternalStorageType.mongodb.name().equals(type) && StringUtils.isNotBlank(uri)) {
-			ConnectionString connectionString = new ConnectionString(uri);
+			String regEx = "[\n`~!#$%^*()+|{}';,\\[\\].<>~！#￥%……&*（）——+|{}【】‘；：”“’。， 、？]";
+			String newUri = uri.replaceAll(regEx, "");
+
+			ConnectionString connectionString = new ConnectionString(newUri);
 			char[] passwordChars = connectionString.getPassword();
 			if (null != passwordChars && passwordChars.length > 0) {
 				StringBuilder password = new StringBuilder();
@@ -39,7 +42,7 @@ public class ExternalStorageDto extends BaseDto {
 				}
 				String username = connectionString.getUsername();
 				if (StringUtils.isNotBlank(username) && StringUtils.isNotBlank(password)) {
-					return uri.replace(username + ":" + password, username + ":******");
+					return uri = newUri.replace(username + ":" + password, username + ":******");
 				}
 			}
 		}
