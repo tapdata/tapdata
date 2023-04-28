@@ -1621,11 +1621,13 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 } else if (node instanceof DatabaseNode) {
                     queryMetadata.addCriteria(criteriaTable);
                     DatabaseNode tableNode = (DatabaseNode) node;
-                    List<String> tableNames;
+                    List<String> tableNames = new ArrayList<>();
                     if (node.sourceType() == Node.SourceType.source) {
                         tableNames = tableNode.getTableNames();
                     } else if (node.sourceType() == Node.SourceType.target) {
-                        tableNames = tableNode.getSyncObjects().get(0).getObjectNames();
+                        if (tableNode.getSyncObjects() != null && tableNode.getSyncObjects().get(0) != null) {
+                            tableNames = tableNode.getSyncObjects().get(0).getObjectNames();
+                        }
                     } else {
                         throw new BizException("table node is error nodeId:" + tableNode.getId());
                     }
