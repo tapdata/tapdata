@@ -214,7 +214,7 @@ public class ApiCallService {
 
         List<Map> userInfoList = new ArrayList<>();
         if (CollectionUtils.isNotEmpty(apiCallEntityList)) {
-            apiCallEntityList.stream().map(ApiCallEntity::getUserInfo).collect(Collectors.toList());
+            userInfoList = apiCallEntityList.stream().map(ApiCallEntity::getUserInfo).collect(Collectors.toList());
         }
         List<String> clientIdList = new ArrayList<>();
         for (Map userInfo : userInfoList) {
@@ -235,7 +235,7 @@ public class ApiCallService {
         List<ModulesDto> hitModuledtoList = modulesService.findAll(Query.query(Criteria.where("id").in(allPathIdList)));
         Map<ObjectId, ModulesDto> moduleIdToModule = new HashMap<>();
         if (CollectionUtils.isNotEmpty(hitModuledtoList)) {
-            hitModuledtoList.stream().collect(Collectors.toMap(ModulesDto::getId, a -> a, (k1, k2) -> k1));
+            moduleIdToModule = hitModuledtoList.stream().collect(Collectors.toMap(ModulesDto::getId, a -> a, (k1, k2) -> k1));
         }
 
 
@@ -248,7 +248,7 @@ public class ApiCallService {
                 String clientId = (String) userInfo.getOrDefault("clientId", "");
                 ApplicationDto applicationDto = clientIdToApplication.get(MongoUtils.toObjectId(clientId));
                 if (applicationDto != null) {
-                    apiCallDetailVo.setClientName(applicationDto.getName());
+                    apiCallDetailVo.setClientName(applicationDto.getClientId());
                 }
             }
             if (StringUtils.isNotEmpty(allPathId) && null != moduleIdToModule.get(MongoUtils.toObjectId(allPathId))) {

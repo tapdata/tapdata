@@ -13,6 +13,7 @@ public interface ApiAppService {
     MetadataDefinitionDto save(MetadataDefinitionDto metadataDefinition, UserDetail user);
 
     Page<MetadataDefinitionDto> find(Filter filter, UserDetail user);
+    Page<ApiAppDetail> findAndModel(Filter filter, UserDetail user);
 
     MetadataDefinitionDto updateById(ObjectId id, MetadataDefinitionDto metadataDefinition, UserDetail user);
 
