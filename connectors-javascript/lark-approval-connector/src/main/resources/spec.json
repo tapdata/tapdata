@@ -1,0 +1,110 @@
+{
+  "properties": {
+    "name": "Lark Approval",
+    "icon": "icon/task.png",
+    "doc": "${doc}",
+    "id": "lark-approval",
+    "authentication": "Alpha",
+    "tags": ["SaaS"]
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+        "app_id": {
+          "type": "String",
+          "title": "${app_id}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 10,
+          "required": true
+        },
+        "app_secret": {
+          "type": "String",
+          "title": "${app_secret}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 20,
+          "required": true
+        },
+        "conditions": {
+          "title": "${definition_code}",
+          "type": "void",
+          "required": true,
+          "x-decorator": "FormItem",
+          "x-index": 31,
+          "x-component": "Space",
+          "properties": {
+            "code": {
+              "type": "string",
+              "x-decorator": "FormItem",
+              "x-component": "Input",
+              "x-component-props": {
+              },
+              "x-reactions": [
+                {
+                  "dependencies": [
+                    "app_id",
+                    "app_secret",
+                    "code"
+                  ],
+                  "fulfill": {
+                    "state": {
+                    }
+                  }
+                }
+              ]
+            },
+            "definitionCode": {
+              "type": "string",
+              "x-decorator": "FormItem",
+              "x-component": "Input",
+              "x-component-props": {
+                "disabled": true
+              },
+              "x-reactions": [
+                "{{ $values.app_id && $values.app_secret && $values.code && useAsyncDataSourceByConfig({service: getCommandAndSetValue, withoutField: true}, $form, { command: 'getToken', argMap: {code : $values.code, app_id: $values.app_id ,app_secret:$values.app_secret }})}}"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "doc/demo_en_US.md",
+      "app_id": "App Id",
+      "app_secret": "App Secret",
+      "app_name": "App Name",
+      "definition_code": "Definition Code",
+      "packages_dag_nodes_table_add": "ADD CODE",
+      "approval_code": "Approval Code"
+    },
+    "zh_CN": {
+      "doc": "doc/demo_zh_CN.md",
+      "app_id": "应用Id",
+      "app_name": "App名称",
+      "app_secret": "应用Secret",
+      "definition_code": "审批类型Code",
+      "packages_dag_nodes_table_add": "添加Code",
+      "approval_code": "审批类型Code"
+    },
+    "zh_TW": {
+      "doc": "doc/demo_zh_TW.md",
+      "app_id": "应用Id",
+      "app_name": "App名稱",
+      "app_secret": "应用Secret",
+      "definition_code": "審批類型Code",
+      "packages_dag_nodes_table_add": "添加Code",
+      "approval_code": "Approval Code"
+    }
+  }
+}
