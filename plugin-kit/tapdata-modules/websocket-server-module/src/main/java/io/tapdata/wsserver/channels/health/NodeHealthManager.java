@@ -36,7 +36,7 @@ public class NodeHealthManager implements MemoryFetcher {
 	private final AtomicBoolean started = new AtomicBoolean(false);
 
 	private NodeHealth currentNodeHealth;
-	private int nodeDeadExpiredSeconds = 120;
+	private int nodeDeadExpiredSeconds = 600;
 	@Bean
 	private NodeRegistryService nodeRegistryService;
 	@Bean
@@ -56,7 +56,7 @@ public class NodeHealthManager implements MemoryFetcher {
 			if(listeners != null)
 				healthWeightListeners.addAll(Arrays.asList(listeners));
 			int checkHealthPeriodSeconds = CommonUtils.getPropertyInt("tapdata_check_health_period_seconds", 10);
-			int cleanUpDeadNodesPeriodSeconds = CommonUtils.getPropertyInt("tapdata_cleanup_dead_nodes_period_seconds", 10);
+			int cleanUpDeadNodesPeriodSeconds = CommonUtils.getPropertyInt("tapdata_cleanup_dead_nodes_period_seconds", 60);
 			nodeDeadExpiredSeconds = CommonUtils.getPropertyInt("tapdata_node_dead_expired_seconds", 120);
 			String nodeId = CommonUtils.getProperty("tapdata_node_id");
 			if(nodeId == null)
@@ -72,7 +72,9 @@ public class NodeHealthManager implements MemoryFetcher {
 					loadNodes();
 				}, TAG);
 			}, checkHealthPeriodSeconds, checkHealthPeriodSeconds, TimeUnit.SECONDS);
-
+			ExecutorsManager.getInstance().getScheduledExecutorService().scheduleWithFixedDelay(() -> {
+				CommonUtils.ignoreAnyError(this::cleanUpDeadNodes, TAG);
+			}, cleanUpDeadNodesPeriodSeconds, cleanUpDeadNodesPeriodSeconds, TimeUnit.SECONDS);
 //			ExecutorsManager.getInstance().getScheduledExecutorService().scheduleWithFixedDelay(() -> {
 //				CommonUtils.ignoreAnyError(() -> {
 //					String cleaner = nodeHealthService.getCleaner();
