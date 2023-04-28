@@ -573,18 +573,21 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 			if (item.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo") && item.getConfig().get("uri") != null) {
 				String uri = (String) item.getConfig().get("uri");
+				String regEx = "[\n`~!#$%^*()+|{}';,\\[\\].<>~！#￥%……&*（）——+|{}【】‘；：”“’。， 、？]";
+				String newUri = uri.replaceAll(regEx, "");
+
 				ConnectionString connectionString = null;
 				try {
-					connectionString = new ConnectionString(uri);
+					connectionString = new ConnectionString(newUri);
 				} catch (Exception e) {
-					if (uri.startsWith("mongodb+srv:")) {
+					if (newUri.startsWith("mongodb+srv:")) {
 						try {
-							connectionString = new ConnectionString(uri.replace("mongodb+srv:", "mongodb:"));
+							connectionString = new ConnectionString(newUri.replace("mongodb+srv:", "mongodb:"));
 						} catch (Exception e1) {
-							log.error("Parse connection string failed ({}) {}", uri, e.getMessage());
+							log.error("Parse connection string failed ({}) {}", newUri, e.getMessage());
 						}
 					} else {
-						log.error("Parse connection string failed ({}) {}", uri, e.getMessage());
+						log.error("Parse connection string failed ({}) {}", newUri, e.getMessage());
 					}
 				}
 
@@ -593,8 +596,8 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 					if (password != null) {
 						String password1 = new String(password);
-						uri = uri.replace(":"+password1, ":******");
-						item.getConfig().put("uri", uri);
+						newUri = newUri.replace(":"+password1, ":******");
+						item.getConfig().put("uri", newUri);
 					}
 
 				}
