@@ -23,6 +23,9 @@ class Config:
             cls._config.read(DEFAULT_CONFIG)
         return super(Config, cls).__new__(cls, *args)
 
+    def __init__(self, *args):
+        self.sections = self._config.sections()
+
     def __getitem__(self, item: Union[int, str]):
         result = None
         if isinstance(item, str):
@@ -31,7 +34,7 @@ class Config:
                 result = self.get_value(key_1)[key_2]
             except KeyError:
                 if not os.getenv(item):
-                    raise AttributeError("item not found in config.ini file or env")
+                    raise AttributeError("item not found in *.ini file or env")
                 result = os.getenv(item)
         elif isinstance(item, int):
             item = self._config.items(self._config.sections()[item])

@@ -169,7 +169,7 @@ class Job:
         self.target = self._args.target
         self.dummy_source_name = ''
         self.init_config = self._parse_init_config
-        self.field_mod = self._field_module
+        # self.field_mod = self._field_module
         self.datasource_name_l = self._datasource_name
         self.index = 0
         self.dummy_source = ''
@@ -199,9 +199,9 @@ class Job:
         return self
 
     def __next__(self):
-        if self.index == len(self.field_mod):
+        if self.index == len(config.sections):
             raise StopIteration
-        field_mod = import_module(self.field_mod[self.index])
+        field_mod = import_module(config.sections[self.index])
         columns = field_mod.columns
         self.dummy_source_name = "columns_%s" % str(len(columns))
         self.dummy_source = self.dummy_source_name + get_suffix()
@@ -242,7 +242,7 @@ class Job:
                 self.row_num = step
                 self._dummy_source(self.cfg)
                 self.pipeline_ins = self._gen_job()
-                self.continuous_testing(self.pipeline_ins, sync_tp)
+                self.continuous_testing(self.pipeline_ins, sync_tp, step)
                 self.test_res.update(row_num=step, sync_type=sync_tp, metrics=self.Metrics.__dict__)
                 self.job_test_res.append(self.test_res)
         self.jobs_infos.append(self.job_infos)
@@ -253,7 +253,7 @@ class Job:
     class _Metrics:
         pass
 
-    def continuous_testing(self, p, sync_type: str) -> bool:
+    def continuous_testing(self, p, sync_type: str, step: str) -> bool:
         if sync_type == "initial_sync":
             try:
                 p.job.reset()
@@ -278,8 +278,9 @@ class Job:
                 stats = p.job.stats()
                 if stats.snapshot_start_at:
                     qps_metrics.append(stats.qps)
-                if stats.snapshot_done_at:
-                    sync_time = stats.snapshot_done_at - stats.snapshot_start_at
+                if stats.snapshot_done_at or str(stats.output_insert) == step:
+                    snapshot_done_at = stats.snapshot_done_at if stats.snapshot_done_at else int(time.time() * 1000)
+                    sync_time = snapshot_done_at - stats.snapshot_start_at
                     p.stop()
                     break
             qps = int(sum(qps_metrics) / len(qps_metrics))
@@ -297,7 +298,7 @@ class Job:
             "notice", "notice", "notice", "info", "info", "info", "info", "info", "info"
         )
 
-    def _metrics_collect(self, **kwargs):
+    def _metrics_collect(self, **kwargs) -> None:
         for k, v in kwargs.items():
             setattr(self.Metrics, k, v)
 
@@ -321,6 +322,7 @@ class Job:
                         self.row_num)
         else:
             dum_source.save()
+            time.sleep(3.1)  # Waiting for the dummy source table loaded
         self._dummy_init_job()
         return True
 
@@ -390,5 +392,5 @@ class Job:
 if __name__ == '__main__':
     clean_cache_file()
     j = Job()
-    Request('/performance_test').post(json=j.run_test_case)
-    # print(j.run_test_case, '\n######################################################################################')
+    # # Request('/performance_test').post(json=j.run_test_case)
+    print(j.run_test_case, '\n######################################################################################')
