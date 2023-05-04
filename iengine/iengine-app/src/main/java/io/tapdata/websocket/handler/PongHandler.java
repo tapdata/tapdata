@@ -5,6 +5,7 @@ import io.tapdata.websocket.EventHandlerAnnotation;
 
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
@@ -14,9 +15,9 @@ import java.util.function.Consumer;
  **/
 @EventHandlerAnnotation(type = "pong")
 public class PongHandler extends BaseEventHandler {
-	private final static int MAX_SIZE = 100;
+	private final static int MAX_SIZE = 1000000;
 	private static final LinkedList<Map<String, Object>> cacheList;
-	public static final int MAX_WAIT_MS = 15000;
+	public static final long MAX_WAIT_MS = TimeUnit.SECONDS.toMillis(30L);
 
 	static {
 		cacheList = new LinkedList<>();
