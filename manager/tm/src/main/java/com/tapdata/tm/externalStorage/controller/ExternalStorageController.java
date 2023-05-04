@@ -97,7 +97,6 @@ public class ExternalStorageController extends BaseController {
 			filter = new Filter();
 		}
 		Page<ExternalStorageDto> data = externalStorageService.find(filter, getLoginUser());
-		Optional.ofNullable(data.getItems()).ifPresent(list -> list.forEach(info -> info.setUri(info.maskUriPassword())));
 		return success(data);
 	}
 
