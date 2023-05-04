@@ -23,6 +23,7 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.task.constant.LdpDirEnum;
 import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.NonNull;
@@ -63,6 +64,10 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private LdpService ldpService;
+
 
     public MetadataDefinitionService(@NonNull MetadataDefinitionRepository repository) {
         super(repository, MetadataDefinitionDto.class, MetadataDefinitionEntity.class);
@@ -356,5 +361,45 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
                 .and("user_id").exists(false).and("parent_id").exists(false);
 
         return criteria;
+    }
+
+    @Override
+    public boolean deleteById(ObjectId id, UserDetail user) {
+        MetadataDefinitionDto metadataDefinitionDto = findById(id, user);
+        if (metadataDefinitionDto == null) {
+            return false;
+        }
+
+        if (CollectionUtils.isNotEmpty(metadataDefinitionDto.getItemType()) && metadataDefinitionDto.getItemType().contains(LdpDirEnum.LDP_DIR_MDM.getItemType())) {
+
+
+            Tag setTag;
+            String parentId = metadataDefinitionDto.getParent_id();
+            if (StringUtils.isBlank(parentId)) {
+                setTag = ldpService.getMdmTag(user);
+            } else {
+                Field field = new Field();
+                field.put("_id", true);
+                field.put("value", true);
+                MetadataDefinitionDto parentDefinition = findById(MongoUtils.toObjectId(parentId), field, user);
+                if (parentDefinition == null) {
+                    setTag = ldpService.getMdmTag(user);
+                } else {
+                    setTag = new Tag(parentDefinition.getId().toHexString(), parentDefinition.getValue());
+                }
+            }
+
+            Criteria criteria = Criteria.where("listtags")
+                    .elemMatch(Criteria.where("id").is(id.toHexString()));
+            Query query = new Query(criteria);
+            Update update = Update.update("listtags.$.value", setTag.getValue())
+                    .set("listtags.$.id", setTag.getId());
+
+            metadataInstancesService.update(query, update, user);
+        }
+
+        return super.deleteById(id, user);
+
+
     }
 }

@@ -117,7 +117,7 @@ public class MeasureAOP {
         Number snapshotDoneAt = vs.get("snapshotDoneAt");
         String alarmDate = DateUtil.now();
         boolean checkFullOpen = alarmService.checkOpen(taskDto, null, AlarmKeyEnum.TASK_FULL_COMPLETE, null, userDetail);
-        if (checkFullOpen && Objects.isNull(taskDto.getSnapshotDoneAt()) && Objects.nonNull(snapshotStartAt) && Objects.nonNull(snapshotDoneAt)) {
+        if (checkFullOpen && Objects.isNull(taskDto.getSnapshotDoneAt()) && Objects.nonNull(snapshotStartAt) && Objects.nonNull(snapshotDoneAt) && TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
             Long diff = (Long) snapshotDoneAt - (Long) snapshotStartAt;
 
             Map<String, Object> param = Maps.newHashMap();
@@ -138,7 +138,7 @@ public class MeasureAOP {
 
         Number currentEventTimestamp = vs.get("currentEventTimestamp");
         boolean checkCdcOpen = alarmService.checkOpen(taskDto, null, AlarmKeyEnum.TASK_INCREMENT_START, null, userDetail);
-        if (checkCdcOpen && Objects.isNull(taskDto.getCurrentEventTimestamp()) && Objects.nonNull(currentEventTimestamp) && currentEventTimestamp.longValue() > 0L) {
+        if (checkCdcOpen && Objects.isNull(taskDto.getCurrentEventTimestamp()) && Objects.nonNull(currentEventTimestamp) && currentEventTimestamp.longValue() > 0L  && TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
             Map<String, Object> param = Maps.newHashMap();
             param.put("cdcTime", DateUtil.date(currentEventTimestamp.longValue()).toDateStr());
             param.put("alarmDate", alarmDate);

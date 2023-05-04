@@ -74,7 +74,7 @@ public class BatchWriteRecordTest extends PDKTestBaseV2 {
                 for (int index = 0; index < insertAfter.length; index++) {
                     Map<String, Object> resultMap = result.get(index);
                     StringBuilder builder = new StringBuilder();
-                    boolean equals = super.mapEquals(insertAfter[index], resultMap, builder);
+                    boolean equals = super.mapEquals(insertAfter[index], resultMap, builder, targetTable.getNameFieldMap());
                     final int finalIndex = index + 1;
                     TapAssert.asserts(() -> {
                         //分批次插入后查询结果不一致-内容不一致

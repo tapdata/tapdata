@@ -3143,10 +3143,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
 
-        if (TaskDto.LDP_TYPE_FDM.equals(taskDto.getLdpType())) {
-            //如果是共享挖掘任务给一个队列，避免混乱
-            lockControlService.fdmStartQueue(user);
-        }
+//        if (TaskDto.LDP_TYPE_FDM.equals(taskDto.getLdpType())) {
+//            //如果是共享挖掘任务给一个队列，避免混乱
+//            lockControlService.fdmStartQueue(user);
+//        }
 
         Update update = Update.update("lastStartDate", System.currentTimeMillis());
         if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
