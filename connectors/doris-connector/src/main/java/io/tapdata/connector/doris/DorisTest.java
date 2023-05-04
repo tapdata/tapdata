@@ -7,6 +7,8 @@ import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.entity.TestItem;
 
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -20,6 +22,23 @@ public class DorisTest extends CommonDbTest {
         super(dorisConfig, consumer);
         testFunctionMap.put("testStreamLoadPrivilege", this::testStreamLoadPrivilege);
         jdbcContext = new DorisJdbcContext(dorisConfig);
+    }
+
+    @Override
+    protected Boolean testConnect() {
+        try (
+                Connection connection = jdbcContext.getConnection()
+        ) {
+            consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY, TEST_CONNECTION_LOGIN));
+            return true;
+        } catch (Exception e) {
+            if (e instanceof SQLException && ((SQLException) e).getErrorCode() == 1045) {
+                consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Incorrect username or password"));
+            } else {
+                consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, e.getMessage()));
+            }
+            return false;
+        }
     }
 
     @Override

@@ -12,6 +12,7 @@ import java.math.RoundingMode;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
@@ -306,7 +307,7 @@ public class DateTime implements Serializable, JavaCustomSerializer, Comparable<
     public java.sql.Date toSqlDate() {
         long milliseconds;
         if (seconds != null) {
-            milliseconds = seconds * 1000;
+            milliseconds = seconds * 1000 + (timeZone == null ? 0 : timeZone.getRawOffset());
             if (nano != null) {
                 milliseconds = milliseconds + (nano / 1000 / 1000);
             }
@@ -342,7 +343,7 @@ public class DateTime implements Serializable, JavaCustomSerializer, Comparable<
     public java.sql.Time toTime() {
         long milliseconds;
         if (seconds != null) {
-            milliseconds = seconds * 1000;
+            milliseconds = seconds * 1000 + (timeZone == null ? 0 : timeZone.getRawOffset());
             if (nano != null) {
                 milliseconds = milliseconds + (nano / 1000 / 1000);
             }
@@ -354,7 +355,7 @@ public class DateTime implements Serializable, JavaCustomSerializer, Comparable<
 
     public Timestamp toTimestamp() {
         if (seconds != null) {
-            Timestamp timestamp = new Timestamp(seconds * 1000);
+            Timestamp timestamp = new Timestamp(seconds * 1000 + (timeZone == null ? 0 : timeZone.getRawOffset()));
             if (nano != null) {
                 timestamp.setNanos(nano);
             }
@@ -364,7 +365,7 @@ public class DateTime implements Serializable, JavaCustomSerializer, Comparable<
     }
 
     public String toFormatString(String format) {
-        return toZonedDateTime().format(DateTimeFormatter.ofPattern(format));
+        return new SimpleDateFormat(format).format(new Date(toTimestamp().getTime()));
     }
 
     @Override
