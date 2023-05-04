@@ -211,7 +211,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
         TaskConfig taskConfig = getTaskConfig(taskDto);
 
         Long tmCurrentTime = taskDtoAtomicReference.get().getTmCurrentTime();
-        if (null != tmCurrentTime && tmCurrentTime.compareTo(0L) > 0) {
+        if (null != tmCurrentTime && tmCurrentTime.compareTo(0L) > 0 && taskDto.isNormalTask()) {
             Map<String, Object> params = new HashMap<>();
             params.put("id", taskDto.getId().toHexString());
             params.put("time", tmCurrentTime);
