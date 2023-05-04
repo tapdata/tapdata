@@ -35,10 +35,9 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.reflections</groupId>
-            <artifactId>reflections</artifactId>
-            <version>0.9.12</version>
-            <scope>compile</scope>
+            <groupId>io.tapdata</groupId>
+            <artifactId>quickapi-source-connector</artifactId>
+            <version>1.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>

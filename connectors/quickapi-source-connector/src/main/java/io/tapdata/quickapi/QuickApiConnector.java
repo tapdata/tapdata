@@ -29,14 +29,14 @@ import java.util.function.Consumer;
 @TapConnectorClass("spec.json")
 public class QuickApiConnector extends ConnectorBase {
 	private static final String TAG = QuickApiConnector.class.getSimpleName();
-	private final Object streamReadLock = new Object();
+	protected final Object streamReadLock = new Object();
 
-	private QuickApiConfig config;
-	private APIInvoker invoker;
-	private APIFactory apiFactory;
-	private Map<String,Object> apiParam = new HashMap<>();
+	protected QuickApiConfig config;
+	protected APIInvoker invoker;
+	protected APIFactory apiFactory;
+	protected Map<String,Object> apiParam = new HashMap<>();
 
-	private AtomicBoolean task = new AtomicBoolean(true);
+	protected AtomicBoolean task = new AtomicBoolean(true);
 
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
