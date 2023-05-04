@@ -3,7 +3,9 @@
     "name": "AIChat",
     "icon": "icon/chat.png",
     "doc" : "${doc}",
-    "id": "ai-chat"
+    "id": "ai-chat",
+    "authentication": "Alpha",
+    "tags": ["SaaS"]
   },
   "configOptions": {
     "pdkExpansion": [],

@@ -1,0 +1,79 @@
+{
+  "properties": {
+    "name": "Neo CRM",
+    "icon": "icon/neo-crm.png",
+    "doc" : "${doc}",
+    "id": "neo-crm",
+    "authentication": "Alpha",
+    "tags": ["SaaS"]
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+        "app_id": {
+          "type": "String",
+          "title": "${app_id}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 10,
+          "required": true
+        },
+        "app_secret": {
+          "type": "String",
+          "title": "${app_secret}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 20,
+          "required": true
+        },
+        "username": {
+          "type": "String",
+          "title": "${app_id}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 30,
+          "required": true
+        },
+        "password": {
+          "type": "String",
+          "title": "${app_secret}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 40,
+          "required": true
+        },
+        "code": {
+          "type": "String",
+          "title": "${app_id}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 50,
+          "required": true
+        }
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "doc/neo_en_US.md",
+
+    },
+    "zh_CN": {
+      "doc": "doc/neo_zh_CN.md",
+
+    },
+    "zh_TW": {
+      "doc": "doc/neo_zh_TW.md",
+
+    }
+  }
+}

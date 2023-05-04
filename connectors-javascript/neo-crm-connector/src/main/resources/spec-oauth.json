@@ -1,0 +1,97 @@
+{
+  "properties": {
+    "name": "Neo CRM",
+    "icon": "icon/neo-crm.png",
+    "doc" : "${doc}",
+    "id": "neo-crm",
+    "authentication": "Alpha",
+    "tags": ["SaaS"]
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "String",
+          "title": "${code}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-decorator-props": {
+            "style": {"display": "none"}
+          },
+          "apiServerKey": "code",
+          "x-index": 30,
+          "required": true
+        },
+        "line": {
+          "type": "void",
+          "x-component": "Space",
+          "x-decorator": "FormItem",
+          "title": " ",
+          "x-decorator-props": {
+            "colon": false
+          },
+          "properties": {
+            "authButton": {
+              "type": "void",
+              "x-decorator": "FormItem",
+              "x-component": "Button",
+              "x-content": "${OAuthButtonTitle}",
+              "title": "",
+              "x-index": 20,
+              "x-component-props": {
+                "type": "primary",
+                "onClick": "{{useAsyncDataSourceByConfig({service: goToAuthorized, withoutField: true}, { target: 'https://redirect.tapdata.io/oauth/complete', pdkId: 'neo-crm', oauthUrl: 'https://login.xiaoshouyi.com/auc/oauth2/auth?client_id=20414107501a88a16b89cfd7348c227d&response_type=code&redirect_uri=https://redirect.tapdata.io/oauth/complete/neo-crm&scope=all&oauthType=standard'})}}"
+              },
+              "x-decorator-props":{"style":{"width":"120px"}}
+            },
+            "OAuthStatus": {
+              "type": "void",
+              "title": "",
+              "x-decorator": "FormItem",
+              "x-component": "Text",
+              "apiServerKey": "AAA",
+              "x-index": 30,
+              "required": true,
+              "x-component-props": {
+                "content": "{{$values.code ? '${OAuthButtonOK}' : '${OAuthButton}'}}",
+                "style": {"color": "{{ $values.code ? 'green' : 'rgb(83, 95, 114)' }}"}
+              }
+            }
+          },
+          "x-index": 20
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "doc/neo_en_US.md",
+      "code": "Authorize",
+      "OAuthButtonTitle": "Authorize",
+      "OAuthButton": "Please authorize before connection test and save",
+      "OAuthButtonOK": "Authorization successfully"
+    },
+    "zh_CN": {
+      "doc": "doc/neo_zh_CN.md",
+      "code": "授权",
+      "OAuthButtonTitle": "授权",
+      "OAuthButton": "请先授权成功再点击连接测试或保存",
+      "OAuthButtonOK": "授权成功"
+    },
+    "zh_TW": {
+      "doc": "doc/neo_zh_TW.md",
+      "code": "授權",
+      "OAuthButtonTitle": "授權",
+      "OAuthButton": "請先授權成功再點擊鏈接測試或保存",
+      "OAuthButtonOK": "授權成功"
+    }
+  }
+}

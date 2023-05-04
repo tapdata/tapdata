@@ -1,0 +1,11 @@
+{
+  "info": {
+    "_postman_id": "dd67c65a-d7d3-438b-8e97-11018dcc6a7a",
+    "name": "AI Chat",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+  ],
+  "event": [],
+  "variable": [{"key": "token", "value": ""}, {"key": "url", "value": ""}]
+}

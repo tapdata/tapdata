@@ -77,7 +77,7 @@ public class RegisterMain {
         LarkDoc(BASE_PATH + "connectors/dist/lark-doc-connector-v1.0-SNAPSHOT.jar", "all", "lark-doc"),
         MRSHIVE3(BASE_PATH + "connectors/dist/mrs-hive3-connector-v1.0-SNAPSHOT.jar", "all", "mrs-hive3"),
         AIChat(BASE_PATH + "connectors/dist/ai-chat-connector-v1.0-SNAPSHOT.jar", "all", "ai-chat"),
-
+        NeoCRM(BASE_PATH + "connectors/dist/neo-crm-connector-v1.0-SNAPSHOT.jar", "all", "neo-crm"),
         ;
 
         private final String path;
