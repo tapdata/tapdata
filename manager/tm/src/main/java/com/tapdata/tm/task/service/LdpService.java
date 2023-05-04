@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.service;
 
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.bean.LdpFuzzySearchVo;
@@ -16,7 +17,7 @@ public interface LdpService {
 
     void afterLdpTask(String taskId, UserDetail user);
 
-
+    Tag getMdmTag(UserDetail user);
     Map<String, TaskDto> queryFdmTaskByTags(List<String> tagIds, UserDetail user);
 
     List<LdpFuzzySearchVo> fuzzySearch(String key, List<String> connectType, UserDetail loginUser);

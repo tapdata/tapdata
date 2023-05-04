@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit;
 public class NodeHealthServiceImpl implements NodeHealthService {
 	public static final String ID = "nodes_health";
 
-	public static final int unhealthySeconds = 300;
+	public static final int unhealthySeconds = 45;
 
 	@Bean
 	private NodeHealthDAO nodeHealthDAO;

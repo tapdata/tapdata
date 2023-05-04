@@ -78,6 +78,7 @@ public class RegisterMain {
         MRSHIVE3(BASE_PATH + "connectors/dist/mrs-hive3-connector-v1.0-SNAPSHOT.jar", "all", "mrs-hive3"),
         AIChat(BASE_PATH + "connectors/dist/ai-chat-connector-v1.0-SNAPSHOT.jar", "all", "ai-chat"),
         NeoCRM(BASE_PATH + "connectors/dist/neo-crm-connector-v1.0-SNAPSHOT.jar", "all", "neo-crm"),
+        LarkApproval(BASE_PATH + "connectors/dist/lark-approval-connector-v1.0-SNAPSHOT.jar", "all", "lark-approval"),
         ;
 
         private final String path;
@@ -123,7 +124,6 @@ public class RegisterMain {
         String[] tags = System.getProperty("tags", "all").split(",");
         ConnectorEnums.addByTags(postList, tags);
         Main.registerCommands().execute(postList.toArray(new String[0]));
-        System.exit(0);
     }
 
     private static String basePath() {

@@ -1,4 +1,4 @@
-package io.tapdata.connector.tidb.bean;
+package io.tapdata.connector.mysql.bean;
 
 import io.tapdata.common.CommonColumn;
 import io.tapdata.entity.schema.TapField;
@@ -6,11 +6,11 @@ import io.tapdata.entity.utils.DataMap;
 
 
 /**
- * @author lemon
+ * @author jarad
  */
-public class TidbColumn extends CommonColumn {
+public class MysqlColumn extends CommonColumn {
 
-    public TidbColumn(DataMap dataMap) {
+    public MysqlColumn(DataMap dataMap) {
         this.columnName = dataMap.getString("columnName");
         this.dataType = dataMap.getString("dataType");
         this.nullable = dataMap.getString("nullable");

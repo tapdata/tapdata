@@ -4,7 +4,7 @@ import io.tapdata.common.CommonDbConnector;
 import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.kafka.config.KafkaConfig;
-import io.tapdata.connector.tidb.bean.TidbColumn;
+import io.tapdata.connector.mysql.bean.MysqlColumn;
 import io.tapdata.connector.tidb.config.TidbConfig;
 import io.tapdata.connector.tidb.ddl.TidbDDLSqlGenerator;
 import io.tapdata.connector.tidb.dml.TidbReader;
@@ -221,7 +221,7 @@ public class TidbConnector extends CommonDbConnector {
     }
 
     protected TapField makeTapField(DataMap dataMap) {
-        return new TidbColumn(dataMap).getTapField();
+        return new MysqlColumn(dataMap).getTapField();
     }
 
     protected String getCreateTableSql(TapTable tapTable) {

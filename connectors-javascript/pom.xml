@@ -22,6 +22,7 @@
 		<module>lark-doc-connector</module>
 		<module>ai-chat-connector</module>
 		<module>neo-crm-connector</module>
+		<module>lark-approval-connector</module>
 	</modules>
 
 	<properties>

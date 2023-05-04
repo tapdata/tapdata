@@ -11,29 +11,15 @@ import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
 import io.tapdata.connector.mysql.writer.MysqlWriter;
 import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.codec.TapCodecsRegistry;
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
-import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
-import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
-import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
-import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
-import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
-import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
+import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.TapArrayValue;
-import io.tapdata.entity.schema.value.TapBooleanValue;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
-import io.tapdata.entity.schema.value.TapDateValue;
-import io.tapdata.entity.schema.value.TapMapValue;
-import io.tapdata.entity.schema.value.TapTimeValue;
-import io.tapdata.entity.schema.value.TapValue;
-import io.tapdata.entity.schema.value.TapYearValue;
+import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
@@ -44,11 +30,7 @@ import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.ConnectionOptions;
-import io.tapdata.pdk.apis.entity.FilterResults;
-import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
-import io.tapdata.pdk.apis.entity.TestItem;
-import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
@@ -63,7 +45,7 @@ import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.sql.SQLException;
+import java.sql.ResultSetMetaData;
 import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -92,6 +74,7 @@ public class MysqlConnector extends ConnectorBase {
     private DDLSqlMaker ddlSqlMaker;
 
     private AtomicBoolean started = new AtomicBoolean(false);
+
     public synchronized MysqlJdbcContext initMysqlJdbcContext(TapConnectionContext tapConnectionContext) {
         onStop(tapConnectionContext);
         return new MysqlJdbcContext(tapConnectionContext);
@@ -449,11 +432,28 @@ public class MysqlConnector extends ConnectorBase {
         mysqlJdbcContext.query(sql, resultSet -> {
             List<TapEvent> tapEvents = list();
             //get all column names
-            List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
+            Set<String> dateTypeSet = dateFields(tapTable);
+            ResultSetMetaData metaData = resultSet.getMetaData();
             while (isAlive() && resultSet.next()) {
-                DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
-                assert dataMap != null;
-                tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
+                Map<String, Object> data = new HashMap<>();
+                for (int i = 0; i < metaData.getColumnCount(); i++) {
+                    String columnName = metaData.getColumnName(i + 1);
+                    try {
+                        Object value;
+                        if ("TIME".equalsIgnoreCase(metaData.getColumnTypeName(i + 1))) {
+                            value = resultSet.getString(i + 1);
+                        } else {
+                            value = resultSet.getObject(i + 1);
+                            if (null == value && dateTypeSet.contains(columnName)) {
+                                value = resultSet.getString(i + 1);
+                            }
+                        }
+                        data.put(columnName, value);
+                    } catch (Exception e) {
+                        throw new RuntimeException("Read column value failed, column name: " + columnName + ", data: " + data + "; Error: " + e.getMessage(), e);
+                    }
+                }
+                tapEvents.add(insertRecordEvent(data, tapTable.getId()));
                 if (tapEvents.size() == eventBatchSize) {
                     eventsOffsetConsumer.accept(tapEvents, new HashMap<>());
                     tapEvents = list();
@@ -465,6 +465,21 @@ public class MysqlConnector extends ConnectorBase {
             }
         });
 
+    }
+
+    private Set<String> dateFields(TapTable tapTable) {
+        Set<String> dateTypeSet = new HashSet<>();
+        tapTable.getNameFieldMap().forEach((n, v) -> {
+            switch (v.getTapType().getType()) {
+                case TapType.TYPE_DATE:
+                case TapType.TYPE_DATETIME:
+                    dateTypeSet.add(n);
+                    break;
+                default:
+                    break;
+            }
+        });
+        return dateTypeSet;
     }
 
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offset, int batchSize, BiConsumer<List<TapEvent>, Object> consumer) throws Throwable {
@@ -480,7 +495,7 @@ public class MysqlConnector extends ConnectorBase {
             tempList.add(tapRecordEvent);
             if (tempList.size() == batchSize) {
                 consumer.accept(tempList, mysqlSnapshotOffset);
-                synchronized (TOTAL){
+                synchronized (TOTAL) {
                     TOTAL.addAndGet(tempList.size());
                 }
                 tempList.clear();
@@ -488,13 +503,13 @@ public class MysqlConnector extends ConnectorBase {
         });
         if (CollectionUtils.isNotEmpty(tempList)) {
             consumer.accept(tempList, mysqlSnapshotOffset);
-            synchronized (TOTAL){
+            synchronized (TOTAL) {
                 TOTAL.addAndGet(tempList.size());
             }
             tempList.clear();
         }
         synchronized (TOTAL) {
-            TapLogger.warn(TAG,"TOTAL: " + TOTAL.get());
+            TapLogger.warn(TAG, "TOTAL: " + TOTAL.get());
         }
     }
 
@@ -511,7 +526,7 @@ public class MysqlConnector extends ConnectorBase {
                 filterResults.add(data);
                 if (filterResults.getResults().size() == finalBatchSize) {
                     consumer.accept(filterResults);
-                    synchronized (TOTAL){
+                    synchronized (TOTAL) {
                         TOTAL.addAndGet(filterResults.getResults().size());
                     }
                     filterResults.getResults().clear();
@@ -519,7 +534,7 @@ public class MysqlConnector extends ConnectorBase {
             });
             if (CollectionUtils.isNotEmpty(filterResults.getResults())) {
                 consumer.accept(filterResults);
-                synchronized (TOTAL){
+                synchronized (TOTAL) {
                     TOTAL.addAndGet(filterResults.getResults().size());
                 }
                 filterResults.getResults().clear();
@@ -527,9 +542,9 @@ public class MysqlConnector extends ConnectorBase {
         } catch (Throwable e) {
             filterResults.setError(e);
             consumer.accept(filterResults);
-        }finally {
+        } finally {
             synchronized (TOTAL) {
-                TapLogger.warn(TAG,"TOTAL: " + TOTAL.get());
+                TapLogger.warn(TAG, "TOTAL: " + TOTAL.get());
             }
         }
     }

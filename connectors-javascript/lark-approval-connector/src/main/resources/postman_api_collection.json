@@ -1,0 +1,243 @@
+{
+  "info": {
+    "_postman_id": "7317aa2e-575a-460e-b4ba-622899bf74bb",
+    "name": "lark approval",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "16923698"
+  },
+  "item": [
+    {
+      "name": "Obtain the App Token and Tenant Token",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"app_id\": \"{{app_id}}\",\n    \"app_secret\": \"{{app_secret}}\"\n}\n"
+        },
+        "url": "https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal"
+      },
+      "response": []
+    },
+    {
+      "name": "Obtain application information",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "{{Authorization}}"
+          }
+        ],
+        "url": {
+          "raw": "https://open.feishu.cn/open-apis/application/v6/applications/me?lang=zh_cn",
+          "protocol": "https",
+          "host": [
+            "open",
+            "feishu",
+            "cn"
+          ],
+          "path": [
+            "open-apis",
+            "application",
+            "v6",
+            "applications",
+            "cli_a302e1fcf4b9900d"
+          ],
+          "query": [
+            {
+              "key": "lang",
+              "value": "zh_cn"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "getToken",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Cookie",
+            "value": "QXV0aHpDb250ZXh0=bc271f865d7e471f8c5c4d96929d5a5d; passport_web_did=7225509434938753052; swp_csrf_token=ebcc6dba-e9f2-46ac-a820-bc69b8cbde10; t_beda37=e32828d6b64695431b29a1d709c119ec118c6f61cc0b4364bf93239a27e1fa85"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n\t\"app_id\": \"{{app_id}}\",\n\t\"app_secret\": \"{{app_secret}}\"\n}"
+        },
+        "url": {
+          "raw": "https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal",
+          "protocol": "https",
+          "host": [
+            "open",
+            "feishu",
+            "cn"
+          ],
+          "path": [
+            "open-apis",
+            "auth",
+            "v3",
+            "app_access_token",
+            "internal"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "getInstancesList",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "{{Authorization}}"
+          }
+        ],
+        "url": {
+          "raw": "https://open.feishu.cn/open-apis/approval/v4/instances?{{page_token}}approval_code={{approval_code}}&end_time={{end_time}}&page_size=100&start_time=1555344000000",
+          "protocol": "https",
+          "host": [
+            "open",
+            "feishu",
+            "cn"
+          ],
+          "path": [
+            "open-apis",
+            "approval",
+            "v4",
+            "instances"
+          ],
+          "query": [
+            {
+              "key": "approval_code",
+              "value": "{{approval_code}}"
+            },
+            {
+              "key": "end_time",
+              "value": "{{end_time}}"
+            },
+            {
+              "key": "page_size",
+              "value": "100"
+            },
+            {
+              "key": "start_time",
+              "value": "1555344000000"
+            },
+            {
+              "key": "page_token",
+              "value": "{{page_token}}",
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "getInstances",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "{{Authorization}}"
+          }
+        ],
+        "url": {
+          "raw": "https://open.feishu.cn/open-apis/approval/v4/instances/:instance_id",
+          "protocol": "https",
+          "host": [
+            "open",
+            "feishu",
+            "cn"
+          ],
+          "path": [
+            "open-apis",
+            "approval",
+            "v4",
+            "instances",
+            ":instance_id"
+          ],
+          "variable": [
+            {
+              "key": "instance_id",
+              "value": "{{instance_id}}"
+            }
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "app_secret",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "app_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "Authorization",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "page_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "instance_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "approval_code",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "end_time",
+      "value": "1682480034986",
+      "type": "string"
+    }
+  ]
+}
