@@ -121,7 +121,7 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 					.init();
 			EhcacheService.getInstance().putEhcacheKVMap(mapKey, tapTableMap);
 		} catch (Throwable e) {
-			throw new RuntimeException(String.format("Failed to create Ehcache TapTableMap, node id: %s, map name: %s, error: %s", nodeId, mapKey, e.getMessage()));
+			throw new RuntimeException(String.format("Failed to create Ehcache TapTableMap, node id: %s, map name: %s, error: %s", nodeId, mapKey, e.getMessage()), e);
 		}
 	}
 
