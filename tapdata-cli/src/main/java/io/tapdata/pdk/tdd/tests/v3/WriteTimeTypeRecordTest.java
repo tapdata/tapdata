@@ -99,7 +99,7 @@ public class WriteTimeTypeRecordTest extends PDKTestBaseV2 {
             } else {
                 Map<String, Object> resultMap = result.get(0);
                 StringBuilder builder = new StringBuilder();
-                boolean equals = super.mapEquals(recordCopy[0], resultMap, builder);
+                boolean equals = super.mapEquals(recordCopy[0], resultMap, builder, targetTable.getNameFieldMap());
                 TapAssert.asserts(() -> {
                     Assertions.assertTrue(equals, langUtil.formatLang("writeTime.queryFilter.notEquals",
                             recordCount,
@@ -186,7 +186,7 @@ public class WriteTimeTypeRecordTest extends PDKTestBaseV2 {
                     Map<String, Object> result = insertEvent.getAfter();
                     StringBuilder builder = new StringBuilder();
                     TapAssert.asserts(() -> assertTrue(
-                            super.mapEquals(record, transform(node, targetTable, result), builder),
+                            super.mapEquals(record, transform(node, targetTable, result), builder, targetTable.getNameFieldMap()),
                             langUtil.formatLang("writeTime.batchRead.notEquals", recordCount, builder.toString())
                     )).acceptAsWarn(testCase, langUtil.formatLang("writeTime.batchRead.succeed", recordCount));
                 }

@@ -26,7 +26,6 @@ import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
@@ -540,7 +539,7 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
             }
 
             StringBuilder builder = new StringBuilder();
-            equals = super.mapEquals(r[0], transform(node, targetTable, after), builder);
+            equals = super.mapEquals(r[0], transform(node, targetTable, after), builder, targetTable.getNameFieldMap());
             if (!equals) {
                 //修改前后数据进行比对
                 TapAssert.warn(testCase, langUtil.formatLang("checkStreamRead.update.notEquals", recordCount, updateCount, index + 1, builder.toString()));

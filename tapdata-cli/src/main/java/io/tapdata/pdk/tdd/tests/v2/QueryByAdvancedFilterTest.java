@@ -1,5 +1,7 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
+import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.entity.*;
@@ -110,10 +112,10 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                     Map<String, Object> tapEvent = consumer.get(0);
                     Map<String, Object> result = tapEvent;//filterResult.getResult();
                     connectorNode.getCodecsFilterManager().transformToTapValueMap(result, targetTable.getNameFieldMap());
-                    connectorNode.getCodecsFilterManager().transformFromTapValueMap(result);
+                    TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(result);
                     StringBuilder builder = new StringBuilder();
                     TapAssert.asserts(() -> assertTrue(
-                            mapEquals(record, result, builder),
+                            mapEquals(record, result, builder, targetTable.getNameFieldMap()),
                             LangUtil.format("exact.equals.failed", recordCount, builder.toString())
                     )).acceptAsWarn(testCase, LangUtil.format("exact.equals.succeed", recordCount, builder.toString()));
                 }
