@@ -65,12 +65,12 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
                         .stream().collect(Collectors.toMap(FieldInfo::getSourceFieldName, FieldInfo::getTargetFieldName));
 
                 for (Field field : fields) {
-                    String fieldName = field.getFieldName();
-                    Boolean show = showMap.get(fieldName);
+                    String originalFieldName = field.getOriginalFieldName();
+                    Boolean show = showMap.get(originalFieldName);
                     if (Objects.nonNull(show) && !show) {
                         field.setDeleted(true);
-                    } else if (fieldMap.containsKey(fieldName)) {
-                        field.setFieldName(fieldMap.get(fieldName));
+                    } else if (fieldMap.containsKey(originalFieldName)) {
+                        field.setFieldName(fieldMap.get(originalFieldName));
                     }
 
                 }
