@@ -267,14 +267,14 @@ public class ConnectorManager {
     }*/
 
 		WorkerSingletonLock.check(tapdataWorkDir, (singletonLock) -> {
-			if (StringUtils.isBlank(singletonLock)) {
-				String singletonLockFromEnv = System.getenv("singletonLock");
-				if (StringUtils.isNotBlank(singletonLockFromEnv)) {
-					// Cloud 全托管，永远使用环境变量中提供的 lock
-					return singletonLockFromEnv;
-				}
+			String newSingletonLock;
+			String singletonLockFromEnv = System.getenv("singletonLock");
+			if (StringUtils.isNotBlank(singletonLockFromEnv)) {
+				// Cloud 全托管，永远使用环境变量中提供的 lock
+				newSingletonLock = singletonLockFromEnv;
+			} else {
+				newSingletonLock = UUID.randomUUID().toString();
 			}
-			String newSingletonLock = UUID.randomUUID().toString();
 			String status = clientMongoOperator.upsert(new HashMap<String, Object>() {{
 				put("process_id", instanceNo);
 				put("worker_type", ConnectorConstant.WORKER_TYPE_CONNECTOR);
