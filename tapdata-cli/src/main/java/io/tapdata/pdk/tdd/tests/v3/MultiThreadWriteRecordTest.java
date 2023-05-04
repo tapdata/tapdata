@@ -18,12 +18,10 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
@@ -203,7 +201,7 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
         } else {
             Map<String, Object> resultMap = result.get(0);
             StringBuilder builder = new StringBuilder();
-            boolean equals = super.mapEquals(recordCopy[0], transform(node, targetTable, resultMap), builder);
+            boolean equals = super.mapEquals(recordCopy[0], transform(node, targetTable, resultMap), builder, targetTable.getNameFieldMap());
             TapAssert.asserts(() -> {
                 Assertions.assertTrue(equals, langUtil.formatLang("multiWrite.modify.query.notEquals",
                         tName,

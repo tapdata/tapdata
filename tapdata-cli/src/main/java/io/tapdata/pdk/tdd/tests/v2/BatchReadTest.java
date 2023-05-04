@@ -1,7 +1,5 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
-import io.tapdata.entity.codec.TapCodecsRegistry;
-import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -112,7 +110,7 @@ public class BatchReadTest extends PDKTestBase {
 //                                if (null!=filterResult.getResult()){
 //                                    Map<String, Object> result = filterResult.getResult();
 //                                    connectorNode.getCodecsFilterManager().transformToTapValueMap(result, targetTable.getNameFieldMap());
-//                                    connectorNode.getCodecsFilterManager().transformFromTapValueMap(result);
+//                                    TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(result);
 //                                    StringBuilder builder = new StringBuilder();
 //                                    TapAssert.asserts(()->assertTrue(
 //                                        mapEquals(record, result, builder),
@@ -168,7 +166,7 @@ public class BatchReadTest extends PDKTestBase {
                         StringBuilder builder = new StringBuilder();
                         Map<String, Object> finalResult = result;
                         TapAssert.asserts(() -> assertTrue(
-                                mapEquals(record, finalResult, builder),
+                                mapEquals(record, finalResult, builder, targetTable.getNameFieldMap()),
                                 LangUtil.format("exact.equals.failed", recordCount, builder.toString())
                         )).acceptAsWarn(testCase, LangUtil.format("exact.equals.succeed", recordCount, builder.toString()));
                     }
