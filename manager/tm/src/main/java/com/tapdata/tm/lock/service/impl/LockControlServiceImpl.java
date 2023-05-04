@@ -22,7 +22,7 @@ public class LockControlServiceImpl implements LockControlService {
      * FDM任务启动需要一个队列，防止混乱
      */
     @Override
-    @Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
+    //@Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
     public void fdmStartQueue(UserDetail user) {
     }
 }

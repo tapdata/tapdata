@@ -19,6 +19,8 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.livedataplatform.dto.LiveDataPlatformDto;
 import com.tapdata.tm.livedataplatform.service.LiveDataPlatformService;
+import com.tapdata.tm.lock.annotation.Lock;
+import com.tapdata.tm.lock.constant.LockType;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
@@ -28,6 +30,7 @@ import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.task.service.TaskSaveService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.utils.ThreadLocalUtils;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import lombok.extern.slf4j.Slf4j;
@@ -73,6 +76,7 @@ public class LdpServiceImpl implements LdpService {
     private TaskSaveService taskSaveService;
 
     @Override
+    @Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
     public TaskDto createFdmTask(TaskDto task, UserDetail user) {
         //check fdm task
         String fdmConnId = checkFdmTask(task, user);
@@ -176,6 +180,15 @@ public class LdpServiceImpl implements LdpService {
         }
 
         return taskDto;
+    }
+
+    @Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
+    public void syncStart(UserDetail user, TaskDto taskDto) {
+        if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
+            taskService.pause(taskDto, user, false, true);
+        } else {
+            taskService.start(taskDto, user, "00");
+        }
     }
 
     private void flushPrefix(DAG dag, DAG dag1) {
@@ -809,7 +822,6 @@ public class LdpServiceImpl implements LdpService {
                 List<MetadataDefinitionDto> ldpDirTags = metadataDefinitionService.save(newTags, user);
 
                 if (oldLdpMap != null) {
-                    metadataDefinitionService.count(new Query(Criteria.where("parent_id").in(oldLdpMap.values())), user);
                     for (MetadataDefinitionDto ldpDirTag : ldpDirTags) {
                         Update update = Update.update("parent_id", ldpDirTag.getId().toHexString());
                         metadataDefinitionService.update(new Query(Criteria.where("parent_id").is(oldLdpMap.get(ldpDirTag.getValue()))), update, user);
