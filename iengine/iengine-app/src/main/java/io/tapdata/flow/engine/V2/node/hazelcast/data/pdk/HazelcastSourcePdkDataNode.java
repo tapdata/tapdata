@@ -634,7 +634,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						.eventBatchSize(1)
 						.offsetState(syncProgress.getStreamOffsetObj())
 						.start(),
-				streamReadFuncAspect -> this.shareCdcReader.listen(streamReadConsumer));
+				streamReadFuncAspect -> {
+					this.streamReadFuncAspect = streamReadFuncAspect;
+					this.shareCdcReader.listen(streamReadConsumer);
+				});
 	}
 
 	private void checkPollingCDCIfNeed() {
