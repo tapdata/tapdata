@@ -612,7 +612,7 @@ public class LdpServiceImpl implements LdpService {
         return result;
     }
 
-    private Tag getMdmTag(UserDetail user) {
+    public Tag getMdmTag(UserDetail user) {
         Criteria mdmCriteria = Criteria.where("value").is("MDM").and("parent_id").exists(false);
         Query query = new Query(mdmCriteria);
         MetadataDefinitionDto mdmTag = metadataDefinitionService.findOne(query, user);
