@@ -136,7 +136,7 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                     } else {
                         Map<String, Object> resultMap = result.get(0);
                         StringBuilder builder = new StringBuilder();
-                        boolean equals = mapEquals((Map<String, Object>) records[0], resultMap, builder);
+                        boolean equals = mapEquals((Map<String, Object>) records[0], resultMap, builder, targetTable.getNameFieldMap());
                         TapAssert.asserts(() -> {
                             Assertions.assertTrue(equals, langUtil.formatLang("fieldModification.all.query.error", recordCount, size, builder.toString()));
                         }).acceptAsWarn(testCase, langUtil.formatLang("fieldModification.all.query.succeed", recordCount, size, builder.toString()));
@@ -265,7 +265,7 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                     } else {
                         Map<String, Object> resultMap = result.get(0);
                         StringBuilder builder = new StringBuilder();
-                        boolean equals = mapEquals((Map<String, Object>) records[0], resultMap, builder);
+                        boolean equals = mapEquals((Map<String, Object>) records[0], resultMap, builder, targetTable.getNameFieldMap());
                         TapAssert.asserts(() -> {
                             Assertions.assertTrue(equals, langUtil.formatLang("fieldModification.some.query.error",
                                     recordCount,
@@ -406,7 +406,7 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                     } else {
                         Map<String, Object> resultMap = result.get(0);
                         StringBuilder builder = new StringBuilder();
-                        boolean equals = mapEquals((Map<String, Object>) records[0], resultMap, builder);
+                        boolean equals = mapEquals((Map<String, Object>) records[0], resultMap, builder, targetTable.getNameFieldMap());
                         TapAssert.asserts(() -> {
                             Assertions.assertTrue(equals, langUtil.formatLang("fieldModification.some2.query.error",
                                     recordCount,
