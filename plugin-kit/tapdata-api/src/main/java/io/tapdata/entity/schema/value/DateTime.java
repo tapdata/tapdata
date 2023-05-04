@@ -307,7 +307,7 @@ public class DateTime implements Serializable, JavaCustomSerializer, Comparable<
     public java.sql.Date toSqlDate() {
         long milliseconds;
         if (seconds != null) {
-            milliseconds = seconds * 1000 + (timeZone == null ? 0 : timeZone.getRawOffset());
+            milliseconds = seconds * 1000;
             if (nano != null) {
                 milliseconds = milliseconds + (nano / 1000 / 1000);
             }
@@ -343,7 +343,7 @@ public class DateTime implements Serializable, JavaCustomSerializer, Comparable<
     public java.sql.Time toTime() {
         long milliseconds;
         if (seconds != null) {
-            milliseconds = seconds * 1000 + (timeZone == null ? 0 : timeZone.getRawOffset());
+            milliseconds = seconds * 1000;
             if (nano != null) {
                 milliseconds = milliseconds + (nano / 1000 / 1000);
             }
@@ -355,7 +355,7 @@ public class DateTime implements Serializable, JavaCustomSerializer, Comparable<
 
     public Timestamp toTimestamp() {
         if (seconds != null) {
-            Timestamp timestamp = new Timestamp(seconds * 1000 + (timeZone == null ? 0 : timeZone.getRawOffset()));
+            Timestamp timestamp = new Timestamp(seconds * 1000);
             if (nano != null) {
                 timestamp.setNanos(nano);
             }
@@ -365,7 +365,7 @@ public class DateTime implements Serializable, JavaCustomSerializer, Comparable<
     }
 
     public String toFormatString(String format) {
-        return new SimpleDateFormat(format).format(new Date(toTimestamp().getTime()));
+        return new SimpleDateFormat(format).format(new Date(toTimestamp().getTime() + (timeZone == null ? 0 : timeZone.getRawOffset())));
     }
 
     @Override
