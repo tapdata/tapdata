@@ -12,6 +12,7 @@ import java.math.RoundingMode;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
@@ -364,7 +365,7 @@ public class DateTime implements Serializable, JavaCustomSerializer, Comparable<
     }
 
     public String toFormatString(String format) {
-        return toZonedDateTime().format(DateTimeFormatter.ofPattern(format));
+        return new SimpleDateFormat(format).format(new Date(toTimestamp().getTime() + (timeZone == null ? 0 : timeZone.getRawOffset())));
     }
 
     @Override

@@ -1,10 +1,14 @@
 package io.tapdata.pdk.tdd.tests.v3;
 
+import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBaseV2;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.core.base.TestNode;
@@ -66,14 +70,18 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
             }
             //查询数据，并校验
             Record[] recordCopy = node.recordEventExecute().records();
-            List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, recordCopy);
+            TapTable targetTableModel = super.getTargetTable(node.connectorNode());
+            List<Map<String, Object>> result = super.queryRecords(node, targetTableModel, recordCopy);
             final int filterCount = result.size();
             if (filterCount != recordCount) {
                 TapAssert.error(testCase, langUtil.formatLang("sequentialTest.modify.query.fail", recordCount, modifyCount, filterCount));
             } else {
                 Map<String, Object> resultMap = result.get(0);
                 StringBuilder builder = new StringBuilder();
-                boolean equals = super.mapEquals(recordCopy[0], resultMap, builder, targetTable.getNameFieldMap());
+                node.connectorNode().getCodecsFilterManager().transformToTapValueMap(resultMap, targetTableModel.getNameFieldMap());
+                TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(resultMap);
+
+                boolean equals = super.mapEquals(recordCopy[0], resultMap, builder, targetTableModel.getNameFieldMap());
                 TapAssert.asserts(() -> {
                     Assertions.assertTrue(equals, langUtil.formatLang("sequentialTest.modify.query.notEquals", recordCount, modifyCount, builder.toString()));
                 }).acceptAsWarn(testCase, langUtil.formatLang("sequentialTest.modify.query.succeed", recordCount, modifyCount, builder.toString()));
@@ -107,7 +115,8 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
             }
             //查询数据，并校验
             Record[] recordCopy = node.recordEventExecute().records();
-            List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, recordCopy);
+            TapTable targetTableModel = super.getTargetTable(node.connectorNode());
+            List<Map<String, Object>> result = super.queryRecords(node, targetTableModel, recordCopy);
             TapAssert.asserts(() -> Assertions.assertTrue(result.isEmpty(), langUtil.formatLang("sequentialTest.delete.fail", recordCount, modifyCount, result.size())))
                     .acceptAsError(testCase, langUtil.formatLang("sequentialTest.delete.succeed", recordCount, modifyCount));
         }, (node, testCase) -> {
@@ -151,14 +160,18 @@ public class SequentialWriteRecordTest extends PDKTestBaseV2 {
             }
             //查询数据，并校验
             Record[] recordCopy = node.recordEventExecute().records();
-            List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, recordCopy);
+            TapTable targetTableModel = super.getTargetTable(node.connectorNode());
+            List<Map<String, Object>> result = super.queryRecords(node, targetTableModel, recordCopy);
             final int filterCount = result.size();
             if (filterCount != recordCount) {
                 TapAssert.error(testCase, langUtil.formatLang("sequentialTest.more.fail", filterCount, recordCount));
             } else {
                 Map<String, Object> resultMap = result.get(0);
                 StringBuilder builder = new StringBuilder();
-                boolean equals = super.mapEquals(recordCopy[0], resultMap, builder, targetTable.getNameFieldMap());
+                node.connectorNode().getCodecsFilterManager().transformToTapValueMap(resultMap, targetTableModel.getNameFieldMap());
+                TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(resultMap);
+
+                boolean equals = super.mapEquals(recordCopy[0], resultMap, builder, targetTableModel.getNameFieldMap());
                 TapAssert.asserts(() -> {
                     Assertions.assertTrue(equals, langUtil.formatLang("sequentialTest.more.notEquals", filterCount, builder.toString()));
                 }).acceptAsWarn(testCase, langUtil.formatLang("sequentialTest.more.succeed", filterCount, builder.toString()));
