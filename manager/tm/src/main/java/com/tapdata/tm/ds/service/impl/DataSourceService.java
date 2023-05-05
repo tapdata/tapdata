@@ -97,6 +97,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
 import java.net.URL;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -1452,10 +1453,15 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			String commentJson = JsonUtil.toJsonUseJackson(commentMap);
 			// 请求 http 服务时需要增加一个 token header, value 是 Gotapd8!
 			// 使用 OkHttp 调用 http 服务
-			OkHttpClient okHttpClient = new OkHttpClient();
+			OkHttpClient okHttpClient = new OkHttpClient.Builder()
+					.connectTimeout(10, TimeUnit.SECONDS)
+					.readTimeout(60, TimeUnit.SECONDS)
+					.writeTimeout(60, TimeUnit.SECONDS)
+					.build();
 			MediaType headers = MediaType.parse("application/json; charset=utf-8; token=Gotapd8!");
 			// commentMap 转成 json 发送出去
 			RequestBody requestBody = RequestBody.create(headers, commentJson);
+			// 设置超时为 60s
 			Request request = new Request.Builder()
 					.url("http://45.120.216.132:5002/guess_fields_comment")
 					.post(requestBody)
