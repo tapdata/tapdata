@@ -259,7 +259,6 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
             return;
         }
         String currentTable = tableList.get(0);
-        consumer.streamReadStarted();
         long current = tableUpdateTimeMap.get(currentTable);
         Long last = Long.MAX_VALUE;
         this.read(codingOffset, current, last, recordSize, consumer, true);
