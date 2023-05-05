@@ -2,6 +2,7 @@ package io.tapdata.pdk.tdd.tests.v2;
 
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -100,11 +101,11 @@ public class ClearTableTest extends PDKTestBase {
                 TapAssert.asserts(() -> Assertions.assertTrue(true)).acceptAsError(testCase, LangUtil.format("clearTable.clean", recordCount));
                 //如果数据源实现了BatchCountFunction方法，调用BatchCountFunction方法查看该表是否为0；
                 BatchCountFunction batchCountFunction = functions.getBatchCountFunction();
-
+                TapTable targetTableModel = super.getTargetTable(prepare.connectorNode());
                 if (null != batchCountFunction) {
                     long count = 0;
                     try {
-                        count = batchCountFunction.count(context, targetTable);
+                        count = batchCountFunction.count(context, targetTableModel);
                     } catch (Throwable e) {
                         TapAssert.error(testCase, LangUtil.format("fieldModification.all.throw", e.getMessage()));
                         return;
@@ -121,7 +122,7 @@ public class ClearTableTest extends PDKTestBase {
                 if (null != queryByAdvance) {
                     try {
                         queryByAdvance.query(
-                                context, TapAdvanceFilter.create(), targetTable, consumer ->
+                                context, TapAdvanceFilter.create(), targetTableModel, consumer ->
                                         TapAssert.asserts(() ->
                                                 Assertions.assertTrue(
                                                         null == consumer || null == consumer.getResults() || consumer.getResults().isEmpty(),
@@ -137,7 +138,7 @@ public class ClearTableTest extends PDKTestBase {
                 if (null != queryByFilter) {
                     try {
                         queryByFilter.query(
-                                context, list(), targetTable, consumer ->
+                                context, list(), targetTableModel, consumer ->
                                         TapAssert.asserts(() ->
                                                 Assertions.assertTrue(
                                                         null == consumer || consumer.isEmpty(),

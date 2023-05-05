@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import lombok.Data;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.Serializable;
 import java.util.List;
@@ -160,6 +161,17 @@ public class TaskDto extends ParentTaskDto {
         }
         return dag;
     }
+
+		public boolean isTestTask() {
+			if (StringUtils.equalsAnyIgnoreCase(getSyncType(), SYNC_TYPE_TEST_RUN, SYNC_TYPE_DEDUCE_SCHEMA)) {
+				return true;
+			}
+			return false;
+		}
+
+		public boolean isNormalTask() {
+			return !isTestTask();
+		}
 
     @Data
     public static class SyncPoint implements Serializable {

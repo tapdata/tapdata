@@ -1299,7 +1299,12 @@ public class PDKTestBase {
         return createTableEvent;
     }
 
-    public TapTable getTargetTable() {
+    //
+    public TapTable getSourceTable() {
         return this.targetTable;
+    }
+
+    public TapTable getTargetTable(ConnectorNode connectorNode){
+       return modelDeductionForTapTable(connectorNode);
     }
 }

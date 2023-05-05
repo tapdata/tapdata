@@ -99,23 +99,24 @@ public class QueryByFilterTest extends PDKTestBase {
                     );
                     if (!results.isEmpty()) {
                         TapAssert.asserts(() -> {
-                            Assertions.assertTrue(1 != results.size(), LangUtil.format("insertWithQuery.queryById.error", recordCount, key, key, value, recordCount));
+                            Assertions.assertEquals(results.size(), 1, LangUtil.format("insertWithQuery.queryById.error", recordCount, key, key, value, recordCount));
                         }).acceptAsWarn(testCase, LangUtil.format("insertWithQuery.queryById.succeed", recordCount, key, key, value));
                     } else {
                         TapAssert.asserts(() -> Assertions.fail(LangUtil.format("insertWithQuery.queryById.noData", recordCount, key, key, value, recordCount))).error(testCase);
                     }
 
-                    if (null != results && results.size() == 1) {
+                    TapTable targetTableModel = super.getTargetTable(prepare.connectorNode());
+                    if (results.size() == 1) {
                         Record record = recordCopy[0];
                         Map<String, Object> tapEvent = results.get(0).getResult();
                         ConnectorNode connectorNode = prepare.connectorNode();
-                        TapTable targetTable = connectorNode.getConnectorContext().getTableMap().get(connectorNode.getTable());
-                        connectorNode.getCodecsFilterManager().transformToTapValueMap(tapEvent, targetTable.getNameFieldMap());
-                        TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(tapEvent);
-//                        TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(tapEvent);
+                        //TapTable targetTable = connectorNode.getConnectorContext().getTableMap().get(connectorNode.getTable());
+                        //connectorNode.getCodecsFilterManager().transformToTapValueMap(record, targetTableModel.getNameFieldMap());
+                        //TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(record);
+                        //TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(tapEvent);
                         StringBuilder builder = new StringBuilder();
                         TapAssert.asserts(() -> assertTrue(
-                                mapEquals(record, tapEvent, builder, targetTable.getNameFieldMap()),
+                                mapEquals(transform(prepare, targetTableModel, record), tapEvent, builder, targetTableModel.getNameFieldMap()),
                                 LangUtil.format("exact.equals.failed", recordCount, builder.toString())
                         )).acceptAsWarn(testCase, LangUtil.format("exact.equals.succeed", recordCount, builder.toString()));
                     }
@@ -128,7 +129,7 @@ public class QueryByFilterTest extends PDKTestBase {
                     queryByFilterFunction.query(
                             prepare.connectorNode().getConnectorContext(),
                             filters,
-                            targetTable,
+                            targetTableModel,
                             filterResults -> TapAssert.asserts(() -> {
                             }).acceptAsError(testCase, LangUtil.format(""))
                     );
@@ -138,7 +139,7 @@ public class QueryByFilterTest extends PDKTestBase {
                     queryByFilterFunction.query(
                             prepare.connectorNode().getConnectorContext(),
                             filters,
-                            targetTable,
+                            targetTableModel,
                             filterResults -> TapAssert.asserts(() -> {
                             }).acceptAsError(testCase, LangUtil.format(""))
                     );
@@ -199,6 +200,7 @@ public class QueryByFilterTest extends PDKTestBase {
                         LangUtil.format("queryByFilter.insert.error", null == finalInsert ? 0 : finalInsert.getInsertedCount(), tableId)
                 );
 
+                TapTable targetTableModel = super.getTargetTable(prepare.connectorNode());
                 ConnectorFunctions connectorFunctions = prepare.connectorNode().getConnectorFunctions();
                 QueryByFilterFunction queryByFilterFunction = connectorFunctions.getQueryByFilterFunction();
                 //通过主键作为匹配参数，查询出该条数据，
@@ -221,7 +223,7 @@ public class QueryByFilterTest extends PDKTestBase {
                 queryByFilterFunction.query(
                         prepare.connectorNode().getConnectorContext(),
                         filters,
-                        targetTable,
+                        targetTableModel,
                         filterResults -> {
                             if (null != filterResults) results.addAll(filterResults);
                         }

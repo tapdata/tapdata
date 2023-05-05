@@ -1,6 +1,9 @@
 package io.tapdata.pdk.tdd.tests.v3;
 
+import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByFilterFunction;
@@ -57,13 +60,14 @@ public class BatchWriteRecordTest extends PDKTestBaseV2 {
         super.execTest((node, testCase) -> {
             Record[] records = Record.testRecordWithTapTable(super.targetTable, recordCount);
             this.insertRecords(node, hasCreatedTable, records);
+            TapTable targetTableModel = super.getTargetTable(node.connectorNode());
             //查询数据，并校验
             List<Map<String, Object>> result = new ArrayList<>();
-            for (int index = 0; index < insertAfter.length; index++) {
+            for (Record record : insertAfter) {
                 Record[] r = new Record[1];
-                r[0] = insertAfter[index];
+                r[0] = record;
                 //查询数据，并校验
-                List<Map<String, Object>> res = super.queryRecords(node, super.targetTable, r);
+                List<Map<String, Object>> res = super.queryRecords(node, targetTableModel, r);
                 result.addAll(res);
             }
             final int filterCount = result.size();
@@ -73,8 +77,10 @@ public class BatchWriteRecordTest extends PDKTestBaseV2 {
             } else {
                 for (int index = 0; index < insertAfter.length; index++) {
                     Map<String, Object> resultMap = result.get(index);
+                    //node.connectorNode().getCodecsFilterManager().transformToTapValueMap(insertAfter[index], targetTableModel.getNameFieldMap());
+                    //TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(insertAfter[index]);
                     StringBuilder builder = new StringBuilder();
-                    boolean equals = super.mapEquals(insertAfter[index], resultMap, builder, targetTable.getNameFieldMap());
+                    boolean equals = super.mapEquals(transform(node, targetTableModel, insertAfter[index]), resultMap, builder, targetTableModel.getNameFieldMap());
                     final int finalIndex = index + 1;
                     TapAssert.asserts(() -> {
                         //分批次插入后查询结果不一致-内容不一致

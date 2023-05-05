@@ -3,6 +3,7 @@ package io.tapdata.pdk.tdd.tests.v2;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -109,13 +110,14 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                 ).acceptAsError(testCase, LangUtil.format("byAdvance.query.succeed", recordCount, null == consumer ? 0 : consumer.size()));
                 if (consumer.size() == 1) {
                     Record record = recordCopy[0];
+                    TapTable targetTableModel = super.getTargetTable(connectorNode);
                     Map<String, Object> tapEvent = consumer.get(0);
                     Map<String, Object> result = tapEvent;//filterResult.getResult();
-                    connectorNode.getCodecsFilterManager().transformToTapValueMap(result, targetTable.getNameFieldMap());
-                    TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(result);
+                    //connectorNode.getCodecsFilterManager().transformToTapValueMap(result, targetTableModel.getNameFieldMap());
+                    //TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(result);
                     StringBuilder builder = new StringBuilder();
                     TapAssert.asserts(() -> assertTrue(
-                            mapEquals(record, result, builder, targetTable.getNameFieldMap()),
+                            mapEquals(transform(prepare, targetTableModel, record), result, builder, targetTableModel.getNameFieldMap()),
                             LangUtil.format("exact.equals.failed", recordCount, builder.toString())
                     )).acceptAsWarn(testCase, LangUtil.format("exact.equals.succeed", recordCount, builder.toString()));
                 }

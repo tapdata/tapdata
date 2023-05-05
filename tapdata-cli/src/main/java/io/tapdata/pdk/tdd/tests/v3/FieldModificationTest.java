@@ -1,6 +1,9 @@
 package io.tapdata.pdk.tdd.tests.v3;
 
+import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
@@ -10,6 +13,7 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBaseV2;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.core.base.TapAssertException;
@@ -101,15 +105,15 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                 List<TapFilter> filters = new ArrayList<>();
                 AtomicBoolean implementedFilter = new AtomicBoolean(false);
                 List<Map<String, Object>> result = new ArrayList<>();
-
+                TapTable targetTableModel = super.getTargetTable(prepare.connectorNode());
                 if (Objects.nonNull(queryByFilter)) {
                     implementedFilter.set(true);
                     TapFilter filter = new TapFilter();
                     filter.setMatch(dataMap);
                     filters.add(filter);
-                    queryByFilter.query(context, filters, targetTable, consumer -> {
+                    queryByFilter.query(context, filters, targetTableModel, consumer -> {
                         if (Objects.nonNull(consumer) && !consumer.isEmpty()) {
-                            consumer.forEach(res -> result.add(transform(prepare, targetTable, res.getResult())));
+                            consumer.forEach(res -> result.add(transform(prepare, targetTableModel, res.getResult())));
                         }
                     });
                 } else {
@@ -118,9 +122,9 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                         TapAdvanceFilter tapAdvanceFilter = new TapAdvanceFilter();
                         tapAdvanceFilter.match(dataMap);
                         try {
-                            filter.query(context, tapAdvanceFilter, targetTable, consumer -> {
+                            filter.query(context, tapAdvanceFilter, targetTableModel, consumer -> {
                                 for (Map<String, Object> data : consumer.getResults()) {
-                                    result.add(transform(prepare, targetTable, data));
+                                    result.add(transform(prepare, targetTableModel, data));
                                 }
                             });
                         } catch (Throwable throwable) {
@@ -136,7 +140,10 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                     } else {
                         Map<String, Object> resultMap = result.get(0);
                         StringBuilder builder = new StringBuilder();
-                        boolean equals = mapEquals((Map<String, Object>) records[0], resultMap, builder, targetTable.getNameFieldMap());
+                        ConnectorNode connectorNode = prepare.connectorNode();
+                        //connectorNode.getCodecsFilterManager().transformToTapValueMap(resultMap, targetTableModel.getNameFieldMap());
+                        //TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(resultMap);
+                        boolean equals = mapEquals(transform(prepare, targetTableModel, records[0]), resultMap, builder, targetTableModel.getNameFieldMap());
                         TapAssert.asserts(() -> {
                             Assertions.assertTrue(equals, langUtil.formatLang("fieldModification.all.query.error", recordCount, size, builder.toString()));
                         }).acceptAsWarn(testCase, langUtil.formatLang("fieldModification.all.query.succeed", recordCount, size, builder.toString()));
@@ -230,9 +237,10 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                     TapFilter filter = new TapFilter();
                     filter.setMatch(dataMap);
                     filters.add(filter);
-                    queryByFilter.query(context, filters, targetTable, consumer -> {
+                    TapTable targetTableModel = super.getTargetTable(prepare.connectorNode());
+                    queryByFilter.query(context, filters, targetTableModel, consumer -> {
                         if (Objects.nonNull(consumer) && !consumer.isEmpty()) {
-                            consumer.forEach(res -> result.add(transform(prepare, targetTable, res.getResult())));
+                            consumer.forEach(res -> result.add(transform(prepare, targetTableModel, res.getResult())));
                         }
                     });
                 } else {
@@ -241,9 +249,10 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                         TapAdvanceFilter tapAdvanceFilter = new TapAdvanceFilter();
                         tapAdvanceFilter.match(dataMap);
                         try {
-                            filter.query(context, tapAdvanceFilter, targetTable, consumer -> {
+                            TapTable targetTableModel = super.getTargetTable(prepare.connectorNode());
+                            filter.query(context, tapAdvanceFilter, targetTableModel, consumer -> {
                                 for (Map<String, Object> data : consumer.getResults()) {
-                                    result.add(transform(prepare, targetTable, data));
+                                    result.add(transform(prepare, targetTableModel, data));
                                 }
                             });
                         } catch (Throwable throwable) {
@@ -265,7 +274,10 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                     } else {
                         Map<String, Object> resultMap = result.get(0);
                         StringBuilder builder = new StringBuilder();
-                        boolean equals = mapEquals((Map<String, Object>) records[0], resultMap, builder, targetTable.getNameFieldMap());
+                        TapTable targetTableModel = super.getTargetTable(prepare.connectorNode());
+                        //prepare.connectorNode().getCodecsFilterManager().transformToTapValueMap(resultMap, targetTableModel.getNameFieldMap());
+                        //TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(resultMap);
+                        boolean equals = mapEquals(transform(prepare, targetTableModel, records[0]), resultMap, builder, targetTableModel.getNameFieldMap());
                         TapAssert.asserts(() -> {
                             Assertions.assertTrue(equals, langUtil.formatLang("fieldModification.some.query.error",
                                     recordCount,
@@ -369,10 +381,11 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                     TapFilter filter = new TapFilter();
                     filter.setMatch(dataMap);
                     filters.add(filter);
-                    queryByFilter.query(context, filters, targetTable, consumer -> {
+                    TapTable targetTableModel = super.getTargetTable(prepare.connectorNode());
+                    queryByFilter.query(context, filters, targetTableModel, consumer -> {
                         if (Objects.nonNull(consumer) && !consumer.isEmpty()) {
                             consumer.forEach(res -> {
-                                result.add(transform(prepare, targetTable, res.getResult()));
+                                result.add(transform(prepare, targetTableModel, res.getResult()));
                             });
                         }
                     });
@@ -382,9 +395,10 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                         TapAdvanceFilter tapAdvanceFilter = new TapAdvanceFilter();
                         tapAdvanceFilter.match(dataMap);
                         try {
-                            filter.query(context, tapAdvanceFilter, targetTable, consumer -> {
+                            TapTable targetTableModel = super.getTargetTable(prepare.connectorNode());
+                            filter.query(context, tapAdvanceFilter, targetTableModel, consumer -> {
                                 for (Map<String, Object> data : consumer.getResults()) {
-                                    result.add(transform(prepare, targetTable, data));
+                                    result.add(transform(prepare, targetTableModel, data));
                                 }
                             });
                         } catch (Throwable throwable) {
@@ -406,7 +420,10 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                     } else {
                         Map<String, Object> resultMap = result.get(0);
                         StringBuilder builder = new StringBuilder();
-                        boolean equals = mapEquals((Map<String, Object>) records[0], resultMap, builder, targetTable.getNameFieldMap());
+                        TapTable targetTableModel = super.getTargetTable(prepare.connectorNode());
+                        //prepare.connectorNode().getCodecsFilterManager().transformToTapValueMap(resultMap, targetTableModel.getNameFieldMap());
+                        //TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(resultMap);
+                        boolean equals = mapEquals(transform(prepare, targetTableModel, records[0]), resultMap, builder, targetTableModel.getNameFieldMap());
                         TapAssert.asserts(() -> {
                             Assertions.assertTrue(equals, langUtil.formatLang("fieldModification.some2.query.error",
                                     recordCount,
