@@ -307,7 +307,11 @@ public abstract class CommonDbConnector extends ConnectorBase {
             String sql = "select * from " + getSchemaAndTable(tapTable.getId()) + " where " + commonSqlMaker.buildKeyAndValue(filter.getMatch(), "and", "=");
             FilterResult filterResult = new FilterResult();
             try {
-                jdbcContext.queryWithNext(sql, resultSet -> filterResult.setResult(DbKit.getRowFromResultSet(resultSet, columnNames)));
+                jdbcContext.query(sql, resultSet -> {
+                    if (resultSet.next()) {
+                        filterResult.setResult(DbKit.getRowFromResultSet(resultSet, columnNames));
+                    }
+                });
             } catch (Throwable e) {
                 filterResult.setError(e);
             } finally {
@@ -326,10 +330,6 @@ public abstract class CommonDbConnector extends ConnectorBase {
                     sqlList.add(getCreateIndexSql(tapTable, i)));
         }
         jdbcContext.batchExecute(sqlList);
-    }
-
-    protected void makePrimaryKey() {
-
     }
 
     protected TapIndex makeTapIndex(String key, List<DataMap> value) {

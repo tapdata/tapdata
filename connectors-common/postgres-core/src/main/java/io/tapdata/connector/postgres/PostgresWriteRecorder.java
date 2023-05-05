@@ -10,8 +10,6 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -239,23 +237,13 @@ public class PostgresWriteRecorder extends WriteRecorder {
 
     @Override
     public void addUpdateBatch(Map<String, Object> after, Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
-        if (EmptyKit.isEmpty(after) || EmptyKit.isEmpty(uniqueCondition)) {
+        if (EmptyKit.isEmpty(after)) {
             return;
         }
-        if (EmptyKit.isEmpty(afterKeys)) {
-            afterKeys = new ArrayList<>(after.keySet());
-        }
-        if (!afterKeys.equals(new ArrayList<>(after.keySet()))) {
-            executeBatch(listResult);
-            preparedStatement = null;
-            afterKeys = new ArrayList<>(after.keySet());
-        }
-        Map<String, Object> lastBefore = new HashMap<>();
-        uniqueCondition.forEach(v -> lastBefore.put(v, (EmptyKit.isNotEmpty(before) && before.containsKey(v)) ? before.get(v) : after.get(v)));
         if (updatePolicy.equals(ConnectionOptions.DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS)) {
-            insertUpdate(after, lastBefore);
+            insertUpdate(after, getBeforeForUpdate(after, before, listResult));
         } else {
-            justUpdate(after, lastBefore);
+            justUpdate(after, getBeforeForUpdate(after, before, listResult));
         }
         preparedStatement.addBatch();
     }

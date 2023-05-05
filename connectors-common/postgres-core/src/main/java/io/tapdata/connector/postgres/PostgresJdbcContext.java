@@ -3,17 +3,14 @@ package io.tapdata.connector.postgres;
 import io.tapdata.common.JdbcContext;
 import io.tapdata.connector.postgres.config.PostgresConfig;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
-import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 public class PostgresJdbcContext extends JdbcContext {
 
@@ -40,86 +37,33 @@ public class PostgresJdbcContext extends JdbcContext {
     }
 
     @Override
-    public List<DataMap> queryAllTables(List<String> tableNames) {
-        TapLogger.debug(TAG, "Query some tables, schema: " + getConfig().getSchema());
-        List<DataMap> tableList = TapSimplify.list();
+    protected String queryAllTablesSql(String schema, List<String> tableNames) {
         String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND table_name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
-        try {
-            query(String.format(PG_ALL_TABLE, getConfig().getDatabase(), getConfig().getSchema(), tableSql),
-                    resultSet -> tableList.addAll(DbKit.getDataFromResultSet(resultSet)));
-        } catch (Throwable e) {
-            TapLogger.error(TAG, "Execute queryAllTables failed, error: " + e.getMessage(), e);
-        }
-        return tableList;
+        return String.format(PG_ALL_TABLE, getConfig().getDatabase(), schema, tableSql);
     }
 
     @Override
-    public void queryAllTables(List<String> tableNames, int batchSize, Consumer<List<String>> consumer) {
-        TapLogger.debug(TAG, "Query some tables, schema: " + getConfig().getSchema());
-        List<String> tableList = TapSimplify.list();
+    protected String queryAllColumnsSql(String schema, List<String> tableNames) {
         String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND table_name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
-        try {
-            query(String.format(PG_ALL_TABLE, getConfig().getDatabase(), getConfig().getSchema(), tableSql),
-                    resultSet -> {
-                        while (resultSet.next()) {
-                            String tableName = resultSet.getString("table_name");
-                            if (StringUtils.isNotBlank(tableName)) {
-                                tableList.add(tableName);
-                            }
-                            if (tableList.size() >= batchSize) {
-                                consumer.accept(tableList);
-                                tableList.clear();
-                            }
-                        }
-                    });
-            if (!tableList.isEmpty()) {
-                consumer.accept(tableList);
-                tableList.clear();
-            }
-        } catch (Throwable e) {
-            TapLogger.error(TAG, "Execute queryAllTables failed, error: " + e.getMessage(), e);
-        }
+        return String.format(PG_ALL_COLUMN, getConfig().getDatabase(), schema, tableSql);
     }
 
     @Override
-    public List<DataMap> queryAllColumns(List<String> tableNames) {
-        TapLogger.debug(TAG, "Query columns of some tables, schema: " + getConfig().getSchema());
-        List<DataMap> columnList = TapSimplify.list();
+    protected String queryAllIndexesSql(String schema, List<String> tableNames) {
         String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND table_name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
-        try {
-            query(String.format(PG_ALL_COLUMN, getConfig().getDatabase(), getConfig().getSchema(), tableSql),
-                    resultSet -> columnList.addAll(DbKit.getDataFromResultSet(resultSet)));
-        } catch (Throwable e) {
-            TapLogger.error(TAG, "Execute queryAllColumns failed, error: " + e.getMessage(), e);
-        }
-        return columnList;
+        return String.format(PG_ALL_INDEX, getConfig().getDatabase(), schema, tableSql);
     }
 
-    @Override
-    public List<DataMap> queryAllIndexes(List<String> tableNames) {
-        TapLogger.debug(TAG, "Query indexes of some tables, schema: " + getConfig().getSchema());
-        List<DataMap> indexList = TapSimplify.list();
-        String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND table_name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
-        try {
-            query(String.format(PG_ALL_INDEX, getConfig().getDatabase(), getConfig().getSchema(), tableSql),
-                    resultSet -> indexList.addAll(DbKit.getDataFromResultSet(resultSet)));
-        } catch (Throwable e) {
-            TapLogger.error(TAG, "Execute queryAllIndexes failed, error: " + e.getMessage(), e);
-        }
-        return indexList;
-    }
-
-
-    public DataMap getTableInfo(String tableName) throws Throwable {
+    public DataMap getTableInfo(String tableName) {
         DataMap dataMap = DataMap.create();
-        List list = new ArrayList();
+        List<String> list = new ArrayList<>();
         list.add("size");
         list.add("rowcount");
         try {
             query(String.format(TABLE_INFO_SQL, tableName, getConfig().getDatabase(), getConfig().getSchema()), resultSet -> {
                 while (resultSet.next()) {
                     dataMap.putAll(DbKit.getRowFromResultSet(resultSet, list));
-                } ;
+                }
             });
         } catch (Throwable e) {
             TapLogger.error(TAG, "Execute getTableInfo failed, error: " + e.getMessage(), e);
@@ -127,20 +71,25 @@ public class PostgresJdbcContext extends JdbcContext {
         return dataMap;
     }
 
-    private final static String PG_ALL_TABLE =
-            "SELECT t.table_name,\n" +
-                    "       (select max(cast(obj_description(relfilenode, 'pg_class') as varchar)) as comment\n" +
+    protected final static String PG_ALL_TABLE =
+            "SELECT t.table_name \"tableName\",\n" +
+                    "       (select max(cast(obj_description(relfilenode, 'pg_class') as varchar)) as \"tableComment\"\n" +
                     "        from pg_class c\n" +
                     "        where relname = t.table_name)\n" +
                     "FROM information_schema.tables t WHERE t.table_type='BASE TABLE' and t.table_catalog='%s' AND t.table_schema='%s' %s ORDER BY t.table_name";
-    private final static String PG_ALL_COLUMN =
-            "SELECT col.*,\n" +
+
+    protected final static String PG_ALL_COLUMN =
+            "SELECT\n" +
+                    "    col.table_name \"tableName\",\n" +
+                    "    col.column_name \"columnName\",\n" +
+                    "    col.column_default \"columnDefault\",\n" +
+                    "    col.is_nullable \"nullable\",\n" +
                     "       (SELECT max(d.description)\n" +
                     "        FROM pg_catalog.pg_class c,\n" +
                     "             pg_description d\n" +
                     "        WHERE c.relname = col.table_name\n" +
                     "          AND d.objoid = c.oid\n" +
-                    "          AND d.objsubid = col.ordinal_position) AS \"description\",\n" +
+                    "          AND d.objsubid = col.ordinal_position) AS \"columnComment\",\n" +
                     "       (SELECT pg_catalog.format_type(a.atttypid, a.atttypmod) AS \"dataType\"\n" +
                     "        FROM pg_catalog.pg_attribute a\n" +
                     "        WHERE a.attnum > 0\n" +
@@ -154,14 +103,15 @@ public class PostgresJdbcContext extends JdbcContext {
                     "WHERE col.table_catalog = '%s'\n" +
                     "  AND col.table_schema = '%s' %s\n" +
                     "ORDER BY col.table_name, col.ordinal_position";
-    private final static String PG_ALL_INDEX =
+
+    protected final static String PG_ALL_INDEX =
             "SELECT\n" +
-                    "    t.relname AS table_name,\n" +
-                    "    i.relname AS index_name,\n" +
-                    "    a.attname AS column_name,\n" +
-                    "    ix.indisunique AS is_unique,\n" +
-                    "    ix.indisprimary AS is_primary,\n" +
-                    "    (CASE WHEN ix.indoption[a.attnum-1]&1=0 THEN 'A' ELSE 'D' END) AS asc_or_desc\n" +
+                    "    t.relname AS \"tableName\",\n" +
+                    "    i.relname AS \"indexName\",\n" +
+                    "    a.attname AS \"columnName\",\n" +
+                    "    (CASE WHEN ix.indisunique THEN '1' ELSE '0' END) AS \"isUnique\",\n" +
+                    "    (CASE WHEN ix.indisprimary THEN '1' ELSE '0' END) AS \"isPk\",\n" +
+                    "    (CASE WHEN ix.indoption[row_number() over (partition by t.relname,i.relname order by a.attnum) - 1] & 1 = 0 THEN '1' ELSE '0' END) AS \"isAsc\"\n" +
                     "FROM\n" +
                     "    pg_class t,\n" +
                     "    pg_class i,\n" +
@@ -176,15 +126,13 @@ public class PostgresJdbcContext extends JdbcContext {
                     "  AND t.relkind = 'r'\n" +
                     "  AND tt.table_name=t.relname\n" +
                     "  AND tt.table_catalog='%s'\n" +
-                    "  AND tt.table_schema='%s'\n" +
-                    "    %s\n" +
+                    "  AND tt.table_schema='%s' %s\n" +
                     "ORDER BY t.relname, i.relname, a.attnum";
 
 
-    private final static String TABLE_INFO_SQL  =	"SELECT\n"+
-     " pg_total_relation_size('\"' || table_schema || '\".\"' || table_name || '\"') AS size,\n"+
-	" (select reltuples from pg_class  pc where pc.relname = t1.table_name ) as rowcount \n" +
-    " FROM information_schema.tables t1 where t1.table_name ='%s' and t1.table_catalog='%s' and t1.table_schema='%s' ";
-
+    protected final static String TABLE_INFO_SQL = "SELECT\n" +
+            " pg_total_relation_size('\"' || table_schema || '\".\"' || table_name || '\"') AS size,\n" +
+            " (select reltuples from pg_class  pc where pc.relname = t1.table_name ) as rowcount \n" +
+            " FROM information_schema.tables t1 where t1.table_name ='%s' and t1.table_catalog='%s' and t1.table_schema='%s' ";
 
 }

@@ -3,7 +3,6 @@ package io.tapdata.connector.postgres;
 import com.google.common.collect.Lists;
 import io.tapdata.common.CommonDbTest;
 import io.tapdata.connector.postgres.config.PostgresConfig;
-import io.tapdata.constant.DbTestItem;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.entity.TestItem;
@@ -35,7 +34,7 @@ public class PostgresTest extends CommonDbTest {
 
     @Override
     protected List<String> supportVersions() {
-        return Lists.newArrayList("9.4", "9.5", "9.6", "10.*", "11.*", "12.*");
+        return Lists.newArrayList("9.4", "9.5", "9.6", "1*");
     }
 
     //Test number of tables and privileges
@@ -72,10 +71,10 @@ public class PostgresTest extends CommonDbTest {
             testSqls.add(String.format(PG_LOG_PLUGIN_CREATE_TEST, testSlotName, ((PostgresConfig) commonDbConfig).getLogPluginName()));
             testSqls.add(String.format(PG_LOG_PLUGIN_DROP_TEST, testSlotName));
             jdbcContext.batchExecute(testSqls);
-            consumer.accept(testItem(DbTestItem.CHECK_LOG_PLUGIN.getContent(), TestItem.RESULT_SUCCESSFULLY, "Cdc can work normally"));
+            consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY, "Cdc can work normally"));
             return true;
         } catch (Throwable e) {
-            consumer.accept(testItem(DbTestItem.CHECK_LOG_PLUGIN.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+            consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
                     String.format("Test log plugin failed: {%s}, Maybe cdc events cannot work", ErrorKit.getLastCause(e).getMessage())));
             return null;
         }

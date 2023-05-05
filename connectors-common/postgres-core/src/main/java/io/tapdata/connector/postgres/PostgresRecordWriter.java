@@ -26,8 +26,8 @@ public class PostgresRecordWriter extends RecordWriter {
         }
     }
 
-    protected boolean makeSureHasUnique(PostgresJdbcContext jdbcContext, TapTable tapTable) {
-        return jdbcContext.queryAllIndexes(Collections.singletonList(tapTable.getId())).stream().anyMatch(v -> (boolean) v.get("is_unique"));
+    protected boolean makeSureHasUnique(PostgresJdbcContext jdbcContext, TapTable tapTable) throws SQLException {
+        return jdbcContext.queryAllIndexes(Collections.singletonList(tapTable.getId())).stream().anyMatch(v -> "1".equals(v.getString("isUnique")));
     }
 
 }
