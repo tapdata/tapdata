@@ -215,9 +215,9 @@ public class QueryByFilterTest extends PDKTestBase {
                 tapFilter.setMatch(new DataMap().kv(key, value));
 
                 String key1 = "id";
-                Object value1 = "can not match data";
+                Object value1 = 9999999;
                 TapFilter tapFilter1 = TapFilter.create();
-                tapFilter.setMatch(new DataMap().kv(key1, value1));
+                tapFilter1.setMatch(new DataMap().kv(key1, value1));
 
                 filters.add(tapFilter);
                 filters.add(tapFilter1);
