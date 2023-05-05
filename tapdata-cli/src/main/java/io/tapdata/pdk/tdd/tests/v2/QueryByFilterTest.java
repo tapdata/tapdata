@@ -99,7 +99,7 @@ public class QueryByFilterTest extends PDKTestBase {
                     );
                     if (!results.isEmpty()) {
                         TapAssert.asserts(() -> {
-                            Assertions.assertTrue(1 != results.size(), LangUtil.format("insertWithQuery.queryById.error", recordCount, key, key, value, recordCount));
+                            Assertions.assertEquals(results.size(), 1, LangUtil.format("insertWithQuery.queryById.error", recordCount, key, key, value, recordCount));
                         }).acceptAsWarn(testCase, LangUtil.format("insertWithQuery.queryById.succeed", recordCount, key, key, value));
                     } else {
                         TapAssert.asserts(() -> Assertions.fail(LangUtil.format("insertWithQuery.queryById.noData", recordCount, key, key, value, recordCount))).error(testCase);
@@ -111,12 +111,12 @@ public class QueryByFilterTest extends PDKTestBase {
                         Map<String, Object> tapEvent = results.get(0).getResult();
                         ConnectorNode connectorNode = prepare.connectorNode();
                         //TapTable targetTable = connectorNode.getConnectorContext().getTableMap().get(connectorNode.getTable());
-                        connectorNode.getCodecsFilterManager().transformToTapValueMap(tapEvent, targetTableModel.getNameFieldMap());
-                        TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(tapEvent);
+                        //connectorNode.getCodecsFilterManager().transformToTapValueMap(record, targetTableModel.getNameFieldMap());
+                        //TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(record);
                         //TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(tapEvent);
                         StringBuilder builder = new StringBuilder();
                         TapAssert.asserts(() -> assertTrue(
-                                mapEquals(record, tapEvent, builder, targetTableModel.getNameFieldMap()),
+                                mapEquals(transform(prepare, targetTableModel, record), tapEvent, builder, targetTableModel.getNameFieldMap()),
                                 LangUtil.format("exact.equals.failed", recordCount, builder.toString())
                         )).acceptAsWarn(testCase, LangUtil.format("exact.equals.succeed", recordCount, builder.toString()));
                     }

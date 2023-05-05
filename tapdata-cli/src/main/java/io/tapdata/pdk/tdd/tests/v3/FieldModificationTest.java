@@ -141,9 +141,9 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                         Map<String, Object> resultMap = result.get(0);
                         StringBuilder builder = new StringBuilder();
                         ConnectorNode connectorNode = prepare.connectorNode();
-                        connectorNode.getCodecsFilterManager().transformToTapValueMap(resultMap, targetTableModel.getNameFieldMap());
-                        TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(resultMap);
-                        boolean equals = mapEquals(records[0], resultMap, builder, targetTableModel.getNameFieldMap());
+                        //connectorNode.getCodecsFilterManager().transformToTapValueMap(resultMap, targetTableModel.getNameFieldMap());
+                        //TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(resultMap);
+                        boolean equals = mapEquals(transform(prepare, targetTableModel, records[0]), resultMap, builder, targetTableModel.getNameFieldMap());
                         TapAssert.asserts(() -> {
                             Assertions.assertTrue(equals, langUtil.formatLang("fieldModification.all.query.error", recordCount, size, builder.toString()));
                         }).acceptAsWarn(testCase, langUtil.formatLang("fieldModification.all.query.succeed", recordCount, size, builder.toString()));
@@ -275,9 +275,9 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                         Map<String, Object> resultMap = result.get(0);
                         StringBuilder builder = new StringBuilder();
                         TapTable targetTableModel = super.getTargetTable(prepare.connectorNode());
-                        prepare.connectorNode().getCodecsFilterManager().transformToTapValueMap(resultMap, targetTableModel.getNameFieldMap());
-                        TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(resultMap);
-                        boolean equals = mapEquals(records[0], resultMap, builder, targetTableModel.getNameFieldMap());
+                        //prepare.connectorNode().getCodecsFilterManager().transformToTapValueMap(resultMap, targetTableModel.getNameFieldMap());
+                        //TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(resultMap);
+                        boolean equals = mapEquals(transform(prepare, targetTableModel, records[0]), resultMap, builder, targetTableModel.getNameFieldMap());
                         TapAssert.asserts(() -> {
                             Assertions.assertTrue(equals, langUtil.formatLang("fieldModification.some.query.error",
                                     recordCount,
@@ -421,9 +421,9 @@ public class FieldModificationTest extends PDKTestBaseV2 {
                         Map<String, Object> resultMap = result.get(0);
                         StringBuilder builder = new StringBuilder();
                         TapTable targetTableModel = super.getTargetTable(prepare.connectorNode());
-                        prepare.connectorNode().getCodecsFilterManager().transformToTapValueMap(resultMap, targetTableModel.getNameFieldMap());
-                        TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(resultMap);
-                        boolean equals = mapEquals(records[0], resultMap, builder, targetTableModel.getNameFieldMap());
+                        //prepare.connectorNode().getCodecsFilterManager().transformToTapValueMap(resultMap, targetTableModel.getNameFieldMap());
+                        //TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(resultMap);
+                        boolean equals = mapEquals(transform(prepare, targetTableModel, records[0]), resultMap, builder, targetTableModel.getNameFieldMap());
                         TapAssert.asserts(() -> {
                             Assertions.assertTrue(equals, langUtil.formatLang("fieldModification.some2.query.error",
                                     recordCount,

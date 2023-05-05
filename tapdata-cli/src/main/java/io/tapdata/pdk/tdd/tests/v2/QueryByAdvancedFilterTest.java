@@ -113,11 +113,11 @@ public class QueryByAdvancedFilterTest extends PDKTestBase {
                     TapTable targetTableModel = super.getTargetTable(connectorNode);
                     Map<String, Object> tapEvent = consumer.get(0);
                     Map<String, Object> result = tapEvent;//filterResult.getResult();
-                    connectorNode.getCodecsFilterManager().transformToTapValueMap(result, targetTableModel.getNameFieldMap());
-                    TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(result);
+                    //connectorNode.getCodecsFilterManager().transformToTapValueMap(result, targetTableModel.getNameFieldMap());
+                    //TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(result);
                     StringBuilder builder = new StringBuilder();
                     TapAssert.asserts(() -> assertTrue(
-                            mapEquals(record, result, builder, targetTableModel.getNameFieldMap()),
+                            mapEquals(transform(prepare, targetTableModel, record), result, builder, targetTableModel.getNameFieldMap()),
                             LangUtil.format("exact.equals.failed", recordCount, builder.toString())
                     )).acceptAsWarn(testCase, LangUtil.format("exact.equals.succeed", recordCount, builder.toString()));
                 }
