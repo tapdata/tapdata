@@ -6,6 +6,7 @@ import io.tapdata.common.exception.AbstractExceptionCollector;
 import io.tapdata.common.exception.ExceptionCollector;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
+import io.tapdata.entity.event.ddl.index.TapDeleteIndexEvent;
 import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
@@ -251,7 +252,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
         try {
             while (isAlive() && resultSet.next()) {
                 DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
-								processDataMap(dataMap, tapTable);
+                processDataMap(dataMap, tapTable);
                 tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
                 if (tapEvents.size() == eventBatchSize) {
                     eventsOffsetConsumer.accept(tapEvents, offset);
@@ -269,9 +270,9 @@ public abstract class CommonDbConnector extends ConnectorBase {
         }
     }
 
-		protected void processDataMap(DataMap dataMap, TapTable tapTable) throws RuntimeException {
+    protected void processDataMap(DataMap dataMap, TapTable tapTable) throws RuntimeException {
 
-		}
+    }
 
     private DataMap findPrimaryKeyValue(TapTable tapTable, Long offsetSize) throws Throwable {
         char escapeChar = commonDbConfig.getEscapeChar();
@@ -473,7 +474,6 @@ public abstract class CommonDbConnector extends ConnectorBase {
             List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
             while (isAlive() && resultSet.next()) {
                 DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
-                assert dataMap != null;
                 tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
                 if (tapEvents.size() == eventBatchSize) {
                     eventsOffsetConsumer.accept(tapEvents);
@@ -496,7 +496,6 @@ public abstract class CommonDbConnector extends ConnectorBase {
             List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
             while (isAlive() && resultSet.next()) {
                 DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
-                assert dataMap != null;
                 tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
                 if (tapEvents.size() == eventBatchSize) {
                     eventsOffsetConsumer.accept(tapEvents, new HashMap<>());
@@ -526,5 +525,16 @@ public abstract class CommonDbConnector extends ConnectorBase {
                 consumer.accept(filterResults);
             }
         });
+    }
+
+    protected void queryIndexes(TapConnectorContext connectorContext, TapTable table, Consumer<List<TapIndex>> consumer) {
+        consumer.accept(discoverIndex(table.getId()));
+    }
+
+    protected void dropIndexes(TapConnectorContext connectorContext, TapTable table, TapDeleteIndexEvent deleteIndexEvent) throws SQLException {
+        char escapeChar = commonDbConfig.getEscapeChar();
+        List<String> dropIndexesSql = new ArrayList<>();
+        deleteIndexEvent.getIndexNames().forEach(idx -> dropIndexesSql.add("drop index " + getSchemaAndTable(table.getId()) + "." + escapeChar + idx + escapeChar));
+        jdbcContext.batchExecute(dropIndexesSql);
     }
 }

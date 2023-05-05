@@ -93,6 +93,8 @@ public class PostgresConnector extends CommonDbConnector {
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportCreateIndex(this::createIndex);
+//        connectorFunctions.supportQueryIndexes(this::queryIndexes);
+//        connectorFunctions.supportDeleteIndex(this::dropIndexes);
         // source
         connectorFunctions.supportBatchCount(this::batchCount);
         connectorFunctions.supportBatchRead(this::batchReadWithoutOffset);
