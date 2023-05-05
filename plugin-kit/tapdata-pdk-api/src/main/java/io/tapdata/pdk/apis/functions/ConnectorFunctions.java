@@ -85,6 +85,11 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
     protected CountByPartitionFilterFunction countByPartitionFilterFunction;
     protected GetReadPartitionsFunction getReadPartitionsFunction;
     protected QueryFieldMinMaxValueFunction queryFieldMinMaxValueFunction;
+    protected StreamReadMultiConnectionFunction streamReadMultiConnectionFunction;
+    public ConnectorFunctions supportStreamReadMultiConnectionFunction(StreamReadMultiConnectionFunction function) {
+        streamReadMultiConnectionFunction = function;
+        return this;
+    }
 
     public ConnectorFunctions supportRunRawCommandFunction(RunRawCommandFunction function) {
         runRawCommandFunction = function;
@@ -436,5 +441,9 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
 
     public RunRawCommandFunction getRunRawCommandFunction() {
         return runRawCommandFunction;
+    }
+
+    public StreamReadMultiConnectionFunction getStreamReadMultiConnectionFunction() {
+        return streamReadMultiConnectionFunction;
     }
 }

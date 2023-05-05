@@ -17,7 +17,7 @@ public class ConnectionOptions {
     public static final String CAPABILITY_DISABLE_BATCH_READ_OFFSET = "disable_batch_read_offset";
     //Connector support concurrent write records which means writeRecord function need to be thread safe
     public static final String CAPABILITY_CONCURRENT_WRITE = "disable_concurrent_write";
-    //Connector count is slow, should avoid to use count. 
+    //Connector count is slow, should avoid to use count.
     public static final String CAPABILITY_COUNT_IS_SLOW = "count_is_slow";
 
     //DDL events
@@ -39,7 +39,28 @@ public class ConnectionOptions {
     public static final String DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS = "ignore_on_nonexists";
     public static final String DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS = "insert_on_nonexists";
 
+    /**
+     * Instance unique id to identify the same instance among multiple connections.
+     * The purpose is to combine stream read for multiple connections which target to the same database instance.
+     */
+    private String instanceUniqueId;
+    public ConnectionOptions instanceUniqueId(String instanceUniqueId) {
+        this.instanceUniqueId = instanceUniqueId;
+        return this;
+    }
 
+    /**
+     * namespaces for tables.
+     * like
+     *  Oracle has Database -> Schema -> Table, then namespaces will be [Database, Schema].
+     *  MySQL has Database -> Table, then namespaces will be [Database].
+     *  
+     */
+    private List<String> namespaces;
+    public ConnectionOptions namespaces(List<String> namespaces) {
+        this.namespaces = namespaces;
+        return this;
+    }
     /**
      * Connection string, need provide by PDK developer.
      */
@@ -136,5 +157,21 @@ public class ConnectionOptions {
 
     public void setCharset(String charset) {
         this.charset = charset;
+    }
+
+    public String getInstanceUniqueId() {
+        return instanceUniqueId;
+    }
+
+    public void setInstanceUniqueId(String instanceUniqueId) {
+        this.instanceUniqueId = instanceUniqueId;
+    }
+
+    public List<String> getNamespaces() {
+        return namespaces;
+    }
+
+    public void setNamespaces(List<String> namespaces) {
+        this.namespaces = namespaces;
     }
 }

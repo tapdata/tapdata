@@ -6,10 +6,13 @@ import io.tapdata.entity.utils.io.DataOutputStreamEx;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 public abstract class TapBaseEvent extends TapEvent {
     protected String associateId;
     protected String tableId;
+    protected List<String> namespaces;
     /**
      * The reference time read from source, maybe some difference as sources are different
      * Used for CDC in most cases.
@@ -51,6 +54,7 @@ public abstract class TapBaseEvent extends TapEvent {
 //            baseEvent.pdkGroup = pdkGroup;
 //            baseEvent.pdkVersion = pdkVersion;
             baseEvent.tableId = tableId;
+            baseEvent.namespaces = namespaces != null ? new ArrayList<>(namespaces) : null;
             baseEvent.associateId = associateId;
         }
     }
@@ -107,7 +111,15 @@ public abstract class TapBaseEvent extends TapEvent {
         return tableId + "@" + associateId;
     }
 
-//    @Override
+    public List<String> getNamespaces() {
+        return namespaces;
+    }
+
+    public void setNamespaces(List<String> namespaces) {
+        this.namespaces = namespaces;
+    }
+
+    //    @Override
 //    public String toString() {
 //        return "TapBaseEvent{" +
 //                "associateId='" + associateId + '\'' +
