@@ -56,7 +56,7 @@ public class ConnectionTestThreadTest extends PDKTestBaseV2 {
     public void alone() throws NoSuchMethodException {
         System.out.println(langUtil.formatLang("checkThreadTest.alone.wait"));
         final int connectionTestTimes = 5;
-        super.execTest((node, testCase) -> {
+        super.execTestConnection((node, testCase) -> {
             StringJoiner beforeBuilder = new StringJoiner("\n");
             List<StackEntity> before = this.printThreads(beforeBuilder);
             this.connectionTest(node, connectionTestTimes, Boolean.FALSE);
