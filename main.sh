@@ -11,10 +11,10 @@ cd $enter_point
 if [[ -d $cwd/logs ]]; then
     $python_home/python job.py --case test_sync --source dummy --target dummy --clean &> $cwd/logs/log;
     $python_home/python job.py --case test_js --source dummy --target dummy --clean &>> $cwd/logs/log
-    #     python job.py --case test_merge --source dummy --target mongodb --clean 2>&1>$cwd/logs/log
+#         python job.py --case test_merge --source dummy --target mongodb --clean &>> $cwd/logs/log
 else
     mkdir $cwd/logs &&
     $python_home/python job.py --case test_sync --source dummy --target dummy --clean &> $cwd/logs/log;
     $python_home/python job.py --case test_js --source dummy --target dummy --clean &>> $cwd/logs/log
-    #     python job.py --case test_merge --source dummy --target mongodb --clean 2>&1>$cwd/logs/log
+#         python job.py --case test_merge --source dummy --target mongodb --clean &>> $cwd/logs/log
 fi

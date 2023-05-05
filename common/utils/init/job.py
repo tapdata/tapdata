@@ -392,5 +392,5 @@ class Job:
 if __name__ == '__main__':
     clean_cache_file()
     j = Job()
-    # # Request('/performance_test').post(json=j.run_test_case)
-    print(j.run_test_case, '\n######################################################################################')
+    Request('/performance_test').post(json=j.run_test_case)
+    # print(j.run_test_case, '\n######################################################################################')
