@@ -50,7 +50,7 @@ public class TaskResetSchedule {
 
 
     @Scheduled(fixedDelayString = "30000")
-    @SchedulerLock(name ="checkTaskReset", lockAtMostFor = "15s", lockAtLeastFor = "15s")
+    @SchedulerLock(name ="checkTaskReset", lockAtMostFor = "120s", lockAtLeastFor = "60s")
     public void checkTaskReset() {
         checkNoResponseOp();
         resetRetry();
