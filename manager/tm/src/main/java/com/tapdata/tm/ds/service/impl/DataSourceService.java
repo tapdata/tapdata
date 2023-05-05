@@ -76,6 +76,7 @@ import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+import okhttp3.*;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
@@ -93,6 +94,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.net.URL;
 import java.util.*;
 import java.util.function.Function;
@@ -1421,6 +1423,8 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 			oldConnectionDto.setLoadSchemaField(loadSchemaField);
 			List<MetadataInstancesDto> newModelList = metadataUtil.modelNext(newModels, oldConnectionDto, databaseId, user);
+			this.autoUpdateComment(newModelList);
+
 
 			Pair<Integer, Integer> pair = metadataInstancesService.bulkUpsetByWhere(newModelList, user);
 			List<String> qualifiedNames = newModelList.stream().filter(Objects::nonNull).map(MetadataInstancesDto::getQualifiedName)
@@ -1430,6 +1434,52 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			log.info("Upsert model, model list = {}, values = {}, modify count = {}, insert count = {}"
 					, newModelList.size(), name, pair.getLeft(), pair.getRight());
 		}
+	}
+
+	// 写一个方法, 接收 table name 和 List<MetadataInstancesDto>, 检查字段里的 comment 是否为空
+	// 如果存在空 comment, 就把整个 table 构造成 json 形式, 包含两个字段, 一个是 table, 值为 table name, 一个是 fields, 值为 List<field_name>
+	// 然后调用接口, 把这个 json 传过去, 返回值会是一个 json, 里面的 data 字段包含两个值, 一个是 table, 一个是 comments, 里面按顺序返回了每个字段的 comment
+	// 将 comments 里的值按顺序赋值给 List<MetadataInstancesDto> 里的每个字段的 comment
+	private void autoUpdateComment(List<MetadataInstancesDto> newModels) {
+		// 把 List<MetadataInstancesDto> 里的元素按照 originalName 重新分组, 放到一个 map 里, map key 是 originalName, value 是 List<MetadataInstancesDto>
+		Map<String, List<MetadataInstancesDto>> map = newModels.stream().collect(Collectors.groupingBy(MetadataInstancesDto::getOriginalName));
+		// 遍历 map
+		map.forEach((tableName, models) -> {
+			List<String> fieldNames = models.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList());
+			Map<String, String> commentMap = new HashMap<>();
+			commentMap.put("table", tableName);
+			commentMap.put("fields", JsonUtil.toJsonUseJackson(fieldNames));
+			String commentJson = JsonUtil.toJsonUseJackson(commentMap);
+			// 请求 http 服务时需要增加一个 token header, value 是 Gotapd8!
+			// 使用 OkHttp 调用 http 服务
+			OkHttpClient okHttpClient = new OkHttpClient();
+			MediaType headers = MediaType.parse("application/json; charset=utf-8; token=Gotapd8!");
+			// commentMap 转成 json 发送出去
+			RequestBody requestBody = RequestBody.create(headers, commentJson);
+			Request request = new Request.Builder()
+					.url("http://45.120.216.132:5002/guess_fields_comment")
+					.post(requestBody)
+					.build();
+			try (Response response = okHttpClient.newCall(request).execute()) {
+				// 将 response 转为 Map, 取出其中的 comments 字段, 更新到 MetadataInstancesDto 中
+				Map<String, Object> res = new HashMap<>();
+				res = JsonUtil.loadJsonFromClasspath(response.body().toString(), res.getClass());
+				if (!Objects.equals(res.get("status").toString(), "ok")) {
+					return;
+				}
+				Map<String, String> comments = (Map<String, String>) res.get("comments");
+				for (MetadataInstancesDto model : models) {
+					String comment = comments.get(model.getOriginalName());
+					if (StringUtils.isNotBlank(comment)) {
+						model.setComment(comment);
+					}
+				}
+			} catch (IOException e) {
+				return;
+			} catch (Exception e) {
+				return;
+			};
+		});
 	}
 
 	private Document setToDocumentByJsonParser(Document update) {
