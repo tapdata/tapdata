@@ -259,7 +259,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
         }
     }
 
-	protected void processDataMap(DataMap dataMap, TapTable tapTable) throws SQLException {
+	protected void processDataMap(DataMap dataMap, TapTable tapTable) throws RuntimeException {
 
 	}
 
