@@ -251,6 +251,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
         try {
             while (isAlive() && resultSet.next()) {
                 DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
+								processDataMap(dataMap, tapTable);
                 tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
                 if (tapEvents.size() == eventBatchSize) {
                     eventsOffsetConsumer.accept(tapEvents, offset);
@@ -267,6 +268,10 @@ public abstract class CommonDbConnector extends ConnectorBase {
             eventsOffsetConsumer.accept(tapEvents, offset);
         }
     }
+
+		protected void processDataMap(DataMap dataMap, TapTable tapTable) throws SQLException {
+
+		}
 
     private DataMap findPrimaryKeyValue(TapTable tapTable, Long offsetSize) throws Throwable {
         char escapeChar = commonDbConfig.getEscapeChar();
