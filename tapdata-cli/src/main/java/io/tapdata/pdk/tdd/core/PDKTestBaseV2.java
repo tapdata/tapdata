@@ -71,6 +71,26 @@ public class PDKTestBaseV2 extends PDKTestBase {
         );
     }
 
+    protected void execTestConnection(TestExec exec, TestStop stop) throws NoSuchMethodException {
+        this.execTest(
+                Thread.currentThread().getStackTrace()[2].getMethodName(),
+                null,
+                exec,
+                stop,
+                true
+        );
+    }
+
+    protected void execTestConnection(TestStart start, TestExec exec, TestStop stop) throws NoSuchMethodException {
+        this.execTest(
+                Thread.currentThread().getStackTrace()[2].getMethodName(),
+                start,
+                exec,
+                stop,
+                true
+        );
+    }
+
 
     protected void execTest(String testCaseName, TestStart start, TestExec exec, TestStop stop, boolean isConnection) throws NoSuchMethodException {
         Method testCase = super.getMethod(testCaseName);
