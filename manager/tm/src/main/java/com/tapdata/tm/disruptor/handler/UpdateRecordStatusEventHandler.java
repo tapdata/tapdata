@@ -14,6 +14,9 @@ import com.tapdata.tm.disruptor.Element;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.task.bean.SyncTaskStatusDto;
 import com.tapdata.tm.task.service.TaskRecordService;
+import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.utils.MongoUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -25,6 +28,9 @@ import java.util.concurrent.CompletableFuture;
  */
 @Component("updateRecordStatusEventHandler")
 public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTaskStatusDto, Boolean>{
+
+    @Autowired
+    private TaskService taskService;
 
     @Override
     public Boolean onEvent(Element<SyncTaskStatusDto> event, long sequence, boolean endOfBatch) {
@@ -50,7 +56,8 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
 
                 break;
             case TaskDto.STATUS_ERROR:
-                boolean checkOpen = alarmService.checkOpen(data.getTaskDto(), null, AlarmKeyEnum.TASK_STATUS_ERROR, null, data.getUserDetail());
+                TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+                boolean checkOpen = alarmService.checkOpen(taskDto, null, AlarmKeyEnum.TASK_STATUS_ERROR, null, data.getUserDetail());
                 if (checkOpen) {
                     param.put("taskName", taskName);
                     param.put("alarmDate", alarmDate);
@@ -59,7 +66,7 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
                             .name(data.getTaskName()).summary("TASK_STATUS_STOP_ERROR").metric(AlarmKeyEnum.TASK_STATUS_ERROR)
                             .param(param)
                             .build();
-                    errorInfo.setUserId(data.getUserId());
+                    errorInfo.setUserId(taskDto.getUserId());
                     alarmService.save(errorInfo);
                 }
                 break;
