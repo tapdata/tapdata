@@ -49,6 +49,7 @@ public class QueryByFilterTest extends PDKTestBase {
      * 如果连模糊匹配也匹配不上，也报警告（值对与不对很多时候不好判定）。
      * */
     void insertWithQuery() throws Throwable {
+        Method testCase = super.getMethod("insertWithQuery");
         System.out.println(LangUtil.format("queryByFilterTest.insertWithQuery.wait"));
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
@@ -58,7 +59,6 @@ public class QueryByFilterTest extends PDKTestBase {
                 final int recordCount = 1;
                 Record[] records = Record.testRecordWithTapTable(targetTable, recordCount);
                 RecordEventExecute recordEventExecute = prepare.recordEventExecute();
-                Method testCase = super.getMethod("insertWithQuery");
                 recordEventExecute.testCase(testCase);
                 recordEventExecute.builderRecord(records);
                 WriteListResult<TapRecordEvent> insert = null;
@@ -173,9 +173,11 @@ public class QueryByFilterTest extends PDKTestBase {
      * 不应该报错。
      * */
     void queryWithLotTapFilter() throws Throwable {
+        Method testCase = super.getMethod("queryWithLotTapFilter");
         System.out.println(LangUtil.format("queryByFilterTest.queryWithLotTapFilter.wait"));
         consumeQualifiedTapNodeInfo(nodeInfo -> {
             TestNode prepare = this.prepare(nodeInfo);
+            prepare.recordEventExecute().testCase(testCase);
             boolean hasCreateTable = false;
             try {
                 super.connectorOnStart(prepare);
@@ -184,8 +186,8 @@ public class QueryByFilterTest extends PDKTestBase {
                 }
                 Record[] records = Record.testRecordWithTapTable(targetTable, 1);
                 RecordEventExecute recordEventExecute = prepare.recordEventExecute();
-                Method testCase = super.getMethod("insertWithQuery");
-                recordEventExecute.testCase(testCase);
+                //Method testCase = super.getMethod("insertWithQuery");
+                //recordEventExecute.testCase(testCase);
                 recordEventExecute.builderRecord(records);
                 WriteListResult<TapRecordEvent> insert = null;
                 //使用WriteRecordFunction插入一条全类型（覆盖TapType的11中类型数据）数据，通过主键作为匹配参数，查询出该条数据，
@@ -228,7 +230,7 @@ public class QueryByFilterTest extends PDKTestBase {
                             if (null != filterResults) results.addAll(filterResults);
                         }
                 );
-                if (results.size() != filters.size()) {
+                if (results.size() == filters.size()) {
                     FilterResult result1 = results.get(0);
                     FilterResult result2 = results.get(1);
                     TapAssert.asserts(() ->

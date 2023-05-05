@@ -15,6 +15,7 @@ import io.tapdata.coding.utils.http.HttpEntity;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
@@ -428,7 +429,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             return;
         }
         //String currentTable = tableList.get(0);
-        consumer.streamReadStarted();
+        //consumer.streamReadStarted();
         long current = tableUpdateTimeMap.get(TABLE_NAME);
         Long last = Long.MAX_VALUE;
         this.read(current, last, recordSize, codingOffset, consumer, true);
