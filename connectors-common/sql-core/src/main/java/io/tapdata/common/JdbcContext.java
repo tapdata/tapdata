@@ -248,6 +248,11 @@ public abstract class JdbcContext implements AutoCloseable {
             hikariDataSource.setIdleTimeout(60 * 1000L);
             hikariDataSource.setKeepaliveTime(60 * 1000L);
             hikariDataSource.setMaxLifetime(600 * 1000L);
+						hikariDataSource.setConnectionTimeout(60 * 1000L);
+						hikariDataSource.setValidationTimeout(60 * 1000L);
+						if (EmptyKit.isNotEmpty(config.getConnectionTestQuery())) {
+							hikariDataSource.setConnectionTestQuery(config.getConnectionTestQuery());
+						}
             return hikariDataSource;
         }
     }

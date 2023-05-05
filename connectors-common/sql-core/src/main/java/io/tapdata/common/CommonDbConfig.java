@@ -35,6 +35,8 @@ public class CommonDbConfig implements Serializable {
     private Properties properties;
     private char escapeChar = '"';
 
+		private String connectionTestQuery;
+
     //pattern for jdbc-url
     public String getDatabaseUrlPattern() {
         // last %s reserved for extend params
@@ -179,4 +181,12 @@ public class CommonDbConfig implements Serializable {
     public void setEscapeChar(char escapeChar) {
         this.escapeChar = escapeChar;
     }
+
+		public String getConnectionTestQuery() {
+			return connectionTestQuery;
+		}
+	
+		public void setConnectionTestQuery(String connectionTestQuery) {
+			this.connectionTestQuery = connectionTestQuery;
+		}
 }
