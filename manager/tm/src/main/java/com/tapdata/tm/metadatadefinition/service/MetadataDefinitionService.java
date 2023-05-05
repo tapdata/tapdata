@@ -280,6 +280,9 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
                 return itemType != null && !itemType.contains("default");
             }));
         }
+
+        Set<String> ldpValues = Arrays.stream(LdpDirEnum.values()).map(LdpDirEnum::getValue).collect(Collectors.toSet());
+        Set<String> ldpItemTypes = Arrays.stream(LdpDirEnum.values()).map(LdpDirEnum::getItemType).collect(Collectors.toSet());
         Field fields = filter.getFields();
         if (fields != null) {
             Object objCount = fields.get("objCount");
