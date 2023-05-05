@@ -1,8 +1,5 @@
 var invoker = loadAPI();
 
-function discoverSchema(connectionConfig) {
-    return ['example_table'];
-}
 function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
 
 }
@@ -22,5 +19,18 @@ function commandCallback(connectionConfig, nodeConfig, commandInfo) {
 
 function updateToken(connectionConfig, nodeConfig, apiResponse) {
     return null;
+}
+
+function discoverSchema(connectionConfig) {
+    return [
+        'MarketingLeads',
+        'OpenSeaPool',
+        'SourceMaterial',
+        'ReasonForReturnOpenSeaPool',
+        'OpenSeaPoolOperationLog',
+        'ProductCatalog',
+        'ProductCatalogTree',
+        'ActivityMember'
+    ];
 }
 

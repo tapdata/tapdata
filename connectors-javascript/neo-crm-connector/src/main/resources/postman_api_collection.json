@@ -1,11 +1,444 @@
 {
   "info": {
-    "_postman_id": "dd67c65a-d7d3-438b-8e97-11018dcc6a7a",
-    "name": "AI Chat",
+    "_postman_id": "27ad8168-546a-4f72-8c02-60577c7c37c6",
+    "name": "销售易",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
+    {
+      "name": "OAuthCode",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "https://login.xiaoshouyi.com/auc/oauth2/auth?client_id=1000002&response_type=code&redirect_uri=redirect.tapdata.io&scope=all&oauthType=standard&access_type=offline",
+          "protocol": "https",
+          "host": [
+            "login",
+            "xiaoshouyi",
+            "com"
+          ],
+          "path": [
+            "auc",
+            "oauth2",
+            "auth"
+          ],
+          "query": [
+            {
+              "key": "client_id",
+              "value": "1000002"
+            },
+            {
+              "key": "response_type",
+              "value": "code"
+            },
+            {
+              "key": "redirect_uri",
+              "value": "redirect.tapdata.io"
+            },
+            {
+              "key": "scope",
+              "value": "all"
+            },
+            {
+              "key": "oauthType",
+              "value": "standard"
+            },
+            {
+              "key": "access_type",
+              "value": "offline"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Token",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "authorization_code",
+              "type": "text"
+            },
+            {
+              "key": "client_id",
+              "value": "1000002",
+              "type": "text"
+            },
+            {
+              "key": "client_secret",
+              "value": "-2SqhX8ErFnWq5efLp2vsXEXKNOY9sNp5Z_JNqABdQE",
+              "type": "text"
+            },
+            {
+              "key": "redirect_uri",
+              "value": "https://www.tapdata.io/oauth/complete/neo-crm",
+              "type": "text"
+            },
+            {
+              "key": "code",
+              "value": "ngDn-SpWK2eC-rTD8c3YPVgdaHOOp5der-DRHwwSHAg",
+              "type": "text"
+            },
+            {
+              "key": "access_type",
+              "value": "offline",
+              "type": "default",
+              "disabled": true
+            }
+          ]
+        },
+        "url": {
+          "raw": "https://login.xiaoshouyi.com/auc/oauth2/token",
+          "protocol": "https",
+          "host": [
+            "login",
+            "xiaoshouyi",
+            "com"
+          ],
+          "path": [
+            "auc",
+            "oauth2",
+            "token"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "RefreshToken",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "refresh_token",
+              "type": "text"
+            },
+            {
+              "key": "client_id",
+              "value": "{{client_id}}",
+              "type": "text"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{client_secret}}",
+              "type": "text"
+            },
+            {
+              "key": "refresh_token",
+              "value": "{{refresh_token}}",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "https://login.xiaoshouyi.com/auc/oauth2/token",
+          "protocol": "https",
+          "host": [
+            "login",
+            "xiaoshouyi",
+            "com"
+          ],
+          "path": [
+            "auc",
+            "oauth2",
+            "token"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password",
+              "type": "text"
+            },
+            {
+              "key": "client_id",
+              "value": "1000002",
+              "type": "text"
+            },
+            {
+              "key": "client_secret",
+              "value": "-2SqhX8ErFnWq5efLp2vsXEXKNOY9sNp5Z_JNqABdQE",
+              "type": "text"
+            },
+            {
+              "key": "redirect_uri",
+              "value": "https://www.tapdata.live/oauth/complete/neo-crm",
+              "type": "text"
+            },
+            {
+              "key": "username",
+              "value": "15770674965",
+              "type": "text"
+            },
+            {
+              "key": "password",
+              "value": "Gotapd8!11111111",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "https://login.xiaoshouyi.com/auc/oauth2/token",
+          "protocol": "https",
+          "host": [
+            "login",
+            "xiaoshouyi",
+            "com"
+          ],
+          "path": [
+            "auc",
+            "oauth2",
+            "token"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "MarketingLeads",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"conditionSql\": \"${name} = ?\",\r\n  \"paramList\": [\r\n    \"张三\"\r\n  ],\r\n  \"pageNo\": 1,\r\n  \"pageSize\": 10\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "/rest/data/v2.0/xobjects/marketingLead/actions/query",
+          "path": [
+            "rest",
+            "data",
+            "v2.0",
+            "xobjects",
+            "marketingLead",
+            "actions",
+            "query"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "OpenSeaPool",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "/rest/data/v2.0/xobjects/account/actions/getHighSeaList",
+          "path": [
+            "rest",
+            "data",
+            "v2.0",
+            "xobjects",
+            "account",
+            "actions",
+            "getHighSeaList"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "SourceMaterial",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "https://crm.xiaoshouyi.com/rest/mc/v2.0/cms/material-center/material/queryAll",
+          "protocol": "https",
+          "host": [
+            "crm",
+            "xiaoshouyi",
+            "com"
+          ],
+          "path": [
+            "rest",
+            "mc",
+            "v2.0",
+            "cms",
+            "material-center",
+            "material",
+            "queryAll"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "ReasonForReturnOpenSeaPool",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "/rest/data/v2.0/xobjects/account/actions/getHighSeaReleaseReasons",
+          "path": [
+            "rest",
+            "data",
+            "v2.0",
+            "xobjects",
+            "account",
+            "actions",
+            "getHighSeaReleaseReasons"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "OpenSeaPoolOperationLog",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "/rest/data/v2.0/xobjects/account/actions/getHighSeaOperateLogs",
+          "path": [
+            "rest",
+            "data",
+            "v2.0",
+            "xobjects",
+            "account",
+            "actions",
+            "getHighSeaOperateLogs"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "ProductCatalog",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "/rest/data/v2.0/xobjects/productCategory/actions/directoryList?parentId&page&count",
+          "path": [
+            "rest",
+            "data",
+            "v2.0",
+            "xobjects",
+            "productCategory",
+            "actions",
+            "directoryList"
+          ],
+          "query": [
+            {
+              "key": "parentId",
+              "value": null,
+              "description": "上级目录ID， 为空时默认为-1"
+            },
+            {
+              "key": "page",
+              "value": null,
+              "description": "分页页号，为空时，默认为1"
+            },
+            {
+              "key": "count",
+              "value": null,
+              "description": "为空时，默认为20，超过30时，最大取30"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "ProductCatalogTree",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "/rest/data/v2.0/xobjects/productCategory/actions/directoryTree",
+          "path": [
+            "rest",
+            "data",
+            "v2.0",
+            "xobjects",
+            "productCategory",
+            "actions",
+            "directoryTree"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "ActivityMember",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "/rest/data/v2.0/xobjects/campaignMember/actions/query",
+          "path": [
+            "rest",
+            "data",
+            "v2.0",
+            "xobjects",
+            "campaignMember",
+            "actions",
+            "query"
+          ]
+        }
+      },
+      "response": []
+    }
   ],
   "event": [],
-  "variable": [{"key": "token", "value": ""}, {"key": "url", "value": ""}]
+  "variable": [
+    {
+      "key": "client_secret",
+      "value": "",
+      "type": "default"
+    },
+    {
+      "key": "client_id",
+      "value": "",
+      "type": "default"
+    },
+    {
+      "key": "code",
+      "value": "",
+      "type": "default"
+    }
+  ]
 }

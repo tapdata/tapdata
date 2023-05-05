@@ -17,6 +17,9 @@
     "connection": {
       "type": "object",
       "properties": {
+        "client_id": {},
+        "client_secret": {},
+        "redirect_uri": {},
         "code": {
           "type": "String",
           "title": "${code}",
