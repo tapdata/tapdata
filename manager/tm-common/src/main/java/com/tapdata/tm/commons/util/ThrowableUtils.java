@@ -1,5 +1,7 @@
 package com.tapdata.tm.commons.util;
 
+import cn.hutool.core.exceptions.ExceptionUtil;
+
 public class ThrowableUtils {
     /**
      * 获取以指定包名为前缀的堆栈信息
@@ -20,6 +22,6 @@ public class ThrowableUtils {
     }
 
     public static String getStackTraceByPn(Throwable e) {
-        return getStackTraceByPn(e, "tapdata");
+        return ExceptionUtil.stacktraceToString(e);
     }
 }

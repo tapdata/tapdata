@@ -103,9 +103,9 @@ public class WriteTimeTypeRecordTest extends PDKTestBaseV2 {
             } else {
                 Map<String, Object> resultMap = result.get(0);
                 StringBuilder builder = new StringBuilder();
-                node.connectorNode().getCodecsFilterManager().transformToTapValueMap(resultMap, targetTableModel.getNameFieldMap());
-                TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(resultMap);
-                boolean equals = super.mapEquals(recordCopy[0], resultMap, builder, targetTableModel.getNameFieldMap());
+                //node.connectorNode().getCodecsFilterManager().transformToTapValueMap(resultMap, targetTableModel.getNameFieldMap());
+                //TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(resultMap);
+                boolean equals = super.mapEquals(transform(node, targetTableModel, recordCopy[0]), resultMap, builder, targetTableModel.getNameFieldMap());
                 TapAssert.asserts(() -> {
                     Assertions.assertTrue(equals, langUtil.formatLang("writeTime.queryFilter.notEquals",
                             recordCount,
@@ -193,7 +193,7 @@ public class WriteTimeTypeRecordTest extends PDKTestBaseV2 {
                     Map<String, Object> result = insertEvent.getAfter();
                     StringBuilder builder = new StringBuilder();
                     TapAssert.asserts(() -> assertTrue(
-                            super.mapEquals(record, transform(node, targetTableModel, result), builder, targetTableModel.getNameFieldMap()),
+                            super.mapEquals(transform(node, targetTableModel, record), result, builder, targetTableModel.getNameFieldMap()),
                             langUtil.formatLang("writeTime.batchRead.notEquals", recordCount, builder.toString())
                     )).acceptAsWarn(testCase, langUtil.formatLang("writeTime.batchRead.succeed", recordCount));
                 }

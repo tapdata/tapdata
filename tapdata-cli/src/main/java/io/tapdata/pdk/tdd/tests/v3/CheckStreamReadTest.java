@@ -547,7 +547,7 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
             StringBuilder builder = new StringBuilder();
 
             //TapTable targetTableModel = super.getTargetTable(node.connectorNode());
-            equals = super.mapEquals(r[0], transform(node, targetTableModel, after), builder, targetTableModel.getNameFieldMap());
+            equals = super.mapEquals(transform(node, targetTableModel, r[0]), after, builder, targetTableModel.getNameFieldMap());
             if (!equals) {
                 //修改前后数据进行比对
                 TapAssert.warn(testCase, langUtil.formatLang("checkStreamRead.update.notEquals", recordCount, updateCount, index + 1, builder.toString()));

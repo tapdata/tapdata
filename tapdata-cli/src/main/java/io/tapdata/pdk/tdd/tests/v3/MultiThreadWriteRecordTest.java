@@ -205,9 +205,9 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
         } else {
             Map<String, Object> resultMap = result.get(0);
             StringBuilder builder = new StringBuilder();
-            node.connectorNode().getCodecsFilterManager().transformToTapValueMap(resultMap, targetTableModel.getNameFieldMap());
-            TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(resultMap);
-            boolean equals = super.mapEquals(recordCopy[0], transform(node, targetTableModel, resultMap), builder, targetTableModel.getNameFieldMap());
+            //node.connectorNode().getCodecsFilterManager().transformToTapValueMap(resultMap, targetTableModel.getNameFieldMap());
+            //TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(resultMap);
+            boolean equals = super.mapEquals(transform(node, targetTableModel, recordCopy[0]), resultMap, builder, targetTableModel.getNameFieldMap());
             TapAssert.asserts(() -> {
                 Assertions.assertTrue(equals, langUtil.formatLang("multiWrite.modify.query.notEquals",
                         tName,

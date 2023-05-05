@@ -1,5 +1,7 @@
 package io.tapdata.pdk.tdd.tests.v3;
 
+import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -75,8 +77,10 @@ public class BatchWriteRecordTest extends PDKTestBaseV2 {
             } else {
                 for (int index = 0; index < insertAfter.length; index++) {
                     Map<String, Object> resultMap = result.get(index);
+                    //node.connectorNode().getCodecsFilterManager().transformToTapValueMap(insertAfter[index], targetTableModel.getNameFieldMap());
+                    //TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(insertAfter[index]);
                     StringBuilder builder = new StringBuilder();
-                    boolean equals = super.mapEquals(insertAfter[index], resultMap, builder, targetTableModel.getNameFieldMap());
+                    boolean equals = super.mapEquals(transform(node, targetTableModel, insertAfter[index]), resultMap, builder, targetTableModel.getNameFieldMap());
                     final int finalIndex = index + 1;
                     TapAssert.asserts(() -> {
                         //分批次插入后查询结果不一致-内容不一致
