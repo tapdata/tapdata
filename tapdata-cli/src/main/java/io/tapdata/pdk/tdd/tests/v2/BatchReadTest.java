@@ -5,6 +5,7 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -80,10 +81,11 @@ public class BatchReadTest extends PDKTestBase {
                     return;
                 }
                 BatchReadFunction batchReadFun = functions.getBatchReadFunction();
+                TapTable targetTableModel = super.getTargetTable(prepare.connectorNode());
                 //使用BatchReadFunction， batchSize为10读出所有数据，
                 final int batchSize = 10;
                 List<TapEvent> list = new ArrayList<>();
-                batchReadFun.batchRead(context, targetTable, null, batchSize, (events, obj) -> {
+                batchReadFun.batchRead(context, targetTableModel, null, batchSize, (events, obj) -> {
                     if (null != events && !events.isEmpty()) list.addAll(events);
 //                        Map<String, Object> info = tapEvent.getInfo();
 //                        DataMap filterMap = (DataMap) info;
@@ -162,11 +164,11 @@ public class BatchReadTest extends PDKTestBase {
                         } else {
                             result = new HashMap<>();
                         }
-                        result = transform(prepare, targetTable, result);
+                        result = transform(prepare, targetTableModel, result);
                         StringBuilder builder = new StringBuilder();
                         Map<String, Object> finalResult = result;
                         TapAssert.asserts(() -> assertTrue(
-                                mapEquals(record, finalResult, builder, targetTable.getNameFieldMap()),
+                                mapEquals(record, finalResult, builder, targetTableModel.getNameFieldMap()),
                                 LangUtil.format("exact.equals.failed", recordCount, builder.toString())
                         )).acceptAsWarn(testCase, LangUtil.format("exact.equals.succeed", recordCount, builder.toString()));
                     }

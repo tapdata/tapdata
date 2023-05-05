@@ -106,8 +106,8 @@ public class PDKTestBaseV2 extends PDKTestBase {
                 queryByFilter.query(context, filters, tapTable, consumer -> {
                     if (Objects.nonNull(consumer) && !consumer.isEmpty()) {
                         consumer.forEach(res->{
-                            if (Objects.nonNull(res)){
-                                result.add(transform(node,targetTable,res.getResult()));
+                            if (Objects.nonNull(res) && null != res.getResult() && !res.getResult().isEmpty()){
+                                result.add(transform(node, tapTable, res.getResult()));
                             }
                         });
                     }
@@ -122,8 +122,8 @@ public class PDKTestBaseV2 extends PDKTestBase {
                 try {
                     filter.query(context, tapAdvanceFilter, tapTable, consumer -> {
                         for (Map<String, Object> data : consumer.getResults()) {
-                            if (Objects.nonNull(data)){
-                                result.add(transform(node,targetTable,data));
+                            if (Objects.nonNull(data) && !data.isEmpty()){
+                                result.add(transform(node, tapTable, data));
                             }
                         }
                     });

@@ -330,8 +330,9 @@ public class CreateTableTest extends PDKTestBase {
                     builder.append(joiner.toString()).append(")");
                     indexStr.add(builder.toString());
                 });
+                TapTable targetTableModel = super.getTargetTable(prepare.connectorNode());
                 try {
-                    createIndex.createIndex(connectorContext, targetTable, event);
+                    createIndex.createIndex(connectorContext, targetTableModel, event);
                     TapAssert.asserts(() -> {
                     }).acceptAsError(testCase, LangUtil.format("createIndex.succeed", indexStr.toString(), tableId));
                 } catch (Throwable e) {
