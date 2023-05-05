@@ -267,8 +267,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             List<MetadataTransformerItemDto> data = Lists.newArrayList();
             for (MetadataInstancesDto instance : instances) {
                 MetadataTransformerItemDto item = new MetadataTransformerItemDto();
-                item.setSourceObjectName(instance.getOriginalName());
-                item.setPreviousTableName(instance.getAncestorsName());
+                item.setSourceObjectName(instance.getAncestorsName());
+                item.setPreviousTableName(instance.getOriginalName());
                 item.setSinkObjectName(instance.getName());
                 item.setSinkQulifiedName(targetMetaMap.get(instance.getAncestorsName()));
                 item.setSourceQualifiedName(sourceMetaMap.get(instance.getAncestorsName()));
