@@ -1,6 +1,9 @@
 package io.tapdata.pdk.tdd.tests.v3;
 
+import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByFilterFunction;
@@ -188,7 +191,8 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
         }
         //查询数据，并校验
         Record[] recordCopy = execute.records();
-        List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, recordCopy);
+        TapTable targetTableModel = super.getTargetTable(node.connectorNode());
+        List<Map<String, Object>> result = super.queryRecords(node, targetTableModel, recordCopy);
         final int filterCount = result.size();
         final String tName = Thread.currentThread().getName();
         if (filterCount != recordCount) {
@@ -201,7 +205,9 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
         } else {
             Map<String, Object> resultMap = result.get(0);
             StringBuilder builder = new StringBuilder();
-            boolean equals = super.mapEquals(recordCopy[0], transform(node, targetTable, resultMap), builder, targetTable.getNameFieldMap());
+            node.connectorNode().getCodecsFilterManager().transformToTapValueMap(resultMap, targetTableModel.getNameFieldMap());
+            TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(resultMap);
+            boolean equals = super.mapEquals(recordCopy[0], transform(node, targetTableModel, resultMap), builder, targetTableModel.getNameFieldMap());
             TapAssert.asserts(() -> {
                 Assertions.assertTrue(equals, langUtil.formatLang("multiWrite.modify.query.notEquals",
                         tName,
@@ -227,7 +233,8 @@ public class MultiThreadWriteRecordTest extends PDKTestBaseV2 {
         final String tName = Thread.currentThread().getName();
         //查询数据，并校验
         Record[] recordCopy = execute.records();
-        List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, recordCopy);
+        TapTable targetTableModel = super.getTargetTable(node.connectorNode());
+        List<Map<String, Object>> result = super.queryRecords(node, targetTableModel, recordCopy);
         if (result.isEmpty()){
             TapAssert.succeed(execute.testCase(),langUtil.formatLang("multiWrite.delete.succeed",
                     tName,
