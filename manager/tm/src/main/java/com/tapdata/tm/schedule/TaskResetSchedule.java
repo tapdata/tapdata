@@ -49,7 +49,7 @@ public class TaskResetSchedule {
     private StateMachineService stateMachineService;
 
 
-    @Scheduled(fixedDelayString = "30000")
+    @Scheduled(fixedDelay = 90000)
     @SchedulerLock(name ="checkTaskReset", lockAtMostFor = "120s", lockAtLeastFor = "60s")
     public void checkTaskReset() {
         checkNoResponseOp();
