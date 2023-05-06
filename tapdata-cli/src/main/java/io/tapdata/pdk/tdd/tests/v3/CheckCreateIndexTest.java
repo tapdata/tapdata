@@ -94,8 +94,7 @@ public class CheckCreateIndexTest extends PDKTestBaseV2 {
             List<TapIndex> indexArr = new ArrayList<>();
             try {
                 query.query(connectorNode.getConnectorContext(), targetTableModel, consumer -> {
-                    for (int index = 0; index < consumer.size(); index++) {
-                        TapIndex tapIndex = consumer.get(index);
+                    for (TapIndex tapIndex : consumer) {
                         if (Objects.nonNull(tapIndex)) {
                             indexArr.add(tapIndex);
                         }
@@ -126,8 +125,7 @@ public class CheckCreateIndexTest extends PDKTestBaseV2 {
                         if (indexFields.size() > 1) {
                             indexTrue = false;
                             StringJoiner joiner = new StringJoiner(", ");
-                            for (int i = 0; i < indexFields.size(); i++) {
-                                TapIndexField field = indexFields.get(i);
+                            for (TapIndexField field : indexFields) {
                                 String name1 = field.getName();
                                 Boolean fieldAsc = field.getFieldAsc();
                                 if (!indexField.getName().equals(name1)) {
@@ -542,8 +540,7 @@ public class CheckCreateIndexTest extends PDKTestBaseV2 {
             List<TapIndex> indexArr1 = new ArrayList<>();
             try {
                 query.query(connectorNode.getConnectorContext(), targetTableModel, consumer -> {
-                    for (int index = 0; index < consumer.size(); index++) {
-                        TapIndex tapIndex = consumer.get(index);
+                    for (TapIndex tapIndex : consumer) {
                         if (Objects.nonNull(tapIndex)) {
                             indexArr1.add(tapIndex);
                         }
