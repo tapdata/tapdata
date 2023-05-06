@@ -13,6 +13,7 @@ import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.task.constant.LdpDirEnum;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -55,6 +56,15 @@ public class ApiAppServiceImpl implements ApiAppService {
                 itemType.add(MetadataDefinitionDto.ITEM_TYPE_APP);
             }
         }
+
+        Criteria criteria = Criteria.where("value").is(LdpDirEnum.LDP_DIR_API.getValue()).and("item_type").is(LdpDirEnum.LDP_DIR_API.getItemType());
+        Query query = new Query(criteria);
+        query.fields().include("_id");
+        MetadataDefinitionDto api = metadataDefinitionService.findOne(query, user);
+        if (api != null) {
+            metadataDefinition.setParent_id(api.getId().toHexString());
+        }
+
         return metadataDefinitionService.save(metadataDefinition, user);
     }
 
