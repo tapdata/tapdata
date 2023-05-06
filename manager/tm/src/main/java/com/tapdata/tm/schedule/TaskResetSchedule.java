@@ -49,8 +49,8 @@ public class TaskResetSchedule {
     private StateMachineService stateMachineService;
 
 
-    @Scheduled(fixedDelayString = "30000")
-    @SchedulerLock(name ="checkTaskReset", lockAtMostFor = "15s", lockAtLeastFor = "15s")
+    @Scheduled(fixedDelay = 90000)
+    @SchedulerLock(name ="checkTaskReset", lockAtMostFor = "120s", lockAtLeastFor = "60s")
     public void checkTaskReset() {
         checkNoResponseOp();
         resetRetry();
@@ -67,7 +67,7 @@ public class TaskResetSchedule {
             Criteria taskCri = Criteria.where("status").in(TaskDto.STATUS_RENEWING, TaskDto.STATUS_DELETING).and("is_deleted").ne(true);
 
             Query query1 = new Query(taskCri);
-            query1.fields().include("status", "last_updated", "user_id");
+            //query1.fields().include("status", "last_updated", "user_id");
             List<TaskDto> taskDtos = taskService.findAll(query1);
             List<String> taskIds = taskDtos.stream().map(t -> t.getId().toHexString()).distinct().collect(Collectors.toList());
             Criteria criteria1 = Criteria.where("taskId").in(taskIds);

@@ -165,7 +165,7 @@ public class TaskSampleHandler extends AbstractHandler {
         collector.addSampler(Constants.REPLICATE_LAG, () -> {
             AtomicReference<Long> replicateLagRef = new AtomicReference<>(null);
 
-            if (snapshotDoneAt != null) {
+            if (snapshotDoneAt != null || TaskDto.TYPE_CDC.equals(task.getType())) {
                 for (DataNodeSampleHandler h : targetNodeHandlers.values()) {
                     Optional.ofNullable(h.getReplicateLag()).ifPresent(sampler -> {
                         Number value = sampler.getTemp();

@@ -143,10 +143,10 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
                                             result.getCode() == ERROR_LOGIN_FAILED_DEVICE_TOKEN_CHANGED ||
                                             result.getCode() == ERROR_EXCEED_USER_CHANNEL_CAPACITY
                             ) { //kicked
-                                TapLogger.debug(TAG, "PushChannel kicked, code {}", result.getCode());
+                                TapLogger.info(TAG, "PushChannel kicked, code {}", result.getCode());
                                 eventManager.sendEvent(pushChannel.getImClient().getPrefix() + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_KICKED));
                             } else if(result.getCode() == ERROR_CHANNEL_BYE_BYE) {
-                                TapLogger.debug(TAG, "PushChannel bye, code {}", result.getCode());
+                                TapLogger.info(TAG, "PushChannel bye, code {}", result.getCode());
                                 eventManager.sendEvent(pushChannel.getImClient().getPrefix() + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_BYE));
                             } else {
                                 TapLogger.debug(TAG, "PushChannel receive result " + result);
@@ -170,7 +170,7 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
         } else if (frame instanceof TextWebSocketFrame) {
             TextWebSocketFrame textFrame = (TextWebSocketFrame) frame;
             response(ctx, frame);
-            
+
             channel.writeAndFlush(textFrame.text());
             TapLogger.warn(TAG, "WebSocket Client received message: " + textFrame.text());
         } else if (frame instanceof PongWebSocketFrame) {
