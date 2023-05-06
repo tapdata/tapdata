@@ -12,7 +12,6 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -162,19 +161,9 @@ public class TidbWriteRecorder extends WriteRecorder {
     }
 
     public void addUpdateBatch(Map<String, Object> after, Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
-        if (EmptyKit.isEmpty(after) || EmptyKit.isEmpty(uniqueCondition)) {
+        if (EmptyKit.isEmpty(after)) {
             return;
         }
-        if (EmptyKit.isEmpty(afterKeys)) {
-            afterKeys = new ArrayList<>(after.keySet());
-        }
-        if (!afterKeys.equals(new ArrayList<>(after.keySet()))) {
-            executeBatch(listResult);
-            preparedStatement = null;
-            afterKeys = new ArrayList<>(after.keySet());
-        }
-        Map<String, Object> lastBefore = new HashMap<>();
-        uniqueCondition.forEach(v -> lastBefore.put(v, (EmptyKit.isNotEmpty(before) && before.containsKey(v)) ? before.get(v) : after.get(v)));
         if (EmptyKit.isNull(preparedStatement)) {
             String sql = String.format(UPDATE_SQL, formatTableName(), appendSetClause(), appendWhereClause());
             preparedStatement = connection.prepareStatement(sql);
@@ -182,7 +171,7 @@ public class TidbWriteRecorder extends WriteRecorder {
         preparedStatement.clearParameters();
         int pos = 1;
         pos = setParametersForSetClause(preparedStatement, after, pos);
-        setParametersForWhereClause(preparedStatement, lastBefore, pos);
+        setParametersForWhereClause(preparedStatement, getBeforeForUpdate(after, before, listResult), pos);
         preparedStatement.addBatch();
     }
 

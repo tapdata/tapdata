@@ -21,7 +21,7 @@
     <dependencies>
         <dependency>
             <groupId>io.tapdata</groupId>
-            <artifactId>postgres-core</artifactId>
+            <artifactId>postgres-connector</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
         <dependency>
