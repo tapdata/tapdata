@@ -24,6 +24,7 @@ public class ErrorCodeEntity implements Serializable {
 	private String solution;
 	private String solutionCN;
 	private boolean recoverable = false;
+	private boolean skippable = false;
 	private TapExLevel level = TapExLevel.NORMAL;
 	private TapExType type = TapExType.RUNTIME;
 	private Class<? extends Exception> relateException = RuntimeException.class;
@@ -70,6 +71,11 @@ public class ErrorCodeEntity implements Serializable {
 
 	public ErrorCodeEntity recoverable(boolean recoverable) {
 		this.recoverable = recoverable;
+		return this;
+	}
+
+	public ErrorCodeEntity skippable(boolean skippable) {
+		this.skippable = skippable;
 		return this;
 	}
 
@@ -123,6 +129,10 @@ public class ErrorCodeEntity implements Serializable {
 		return recoverable;
 	}
 
+	public boolean isSkippable() {
+		return skippable;
+	}
+
 	public TapExLevel getLevel() {
 		return level;
 	}
@@ -165,6 +175,7 @@ public class ErrorCodeEntity implements Serializable {
 				.add("solution='" + solution + "'")
 				.add("solutionCN='" + solutionCN + "'")
 				.add("recoverable=" + recoverable)
+				.add("skippable=" + skippable)
 				.add("level=" + level)
 				.add("type=" + type)
 				.add("relateException=" + relateException)

@@ -1,0 +1,269 @@
+{
+	"info": {
+		"_postman_id": "6193eff7-4ae0-457f-8d19-cd67bfa17e23",
+		"name": "BesChannels",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "add Tags",
+			"item": [
+				{
+					"name": "WeChatMessageAndBesChannels",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "[\r\n    {\r\n        \"post\": {\r\n            \"touser\": \"owKgc5jfvS03Z3BHreNKZ70DGE4c\",\r\n            \"template_id\": \"aVuXi6tQ96X_0iujAXmuS2Rkpxyp5R9qATsEu43QACA\",\r\n            \"url\": \"http:\\\\/\\\\/www.baidu.com\",\r\n            \"data\": {\r\n                \"first\": {\r\n                    \"value\": \"部门会议\"\r\n                },\r\n                \"keyword1\": {\r\n                    \"value\": \"2019年05月17日\"\r\n                }\r\n            }\r\n        },\r\n        \"remark\": \"c4ca4238a0b923820dcc509a6f75849b\",\r\n        \"main_id\": \"32551\",\r\n        \"wx_id\": \"wx592f9ef879b35634\",\r\n        \"appid\": \"wx592f9ef879b35634\"\r\n    }\r\n]",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://api.ma.scrmtech.com/app-api/wxmessage/wxtemplate?callbackurl=%23&source=309&secret=c6cd4354d01ffdff00e180c960cfe448&appid=wx592f9ef879b35634",
+							"protocol": "https",
+							"host": [
+								"api",
+								"ma",
+								"scrmtech",
+								"com"
+							],
+							"path": [
+								"app-api",
+								"wxmessage",
+								"wxtemplate"
+							],
+							"query": [
+								{
+									"key": "callbackurl",
+									"value": "%23"
+								},
+								{
+									"key": "source",
+									"value": "309"
+								},
+								{
+									"key": "secret",
+									"value": "c6cd4354d01ffdff00e180c960cfe448"
+								},
+								{
+									"key": "appid",
+									"value": "wx592f9ef879b35634"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "SetUserTag",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"openapi\":\"{{key_openid}}\"}"
+						},
+						"url": {
+							"raw": "https://api.ma.scrmtech.com/app-api/user/setUserTag?source={{userSource}}&secret={{userSecret}}&appid={{userAppId}}&tag_names={{tags}}&openid={{key_openid}}&tag_time={{tag_time}}",
+							"protocol": "https",
+							"host": [
+								"api",
+								"ma",
+								"scrmtech",
+								"com"
+							],
+							"path": [
+								"app-api",
+								"user",
+								"setUserTag"
+							],
+							"query": [
+								{
+									"key": "source",
+									"value": "{{userSource}}"
+								},
+								{
+									"key": "secret",
+									"value": "{{userSecret}}"
+								},
+								{
+									"key": "appid",
+									"value": "{{userAppId}}"
+								},
+								{
+									"key": "tag_names",
+									"value": "{{tags}}"
+								},
+								{
+									"key": "openid",
+									"value": "{{key_openid}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "WeChatMessage",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"touser\": \"owKgc5jfvS03Z3BHreNKZ70DGE4c\",\r\n    \"template_id\": \"\",\r\n    \"form_id\": \"\",\r\n    \"value\": {\r\n        \"${key}\":\"${value}\"\r\n    }\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://api.weixin.qq.com/cgi-bin/message/wxopen/template/send?access_token=",
+							"protocol": "https",
+							"host": [
+								"api",
+								"weixin",
+								"qq",
+								"com"
+							],
+							"path": [
+								"cgi-bin",
+								"message",
+								"wxopen",
+								"template",
+								"send"
+							],
+							"query": [
+								{
+									"key": "access_token",
+									"value": ""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GetWeChatAccessToken",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=wx592f9ef879b35634&secret=c6cd4354d01ffdff00e180c960cfe448",
+							"protocol": "https",
+							"host": [
+								"api",
+								"weixin",
+								"qq",
+								"com"
+							],
+							"path": [
+								"cgi-bin",
+								"token"
+							],
+							"query": [
+								{
+									"key": "grant_type",
+									"value": "client_credential"
+								},
+								{
+									"key": "appid",
+									"value": "wx592f9ef879b35634"
+								},
+								{
+									"key": "secret",
+									"value": "c6cd4354d01ffdff00e180c960cfe448"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GetTag",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://api.ma.scrmtech.com/app-api/tag/taglist?source=309&secret=c6cd4354d01ffdff00e180c960cfe448&appid=wx592f9ef879b35634&page=1&page_num=200&keyword=扫码注册云版V3",
+							"protocol": "https",
+							"host": [
+								"api",
+								"ma",
+								"scrmtech",
+								"com"
+							],
+							"path": [
+								"app-api",
+								"tag",
+								"taglist"
+							],
+							"query": [
+								{
+									"key": "source",
+									"value": "309"
+								},
+								{
+									"key": "secret",
+									"value": "c6cd4354d01ffdff00e180c960cfe448"
+								},
+								{
+									"key": "appid",
+									"value": "wx592f9ef879b35634"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_num",
+									"value": "200"
+								},
+								{
+									"key": "keyword",
+									"value": "扫码注册云版V3"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"": [
+		{
+			"key": "userSource",
+			"value": ""
+		},
+		{
+			"key": "userSecret",
+			"value": ""
+		},
+		{
+			"key": "userAppId",
+			"value": ""
+		},
+		{
+			"key": "tags",
+			"value": ""
+		},
+		{
+			"key": "key_openid",
+			"value": ""
+		}
+	],
+	"events": []
+}

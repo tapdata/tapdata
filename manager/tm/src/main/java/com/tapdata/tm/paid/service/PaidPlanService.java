@@ -21,6 +21,7 @@ import java.util.Map;
  */
 @Service
 @Profile("dfs")
+@Deprecated
 public class PaidPlanService {
 
     @Autowired

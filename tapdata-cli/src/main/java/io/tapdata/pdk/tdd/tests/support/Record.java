@@ -2,11 +2,16 @@ package io.tapdata.pdk.tdd.tests.support;
 
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapDateTime;
+import io.tapdata.entity.schema.type.TapTime;
+import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.DateTime;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -154,10 +159,18 @@ public class Record extends HashMap<String, Object> {
                     }
                     break;
                     case "Date_Time": {
-                        record.builder(keyName, new Date((long) (1293861599 + new Random().nextDouble() * 60 * 60 * 24 * 365)));
+                        TapDateTime tapType = (TapDateTime)field.getTapType();
+                        TimeZone.setDefault( null == tapType.getWithTimeZone() || !tapType.getWithTimeZone() ? null : TimeZone.getTimeZone("GMT+0"));
+                        Date date = new Date((long) (1293861599 + new Random().nextDouble() * 60 * 60 * 24 * 365));
+                        record.builder(keyName, date);
                     }
                     break;
                     case "Time":
+                        TapTime tapType = (TapTime)field.getTapType();
+                        TimeZone.setDefault( null == tapType.getWithTimeZone() || !tapType.getWithTimeZone() ? null : TimeZone.getTimeZone("GMT+0"));
+                        Date date = new Date(random.nextInt());
+                        record.builder(keyName, date);
+                        break;
                     case "Year":
                         record.builder(keyName, new Date(random.nextInt()));
                         break;

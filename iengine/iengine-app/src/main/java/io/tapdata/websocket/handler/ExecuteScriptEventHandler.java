@@ -31,7 +31,11 @@ import org.springframework.data.mongodb.core.query.Query;
 
 import javax.script.Invocable;
 import java.io.Serializable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -76,8 +80,8 @@ public class ExecuteScriptEventHandler extends BaseEventHandler implements WebSo
 
 			ICacheService dataFlowMemoryCacheService = validateResult.getDataFlowCacheData();
 			Invocable scriptEngine = ScriptUtil.getScriptEngine(JSEngineEnum.GRAALVM_JS.getEngineName(),
-							script, javaScriptFunctions, clientMongoOperator, sourceScriptConnection,
-							targetScriptConnection, dataFlowMemoryCacheService, logger);
+					script, javaScriptFunctions, clientMongoOperator, sourceScriptConnection,
+					targetScriptConnection, dataFlowMemoryCacheService, logger);
 
 			List<Map> debugData = validateResult.getDebugData();
 

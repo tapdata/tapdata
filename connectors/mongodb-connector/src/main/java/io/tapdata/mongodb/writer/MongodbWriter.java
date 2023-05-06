@@ -1,6 +1,8 @@
 package io.tapdata.mongodb.writer;
 
 import com.mongodb.ConnectionString;
+import com.mongodb.MongoBulkWriteException;
+import com.mongodb.bulk.BulkWriteError;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
@@ -16,6 +18,7 @@ import io.tapdata.mongodb.MongodbUtil;
 import io.tapdata.mongodb.entity.MongodbConfig;
 import io.tapdata.mongodb.reader.MongodbV4StreamReader;
 import io.tapdata.mongodb.util.MongodbLookupUtil;
+import io.tapdata.mongodb.writer.error.BulkWriteErrorCodeHandlerEnum;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
@@ -25,6 +28,7 @@ import org.bson.Document;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static io.tapdata.base.ConnectorBase.writeListResult;
@@ -43,7 +47,7 @@ public class MongodbWriter {
 	private ConnectionString connectionString;
 	private MongodbConfig mongodbConfig;
 
-	private boolean  is_cloud ;
+	private boolean is_cloud;
 
 	public MongodbWriter(KVMap<Object> globalStateMap, MongodbConfig mongodbConfig, MongoClient mongoClient) {
 		this.globalStateMap = globalStateMap;
@@ -70,13 +74,12 @@ public class MongodbWriter {
 	 * @param writeListResultConsumer
 	 */
 	public void writeRecord(List<TapRecordEvent> tapRecordEvents, TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
+		if (CollectionUtils.isEmpty(tapRecordEvents)) {
+			return;
+		}
 		AtomicLong inserted = new AtomicLong(0); //insert count
 		AtomicLong updated = new AtomicLong(0); //update count
 		AtomicLong deleted = new AtomicLong(0); //delete count
-
-		List<WriteModel<Document>> writeModels = new ArrayList<>();
-//				Map<String, List<Document>> insertMap = new HashMap<>();
-//				Map<String, List<TapRecordEvent>> insertEventMap = new HashMap<>();
 
 		WriteListResult<TapRecordEvent> writeListResult = writeListResult();
 
@@ -84,60 +87,129 @@ public class MongodbWriter {
 
 		Object pksCache = table.primaryKeys(true);
 		if (null == pksCache) pksCache = table.primaryKeys();
-		final Collection<String> pks = (Collection<String>)pksCache;
+		final Collection<String> pks = (Collection<String>) pksCache;
 
-		// daas  data will cache local
+		// daas data will cache local
 		if (!is_cloud && mongodbConfig.isEnableSaveDeleteData()) {
 			MongodbLookupUtil.lookUpAndSaveDeleteMessage(tapRecordEvents, this.globalStateMap, this.connectionString, pks, collection);
 		}
-		// 1. 如果全部为 insert 操作, 可能是全量阶段行为, 先通过 no order + bulk insert 做尝试, 尽可能提高性能
-		Boolean isBulkInsert = true;
-		List<WriteModel<Document>> bulkWriteModels = new ArrayList<>();
-		for (TapRecordEvent recordEvent : tapRecordEvents) {
-			if (!(recordEvent instanceof TapInsertRecordEvent)) {
-				isBulkInsert = false;
-				bulkWriteModels.clear();
-			}
-			if (isBulkInsert) {
-				bulkWriteModels.add(new InsertOneModel<>(new Document(((TapInsertRecordEvent) recordEvent).getAfter())));
-			}
+		BulkWriteModel bulkWriteModel = buildBulkWriteModel(tapRecordEvents, table, inserted, updated, deleted, collection, pks);
 
-			UpdateOptions options = new UpdateOptions().upsert(true);
-			final Map<String, Object> info = recordEvent.getInfo();
-			if (MapUtils.isNotEmpty(info) && info.containsKey(MergeInfo.EVENT_INFO_KEY)) {
-				isBulkInsert = false;
-				bulkWriteModels.clear();
-				final List<WriteModel<Document>> mergeWriteModels = MongodbMergeOperate.merge(inserted, updated, deleted, recordEvent, table);
-				if (CollectionUtils.isNotEmpty(mergeWriteModels)) {
-					writeModels.addAll(mergeWriteModels);
-				}
-			} else {
-				WriteModel<Document> writeModel = normalWriteMode(inserted, updated, deleted, options, collection, pks, recordEvent);
-				if (writeModel != null) {
-					writeModels.add(writeModel);
+		if (bulkWriteModel.isEmpty()) {
+			throw new RuntimeException("Bulk write data failed, write model list is empty, received record size: " + tapRecordEvents.size());
+		}
+
+		BulkWriteOptions bulkWriteOptions;
+		AtomicReference<MongoBulkWriteException> mongoBulkWriteException = new AtomicReference<>();
+		while (!bulkWriteModel.isEmpty()) {
+			bulkWriteOptions = buildBulkWriteOptions(bulkWriteModel);
+			try {
+				List<WriteModel<Document>> writeModels = bulkWriteModel.getWriteModels();
+				collection.bulkWrite(writeModels, bulkWriteOptions);
+				bulkWriteModel.clearAll();
+			} catch (MongoBulkWriteException e) {
+				Consumer<MongoBulkWriteException> errorConsumer = mongoBulkWriteException::set;
+				if (!handleBulkWriteError(e, bulkWriteModel, bulkWriteOptions, collection, errorConsumer)) {
+					if (null != mongoBulkWriteException.get()) {
+						throw mongoBulkWriteException.get();
+					} else {
+						throw e;
+					}
 				}
 			}
 		}
 
-		if (CollectionUtils.isNotEmpty(writeModels)) {
-			final MongoCollection<Document> mongoCollection = getMongoCollection(table.getId());
-			if (isBulkInsert) {
-				try {
-					// 2. 先尝试批量写入
-					mongoCollection.bulkWrite(bulkWriteModels, new BulkWriteOptions().ordered(false));
-				} catch (Exception e) {
-					// 3. 失败用正常模式
-					mongoCollection.bulkWrite(writeModels, new BulkWriteOptions().ordered(true));
-				}
-			} else {
-				mongoCollection.bulkWrite(writeModels, new BulkWriteOptions().ordered(true));
-			}
-		}
 		//Need to tell incremental engine the write result
 		writeListResultConsumer.accept(writeListResult
 				.insertedCount(inserted.get())
 				.modifiedCount(updated.get())
 				.removedCount(deleted.get()));
+	}
+
+	private boolean handleBulkWriteError(
+			MongoBulkWriteException originMongoBulkWriteException,
+			BulkWriteModel bulkWriteModel,
+			BulkWriteOptions bulkWriteOptions,
+			MongoCollection<Document> collection,
+			Consumer<MongoBulkWriteException> errorConsumer
+	) {
+		List<BulkWriteError> writeErrors = originMongoBulkWriteException.getWriteErrors();
+		List<BulkWriteError> cantHandleErrors = new ArrayList<>();
+		List<WriteModel<Document>> retryWriteModels = new ArrayList<>();
+		for (BulkWriteError writeError : writeErrors) {
+			int code = writeError.getCode();
+			int index = writeError.getIndex();
+			WriteModel<Document> writeModel = bulkWriteModel.getWriteModels().get(index);
+			BulkWriteErrorCodeHandlerEnum bulkWriteErrorCodeHandlerEnum = BulkWriteErrorCodeHandlerEnum.fromCode(code);
+			if (null != bulkWriteErrorCodeHandlerEnum && null != bulkWriteErrorCodeHandlerEnum.getBulkWriteErrorHandler()) {
+				WriteModel<Document> retryWriteModel = null;
+				try {
+					retryWriteModel = bulkWriteErrorCodeHandlerEnum.getBulkWriteErrorHandler().handle(bulkWriteModel, writeModel, bulkWriteOptions, originMongoBulkWriteException, writeError, collection);
+				} catch (Exception ignored) {
+				}
+				if (null != retryWriteModel) {
+					retryWriteModels.add(retryWriteModel);
+				} else {
+					cantHandleErrors.add(writeError);
+				}
+			} else {
+				cantHandleErrors.add(writeError);
+			}
+		}
+		if (CollectionUtils.isNotEmpty(cantHandleErrors)) {
+			// Keep errors that cannot handle
+			MongoBulkWriteException mongoBulkWriteException = new MongoBulkWriteException(
+					originMongoBulkWriteException.getWriteResult(),
+					cantHandleErrors,
+					originMongoBulkWriteException.getWriteConcernError(),
+					originMongoBulkWriteException.getServerAddress(),
+					originMongoBulkWriteException.getErrorLabels()
+			);
+			errorConsumer.accept(mongoBulkWriteException);
+			return false;
+		} else {
+			bulkWriteModel.clearAll();
+			retryWriteModels.forEach(bulkWriteModel::addAnyOpModel);
+			return true;
+		}
+	}
+
+	private BulkWriteModel buildBulkWriteModel(List<TapRecordEvent> tapRecordEvents, TapTable table, AtomicLong inserted, AtomicLong updated, AtomicLong deleted, MongoCollection<Document> collection, Collection<String> pks) {
+		BulkWriteModel bulkWriteModel = new BulkWriteModel(pks.contains("_id"));
+		for (TapRecordEvent recordEvent : tapRecordEvents) {
+			if (!(recordEvent instanceof TapInsertRecordEvent)) {
+				bulkWriteModel.setAllInsert(false);
+			}
+			if (bulkWriteModel.isAllInsert()) {
+				bulkWriteModel.addOnlyInsertModel(new InsertOneModel<>(new Document(((TapInsertRecordEvent) recordEvent).getAfter())));
+			}
+
+			UpdateOptions options = new UpdateOptions().upsert(true);
+			final Map<String, Object> info = recordEvent.getInfo();
+			if (MapUtils.isNotEmpty(info) && info.containsKey(MergeInfo.EVENT_INFO_KEY)) {
+				bulkWriteModel.setAllInsert(false);
+				final List<WriteModel<Document>> mergeWriteModels = MongodbMergeOperate.merge(inserted, updated, deleted, recordEvent, table);
+				if (CollectionUtils.isNotEmpty(mergeWriteModels)) {
+					mergeWriteModels.forEach(bulkWriteModel::addAnyOpModel);
+				}
+			} else {
+				WriteModel<Document> writeModel = normalWriteMode(inserted, updated, deleted, options, collection, pks, recordEvent);
+				if (writeModel != null) {
+					bulkWriteModel.addAnyOpModel(writeModel);
+				}
+			}
+		}
+		return bulkWriteModel;
+	}
+
+	private static BulkWriteOptions buildBulkWriteOptions(BulkWriteModel bulkWriteModel) {
+		BulkWriteOptions bulkWriteOptions = new BulkWriteOptions();
+		if (bulkWriteModel.isAllInsert()) {
+			bulkWriteOptions.ordered(false);
+		} else {
+			bulkWriteOptions.ordered(true);
+		}
+		return bulkWriteOptions;
 	}
 
 	private WriteModel<Document> normalWriteMode(AtomicLong inserted, AtomicLong updated, AtomicLong deleted, UpdateOptions options, MongoCollection<Document> collection, Collection<String> pks, TapRecordEvent recordEvent) {
@@ -163,21 +235,34 @@ public class MongodbWriter {
 			TapUpdateRecordEvent updateRecordEvent = (TapUpdateRecordEvent) recordEvent;
 			Map<String, Object> after = updateRecordEvent.getAfter();
 			Map<String, Object> before = updateRecordEvent.getBefore();
-			final Document pkFilter = getPkFilter(pks, before != null && !before.isEmpty() ? before : after);
-
-			if (ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS.equals(mongodbConfig.getUpdateDmlPolicy())) {
-				options.upsert(false);
-			}
-			MongodbUtil.removeIdIfNeed(pks, after);
-			Document u = new Document().append("$set", after);
 			Map<String, Object> info = recordEvent.getInfo();
-			if (info != null) {
-				Object unset = info.get("$unset");
-				if (unset != null) {
-					u.append("$unset", unset);
+			Document pkFilter;
+			Document u = new Document();
+			if (info != null && info.get("$op") != null) {
+				pkFilter = new Document("_id", info.get("_id"));
+				u.putAll((Map<String, Object>) info.get("$op"));
+				boolean isUpdate = u.keySet().stream().anyMatch(k -> k.startsWith("$"));
+				if (isUpdate) {
+					writeModel = new UpdateManyModel<>(pkFilter, u, options);
+					options.upsert(false);
+				} else {
+					writeModel = new ReplaceOneModel<>(pkFilter, u, new ReplaceOptions().upsert(false));
 				}
+			} else {
+				pkFilter = getPkFilter(pks, before != null && !before.isEmpty() ? before : after);
+				if (ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS.equals(mongodbConfig.getUpdateDmlPolicy())) {
+					options.upsert(false);
+				}
+				MongodbUtil.removeIdIfNeed(pks, after);
+				u.append("$set", after);
+				if (info != null) {
+					Object unset = info.get("$unset");
+					if (unset != null) {
+						u.append("$unset", unset);
+					}
+				}
+				writeModel = new UpdateManyModel<>(pkFilter, u, options);
 			}
-			writeModel = new UpdateManyModel<>(pkFilter, u, options);
 			updated.incrementAndGet();
 		} else if (recordEvent instanceof TapDeleteRecordEvent && CollectionUtils.isNotEmpty(pks)) {
 
@@ -213,6 +298,4 @@ public class MongodbWriter {
 
 		return filter;
 	}
-
-
 }

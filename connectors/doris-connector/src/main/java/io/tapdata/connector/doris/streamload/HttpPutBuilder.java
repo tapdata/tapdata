@@ -1,6 +1,7 @@
 package io.tapdata.connector.doris.streamload;
 
-import io.tapdata.connector.doris.DorisContext;
+import io.tapdata.connector.doris.DorisJdbcContext;
+import io.tapdata.connector.doris.bean.DorisConfig;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHeaders;
@@ -43,7 +44,7 @@ public class HttpPutBuilder {
         return this;
     }
 
-    public HttpPutBuilder addFormat(DorisContext.WriteFormat writeFormat) {
+    public HttpPutBuilder addFormat(DorisConfig.WriteFormat writeFormat) {
         header.put("format", writeFormat.name());
         switch (writeFormat) {
             case csv:

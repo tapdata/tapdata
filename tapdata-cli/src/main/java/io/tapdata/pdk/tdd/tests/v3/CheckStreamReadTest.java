@@ -1,10 +1,13 @@
 package io.tapdata.pdk.tdd.tests.v3;
 
+import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -26,7 +29,6 @@ import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
@@ -384,6 +386,7 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
         } else {
             TapAssert.succeed(testCase, langUtil.formatLang("checkStreamRead.delete.timely", recordCount, updateCount, deleteCount, delay <= 0 ? (readTime - writeTime) * 0.000001F : delay));
         }
+        TapTable targetTableModel = getTargetTable(node.connectorNode());
         for (int index = 0; index < event.size(); index++) {
             TapEvent tapEvent = event.get(index);
             if (!(tapEvent instanceof TapDeleteRecordEvent)) {
@@ -392,7 +395,7 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
                 return Boolean.FALSE;
             }
             TapDeleteRecordEvent eventEnt = (TapDeleteRecordEvent) tapEvent;
-            Map<String, Object> before = transform(node,targetTable,eventEnt.getBefore());
+            Map<String, Object> before = transform(node, targetTableModel, eventEnt.getBefore());
             if (Objects.isNull(before) || before.isEmpty()) {
                 TapAssert.errorNotThrow(testCase, langUtil.formatLang("checkStreamRead.delete.noKeys", recordCount, updateCount, deleteCount, index + 1, deleteCount));
                 return Boolean.FALSE;
@@ -488,6 +491,8 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
         } else {
             TapAssert.succeed(testCase, langUtil.formatLang("checkStreamRead.update.timely", recordCount, updateCount, delay <= 0 ? (readTime - writeTime) * 0.000001F : delay));
         }
+
+        TapTable targetTableModel = super.getTargetTable(node.connectorNode());
         // 验证after是否包含主键内容
         for (int index = 0; index < event.size(); index++) {
             TapEvent tapEvent = event.get(index);
@@ -501,8 +506,8 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
                 return Boolean.FALSE;
             }
             TapUpdateRecordEvent eventEnt = (TapUpdateRecordEvent) tapEvent;
-            Map<String, Object> before = transform(node,targetTable,eventEnt.getBefore());
-            Map<String, Object> after = transform(node,targetTable,eventEnt.getAfter());
+            Map<String, Object> before = transform(node, targetTableModel, eventEnt.getBefore());
+            Map<String, Object> after = transform(node, targetTableModel, eventEnt.getAfter());
             if (Objects.isNull(before) || before.isEmpty()) {
                 //修改事件的before中无键值信息，至少应该包含主键，告警
                 TapAssert.warn(testCase, langUtil.formatLang("checkStreamRead.update.noKeys",
@@ -553,7 +558,9 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
             }
 
             StringBuilder builder = new StringBuilder();
-            equals = super.mapEquals(r[0], transform(node, targetTable, after), builder);
+
+            //TapTable targetTableModel = super.getTargetTable(node.connectorNode());
+            equals = super.mapEquals(transform(node, targetTableModel, r[0]), after, builder, targetTableModel.getNameFieldMap());
             if (!equals) {
                 //修改前后数据进行比对
                 TapAssert.warn(testCase, langUtil.formatLang("checkStreamRead.update.notEquals", recordCount, updateCount, index + 1, builder.toString()));

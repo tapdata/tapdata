@@ -1023,7 +1023,8 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             MetadataDefinitionDto definitionDto = metadataDefinitionService.findById(MongoUtils.toObjectId(param.getTagId()));
             if (definitionDto != null) {
                 List<String> itemTypes = definitionDto.getItemType();
-                boolean isDefault = itemTypes.contains("default");
+
+                boolean isDefault = !CollectionUtils.isEmpty(itemTypes) && itemTypes.contains("default");
                 List<MetadataDefinitionDto> andChild = new ArrayList<>();
                 if ("currentAndChild".equals(param.getRange())) {
                     andChild = metadataDefinitionService.findAndChild(Lists.newArrayList(MongoUtils.toObjectId(param.getTagId())));
@@ -1553,7 +1554,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                                     .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
                                     .and("agentId").exists(true);
 
-                            Criteria apiCriteria = Criteria.where("status").is("active");
+                            Criteria apiCriteria = Criteria.where("status").is("active").and("is_deleted").ne(true);
 
 
 

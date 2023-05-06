@@ -2,6 +2,7 @@ package io.tapdata.modules.api.service;
 
 import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.entity.utils.io.DataOutputStreamEx;
+import io.tapdata.entity.tracker.MessageTracker;
 import io.tapdata.pdk.apis.entity.message.ServiceCaller;
 
 import java.io.IOException;
@@ -20,4 +21,5 @@ public interface ArgumentsSerializer {
 	void returnObjectTo(DataOutputStreamEx dos, Object content, String contentClass) throws IOException;
 
 	Object returnObjectFrom(DataInputStreamEx dis, String contentClass) throws IOException;
+	Object returnObjectFrom(DataInputStreamEx dis, String contentClass, MessageTracker messageTracker) throws IOException;
 }

@@ -53,10 +53,13 @@ public class TapPartitionFilter extends TapFilter {
 			return this;
 		if(match == null)
 			match = DataMap.create();
-		map.putAll(map);
+		match.putAll(map);
 		return this;
 	}
 
+	public boolean matchAny() {
+		return (match == null || match.isEmpty()) && leftBoundary == null && rightBoundary == null;
+	}
 
 	public QueryOperator getLeftBoundary() {
 		return leftBoundary;

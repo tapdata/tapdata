@@ -20,4 +20,13 @@ public class TapAPIErrorCodes {
 	public static final int ERROR_PARTITION_FILTER_NULL = 1016;
 	public static final int ILLEGAL_OPERATOR_FOR_LEFT_BOUNDARY = 1017;
 	public static final int ERROR_INSTANTIATE_ENGINE_CLASS_FAILED = 1018;
+	public static final int ERROR_NUMBER_SCALE_PARSE_FAILED = 1019;
+	public static final int ERROR_NUMBER_PRECISION_PARSE_FAILED = 1020;
+	public static final int ERROR_NUMBER_BIT_PARSE_FAILED = 1021;
+	public static final int FIND_OBJECT_ID_FAILED = 1022;
+	public static final int NEW_OBJECT_ID = 1023;
+	public static final int CLASS_NOT_FOUND_READ_OBJECT = 1024;
+	public static final int PARSE_DOCUMENT_FAILED = 1025;
+	public static final int GET_PARSE_METHOD_FAILED = 1026;
+	public static final int CLASS_NOT_FOUND = 1027;
 }

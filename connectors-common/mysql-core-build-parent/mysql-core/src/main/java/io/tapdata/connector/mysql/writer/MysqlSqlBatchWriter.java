@@ -1,5 +1,6 @@
 package io.tapdata.connector.mysql.writer;
 
+import io.tapdata.connector.mysql.util.ExceptionWrapper;
 import io.tapdata.connector.mysql.util.MysqlUtil;
 import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -39,6 +40,12 @@ public class MysqlSqlBatchWriter extends MysqlJdbcWriter {
 	public MysqlSqlBatchWriter(MysqlJdbcContext mysqlJdbcContext, MysqlJdbcOneByOneWriterSetter jdbcOneByOneWriterSetter) throws Throwable {
 		super(mysqlJdbcContext);
 		this.mysqlJdbcOneByOneWriter = jdbcOneByOneWriterSetter.set(super.jdbcCacheMap);
+	}
+
+	@Override
+	public void setExceptionWrapper(ExceptionWrapper exceptionWrapper) {
+		super.setExceptionWrapper(exceptionWrapper);
+		this.mysqlJdbcOneByOneWriter.setExceptionWrapper(exceptionWrapper);
 	}
 
 	public void onDestroy() {

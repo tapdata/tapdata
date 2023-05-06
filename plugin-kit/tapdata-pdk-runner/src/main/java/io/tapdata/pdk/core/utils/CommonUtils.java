@@ -3,7 +3,6 @@ package io.tapdata.pdk.core.utils;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.functions.ConnectionFunctions;
@@ -148,7 +147,7 @@ public class CommonUtils {
         try {
             runnable.run();
         } catch(CoreException coreException) {
-            coreException.printStackTrace();
+//            coreException.printStackTrace();
             TapLogger.warn(tag, "Error code {} message {} will be ignored. ", coreException.getCode(), ExceptionUtils.getStackTrace(coreException));
         } catch(Throwable throwable) {
             if(!(throwable instanceof QuiteException)) {

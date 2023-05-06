@@ -10,6 +10,7 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
+import io.tapdata.pdk.core.error.TapPdkRunnerExCode_18;
 import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -177,14 +178,11 @@ public class PDKInvocationMonitor implements MemoryFetcher {
             TapCodeException tapCodeException;
             Throwable matchThrowable = CommonUtils.matchThrowable(throwable, TapCodeException.class);
             if (null != matchThrowable) {
-                if (matchThrowable.getClass().getClassLoader().equals(TapCodeException.class.getClassLoader())) {
-                    tapCodeException = (TapCodeException) matchThrowable;
-                } else {
-                    ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
-                    byte[] bytes = objectSerializable.fromObject(matchThrowable);
-                    Object object = objectSerializable.toObject(bytes, new ObjectSerializable.ToObjectOptions().classLoader(TapCodeException.class.getClassLoader()));
-                    tapCodeException = (TapCodeException) object;
+                if (!matchThrowable.getClass().getClassLoader().equals(TapCodeException.class.getClassLoader())) {
+                    throw new TapCodeException(TapPdkRunnerExCode_18.EX_CLASS_LOADER_INVALID,
+                            String.format("Received exception class loader: %s, expected: %s", matchThrowable.getClass().getClassLoader(), TapCodeException.class.getClassLoader()));
                 }
+                tapCodeException = (TapCodeException) matchThrowable;
             } else {
                 tapCodeException = new TapPdkRunnerUnknownException(throwable);
             }

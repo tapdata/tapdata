@@ -16,6 +16,7 @@ import io.tapdata.modules.api.net.message.TapEntity;
 import io.tapdata.modules.api.net.service.MessageEntityService;
 import io.tapdata.modules.api.net.service.ProxySubscriptionService;
 import io.tapdata.pdk.apis.entity.message.EngineMessage;
+import io.tapdata.entity.tracker.MessageTracker;
 import io.tapdata.pdk.apis.entity.message.ServiceCaller;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -29,8 +30,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
-
-import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 
 @GatewaySession(idType = "engine")
@@ -69,18 +68,23 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 		Integer code = engineMessageResultEntity.getCode();
 		String message = engineMessageResultEntity.getMessage();
 		Object content = engineMessageResultEntity.getContent();
+		Throwable error = engineMessageResultEntity.getParseError();
 		if(id == null) {
 			return new Result().code(NetErrors.ILLEGAL_PARAMETERS).description("code {} or commandId {} is null");
 		}
 		EngineMessageExecutor<?> engineMessageExecutor = commandIdExecutorMap.get(id);
-		if(code == null || code != Data.CODE_SUCCESS) {
-			if(engineMessageExecutor != null)
-				engineMessageExecutor.result(null, new CoreException(code == null ? NetErrors.UNKNOWN_ERROR : code, message));
-			return new Result().code(code).description(message);
-		}
 
 		if(engineMessageExecutor != null) {
+			if(code == null || code != Data.CODE_SUCCESS) {
+				engineMessageExecutor.result(null, new CoreException(code == null ? NetErrors.UNKNOWN_ERROR : code, message));
+				return new Result().code(code).description(message);
+			}
+			if(error != null) {
+				engineMessageExecutor.result(null, new CoreException(NetErrors.MESSAGE_RESULT_PARSE_FAILED, error, error.getMessage()));
+				return new Result().code(NetErrors.MESSAGE_RESULT_PARSE_FAILED).description(error.getMessage());
+			}
 			try {
+				engineMessageExecutor.commandInfo.responseBytes(engineMessageResultEntity.getResponseBytes());
 				if(!engineMessageExecutor.result(content, null)) {
 					TapLogger.debug(TAG, "Command result was not accept successfully, maybe already handled somewhere else, id {}", id);
 				}
@@ -98,11 +102,11 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 		return null;
 	}
 
-	public static class EngineMessageExecutor<T> implements MemoryFetcher {
-		private T commandInfo;
+	public static class EngineMessageExecutor<T extends MessageTracker> implements MemoryFetcher {
+		private final T commandInfo;
 		private volatile BiConsumer<Object, Throwable> biConsumer;
 		private volatile ScheduledFuture<?> scheduledFuture;
-		private Runnable doneRunnable;
+		private final Runnable doneRunnable;
 
 		public EngineMessageExecutor(T commandInfo, BiConsumer<Object, Throwable> biConsumer, Runnable doneRunnable) {
 			this.commandInfo = commandInfo;
@@ -159,8 +163,12 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 		if(isChannelActive()) {
 			EngineMessageExecutor<CommandInfo> engineMessageExecutor = new EngineMessageExecutor<>(commandInfo, biConsumer, () -> commandIdExecutorMap.remove(commandInfo.getId()));
 			startMessageExecutor(commandInfo, engineMessageExecutor);
-			if(!sendData(new OutgoingData().time(System.currentTimeMillis()).message(new CommandReceived().commandInfo(commandInfo)))) {
+			OutgoingData data = new OutgoingData().time(System.currentTimeMillis()).message(new CommandReceived().commandInfo(commandInfo));
+			if(!sendData(data)) {
+				commandInfo.requestBytes(data.getData());
 				engineMessageExecutor.result(null, new CoreException(NetErrors.ENGINE_CHANNEL_OFFLINE, "Engine channel is offline, please try again"));
+			} else {
+				commandInfo.requestBytes(data.getData());
 			}
 			return true;
 		} else {
@@ -187,8 +195,12 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 			EngineMessageExecutor<ServiceCaller> engineMessageExecutor = new EngineMessageExecutor<>(serviceCaller, biConsumer, () -> commandIdExecutorMap.remove(serviceCaller.getId()));
 			startMessageExecutor(serviceCaller, engineMessageExecutor);
 //			TapLogger.info(TAG, "serviceCaller {}", toJson(serviceCaller));
-			if(!sendData(new OutgoingData().time(System.currentTimeMillis()).message(new ServiceCallerReceived().serviceCaller(serviceCaller)))) {
+			OutgoingData data = new OutgoingData().time(System.currentTimeMillis()).message(new ServiceCallerReceived().serviceCaller(serviceCaller));
+			if(!sendData(data)) {
+				serviceCaller.requestBytes(data.getData());
 				engineMessageExecutor.result(null, new CoreException(NetErrors.ENGINE_CHANNEL_OFFLINE, "Engine channel is offline, please try again"));
+			} else {
+				serviceCaller.requestBytes(data.getData());
 			}
 			return true;
 		} else {
@@ -210,8 +222,8 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 	}
 
 	private Result handleNodeSubscribeInfo(NodeSubscribeInfo nodeSubscribeInfo) {
-		String nodeId = CommonUtils.getProperty("tapdata_node_id");
-		proxySubscriptionService.syncProxySubscription(new ProxySubscription().service("engine").nodeId(nodeId).subscribeIds(nodeSubscribeInfo.getSubscribeIds()));
+//		String nodeId = CommonUtils.getProperty("tapdata_node_id");
+//		proxySubscriptionService.syncProxySubscription(new ProxySubscription().service("engine").nodeId(nodeId).subscribeIds(nodeSubscribeInfo.getSubscribeIds()));
 		Set<String> newSubscribedIds = nodeSubscribeInfo.getSubscribeIds();
 		cachedSubscribedIds = subscribeMap.rebindSubscribeIds(this, newSubscribedIds, cachedSubscribedIds);
 		return null;
@@ -237,7 +249,8 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 
 	private void releaseSubscribeIds() {
 		subscribeMap.unbindSubscribeIds(this);
-		cachedSubscribedIds.clear();
+		if(cachedSubscribedIds != null)
+			cachedSubscribedIds.clear();
 	}
 
 	@Override

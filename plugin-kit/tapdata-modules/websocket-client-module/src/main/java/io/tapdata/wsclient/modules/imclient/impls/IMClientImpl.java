@@ -29,7 +29,7 @@ public class IMClientImpl implements IMClient {
     private AtomicLong msgCounter;
 
     private String prefix;
-    
+
 
     LinkedBlockingQueue<Data> messageQueue;
 //    WorkerQueue<IMData> messageWorkerQueue;
@@ -72,7 +72,7 @@ public class IMClientImpl implements IMClient {
     @Override
     public void start() {
         stop();
-        TapLogger.debug(TAG, "IMClient started");
+        TapLogger.info(TAG, "IMClient started");
         monitorThread = new MonitorThread<>(WebsocketPushChannel.class/*TcpPushChannel.class*/);
         monitorThread.setImClient(this);
 //        messageWorkerQueue.setHandler(monitorThread.new PushHandler());
@@ -90,7 +90,7 @@ public class IMClientImpl implements IMClient {
     public CompletableFuture<Result> sendData(IncomingData data) {
         return sendData(data, null);
     }
-    
+
     @Override
     public CompletableFuture<Result> sendData(IncomingData data, Integer expireSeconds) {
         if(expireSeconds == null)

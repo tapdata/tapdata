@@ -183,7 +183,7 @@ public class DiscoverSchemaTest extends PDKTestBase {
                     try {
                         TapAssert.asserts(() -> {
                             Assertions.assertTrue(
-                                    tapTableSize > targetTableSize,
+                                    tapTableSize >= targetTableSize,
                                     LangUtil.format("discoverAfterCreate.fieldsNotEqualsCount",
                                             tapTableSize,
                                             targetTableSize

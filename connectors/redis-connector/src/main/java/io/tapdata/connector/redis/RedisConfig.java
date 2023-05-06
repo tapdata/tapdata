@@ -2,10 +2,13 @@ package io.tapdata.connector.redis;
 
 import io.tapdata.entity.utils.BeanUtils;
 import io.tapdata.entity.utils.InstanceFactory;
+import redis.clients.jedis.HostAndPort;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class RedisConfig {
 
@@ -19,6 +22,7 @@ public class RedisConfig {
     private String sentinelName;
     private String database;
     private ArrayList<LinkedHashMap<String, Integer>> sentinelAddress;
+    private List<HostAndPort> clusterNodes;
 
     private String valueType = "List";
     private String keyExpression;
@@ -35,7 +39,10 @@ public class RedisConfig {
     private Boolean oneKey = false;
 
     public RedisConfig load(Map<String, Object> map) {
-        return beanUtils.mapToBean(map, this);
+        beanUtils.mapToBean(map, this);
+        clusterNodes = sentinelAddress.stream().map(v ->
+                new HostAndPort(String.valueOf(v.get("host")), v.get("port"))).collect(Collectors.toList());
+        return this;
     }
 
     public String getHost() {
@@ -72,6 +79,10 @@ public class RedisConfig {
 
     public void setSentinelAddress(ArrayList<LinkedHashMap<String, Integer>> sentinelAddress) {
         this.sentinelAddress = sentinelAddress;
+    }
+
+    public List<HostAndPort> getClusterNodes() {
+        return clusterNodes;
     }
 
     public void setPort(int port) {

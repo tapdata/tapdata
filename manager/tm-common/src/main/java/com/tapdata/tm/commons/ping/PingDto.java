@@ -41,8 +41,13 @@ public class PingDto extends BaseDto {
 		this.pingResult = PingResult.OK;
 	}
 
+	public void deleted() {
+		this.pingResult = PingResult.DELETED;
+	}
+
 	public enum PingResult {
 		OK,
 		FAIL,
+		DELETED
 	}
 }

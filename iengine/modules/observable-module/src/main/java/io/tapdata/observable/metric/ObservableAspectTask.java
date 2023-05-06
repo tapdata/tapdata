@@ -79,6 +79,13 @@ public class ObservableAspectTask extends AspectTask {
 				handler.close();
 			}
 		}
+
+		if (null != dataNodeSampleHandlers) {
+			for (DataNodeSampleHandler handler : dataNodeSampleHandlers.values()) {
+				handler.close();
+			}
+		}
+
 		taskSampleHandler.close();
 	}
 
@@ -156,7 +163,7 @@ public class ObservableAspectTask extends AspectTask {
 					Optional.ofNullable(dataNodeSampleHandlers.get(node.getId())).ifPresent(
 							dataNodeSampleHandler -> dataNodeSampleHandler.handleTableCountAccept(table, cnt)
 					);
-					taskSampleHandler.handleTableCountAccept(cnt);
+					taskSampleHandler.handleTableCountAccept(table, cnt);
 				});
 				break;
 			case TableCountFuncAspect.STATE_END:

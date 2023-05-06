@@ -12,8 +12,7 @@ public enum OpType {
 	RESET("reset", "io.tapdata.flow.engine.V2.task.cleaner.TaskResetCleaner"),
 	DELETE("delete", "io.tapdata.flow.engine.V2.task.cleaner.TaskDeleteCleaner"),
 	START("start", ""),
-	STOP("stop", "")
-	;
+	STOP("stop", "");
 	private String op;
 	private String implementClass;
 

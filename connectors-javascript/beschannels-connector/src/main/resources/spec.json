@@ -1,0 +1,186 @@
+{
+  "properties": {
+    "name": "BesChannels",
+    "icon": "icon/bes-channels.png",
+    "doc" : "${doc}",
+    "id": "bes-channels",
+    "authentication": "Beta",
+    "group": "io.tapdata",
+    "tags": ["SaaS"]
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+        "weChatOpenId": {
+          "type": "string",
+          "title": "${n_we_chat_open_id}",
+          "required": true,
+          "default": null,
+          "x-index": 10,
+          "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "wrapperWidth": 300,
+            "tooltip": "${tip_we_chat_open_id}"
+          },
+          "x-component": "FieldSelect",
+          "x-component-props": {
+            "allowCreate": true,
+            "multiple": false,
+            "filterable": true
+          },
+          "x-reactions": [
+            "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+            {
+              "fulfill": {
+                "run": "if (!$self.value && $self.dataSource && $self.dataSource.length) {let isPrimaryKeyList = $self.dataSource.filter(item => item.isPrimaryKey); let indicesUniqueList = $self.dataSource.filter(item => item.indicesUnique); $self.setValue((isPrimaryKeyList.length ? isPrimaryKeyList : indicesUniqueList).map(item => item.value)); $self.validate();}"
+              }
+            }
+          ]
+        },
+        "tags": {
+          "type": "String",
+          "title": "${n_user_tags}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 20,
+          "required": true,
+          "x-decorator-props": {
+            "tooltip": "${tip_user_tags}"
+          }
+        },
+        "weChatOpenIdFrom": {
+          "type": "string",
+          "title": "${n_we_chat_open_id_from}",
+          "required": true,
+          "default": null,
+          "x-index": 30,
+          "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "wrapperWidth": 300,
+            "tooltip": "${tip_we_chat_open_id_from}"
+          },
+          "x-component": "FieldSelect",
+          "x-component-props": {
+            "allowCreate": true,
+            "multiple": false,
+            "filterable": true
+          },
+          "x-reactions": [
+            "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+            {
+              "fulfill": {
+                "run": "if (!$self.value && $self.dataSource && $self.dataSource.length) {let isPrimaryKeyList = $self.dataSource.filter(item => item.isPrimaryKey); let indicesUniqueList = $self.dataSource.filter(item => item.indicesUnique); $self.setValue((isPrimaryKeyList.length ? isPrimaryKeyList : indicesUniqueList).map(item => item.value)); $self.validate();}"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+        "userSecret": {
+          "type": "String",
+          "title": "${c_user_secret}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 10,
+          "required": true,
+          "x-decorator-props": {
+            "tooltip": "${tip_user_secret}"
+          }
+        },
+        "userAppId": {
+          "type": "String",
+          "title": "${c_user_app_id}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 20,
+          "required": true,
+          "x-decorator-props": {
+            "tooltip": "${tip_user_app_id}"
+          }
+        },
+        "userSource": {
+          "type": "String",
+          "title": "${c_user_source}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 30,
+          "required": true,
+          "x-decorator-props": {
+            "tooltip": "${tip_user_source}"
+          }
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "doc/bes_channels_en_US.md",
+
+      "c_user_secret": "Customer Unique Encrypted String",
+      "c_user_app_id": "App ID of WeChat official account",
+      "c_user_source": "Customer unique identification code",
+
+      "n_we_chat_open_id": "User's Open ID field",
+      "n_user_tags": "Tag's name",
+      "n_we_chat_open_id_from": "Field of registration source",
+
+      "tip_we_chat_open_id": "Please enter or select the source table field corresponding to the Open ID value. For example, if there is a field named Key in the source table that saves the user's WeChat openID, then select or enter: Key here.",
+      "tip_user_tags": "Label name string, multiple separated by ',', up to 50. For example, 'food, travel', etc.",
+
+      "tip_user_secret": "The customer's unique encrypted string needs to be obtained by contacting the corresponding project manager. If it has been obtained, it can be directly input.",
+      "tip_user_app_id": "The App ID of WeChat official account needs to be obtained by contacting the corresponding project manager. If it has been obtained, it can be entered directly.",
+      "tip_user_source": "The customer's unique identification code needs to be obtained by contacting the corresponding project manager. If it has been obtained, it can be entered directly.",
+      "tip_we_chat_open_id_from": "Please enter or select the registration source field in the source table. For example, if a field named RegisterFrom exists in the source table and the user registration source type is saved, then select or enter: RegisterFrom here."
+    },
+    "zh_CN": {
+      "doc": "doc/bes_channels_zh_CN.md",
+
+      "c_user_secret": "客户唯一加密串",
+      "c_user_app_id": "微信公众号的App ID",
+      "c_user_source": "客户唯一识别码",
+
+      "n_we_chat_open_id": "用户的Open ID字段",
+      "n_user_tags": "标签名称串",
+      "n_we_chat_open_id_from": "注册来源字段",
+
+      "tip_we_chat_open_id": "请输入或选择与Open ID值对应的源表字段，例如源表中存在字段名为Key的字段，保存了用户的微信openID，那么这里选择或输入：Key。",
+      "tip_user_tags": "标签名称串，多个以“，”隔开，最多50。例如：“吃货,旅行”等。",
+
+      "tip_user_secret": "客户唯一加密串，需要联系对应的项目经理获取，如已获取直接输入即可。",
+      "tip_user_app_id": "微信公众号的App ID，需要联系对应的项目经理获取，如已获取直接输入即可。",
+      "tip_user_source": "客户唯一识别码，需要联系对应的项目经理获取，如已获取直接输入即可。",
+      "tip_we_chat_open_id_from": "请输入或选择源表中的注册来源字段，例如：源表存在字段名为RegisterFrom的字段，保存了用户注册来源类型，那么这里选择或输入：RegisterFrom。"
+    },
+    "zh_TW": {
+      "doc": "doc/bes_channels_zh_TW.md",
+
+      "c_user_secret": "客戶唯一加密串",
+      "c_user_app_id": "微信公眾號的App ID",
+      "c_user_source": "客戶唯一識別碼",
+
+      "n_we_chat_open_id": "用戶的Open ID欄位",
+      "n_user_tags": "標籤名稱串",
+      "n_we_chat_open_id_from": "注册來源的欄位",
+
+      "tip_we_chat_open_id": "請輸入或選擇與Open ID值對應的源錶欄位，例如源錶中存在欄位名為Key的欄位，保存了用戶的微信openID，那麼這裡選擇或輸入：Key。 ",
+      "tip_user_tags": "標籤名稱串，多個以“，”隔開，最多50。 例如：“吃貨，旅行”等。",
+
+      "tip_user_secret": "客戶唯一加密串，需要聯系對應的專案經理獲取，如已獲取直接輸入即可。",
+      "tip_user_app_id": "微信公眾號的App ID，需要聯系對應的專案經理獲取，如已獲取直接輸入即可。",
+      "tip_user_source": "客戶唯一識別碼，需要聯系對應的專案經理獲取，如已獲取直接輸入即可。",
+      "tip_we_chat_open_id_from": "請輸入或選擇源錶中的注册來源欄位，例如：源錶存在欄位名為RegisterFrom的欄位，保存了用戶註冊來源類型，那麼這裡選擇或輸入：RegisterFrom。 "
+    }
+  }
+}

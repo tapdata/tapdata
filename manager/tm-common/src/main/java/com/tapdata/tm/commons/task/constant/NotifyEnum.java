@@ -1,5 +1,5 @@
 package com.tapdata.tm.commons.task.constant;
 
 public enum NotifyEnum {
-    SYSTEM,EMAIL,WECHAT,SMS
+    SYSTEM,EMAIL,SMS,WECHAT
 }

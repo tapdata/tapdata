@@ -19,14 +19,18 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.livedataplatform.dto.LiveDataPlatformDto;
 import com.tapdata.tm.livedataplatform.service.LiveDataPlatformService;
+import com.tapdata.tm.lock.annotation.Lock;
+import com.tapdata.tm.lock.constant.LockType;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.bean.LdpFuzzySearchVo;
+import com.tapdata.tm.task.constant.LdpDirEnum;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.task.service.TaskSaveService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.utils.ThreadLocalUtils;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import lombok.extern.slf4j.Slf4j;
@@ -72,6 +76,7 @@ public class LdpServiceImpl implements LdpService {
     private TaskSaveService taskSaveService;
 
     @Override
+    @Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
     public TaskDto createFdmTask(TaskDto task, UserDetail user) {
         //check fdm task
         String fdmConnId = checkFdmTask(task, user);
@@ -131,7 +136,7 @@ public class LdpServiceImpl implements LdpService {
 
         databaseNode = (DatabaseNode) task.getDag().getSources().get(0);
         List<String> sourceTableNames = new ArrayList<>(databaseNode.getTableNames());
-        DatabaseNode target = (DatabaseNode)task.getDag().getTargets().get(0);
+        DatabaseNode target = (DatabaseNode) task.getDag().getTargets().get(0);
 
         List<String> targetTableNames = new ArrayList<>();
         List<SyncObjects> syncObjects = target.getSyncObjects();
@@ -143,11 +148,19 @@ public class LdpServiceImpl implements LdpService {
 
         repeatTable(targetTableNames, task.getId() == null ? null : task.getId().toHexString(), fdmConnId, user);
 
+        taskSaveService.supplementAlarm(task, user);
+
         TaskDto taskDto;
         if (oldTask != null) {
             sourceTableNames.removeAll(oldTableNames);
             if (CollectionUtils.isNotEmpty(sourceTableNames)) {
-                task.setLdpNewTables(sourceTableNames);
+                if (CollectionUtils.isNotEmpty(oldTask.getLdpNewTables())) {
+                    List<String> ldpNewTables = oldTask.getLdpNewTables();
+                    ldpNewTables.addAll(sourceTableNames);
+                    task.setLdpNewTables(ldpNewTables);
+                } else {
+                    task.setLdpNewTables(sourceTableNames);
+                }
             }
             taskDto = taskService.updateById(task, user);
         } else {
@@ -167,6 +180,15 @@ public class LdpServiceImpl implements LdpService {
         }
 
         return taskDto;
+    }
+
+    @Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
+    public void syncStart(UserDetail user, TaskDto taskDto) {
+        if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
+            taskService.pause(taskDto, user, false, true);
+        } else {
+            taskService.start(taskDto, user, "00");
+        }
     }
 
     private void flushPrefix(DAG dag, DAG dag1) {
@@ -263,7 +285,7 @@ public class LdpServiceImpl implements LdpService {
         //查询fdm的顶级标签
         Criteria fdmCriteria = Criteria.where("value").is("FDM").and("parent_id").exists(false);
         Query query = new Query(fdmCriteria);
-        MetadataDefinitionDto fdmTag = metadataDefinitionService.findOne(query);
+        MetadataDefinitionDto fdmTag = metadataDefinitionService.findOne(query, user);
         if (fdmTag == null) {
             throw new BizException("SystemError");
         }
@@ -271,7 +293,7 @@ public class LdpServiceImpl implements LdpService {
                 .and("parent_id").is(fdmTag.getId().toHexString())
                 .and("item_type").is(MetadataDefinitionDto.LDP_ITEM_FDM);
         Query conTagQuery = new Query(conCriteria);
-        MetadataDefinitionDto conTag = metadataDefinitionService.findOne(conTagQuery);
+        MetadataDefinitionDto conTag = metadataDefinitionService.findOne(conTagQuery, user);
         if (conTag != null) {
             return;
         }
@@ -303,10 +325,8 @@ public class LdpServiceImpl implements LdpService {
         Node node = sources.get(0);
 
 
-
-
         if (oldTask == null) {
-            oldTask =  task;
+            oldTask = task;
         }
 
         DAG dag1 = oldTask.getDag();
@@ -363,11 +383,12 @@ public class LdpServiceImpl implements LdpService {
     }
 
     @Override
-    public TaskDto createMdmTask(TaskDto task, String tagId, UserDetail user) {
+    public TaskDto createMdmTask(TaskDto task, String tagId, UserDetail user, boolean confirmTable, boolean start) {
 
         try {
+            taskSaveService.supplementAlarm(task, user);
             //check mdm task
-            checkMdmTask(task, user);
+            checkMdmTask(task, user, confirmTable);
             //add mmd type
             task.setLdpType(TaskDto.LDP_TYPE_MDM);
 
@@ -380,7 +401,11 @@ public class LdpServiceImpl implements LdpService {
             boolean hasPrimaryKey = checkNoPrimaryKey(task, user);
             //create sync task
             if (hasPrimaryKey) {
-                task = taskService.confirmStart(task, user, true);
+                if (start) {
+                    task = taskService.confirmStart(task, user, true);
+                } else {
+                    task = taskService.confirmById(task, user, true);
+                }
             } else {
                 task = taskService.confirmById(task, user, true);
                 throw new BizException("Ldp.MdmTargetNoPrimaryKey", task);
@@ -522,7 +547,7 @@ public class LdpServiceImpl implements LdpService {
                     .collect(Collectors.toList());
 
 
-            Tag mdmTag = getMdmTag();
+            Tag mdmTag = getMdmTag(user);
             Map<String, Boolean> mdmMap = queryTagBelongMdm(tagIds, user, mdmTag.getId());
 
             Tag setTag = mdmTag;
@@ -536,7 +561,7 @@ public class LdpServiceImpl implements LdpService {
             }
 
 
-            m :
+            m:
             for (MetadataInstancesDto metaData : metaDatas) {
                 String old = qualifiedMap.get(metaData.getQualifiedName());
                 if (StringUtils.isNotBlank(old)) {
@@ -582,7 +607,7 @@ public class LdpServiceImpl implements LdpService {
         Criteria criteria = Criteria.where("_id").in(tagObjIds);
         Query query = new Query(criteria);
         query.fields().include("linkId");
-        List<MetadataDefinitionDto> tags = metadataDefinitionService.findAll(query);
+        List<MetadataDefinitionDto> tags = metadataDefinitionService.findAllDto(query, user);
         Map<String, String> tagMap = tags.stream().collect(Collectors.toMap(MetadataDefinitionDto::getLinkId, v -> v.getId().toHexString(), (v1, v2) -> v1));
 
         Criteria criteriaTask = Criteria.where("dag.nodes.connectionId").in(tagMap.keySet()).and("ldpType").is(TaskDto.LDP_TYPE_FDM);
@@ -592,15 +617,18 @@ public class LdpServiceImpl implements LdpService {
             DAG dag = taskDto.getDag();
             Node node = dag.getSources().get(0);
             String connectionId = ((DatabaseNode) node).getConnectionId();
-            result.put(tagMap.get(connectionId), taskDto);
+            String linkId = tagMap.get(connectionId);
+            if (StringUtils.isNotBlank(linkId)) {
+                result.put(tagMap.get(connectionId), taskDto);
+            }
         }
         return result;
     }
 
-    private Tag getMdmTag() {
+    public Tag getMdmTag(UserDetail user) {
         Criteria mdmCriteria = Criteria.where("value").is("MDM").and("parent_id").exists(false);
         Query query = new Query(mdmCriteria);
-        MetadataDefinitionDto mdmTag = metadataDefinitionService.findOne(query);
+        MetadataDefinitionDto mdmTag = metadataDefinitionService.findOne(query, user);
         return new Tag(mdmTag.getId().toHexString(), mdmTag.getValue());
     }
 
@@ -644,7 +672,7 @@ public class LdpServiceImpl implements LdpService {
         metaData.setId(null);
     }
 
-    private void checkMdmTask(TaskDto task, UserDetail user) {
+    private void checkMdmTask(TaskDto task, UserDetail user, boolean confirmTable) {
         //syncType is sync
 
         if (StringUtils.isBlank(task.getSyncType())) {
@@ -670,7 +698,7 @@ public class LdpServiceImpl implements LdpService {
         if (CollectionUtils.isEmpty(targets)) {
             throw new BizException("Ldp.TargetNotFound");
         }
-        TableNode target = (TableNode)targets.get(0);
+        TableNode target = (TableNode) targets.get(0);
         String targetConId = target.getConnectionId();
 
         if (!mdmConnectionId.equals(targetConId)) {
@@ -685,7 +713,9 @@ public class LdpServiceImpl implements LdpService {
 
         String tableName = target.getTableName();
 
-        repeatTable(Lists.newArrayList(tableName), null, targetConId, user);
+        if (!confirmTable) {
+            repeatTable(Lists.newArrayList(tableName), null, targetConId, user);
+        }
 
 //        if (!fdmConnectionId.equals(sourceConId)) {
 //            throw new BizException("");
@@ -735,7 +765,7 @@ public class LdpServiceImpl implements LdpService {
             if ("table".equals(metadata.getMetaType())) {
                 fuzzySearchList.add(new LdpFuzzySearchVo(LdpFuzzySearchVo.FuzzyType.metadata, metadata, metadata.getSource().get_id()));
             } else if ("database".equals(metadata.getMetaType())) {
-              conIds.add(metadata.getSource().get_id());
+                conIds.add(metadata.getSource().get_id());
             }
         }
 
@@ -748,5 +778,59 @@ public class LdpServiceImpl implements LdpService {
         }
 
         return fuzzySearchList;
+    }
+
+    @Override
+    public void addLdpDirectory(UserDetail user) {
+        Map<String, String> oldLdpMap = metadataDefinitionService.ldpDirKvs();
+        addLdpDirectory(user, oldLdpMap);
+    }
+
+
+    public void addLdpDirectory(UserDetail user, Map<String, String> oldLdpMap) {
+        try {
+            Criteria criteria = Criteria.where("value").in(Lists.newArrayList(LdpDirEnum.LDP_DIR_SOURCE.getValue(),
+                            LdpDirEnum.LDP_DIR_FDM.getValue(), LdpDirEnum.LDP_DIR_MDM.getValue(), LdpDirEnum.LDP_DIR_TARGET.getValue()))
+                    .and("item_type").in(Lists.newArrayList(LdpDirEnum.LDP_DIR_SOURCE.getItemType(),
+                            LdpDirEnum.LDP_DIR_FDM.getItemType(), LdpDirEnum.LDP_DIR_MDM.getItemType(), LdpDirEnum.LDP_DIR_TARGET.getItemType()))
+                    .and("parent_id").exists(false);
+            Query query = new Query(criteria);
+
+            user.setAuthorities(new HashSet<>());
+            List<MetadataDefinitionDto> ldpDirs = metadataDefinitionService.findAllDto(query, user);
+            List<String> existValues = new ArrayList<>();
+            if (CollectionUtils.isNotEmpty(ldpDirs)) {
+                existValues = ldpDirs.stream().map(MetadataDefinitionDto::getValue).collect(Collectors.toList());
+            }
+
+            Map<String, String> kvMap = Arrays.stream(LdpDirEnum.values()).collect(Collectors.toMap(LdpDirEnum::getValue, LdpDirEnum::getItemType));
+
+            List<String> values = Arrays.stream(LdpDirEnum.values()).map(LdpDirEnum::getValue).collect(Collectors.toList());
+
+            values.removeAll(existValues);
+
+
+            List<MetadataDefinitionDto> newTags = new ArrayList<>();
+            for (String value : values) {
+                MetadataDefinitionDto metadataDefinitionDto = new MetadataDefinitionDto();
+                metadataDefinitionDto.setValue(value);
+                metadataDefinitionDto.setItemType(Lists.newArrayList(kvMap.get(value)));
+                newTags.add(metadataDefinitionDto);
+            }
+
+            if (CollectionUtils.isNotEmpty(newTags)) {
+                List<MetadataDefinitionDto> ldpDirTags = metadataDefinitionService.save(newTags, user);
+
+                if (oldLdpMap != null) {
+                    for (MetadataDefinitionDto ldpDirTag : ldpDirTags) {
+                        Update update = Update.update("parent_id", ldpDirTag.getId().toHexString());
+                        metadataDefinitionService.update(new Query(Criteria.where("parent_id").is(oldLdpMap.get(ldpDirTag.getValue()))), update, user);
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            log.warn("init ldp directory failed, userId = {}", user.getUserId());
+        }
     }
 }

@@ -70,7 +70,7 @@ public class WebsocketPushChannel extends PushChannel {
     private EventLoopGroup group;
     @Override
     public void stop() {
-        TapLogger.debug(TAG, "stop");
+        TapLogger.info(TAG, "stopped");
         if(pingFuture != null) {
             pingFuture.cancel(true);
         }
@@ -100,15 +100,15 @@ public class WebsocketPushChannel extends PushChannel {
         if(imClient == null)
             throw new NullPointerException("IMClient is needed for creating channels.");
         eventManager = EventManager.getInstance();
-        TapLogger.debug(TAG, "PushChannel started");
+        TapLogger.info(TAG, "PushChannel started");
 
         CompletableFuture.supplyAsync((Supplier<Void>) () -> {
             login();
-            TapLogger.debug(TAG, "Login successfully, " + host + " " + wsPort + " " + server + " " + sid);
+            TapLogger.info(TAG, "Login successfully, " + host + " " + wsPort + " " + server + " " + sid);
             return null;
         }).thenAccept(unused -> {
             connectWS(protocol, host, wsPort, path);
-            TapLogger.debug(TAG, "WS connected successfully, " + host + " " + wsPort + " " + server + " " + sid);
+            TapLogger.info(TAG, "WS connected successfully, " + host + " " + wsPort + " " + server + " " + sid);
         }).exceptionally(throwable -> {
             if(group != null)
                 group.shutdownGracefully();
@@ -139,7 +139,7 @@ public class WebsocketPushChannel extends PushChannel {
     @Override
     public void send(Data data) {
         if(channel == null) {
-            TapLogger.debug(TAG, "Channel not initialized before sending data, {}", data);
+            TapLogger.warn(TAG, "Channel not initialized before sending data, {}", data);
             return;
         }
 
@@ -235,16 +235,16 @@ public class WebsocketPushChannel extends PushChannel {
         URI uri = null;
         try {
             if(!isRemotePortAvailable(sslCtx, host, wsPort)) {
-                TapLogger.debug(TAG, "host {} wsPort {} is not available, will try others", host, wsPort);
+                TapLogger.info(TAG, "host {} wsPort {} is not available, will try others", host, wsPort);
                 if("wss".equalsIgnoreCase(protocol)) {
                     if(isRemotePortAvailable(sslCtx, host, 443)) {
                         wsPort = 443;
-                        TapLogger.debug(TAG, "host {} wsPort {} is available, will use the new port", host, wsPort);
+                        TapLogger.info(TAG, "host {} wsPort {} is available, will use the new port", host, wsPort);
                     }
                 } else {
                     if(isRemotePortAvailable(sslCtx, host, 80)) {
                         wsPort = 80;
-                        TapLogger.debug(TAG, "host {} wsPort {} is available, will use the new port", host, wsPort);
+                        TapLogger.info(TAG, "host {} wsPort {} is available, will use the new port", host, wsPort);
                     }
                 }
             }
@@ -262,7 +262,7 @@ public class WebsocketPushChannel extends PushChannel {
             if(uri == null)
                 throw new CoreException(NetErrors.WEBSOCKET_URL_ILLEGAL, "uri illegal, " + protocol + "://" + host + ":" + port);
 
-            TapLogger.debug(TAG, "Connect uri {} wsPort {}", uri, wsPort);
+            TapLogger.info(TAG, "Connect uri {} wsPort {}", uri, wsPort);
             group = new NioEventLoopGroup(20);
             final WebSocketClientHandler handler = new WebSocketClientHandler(null, WebSocketClientHandshakerFactory
                     .newHandshaker(uri, WebSocketVersion.V13, null, false, new DefaultHttpHeaders(), 50 * 1024 * 1024));
@@ -297,7 +297,7 @@ public class WebsocketPushChannel extends PushChannel {
         identity.setToken(sid);
         identity.setIdType(getImClient().getService());
         sendIdentity(identity);
-        TapLogger.debug(TAG, "connectWS: "+"sendIdentity"+identity);
+        TapLogger.info(TAG, "connectWS: "+"sendIdentity"+identity);
     }
     private static boolean isRemotePortAvailable(SslContext sslCtx, final String host, int port) {
         EventLoopGroup group = new NioEventLoopGroup(1);
@@ -319,7 +319,7 @@ public class WebsocketPushChannel extends PushChannel {
             b.connect(host, port).sync().channel();
             return true;
         } catch (Throwable e) {
-            TapLogger.debug(TAG, "Try uri {} and port {} failed, {}", host, port, e.getMessage());
+            TapLogger.error(TAG, "Try uri {} and port {} failed, {}", host, port, e.getMessage());
             return false;
         } finally {
             group.shutdownGracefully();
@@ -327,7 +327,7 @@ public class WebsocketPushChannel extends PushChannel {
     }
     private void sendIdentity(Identity data) {
         if(channel == null) {
-            TapLogger.debug(TAG, "Channel not initialized before sending identity, {}", data);
+            TapLogger.warn(TAG, "Channel not initialized before sending identity, {}", data);
             return;
         }
 
@@ -340,12 +340,12 @@ public class WebsocketPushChannel extends PushChannel {
 
     public void ping() throws IOException {
         if(!isAlive()) return;
-        if(pingFuture == null) {
+        if(pingFuture == null || pingFuture.isCancelled()) {
             Ping ping = new Ping();
             pingFuture = TimerEx.scheduleInSeconds(() -> {
                 pingFuture = null;
                 stop();
-                TapLogger.debug(TAG, "Stop channel because of ping timeout");
+                TapLogger.info(TAG, "Stop channel because of ping timeout");
             }, 10);
             send(ping);
 //            TapLogger.debug(TAG, "ping");

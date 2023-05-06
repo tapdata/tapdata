@@ -7,7 +7,11 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -47,6 +51,7 @@ public class TapEventPartitionKeySelector implements PartitionKeySelector<TapEve
 
 	/**
 	 * retrieve original value from TapValue for hash instead of TapValue object for hash
+	 *
 	 * @param values
 	 * @return
 	 */
@@ -54,7 +59,7 @@ public class TapEventPartitionKeySelector implements PartitionKeySelector<TapEve
 		if (CollectionUtils.isEmpty(values)) {
 			return values;
 		}
-		return values.stream().filter(Objects::nonNull).map(v->{
+		return values.stream().filter(Objects::nonNull).map(v -> {
 			if (v instanceof TapValue) {
 				return ((TapValue<?, ?>) v).getValue();
 			} else {

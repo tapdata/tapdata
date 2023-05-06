@@ -20,6 +20,14 @@ public abstract class TapPdkBaseException extends TapCodeException {
 		this.pdkId = pdkId;
 	}
 
+	protected TapPdkBaseException(String code, String message, String pdkId, Throwable cause) {
+		super(code, message, cause);
+		if (StringUtils.isBlank(pdkId)) {
+			throw new IllegalArgumentException(String.format("Construct [%s] failed: Pdk id cannot be empty", getClass().getName()));
+		}
+		this.pdkId = pdkId;
+	}
+
 	public String getPdkId() {
 		return pdkId;
 	}

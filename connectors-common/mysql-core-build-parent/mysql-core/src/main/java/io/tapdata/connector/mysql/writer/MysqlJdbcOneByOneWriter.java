@@ -129,18 +129,23 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 
 	private int doInsert(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
 		PreparedStatement insertPreparedStatement = getInsertPreparedStatement(tapConnectorContext, tapTable, tapRecordEvent);
-		setPreparedStatementValues(tapTable, tapRecordEvent, insertPreparedStatement);
+		setPreparedStatementValues(tapConnectorContext, tapTable, tapRecordEvent, insertPreparedStatement);
 		try {
 			return insertPreparedStatement.executeUpdate();
 		} catch (Throwable e) {
-			throw new RuntimeException(String.format("Insert data failed: %s\n Sql: %s", e.getMessage(), insertPreparedStatement), e);
+			throw exceptionWrapper.wrap(tapConnectorContext, tapTable, tapRecordEvent, e, (ex) -> {
+				if (null == ex) {
+					return new RuntimeException(String.format("Insert data failed: %s\n Sql: %s", e.getMessage(), insertPreparedStatement), e);
+				}
+				return ex;
+			});
 		}
 	}
 
 	private int doUpdateOne(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
 		String updateDmlPolicy = getDmlUpdatePolicy(tapConnectorContext);
 		PreparedStatement updatePreparedStatement = getUpdatePreparedStatement(tapConnectorContext, tapTable, tapRecordEvent);
-		int parameterIndex = setPreparedStatementValues(tapTable, tapRecordEvent, updatePreparedStatement);
+		int parameterIndex = setPreparedStatementValues(tapConnectorContext, tapTable, tapRecordEvent, updatePreparedStatement);
 		setPreparedStatementWhere(tapTable, tapRecordEvent, updatePreparedStatement, parameterIndex);
 		int row = doUpdate(tapConnectorContext, tapTable, tapRecordEvent);
 		if (row <= 0 && ConnectionOptions.DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS.equals(updateDmlPolicy)) {
@@ -151,12 +156,17 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 
 	private int doUpdate(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
 		PreparedStatement updatePreparedStatement = getUpdatePreparedStatement(tapConnectorContext, tapTable, tapRecordEvent);
-		int parameterIndex = setPreparedStatementValues(tapTable, tapRecordEvent, updatePreparedStatement);
+		int parameterIndex = setPreparedStatementValues(tapConnectorContext, tapTable, tapRecordEvent, updatePreparedStatement);
 		setPreparedStatementWhere(tapTable, tapRecordEvent, updatePreparedStatement, parameterIndex);
 		try {
 			return updatePreparedStatement.executeUpdate();
 		} catch (Exception e) {
-			throw new RuntimeException(String.format("Update data failed: %s\n Sql: %s", e.getMessage(), updatePreparedStatement), e);
+			throw exceptionWrapper.wrap(tapConnectorContext, tapTable, tapRecordEvent, e, (ex) -> {
+				if (null == ex) {
+					throw new RuntimeException(String.format("Update data failed: %s\n Sql: %s", e.getMessage(), updatePreparedStatement), e);
+				}
+				return ex;
+			});
 		}
 	}
 
@@ -167,7 +177,12 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 		try {
 			row = deletePreparedStatement.executeUpdate();
 		} catch (Throwable e) {
-			throw new Exception(String.format("Delete data failed: %s\n Sql: %s", e.getMessage(), deletePreparedStatement), e);
+			throw exceptionWrapper.wrap(tapConnectorContext, tapTable, tapRecordEvent, e, (ex) -> {
+				if (null == ex) {
+					throw new RuntimeException(String.format("Delete data failed: %s\n Sql: %s", e.getMessage(), deletePreparedStatement), e);
+				}
+				return ex;
+			});
 		}
 		return row;
 	}

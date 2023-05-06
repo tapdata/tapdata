@@ -19,14 +19,23 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.SchemaUtils;
+import com.tapdata.tm.commons.schema.TableIndex;
+import com.tapdata.tm.commons.schema.TableIndexColumn;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.*;
+import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
+import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.commons.util.MetaType;
+import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dag.service.DAGService;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -36,7 +45,12 @@ import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.param.ClassificationParam;
 import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
 import com.tapdata.tm.metadatainstance.repository.MetadataInstancesRepository;
-import com.tapdata.tm.metadatainstance.vo.*;
+import com.tapdata.tm.metadatainstance.vo.MetaTableCheckVo;
+import com.tapdata.tm.metadatainstance.vo.MetaTableVo;
+import com.tapdata.tm.metadatainstance.vo.MetadataInstancesVo;
+import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
+import com.tapdata.tm.metadatainstance.vo.TableListVo;
+import com.tapdata.tm.metadatainstance.vo.TableSupportInspectVo;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
@@ -61,7 +75,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.aggregation.*;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
+import org.springframework.data.mongodb.core.aggregation.GraphLookupOperation;
+import org.springframework.data.mongodb.core.aggregation.LimitOperation;
+import org.springframework.data.mongodb.core.aggregation.LookupOperation;
+import org.springframework.data.mongodb.core.aggregation.ProjectionOperation;
+import org.springframework.data.mongodb.core.aggregation.SkipOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -72,7 +92,9 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static com.tapdata.tm.utils.MongoUtils.*;
+import static com.tapdata.tm.utils.MongoUtils.applyField;
+import static com.tapdata.tm.utils.MongoUtils.applySort;
+import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
 /**
  * @Author: Zed
@@ -1145,7 +1167,6 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return list.stream().map(MetadataInstancesEntity::getOriginalName).collect(Collectors.toList());
     }
 
-
     public List<Map<String, String>> tableValues(String connectId, String sourceType) {
         Criteria criteria = Criteria.where("source._id").is(connectId)
                 .and("sourceType").is(sourceType)
@@ -1490,6 +1511,15 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return findAllDto(Query.query(criteria), userDetail);
     }
 
+    public List<MetadataInstancesDto> findByNodeId(String nodeId, UserDetail userDetail, String taskId, String... fields) {
+        Criteria criteria = Criteria
+                .where("is_deleted").ne(true)
+                .and("nodeId").is(nodeId)
+                .and("taskId").is(taskId);
+
+        return findAllDto(Query.query(criteria), userDetail);
+    }
+
     public List<MetadataInstancesDto> findByTaskId(String taskId, UserDetail userDetail) {
         Criteria criteria = Criteria
                 .where("is_deleted").ne(true)
@@ -1534,7 +1564,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     String[] fieldArrays = fields.toArray(new String[0]);
                     queryMetadata.fields().include(fieldArrays);
                 }
-                if (node instanceof TableRenameProcessNode || node instanceof MigrateFieldRenameProcessorNode || node instanceof MigrateJsProcessorNode) {
+                if (node instanceof MigrateProcessorNode) {
 //                    queryMetadata.addCriteria(criteriaNode);
 //                    String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null, taskId);
 //                    criteriaNode.and("qualified_name").regex("^"+qualifiedName+".*")
@@ -1587,17 +1617,15 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 } else if (node instanceof DatabaseNode) {
                     queryMetadata.addCriteria(criteriaTable);
                     DatabaseNode tableNode = (DatabaseNode) node;
-                    List<String> tableNames;
-                    if (dag.getSources().contains(tableNode)) {
+                    List<String> tableNames = Collections.emptyList();
+                    if (node.sourceType() == Node.SourceType.source) {
                         tableNames = tableNode.getTableNames();
-                    } else if (dag.getTargets().contains(tableNode)) {
-                        tableNames = tableNode.getSyncObjects().get(0).getObjectNames();
+                    } else if (node.sourceType() == Node.SourceType.target) {
+                        if (CollectionUtils.isNotEmpty(tableNode.getSyncObjects())) {
+                            tableNames = tableNode.getSyncObjects().get(0).getObjectNames();
+                        }
                     } else {
                         throw new BizException("table node is error nodeId:" + tableNode.getId());
-                    }
-
-                    if (StringUtils.isNotBlank(tableFilter)) {
-                        tableNames = tableNames.stream().filter(s -> s.contains(tableFilter)).collect(Collectors.toList());
                     }
 
                     if (StringUtils.isNotBlank(filterType)) {
@@ -1614,9 +1642,14 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                         metadatas = Lists.newArrayList();
                     } else{
                         criteriaTable.and("nodeId").is(nodeId)
-//                                .and("originalName").in(tableNames)
                                 .and("taskId").is(taskId)
                                 .and("is_deleted").ne(true);
+
+                        if (StringUtils.isNotBlank(tableFilter)) {
+                            tableNames = tableNames.stream().filter(s -> s.toUpperCase().contains(tableFilter.toUpperCase())).collect(Collectors.toList());
+                            criteriaTable.and("originalName").in(tableNames);
+                        }
+
                         metadatas = findAllDto(queryMetadata, user);
                         totals = count(new Query(criteriaTable), user);
                         //totals = tableNames.size();

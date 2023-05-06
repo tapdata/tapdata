@@ -17,12 +17,19 @@ public class PDKSourceContext {
 		this.sourcePdkDataNode = sourcePdkDataNode;
 		return this;
 	}
+
 	private List<String> pendingInitialSyncTables;
+
 	public PDKSourceContext pendingInitialSyncTables(List<String> pendingInitialSyncTables) {
-		this.pendingInitialSyncTables = new CopyOnWriteArrayList<>(pendingInitialSyncTables);
+		if (pendingInitialSyncTables != null)
+			this.pendingInitialSyncTables = new CopyOnWriteArrayList<>(pendingInitialSyncTables);
+		else
+			this.pendingInitialSyncTables = new CopyOnWriteArrayList<>();
 		return this;
 	}
+
 	private boolean needCDC;
+
 	public PDKSourceContext needCDC(boolean needCDC) {
 		this.needCDC = needCDC;
 		return this;

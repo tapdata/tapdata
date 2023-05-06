@@ -5,6 +5,7 @@ import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
 
@@ -12,6 +13,7 @@ import java.util.List;
 
 public abstract class AspectTask implements MemoryFetcher {
 	protected TaskDto task;
+	protected Log log; // You can't use the log before setLog such as constructor
 
 	public abstract void onStart(TaskStartAspect startAspect);
 
@@ -31,6 +33,14 @@ public abstract class AspectTask implements MemoryFetcher {
 
 	public void setTask(TaskDto task) {
 		this.task = task;
+	}
+
+	public Log getLog() {
+		return log;
+	}
+
+	public void setLog(Log log) {
+		this.log = log;
 	}
 
 	@Override

@@ -5,6 +5,7 @@ import io.tapdata.entity.event.ddl.index.TapDeleteIndexEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
@@ -70,6 +71,7 @@ public class CheckCreateIndexTest extends PDKTestBaseV2 {
             }
 
             ConnectorNode connectorNode = node.connectorNode();
+            TapTable targetTableModel = super.getTargetTable(connectorNode);
             ConnectorFunctions functions = connectorNode.getConnectorFunctions();
             CreateIndexFunction indexFunction = functions.getCreateIndexFunction();
             List<TapIndex> indexList = new ArrayList<>();
@@ -83,7 +85,7 @@ public class CheckCreateIndexTest extends PDKTestBaseV2 {
             indexList.add(tapIndex1);
             TapCreateIndexEvent indexEvent = new TapCreateIndexEvent().indexList(indexList);
             try {
-                indexFunction.createIndex(connectorNode.getConnectorContext(), targetTable, indexEvent);
+                indexFunction.createIndex(connectorNode.getConnectorContext(), targetTableModel, indexEvent);
             } catch (Throwable throwable) {
                 TapAssert.error(testCase, langUtil.formatLang("checkCreateIndex.unique.create.fail", throwable.getMessage()));
             }
@@ -91,9 +93,8 @@ public class CheckCreateIndexTest extends PDKTestBaseV2 {
             QueryIndexesFunction query = functions.getQueryIndexesFunction();
             List<TapIndex> indexArr = new ArrayList<>();
             try {
-                query.query(connectorNode.getConnectorContext(), targetTable, consumer -> {
-                    for (int index = 0; index < consumer.size(); index++) {
-                        TapIndex tapIndex = consumer.get(index);
+                query.query(connectorNode.getConnectorContext(), targetTableModel, consumer -> {
+                    for (TapIndex tapIndex : consumer) {
                         if (Objects.nonNull(tapIndex)) {
                             indexArr.add(tapIndex);
                         }
@@ -124,8 +125,7 @@ public class CheckCreateIndexTest extends PDKTestBaseV2 {
                         if (indexFields.size() > 1) {
                             indexTrue = false;
                             StringJoiner joiner = new StringJoiner(", ");
-                            for (int i = 0; i < indexFields.size(); i++) {
-                                TapIndexField field = indexFields.get(i);
+                            for (TapIndexField field : indexFields) {
                                 String name1 = field.getName();
                                 Boolean fieldAsc = field.getFieldAsc();
                                 if (!indexField.getName().equals(name1)) {
@@ -263,11 +263,11 @@ public class CheckCreateIndexTest extends PDKTestBaseV2 {
             } catch (Throwable throwable) {
                 TapAssert.error(testCase, langUtil.formatLang("checkCreateIndex.unique.create.fail", throwable.getMessage()));
             }
-
+            TapTable targetTableModel = super.getTargetTable(connectorNode);
             QueryIndexesFunction query = functions.getQueryIndexesFunction();
             List<TapIndex> indexArr = new ArrayList<>();
             try {
-                query.query(connectorNode.getConnectorContext(), targetTable, consumer -> {
+                query.query(connectorNode.getConnectorContext(), targetTableModel, consumer -> {
                     for (int index = 0; index < consumer.size(); index++) {
                         TapIndex tapIndex = consumer.get(index);
                         if (Objects.nonNull(tapIndex)) {
@@ -417,8 +417,9 @@ public class CheckCreateIndexTest extends PDKTestBaseV2 {
                     .unique(true);
             indexList.add(tapIndex1);
             TapCreateIndexEvent indexEvent = new TapCreateIndexEvent().indexList(indexList);
+            TapTable targetTableModel = super.getTargetTable(connectorNode);
             try {
-                indexFunction.createIndex(connectorNode.getConnectorContext(), targetTable, indexEvent);
+                indexFunction.createIndex(connectorNode.getConnectorContext(), targetTableModel, indexEvent);
             } catch (Throwable throwable) {
                 TapAssert.error(testCase, langUtil.formatLang("checkCreateIndex.unique.create.fail", throwable.getMessage()));
             }
@@ -426,7 +427,7 @@ public class CheckCreateIndexTest extends PDKTestBaseV2 {
             QueryIndexesFunction query = functions.getQueryIndexesFunction();
             List<TapIndex> indexArr = new ArrayList<>();
             try {
-                query.query(connectorNode.getConnectorContext(), targetTable, consumer -> {
+                query.query(connectorNode.getConnectorContext(), targetTableModel, consumer -> {
                     for (int index = 0; index < consumer.size(); index++) {
                         TapIndex tapIndex = consumer.get(index);
                         if (Objects.nonNull(tapIndex)) {
@@ -498,7 +499,8 @@ public class CheckCreateIndexTest extends PDKTestBaseV2 {
             RecordEventExecute recordEventExecute = node.recordEventExecute();
             WriteListResult<TapRecordEvent> insert = null;
             final int insertCount = 1;
-            Record[] records = Record.testRecordWithTapTable(targetTable, insertCount);
+            targetTableModel = super.getTargetTable(connectorNode);
+            Record[] records = Record.testRecordWithTapTable(targetTableModel, insertCount);
             recordEventExecute.builderRecordCleanBefore(records);
             try {
                 insert = recordEventExecute.insert();
@@ -525,10 +527,11 @@ public class CheckCreateIndexTest extends PDKTestBaseV2 {
             //删除索引
             DeleteIndexFunction deleteIndex = functions.getDeleteIndexFunction();
             TapDeleteIndexEvent deleteEvent = new TapDeleteIndexEvent();
+            targetTableModel = super.getTargetTable(connectorNode);
             try {
                 if (Objects.isNull(deleteIndex))
                     throw new RuntimeException("Not implements DeleteIndexFunction, try again after implemented this function in connector please.");
-                deleteIndex.deleteIndex(node.connectorNode().getConnectorContext(), targetTable, deleteEvent);
+                deleteIndex.deleteIndex(node.connectorNode().getConnectorContext(), targetTableModel, deleteEvent);
             } catch (Throwable throwable) {
                 TapAssert.error(testCase, langUtil.formatLang("checkCreateIndex.index.delete.throw", throwable.getMessage()));
                 return;
@@ -536,9 +539,8 @@ public class CheckCreateIndexTest extends PDKTestBaseV2 {
 
             List<TapIndex> indexArr1 = new ArrayList<>();
             try {
-                query.query(connectorNode.getConnectorContext(), targetTable, consumer -> {
-                    for (int index = 0; index < consumer.size(); index++) {
-                        TapIndex tapIndex = consumer.get(index);
+                query.query(connectorNode.getConnectorContext(), targetTableModel, consumer -> {
+                    for (TapIndex tapIndex : consumer) {
                         if (Objects.nonNull(tapIndex)) {
                             indexArr1.add(tapIndex);
                         }

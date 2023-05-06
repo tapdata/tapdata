@@ -100,8 +100,9 @@ public abstract class AbstractCsvRecordWriter extends AbstractFileRecordWriter {
                 .removedCount(delete));
     }
 
-    protected CsvFileWriter getCsvFileWriterAndInit(String uniquePath) throws Exception {
+    protected synchronized CsvFileWriter getCsvFileWriterAndInit(String uniquePath) throws Exception {
         CsvFileWriter csvFileWriter;
+        CsvConfig csvConfig = (CsvConfig) fileConfig;
         if (fileWriterMap.containsKey(uniquePath)) {
             csvFileWriter = (CsvFileWriter) fileWriterMap.get(uniquePath);
             if (csvFileWriter.isClosed()) {
@@ -109,11 +110,17 @@ public abstract class AbstractCsvRecordWriter extends AbstractFileRecordWriter {
                     csvFileWriter.init();
                 } else {
                     csvFileWriter = new CsvFileWriter(storage, getNewCacheFileName(csvFileWriter.getPath()), fileConfig.getFileEncoding());
+                    csvFileWriter.setRule(csvConfig.getSeparator().replaceAll("\\[", "").replaceAll("]", "").charAt(0),
+                            csvConfig.getQuoteChar().charAt(0), csvConfig.getLineEnd());
+                    csvFileWriter.init();
                     fileWriterMap.put(uniquePath, csvFileWriter);
                 }
             }
         } else {
             csvFileWriter = new CsvFileWriter(storage, uniquePath, fileConfig.getFileEncoding());
+            csvFileWriter.setRule(csvConfig.getSeparator().replaceAll("\\[", "").replaceAll("]", "").charAt(0),
+                    csvConfig.getQuoteChar().charAt(0), csvConfig.getLineEnd());
+            csvFileWriter.init();
             fileWriterMap.put(uniquePath, csvFileWriter);
         }
         if (!lastWriteMap.containsKey(uniquePath) || EmptyKit.isNull(lastWriteMap.get(uniquePath))) {
@@ -125,6 +132,7 @@ public abstract class AbstractCsvRecordWriter extends AbstractFileRecordWriter {
             } else {
                 csvFileWriter.getCsvWriter().writeNext(fileConfig.getHeader().split(","));
             }
+            lastWriteMap.put(uniquePath, System.currentTimeMillis());
         }
         return csvFileWriter;
     }

@@ -23,12 +23,13 @@
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
 		<java.version>8</java.version>
 		<tapdata.pdk.runner.verison>1.2-SNAPSHOT</tapdata.pdk.runner.verison>
-		<tapdata.api.verison>1.2.2-SNAPSHOT</tapdata.api.verison>
-		<tapdata.pdk.api.verison>1.2.2-SNAPSHOT</tapdata.pdk.api.verison>
+		<tapdata.api.verison>1.2.3-SNAPSHOT</tapdata.api.verison>
+		<tapdata.pdk.api.verison>1.2.3-SNAPSHOT</tapdata.pdk.api.verison>
 		<tapdata.pdk.connector.core.version>1.0-SNAPSHOT</tapdata.pdk.connector.core.version>
 		<junit.jupiter.version>5.8.1</junit.jupiter.version>
 		<junit.platform.version>1.8.1</junit.platform.version>
 		<error-code-core.version>1.0-SNAPSHOT</error-code-core.version>
+		<error-code-scanner.version>1.0-SNAPSHOT</error-code-scanner.version>
 	</properties>
 	<dependencyManagement>
 		<dependencies>
@@ -98,8 +99,12 @@
 				<artifactId>error-code-core</artifactId>
 				<version>${error-code-core.version}</version>
 			</dependency>
+			<dependency>
+				<groupId>io.tapdata</groupId>
+				<artifactId>error-code-scanner</artifactId>
+				<version>${error-code-scanner.version}</version>
+			</dependency>
 		</dependencies>
-
 	</dependencyManagement>
 
     <build>

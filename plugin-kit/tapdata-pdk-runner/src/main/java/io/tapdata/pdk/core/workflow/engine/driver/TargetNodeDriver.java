@@ -413,7 +413,7 @@ public class TargetNodeDriver extends Driver implements ListHandler<List<TapEven
         }
         TapTable table = forerunnerEvent.getTable();//tableKVMap.get(((TapBaseEvent) event).tableMapKey());
         if(table == null)
-            throw new CoreException(PDKRunnerErrorCodes.TARGET_TABLE_NOT_FOUND_IN_TAPEVENT, "Table doesn't be found in TapEvent " + forerunnerEvent);
+            throw new CoreException(PDKRunnerErrorCodes.TARGET_TABLE_NOT_FOUND_IN_TAPEVENT, "Table not found in TapEvent " + forerunnerEvent);
 
         TapTable targetTable = handleActionsBeforeStart(table, forerunnerEvent.getAssociateId());
 

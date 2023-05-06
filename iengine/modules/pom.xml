@@ -17,6 +17,7 @@
         <module>test-run-module</module>
         <module>deduction-module</module>
         <module>proxy-client-module</module>
+        <module>skip-error-event-module</module>
         <module>custom-sql-filter-module</module>
         <module>task-resource-supervisor-module</module>
     </modules>

@@ -1,5 +1,6 @@
 package com.tapdata.tm.metadatadefinition.service;
 
+import com.google.common.collect.Lists;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Field;
@@ -20,7 +21,9 @@ import com.tapdata.tm.metadatadefinition.repository.MetadataDefinitionRepository
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.modules.entity.ModulesEntity;
+import com.tapdata.tm.task.constant.LdpDirEnum;
 import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.NonNull;
@@ -61,6 +64,10 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private LdpService ldpService;
+
 
     public MetadataDefinitionService(@NonNull MetadataDefinitionRepository repository) {
         super(repository, MetadataDefinitionDto.class, MetadataDefinitionEntity.class);
@@ -106,9 +113,13 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
         String parentId = metadataDefinitionDto.getParent_id();
         Criteria criteria = Criteria.where("value").is(value);
         if (StringUtils.isBlank(parentId)) {
-            criteria.and("parent_id").exists(false).and("item_type").in(metadataDefinitionDto.getItemType());
+            criteria.and("parent_id").exists(false);
         } else {
             criteria.and("parent_id").is(parentId);
+        }
+
+        if (CollectionUtils.isNotEmpty(metadataDefinitionDto.getItemType())) {
+            criteria.and("item_type").in(metadataDefinitionDto.getItemType());
         }
 
         Query query=Query.query(criteria);
@@ -160,6 +171,10 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
 
                 if (saveValue.getItemType().contains("database")){
                     mongoTemplate.updateMulti(new Query(criteria), update, DataSourceEntity.class);
+                }
+
+                if (saveValue.getItemType().contains("app")){
+                    mongoTemplate.updateMulti(new Query(criteria), update, ModulesEntity.class);
                 }
             }
 
@@ -257,12 +272,17 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
     @Override
     public Page<MetadataDefinitionDto> find(Filter filter, UserDetail user) {
         Page<MetadataDefinitionDto> dtoPage = super.find(filter, user);
-        dtoPage.getItems().sort(Comparator.comparing(MetadataDefinitionDto::getValue));
-        dtoPage.getItems().sort(Comparator.comparing(s -> {
-            List<String> itemType = s.getItemType();
+        if (filter.getOrder() == null) {
+            dtoPage.getItems().sort(Comparator.comparing(MetadataDefinitionDto::getValue));
+            dtoPage.getItems().sort(Comparator.comparing(s -> {
+                List<String> itemType = s.getItemType();
 
-            return itemType != null && !itemType.contains("default");
-        }));
+                return itemType != null && !itemType.contains("default");
+            }));
+        }
+
+        Set<String> ldpValues = Arrays.stream(LdpDirEnum.values()).map(LdpDirEnum::getValue).collect(Collectors.toSet());
+        Set<String> ldpItemTypes = Arrays.stream(LdpDirEnum.values()).map(LdpDirEnum::getItemType).collect(Collectors.toSet());
         Field fields = filter.getFields();
         if (fields != null) {
             Object objCount = fields.get("objCount");
@@ -314,5 +334,75 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
             }
         }
         return dtoPage;
+    }
+
+    public Map<String, String> ldpDirKvs() {
+        Criteria criteria = oldLdpCriteria();
+
+        List<MetadataDefinitionDto> ldpDirs = findAll(new Query(criteria));
+        Map<String, String> oldLdpMap = null;
+        if (org.apache.commons.collections.CollectionUtils.isNotEmpty(ldpDirs)) {
+            oldLdpMap = ldpDirs.stream().collect(Collectors.toMap(s -> s.getValue(), s -> s.getId().toHexString()));
+
+        }
+
+        return oldLdpMap;
+    }
+
+
+    public void dellOldLdpDirs() {
+        Criteria criteria = oldLdpCriteria();
+        Query query = new Query(criteria);
+        deleteAll(query);
+    }
+
+    private Criteria oldLdpCriteria() {
+        Criteria criteria = Criteria.where("value").in(Lists.newArrayList(LdpDirEnum.LDP_DIR_SOURCE.getValue(),
+                        LdpDirEnum.LDP_DIR_FDM.getValue(), LdpDirEnum.LDP_DIR_MDM.getValue(), LdpDirEnum.LDP_DIR_TARGET.getValue()))
+                .and("item_type").in(Lists.newArrayList(LdpDirEnum.LDP_DIR_SOURCE.getItemType(),
+                        LdpDirEnum.LDP_DIR_FDM.getItemType(), LdpDirEnum.LDP_DIR_MDM.getItemType(), LdpDirEnum.LDP_DIR_TARGET.getItemType()))
+                .and("user_id").exists(false).and("parent_id").exists(false);
+
+        return criteria;
+    }
+
+    @Override
+    public boolean deleteById(ObjectId id, UserDetail user) {
+        MetadataDefinitionDto metadataDefinitionDto = findById(id, user);
+        if (metadataDefinitionDto == null) {
+            return false;
+        }
+
+        if (CollectionUtils.isNotEmpty(metadataDefinitionDto.getItemType()) && metadataDefinitionDto.getItemType().contains(LdpDirEnum.LDP_DIR_MDM.getItemType())) {
+
+
+            Tag setTag;
+            String parentId = metadataDefinitionDto.getParent_id();
+            if (StringUtils.isBlank(parentId)) {
+                setTag = ldpService.getMdmTag(user);
+            } else {
+                Field field = new Field();
+                field.put("_id", true);
+                field.put("value", true);
+                MetadataDefinitionDto parentDefinition = findById(MongoUtils.toObjectId(parentId), field, user);
+                if (parentDefinition == null) {
+                    setTag = ldpService.getMdmTag(user);
+                } else {
+                    setTag = new Tag(parentDefinition.getId().toHexString(), parentDefinition.getValue());
+                }
+            }
+
+            Criteria criteria = Criteria.where("listtags")
+                    .elemMatch(Criteria.where("id").is(id.toHexString()));
+            Query query = new Query(criteria);
+            Update update = Update.update("listtags.$.value", setTag.getValue())
+                    .set("listtags.$.id", setTag.getId());
+
+            metadataInstancesService.update(query, update, user);
+        }
+
+        return super.deleteById(id, user);
+
+
     }
 }

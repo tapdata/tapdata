@@ -1,11 +1,11 @@
 {
-  "connection": {
-	"host": "192.168.1.183",
-	"port": 33064,
-	"username": "root",
-	"password": "Gotapd8",
-	"database": "TEST"
-  },
-  "node": {
-  }
+	"connection": {
+		"host": "139.198.127.666",
+		"port": 3306,
+		"username": "****",
+		"password": "******!",
+		"database": "tapdata"
+	},
+	"node": {
+	}
 }

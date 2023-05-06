@@ -1,5 +1,6 @@
 package io.tapdata.connector.selectdb.util;
 
+import io.tapdata.connector.selectdb.SelectDbJdbcContext;
 import io.tapdata.connector.selectdb.streamload.Constants;
 import io.tapdata.connector.selectdb.streamload.HttpPutBuilder;
 import io.tapdata.entity.logger.TapLogger;
@@ -40,7 +41,6 @@ public class CopyIntoUtils {
     private static final String COMMIT_PATTERN = "http://%s/copy/query";
     private static final HttpClientBuilder httpClientBuilder = HttpClients.custom().disableRedirectHandling();
     private static String uuidName;
-
     public CopyIntoUtils(TapConnectionContext tapConnectionContext) {
         this.tapConnectionContext = tapConnectionContext;
         setConfig(tapConnectionContext);
@@ -68,7 +68,7 @@ public class CopyIntoUtils {
         put(location, uuidName, bytes);
     }
 
-    public static void copyInto(TapTable table) throws IOException {
+    public static Response copyInto(TapTable table) throws IOException {
 
         OkHttpClient.Builder builder = new OkHttpClient().newBuilder();
         builder.connectTimeout(15, TimeUnit.SECONDS);
@@ -99,6 +99,7 @@ public class CopyIntoUtils {
         Response response = client.newCall(request).execute();
         response.close();
 //        TapLogger.info(TAG, "CopyInto successfully.");
+        return response;
     }
 
     public static void uploadTest(byte[] bytes) throws IOException {

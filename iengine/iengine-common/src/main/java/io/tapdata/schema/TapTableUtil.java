@@ -48,10 +48,10 @@ public class TapTableUtil {
 
 	public static TapTable getTapTableByConnectionId(String connectionId, String tableName) {
 		return BeanUtil.getBean(ClientMongoOperator.class).findOne(Query.query(
-			where("meta_type").is("table")
-				.and("sourceType").is(SourceTypeEnum.SOURCE.name())
-				.and("original_name").is(tableName)
-				.and("source.id").is(connectionId)
+				where("meta_type").is("table")
+						.and("sourceType").is(SourceTypeEnum.SOURCE.name())
+						.and("original_name").is(tableName)
+						.and("source.id").is(connectionId)
 		), ConnectorConstant.METADATA_INSTANCE_COLLECTION + "/tapTables", TapTable.class);
 	}
 
@@ -67,6 +67,7 @@ public class TapTableUtil {
 
 	/**
 	 * 获取节点的模型
+	 *
 	 * @param node
 	 * @param tmCurrentTime
 	 * @return

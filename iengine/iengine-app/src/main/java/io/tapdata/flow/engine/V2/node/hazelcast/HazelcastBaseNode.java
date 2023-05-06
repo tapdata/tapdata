@@ -206,7 +206,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			this.jetContext = context;
 			super.init(context);
 			running.compareAndSet(false, true);
-			codecsFilterManager = TapCodecUtil.genericCodecsFilterManager();
+			codecsFilterManager = initFilterCodec();
 			// execute ProcessorNodeInitAspect before doInit since we need to init the aspect first;
 			if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
 				AspectUtils.executeAspect(ProcessorNodeInitAspect.class, () -> new ProcessorNodeInitAspect().processorBaseContext(processorBaseContext));
@@ -223,8 +223,13 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 	}
 
+
 	public ProcessorBaseContext getProcessorBaseContext() {
 		return processorBaseContext;
+	}
+
+	protected TapCodecsFilterManager initFilterCodec() {
+		return TapCodecUtil.genericCodecsFilterManager();
 	}
 
 	protected Job convert2Job(DataFlow dataFlow, Node node, ClientMongoOperator clientMongoOperator) {
@@ -358,7 +363,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 	}
 
-	private int bucketIndex = 0;
+	protected int bucketIndex = 0;
 
 	protected boolean offer(TapdataEvent dataEvent) {
 
@@ -686,6 +691,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		List<String> vertexNames = nextOrPreDataNodes.stream().map(NodeUtil::getVertexName).collect(Collectors.toList());
 
 		HttpClientMongoOperator httpClientMongoOperator = (HttpClientMongoOperator) clientMongoOperator;
+	}
+
+	public synchronized TapCodeException errorHandle(Throwable throwable) {
+		return errorHandle(throwable, null);
 	}
 
 	public synchronized TapCodeException errorHandle(Throwable throwable, String errorMessage) {

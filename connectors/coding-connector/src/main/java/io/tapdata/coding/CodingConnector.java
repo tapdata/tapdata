@@ -209,6 +209,7 @@ public class CodingConnector extends ConnectorBase {
                 loader.connectorOut();
             }
         }
+        consumer.streamReadEnded();
     }
 
 

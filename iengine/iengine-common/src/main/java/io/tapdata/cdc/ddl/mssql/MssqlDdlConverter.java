@@ -2,7 +2,12 @@ package io.tapdata.cdc.ddl.mssql;
 
 import io.tapdata.cdc.ddl.DdlConverter;
 import io.tapdata.cdc.ddl.DdlEvent;
-import io.tapdata.cdc.ddl.events.*;
+import io.tapdata.cdc.ddl.events.AbsStruct;
+import io.tapdata.cdc.ddl.events.AddField;
+import io.tapdata.cdc.ddl.events.AlterField;
+import io.tapdata.cdc.ddl.events.DropField;
+import io.tapdata.cdc.ddl.events.DropStruct;
+import io.tapdata.cdc.ddl.events.RenameField;
 import io.tapdata.cdc.ddl.exception.DdlConverterException;
 import io.tapdata.cdc.ddl.sql.SqlConverter;
 

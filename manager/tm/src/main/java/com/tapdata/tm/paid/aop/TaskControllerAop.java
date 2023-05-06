@@ -23,16 +23,19 @@ import org.springframework.stereotype.Component;
 @Component
 @Slf4j
 @Profile("dfs")
+@Deprecated
 public class TaskControllerAop {
 
     @Autowired
     private PaidPlanService paidPlanService;
-    @Pointcut("execution(* com.tapdata.tm.task.controller.TaskController.save(..))")
+    //@Pointcut("execution(* com.tapdata.tm.task.controller.TaskController.save(..))")
+    @Deprecated
     public void createTaskPointcut() {
 
     }
 
     //@Around("createTaskPointcut()")
+    @Deprecated
     public Object beforeCreateTask(ProceedingJoinPoint joinPoint) throws Throwable {
 
         TaskController taskController = (TaskController) joinPoint.getTarget();
@@ -51,12 +54,14 @@ public class TaskControllerAop {
         }
     }
 
-    @Pointcut("execution(* com.tapdata.tm.task.controller.TaskController.copy(..))")
+    //@Pointcut("execution(* com.tapdata.tm.task.controller.TaskController.copy(..))")
+    @Deprecated
     public void copyTaskPointcut() {
 
     }
 
-    @Around("copyTaskPointcut()")
+    //@Around("copyTaskPointcut()")
+    @Deprecated
     public Object beforeCopyTask(ProceedingJoinPoint joinPoint) throws Throwable {
 
         TaskController taskController = (TaskController) joinPoint.getTarget();

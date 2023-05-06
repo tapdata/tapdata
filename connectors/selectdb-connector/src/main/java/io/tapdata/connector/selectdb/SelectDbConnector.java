@@ -170,7 +170,8 @@ public class SelectDbConnector extends ConnectorBase {
     }
 
     protected RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
-        RetryOptions retryOptions = RetryOptions.create().beforeRetryMethod(() -> {});
+        RetryOptions retryOptions = RetryOptions.create().beforeRetryMethod(() -> {
+        });
         Throwable match;
         if (null != (match = matchThrowable(throwable, CoreException.class)) && ((CoreException) match).getCode() == SelectDbErrorCodes.ERROR_SDB_COPY_INTO_CANCELLED) {
             retryOptions.needRetry(false);
@@ -304,23 +305,22 @@ public class SelectDbConnector extends ConnectorBase {
         return builder.toString();
     }
 
-    private final Object lock = new int[0];
-
+    //    private final Object lock = new int[0];
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
-        if (Objects.isNull(this.valve)) {
-            synchronized (lock) {
-                if (Objects.isNull(this.valve)) {
-                    this.valve = WriteValve.open(
-                            50000,
-                            10,
-                            this::uploadEvents,
-                            writeListResultConsumer
-                    ).start();
-                }
-            }
-
-        }
-        this.valve.write(tapRecordEvents, tapTable);
+//        if (Objects.isNull(this.valve)) {
+//            synchronized (lock) {
+//                if (Objects.isNull(this.valve)) {
+//                    this.valve = WriteValve.open(
+//                            50000,
+//                            10,
+//                            this::uploadEvents,
+//                            writeListResultConsumer
+//                    ).start();
+//                }
+//            }
+//        }
+//        this.valve.write(tapRecordEvents, tapTable);
+        uploadEvents(writeListResultConsumer, tapRecordEvents, tapTable);
     }
 
     /**

@@ -1,5 +1,7 @@
 package io.tapdata.common;
 
+import io.tapdata.common.exception.AbstractExceptionCollector;
+import io.tapdata.common.exception.ExceptionCollector;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -13,6 +15,8 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.function.Consumer;
 
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
+
 public class RecordWriter {
 
     protected WriteRecorder insertRecorder;
@@ -23,6 +27,8 @@ public class RecordWriter {
     protected String version;
     protected Connection connection;
     protected final TapTable tapTable;
+    protected ExceptionCollector exceptionCollector = new AbstractExceptionCollector() {
+    };
 
     public RecordWriter(JdbcContext jdbcContext, TapTable tapTable) throws SQLException {
         this.connection = jdbcContext.getConnection();
@@ -69,8 +75,14 @@ public class RecordWriter {
             }
             //release resource
 
-        } catch (Exception e) {
-            throw new RuntimeException(String.format("Write record(s) failed: %s | Table: %s", e.getMessage(), tapTable.getId()), e);
+        } catch (SQLException e) {
+            exceptionCollector.collectTerminateByServer(e);
+            exceptionCollector.collectViolateNull(null, e);
+            TapRecordEvent errorEvent = listResult.getErrorMap().keySet().stream().findFirst().orElse(null);
+            exceptionCollector.collectViolateUnique(toJson(tapTable.primaryKeys(true)), errorEvent, null, e);
+            exceptionCollector.collectWriteType(null, null, errorEvent, e);
+            exceptionCollector.collectWriteLength(null, null, errorEvent, e);
+            throw e;
         } finally {
             insertRecorder.releaseResource();
             updateRecorder.releaseResource();

@@ -98,11 +98,12 @@ public class CustomSqlServiceImpl implements CustomSqlService {
         }
 
         //只支持js处理器节点
-        List<Node> nodes = dag.getNodes();
-        for (Node node : nodes) {
-            if (node instanceof ProcessorNode && !(node instanceof JsProcessorNode)) {
-                throw new BizException("CustomSql.ProcessorNodeNotJs");
-            }
-        }
+        //由于css的需求，需要放开所有的处理节点。
+//        List<Node> nodes = dag.getNodes();
+//        for (Node node : nodes) {
+//            if (node instanceof ProcessorNode && !(node instanceof JsProcessorNode)) {
+//                throw new BizException("CustomSql.ProcessorNodeNotJs");
+//            }
+//        }
     }
 }

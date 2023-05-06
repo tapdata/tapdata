@@ -8,9 +8,19 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.time.*;
+import java.time.DateTimeException;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
 public class DateUtil {
@@ -39,11 +49,18 @@ public class DateUtil {
 		if (millSeconds == null || millSeconds.isEmpty() || millSeconds.equals("null")) {
 			return "";
 		}
+		return timeStamp2Date(Long.parseLong(millSeconds), format);
+	}
+
+	/**
+	 * timeStamp2Date 时间戳转日期
+	 */
+	public static String timeStamp2Date(long millSeconds, String format) {
 		if (format == null || format.isEmpty()) {
 			format = "yyyy-MM-dd HH:mm:ss";
 		}
 		SimpleDateFormat sdf = new SimpleDateFormat(format);
-		return sdf.format(new Date(Long.valueOf(millSeconds)));
+		return sdf.format(new Date(millSeconds));
 	}
 
 	public static Instant string2Instant(ZoneId zoneId, String dateString) {

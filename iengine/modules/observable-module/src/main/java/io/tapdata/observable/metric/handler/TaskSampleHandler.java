@@ -66,8 +66,8 @@ public class TaskSampleHandler extends AbstractHandler {
     private Long snapshotDoneAt = null;
     private Long snapshotDoneCost = null;
     private String currentSnapshotTable = null;
-//    private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
-    private Long currentSnapshotTableInsertRowTotal = null;
+    private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
+    private Long currentSnapshotTableInsertRowTotal = 0L;
     private Long currentSnapshotTableRowTotal = null;
     private Double outputQpsMax;
     private Double outputQpsAvg;
@@ -170,17 +170,19 @@ public class TaskSampleHandler extends AbstractHandler {
         });
         collector.addSampler(Constants.REPLICATE_LAG, () -> {
             AtomicReference<Long> replicateLagRef = new AtomicReference<>(null);
-            for (DataNodeSampleHandler h : targetNodeHandlers.values()) {
-                Optional.ofNullable(h.getReplicateLag()).ifPresent(sampler -> {
-                    Number value = sampler.getTemp();
-                    if (Objects.nonNull(value)) {
-                        long v = value.longValue();
-                        if (null == replicateLagRef.get() || replicateLagRef.get() < v) {
-                            replicateLagRef.set(v);
-                        }
-                    }
-                });
 
+            if (snapshotDoneAt != null || TaskDto.TYPE_CDC.equals(task.getType())) {
+                for (DataNodeSampleHandler h : targetNodeHandlers.values()) {
+                    Optional.ofNullable(h.getReplicateLag()).ifPresent(sampler -> {
+                        Number value = sampler.getTemp();
+                        if (Objects.nonNull(value)) {
+                            long v = value.longValue();
+                            if (null == replicateLagRef.get() || replicateLagRef.get() < v) {
+                                replicateLagRef.set(v);
+                            }
+                        }
+                    });
+                }
             }
             return replicateLagRef.get();
         });
@@ -217,16 +219,16 @@ public class TaskSampleHandler extends AbstractHandler {
             return snapshotDoneCost;
         });
 
-        // TODO(dexter): find a way to record the current table name
-        collector.addSampler(CURR_SNAPSHOT_TABLE, () -> null);
         collector.addSampler(CURR_SNAPSHOT_TABLE_ROW_TOTAL, () -> {
-            if (null == currentSnapshotTable) return null;
+            if (null != currentSnapshotTable) {
+                currentSnapshotTableRowTotal = currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
+            }
             return currentSnapshotTableRowTotal;
         });
         collector.addSampler(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL, () -> {
             if (Objects.nonNull(snapshotTableTotal.value()) && CollectionUtils.isNotEmpty(taskTables) &&
-            snapshotTableTotal.value().intValue() == taskTables.size()) {
-                return currentSnapshotTableRowTotal;
+            snapshotTableTotal.value().intValue() == taskTables.size() && Objects.nonNull(currentSnapshotTable)) {
+                currentSnapshotTableInsertRowTotal = currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
             }
             return currentSnapshotTableInsertRowTotal;
         });
@@ -257,10 +259,9 @@ public class TaskSampleHandler extends AbstractHandler {
         taskTables.addAll(Arrays.asList(tables));
     }
 
-    public void handleTableCountAccept(long count) {
+    public void handleTableCountAccept(String table, long count) {
         snapshotRowTotal.inc(count);
-        currentSnapshotTableInsertRowTotal = 0L;
-        currentSnapshotTableRowTotal = count;
+        currentSnapshotTableRowTotalMap.putIfAbsent(table, count);
     }
 
     public void handleCreateTableEnd() {

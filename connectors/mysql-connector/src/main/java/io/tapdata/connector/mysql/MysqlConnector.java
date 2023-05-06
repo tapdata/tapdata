@@ -26,6 +26,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.TapArrayValue;
 import io.tapdata.entity.schema.value.TapBooleanValue;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
@@ -64,6 +65,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.sql.SQLException;
+import java.sql.ResultSetMetaData;
 import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -149,7 +151,7 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportBatchCount(this::batchCount);
-        connectorFunctions.supportBatchRead(this::batchRead);
+        connectorFunctions.supportBatchRead(this::batchReadV2);
         connectorFunctions.supportStreamRead(this::streamRead);
         connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
         connectorFunctions.supportQueryByAdvanceFilter(this::query);
@@ -163,8 +165,8 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportExecuteCommandFunction((a, b, c) -> SqlExecuteCommandFunction.executeCommand(a, b, () -> mysqlJdbcContext.getConnection(), this::isAlive, c));
         connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
-        connectorFunctions.supportQueryFieldMinMaxValueFunction(this::minMaxValue);
-        connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
+        //connectorFunctions.supportQueryFieldMinMaxValueFunction(this::minMaxValue);
+        //connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
         connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
     }
 
@@ -440,6 +442,65 @@ public class MysqlConnector extends ConnectorBase {
         consumer.accept(writeListResult);
     }
 
+    public static final AtomicInteger TOTAL = new AtomicInteger(0);
+
+    private void batchReadV2(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+        String columns = tapTable.getNameFieldMap().keySet().stream().map(c -> "`" + c + "`").collect(Collectors.joining(","));
+        String sql = String.format("SELECT %s FROM `" + tapConnectorContext.getConnectionConfig().getString("database") + "`.`" + tapTable.getId() + "`", columns);
+
+        mysqlJdbcContext.query(sql, resultSet -> {
+            List<TapEvent> tapEvents = list();
+            //get all column names
+            Set<String> dateTypeSet = dateFields(tapTable);
+            ResultSetMetaData metaData = resultSet.getMetaData();
+            while (isAlive() && resultSet.next()) {
+                Map<String, Object> data = new HashMap<>();
+                for (int i = 0; i < metaData.getColumnCount(); i++) {
+                    String columnName = metaData.getColumnName(i + 1);
+                    try {
+                        Object value;
+                        if ("TIME".equalsIgnoreCase(metaData.getColumnTypeName(i + 1))) {
+                            value = resultSet.getString(i + 1);
+                        } else {
+                            value = resultSet.getObject(i + 1);
+                            if (null == value && dateTypeSet.contains(columnName)) {
+                                value = resultSet.getString(i + 1);
+                            }
+                        }
+                        data.put(columnName, value);
+                    } catch (Exception e) {
+                        throw new RuntimeException("Read column value failed, column name: " + columnName + ", data: " + data + "; Error: " + e.getMessage(), e);
+                    }
+                }
+                tapEvents.add(insertRecordEvent(data, tapTable.getId()));
+                if (tapEvents.size() == eventBatchSize) {
+                    eventsOffsetConsumer.accept(tapEvents, new HashMap<>());
+                    tapEvents = list();
+                }
+            }
+            //last events those less than eventBatchSize
+            if (EmptyKit.isNotEmpty(tapEvents)) {
+                eventsOffsetConsumer.accept(tapEvents, new HashMap<>());
+            }
+        });
+
+    }
+
+    private Set<String> dateFields(TapTable tapTable) {
+        Set<String> dateTypeSet = new HashSet<>();
+        tapTable.getNameFieldMap().forEach((n, v) -> {
+            switch (v.getTapType().getType()) {
+                case TapType.TYPE_DATE:
+                case TapType.TYPE_DATETIME:
+                    dateTypeSet.add(n);
+                    break;
+                default:
+                    break;
+            }
+        });
+        return dateTypeSet;
+    }
+
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offset, int batchSize, BiConsumer<List<TapEvent>, Object> consumer) throws Throwable {
         MysqlSnapshotOffset mysqlSnapshotOffset;
         if (offset instanceof MysqlSnapshotOffset) {
@@ -453,12 +514,21 @@ public class MysqlConnector extends ConnectorBase {
             tempList.add(tapRecordEvent);
             if (tempList.size() == batchSize) {
                 consumer.accept(tempList, mysqlSnapshotOffset);
+                synchronized (TOTAL) {
+                    TOTAL.addAndGet(tempList.size());
+                }
                 tempList.clear();
             }
         });
         if (CollectionUtils.isNotEmpty(tempList)) {
             consumer.accept(tempList, mysqlSnapshotOffset);
+            synchronized (TOTAL) {
+                TOTAL.addAndGet(tempList.size());
+            }
             tempList.clear();
+        }
+        synchronized (TOTAL) {
+            TapLogger.warn(TAG, "TOTAL: " + TOTAL.get());
         }
     }
 
@@ -475,16 +545,26 @@ public class MysqlConnector extends ConnectorBase {
                 filterResults.add(data);
                 if (filterResults.getResults().size() == finalBatchSize) {
                     consumer.accept(filterResults);
+                    synchronized (TOTAL) {
+                        TOTAL.addAndGet(filterResults.getResults().size());
+                    }
                     filterResults.getResults().clear();
                 }
             });
             if (CollectionUtils.isNotEmpty(filterResults.getResults())) {
                 consumer.accept(filterResults);
+                synchronized (TOTAL) {
+                    TOTAL.addAndGet(filterResults.getResults().size());
+                }
                 filterResults.getResults().clear();
             }
         } catch (Throwable e) {
             filterResults.setError(e);
             consumer.accept(filterResults);
+        } finally {
+            synchronized (TOTAL) {
+                TapLogger.warn(TAG, "TOTAL: " + TOTAL.get());
+            }
         }
     }
 

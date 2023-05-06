@@ -2,6 +2,8 @@ package io.tapdata.common;
 
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.ddl.DDLSqlGenerator;
+import io.tapdata.common.exception.AbstractExceptionCollector;
+import io.tapdata.common.exception.ExceptionCollector;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.*;
@@ -17,6 +19,8 @@ import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.FilterResult;
+import io.tapdata.pdk.apis.entity.FilterResults;
+import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.TapFilter;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 
@@ -42,6 +46,8 @@ public abstract class CommonDbConnector extends ConnectorBase {
     protected JdbcContext jdbcContext;
     protected CommonDbConfig commonDbConfig;
     protected CommonSqlMaker commonSqlMaker;
+    protected ExceptionCollector exceptionCollector = new AbstractExceptionCollector() {
+    };
 
     @Override
     public int tableCount(TapConnectionContext connectionContext) throws SQLException {
@@ -242,19 +248,30 @@ public abstract class CommonDbConnector extends ConnectorBase {
         List<TapEvent> tapEvents = list();
         //get all column names
         List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
-        while (isAlive() && resultSet.next()) {
-            DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
-            tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
-            if (tapEvents.size() == eventBatchSize) {
-                eventsOffsetConsumer.accept(tapEvents, offset);
-                tapEvents = list();
+        try {
+            while (isAlive() && resultSet.next()) {
+                DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
+								processDataMap(dataMap, tapTable);
+                tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
+                if (tapEvents.size() == eventBatchSize) {
+                    eventsOffsetConsumer.accept(tapEvents, offset);
+                    tapEvents = list();
+                }
             }
+        } catch (SQLException e) {
+            exceptionCollector.collectTerminateByServer(e);
+            exceptionCollector.collectReadPrivileges("batchReadV3", Collections.emptyList(), e);
+            throw e;
         }
         //last events those less than eventBatchSize
         if (EmptyKit.isNotEmpty(tapEvents)) {
             eventsOffsetConsumer.accept(tapEvents, offset);
         }
     }
+
+		protected void processDataMap(DataMap dataMap, TapTable tapTable) throws RuntimeException {
+
+		}
 
     private DataMap findPrimaryKeyValue(TapTable tapTable, Long offsetSize) throws Throwable {
         char escapeChar = commonDbConfig.getEscapeChar();
@@ -465,6 +482,48 @@ public abstract class CommonDbConnector extends ConnectorBase {
             }
             if (EmptyKit.isNotEmpty(tapEvents)) {
                 eventsOffsetConsumer.accept(tapEvents);
+            }
+        });
+    }
+
+    protected void batchReadWithoutOffset(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+        String columns = tapTable.getNameFieldMap().keySet().stream().map(c -> "\"" + c + "\"").collect(Collectors.joining(","));
+        String sql = String.format("SELECT %s FROM " + getSchemaAndTable(tapTable.getId()), columns);
+
+        jdbcContext.query(sql, resultSet -> {
+            List<TapEvent> tapEvents = list();
+            //get all column names
+            List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
+            while (isAlive() && resultSet.next()) {
+                DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
+                assert dataMap != null;
+                tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
+                if (tapEvents.size() == eventBatchSize) {
+                    eventsOffsetConsumer.accept(tapEvents, new HashMap<>());
+                    tapEvents = list();
+                }
+            }
+            //last events those less than eventBatchSize
+            if (EmptyKit.isNotEmpty(tapEvents)) {
+                eventsOffsetConsumer.accept(tapEvents, new HashMap<>());
+            }
+        });
+    }
+
+    protected void queryByAdvanceFilterWithOffset(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
+        String sql = commonSqlMaker.buildSelectClause(table, filter) + getSchemaAndTable(table.getId()) + commonSqlMaker.buildSqlByAdvanceFilter(filter);
+        jdbcContext.query(sql, resultSet -> {
+            FilterResults filterResults = new FilterResults();
+            while (resultSet.next()) {
+                List<String> allColumn = DbKit.getColumnsFromResultSet(resultSet);
+                filterResults.add(DbKit.getRowFromResultSet(resultSet, allColumn));
+                if (filterResults.getResults().size() == BATCH_ADVANCE_READ_LIMIT) {
+                    consumer.accept(filterResults);
+                    filterResults = new FilterResults();
+                }
+            }
+            if (EmptyKit.isNotEmpty(filterResults.getResults())) {
+                consumer.accept(filterResults);
             }
         });
     }

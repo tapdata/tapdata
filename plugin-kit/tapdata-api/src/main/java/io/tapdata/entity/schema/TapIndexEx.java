@@ -8,6 +8,7 @@ import java.util.Map;
 
 public class TapIndexEx extends TapIndex {
     private final Map<String, TapIndexField> indexMap = new LinkedHashMap<>();
+    public TapIndexEx() {}
     public TapIndexEx(TapIndex tapIndex) {
         if(tapIndex != null) {
             List<TapIndexField> indexFields = tapIndex.getIndexFields();

@@ -1,8 +1,17 @@
 package io.tapdata.websocket.handler;
 
 import com.google.common.collect.Maps;
-import com.tapdata.constant.*;
-import com.tapdata.entity.*;
+import com.tapdata.constant.ConnectionUtil;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.IRateTimeout;
+import com.tapdata.constant.JSONUtil;
+import com.tapdata.constant.UUIDGenerator;
+import com.tapdata.entity.Connections;
+import com.tapdata.entity.DatabaseTypeEnum;
+import com.tapdata.entity.RelateDataBaseTable;
+import com.tapdata.entity.Schema;
+import com.tapdata.entity.Setting;
+import com.tapdata.entity.TapLog;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.validator.ConnectionValidateResult;
@@ -12,7 +21,6 @@ import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.supervisor.AspectRunnableUtil;
 import io.tapdata.aspect.supervisor.DisposableThreadGroupAspect;
 import io.tapdata.aspect.supervisor.entity.ConnectionTestEntity;
-import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.BaseConnectionValidateResult;
 import io.tapdata.exception.ConnectionException;
@@ -33,7 +41,12 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -85,7 +98,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 		if (MapUtils.isEmpty(event)) {
 			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.TEST_CONNECTION_RESULT, "Event data cannot be empty");
 		}
-		String connName = (String)event.getOrDefault("name", "");
+		String connName = (String) event.getOrDefault("name", "");
 		String pskHash = (String) event.getOrDefault("pdkHash", "");
 		String connectionId = String.valueOf(event.get("id"));
 		ConnectionTestEntity entity = new ConnectionTestEntity()
@@ -100,7 +113,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 				.databaseType(String.valueOf(event.get("database_type")));
 		String threadName = String.format("TEST-CONNECTION-%s", Optional.ofNullable(event.get("name")).orElse(""));
 		DisposableThreadGroup threadGroup = new DisposableThreadGroup(DisposableType.CONNECTION_TEST, threadName);
-		Runnable runnable = AspectRunnableUtil.aspectRunnable(new DisposableThreadGroupAspect<>(connectionId, threadGroup, entity),() -> {
+		Runnable runnable = AspectRunnableUtil.aspectRunnable(new DisposableThreadGroupAspect<>(connectionId, threadGroup, entity), () -> {
 			Connections connection = null;
 			Schema schema;
 			try {
@@ -169,7 +182,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 					connectionIdQuery = new Query(Criteria.where("_id").is(id));
 					connectionIdQuery.fields().exclude("schema");
 					Connections newConnection = clientMongoOperator.findOne(connectionIdQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
-					if(newConnection != null) {
+					if (newConnection != null) {
 						connection = newConnection;
 						connection.setExtParam((Map) event.getOrDefault("extParam", Maps.newHashMap()));
 						save = true;

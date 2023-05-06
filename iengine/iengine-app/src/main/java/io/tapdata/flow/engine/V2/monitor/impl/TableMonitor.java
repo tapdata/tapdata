@@ -1,28 +1,23 @@
 package io.tapdata.flow.engine.V2.monitor.impl;
 
 import com.tapdata.constant.ExecutorUtil;
-import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.node.pdk.ConnectorNodeService;
-import io.tapdata.observable.logging.ObsLogger;
-import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -112,20 +107,20 @@ public class TableMonitor extends TaskMonitor<TableMonitor.TableResult> {
 				}
 				List<String> finalTapTableNames = tapTableNames;
 				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.GET_TABLE_NAMES,
-						() -> getTableNamesFunction.tableNames(connectorNode.getConnectorContext(), BATCH_SIZE, dbTableNames -> {
-							if (null == dbTableNames) {
-								return;
-							}
-							dbTableNames = dbTableNames.stream().filter(tableFilter).collect(Collectors.toList());
-							for (String dbTableName : dbTableNames) {
-								if (finalTapTableNames.contains(dbTableName) || !dynamicTableFilter.test(dbTableName)) {
-									finalTapTableNames.remove(dbTableName);
-									continue;
-								}
-								tableResult.add(dbTableName);
-								removeTables.remove(dbTableName);
-							}
-						}), TAG);
+						() -> getTableNamesFunction.tableNames(connectorNode.getConnectorContext(), BATCH_SIZE, dbTableNames -> Optional.ofNullable(dbTableNames)
+								.ifPresent(names -> names.stream()
+										.filter(tableFilter)
+										.forEach(dbTableName -> {
+													if (finalTapTableNames.contains(dbTableName) || !dynamicTableFilter.test(dbTableName)) {
+														finalTapTableNames.remove(dbTableName);
+														return;
+													}
+													tableResult.add(dbTableName);
+													removeTables.remove(dbTableName);
+												}
+										)
+								)
+						), TAG);
 				if (CollectionUtils.isNotEmpty(tapTableNames)) {
 					tableResult.removeAll(tapTableNames);
 					removeTables.addAll(tapTableNames);

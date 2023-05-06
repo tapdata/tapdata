@@ -52,7 +52,7 @@ public class TableCountTest extends PDKTestBase {
     int tableCount(TestNode prepare) throws Throwable {
         TapConnectorContext connectorContext = prepare.connectorNode().getConnectorContext();
         Method testCase = prepare.recordEventExecute().testCase();
-        Integer tableCount = 0;
+        int tableCount = 0;
         try {
             tableCount = prepare.connectorNode().getConnector().tableCount(connectorContext);
         } catch (Exception e) {

@@ -1,7 +1,9 @@
 package io.tapdata.connector.redis.writer;
 
+import io.tapdata.connector.redis.CommonJedis;
 import io.tapdata.connector.redis.RedisConfig;
 import io.tapdata.connector.redis.RedisContext;
+import io.tapdata.connector.redis.RedisPipeline;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -12,8 +14,6 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.entity.WriteListResult;
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.Pipeline;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 
 public abstract class AbstractRedisRecordWriter {
 
-    protected final Jedis jedis;
+    protected final CommonJedis jedis;
     protected final RedisConfig redisConfig;
     protected final TapTable tapTable;
     protected final List<String> fieldList;
@@ -45,7 +45,7 @@ public abstract class AbstractRedisRecordWriter {
         long insert = 0L;
         long update = 0L;
         long delete = 0L;
-        Pipeline pipelined = jedis.pipelined();
+        RedisPipeline pipelined = jedis.pipelined(redisConfig);
         try {
             for (TapRecordEvent recordEvent : tapRecordEvents) {
                 if (recordEvent instanceof TapInsertRecordEvent) {
@@ -84,11 +84,11 @@ public abstract class AbstractRedisRecordWriter {
         }
     }
 
-    protected abstract void handleInsertEvent(TapInsertRecordEvent event, Pipeline pipelined);
+    protected abstract void handleInsertEvent(TapInsertRecordEvent event, RedisPipeline pipelined);
 
-    protected abstract void handleUpdateEvent(TapUpdateRecordEvent event, Pipeline pipelined) throws Exception;
+    protected abstract void handleUpdateEvent(TapUpdateRecordEvent event, RedisPipeline pipelined) throws Exception;
 
-    protected abstract void handleDeleteEvent(TapDeleteRecordEvent event, Pipeline pipelined);
+    protected abstract void handleDeleteEvent(TapDeleteRecordEvent event, RedisPipeline pipelined);
 
     protected String getRedisKey(Map<String, Object> value) {
         if (EmptyKit.isNotBlank(redisConfig.getKeyExpression())) {

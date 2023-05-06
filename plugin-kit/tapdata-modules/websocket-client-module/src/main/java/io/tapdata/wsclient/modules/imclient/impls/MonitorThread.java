@@ -80,12 +80,12 @@ public class MonitorThread<T extends PushChannel> extends Thread implements Memo
             } else {
                 pushChannel.selfCheck();
             }
-            TapLogger.debug(TAG, "MonitorThread already started, notify or self check");
+            TapLogger.info(TAG, "MonitorThread already started, notify or self check");
         } else if(status == STATUS_IDLE) {
             status = STATUS_STARTED;
             if(!this.isAlive()) {
                 super.start();
-                TapLogger.debug(TAG, "MonitorThread started");
+                TapLogger.info(TAG, "MonitorThread started");
             }
         }
     }
@@ -119,7 +119,7 @@ public class MonitorThread<T extends PushChannel> extends Thread implements Memo
     }
 
     public void restartChannel(boolean hurry) {
-        TapLogger.debug(TAG, "MonitorThread restart channel, " + (hurry ? "" : "no ") + "hurry");
+        TapLogger.info(TAG, "MonitorThread restart channel, " + (hurry ? "" : "no ") + "hurry");
         if(pushChannel != null) {
             pushChannel.stop();
             synchronized (channelLock) {
@@ -140,7 +140,7 @@ public class MonitorThread<T extends PushChannel> extends Thread implements Memo
                 }
                 String old = lastBaseUrl;
                 lastBaseUrl = baseUrls.get(baseUrlIndex);
-                TapLogger.debug(TAG, "Will reconnect other url {} as already retry {} times on url {}", lastBaseUrl, MAX, old);
+                TapLogger.info(TAG, "Will reconnect other url {} as already retry {} times on url {}", lastBaseUrl, MAX, old);
             }
         }
         synchronized (lock) {
@@ -202,9 +202,9 @@ public class MonitorThread<T extends PushChannel> extends Thread implements Memo
     }
 
     public void run() {
-        TapLogger.debug(TAG, "Monitor Thread is running");
+        TapLogger.info(TAG, "Monitor Thread is running");
         eventManager.registerEventListener(this, imClient.getPrefix() + ".status", (EventManager.EventListener<ChannelStatus>) (eventType, channelStatus) -> {
-            TapLogger.debug(TAG, "status changed, " + channelStatus);
+            TapLogger.info(TAG, "status changed, " + channelStatus);
             switch (channelStatus.getStatus()) {
                 case ChannelStatus.STATUS_CONNECTED:
                     lastConnected = new LastData().data("Connected").time(System.currentTimeMillis());
@@ -375,7 +375,7 @@ public class MonitorThread<T extends PushChannel> extends Thread implements Memo
                 TapLogger.debug(TAG, "send IMData " + message);
                 pushChannel.send(message);
             } else {
-                TapLogger.debug(TAG, "send IMData failed, channel is not connected, " + message);
+                TapLogger.warn(TAG, "send IMData failed, channel is not connected, " + message);
                 return false;
             }
             return true;
