@@ -482,4 +482,18 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         dataSourceTypeDtoPage.setItems(typeList);
         return dataSourceTypeDtoPage.getItems();
     }
+
+    public DataSourceDefinitionDto getMongoDbByDataSourceType(String dataSourceType, String... fields) {
+        Criteria scopeCriteria = Criteria.where("scope").is("public").and("is_deleted").is(false)
+                .and("type").is(dataSourceType).and("pdkHash").exists(true).and("latest").is(true);
+        Query query = Query.query(scopeCriteria);
+        if (fields != null && fields.length != 0) {
+            query.fields().include(fields);
+        }
+        query.with(Sort.by("createTime").descending());
+        return findAll(query).get(0);
+    }
+
+
+
 }
