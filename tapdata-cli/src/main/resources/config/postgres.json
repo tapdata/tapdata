@@ -6,7 +6,7 @@
     "schema": "public",
     "user": "postgres",
     "password": "gj0628",
-    "logPluginName": "pgoutput"
+    "logPluginName": "wal2json"
   },
   "node": {
   }

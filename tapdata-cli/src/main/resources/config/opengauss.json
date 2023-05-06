@@ -1,0 +1,13 @@
+{
+  "connection": {
+    "host": "192.168.1.189",
+    "port": 5433,
+    "database": "postgres",
+    "schema": "public",
+    "user": "gaussdb",
+    "password": "Gauss@123",
+    "logPluginName": "pgoutput"
+  },
+  "node": {
+  }
+}
