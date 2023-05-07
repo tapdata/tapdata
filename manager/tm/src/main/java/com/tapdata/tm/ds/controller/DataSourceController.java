@@ -587,8 +587,8 @@ public class DataSourceController extends BaseController {
     @PostMapping("/addConnection")
     public ResponseMessage<String> addConnection(@RequestBody DataSourceConnectionDto connection) {
         connection.setId(null);
-        dataSourceService.addConnection(connection, getLoginUser());
-        return success("success");
+        DataSourceConnectionDto dataSourceConnectionDto =  dataSourceService.addConnection(connection, getLoginUser());
+        return success(dataSourceConnectionDto.getId().toHexString());
     }
 
 }
