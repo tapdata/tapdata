@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
 
 public abstract class CommonDbConnector extends ConnectorBase {
 
-    private final static String FIND_KEY_FROM_OFFSET = "select * from (select %s, row_number() over (order by %s) as rowno from %s ) a where rowno=%s";
+    private final static String FIND_KEY_FROM_OFFSET = "select * from (select %s, row_number() over (order by %s) as tap__rowno from %s ) a where tap__rowno=%s";
     private final static String wherePattern = "where %s ";
     private final static Long offsetSize = 1000000L;
 
