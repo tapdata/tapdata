@@ -485,19 +485,6 @@
       ],
       "pattern": "yyyy-MM-dd"
     },
-    "year[($fraction)]": {
-      "to": "TapYear",
-      "range": [
-        "1901",
-        "2155"
-      ],
-      "fraction": [
-        0,
-        4
-      ],
-      "defaultFraction": 4,
-      "pattern": "yyyy"
-    },
     "time[($fraction)]": {
       "to": "TapTime",
       "fraction": [

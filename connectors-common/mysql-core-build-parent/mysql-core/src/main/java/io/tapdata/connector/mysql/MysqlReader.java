@@ -286,7 +286,7 @@ public class MysqlReader implements Closeable {
             TapLogger.info(TAG, configStr.toString());
             embeddedEngine = (EmbeddedEngine) new EmbeddedEngine.BuilderImpl()
                     .using(configuration)
-                    .notifying(this::sourceRecordConsumer)
+                    .notifying(this::consumeRecords)
                     .using(new DebeziumEngine.ConnectorCallback() {
                         @Override
                         public void taskStarted() {
@@ -405,6 +405,38 @@ public class MysqlReader implements Closeable {
             }
         });
         Optional.ofNullable(mysqlSchemaHistoryMonitor).ifPresent(ExecutorService::shutdownNow);
+    }
+
+    private void consumeRecords(List<SourceRecord> sourceRecords, DebeziumEngine.RecordCommitter<SourceRecord> committer) {
+        if (null != throwableAtomicReference.get()) {
+            throw new RuntimeException(throwableAtomicReference.get());
+        }
+        List<MysqlStreamEvent> mysqlStreamEvents = new ArrayList<>();
+        for (SourceRecord record : sourceRecords) {
+            if (null == record || null == record.value()) continue;
+            Schema valueSchema = record.valueSchema();
+            if (null != valueSchema.field("op")) {
+                MysqlStreamEvent mysqlStreamEvent = wrapDML(record);
+                Optional.ofNullable(mysqlStreamEvent).ifPresent(mysqlStreamEvents::add);
+            } else if (null != valueSchema.field("ddl")) {
+                mysqlStreamEvents.addAll(Objects.requireNonNull(wrapDDL(record)));
+            } else if ("io.debezium.connector.common.Heartbeat".equals(valueSchema.name())) {
+                Optional.ofNullable((Struct) record.value())
+                        .map(value -> value.getInt64("ts_ms"))
+                        .map(TapSimplify::heartbeatEvent)
+                        .map(heartbeatEvent -> new MysqlStreamEvent(heartbeatEvent, getMysqlStreamOffset(record)))
+                        .ifPresent(mysqlStreamEvents::add);
+            }
+        }
+        if (CollectionUtils.isNotEmpty(mysqlStreamEvents)) {
+            List<TapEvent> tapEvents = new ArrayList<>();
+            MysqlStreamOffset mysqlStreamOffset = null;
+            for (MysqlStreamEvent mysqlStreamEvent : mysqlStreamEvents) {
+                tapEvents.add(mysqlStreamEvent.getTapEvent());
+                mysqlStreamOffset = mysqlStreamEvent.getMysqlStreamOffset();
+            }
+            streamReadConsumer.accept(tapEvents, mysqlStreamOffset);
+        }
     }
 
     private void sourceRecordConsumer(SourceRecord record) {

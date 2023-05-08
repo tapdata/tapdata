@@ -40,7 +40,9 @@ import io.tapdata.pdk.apis.partition.TapPartitionFilter;
 import io.tapdata.pdk.apis.partition.splitter.StringCaseInsensitiveSplitter;
 import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 
+import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -282,6 +284,28 @@ public class MysqlConnector extends CommonDbConnector {
         consumer.accept(writeListResult);
     }
 
+    private Map<String, Object> filterTimeForMysql(ResultSet resultSet, ResultSetMetaData metaData, Set<String> dateTypeSet) throws SQLException {
+        Map<String, Object> data = new HashMap<>();
+        for (int i = 0; i < metaData.getColumnCount(); i++) {
+            String columnName = metaData.getColumnName(i + 1);
+            try {
+                Object value;
+                if ("TIME".equalsIgnoreCase(metaData.getColumnTypeName(i + 1))) {
+                    value = resultSet.getString(i + 1);
+                } else {
+                    value = resultSet.getObject(i + 1);
+                    if (null == value && dateTypeSet.contains(columnName)) {
+                        value = resultSet.getString(i + 1);
+                    }
+                }
+                data.put(columnName, value);
+            } catch (Exception e) {
+                throw new RuntimeException("Read column value failed, column name: " + columnName + ", data: " + data + "; Error: " + e.getMessage(), e);
+            }
+        }
+        return data;
+    }
+
     private void batchReadV2(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
         String columns = tapTable.getNameFieldMap().keySet().stream().map(c -> "`" + c + "`").collect(Collectors.joining(","));
         String sql = String.format("SELECT %s FROM `" + tapConnectorContext.getConnectionConfig().getString("database") + "`.`" + tapTable.getId() + "`", columns);
@@ -292,25 +316,7 @@ public class MysqlConnector extends CommonDbConnector {
             Set<String> dateTypeSet = dateFields(tapTable);
             ResultSetMetaData metaData = resultSet.getMetaData();
             while (isAlive() && resultSet.next()) {
-                Map<String, Object> data = new HashMap<>();
-                for (int i = 0; i < metaData.getColumnCount(); i++) {
-                    String columnName = metaData.getColumnName(i + 1);
-                    try {
-                        Object value;
-                        if ("TIME".equalsIgnoreCase(metaData.getColumnTypeName(i + 1))) {
-                            value = resultSet.getString(i + 1);
-                        } else {
-                            value = resultSet.getObject(i + 1);
-                            if (null == value && dateTypeSet.contains(columnName)) {
-                                value = resultSet.getString(i + 1);
-                            }
-                        }
-                        data.put(columnName, value);
-                    } catch (Exception e) {
-                        throw new RuntimeException("Read column value failed, column name: " + columnName + ", data: " + data + "; Error: " + e.getMessage(), e);
-                    }
-                }
-                tapEvents.add(insertRecordEvent(data, tapTable.getId()));
+                tapEvents.add(insertRecordEvent(filterTimeForMysql(resultSet, metaData, dateTypeSet), tapTable.getId()));
                 if (tapEvents.size() == eventBatchSize) {
                     eventsOffsetConsumer.accept(tapEvents, new HashMap<>());
                     tapEvents = list();
@@ -322,6 +328,51 @@ public class MysqlConnector extends CommonDbConnector {
             }
         });
 
+    }
+
+    @Override
+    protected void queryByAdvanceFilterWithOffset(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
+        String sql = commonSqlMaker.buildSelectClause(table, filter) + getSchemaAndTable(table.getId()) + commonSqlMaker.buildSqlByAdvanceFilter(filter);
+        jdbcContext.query(sql, resultSet -> {
+            FilterResults filterResults = new FilterResults();
+            //get all column names
+            Set<String> dateTypeSet = dateFields(table);
+            ResultSetMetaData metaData = resultSet.getMetaData();
+            while (isAlive() && resultSet.next()) {
+                filterResults.add(filterTimeForMysql(resultSet, metaData, dateTypeSet));
+                if (filterResults.getResults().size() == BATCH_ADVANCE_READ_LIMIT) {
+                    consumer.accept(filterResults);
+                    filterResults = new FilterResults();
+                }
+            }
+            //last events those less than eventBatchSize
+            if (EmptyKit.isNotEmpty(filterResults.getResults())) {
+                consumer.accept(filterResults);
+            }
+        });
+    }
+
+    @Override
+    protected void queryByFilter(TapConnectorContext connectorContext, List<TapFilter> filters, TapTable tapTable, Consumer<List<FilterResult>> listConsumer) {
+        List<FilterResult> filterResults = new LinkedList<>();
+        for (TapFilter filter : filters) {
+            String sql = "select * from " + getSchemaAndTable(tapTable.getId()) + " where " + commonSqlMaker.buildKeyAndValue(filter.getMatch(), "and", "=");
+            FilterResult filterResult = new FilterResult();
+            try {
+                jdbcContext.query(sql, resultSet -> {
+                    Set<String> dateTypeSet = dateFields(tapTable);
+                    ResultSetMetaData metaData = resultSet.getMetaData();
+                    if (resultSet.next()) {
+                        filterResult.setResult(filterTimeForMysql(resultSet, metaData, dateTypeSet));
+                    }
+                });
+            } catch (Throwable e) {
+                filterResult.setError(e);
+            } finally {
+                filterResults.add(filterResult);
+            }
+        }
+        listConsumer.accept(filterResults);
     }
 
     private Set<String> dateFields(TapTable tapTable) {

@@ -57,7 +57,7 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
         );
     }
 
-    private final static int recordCount = 1;
+    private final static int recordCount = 3;
     private final static int updateCount = 1;
     private final static int deleteCount = 1;
     private final static int delayBound = 5;//s
