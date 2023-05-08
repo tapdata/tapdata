@@ -77,7 +77,7 @@ public class FieldAddDelProcessorNode extends FieldProcessorNode {
                 if ("CREATE".equalsIgnoreCase(operand)) {
                     operation.setType("String");
                     operation.setJava_type("String");
-                    Field field = createField(this.getId(), schema.getOriginalName(), operation);
+                    Field field = createField(this.getId(), outputSchema.getOriginalName(), operation);
                     //这种创建的字段不能使用手动，不然修改名称后，后面的节点不会覆盖，应该合并原则都是手动的时候,取原有的
                     field.setSource("job_analyze");
                     outputSchema.getFields().add(field);
