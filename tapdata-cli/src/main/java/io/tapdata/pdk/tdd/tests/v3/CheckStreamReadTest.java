@@ -285,8 +285,8 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
             TapAssert.succeed(testCase, langUtil.formatLang("checkStreamRead.insert.timely", recordCount, delay <= 0 ? (readTime - writeTime) * 0.000001F : delay));
         }
         Record[] recordCopy = execute.records();
-        if (event.size() != recordCopy.length) {
-            TapAssert.errorNotThrow(testCase, langUtil.formatLang("checkStreamRead.insert.delay", recordCount, delay));
+        if (event.size() != recordCount) {
+            TapAssert.errorNotThrow(testCase, langUtil.formatLang("checkStreamRead.insert.countError", recordCount, recordCount, event.size()));
             return Boolean.TRUE;
         }
         for (int index = 0; index < event.size(); index++) {
