@@ -41,7 +41,7 @@ import static io.tapdata.entity.simplify.TapSimplify.toJson;
  * 测试失败按错误上报
  */
 @DisplayName("checkStreamReadTest")
-@TapGo(tag = "V3", sort = 10070, debug = true)
+@TapGo(tag = "V3", sort = 10070, debug = false)
 public class CheckStreamReadTest extends PDKTestBaseV2 {
     {
         if (PDKTestBaseV2.testRunning) {
@@ -57,7 +57,7 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
         );
     }
 
-    private final static int recordCount = 1;
+    private final static int recordCount = 3;
     private final static int updateCount = 1;
     private final static int deleteCount = 1;
     private final static int delayBound = 5;//s
