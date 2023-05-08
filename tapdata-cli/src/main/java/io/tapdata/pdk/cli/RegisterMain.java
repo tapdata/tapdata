@@ -57,7 +57,6 @@ public class RegisterMain {
         MYSQL_PXC(BASE_PATH + "connectors/dist/mysql-pxc-connector-v1.0-SNAPSHOT.jar", "all", "mysql-pxc"),
         POLAR_DB_MYSQL(BASE_PATH + "connectors/dist/polar-db-mysql-connector-v1.0-SNAPSHOT.jar", "all", "polar-db-mysql"),
         POLAR_DB_POSTGRES(BASE_PATH + "connectors/dist/polar-db-postgres-connector-v1.0-SNAPSHOT.jar", "all", "polar-db-postgres"),
-        TENCENT_DB_MYSQL(BASE_PATH + "connectors/dist/tencent-db-mysql-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-mysql"),
         TENCENT_DB_MARIADB(BASE_PATH + "connectors/dist/tencent-db-mariadb-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-mariadb"),
         TENCENT_DB_MONGODB(BASE_PATH + "connectors/dist/tencent-db-mongodb-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-mongodb"),
         TENCENT_DB_POSTGRES(BASE_PATH + "connectors/dist/tencent-db-postgres-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-postgres"),
