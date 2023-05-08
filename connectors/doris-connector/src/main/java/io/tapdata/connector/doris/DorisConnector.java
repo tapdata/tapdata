@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * @author jarad
@@ -206,6 +207,13 @@ public class DorisConnector extends CommonDbConnector {
         } catch (Exception e) {
             throw new RuntimeException("Create Table " + tapTable.getId() + " Failed | Error: " + e.getMessage() + " | Sql: " + sql, e);
         }
+    }
+
+    //the second method to load schema instead of mysql
+    @Override
+    protected void singleThreadDiscoverSchema(List<DataMap> subList, Consumer<List<TapTable>> consumer) throws SQLException {
+        List<TapTable> tapTableList = dorisJdbcContext.queryTablesDesc(subList.stream().map(v -> v.getString("tableName")).collect(Collectors.toList()));
+        syncSchemaSubmit(tapTableList, consumer);
     }
 
     protected TapField makeTapField(DataMap dataMap) {
