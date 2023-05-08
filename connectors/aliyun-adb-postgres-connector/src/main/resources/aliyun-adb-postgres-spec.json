@@ -88,7 +88,7 @@
           "required": true,
           "type": "string",
           "title": "${logPluginName}",
-          "default": "PGOUTPUT",
+          "default": "pgoutput",
           "x-decorator": "FormItem",
           "x-component": "Select",
           "apiServerKey": "logPlugin",
