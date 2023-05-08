@@ -217,7 +217,7 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
                             originField.setPrimaryKey(field.getPrimaryKey());
                             BeanUtil.copyProperties(originField, field);
 
-                            field.setId(new ObjectId().toHexString());
+//                            field.setId(new ObjectId().toHexString());
                             field.setDataTypeTemp(originField.getDataType());
                             field.setOriginalDataType(originField.getDataType());
                             field.setOriginalFieldName(originField.getOriginalFieldName());
