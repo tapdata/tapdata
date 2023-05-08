@@ -1,7 +1,7 @@
 package io.tapdata.connector.mysql.writer;
 
+import io.tapdata.connector.mysql.MysqlJdbcContextV2;
 import io.tapdata.connector.mysql.util.ExceptionWrapper;
-import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -29,11 +29,11 @@ import java.util.function.Consumer;
 public abstract class MysqlWriter {
 
     private static final String TAG = MysqlWriter.class.getSimpleName();
-    protected MysqlJdbcContext mysqlJdbcContext;
+    protected MysqlJdbcContextV2 mysqlJdbcContext;
     protected ExceptionWrapper exceptionWrapper;
     private final AtomicBoolean running;
 
-    public MysqlWriter(MysqlJdbcContext mysqlJdbcContext) throws Throwable {
+    public MysqlWriter(MysqlJdbcContextV2 mysqlJdbcContext) throws Throwable {
         this.mysqlJdbcContext = mysqlJdbcContext;
         this.exceptionWrapper = new ExceptionWrapper();
         this.running = new AtomicBoolean(true);
@@ -68,7 +68,7 @@ public abstract class MysqlWriter {
     }
 
     public void selfCheck() {
-        
+
     }
 
     protected String getKey(TapTable tapTable, TapRecordEvent tapRecordEvent) {

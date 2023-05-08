@@ -9,7 +9,7 @@ import io.tapdata.connector.mysql.MysqlMaker;
 import io.tapdata.connector.mysql.MysqlReader;
 import io.tapdata.connector.mysql.MysqlSchemaLoader;
 import io.tapdata.connector.mysql.SqlMaker;
-import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
+import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlGenerator;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
 import io.tapdata.connector.mysql.writer.MysqlWriter;
@@ -33,7 +33,6 @@ import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
-import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -72,7 +71,7 @@ public class MariadbConnector extends ConnectorBase {
                 this.connectionTimezone = mysqlJdbcContext.timezone().substring(3);
             }
         }
-        ddlSqlMaker = new MysqlDDLSqlMaker(version);
+        ddlSqlMaker = new MysqlDDLSqlGenerator(version);
         fieldDDLHandlers = new BiClassHandlers<>();
         fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
         fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);

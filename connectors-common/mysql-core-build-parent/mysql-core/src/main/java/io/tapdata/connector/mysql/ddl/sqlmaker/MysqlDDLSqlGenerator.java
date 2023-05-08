@@ -1,6 +1,7 @@
 package io.tapdata.connector.mysql.ddl.sqlmaker;
 
-import io.tapdata.common.ddl.DDLSqlMaker;
+import io.tapdata.common.CommonDbConfig;
+import io.tapdata.common.ddl.DDLSqlGenerator;
 import io.tapdata.connector.mysql.util.MysqlUtil;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
@@ -10,7 +11,7 @@ import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
@@ -20,17 +21,20 @@ import java.util.*;
  * @Description
  * @create 2022-07-11 17:44
  **/
-public class MysqlDDLSqlMaker implements DDLSqlMaker {
-    protected final static String ALTER_TABLE_PREFIX = "alter table `%s`.`%s`";
-    public static final String TAG = MysqlDDLSqlMaker.class.getSimpleName();
-    protected final String version;
+public class MysqlDDLSqlGenerator implements DDLSqlGenerator {
 
-    public MysqlDDLSqlMaker(String version) {
+    protected final static String ALTER_TABLE_PREFIX = "alter table `%s`.`%s`";
+    private static final String TAG = MysqlDDLSqlGenerator.class.getSimpleName();
+    protected final String version;
+    protected KVReadOnlyMap<TapTable> tableMap;
+
+    public MysqlDDLSqlGenerator(String version, KVReadOnlyMap<TapTable> tableMap) {
         this.version = version;
+        this.tableMap = tableMap;
     }
 
     @Override
-    public List<String> addColumn(TapConnectorContext tapConnectorContext, TapNewFieldEvent tapNewFieldEvent) {
+    public List<String> addColumn(CommonDbConfig config, TapNewFieldEvent tapNewFieldEvent) {
         List<String> sqls = new ArrayList<>();
         if (null == tapNewFieldEvent) {
             return null;
@@ -39,13 +43,12 @@ public class MysqlDDLSqlMaker implements DDLSqlMaker {
         if (null == newFields) {
             return null;
         }
-        String database = tapConnectorContext.getConnectionConfig().getString("database");
         String tableId = tapNewFieldEvent.getTableId();
         if (StringUtils.isBlank(tableId)) {
             throw new RuntimeException("Append add column ddl sql failed, table name is blank");
         }
         for (TapField newField : newFields) {
-            StringBuilder sql = new StringBuilder(String.format(ALTER_TABLE_PREFIX, database, tableId)).append(" add");
+            StringBuilder sql = new StringBuilder(String.format(ALTER_TABLE_PREFIX, config.getDatabase(), tableId)).append(" add");
             String fieldName = newField.getName();
             if (StringUtils.isNotBlank(fieldName)) {
                 sql.append(" `").append(fieldName).append("`");
@@ -89,16 +92,15 @@ public class MysqlDDLSqlMaker implements DDLSqlMaker {
     }
 
     @Override
-    public List<String> alterColumnAttr(TapConnectorContext tapConnectorContext, TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent) {
+    public List<String> alterColumnAttr(CommonDbConfig config, TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent) {
         if (null == tapAlterFieldAttributesEvent) {
             return null;
         }
-        String database = tapConnectorContext.getConnectionConfig().getString("database");
         String tableId = tapAlterFieldAttributesEvent.getTableId();
         if (StringUtils.isBlank(tableId)) {
             throw new RuntimeException("Append alter column attr ddl sql failed, table name is blank");
         }
-        StringBuilder sql = new StringBuilder(String.format(ALTER_TABLE_PREFIX, database, tableId)).append(" modify");
+        StringBuilder sql = new StringBuilder(String.format(ALTER_TABLE_PREFIX, config.getDatabase(), tableId)).append(" modify");
         String fieldName = tapAlterFieldAttributesEvent.getFieldName();
         if (StringUtils.isNotBlank(fieldName)) {
             sql.append(" `").append(fieldName).append("`");
@@ -137,11 +139,10 @@ public class MysqlDDLSqlMaker implements DDLSqlMaker {
     }
 
     @Override
-    public List<String> alterColumnName(TapConnectorContext tapConnectorContext, TapAlterFieldNameEvent tapAlterFieldNameEvent) {
+    public List<String> alterColumnName(CommonDbConfig config, TapAlterFieldNameEvent tapAlterFieldNameEvent) {
         if (null == tapAlterFieldNameEvent) {
             return null;
         }
-        String database = tapConnectorContext.getConnectionConfig().getString("database");
         String tableId = tapAlterFieldNameEvent.getTableId();
         if (StringUtils.isBlank(tableId)) {
             throw new RuntimeException("Append alter column name ddl sql failed, table name is blank");
@@ -159,11 +160,11 @@ public class MysqlDDLSqlMaker implements DDLSqlMaker {
             throw new RuntimeException("Append alter column name ddl sql failed, new column name is blank");
         }
         Integer subVersion = MysqlUtil.getSubVersion(version, 1);
-        String sql = String.format(ALTER_TABLE_PREFIX, database, tableId);
+        String sql = String.format(ALTER_TABLE_PREFIX, config.getDatabase(), tableId);
         if (subVersion != null && subVersion >= 8) {
             return Collections.singletonList(sql + " rename column `" + before + "` to `" + after + "`");
         } else {
-            TapTable tapTable = tapConnectorContext.getTableMap().get(tableId);
+            TapTable tapTable = tableMap.get(tableId);
             if (tapTable == null) {
                 throw new RuntimeException("Append alter column name ddl sql failed, tapTable is blank");
             }
@@ -209,11 +210,10 @@ public class MysqlDDLSqlMaker implements DDLSqlMaker {
     }
 
     @Override
-    public List<String> dropColumn(TapConnectorContext tapConnectorContext, TapDropFieldEvent tapDropFieldEvent) {
+    public List<String> dropColumn(CommonDbConfig config, TapDropFieldEvent tapDropFieldEvent) {
         if (null == tapDropFieldEvent) {
             return null;
         }
-        String database = tapConnectorContext.getConnectionConfig().getString("database");
         String tableId = tapDropFieldEvent.getTableId();
         if (StringUtils.isBlank(tableId)) {
             throw new RuntimeException("Append drop column ddl sql failed, table name is blank");
@@ -222,6 +222,6 @@ public class MysqlDDLSqlMaker implements DDLSqlMaker {
         if (StringUtils.isBlank(fieldName)) {
             throw new RuntimeException("Append drop column ddl sql failed, field name is blank");
         }
-        return Collections.singletonList(String.format(ALTER_TABLE_PREFIX, database, tableId) + " drop `" + fieldName + "`");
+        return Collections.singletonList(String.format(ALTER_TABLE_PREFIX, config.getDatabase(), tableId) + " drop `" + fieldName + "`");
     }
 }

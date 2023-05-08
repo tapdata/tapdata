@@ -94,6 +94,18 @@ public abstract class JdbcContext implements AutoCloseable {
         }
     }
 
+    public void normalQuery(String sql, ResultSetConsumer resultSetConsumer) throws SQLException {
+        try (
+                Connection connection = getConnection();
+                Statement statement = connection.createStatement();
+                ResultSet resultSet = statement.executeQuery(sql)
+        ) {
+            if (EmptyKit.isNotNull(resultSet)) {
+                resultSetConsumer.accept(resultSet);
+            }
+        }
+    }
+
     @Deprecated
     public void query(PreparedStatement preparedStatement, ResultSetConsumer resultSetConsumer) throws Throwable {
         TapLogger.debug(TAG, "Execute query, sql: " + preparedStatement);
