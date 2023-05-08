@@ -29,7 +29,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
@@ -46,6 +45,8 @@ import java.io.IOException;
 import java.text.MessageFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.zip.ZipOutputStream;
@@ -60,12 +61,12 @@ import java.util.zip.ZipOutputStream;
 public class MonitoringLogsService extends BaseService<MonitoringLogsDto, MonitoringLogsEntity, ObjectId, MonitoringLogsRepository> {
     private static final int MAX_DATA_SIZE = 100;
     private static final int MAX_MESSAGE_CHAR_LENGTH = 2000;
-    @Autowired
-    @Qualifier(value = "logMongoTemplate")
-    private MongoTemplate mongoOperations;
 
-    public MonitoringLogsService(@NonNull MonitoringLogsRepository repository) {
+    private final MongoTemplate mongoOperations;
+
+    public MonitoringLogsService(@NonNull MonitoringLogsRepository repository,@Qualifier(value = "logMongoTemplate") CompletableFuture<MongoTemplate> mongoTemplateCompletableFuture) throws ExecutionException, InterruptedException {
         super(repository, MonitoringLogsDto.class, MonitoringLogsEntity.class);
+        this.mongoOperations = mongoTemplateCompletableFuture.get();
     }
 
     protected void beforeSave(MonitoringLogsDto monitoringLogs, UserDetail user) {
