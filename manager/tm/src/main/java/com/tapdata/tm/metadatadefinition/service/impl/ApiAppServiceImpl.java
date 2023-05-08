@@ -150,17 +150,19 @@ public class ApiAppServiceImpl implements ApiAppService {
     }
 
     private void addApiCount(List<MetadataDefinitionDto> metadatas, UserDetail user) {
-        List<ApiAppDetail> appDetails = new ArrayList<>();
-        BeanUtils.copyProperties(metadatas, appDetails);
-        addApiCount(appDetails, user, false);
+        addApiCount(metadatas, user, false);
     }
 
-    private void addApiCount(List<ApiAppDetail> metadatas, UserDetail user, boolean addModel) {
+    private void addApiCount(List metadatas, UserDetail user, boolean addModel) {
         if (CollectionUtils.isEmpty(metadatas)) {
             return;
         }
 
-        List<String> tagIds = metadatas.stream().map(m -> m.getId().toHexString()).collect(Collectors.toList());
+        List<String> tagIds = new ArrayList<>();
+        for (Object metadata : metadatas) {
+            String tagId = ((MetadataDefinitionDto) metadata).getId().toHexString();
+            tagIds.add(tagId);
+        }
         Criteria criteria = Criteria.where("listtags.id").in(tagIds).and("is_deleted").ne(true);
 
         Query query = new Query(criteria);
@@ -182,18 +184,21 @@ public class ApiAppServiceImpl implements ApiAppService {
             }
         }
 
-        for (MetadataDefinitionDto metadata : metadatas) {
-            List<ModulesDto> modulesDtos1 = map.get(metadata.getId().toHexString());
-            if (CollectionUtils.isNotEmpty(modulesDtos1) && addModel) {
-                if (metadata instanceof ApiAppDetail) {
-                    ((ApiAppDetail) metadata).setApis(modulesDtos1);
+        for (Object m : metadatas) {
+            if (m instanceof MetadataDefinitionDto) {
+                MetadataDefinitionDto metadata = (MetadataDefinitionDto)m;
+                List<ModulesDto> modulesDtos1 = map.get(metadata.getId().toHexString());
+                if (CollectionUtils.isNotEmpty(modulesDtos1) && addModel) {
+                    if (metadata instanceof ApiAppDetail) {
+                        ((ApiAppDetail) metadata).setApis(modulesDtos1);
+                    }
                 }
+                boolean empty = CollectionUtils.isEmpty(modulesDtos1);
+                int apiCount = empty ? 0 : modulesDtos1.size();
+                int publishedApiCount = empty ? 0 : (int) modulesDtos1.stream().filter(s -> ModuleStatusEnum.ACTIVE.getValue().equals(s.getStatus())).count();
+                metadata.setApiCount(apiCount);
+                metadata.setPublishedApiCount(publishedApiCount);
             }
-            boolean empty = CollectionUtils.isEmpty(modulesDtos1);
-            int apiCount = empty ? 0 : modulesDtos1.size();
-            int publishedApiCount = empty ? 0 : (int) modulesDtos1.stream().filter(s -> ModuleStatusEnum.ACTIVE.getValue().equals(s.getStatus())).count();
-            metadata.setApiCount(apiCount);
-            metadata.setPublishedApiCount(publishedApiCount);
         }
 
     }
