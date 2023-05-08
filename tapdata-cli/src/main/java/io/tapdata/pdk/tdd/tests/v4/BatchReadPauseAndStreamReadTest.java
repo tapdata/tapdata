@@ -1,15 +1,21 @@
 package io.tapdata.pdk.tdd.tests.v4;
 
+import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.tdd.core.PDKTestBaseV2;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.core.base.TestNode;
@@ -26,6 +32,7 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -175,9 +182,10 @@ public class BatchReadPauseAndStreamReadTest extends PDKTestBaseV2 {
                         Map<String, Object> after = insertRecordEvent.getAfter();
                         Long ID = (Long) after.get(primaryKey);
                         Record record = recordMap.get(ID);
+                        Map<String, Object> recordMapItem = this.code(node.connectorNode(), InstanceFactory.instance(TapUtils.class).cloneMap(record));
                         StringBuilder builder = new StringBuilder();
                         TapAssert.asserts(() -> assertTrue(
-                                mapEquals(transform(node, targetTableModel, record), after, builder, targetTableModel.getNameFieldMap()),
+                                mapEquals(transform(node, targetTableModel, recordMapItem), after, builder, targetTableModel.getNameFieldMap()),
                                 langUtil.formatLang("batchPauseAndStream.exact.equals.failed", no, primaryKey, ID, builder.toString())
                         )).acceptAsWarn(testCase, langUtil.formatLang("batchPauseAndStream.exact.equals.succeed", no, primaryKey, ID, builder.toString()));
                     } else if (tapEvent instanceof TapUpdateRecordEvent){
@@ -185,9 +193,10 @@ public class BatchReadPauseAndStreamReadTest extends PDKTestBaseV2 {
                         Map<String, Object> after = updateRecordEvent.getAfter();
                         Long ID = (Long) after.get(primaryKey);
                         Record record = recordMap.get(ID);
+                        Map<String, Object> recordMapItem = this.code(node.connectorNode(), InstanceFactory.instance(TapUtils.class).cloneMap(record));
                         StringBuilder builder = new StringBuilder();
                         TapAssert.asserts(() -> assertTrue(
-                                mapEquals(transform(node, targetTableModel, record), after, builder, targetTableModel.getNameFieldMap()),
+                                mapEquals(transform(node, targetTableModel, recordMapItem), after, builder, targetTableModel.getNameFieldMap()),
                                 langUtil.formatLang("batchPauseAndStream.exact.equals.failed",no, primaryKey, ID, builder.toString())
                         )).acceptAsWarn(testCase, langUtil.formatLang("batchPauseAndStream.exact.equals.succeed", no, primaryKey, ID, builder.toString()));
                     } else if (tapEvent instanceof TapDeleteRecordEvent){
@@ -195,9 +204,10 @@ public class BatchReadPauseAndStreamReadTest extends PDKTestBaseV2 {
                         Map<String, Object> before = deleteRecordEvent.getBefore();
                         Long ID = (Long) before.get(primaryKey);
                         Record record = recordMap.get(ID);
+                        Map<String, Object> recordMapItem = this.code(node.connectorNode(), InstanceFactory.instance(TapUtils.class).cloneMap(record));
                         StringBuilder builder = new StringBuilder();
                         TapAssert.asserts(() -> assertTrue(
-                                mapEquals(transform(node, targetTableModel, record), before, builder, targetTableModel.getNameFieldMap()),
+                                mapEquals(transform(node, targetTableModel, recordMapItem), before, builder, targetTableModel.getNameFieldMap()),
                                 langUtil.formatLang("batchPauseAndStream.exact.equals.failed", no, primaryKey, ID, builder.toString())
                         )).acceptAsWarn(testCase, langUtil.formatLang("batchPauseAndStream.exact.equals.succeed", no, primaryKey, ID, builder.toString()));
                     }else {
@@ -307,5 +317,14 @@ public class BatchReadPauseAndStreamReadTest extends PDKTestBaseV2 {
             null == delete ? 0 : delete.getModifiedCount(),
             null == delete ? 0 : delete.getRemovedCount()));
         return null != finalDelete && finalDelete.getRemovedCount() == recordCount;
+    }
+
+    public Map<String, Object> code(ConnectorNode connectorNode, Map<String, Object> map){
+        LinkedHashMap<String, TapField> nameFieldMap = getTargetTable(connectorNode).getNameFieldMap();
+        TapCodecsFilterManager codecsFilterManager = new TapCodecsFilterManager(TapCodecsRegistry.create());
+        codecsFilterManager.transformToTapValueMap(map,nameFieldMap);
+        TapCodecsFilterManager targetCodecsFilterManager = connectorNode.getCodecsFilterManager();
+        targetCodecsFilterManager.transformFromTapValueMap(map, nameFieldMap);
+        return map;
     }
 }
