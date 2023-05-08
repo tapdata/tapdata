@@ -15,12 +15,14 @@ import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
 import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.log.dto.LogDto;
 import com.tapdata.tm.log.service.LogService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.tcm.service.TcmService;
 import com.tapdata.tm.uploadlog.service.UploadLogService;
+import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MD5Util;
 import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -29,6 +31,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -43,6 +47,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -75,6 +80,8 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
 
     @Autowired
     MessageQueueService messageQueueService;
+    @Autowired
+    private UserService userService;
 
 
     /**
@@ -234,8 +241,22 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
         }
     }
 
+    private String getUserId(WebSocketSession session){
+        try {
+            List<String> userIds = session.getHandshakeHeaders().get("user_id");
+            if (CollectionUtils.isNotEmpty(userIds)){
+                UserDetail userDetail = userService.loadUserByExternalId(userIds.get(0));
+                return userDetail != null ? userDetail.getUserId() : null;
+            }
+        }catch (Exception e){
+            log.error("WebSocket get userId error,message: {}", e.getMessage());
+        }
+
+        return null;
+    }
+
     private void getLatestDownloadUrl(WebSocketSession session) {
-        WebSocketResult webSocketResult = WebSocketResult.ok(tcmService.getDownloadUrl(), "downloadUrl");
+        WebSocketResult webSocketResult = WebSocketResult.ok(tcmService.getDownloadUrl(getUserId(session)), "downloadUrl");
         try {
             session.sendMessage(new TextMessage(JsonUtil.toJson(webSocketResult)));
         } catch (Exception e) {
