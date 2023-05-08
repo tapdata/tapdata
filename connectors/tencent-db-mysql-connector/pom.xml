@@ -72,7 +72,7 @@
             <groupId>io.tapdata</groupId>
             <artifactId>pdk-error-code</artifactId>
             <version>${pdk-error-code.version}</version>
-            <scope>compile</scope>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
     <build>
