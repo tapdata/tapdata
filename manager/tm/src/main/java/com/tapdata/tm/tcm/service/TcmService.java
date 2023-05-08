@@ -54,9 +54,11 @@ public class TcmService {
         return result;
     }
 
-    public Object getDownloadUrl() {
+    public Object getDownloadUrl(String userId) {
         Object result = null;
-        String responseStr = HttpUtils.sendGetData(TMC_URL + "/api/tcm/productRelease/downloadUrl/latest", null);
+        Map<String, String> headerMap = new HashMap();
+        headerMap.put("user_id", userId);
+        String responseStr = HttpUtils.sendGetData(TMC_URL + "/api/tcm/productRelease/downloadUrl/latest", headerMap);
         if (StringUtils.isNotEmpty(responseStr)) {
             ResponseMessage responseMessage = JsonUtil.parseJson(responseStr, ResponseMessage.class);
             if (ResponseMessage.OK.equals(responseMessage.getCode())) {
