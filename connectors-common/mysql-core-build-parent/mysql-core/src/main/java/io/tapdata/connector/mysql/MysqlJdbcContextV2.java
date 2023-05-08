@@ -222,7 +222,7 @@ public class MysqlJdbcContextV2 extends JdbcContext {
                     "\tTABLE_SCHEMA = '%s' %s\n" +
                     "ORDER BY\n" +
                     "\tINDEX_NAME,\n" +
-                    "\tSEQ_IN_INDEX;";
+                    "\tSEQ_IN_INDEX";
 
     private final static String MYSQL_VERSION = "SELECT @@VERSION";
 
