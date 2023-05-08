@@ -1,6 +1,7 @@
 package io.tapdata.pdk.unit.test;
 
 import io.tapdata.entity.schema.TapTable;
+import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -63,4 +64,24 @@ public class test {
         System.out.println("getClass takes " + (System.currentTimeMillis() - time));
 
     }
+
+    String replaceSpace(String str){
+        char[] chars = str.toCharArray();
+        boolean close = true;
+        StringBuilder builder = new StringBuilder();
+        for (char aChar : chars) {
+            if (aChar == '"') close = !close;
+            if (!(close && aChar == ' ')) builder.append(aChar);
+        }
+        return builder.toString();
+    }
+    @Test
+    public void functionString(){
+        String str = "{\"key\": 666, \" v\": false}";
+        System.out.println(replaceSpace(str));
+
+        str = "[\"afdfds\", \"dfsfs\", \"  dfsfs\"]";
+        System.out.println(replaceSpace(str));
+    }
 }
+
