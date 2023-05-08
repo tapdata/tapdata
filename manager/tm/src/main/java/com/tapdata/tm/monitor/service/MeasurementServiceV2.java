@@ -45,6 +45,8 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -56,8 +58,8 @@ public class MeasurementServiceV2 {
     private final MetadataInstancesService metadataInstancesService;
     private final TaskService taskService;
 
-    public MeasurementServiceV2(@Qualifier(value = "obsMongoTemplate") MongoTemplate mongoOperations, MetadataInstancesService metadataInstancesService, TaskService taskService) {
-        this.mongoOperations = mongoOperations;
+    public MeasurementServiceV2(@Qualifier(value = "obsMongoTemplate") CompletableFuture<MongoTemplate> mongoTemplateCompletableFuture, MetadataInstancesService metadataInstancesService, TaskService taskService) throws ExecutionException, InterruptedException {
+        this.mongoOperations = mongoTemplateCompletableFuture.get();
         this.metadataInstancesService = metadataInstancesService;
         this.taskService = taskService;
     }
