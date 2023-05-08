@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.tapdata</groupId>
+        <artifactId>tdsql-core</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <artifactId>mysql-connector-td-sql</artifactId>
+    <name>Mysql Connector TD SQL</name>
+    <version>1.0-SNAPSHOT</version>
+    <developers>
+        <developer>
+            <name>sam</name>
+            <email>sam@tapdata.io</email>
+        </developer>
+    </developers>
+    <modules>
+
+    </modules>
+
+    <properties>
+        <java.version>8</java.version>
+        <tapdata.pdk.api.version>1.2.2-SNAPSHOT</tapdata.pdk.api.version>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-pdk-api</artifactId>
+            <version>${tapdata.pdk.api.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-api</artifactId>
+            <version>${tapdata.pdk.api.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>read-partition</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.8.1</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>binary-log-client-td-sql</artifactId>
+            <version>1.0-SNAPSHOT</version>
+
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>debezium-connector-mysql-td-sql</artifactId>
+            <version>1.5.4.Final</version>
+
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>debezium-core-td-sql</artifactId>
+            <version>1.5.4.Final</version>
+
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>debezium-embedded-td-sql</artifactId>
+            <version>1.5.4.Final</version>
+
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>mysql-core-td-sql</artifactId>
+            <version>1.0-SNAPSHOT</version>
+
+        </dependency>
+    </dependencies>
+</project>

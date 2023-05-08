@@ -60,8 +60,8 @@ public class TDSqlJdbcOneByOneWriter extends MysqlJdbcOneByOneWriter {
     }
 
     @Override
-    protected int setPreparedStatementValues(TapTable tapTable, TapRecordEvent tapRecordEvent, PreparedStatement preparedStatement) throws Throwable {
-        if (!PARTITION_TABLE.equals(tableType())) return super.setPreparedStatementValues(tapTable, tapRecordEvent, preparedStatement);
+    protected int setPreparedStatementValues(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent, PreparedStatement preparedStatement)throws Throwable {
+        if (!PARTITION_TABLE.equals(tableType())) return super.setPreparedStatementValues(tapConnectorContext,tapTable,tapRecordEvent,preparedStatement);
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         int parameterIndex = 1;
         Map<String, Object> after = getAfter(tapRecordEvent);

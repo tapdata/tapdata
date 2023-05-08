@@ -22,6 +22,7 @@
 		<module>js-connector-core-plus</module>
 		<module>read-partition</module>
         <module>hive-core</module>
+		<module>tdsql-core</module>
         <!--		<module>dependency-core</module>-->
     </modules>
 	<properties>
