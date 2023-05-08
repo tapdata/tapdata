@@ -486,7 +486,7 @@ public class PDKTestBase {
             boolean equalResult = objectIsEqual(leftValue, rightValue, nameFieldMap.get(entry.getKey()));
             Object leftValueObj = this.value(diff.leftValue());
             Object rightValueObj = this.value(diff.rightValue());
-            if (!equalResult && null != leftValueObj &&( !leftValueObj.toString().equals(rightValueObj.toString())
+            if (!equalResult && null != leftValueObj &&( ((!(leftValueObj instanceof String) && !(rightValueObj instanceof String)) && !leftValueObj.toString().equals(rightValueObj.toString()))
                       || (leftValueObj instanceof String && rightValueObj instanceof String && !TDDUtils.replaceSpace((String) leftValueObj).equals(TDDUtils.replaceSpace((String) rightValueObj)))
                     )) {
                 different = true;
