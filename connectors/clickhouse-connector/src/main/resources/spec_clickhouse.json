@@ -65,12 +65,12 @@
           "apiServerKey": "database_password",
           "x-index": 5
         },
-        "addtionalString": {
+        "extParams": {
           "type": "string",
-          "title": "${addtionalString}",
+          "title": "${extParams}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "apiServerKey": "additionalString",
+          "apiServerKey": "extParams",
           "x-index": 6
         },
         "timezone": {
