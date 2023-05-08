@@ -5,10 +5,7 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
-import com.tapdata.tm.task.bean.LogCollectorDetailVo;
-import com.tapdata.tm.task.bean.LogCollectorEditVo;
-import com.tapdata.tm.task.bean.LogCollectorVo;
-import com.tapdata.tm.task.bean.LogSystemConfigDto;
+import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.service.LogCollectorExtendService;
 import com.tapdata.tm.task.service.LogCollectorService;
 import com.tapdata.tm.task.vo.LogCollectorRelateTaskVo;
@@ -136,6 +133,21 @@ public class LogCollectorController extends BaseController {
                                                                           @RequestParam(defaultValue = "1") Integer page,
                                                                           @RequestParam(defaultValue = "20") Integer size) {
         return success(logCollectorExtendService.getRelationTask(taskId, type, page, size));
+    }
+
+
+
+    @GetMapping("connectionInfo")
+    @Operation(summary = "查询合并的连接表详情")
+    public ResponseMessage<ShareCdcConnectionInfo> connectionInfo(@RequestParam("taskId") String taskId, @RequestParam("connectionId") String connectionId) {
+        return success();
+    }
+
+
+    @PostMapping("cancel/merge")
+    @Operation(summary = "取消当前连接的合并")
+    public ResponseMessage<Void> cancelMerge(@RequestParam("taskId") String taskId, @RequestParam("connectionId") String connectionId) {
+        return success();
     }
 
 
