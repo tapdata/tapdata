@@ -42,6 +42,7 @@ public class MysqlConnectionTest extends CommonDbTest {
         jdbcContext = new MysqlJdbcContextV2(mysqlConfig);
         if (!ConnectionTypeEnum.SOURCE.getType().equals(commonDbConfig.get__connectionType())) {
             testFunctionMap.put("testCreateTablePrivilege", this::testCreateTablePrivilege);
+            testFunctionMap.put("testWritePrivilege", this::testWritePrivilege);
         }
         if (!ConnectionTypeEnum.TARGET.getType().equals(commonDbConfig.get__connectionType())) {
             testFunctionMap.put("testBinlogMode", this::testBinlogMode);
@@ -156,7 +157,7 @@ public class MysqlConnectionTest extends CommonDbTest {
                             match = grantSql.contains(privilege);
                             if (match) {
                                 if (cdcPrivilege.onlyNeed) {
-                                    testItem.set(testItem(MysqlTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY));
+                                    testItem.set(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY));
                                     return;
                                 }
                                 break;
@@ -183,12 +184,12 @@ public class MysqlConnectionTest extends CommonDbTest {
 
                     missPri.replace(missPri.length() - 2, missPri.length(), "");
                     cdcCapability = false;
-                    testItem.set(testItem(MysqlTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+                    testItem.set(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
                             "User does not have privileges [" + missPri + "], will not be able to use the incremental sync feature."));
                 }
             }
             if (null == testItem.get()) {
-                testItem.set(testItem(MysqlTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY));
+                testItem.set(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY));
             }
         } catch (SQLException e) {
             int errorCode = e.getErrorCode();
@@ -197,21 +198,20 @@ public class MysqlConnectionTest extends CommonDbTest {
 
             // 如果源库是关闭密码认证时，默认权限校验通过
             if (errorCode == 1290 && "HY000".equals(sqlState) && StringUtils.isNotBlank(message) && message.contains("--skip-grant-tables")) {
-                consumer.accept(testItem(MysqlTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY));
+                testItem.set(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY));
             } else {
                 cdcCapability = false;
-                consumer.accept(testItem(MysqlTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+                testItem.set(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
                         "Check cdc privileges failed; " + e.getErrorCode() + " " + e.getSQLState() + " " + e.getMessage() + "\n" + getStackString(e)));
             }
 
         } catch (Throwable e) {
-            consumer.accept(testItem(MysqlTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+            testItem.set(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
                     "Check cdc privileges failed; " + e.getMessage() + "\n" + getStackString(e)));
             cdcCapability = false;
-            return true;
         }
         consumer.accept(testItem.get());
-        return true;
+        return cdcCapability;
     }
 
     public Boolean testBinlogMode() {
@@ -236,18 +236,13 @@ public class MysqlConnectionTest extends CommonDbTest {
                     testItem.set(testItem(MysqlTestItem.CHECK_BINLOG_MODE.getContent(), TestItem.RESULT_SUCCESSFULLY));
                 }
             });
-        } catch (SQLException e) {
+        } catch (Exception e) {
             cdcCapability = false;
-            consumer.accept(testItem(MysqlTestItem.CHECK_BINLOG_MODE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
-                    "Check binlog mode failed; " + e.getErrorCode() + " " + e.getSQLState() + " " + e.getMessage() + "\n" + getStackString(e)));
-
-        } catch (Throwable e) {
-            cdcCapability = false;
-            consumer.accept(testItem(MysqlTestItem.CHECK_BINLOG_MODE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+            testItem.set(testItem(MysqlTestItem.CHECK_BINLOG_MODE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
                     "Check binlog mode failed; " + e.getMessage() + "\n" + getStackString(e)));
         }
         consumer.accept(testItem.get());
-        return true;
+        return cdcCapability;
     }
 
     public Boolean testBinlogRowImage() {
@@ -267,12 +262,12 @@ public class MysqlConnectionTest extends CommonDbTest {
                 testItem.set(testItem(MysqlTestItem.CHECK_BINLOG_ROW_IMAGE.getContent(), TestItem.RESULT_SUCCESSFULLY));
             }
         } catch (Throwable e) {
-            consumer.accept(testItem(MysqlTestItem.CHECK_BINLOG_ROW_IMAGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
-                    "Check binlog row image failed; " + e.getMessage() + "\n" + getStackString(e)));
             cdcCapability = false;
+            testItem.set(testItem(MysqlTestItem.CHECK_BINLOG_ROW_IMAGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+                    "Check binlog row image failed; " + e.getMessage() + "\n" + getStackString(e)));
         }
         consumer.accept(testItem.get());
-        return true;
+        return cdcCapability;
     }
 
     public Boolean testCreateTablePrivilege() {
