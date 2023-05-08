@@ -27,7 +27,7 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 /**
  * 都需使用随机ID建表， 如果有DropTableFunction实现， 测试用例应该自动删除创建的临时表（无论成功或是失败）
  * */
-@TapGo(tag = "V2", sort = 130)
+@TapGo(tag = "V2", sort = 130,debug = false)
 public class BatchCountTest extends PDKTestBase {
     {
         if (PDKTestBase.testRunning) {

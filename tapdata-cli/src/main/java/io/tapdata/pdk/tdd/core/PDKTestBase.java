@@ -473,6 +473,7 @@ public class PDKTestBase {
         return this.testOptions;
     }
 
+
     protected boolean mapEquals(Map<String, Object> firstRecord, Map<String, Object> result, StringBuilder builder, LinkedHashMap<String, TapField> nameFieldMap) {
         MapDifference<String, Object> difference = Maps.difference(firstRecord, result);
         Map<String, MapDifference.ValueDifference<Object>> differenceMap = difference.entriesDiffering();
@@ -485,7 +486,9 @@ public class PDKTestBase {
             boolean equalResult = objectIsEqual(leftValue, rightValue, nameFieldMap.get(entry.getKey()));
             Object leftValueObj = this.value(diff.leftValue());
             Object rightValueObj = this.value(diff.rightValue());
-            if (!equalResult && null != leftValueObj && !leftValueObj.toString().equals(rightValueObj.toString())) {
+            if (!equalResult && null != leftValueObj &&( !leftValueObj.toString().equals(rightValueObj.toString())
+                      || (leftValueObj instanceof String && rightValueObj instanceof String && !TDDUtils.replaceSpace((String) leftValueObj).equals(TDDUtils.replaceSpace((String) rightValueObj)))
+                    )) {
                 different = true;
                 builder.append("\t\t\t\t").append("Key ").append(entry.getKey()).append("\n");
                 Object valueObj = diff.leftValue();
@@ -544,6 +547,7 @@ public class PDKTestBase {
         }
         return left.equals(right);
     }
+
     public boolean objectIsEqual(Object leftValue, Object rightValue, TapField tapField) {
         boolean equalResult = false;
         //if ((leftValue instanceof List) && (rightValue instanceof List)) {
@@ -678,33 +682,6 @@ public class PDKTestBase {
         }
     }
 
-    public DataMap buildInsertRecord() {
-        DataMap insertRecord = new DataMap();
-        insertRecord.put("id", "id_2");
-        insertRecord.put("tap_string", "1234");
-        insertRecord.put("tap_string10", "0987654321");
-        insertRecord.put("tap_int", 123123);
-        insertRecord.put("tap_boolean", true);
-        insertRecord.put("tap_number", 123.0);
-        insertRecord.put("tap_number52", 343.22);
-        insertRecord.put("tap_binary", new byte[]{123, 21, 3, 2});
-        return insertRecord;
-    }
-
-    public DataMap buildFilterMap() {
-        DataMap filterMap = new DataMap();
-        filterMap.put("id", "id_2");
-        filterMap.put("tap_string", "1234");
-        return filterMap;
-    }
-
-    public DataMap buildUpdateMap() {
-        DataMap updateMap = new DataMap();
-        updateMap.put("id", "id_2");
-        updateMap.put("tap_string", "1234");
-        updateMap.put("tap_int", 5555);
-        return updateMap;
-    }
 
     public void sendInsertRecordEvent(DataFlowEngine dataFlowEngine, TapDAG dag, String sourceTable, DataMap after) {
         sendInsertRecordEvent(dataFlowEngine, dag, sourceTable, after, null);
@@ -822,26 +799,6 @@ public class PDKTestBase {
         if (result != null) {
             $(() -> assertNotNull(filterResult.getError(), "If table not exist case, an error should be throw, otherwise not correct. "));
         }
-    }
-
-    protected void verifyBatchRecordExists(ConnectorNode sourceNode, ConnectorNode targetNode, DataMap filterMap) {
-        TapFilter filter = new TapFilter();
-        filter.setMatch(filterMap);
-        TapTable sourceTable = sourceNode.getConnectorContext().getTableMap().get(sourceNode.getTable());
-        TapTable targetTable = targetNode.getConnectorContext().getTableMap().get(targetNode.getTable());
-
-        FilterResult filterResult = filterResults(targetNode, filter, targetTable);
-        $(() -> assertNotNull(filterResult, "The filter " + InstanceFactory.instance(JsonParser.class).toJson(filterMap) + " can not get any result. Please make sure writeRecord method update record correctly and queryByFilter/queryByAdvanceFilter can query it out for verification. "));
-
-        $(() -> Assertions.assertNull(filterResult.getError(), "Error occurred while queryByFilter " + InstanceFactory.instance(JsonParser.class).toJson(filterMap) + " error " + filterResult.getError()));
-        $(() -> assertNotNull(filterResult.getResult(), "Result should not be null, as the record has been inserted"));
-        Map<String, Object> result = filterResult.getResult();
-
-        targetNode.getCodecsFilterManager().transformToTapValueMap(result, sourceTable.getNameFieldMap());
-        targetNode.getCodecsFilterManager().transformFromTapValueMap(result);
-
-        StringBuilder builder = new StringBuilder();
-        $(() -> assertTrue(mapEquals(buildInsertRecord(), result, builder, targetTable.getNameFieldMap()), builder.toString()));
     }
 
     public TapConnector getTestConnector() {

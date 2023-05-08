@@ -42,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 模拟引擎的全量加增量过程， 读取全量过程中sleep停顿， 通过另外一个线程插入， 修改， 删除， 检查数据是否能一致
  **/
 @DisplayName("batchPauseAndStream")
-@TapGo(tag = "V4", sort = 20000, debug = true, ignore = false)
+@TapGo(tag = "V4", sort = 20000, debug = false, ignore = false)
 public class BatchReadPauseAndStreamReadTest extends PDKTestBaseV2 {
     {
         if (PDKTestBaseV2.testRunning) {
