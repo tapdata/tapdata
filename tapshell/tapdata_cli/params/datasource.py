@@ -74,8 +74,8 @@ PDK_MYSQL_FORM = {
 PDK_POSTGRESQL_FORM = {
     "database": {"type": str, "require": True},
     "host": {"type": str, "require": True},
-    "logPluginName": {"type": str, "require": True, "default": "PGOUTPUT", "option": [
-        "wal2json", "PGOUTPUT", "wal2json_rds", "wal2json_streaming", "wal2json_rds_streaming", "decoderbufs"
+    "logPluginName": {"type": str, "require": True, "default": "pgoutput", "option": [
+        "wal2json", "pgoutput", "wal2json_rds", "wal2json_streaming", "wal2json_rds_streaming", "decoderbufs"
     ]},
     "password": {"type": str, "require": True},
     "port": {"type": int, "require": True},
