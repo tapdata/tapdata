@@ -159,6 +159,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	public DataSourceConnectionDto add(DataSourceConnectionDto connectionDto, UserDetail userDetail) {
 		Boolean submit = connectionDto.getSubmit();
 		connectionDto.setLastUpdAt(new Date());
+		checkMongoUri(connectionDto);
 		connectionDto = save(connectionDto, userDetail);
 
 		desensitizeMongoConnection(connectionDto);
@@ -171,13 +172,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		connectionDto.setLastUpdAt(new Date());
 
 		beforeSave(connectionDto, userDetail);
-
+		checkMongoUri(connectionDto);
 		repository.insert(convertToEntity(DataSourceEntity.class, connectionDto), userDetail);
 
 		connectionDto = findById(connectionDto.getId(), userDetail);
 
 		desensitizeMongoConnection(connectionDto);
 		sendTestConnection(connectionDto, false, submit, userDetail);
+		defaultDataDirectoryService.addConnection(connectionDto, userDetail);
 		return connectionDto;
 	}
 
@@ -211,7 +213,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	public DataSourceConnectionDto update(UserDetail user, DataSourceConnectionDto updateDto, boolean changeLast) {
 		Boolean submit = updateDto.getSubmit();
 		String oldName = updateCheck(user, updateDto);
-
+		checkMongoUri(updateDto);
 		Assert.isFalse(StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), updateDto.getAccessNodeType())
 				&& CollectionUtils.isEmpty(updateDto.getAccessNodeProcessIdList()), "manually_specified_by_the_user processId is null");
 
@@ -558,6 +560,31 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			}
 		}
 		return newResultObj;
+	}
+
+
+	private void checkMongoUri(DataSourceConnectionDto dto) {
+		if (dto != null && !Objects.isNull(dto.getConfig())
+				&& !dto.getConfig().isEmpty()) {
+			if (dto.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo") && dto.getConfig().get("uri") != null) {
+				String uri = (String) dto.getConfig().get("uri");
+				try {
+					new ConnectionString(uri);
+				} catch (Exception e) {
+					if (uri.startsWith("mongodb+srv:")) {
+						try {
+							new ConnectionString(uri.replace("mongodb+srv:", "mongodb:"));
+						} catch (Exception e1) {
+							log.error("Parse connection string failed ({}) {}", uri, e);
+							throw new BizException("Datasource.IllegalUserNameOrPasswd");
+						}
+					} else {
+						log.error("Parse connection string failed ({}) {}", uri, e);
+						throw new BizException("Datasource.IllegalUserNameOrPasswd");
+					}
+				}
+			}
+		}
 	}
 
 	private void hiddenMqPasswd(DataSourceConnectionDto item) {
