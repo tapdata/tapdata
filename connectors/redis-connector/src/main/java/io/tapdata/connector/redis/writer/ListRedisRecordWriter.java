@@ -1,13 +1,13 @@
 package io.tapdata.connector.redis.writer;
 
 import io.tapdata.connector.redis.RedisContext;
+import io.tapdata.connector.redis.RedisPipeline;
 import io.tapdata.connector.redis.constant.ValueDataEnum;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.kit.EmptyKit;
-import redis.clients.jedis.Pipeline;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -22,7 +22,7 @@ public class ListRedisRecordWriter extends AbstractRedisRecordWriter {
     }
 
     @Override
-    protected void handleInsertEvent(TapInsertRecordEvent event, Pipeline pipelined) {
+    protected void handleInsertEvent(TapInsertRecordEvent event, RedisPipeline pipelined) {
         Map<String, Object> value = event.getAfter();
         String strValue = ValueDataEnum.JSON.getType().equals(redisConfig.getValueData()) ? getJsonValue(value) : getTextValue(value);
         if (!redisConfig.getOneKey()) {
@@ -32,7 +32,7 @@ public class ListRedisRecordWriter extends AbstractRedisRecordWriter {
     }
 
     @Override
-    protected void handleUpdateEvent(TapUpdateRecordEvent event, Pipeline pipelined) throws Exception {
+    protected void handleUpdateEvent(TapUpdateRecordEvent event, RedisPipeline pipelined) throws Exception {
         Map<String, Object> afterValue = event.getAfter();
         String newValue = ValueDataEnum.JSON.getType().equals(redisConfig.getValueData()) ? getJsonValue(afterValue) : getTextValue(afterValue);
         if (null == event.getBefore()) {
@@ -61,7 +61,7 @@ public class ListRedisRecordWriter extends AbstractRedisRecordWriter {
     }
 
     @Override
-    protected void handleDeleteEvent(TapDeleteRecordEvent event, Pipeline pipelined) {
+    protected void handleDeleteEvent(TapDeleteRecordEvent event, RedisPipeline pipelined) {
         Map<String, Object> value = event.getBefore();
         String oldValue = ValueDataEnum.JSON.getType().equals(redisConfig.getValueData()) ? getJsonValue(value) : getTextValue(value);
         if (redisConfig.getOneKey()) {
@@ -71,7 +71,7 @@ public class ListRedisRecordWriter extends AbstractRedisRecordWriter {
         }
     }
 
-    private void updateRedisList(Pipeline pipelined, String keyName, String oldValue, String newValue) {
+    private void updateRedisList(RedisPipeline pipelined, String keyName, String oldValue, String newValue) {
         pipelined.eval("local pos = redis.call('lpos', KEYS[1], ARGV[1]); if (not pos) then return end; redis.call('lset', KEYS[1], pos, ARGV[2]);", 1, keyName, oldValue, newValue);
     }
 

@@ -572,7 +572,20 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
 
 		biConsumer.accept(dto.getAdds(), (permissions, addRoleMappingDtos, roleId) -> {
 			if (CollectionUtils.isNotEmpty(addRoleMappingDtos)) {
-				roleMappingService.save(addRoleMappingDtos, userDetail);
+				//去重
+				List<Criteria> queryExistsCriteriaList = addRoleMappingDtos.stream()
+								.map(r -> Criteria.where("roleId").is(r.getRoleId())
+												.and("principalId").is(r.getPrincipalId())
+												.and("principalType").is(PrincipleType.PERMISSION))
+								.collect(Collectors.toList());
+				List<RoleMappingDto> alreadyExistsRoleMappings = roleMappingService.findAll(Query.query(new Criteria().orOperator(queryExistsCriteriaList)));
+				if (CollectionUtils.isNotEmpty(alreadyExistsRoleMappings)) {
+					Set<String> alreadyExistsPermissionCodes = alreadyExistsRoleMappings.stream().map(RoleMappingDto::getPrincipalId).collect(Collectors.toSet());
+					addRoleMappingDtos = addRoleMappingDtos.stream().filter(r -> !alreadyExistsPermissionCodes.contains(r.getPrincipalId())).collect(Collectors.toList());
+				}
+				if (CollectionUtils.isNotEmpty(addRoleMappingDtos)) {
+					roleMappingService.save(addRoleMappingDtos, userDetail);
+				}
 			}
 			//添加没有的父权限
 			Set<String> parentPermissionCodes = getParentPermissionCodes(permissions);
@@ -644,11 +657,11 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
 	 * {"$and":
 	 *     [
 	 *         {name:"v2_datasource_menu"},
-	 *         {"$or":
+	 *         {"$and":
 	 *             [
-	 *                 {parentId:{"$eq": null}},
-	 *                 {parentId:{"$eq":""}},
-	 *                 {parentId:{"$exists":false}}
+	 *                 {parentId:{"$ne": null}},
+	 *                 {parentId:{"$ne":""}},
+	 *                 {parentId:{"$exists":true}}
 	 *             ]
 	 *         }
 	 *      ]
@@ -657,32 +670,56 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
 	 * @return
 	 */
     private List<PermissionEntity> getPermissionsByCodes(Set<String> permissionCodes) {
-			Where where = Where.where("$and", new ArrayList<Map<String, Object>>() {{
+
+			Set<String> topCodes = topPermissionCodes.stream().filter(permissionCodes::contains).collect(Collectors.toSet());
+			Where where = Where.where("$or", new ArrayList<Map<String, Object>>() {{
 				add(new HashMap<String, Object>() {{
 					put("name", new HashMap<String, Object>() {{
-						put("$in", permissionCodes);
+						put("$in", topCodes);
 					}});
 				}});
 				add(new HashMap<String, Object>() {{
-					put("$or", new ArrayList<Map<String, Object>>() {{
+					put("$and", new ArrayList<Map<String, Object>>() {{
 						add(new HashMap<String, Object>() {{
-							put("parentId", new HashMap<String, Object>() {{
-								put("$eq", null);
+							put("name", new HashMap<String, Object>() {{
+								put("$in", permissionCodes);
 							}});
 						}});
 						add(new HashMap<String, Object>() {{
-							put("parentId", new HashMap<String, Object>() {{
-								put("$eq", "");
-							}});
-						}});
-						add(new HashMap<String, Object>() {{
-							put("parentId", new HashMap<String, Object>() {{
-								put("$exists", false);
+							put("$and", new ArrayList<Map<String, Object>>() {{
+								add(new HashMap<String, Object>() {{
+									put("parentId", new HashMap<String, Object>() {{
+										put("$ne", null);
+									}});
+								}});
+								add(new HashMap<String, Object>() {{
+									put("parentId", new HashMap<String, Object>() {{
+										put("$ne", "");
+									}});
+								}});
+								add(new HashMap<String, Object>() {{
+									put("parentId", new HashMap<String, Object>() {{
+										put("$exists", true);
+									}});
+								}});
 							}});
 						}});
 					}});
 				}});
 			}});
+
+//			List<PermissionEntity> resultList = new ArrayList<>(pagePermissionEntities);
+			//获取所有的parentId的值
+//			List<PermissionEntity> topPermissionAndNoChild = permissionService.getTopPermissionAndNoChild(permissionCodes);
+//			if (CollectionUtils.isNotEmpty(topPermissionAndNoChild)) {
+//				resultList.addAll(topPermissionAndNoChild);
+//			}
+
 			return permissionService.find(new Filter(where));
     }
+
+		private final static Set<String> topPermissionCodes = new HashSet<String>() {{
+			add("v2_data-console");
+			add("v2_datasource_menu");
+		}};
 }

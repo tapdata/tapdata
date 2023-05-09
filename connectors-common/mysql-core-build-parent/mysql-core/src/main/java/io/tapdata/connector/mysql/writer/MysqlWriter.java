@@ -1,5 +1,6 @@
 package io.tapdata.connector.mysql.writer;
 
+import io.tapdata.connector.mysql.util.ExceptionWrapper;
 import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -16,7 +17,11 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.collections4.map.LRUMap;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -27,159 +32,165 @@ import java.util.function.Consumer;
  **/
 public abstract class MysqlWriter {
 
-    private static final String TAG = MysqlWriter.class.getSimpleName();
-    protected MysqlJdbcContext mysqlJdbcContext;
-    private final AtomicBoolean running;
+	private static final String TAG = MysqlWriter.class.getSimpleName();
+	protected MysqlJdbcContext mysqlJdbcContext;
+	protected ExceptionWrapper exceptionWrapper;
+	private final AtomicBoolean running;
 
-    public MysqlWriter(MysqlJdbcContext mysqlJdbcContext) throws Throwable {
-        this.mysqlJdbcContext = mysqlJdbcContext;
-        this.running = new AtomicBoolean(true);
-    }
+	public MysqlWriter(MysqlJdbcContext mysqlJdbcContext) throws Throwable {
+		this.mysqlJdbcContext = mysqlJdbcContext;
+		this.exceptionWrapper = new ExceptionWrapper();
+		this.running = new AtomicBoolean(true);
+	}
 
-    protected String getDmlInsertPolicy(TapConnectorContext tapConnectorContext) {
-        String dmlInsertPolicy = ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS;
-        if (null != tapConnectorContext.getConnectorCapabilities()
-                && null != tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY)) {
-            dmlInsertPolicy = tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY);
-        }
-        return dmlInsertPolicy;
-    }
+	public void setExceptionWrapper(ExceptionWrapper exceptionWrapper) {
+		this.exceptionWrapper = exceptionWrapper;
+	}
 
-    protected String getDmlUpdatePolicy(TapConnectorContext tapConnectorContext) {
-        String dmlUpdatePolicy = ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS;
-        if (null != tapConnectorContext.getConnectorCapabilities()
-                && null != tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY)) {
-            dmlUpdatePolicy = tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY);
-        }
-        return dmlUpdatePolicy;
-    }
+	protected String getDmlInsertPolicy(TapConnectorContext tapConnectorContext) {
+		String dmlInsertPolicy = ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS;
+		if (null != tapConnectorContext.getConnectorCapabilities()
+				&& null != tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY)) {
+			dmlInsertPolicy = tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY);
+		}
+		return dmlInsertPolicy;
+	}
 
-    abstract public WriteListResult<TapRecordEvent> write(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) throws Throwable;
+	protected String getDmlUpdatePolicy(TapConnectorContext tapConnectorContext) {
+		String dmlUpdatePolicy = ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS;
+		if (null != tapConnectorContext.getConnectorCapabilities()
+				&& null != tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY)) {
+			dmlUpdatePolicy = tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY);
+		}
+		return dmlUpdatePolicy;
+	}
 
-    public void onDestroy() {
-        this.running.set(false);
-    }
+	abstract public WriteListResult<TapRecordEvent> write(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) throws Throwable;
 
-    public void selfCheck() {
+	public void onDestroy() {
+		this.running.set(false);
+	}
 
-    }
+	public void selfCheck() {
 
-    protected String getKey(TapTable tapTable, TapRecordEvent tapRecordEvent) {
-        Map<String, Object> after = getAfter(tapRecordEvent);
-        Map<String, Object> before = getBefore(tapRecordEvent);
-        Map<String, Object> data;
-        if (MapUtils.isNotEmpty(after)) {
-            data = after;
-        } else {
-            data = before;
-        }
-        Set<String> keys = data.keySet();
-        String keyString = String.join("-", keys);
-        return tapTable.getId() + "-" + keyString;
-    }
+	}
 
-    protected Collection<String> getUniqueKeys(TapTable tapTable) {
-        Collection<String> primaryKeys = tapTable.primaryKeys(true);
-        if (EmptyKit.isEmpty(primaryKeys)) {
-            return tapTable.getNameFieldMap().keySet();
-        }
-        return tapTable.primaryKeys(true);
-    }
+	protected String getKey(TapTable tapTable, TapRecordEvent tapRecordEvent) {
+		Map<String, Object> after = getAfter(tapRecordEvent);
+		Map<String, Object> before = getBefore(tapRecordEvent);
+		Map<String, Object> data;
+		if (MapUtils.isNotEmpty(after)) {
+			data = after;
+		} else {
+			data = before;
+		}
+		Set<String> keys = data.keySet();
+		String keyString = String.join("-", keys);
+		return tapTable.getId() + "-" + keyString;
+	}
 
-    protected boolean needAddIntoPreparedStatementValues(TapField field, TapRecordEvent tapRecordEvent) {
-        Map<String, Object> after = getAfter(tapRecordEvent);
-        if (null == after) {
-            return false;
-        }
-        if (!after.containsKey(field.getName())) {
-            TapLogger.debug(TAG, "Found schema field not exists in after data, will skip it: " + field.getName());
-            return false;
-        }
-        return true;
-    }
+	protected Collection<String> getUniqueKeys(TapTable tapTable) {
+		Collection<String> primaryKeys = tapTable.primaryKeys(true);
+		if (EmptyKit.isEmpty(primaryKeys)) {
+			return tapTable.getNameFieldMap().keySet();
+		}
+		return tapTable.primaryKeys(true);
+	}
 
-    protected Map<String, Object> getBefore(TapRecordEvent tapRecordEvent) {
-        Map<String, Object> before = null;
-        if (tapRecordEvent instanceof TapUpdateRecordEvent) {
-            before = ((TapUpdateRecordEvent) tapRecordEvent).getBefore();
-        } else if (tapRecordEvent instanceof TapDeleteRecordEvent) {
-            before = ((TapDeleteRecordEvent) tapRecordEvent).getBefore();
-        }
-        return before;
-    }
+	protected boolean needAddIntoPreparedStatementValues(TapField field, TapRecordEvent tapRecordEvent) {
+		Map<String, Object> after = getAfter(tapRecordEvent);
+		if (null == after) {
+			return false;
+		}
+		if (!after.containsKey(field.getName())) {
+			TapLogger.debug(TAG, "Found schema field not exists in after data, will skip it: " + field.getName());
+			return false;
+		}
+		return true;
+	}
 
-    protected Map<String, Object> getAfter(TapRecordEvent tapRecordEvent) {
-        Map<String, Object> after = null;
-        if (tapRecordEvent instanceof TapInsertRecordEvent) {
-            after = ((TapInsertRecordEvent) tapRecordEvent).getAfter();
-        } else if (tapRecordEvent instanceof TapUpdateRecordEvent) {
-            after = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
-        }
-        return after;
-    }
+	protected Map<String, Object> getBefore(TapRecordEvent tapRecordEvent) {
+		Map<String, Object> before = null;
+		if (tapRecordEvent instanceof TapUpdateRecordEvent) {
+			before = ((TapUpdateRecordEvent) tapRecordEvent).getBefore();
+		} else if (tapRecordEvent instanceof TapDeleteRecordEvent) {
+			before = ((TapDeleteRecordEvent) tapRecordEvent).getBefore();
+		}
+		return before;
+	}
 
-    protected void dispatch(List<TapRecordEvent> tapRecordEvents, AnyErrorConsumer<List<TapRecordEvent>> consumer) throws Throwable {
-        if (CollectionUtils.isEmpty(tapRecordEvents)) return;
-        TapRecordEvent preEvent = null;
-        List<TapRecordEvent> consumeList = new ArrayList<>();
-        for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
-            if (!isAlive()) break;
-            if (null != preEvent && !tapRecordEvent.getClass().getName().equals(preEvent.getClass().getName())) {
-                consumer.accept(consumeList);
-                consumeList.clear();
-            }
-            consumeList.add(tapRecordEvent);
-            preEvent = tapRecordEvent;
-        }
-        if (CollectionUtils.isNotEmpty(consumeList)) {
-            consumer.accept(consumeList);
-        }
-    }
+	protected Map<String, Object> getAfter(TapRecordEvent tapRecordEvent) {
+		Map<String, Object> after = null;
+		if (tapRecordEvent instanceof TapInsertRecordEvent) {
+			after = ((TapInsertRecordEvent) tapRecordEvent).getAfter();
+		} else if (tapRecordEvent instanceof TapUpdateRecordEvent) {
+			after = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
+		}
+		return after;
+	}
 
-    public static class LRUOnRemoveMap<K, V> extends LRUMap<K, V> {
+	protected void dispatch(List<TapRecordEvent> tapRecordEvents, AnyErrorConsumer<List<TapRecordEvent>> consumer) throws Throwable {
+		if (CollectionUtils.isEmpty(tapRecordEvents)) return;
+		TapRecordEvent preEvent = null;
+		List<TapRecordEvent> consumeList = new ArrayList<>();
+		for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
+			if (!isAlive()) break;
+			if (null != preEvent && !tapRecordEvent.getClass().getName().equals(preEvent.getClass().getName())) {
+				consumer.accept(consumeList);
+				consumeList.clear();
+			}
+			consumeList.add(tapRecordEvent);
+			preEvent = tapRecordEvent;
+		}
+		if (CollectionUtils.isNotEmpty(consumeList)) {
+			consumer.accept(consumeList);
+		}
+	}
 
-        private Consumer<Entry<K, V>> onRemove;
+	public static class LRUOnRemoveMap<K, V> extends LRUMap<K, V> {
 
-        public LRUOnRemoveMap(int maxSize, Consumer<Entry<K, V>> onRemove) {
-            super(maxSize);
-            this.onRemove = onRemove;
-        }
+		private Consumer<Entry<K, V>> onRemove;
 
-        @Override
-        protected boolean removeLRU(LinkEntry<K, V> entry) {
-            onRemove.accept(entry);
-            return super.removeLRU(entry);
-        }
+		public LRUOnRemoveMap(int maxSize, Consumer<Entry<K, V>> onRemove) {
+			super(maxSize);
+			this.onRemove = onRemove;
+		}
 
-        @Override
-        public void clear() {
-            Set<Entry<K, V>> entries = this.entrySet();
-            for (Entry<K, V> entry : entries) {
-                onRemove.accept(entry);
-            }
-            super.clear();
-        }
+		@Override
+		protected boolean removeLRU(LinkEntry<K, V> entry) {
+			onRemove.accept(entry);
+			return super.removeLRU(entry);
+		}
 
-        @Override
-        protected void removeEntry(HashEntry<K, V> entry, int hashIndex, HashEntry<K, V> previous) {
-            onRemove.accept(entry);
-            super.removeEntry(entry, hashIndex, previous);
-        }
+		@Override
+		public void clear() {
+			Set<Entry<K, V>> entries = this.entrySet();
+			for (Entry<K, V> entry : entries) {
+				onRemove.accept(entry);
+			}
+			super.clear();
+		}
 
-        @Override
-        protected void removeMapping(HashEntry<K, V> entry, int hashIndex, HashEntry<K, V> previous) {
-            onRemove.accept(entry);
-            super.removeMapping(entry, hashIndex, previous);
-        }
-    }
+		@Override
+		protected void removeEntry(HashEntry<K, V> entry, int hashIndex, HashEntry<K, V> previous) {
+			onRemove.accept(entry);
+			super.removeEntry(entry, hashIndex, previous);
+		}
 
-    protected interface AnyErrorConsumer<T> {
-        void accept(T t) throws Throwable;
-    }
+		@Override
+		protected void removeMapping(HashEntry<K, V> entry, int hashIndex, HashEntry<K, V> previous) {
+			onRemove.accept(entry);
+			super.removeMapping(entry, hashIndex, previous);
+		}
+	}
+
+	protected interface AnyErrorConsumer<T> {
+		void accept(T t) throws Throwable;
+	}
 
 
-    protected boolean isAlive() {
-        return running.get();
-    }
+	protected boolean isAlive() {
+		return running.get();
+	}
 
 }

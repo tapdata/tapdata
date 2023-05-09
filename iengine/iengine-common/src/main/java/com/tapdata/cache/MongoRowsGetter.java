@@ -20,54 +20,54 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class MongoRowsGetter implements IDataSourceRowsGetter {
 
-  private Logger logger = LogManager.getLogger(ICacheGetter.class);
+	private Logger logger = LogManager.getLogger(ICacheGetter.class);
 
-  /**
-   * 缓存源库的连接信息
-   */
-  private Connections sourceConnection;
+	/**
+	 * 缓存源库的连接信息
+	 */
+	private Connections sourceConnection;
 
-  private ScriptConnection scriptConnection;
+	private ScriptConnection scriptConnection;
 
-  private DataFlowCacheConfig config;
+	private DataFlowCacheConfig config;
 
-  /**
-   * - key: stage id
-   * - value:
-   * -- key: field name
-   * -- value: projection
-   */
-  private Map<String, Map<String, Integer>> stageFieldProjection;
+	/**
+	 * - key: stage id
+	 * - value:
+	 * -- key: field name
+	 * -- value: projection
+	 */
+	private Map<String, Map<String, Integer>> stageFieldProjection;
 
-  public MongoRowsGetter(DataFlowCacheConfig config) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
-    this.config = config;
-    this.sourceConnection = config.getSourceConnection();
-    this.scriptConnection = ScriptUtil.initScriptConnection(sourceConnection);
-    Stage sourceStage = config.getSourceStage();
-    Map<String, Integer> fieldProjection = DataFlowStageUtil.stageToFieldProjection(sourceStage);
-    if (MapUtils.isNotEmpty(fieldProjection)) {
-      stageFieldProjection = new ConcurrentHashMap<String, Map<String, Integer>>() {{
-        put(sourceStage.getId(), fieldProjection);
-      }};
-    }
-  }
+	public MongoRowsGetter(DataFlowCacheConfig config) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+		this.config = config;
+		this.sourceConnection = config.getSourceConnection();
+		this.scriptConnection = ScriptUtil.initScriptConnection(sourceConnection);
+		Stage sourceStage = config.getSourceStage();
+		Map<String, Integer> fieldProjection = DataFlowStageUtil.stageToFieldProjection(sourceStage);
+		if (MapUtils.isNotEmpty(fieldProjection)) {
+			stageFieldProjection = new ConcurrentHashMap<String, Map<String, Integer>>() {{
+				put(sourceStage.getId(), fieldProjection);
+			}};
+		}
+	}
 
-  @Override
-  public List<Map<String, Object>> getRows(Object[] keys) {
-    List<Map<String, Object>> results = null;
+	@Override
+	public List<Map<String, Object>> getRows(Object[] keys) {
+		List<Map<String, Object>> results = null;
 
-    if (scriptConnection != null) {
+		if (scriptConnection != null) {
 
-      String database = MongodbUtil.getDatabase(sourceConnection);
-      results = ScriptUtil.executeMongoQuery(
-              scriptConnection,
-              database,
-              this.config.getTableName(),
-              this.config.getCacheKeys(),
-              keys
-      );
-    }
+			String database = MongodbUtil.getDatabase(sourceConnection);
+			results = ScriptUtil.executeMongoQuery(
+					scriptConnection,
+					database,
+					this.config.getTableName(),
+					this.config.getCacheKeys(),
+					keys
+			);
+		}
 
-    return results;
-  }
+		return results;
+	}
 }

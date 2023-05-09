@@ -11,7 +11,6 @@ import io.tapdata.pdk.core.runtime.TapRuntime;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
-import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration;
 import org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration;
@@ -25,8 +24,6 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.scheduling.annotation.EnableAsync;
 
 import java.util.TimeZone;
-
-import static io.tapdata.pdk.core.utils.CommonUtils.dateString;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>

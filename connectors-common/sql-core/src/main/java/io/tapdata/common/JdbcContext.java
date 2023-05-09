@@ -1,6 +1,8 @@
 package io.tapdata.common;
 
 import com.zaxxer.hikari.HikariDataSource;
+import io.tapdata.common.exception.AbstractExceptionCollector;
+import io.tapdata.common.exception.ExceptionCollector;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
@@ -23,6 +25,8 @@ public abstract class JdbcContext implements AutoCloseable {
     private final static String TAG = JdbcContext.class.getSimpleName();
     private final HikariDataSource hikariDataSource;
     private final CommonDbConfig config;
+    protected ExceptionCollector exceptionCollector = new AbstractExceptionCollector() {
+    };
 
     public JdbcContext(CommonDbConfig config) {
         this.config = config;

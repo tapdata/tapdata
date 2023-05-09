@@ -1,7 +1,11 @@
 package io.tapdata.ddlp.utils;
 
 import io.tapdata.ddlp.DDLEvent;
-import io.tapdata.ddlp.events.*;
+import io.tapdata.ddlp.events.AddField;
+import io.tapdata.ddlp.events.AddFieldDefault;
+import io.tapdata.ddlp.events.AlterField;
+import io.tapdata.ddlp.events.DropField;
+import io.tapdata.ddlp.events.UnSupported;
 import io.tapdata.ddlp.exception.DDLException;
 import io.tapdata.ddlp.parsers.DDLParser;
 import org.apache.logging.log4j.LogManager;

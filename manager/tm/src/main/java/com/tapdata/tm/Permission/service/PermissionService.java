@@ -1,35 +1,27 @@
 package com.tapdata.tm.Permission.service;
 
-import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.collection.CollectionUtil;
-import cn.hutool.core.collection.ListUtil;
 import com.tapdata.tm.Permission.dto.PermissionDto;
 import com.tapdata.tm.Permission.dto.Status;
 import com.tapdata.tm.Permission.entity.PermissionEntity;
 import com.tapdata.tm.Permission.repository.PermissionRepository;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
-import com.tapdata.tm.base.service.BaseService;
-import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.roleMapping.dto.PrincipleType;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 import com.tapdata.tm.roleMapping.service.RoleMappingService;
 import com.tapdata.tm.utils.CollectionsUtils;
-import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.core.aggregation.ArrayOperators;
-import org.springframework.data.mongodb.core.aggregation.ConvertOperators;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -94,4 +86,30 @@ public class PermissionService {
         Document doc = new Document(where);
         return permissionRepository.getMongoOperations().count(Query.query(Criteria.matchingDocumentStructure(() -> doc)), PermissionEntity.class, "Permission");
     }
+
+		public List<String> getAllParentIds() {
+			Query query = Query.query(
+							new Criteria().andOperator(
+											Criteria.where("parentId").exists(true),
+											Criteria.where("parentId").ne(""),
+											Criteria.where("parentId").ne(null)
+							)
+			);
+			return permissionRepository.getMongoOperations().findDistinct(query, "parentId", PermissionEntity.class, String.class);
+		}
+
+		public List<PermissionEntity> getTopPermissionAndNoChild(Set<String> codes) {
+			List<String> allParentIds = getAllParentIds();
+			Criteria criteria = new Criteria().andOperator(
+							Criteria.where("name").in(codes),
+							Criteria.where("name").nin(allParentIds),
+							new Criteria().orOperator(
+											Criteria.where("parentId").is(null),
+											Criteria.where("parentId").exists(false),
+											Criteria.where("parentId").is("")
+							)
+			);
+
+			return permissionRepository.getMongoOperations().find(Query.query(criteria), PermissionEntity.class, "Permission");
+		}
 }

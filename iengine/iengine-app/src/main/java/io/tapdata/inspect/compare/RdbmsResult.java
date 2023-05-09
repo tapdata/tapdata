@@ -5,7 +5,11 @@ import com.zaxxer.hikari.HikariDataSource;
 import io.tapdata.ConverterProvider;
 import lombok.SneakyThrows;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

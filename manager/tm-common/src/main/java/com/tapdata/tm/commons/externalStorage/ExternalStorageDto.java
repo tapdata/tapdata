@@ -52,7 +52,7 @@ public class ExternalStorageDto extends BaseDto {
 				"name='" + name + '\'' +
 				", type='" + type + '\'' +
 				", uri='" + maskUriPassword() + '\'' +
-				(type.equals("mongodb") ? (", table='" + table + '\'') : "") +
+				("mongodb".equals(type) ? (", table='" + table + '\'') : "") +
 				"} ";
 	}
 }

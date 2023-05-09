@@ -71,7 +71,7 @@ public abstract class WriteRecorder {
      *
      * @param listResult results of WriteRecord
      */
-    public void executeBatch(WriteListResult<TapRecordEvent> listResult) {
+    public void executeBatch(WriteListResult<TapRecordEvent> listResult) throws SQLException {
         long succeed = batchCache.size();
         if (succeed <= 0) {
             return;
@@ -85,13 +85,13 @@ public abstract class WriteRecorder {
         } catch (SQLException e) {
             Map<TapRecordEvent, Throwable> map = batchCache.stream().collect(Collectors.toMap(Function.identity(), (v) -> e));
             listResult.addErrors(map);
-            throw new RuntimeException(e);
+            throw e;
         }
         atomicLong.addAndGet(succeed);
     }
 
     //commit when cacheSize >= 1000
-    public void addAndCheckCommit(TapRecordEvent recordEvent, WriteListResult<TapRecordEvent> listResult) {
+    public void addAndCheckCommit(TapRecordEvent recordEvent, WriteListResult<TapRecordEvent> listResult) throws SQLException {
         batchCache.add(recordEvent);
         if (batchCache.size() >= 1000) {
             executeBatch(listResult);

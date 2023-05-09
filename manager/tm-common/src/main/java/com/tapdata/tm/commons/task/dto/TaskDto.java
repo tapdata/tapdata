@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import lombok.Data;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.Serializable;
 import java.util.List;
@@ -42,6 +43,9 @@ public class TaskDto extends ParentTaskDto {
     public static final String LDP_TYPE_FDM = "fdm";
     public static final String LDP_TYPE_MDM = "mdm";
 
+    public static final String ATTRS_USED_SHARE_CACHE = "usedShareCache";
+    public static final String ATTRS_SKIP_ERROR_EVENT = "skipErrorEvent";
+
     /** 任务图*/
     @JsonSerialize( using = DagSerialize.class)
     @JsonDeserialize( using = DagDeserialize.class)
@@ -66,6 +70,8 @@ public class TaskDto extends ParentTaskDto {
         return Boolean.TRUE.equals(isAutoInspect);
     }
 
+    private SkipErrorEvent skipErrorEvent;
+
     private String creator;
 
     private boolean showInspectTips;
@@ -74,10 +80,8 @@ public class TaskDto extends ParentTaskDto {
 
     private Map<String, Object> logSetting;
 
-    /** 编辑中 待启动 */
+    /** 编辑中 */
     public static final String STATUS_EDIT = "edit";
-    /** 准备中 */
-    public static final String STATUS_PREPARING = "preparing";
     /** 调度中 */
     public static final String STATUS_SCHEDULING = "scheduling";
     /** 调度失败 */
@@ -88,23 +92,23 @@ public class TaskDto extends ParentTaskDto {
     public static final String STATUS_RUNNING = "running";
     /** 停止中 */
     public static final String STATUS_STOPPING = "stopping";
-    /** 暂停中 */
-    //public static final String STATUS_PAUSING = "pausing";
     /** 错误 */
     public static final String STATUS_ERROR = "error";
     /** 完成 */
     public static final String STATUS_COMPLETE = "complete";
     /** 已停止 */
     public static final String STATUS_STOP = "stop";
-    /** 已暂停 */
-    //public static final String STATUS_PAUSE = "pause";
 
-    /** 编辑中 待启动 */
+    /** 待启动 */
     public static final String STATUS_WAIT_START = "wait_start";
 
+    /** 重置中 */
     public static final String STATUS_RENEWING = "renewing";
+    /** 删除中*/
     public static final String STATUS_DELETING = "deleting";
+    /** 重置失败 */
     public static final String STATUS_RENEW_FAILED = "renew_failed";
+    /** 删除失败 */
     public static final String STATUS_DELETE_FAILED = "delete_failed";
 
 
@@ -157,6 +161,17 @@ public class TaskDto extends ParentTaskDto {
         }
         return dag;
     }
+
+		public boolean isTestTask() {
+			if (StringUtils.equalsAnyIgnoreCase(getSyncType(), SYNC_TYPE_TEST_RUN, SYNC_TYPE_DEDUCE_SCHEMA)) {
+				return true;
+			}
+			return false;
+		}
+
+		public boolean isNormalTask() {
+			return !isTestTask();
+		}
 
     @Data
     public static class SyncPoint implements Serializable {
@@ -239,4 +254,101 @@ public class TaskDto extends ParentTaskDto {
         return false;
     }
 
+    /**
+     * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
+     * @version v1.0 2023/4/14 15:25 Create
+     */
+    public static class SkipErrorEvent implements Serializable {
+        public enum ErrorMode {
+            Disable,
+            SkipTable,
+            SkipData,
+            ;
+        }
+
+        public enum LimitMode {
+            Disable,
+            SkipByRate,
+            SkipByLimit,
+            ;
+        }
+
+        private String errorMode;
+        private String limitMode;
+        private Long limit;
+        private Integer rate;
+
+        public SkipErrorEvent() {
+        }
+
+        public String getErrorMode() {
+            return errorMode;
+        }
+
+        public ErrorMode getErrorModeEnum() {
+            try {
+                if (null == this.errorMode) {
+                    return null;
+                }
+                return ErrorMode.valueOf(this.errorMode);
+            } catch (IllegalArgumentException e) {
+                return ErrorMode.Disable;
+            }
+        }
+
+        public String getLimitMode() {
+            return limitMode;
+        }
+
+        public LimitMode getLimitModeEnum() {
+            try {
+                if (null == this.limitMode) {
+                    return null;
+                }
+                return LimitMode.valueOf(this.limitMode);
+            } catch (IllegalArgumentException e) {
+                return LimitMode.Disable;
+            }
+        }
+
+        public void setErrorMode(String errorMode) {
+            this.errorMode = errorMode;
+        }
+
+        public void setErrorMode(ErrorMode mode) {
+            if (null == mode) {
+                this.errorMode = null;
+            } else {
+                this.errorMode = mode.name();
+            }
+        }
+
+        public void setLimitMode(String mode) {
+            this.limitMode = mode;
+        }
+
+        public void setLimitMode(LimitMode mode) {
+            if (null == mode) {
+                this.limitMode = null;
+            } else {
+                this.limitMode = mode.name();
+            }
+        }
+
+        public Long getLimit() {
+            return limit;
+        }
+
+        public void setLimit(Long limit) {
+            this.limit = limit;
+        }
+
+        public Integer getRate() {
+            return rate;
+        }
+
+        public void setRate(Integer rate) {
+            this.rate = rate;
+        }
+    }
 }

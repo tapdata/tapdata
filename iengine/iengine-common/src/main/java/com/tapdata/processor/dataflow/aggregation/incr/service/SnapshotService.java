@@ -1,7 +1,11 @@
 package com.tapdata.processor.dataflow.aggregation.incr.service;
 
 
-import com.tapdata.processor.dataflow.aggregation.incr.service.model.*;
+import com.tapdata.processor.dataflow.aggregation.incr.service.model.AvgBucket;
+import com.tapdata.processor.dataflow.aggregation.incr.service.model.CountBucket;
+import com.tapdata.processor.dataflow.aggregation.incr.service.model.MaxBucket;
+import com.tapdata.processor.dataflow.aggregation.incr.service.model.MinBucket;
+import com.tapdata.processor.dataflow.aggregation.incr.service.model.SumBucket;
 
 import java.util.List;
 import java.util.Map;

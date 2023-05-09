@@ -1,7 +1,5 @@
 package io.tapdata.flow.engine.V2.task.cleaner;
 
-import com.tapdata.tm.commons.task.dto.TaskResetEventDto;
-
 /**
  * @author samuel
  * @Description

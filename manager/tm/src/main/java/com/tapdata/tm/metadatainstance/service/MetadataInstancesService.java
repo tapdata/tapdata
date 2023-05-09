@@ -17,11 +17,7 @@ import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DataNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.MergeTableNode;
-import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
-import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
-import com.tapdata.tm.commons.dag.process.ProcessorNode;
-import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
@@ -92,16 +88,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -1524,6 +1511,15 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return findAllDto(Query.query(criteria), userDetail);
     }
 
+    public List<MetadataInstancesDto> findByNodeId(String nodeId, UserDetail userDetail, String taskId, String... fields) {
+        Criteria criteria = Criteria
+                .where("is_deleted").ne(true)
+                .and("nodeId").is(nodeId)
+                .and("taskId").is(taskId);
+
+        return findAllDto(Query.query(criteria), userDetail);
+    }
+
     public List<MetadataInstancesDto> findByTaskId(String taskId, UserDetail userDetail) {
         Criteria criteria = Criteria
                 .where("is_deleted").ne(true)
@@ -1568,7 +1564,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     String[] fieldArrays = fields.toArray(new String[0]);
                     queryMetadata.fields().include(fieldArrays);
                 }
-                if (node instanceof TableRenameProcessNode || node instanceof MigrateFieldRenameProcessorNode || node instanceof MigrateJsProcessorNode) {
+                if (node instanceof MigrateProcessorNode) {
 //                    queryMetadata.addCriteria(criteriaNode);
 //                    String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null, taskId);
 //                    criteriaNode.and("qualified_name").regex("^"+qualifiedName+".*")
@@ -1621,11 +1617,11 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 } else if (node instanceof DatabaseNode) {
                     queryMetadata.addCriteria(criteriaTable);
                     DatabaseNode tableNode = (DatabaseNode) node;
-                    List<String> tableNames = new ArrayList<>();
+                    List<String> tableNames = Collections.emptyList();
                     if (node.sourceType() == Node.SourceType.source) {
                         tableNames = tableNode.getTableNames();
                     } else if (node.sourceType() == Node.SourceType.target) {
-                        if (tableNode.getSyncObjects() != null && tableNode.getSyncObjects().get(0) != null) {
+                        if (CollectionUtils.isNotEmpty(tableNode.getSyncObjects())) {
                             tableNames = tableNode.getSyncObjects().get(0).getObjectNames();
                         }
                     } else {

@@ -2,11 +2,9 @@ package io.tapdata.connector.redis;
 
 import io.tapdata.connector.redis.constant.DeployModeEnum;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.kit.EmptyKit;
 import org.apache.commons.lang3.StringUtils;
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
-import redis.clients.jedis.JedisPoolConfig;
-import redis.clients.jedis.JedisSentinelPool;
+import redis.clients.jedis.*;
 import redis.clients.jedis.exceptions.JedisConnectionException;
 import redis.clients.jedis.util.Pool;
 
@@ -33,19 +31,38 @@ public class RedisContext {
 
     private final RedisConfig redisConfig;
     private volatile Pool<Jedis> jedisPool;
+    private volatile UnifiedJedis jedisCluster;
 
     public RedisContext(RedisConfig redisConfig) throws Exception {
         this.redisConfig = redisConfig;
         try {
             synchronized (this) {
-                if (jedisPool == null) {
-                    jedisPool = initializeJedisPool(redisConfig);
+                if (DeployModeEnum.fromString(redisConfig.getDeploymentMode()) == DeployModeEnum.CLUSTER) {
+                    if (jedisCluster == null) {
+                        jedisCluster = initializeJedisCluster(redisConfig);
+                    }
+                } else {
+                    if (jedisPool == null) {
+                        jedisPool = initializeJedisPool(redisConfig);
+                    }
                 }
             }
         } catch (Exception e) {
             TapLogger.error(TAG, "close connection error", e);
             throw new Exception("Initial redis target failed %s", e);
         }
+    }
+
+    public static JedisCluster initializeJedisCluster(RedisConfig redisConfig) {
+        ConnectionPoolConfig connectionPoolConfig = new ConnectionPoolConfig();
+        connectionPoolConfig.setMaxTotal(MAX_TOTAL);
+        connectionPoolConfig.setMaxIdle(MAX_IDLE);
+        connectionPoolConfig.setMaxWaitMillis(MAX_WAIT_MILLIS);
+        connectionPoolConfig.setTestOnBorrow(TEST_ON_BORROW);
+        connectionPoolConfig.setTestOnCreate(TEST_ON_CREATE);
+        connectionPoolConfig.setTestOnReturn(TEST_ON_RETURN);
+        connectionPoolConfig.setTestWhileIdle(TEST_WHILE_IDLE);
+        return new JedisCluster(new HashSet<>(redisConfig.getClusterNodes()), 5000, 5000, 10, redisConfig.getPassword(), redisConfig.getSentinelName(), connectionPoolConfig);
     }
 
     public static Pool<Jedis> initializeJedisPool(RedisConfig redisConfig) {
@@ -88,7 +105,10 @@ public class RedisContext {
     }
 
 
-    public Jedis getJedis() {
+    public CommonJedis getJedis() {
+        if (DeployModeEnum.fromString(redisConfig.getDeploymentMode()) == DeployModeEnum.CLUSTER) {
+            return new CommonJedis(jedisCluster);
+        }
         Jedis jedis = null;
         int retryCount = 0;
         while (true) {
@@ -97,7 +117,7 @@ public class RedisContext {
                 if (StringUtils.isNotBlank(redisConfig.getDatabase())) {
                     jedis.select(Integer.parseInt(redisConfig.getDatabase()));
                 }
-                return jedis;
+                return new CommonJedis(jedis);
             } catch (Exception e) {
                 if (e instanceof JedisConnectionException) {
                     retryCount++;
@@ -112,7 +132,7 @@ public class RedisContext {
                 }
             }
         }
-        return jedis;
+        return new CommonJedis(jedis);
     }
 
     public RedisConfig getRedisConfig() {
@@ -120,6 +140,11 @@ public class RedisContext {
     }
 
     public void close() {
-        jedisPool.close();
+        if (EmptyKit.isNotNull(jedisPool)) {
+            jedisPool.close();
+        }
+        if (EmptyKit.isNotNull(jedisCluster)) {
+            jedisCluster.close();
+        }
     }
 }

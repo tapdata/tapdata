@@ -101,7 +101,7 @@ public class JSCommandFunction extends FunctionBase implements FunctionSupport<C
         }
         Map<String, Object> commandMap = new HashMap<>();
         commandMap.put("command", commandInfo.getCommand());
-        commandMap.put("args", commandInfo.getArgMap());
+        commandMap.put("argMap", commandInfo.getArgMap());
         commandMap.put("action", commandInfo.getAction());
         commandMap.put("type", commandInfo.getType());
         commandMap.put("time", commandInfo.getTime());

@@ -1,11 +1,10 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition;
 
-import io.tapdata.entity.serializer.JavaCustomSerializer;
-import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.pdk.apis.partition.ReadPartition;
 
-import java.io.*;
-import java.util.*;
+import java.io.Serializable;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -13,30 +12,35 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class PartitionTableOffset implements Serializable {
 	private List<ReadPartition> partitions;
+
 	public PartitionTableOffset partitions(List<ReadPartition> partitions) {
 		this.partitions = partitions;
 		return this;
 	}
 
 	private Map<String, Long> completedPartitions;
+
 	public PartitionTableOffset completedPartitions(Map<String, Long> completedPartitions) {
 		this.completedPartitions = completedPartitions;
 		return this;
 	}
 
 	private String table;
+
 	public PartitionTableOffset table(String table) {
 		this.table = table;
 		return this;
 	}
+
 	private Boolean tableCompleted;
+
 	public PartitionTableOffset tableCompleted(boolean tableCompleted) {
 		this.tableCompleted = tableCompleted;
 		return this;
 	}
 
 	public void partitionCompleted(String partitionId, long total) {
-		if(completedPartitions == null)
+		if (completedPartitions == null)
 			completedPartitions = new ConcurrentHashMap<>();
 		completedPartitions.put(partitionId, total);
 	}

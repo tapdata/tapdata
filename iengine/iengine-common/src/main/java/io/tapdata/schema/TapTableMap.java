@@ -14,7 +14,14 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.mongodb.core.query.Query;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -121,7 +128,7 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 					.init();
 			EhcacheService.getInstance().putEhcacheKVMap(mapKey, tapTableMap);
 		} catch (Throwable e) {
-			throw new RuntimeException(String.format("Failed to create Ehcache TapTableMap, node id: %s, map name: %s, error: %s", nodeId, mapKey, e.getMessage()));
+			throw new RuntimeException(String.format("Failed to create Ehcache TapTableMap, node id: %s, map name: %s, error: %s", nodeId, mapKey, e.getMessage()), e);
 		}
 	}
 

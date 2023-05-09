@@ -9,6 +9,7 @@ import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.StartResultUtil;
 import io.tapdata.aspect.ApplicationStartAspect;
+import io.tapdata.aspect.LoggerInitAspect;
 import io.tapdata.aspect.task.AspectTaskManager;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.JetExceptionFilter;
@@ -17,7 +18,6 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.pdk.core.runtime.TapRuntime;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import io.tapdata.supervisor.ClassLifeCircleMonitor;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -85,6 +85,8 @@ public class Application {
 	private static final String TAG = Application.class.getSimpleName();
 	public static final String LOG_PATH = "logs" + File.separator + "agent";
 	public static final String ROLLING_FILE_APPENDER = "rollingFileAppender";
+	private static String logsPath = LOG_PATH;
+	private static Level defaultLogLevel = Level.INFO;
 	private static Logger logger = LogManager.getLogger(Application.class);
 	private static Logger pdkLogger = LogManager.getLogger("PDK");
 
@@ -176,6 +178,10 @@ public class Application {
 				logger.error(e.getMessage(), e);
 			}
 
+			AspectUtils.executeAspect(LoggerInitAspect.class, () -> new LoggerInitAspect()
+					.defaultLogLevel(defaultLogLevel)
+					.workDir(tapdataWorkDir)
+			);
 			AspectUtils.executeAspect(ApplicationStartAspect.class, ApplicationStartAspect::new);
 			run.getBean(TapdataTaskScheduler.class).stopTaskIfNeed();
 			run.getBean(TapdataTaskScheduler.class).runTaskIfNeedWhenEngineStart();
@@ -237,6 +243,7 @@ public class Application {
 		if ("true".equalsIgnoreCase(debug)) {
 			defaultLogLevel = Level.DEBUG;
 		}
+		Application.defaultLogLevel = defaultLogLevel;
 
 //        org.apache.logging.log4j.core.Logger rootLogger = (org.apache.logging.log4j.core.Logger) LogManager.getRootLogger();
 //        org.apache.logging.log4j.core.config.Configuration configuration = rootLogger.getContext().getConfiguration();
@@ -253,6 +260,7 @@ public class Application {
 				logsPath.append(LOG_PATH);
 			}
 		}
+		Application.logsPath = logsPath.toString();
 
 		LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
 		org.apache.logging.log4j.core.config.Configuration config = ctx.getConfiguration();

@@ -260,16 +260,18 @@ public class CsvConnector extends FileConnector {
     }
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
-        if (EmptyKit.isNull(fileRecordWriter)) {
-            String fileNameExpression = fileConfig.getFileNameExpression();
-            if (EmptyKit.isBlank(fileNameExpression) || (!fileNameExpression.contains("${date:") && !fileNameExpression.contains("${record."))) {
-                fileRecordWriter = new UniqueCsvRecordWriter(storage, (CsvConfig) fileConfig, tapTable, connectorContext.getStateMap());
-            } else if (fileNameExpression.contains("${date:")) {
-                fileRecordWriter = new DateCsvRecordWriter(storage, (CsvConfig) fileConfig, tapTable, connectorContext.getStateMap());
-            } else {
-                fileRecordWriter = new RecordCsvRecordWriter(storage, (CsvConfig) fileConfig, tapTable, connectorContext.getStateMap());
+        synchronized (this) {
+            if (EmptyKit.isNull(fileRecordWriter)) {
+                String fileNameExpression = fileConfig.getFileNameExpression();
+                if (EmptyKit.isBlank(fileNameExpression) || (!fileNameExpression.contains("${date:") && !fileNameExpression.contains("${record."))) {
+                    fileRecordWriter = new UniqueCsvRecordWriter(storage, (CsvConfig) fileConfig, tapTable, connectorContext.getStateMap());
+                } else if (fileNameExpression.contains("${date:")) {
+                    fileRecordWriter = new DateCsvRecordWriter(storage, (CsvConfig) fileConfig, tapTable, connectorContext.getStateMap());
+                } else {
+                    fileRecordWriter = new RecordCsvRecordWriter(storage, (CsvConfig) fileConfig, tapTable, connectorContext.getStateMap());
+                }
+                fileRecordWriter.setConnectorId(firstConnectorId);
             }
-            fileRecordWriter.setConnectorId(firstConnectorId);
         }
         fileRecordWriter.write(tapRecordEvents, writeListResultConsumer);
     }

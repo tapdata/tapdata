@@ -159,6 +159,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	public DataSourceConnectionDto add(DataSourceConnectionDto connectionDto, UserDetail userDetail) {
 		Boolean submit = connectionDto.getSubmit();
 		connectionDto.setLastUpdAt(new Date());
+		checkMongoUri(connectionDto);
 		connectionDto = save(connectionDto, userDetail);
 
 		desensitizeMongoConnection(connectionDto);
@@ -171,13 +172,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		connectionDto.setLastUpdAt(new Date());
 
 		beforeSave(connectionDto, userDetail);
-
+		checkMongoUri(connectionDto);
 		repository.insert(convertToEntity(DataSourceEntity.class, connectionDto), userDetail);
 
 		connectionDto = findById(connectionDto.getId(), userDetail);
 
 		desensitizeMongoConnection(connectionDto);
 		sendTestConnection(connectionDto, false, submit, userDetail);
+		defaultDataDirectoryService.addConnection(connectionDto, userDetail);
 		return connectionDto;
 	}
 
@@ -211,7 +213,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	public DataSourceConnectionDto update(UserDetail user, DataSourceConnectionDto updateDto, boolean changeLast) {
 		Boolean submit = updateDto.getSubmit();
 		String oldName = updateCheck(user, updateDto);
-
+		checkMongoUri(updateDto);
 		Assert.isFalse(StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), updateDto.getAccessNodeType())
 				&& CollectionUtils.isEmpty(updateDto.getAccessNodeProcessIdList()), "manually_specified_by_the_user processId is null");
 
@@ -558,6 +560,31 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			}
 		}
 		return newResultObj;
+	}
+
+
+	private void checkMongoUri(DataSourceConnectionDto dto) {
+		if (dto != null && !Objects.isNull(dto.getConfig())
+				&& !dto.getConfig().isEmpty()) {
+			if (dto.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo") && dto.getConfig().get("uri") != null) {
+				String uri = (String) dto.getConfig().get("uri");
+				try {
+					new ConnectionString(uri);
+				} catch (Exception e) {
+					if (uri.startsWith("mongodb+srv:")) {
+						try {
+							new ConnectionString(uri.replace("mongodb+srv:", "mongodb:"));
+						} catch (Exception e1) {
+							log.error("Parse connection string failed ({}) {}", uri, e);
+							throw new BizException("Datasource.IllegalUserNameOrPasswd");
+						}
+					} else {
+						log.error("Parse connection string failed ({}) {}", uri, e);
+						throw new BizException("Datasource.IllegalUserNameOrPasswd");
+					}
+				}
+			}
+		}
 	}
 
 	private void hiddenMqPasswd(DataSourceConnectionDto item) {
@@ -1165,9 +1192,9 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			availableAgent = workerService.findAvailableAgent(user);
 		}
 		if (CollectionUtils.isEmpty(availableAgent)) {
-			Criteria.where("id").is(connectionDto.getId());
-			Update updateInvalid = Update.update("status", "invalid").set("errorMsg", "no agent");
-			updateByIdNotChangeLast(connectionDto.getId(), updateInvalid, user);
+//			Criteria.where("id").is(connectionDto.getId());
+//			Update updateInvalid = Update.update("status", "invalid").set("errorMsg", "no agent");
+//			updateByIdNotChangeLast(connectionDto.getId(), updateInvalid, user);
 			log.info("send test connection, agent not found");
 			return;
 
@@ -1583,6 +1610,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			String connId = connectionDto.getId().toHexString();
 			Query query = new Query(Criteria.where("_id").is(connectionDto.getId()));
 			query.fields().include("_id");
+			connectionDto.setListtags(null);
 			DataSourceConnectionDto connection = findOne(query);
 			if (connection == null) {
 				while (checkRepeatNameBool(user, connectionDto.getName(), null)) {
@@ -1596,7 +1624,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 						connectionDto.setName(connectionDto.getName() + "_import");
 					}
 
-					connectionDto.setListtags(null);
 					connectionDto.setAccessNodeProcessId(null);
 					connectionDto.setAccessNodeProcessIdList(new ArrayList<>());
 					connectionDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());

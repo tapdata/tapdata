@@ -24,193 +24,197 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.*;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class HazelcastMigrateFieldRenameProcessorNode  extends HazelcastProcessorBaseNode {
+public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessorBaseNode {
 
-  private static final Logger logger = LogManager.getLogger(HazelcastMigrateFieldRenameProcessorNode.class);
-
-
-  /**
-   * key: table name
-   *  --key old field name
-   */
-  private final Map<String, Map<String, FieldInfo>> tableFieldsMappingMap;
-
-  public HazelcastMigrateFieldRenameProcessorNode(ProcessorBaseContext processorBaseContext) {
-    super(processorBaseContext);
-    MigrateFieldRenameProcessorNode migrateFieldRenameProcessorNode = (MigrateFieldRenameProcessorNode) getNode();
+	private static final Logger logger = LogManager.getLogger(HazelcastMigrateFieldRenameProcessorNode.class);
 
 
+	/**
+	 * key: table name
+	 * --key old field name
+	 */
+	private final Map<String, Map<String, FieldInfo>> tableFieldsMappingMap;
 
-    if (CollectionUtils.isNotEmpty(migrateFieldRenameProcessorNode.getFieldsMapping())) {
-      this.tableFieldsMappingMap = migrateFieldRenameProcessorNode.getFieldsMapping().stream()
-              .collect(Collectors.toMap(TableFieldInfo::getPreviousTableName,
-                      t -> t.getFields().stream()
-                              .collect(Collectors.toMap(FieldInfo::getSourceFieldName, Function.identity()))));
-    } else {
-      this.tableFieldsMappingMap = new LinkedHashMap<>();
-    }
-  }
+	public HazelcastMigrateFieldRenameProcessorNode(ProcessorBaseContext processorBaseContext) {
+		super(processorBaseContext);
+		MigrateFieldRenameProcessorNode migrateFieldRenameProcessorNode = (MigrateFieldRenameProcessorNode) getNode();
 
-  @Override
-  protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
 
-    TapEvent tapEvent = tapdataEvent.getTapEvent();
-    if (!(tapEvent instanceof TapBaseEvent)) {
-      // No processing required
-      consumer.accept(tapdataEvent, null);
-    }
-    AtomicReference<TapdataEvent> processedEvent = new AtomicReference<>();
-    String tableId = TapEventUtil.getTableId(tapEvent);
-    if (tapEvent instanceof TapRecordEvent) {
-      //dml event
-      Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
-      Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
-      TapEventUtil.setAfter(tapEvent, processFields(after, tableId));
-      TapEventUtil.setBefore(tapEvent, processFields(before, tableId));
 
-      processedEvent.set(tapdataEvent);
+		if (CollectionUtils.isNotEmpty(migrateFieldRenameProcessorNode.getFieldsMapping())) {
+			this.tableFieldsMappingMap = migrateFieldRenameProcessorNode.getFieldsMapping().stream()
+					.collect(Collectors.toMap(TableFieldInfo::getPreviousTableName,
+							t -> t.getFields().stream()
+									.collect(Collectors.toMap(FieldInfo::getSourceFieldName, Function.identity()))));
+		} else {
+			this.tableFieldsMappingMap = new LinkedHashMap<>();
+		}
+	}
 
-    } else {
-      //ddl event
-      if (tapEvent instanceof TapAlterFieldAttributesEvent) {
-        processField(tapdataEvent, processedEvent, tableId, ((TapAlterFieldAttributesEvent) tapEvent).getFieldName(),
-                (newFieldName) -> ((TapAlterFieldAttributesEvent) tapEvent).setFieldName(newFieldName));
-      } else if (tapEvent instanceof TapAlterFieldNameEvent) {
-        processField(tapdataEvent, processedEvent, tableId, ((TapAlterFieldNameEvent) tapEvent).getNameChange().getBefore(),
-                (newFieldName) -> ((TapAlterFieldNameEvent) tapEvent).getNameChange().setBefore(newFieldName));
-      } else if (tapEvent instanceof TapDropFieldEvent) {
-        processField(tapdataEvent, processedEvent, tableId, ((TapDropFieldEvent) tapEvent).getFieldName(),
-                (newFieldName) -> ((TapDropFieldEvent) tapEvent).setFieldName(newFieldName));
-      } else if (tapEvent instanceof TapAlterFieldPrimaryKeyEvent) {
-        List<FieldAttrChange<List<String>>> primaryKeyChanges = ((TapAlterFieldPrimaryKeyEvent) tapEvent).getPrimaryKeyChanges();
-        ListIterator<FieldAttrChange<List<String>>> primaryKeyChangesIter = primaryKeyChanges.listIterator();
-        while (primaryKeyChangesIter.hasNext()) {
-          FieldAttrChange<List<String>> fieldAttrChange = primaryKeyChangesIter.next();
-          List<String> before = fieldAttrChange.getBefore();
-          ListIterator<String> fieldsIter = before.listIterator();
-          while (fieldsIter.hasNext()) {
-            String fieldName = fieldsIter.next();
-            processField(tableId, fieldName, (newFieldName) -> {
-              if (newFieldName == null) {
-                fieldsIter.remove();
-              }
-              if (!StringUtils.equals(fieldName, newFieldName)) {
-                fieldsIter.set(newFieldName);
-              }
-            });
-          }
-          if (CollectionUtils.isEmpty(before)) {
-            primaryKeyChangesIter.remove();
-          }
-        }
-        if (CollectionUtils.isNotEmpty(primaryKeyChanges)) {
-          processedEvent.set(tapdataEvent);
-        }
-      } else if (tapEvent instanceof TapCreateIndexEvent) {
-        List<TapIndex> indexList = ((TapCreateIndexEvent) tapEvent).getIndexList();
-        Iterator<TapIndex> indexIterator = indexList.iterator();
-        while (indexIterator.hasNext()) {
-          TapIndex tapIndex = indexIterator.next();
-          List<TapIndexField> indexFields = tapIndex.getIndexFields();
-          ListIterator<TapIndexField> tapIndexFieldListIterator = indexFields.listIterator();
-          while (tapIndexFieldListIterator.hasNext()) {
-            TapIndexField tapIndexField = tapIndexFieldListIterator.next();
-            String fieldName = tapIndexField.getName();
-            processField(tableId, fieldName, (newFieldName) -> {
-              if (StringUtils.isEmpty(newFieldName)) {
-                tapIndexFieldListIterator.remove();
-              }
-              if (!StringUtils.equals(fieldName, newFieldName)) {
-                tapIndexField.setName(newFieldName);
-              }
-            });
-          }
-          if (CollectionUtils.isEmpty(indexFields)) {
-            indexIterator.remove();
-          }
-        }
-        if (CollectionUtils.isNotEmpty(indexList)) {
-          processedEvent.set(tapdataEvent);
-        }
+	@Override
+	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
 
-      } else {
-        //no processing required
-        processedEvent.set(tapdataEvent);
-      }
-    }
+		TapEvent tapEvent = tapdataEvent.getTapEvent();
+		if (!(tapEvent instanceof TapBaseEvent)) {
+			// No processing required
+			consumer.accept(tapdataEvent, null);
+		}
+		AtomicReference<TapdataEvent> processedEvent = new AtomicReference<>();
+		String tableId = TapEventUtil.getTableId(tapEvent);
+		if (tapEvent instanceof TapRecordEvent) {
+			//dml event
+			Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
+			Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
+			TapEventUtil.setAfter(tapEvent, processFields(after, tableId));
+			TapEventUtil.setBefore(tapEvent, processFields(before, tableId));
 
-    if (processedEvent.get() != null) {
-      consumer.accept(processedEvent.get(), getProcessResult(tableId));
-    } else {
-      if (logger.isDebugEnabled()) {
-        logger.debug("The event does not need to continue to be processed {}", tapdataEvent);
-      }
-    }
-  }
+			processedEvent.set(tapdataEvent);
 
-  private void processField(TapdataEvent tapdataEvent, AtomicReference<TapdataEvent> processedEvent,
-                            String tableName, String fieldName, Consumer<String> renameFieldNameConsumer) {
+		} else {
+			//ddl event
+			if (tapEvent instanceof TapAlterFieldAttributesEvent) {
+				processField(tapdataEvent, processedEvent, tableId, ((TapAlterFieldAttributesEvent) tapEvent).getFieldName(),
+						(newFieldName) -> ((TapAlterFieldAttributesEvent) tapEvent).setFieldName(newFieldName));
+			} else if (tapEvent instanceof TapAlterFieldNameEvent) {
+				processField(tapdataEvent, processedEvent, tableId, ((TapAlterFieldNameEvent) tapEvent).getNameChange().getBefore(),
+						(newFieldName) -> ((TapAlterFieldNameEvent) tapEvent).getNameChange().setBefore(newFieldName));
+			} else if (tapEvent instanceof TapDropFieldEvent) {
+				processField(tapdataEvent, processedEvent, tableId, ((TapDropFieldEvent) tapEvent).getFieldName(),
+						(newFieldName) -> ((TapDropFieldEvent) tapEvent).setFieldName(newFieldName));
+			} else if (tapEvent instanceof TapAlterFieldPrimaryKeyEvent) {
+				List<FieldAttrChange<List<String>>> primaryKeyChanges = ((TapAlterFieldPrimaryKeyEvent) tapEvent).getPrimaryKeyChanges();
+				ListIterator<FieldAttrChange<List<String>>> primaryKeyChangesIter = primaryKeyChanges.listIterator();
+				while (primaryKeyChangesIter.hasNext()) {
+					FieldAttrChange<List<String>> fieldAttrChange = primaryKeyChangesIter.next();
+					List<String> before = fieldAttrChange.getBefore();
+					ListIterator<String> fieldsIter = before.listIterator();
+					while (fieldsIter.hasNext()) {
+						String fieldName = fieldsIter.next();
+						processField(tableId, fieldName, (newFieldName) -> {
+							if (newFieldName == null) {
+								fieldsIter.remove();
+							}
+							if (!StringUtils.equals(fieldName, newFieldName)) {
+								fieldsIter.set(newFieldName);
+							}
+						});
+					}
+					if (CollectionUtils.isEmpty(before)) {
+						primaryKeyChangesIter.remove();
+					}
+				}
+				if (CollectionUtils.isNotEmpty(primaryKeyChanges)) {
+					processedEvent.set(tapdataEvent);
+				}
+			} else if (tapEvent instanceof TapCreateIndexEvent) {
+				List<TapIndex> indexList = ((TapCreateIndexEvent) tapEvent).getIndexList();
+				Iterator<TapIndex> indexIterator = indexList.iterator();
+				while (indexIterator.hasNext()) {
+					TapIndex tapIndex = indexIterator.next();
+					List<TapIndexField> indexFields = tapIndex.getIndexFields();
+					ListIterator<TapIndexField> tapIndexFieldListIterator = indexFields.listIterator();
+					while (tapIndexFieldListIterator.hasNext()) {
+						TapIndexField tapIndexField = tapIndexFieldListIterator.next();
+						String fieldName = tapIndexField.getName();
+						processField(tableId, fieldName, (newFieldName) -> {
+							if (StringUtils.isEmpty(newFieldName)) {
+								tapIndexFieldListIterator.remove();
+							}
+							if (!StringUtils.equals(fieldName, newFieldName)) {
+								tapIndexField.setName(newFieldName);
+							}
+						});
+					}
+					if (CollectionUtils.isEmpty(indexFields)) {
+						indexIterator.remove();
+					}
+				}
+				if (CollectionUtils.isNotEmpty(indexList)) {
+					processedEvent.set(tapdataEvent);
+				}
 
-    processField(tableName, fieldName, (newFieldName) -> {
-      if (StringUtils.isEmpty(newFieldName)) {
-        return;
-      }
-      if (!StringUtils.equals(fieldName, newFieldName)) {
-        renameFieldNameConsumer.accept(newFieldName);
-      }
-      processedEvent.set(tapdataEvent);
-    });
-  }
+			} else {
+				//no processing required
+				processedEvent.set(tapdataEvent);
+			}
+		}
 
-  private void processField(String tableName, String fieldName, Consumer<String> renameFieldNameConsumer) {
-    Map<String, FieldInfo> fieldInfoMap = this.tableFieldsMappingMap.get(tableName);
-    if (MapUtils.isNotEmpty(fieldInfoMap)) {
-      FieldInfo fieldInfo = fieldInfoMap.get(fieldName);
-      if (fieldInfo != null) {
-        if (fieldInfo.getIsShow() != null && !fieldInfo.getIsShow()) {
-          renameFieldNameConsumer.accept(null);
-        } else {
-          renameFieldNameConsumer.accept(fieldInfo.getTargetFieldName());
-        }
-      }
-    }
-    renameFieldNameConsumer.accept(fieldName);
-  }
+		if (processedEvent.get() != null) {
+			consumer.accept(processedEvent.get(), getProcessResult(tableId));
+		} else {
+			if (logger.isDebugEnabled()) {
+				logger.debug("The event does not need to continue to be processed {}", tapdataEvent);
+			}
+		}
+	}
 
-  private Map<String, Object> processFields(Map<String, Object> map, String tableName) {
-    if (MapUtils.isEmpty(map)) {
-      return map;
-    }
-    if (StringUtils.isEmpty(tableName)) {
-      return map;
-    }
-    Map<String, FieldInfo> fieldsMappingMap = this.tableFieldsMappingMap.get(tableName);
-    if (MapUtils.isEmpty(fieldsMappingMap)) {
-      return map;
-    }
+	private void processField(TapdataEvent tapdataEvent, AtomicReference<TapdataEvent> processedEvent,
+							  String tableName, String fieldName, Consumer<String> renameFieldNameConsumer) {
 
-    for (Map.Entry<String, FieldInfo> entry : fieldsMappingMap.entrySet()) {
-      if (MapUtil.containsKey(map, entry.getKey())) {
-        FieldInfo fieldInfo = entry.getValue();
-        if (fieldInfo.getIsShow() != null && !fieldInfo.getIsShow()) {
-          MapUtil.removeValueByKey(map, entry.getKey());
-          continue;
-        }
-        Object value = MapUtil.getValueByKey(map, entry.getKey());
-        try {
-          MapUtil.replaceKey(fieldInfo.getSourceFieldName(), map, fieldInfo.getTargetFieldName());
-        } catch (Exception e) {
-          throw new RuntimeException("Error when modifying field name: " + fieldInfo + "--" + value, e);
-        }
-      }
-    }
-    return map;
-  }
+		processField(tableName, fieldName, (newFieldName) -> {
+			if (StringUtils.isEmpty(newFieldName)) {
+				return;
+			}
+			if (!StringUtils.equals(fieldName, newFieldName)) {
+				renameFieldNameConsumer.accept(newFieldName);
+			}
+			processedEvent.set(tapdataEvent);
+		});
+	}
+
+	private void processField(String tableName, String fieldName, Consumer<String> renameFieldNameConsumer) {
+		Map<String, FieldInfo> fieldInfoMap = this.tableFieldsMappingMap.get(tableName);
+		if (MapUtils.isNotEmpty(fieldInfoMap)) {
+			FieldInfo fieldInfo = fieldInfoMap.get(fieldName);
+			if (fieldInfo != null) {
+				if (fieldInfo.getIsShow() != null && !fieldInfo.getIsShow()) {
+					renameFieldNameConsumer.accept(null);
+				} else {
+					renameFieldNameConsumer.accept(fieldInfo.getTargetFieldName());
+				}
+			}
+		}
+		renameFieldNameConsumer.accept(fieldName);
+	}
+
+	private Map<String, Object> processFields(Map<String, Object> map, String tableName) {
+		if (MapUtils.isEmpty(map)) {
+			return map;
+		}
+		if (StringUtils.isEmpty(tableName)) {
+			return map;
+		}
+		Map<String, FieldInfo> fieldsMappingMap = this.tableFieldsMappingMap.get(tableName);
+		if (MapUtils.isEmpty(fieldsMappingMap)) {
+			return map;
+		}
+
+		for (Map.Entry<String, FieldInfo> entry : fieldsMappingMap.entrySet()) {
+			if (MapUtil.containsKey(map, entry.getKey())) {
+				FieldInfo fieldInfo = entry.getValue();
+				if (fieldInfo.getIsShow() != null && !fieldInfo.getIsShow()) {
+					MapUtil.removeValueByKey(map, entry.getKey());
+					continue;
+				}
+				Object value = MapUtil.getValueByKey(map, entry.getKey());
+				try {
+					MapUtil.replaceKey(fieldInfo.getSourceFieldName(), map, fieldInfo.getTargetFieldName());
+				} catch (Exception e) {
+					throw new RuntimeException("Error when modifying field name: " + fieldInfo + "--" + value, e);
+				}
+			}
+		}
+		return map;
+	}
 }

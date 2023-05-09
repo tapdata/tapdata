@@ -55,6 +55,7 @@ import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.service.InspectResultService;
 import com.tapdata.tm.inspect.service.InspectService;
+import com.tapdata.tm.lock.annotation.Lock;
 import com.tapdata.tm.lock.service.LockControlService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
@@ -195,6 +196,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
 
     private LockControlService lockControlService;
+
+    private TaskUpdateDagService taskUpdateDagService;
+
+    private DateNodeService dateNodeService;
     public TaskService(@NonNull TaskRepository repository) {
         super(repository, TaskDto.class, TaskEntity.class);
     }
@@ -234,6 +239,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         checkTaskName(taskDto.getName(), user, taskDto.getId());
 
         customSqlService.checkCustomSqlTask(taskDto, user);
+        dateNodeService.checkTaskDateNode(taskDto, user);
 
         boolean rename = false;
         if (taskDto.getId() != null) {
@@ -446,9 +452,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
 
         customSqlService.checkCustomSqlTask(taskDto, user);
+        dateNodeService.checkTaskDateNode(taskDto, user);
 
-        if (oldTaskDto.getEditVersion().equals(taskDto.getEditVersion())) {
-            //throw new BizException("Task.OldVersion");
+        boolean agentReq = isAgentReq();
+        if (!agentReq) {
+            if (taskDto.getEditVersion() != null && !oldTaskDto.getEditVersion().equals(taskDto.getEditVersion())) {
+                if (taskDto.getPageVersion() != null && oldTaskDto.getPageVersion() != null && !oldTaskDto.getPageVersion().equals(taskDto.getPageVersion())) {
+                    throw new BizException("Task.OldVersion");
+                }
+            }
         }
 
         //改名不能重复
@@ -474,8 +486,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         log.debug("check task dag complete, task id =- {}", taskDto.getId());
 
-        String editVersion = buildEditVersion(taskDto);
-        taskDto.setEditVersion(editVersion);
+        if (!isAgentReq()) {
+            String editVersion = buildEditVersion(taskDto);
+            taskDto.setEditVersion(editVersion);
+        }
+
 
         //更新任务
         log.debug("update task, task dto = {}", taskDto);
@@ -1044,17 +1059,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void renew(ObjectId id, UserDetail user) {
         TaskDto taskDto = checkExistById(id, user);
         boolean needCreateRecord = !TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
+        TaskEntity taskSnapshot = null;
         if (needCreateRecord) {
-            String lastTaskRecordId = new ObjectId().toHexString();
-            Update update = Update.update(TaskDto.LASTTASKRECORDID, lastTaskRecordId);
-            updateById(id.toHexString(), update, user);
-
-            taskDto.setTaskRecordId(lastTaskRecordId);
-            TaskEntity taskSnapshot = new TaskEntity();
+            taskSnapshot = new TaskEntity();
             BeanUtil.copyProperties(taskDto, taskSnapshot);
-
-            disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD,
-                    new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
         }
 //        String status = taskDto.getStatus();
 //        if (TaskDto.STATUS_WAIT_START.equals(status)) {
@@ -1078,14 +1086,30 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.debug("check task status complete, task name = {}", taskDto.getName());
             taskResetLogService.clearLogByTaskId(id.toHexString());
             sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_RESET);
+
+            if (needCreateRecord) {
+                String lastTaskRecordId = new ObjectId().toHexString();
+                Update update = Update.update(TaskDto.LASTTASKRECORDID, lastTaskRecordId);
+                updateById(id.toHexString(), update, user);
+
+                taskSnapshot.setTaskRecordId(lastTaskRecordId);
+                disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD,
+                        new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+            }
         }
         //afterRenew(taskDto, user);
     }
+
 
     public void afterRenew(TaskDto taskDto, UserDetail user) {
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.RENEW_DEL_SUCCESS, user);
         if (stateMachineResult.isFail()) {
             log.info("modify renew success failed, task id = {}", taskDto.getId());
+            return;
+        }
+
+        TaskDto status = findByTaskId(taskDto.getId(), "status");
+        if (!TaskDto.STATUS_WAIT_START.equals(status.getStatus())) {
             return;
         }
 
@@ -1346,6 +1370,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             if (SyncType.MIGRATE.getValue().equals(synType)) {
                 taskDtoPage = findDataCopyList(filter, userDetail);
             } else if (SyncType.SYNC.getValue().equals(synType)) {
+                taskDtoPage = findDataDevList(filter, userDetail);
+            } else if (SyncType.CONN_HEARTBEAT.getValue().equals(synType)) {
                 taskDtoPage = findDataDevList(filter, userDetail);
             }
             items = taskDtoPage.getItems();
@@ -1707,7 +1733,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Node sourceNode = getSourceNode(taskDto);
         CacheNode targetNode = (CacheNode) getTargetNode(taskDto);
         ShareCacheDetailVo shareCacheDetailVo = new ShareCacheDetailVo();
+        shareCacheDetailVo.setId(id);
         shareCacheDetailVo.setName(taskDto.getName());
+        shareCacheDetailVo.setStatus(taskDto.getStatus());
         String connectionId = ((DataNode) sourceNode).getConnectionId();
         DataSourceConnectionDto connectionDto = dataSourceService.findOne(Query.query(Criteria.where("id").is(connectionId)));
         if (null != connectionDto) {
@@ -1716,9 +1744,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         shareCacheDetailVo.setTableName(((TableNode) sourceNode).getTableName());
         shareCacheDetailVo.setCacheKeys(targetNode.getCacheKeys());
-
+        shareCacheDetailVo.setCreateTime(taskDto.getCreateAt());
+        shareCacheDetailVo.setCreateUser(taskDto.getCreateUser());
         if (null != sourceNode.getAttrs()) {
             shareCacheDetailVo.setFields((List<String>) sourceNode.getAttrs().get("fields"));
+        }
+
+        if (taskDto.getCurrentEventTimestamp() != null) {
+            shareCacheDetailVo.setCacheTimeAt(new Date(taskDto.getCurrentEventTimestamp()));
         }
         shareCacheDetailVo.setMaxRows(targetNode.getMaxRows());
         shareCacheDetailVo.setMaxMemory(targetNode.getMaxMemory());
@@ -1763,7 +1796,18 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             tableNode.setType("table");
             tableNode.setDatabaseType((String) sourceNodeMap.get("databaseType"));
             tableNode.setConnectionId((String) sourceNodeMap.get("connectionId"));
-            tableNode.setName(tableNode.getConnectionId() + "-" + tableNode.getTableName());
+
+            String connectionName = Optional.ofNullable(tableNode.getConnectionId())
+                    .map(ObjectId::new)
+                    .map(connId -> {
+                        return dataSourceService.findById(connId, new Field() {{
+                            put("name", true);
+                        }});
+                    }).map(DataSourceConnectionDto::getName).orElse(null);
+            if (null == connectionName) {
+                throw new BizException("Datasource.NotFound");
+            }
+            tableNode.setName(connectionName + "-" + tableNode.getTableName());
 
             Map<String, Object> attrs = new HashMap();
             if (null != sourceNodeMap.get("attrs")) {
@@ -2512,6 +2556,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                                 dataSourceConnectionDto.setCustomId(null);
                                 dataSourceConnectionDto.setLastUpdBy(null);
                                 dataSourceConnectionDto.setUserId(null);
+                                dataSourceConnectionDto.setListtags(null);
                                 String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", dataSourceConnectionDto, null);
                                 MetadataInstancesDto dataSourceMetadataInstance = metadataInstancesService.findOne(
                                         Query.query(Criteria.where("qualified_name").is(databaseQualifiedName).and("is_deleted").ne(true)), user);
@@ -2854,6 +2899,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             taskDto.getAttrs().remove("edgeMilestones");
             taskDto.getAttrs().remove("milestone");
             taskDto.getAttrs().remove("nodeMilestones");
+            taskDto.getAttrs().remove(TaskDto.ATTRS_USED_SHARE_CACHE);
+            taskDto.getAttrs().remove(TaskDto.ATTRS_SKIP_ERROR_EVENT);
             AutoInspectUtil.removeProgress(taskDto.getAttrs());
 
             set.set("attrs", taskDto.getAttrs());
@@ -3099,10 +3146,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
 
-        if (TaskDto.LDP_TYPE_FDM.equals(taskDto.getLdpType())) {
-            //如果是共享挖掘任务给一个队列，避免混乱
-            lockControlService.fdmStartQueue(user);
-        }
+//        if (TaskDto.LDP_TYPE_FDM.equals(taskDto.getLdpType())) {
+//            //如果是共享挖掘任务给一个队列，避免混乱
+//            lockControlService.fdmStartQueue(user);
+//        }
 
         Update update = Update.update("lastStartDate", System.currentTimeMillis());
         if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
@@ -3204,6 +3251,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param userDetail
      */
     public void updateTaskRecordStatus(TaskDto dto, String status, UserDetail userDetail) {
+
+        //对于重置是异步的，并且在并发情况下可能存在多条运行记录，如果在这里过滤掉重置状态。可以调整创建运行记录的时间点避免
+        if (TaskDto.STATUS_RENEWING.equals(status)) {
+            return;
+        }
+
         dto.setStatus(status);
         if (StringUtils.isNotBlank(dto.getTaskRecordId())) {
             SyncTaskStatusDto info = SyncTaskStatusDto.builder()
@@ -3705,27 +3758,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return findOne(query, user);
     }
 
-    public void updateDag(TaskDto TaskDto, UserDetail user, boolean saveHistory) {
-        TaskDto TaskDto1 = checkExistById(TaskDto.getId(), user);
-
-        Criteria criteria = Criteria.where("_id").is(TaskDto.getId());
-        Update update = Update.update("dag", TaskDto.getDag());
-        long tmCurrentTime = System.currentTimeMillis();
-        if (saveHistory) {
-            update.set("tmCurrentTime", tmCurrentTime);
-        }
-        repository.update(new Query(criteria), update, user);
-
-        if (saveHistory) {
-            TaskHistory taskHistory = new TaskHistory();
-            BeanUtils.copyProperties(TaskDto1, taskHistory);
-            taskHistory.setTaskId(TaskDto1.getId().toHexString());
-            taskHistory.setId(ObjectId.get());
-
-            //保存任务历史
-            repository.getMongoOperations().insert(taskHistory, "DDlTaskHistories");
-        }
-
+    public void updateDag(TaskDto taskDto, UserDetail user, boolean saveHistory) {
+        TaskDto oldTask = checkExistById(taskDto.getId(), user);
+        taskUpdateDagService.updateDag(taskDto, oldTask, user, saveHistory);
     }
 
     public TaskDto findByVersionTime(String id, Long time) {

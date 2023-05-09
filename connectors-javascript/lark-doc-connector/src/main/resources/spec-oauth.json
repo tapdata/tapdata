@@ -1,0 +1,132 @@
+{
+  "properties": {
+    "name": "Lark Doc",
+    "icon": "icon/lark-doc.png",
+    "doc" : "${doc}",
+    "id": "lark-doc"
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+        "lang": {
+          "type": "string",
+          "title": "${n_lang}",
+          "default": 0,
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-index": 10,
+          "enum": [
+            {
+              "label": "${c_lang_ch}",
+              "value": 0
+            },
+            {
+              "label": "${c_lang_en}",
+              "value": 1
+            },
+            {
+              "label": "${c_lang_jp}",
+              "value": 2
+            }
+          ]
+        }
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "String",
+          "title": "${code}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-decorator-props": {
+            "style": {"display": "none"}
+          },
+          "apiServerKey": "code",
+          "x-index": 30,
+          "required": true
+        },
+        "line": {
+          "type": "void",
+          "x-component": "Space",
+          "x-decorator": "FormItem",
+          "title": " ",
+          "x-decorator-props": {
+            "colon": false
+          },
+          "properties": {
+            "authButton": {
+              "type": "void",
+              "x-decorator": "FormItem",
+              "x-component": "Button",
+              "x-content": "${OAuthButtonTitle}",
+              "title": "",
+              "x-index": 20,
+              "x-component-props": {
+                "type": "primary",
+                "onClick": "{{useAsyncDataSourceByConfig({service: goToAuthorized, withoutField: true}, { target: 'https://redirect.tapdata.io/oauth/complete', pdkId: 'lark-doc', oauthUrl: 'https://passport.feishu.cn/suite/passport/oauth/authorize?app_id=cli_a375a91e7879900b&redirect_uri=https://redirect.tapdata.io/oauth/complete/lark-doc&response_type=code&state=lark-doc'})}}"
+              },
+              "x-decorator-props":{"style":{"width":"120px"}}
+            },
+            "OAuthStatus": {
+              "type": "void",
+              "title": "",
+              "x-decorator": "FormItem",
+              "x-component": "Text",
+              "apiServerKey": "AAA",
+              "x-index": 30,
+              "required": true,
+              "x-component-props": {
+                "content": "{{$values.code ? '${OAuthButtonOK}' : '${OAuthButton}'}}",
+                "style": {"color": "{{ $values.code ? 'green' : 'rgb(83, 95, 114)' }}"}
+              }
+            }
+          },
+          "x-index": 20
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "doc/demo_en_US.md",
+      "code": "Authorize",
+      "OAuthButtonTitle": "Authorize",
+      "OAuthButton": "Please authorize before connection test and save",
+      "OAuthButtonOK": "Authorization successfully",
+
+      "n_lang": "Multilingual",
+      "c_lang_cn": "Chinese",
+      "c_lang_zn": "English",
+      "c_lang_jp": "Japanese"
+    },
+    "zh_CN": {
+      "doc": "doc/demo_zh_CN.md",
+      "code": "授权",
+      "OAuthButtonTitle": "授权",
+      "OAuthButton": "请先授权成功再点击连接测试或保存",
+      "OAuthButtonOK": "授权成功",
+
+      "n_lang": "多语言",
+      "c_lang_cn": "Chinese",
+      "c_lang_zn": "English",
+      "c_lang_jp": "Japanese"
+    },
+    "zh_TW": {
+      "doc": "doc/demo_zh_TW.md",
+      "code": "授權",
+      "OAuthButtonTitle": "授權",
+      "OAuthButton": "請先授權成功再點擊鏈接測試或保存",
+      "OAuthButtonOK": "授權成功",
+
+      "n_lang": "多語言",
+      "c_lang_cn": "Chinese",
+      "c_lang_zn": "English",
+      "c_lang_jp": "Japanese"
+    }
+  }
+}

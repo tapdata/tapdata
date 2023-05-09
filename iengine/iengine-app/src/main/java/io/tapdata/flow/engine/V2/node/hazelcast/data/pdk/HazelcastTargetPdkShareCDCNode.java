@@ -20,6 +20,7 @@ import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.construct.HazelcastConstruct;
 import io.tapdata.construct.constructImpl.ConstructRingBuffer;
+import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
@@ -28,18 +29,18 @@ import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
 import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.TapStringValue;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.error.TaskTargetShareCDCProcessorExCode_19;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.WriteListResult;
-import io.tapdata.pdk.core.api.impl.serialize.ObjectSerializableImplV2;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.collections.map.LRUMap;
@@ -47,6 +48,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -121,6 +123,23 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		ddlEventHandlers.register(TapAlterFieldNameEvent.class, this::writeAlterFieldNameFunction);
 		ddlEventHandlers.register(TapAlterFieldAttributesEvent.class, this::writeAlterFieldAttrFunction);
 		ddlEventHandlers.register(TapDropFieldEvent.class, this::writeDropFieldFunction);
+
+		initCodecs();
+	}
+
+	private void initCodecs() {
+		if (null != codecsFilterManager) {
+			TapCodecsRegistry codecsRegistry = codecsFilterManager.getCodecsRegistry();
+			codecsRegistry.registerFromTapValue(TapStringValue.class, tapValue -> {
+				if (null == tapValue) {
+					return null;
+				}
+				if (tapValue.getOriginType().equals("OBJECT_ID") && tapValue.getOriginValue().getClass().getName().equals(ObjectId.class.getName())) {
+					return new ObjectId(tapValue.getValue());
+				}
+				return tapValue.getValue();
+			});
+		}
 	}
 
 	@Override
@@ -129,31 +148,38 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	@Override
-	@SneakyThrows
 	void processShareLog(List<TapdataShareLogEvent> tapdataShareLogEvents) {
-		if (CollectionUtils.isEmpty(tapdataShareLogEvents)) return;
+		try {
+			if (CollectionUtils.isEmpty(tapdataShareLogEvents)) return;
 
-		List<TapdataShareLogEvent> cacheTapdataEvents = new ArrayList<>();
-		TapEvent lastTapEvent = null;
-		for (TapdataShareLogEvent tapdataShareLogEvent : tapdataShareLogEvents) {
-			// Dispatch dml and ddl events
-			TapEvent tapEvent = tapdataShareLogEvent.getTapEvent();
-			if (!tapdataShareLogEvent.isDDL() && !tapdataShareLogEvent.isDML()) {
-				continue;
-			}
-			if (null == lastTapEvent) {
+			List<TapdataShareLogEvent> cacheTapdataEvents = new ArrayList<>();
+			TapEvent lastTapEvent = null;
+			for (TapdataShareLogEvent tapdataShareLogEvent : tapdataShareLogEvents) {
+				// Dispatch dml and ddl events
+				TapEvent tapEvent = tapdataShareLogEvent.getTapEvent();
+				if (!tapdataShareLogEvent.isDDL() && !tapdataShareLogEvent.isDML()) {
+					continue;
+				}
+				if (null == lastTapEvent) {
+					lastTapEvent = tapEvent;
+				}
+				if (!(lastTapEvent.getClass().isInstance(tapEvent))) {
+					handleTapEvents(cacheTapdataEvents);
+				}
+				cacheTapdataEvents.add(tapdataShareLogEvent);
 				lastTapEvent = tapEvent;
 			}
-			if (!(lastTapEvent.getClass().isInstance(tapEvent))) {
-				handleTapEvents(cacheTapdataEvents);
-			}
-			cacheTapdataEvents.add(tapdataShareLogEvent);
-			lastTapEvent = tapEvent;
-		}
 
-		handleTapEvents(cacheTapdataEvents);
-		incrementTableMetrics(tapdataShareLogEvents);
-		metricsEnqueue();
+			handleTapEvents(cacheTapdataEvents);
+			incrementTableMetrics(tapdataShareLogEvents);
+			metricsEnqueue();
+		} catch (Exception e) {
+			if (!(e instanceof TapCodeException)) {
+				throw new TapCodeException(TaskTargetShareCDCProcessorExCode_19.UNKNOWN_ERROR, e);
+			} else {
+				throw e;
+			}
+		}
 	}
 
 	private void handleTapEvents(List<TapdataShareLogEvent> cacheTapdataEvents) {
@@ -321,7 +347,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		try {
 			document = MapUtil.obj2Document(logContent);
 		} catch (Exception e) {
-			throw new RuntimeException("Convert map to document failed; Map data: " + logContent + ". Error: " + e.getMessage(), e);
+			throw new TapCodeException(TaskTargetShareCDCProcessorExCode_19.CONVERT_LOG_CONTENT_TO_DOCUMENT_FAILED, String.format("Data: %s", logContent), e);
 		}
 		return document;
 	}
@@ -501,7 +527,8 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 				logger.debug("Write ring buffer, head sequence: {}, tail sequence: {}, last data: {}", ringbuffer.headSequence(), ringbuffer.tailSequence(), ringbuffer.readOne(ringbuffer.tailSequence()));
 			}
 		} catch (Exception e) {
-			throw new RuntimeException("Insert many documents into ringbuffer failed. Table: " + tableId + " Size: " + batchCacheData.get(tableId).size(), e);
+			throw new TapCodeException(TaskTargetShareCDCProcessorExCode_19.INSERT_MANY_INTO_RINGBUFFER_FAILED,
+					String.format("Ring buffer name: %s, table: %s, size: %s", ShareCdcUtil.getConstructName(processorBaseContext.getTaskDto(), tableId), tableId, batchCacheData.get(tableId).size()), e);
 		}
 	}
 

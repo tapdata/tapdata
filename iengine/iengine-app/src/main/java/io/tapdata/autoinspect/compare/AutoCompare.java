@@ -26,125 +26,125 @@ import java.util.function.Supplier;
  * @version v1.0 2022/8/16 14:30 Create
  */
 public class AutoCompare implements IAutoCompare {
-    private static final Logger logger = LogManager.getLogger(AutoCompare.class);
-    private final ClientMongoOperator clientMongoOperator;
-    private final AutoInspectProgress progress;
-    private final long diffMaxSize;
-    private final LinkedBlockingQueue<TaskAutoInspectResultDto> compareQueue = new LinkedBlockingQueue<>(1000);
-    private final Supplier<Boolean> supperRunning;
-    private final BiConsumer<Throwable, String> errorHandle;
-    private final AtomicBoolean stopping = new AtomicBoolean(false);
-    private final AtomicBoolean forceStopping = new AtomicBoolean(false);
-    private final AtomicBoolean completed = new AtomicBoolean(false);
+	private static final Logger logger = LogManager.getLogger(AutoCompare.class);
+	private final ClientMongoOperator clientMongoOperator;
+	private final AutoInspectProgress progress;
+	private final long diffMaxSize;
+	private final LinkedBlockingQueue<TaskAutoInspectResultDto> compareQueue = new LinkedBlockingQueue<>(1000);
+	private final Supplier<Boolean> supperRunning;
+	private final BiConsumer<Throwable, String> errorHandle;
+	private final AtomicBoolean stopping = new AtomicBoolean(false);
+	private final AtomicBoolean forceStopping = new AtomicBoolean(false);
+	private final AtomicBoolean completed = new AtomicBoolean(false);
 
-    public AutoCompare(@NonNull ClientMongoOperator clientMongoOperator, @NonNull AutoInspectProgress progress, @NonNull IQueryCompare queryCompare, @NonNull Supplier<Boolean> supperRunning, BiConsumer<Throwable, String> errorHandle) {
-        this.clientMongoOperator = clientMongoOperator;
-        this.progress = progress;
-        this.diffMaxSize = 1000;
-        this.supperRunning = supperRunning;
-        this.errorHandle = errorHandle;
+	public AutoCompare(@NonNull ClientMongoOperator clientMongoOperator, @NonNull AutoInspectProgress progress, @NonNull IQueryCompare queryCompare, @NonNull Supplier<Boolean> supperRunning, BiConsumer<Throwable, String> errorHandle) {
+		this.clientMongoOperator = clientMongoOperator;
+		this.progress = progress;
+		this.diffMaxSize = 1000;
+		this.supperRunning = supperRunning;
+		this.errorHandle = errorHandle;
 
-        new Thread(() -> {
-            try {
-                while (isRunning()) {
-                    try {
-                        TaskAutoInspectResultDto dto = compareQueue.poll(1000, TimeUnit.MILLISECONDS);
-                        if (null == dto) {
-                            if (stopping.get()) break;
-                            continue;
-                        }
-                        long delay = 5000 - (System.currentTimeMillis() - dto.getCreateAt().getTime());
-                        if (delay > 0) {
-                            Thread.sleep(delay);
-                        }
+		new Thread(() -> {
+			try {
+				while (isRunning()) {
+					try {
+						TaskAutoInspectResultDto dto = compareQueue.poll(1000, TimeUnit.MILLISECONDS);
+						if (null == dto) {
+							if (stopping.get()) break;
+							continue;
+						}
+						long delay = 5000 - (System.currentTimeMillis() - dto.getCreateAt().getTime());
+						if (delay > 0) {
+							Thread.sleep(delay);
+						}
 
-                        switch (queryCompare.queryCompare(dto)) {
-                            case Deleted:
-                                logger.debug("Fix record not exists in source and target '{}': {}", dto.getOriginalTableName(), JSON.toJSONString(dto.getOriginalKeymap()));
-                                fix(dto);
-                                break;
-                            case FixTarget:
-                                logger.debug("Fix in query target '{}': {}", dto.getOriginalTableName(), JSON.toJSONString(dto.getOriginalKeymap()));
-                                fix(dto);
-                                break;
-                            case FixSource:
-                                logger.debug("Fix in query source and target '{}': {}", dto.getOriginalTableName(), JSON.toJSONString(dto.getOriginalKeymap()));
-                                fix(dto);
-                                break;
-                            case Diff:
-                                save(dto);
-                                break;
-                        }
-                    } catch (Throwable e) {
-                        stop(true);
-                        errorHandle.accept(e, "Exit auto compare, " + e.getMessage());
-                        break;
-                    }
-                }
-            } finally {
-                completed.set(true);
-            }
-        }).start();
-    }
+						switch (queryCompare.queryCompare(dto)) {
+							case Deleted:
+								logger.debug("Fix record not exists in source and target '{}': {}", dto.getOriginalTableName(), JSON.toJSONString(dto.getOriginalKeymap()));
+								fix(dto);
+								break;
+							case FixTarget:
+								logger.debug("Fix in query target '{}': {}", dto.getOriginalTableName(), JSON.toJSONString(dto.getOriginalKeymap()));
+								fix(dto);
+								break;
+							case FixSource:
+								logger.debug("Fix in query source and target '{}': {}", dto.getOriginalTableName(), JSON.toJSONString(dto.getOriginalKeymap()));
+								fix(dto);
+								break;
+							case Diff:
+								save(dto);
+								break;
+						}
+					} catch (Throwable e) {
+						stop(true);
+						errorHandle.accept(e, "Exit auto compare, " + e.getMessage());
+						break;
+					}
+				}
+			} finally {
+				completed.set(true);
+			}
+		}).start();
+	}
 
-    @Override
-    public void autoCompare(@NonNull TaskAutoInspectResultDto dto) {
-        while (true) {
-            if (!isRunning()) {
-                logger.warn("{} is not running", AutoInspectConstants.MODULE_NAME);
-                return;
-            }
-            try {
-                if (compareQueue.offer(dto, 5000, TimeUnit.MILLISECONDS)) {
-                    break;
-                }
-                logger.warn("{} queue is full", AutoInspectConstants.MODULE_NAME);
-            } catch (InterruptedException e) {
-                stop(true);
-                errorHandle.accept(e, "Exit auto compare enqueue");
-                return;
-            }
-        }
-    }
+	@Override
+	public void autoCompare(@NonNull TaskAutoInspectResultDto dto) {
+		while (true) {
+			if (!isRunning()) {
+				logger.warn("{} is not running", AutoInspectConstants.MODULE_NAME);
+				return;
+			}
+			try {
+				if (compareQueue.offer(dto, 5000, TimeUnit.MILLISECONDS)) {
+					break;
+				}
+				logger.warn("{} queue is full", AutoInspectConstants.MODULE_NAME);
+			} catch (InterruptedException e) {
+				stop(true);
+				errorHandle.accept(e, "Exit auto compare enqueue");
+				return;
+			}
+		}
+	}
 
-    private boolean isRunning() {
-        return supperRunning.get() && !forceStopping.get();
-    }
+	private boolean isRunning() {
+		return supperRunning.get() && !forceStopping.get();
+	}
 
-    @Override
-    public void close() throws Exception {
-    }
+	@Override
+	public void close() throws Exception {
+	}
 
-    @Override
-    public boolean stop(boolean force) {
-        if (force) {
-            forceStopping.compareAndSet(false, true);
-        }
-        stopping.compareAndSet(false, true);
-        return completed.get();
-    }
+	@Override
+	public boolean stop(boolean force) {
+		if (force) {
+			forceStopping.compareAndSet(false, true);
+		}
+		stopping.compareAndSet(false, true);
+		return completed.get();
+	}
 
-    public void fix(@NonNull TaskAutoInspectResultDto dto) {
-        CompareTableItem tableItem = progress.getTableItem(dto.getOriginalTableName());
-        if (tableItem.getDiffKeys().contains(dto.getOriginalKeymap())) {
-            Query query = Query.query(Criteria
-                    .where("taskId").is(dto.getTaskId())
-                    .and("originalTableName").is(dto.getOriginalTableName())
-                    .and("originalKeymap").is(dto.getOriginalKeymap())
-            );
-            clientMongoOperator.delete(query, AutoInspectConstants.AUTO_INSPECT_RESULTS_COLLECTION_NAME);
-            tableItem.removeDiff(dto.getOriginalKeymap());
-        }
-    }
+	public void fix(@NonNull TaskAutoInspectResultDto dto) {
+		CompareTableItem tableItem = progress.getTableItem(dto.getOriginalTableName());
+		if (tableItem.getDiffKeys().contains(dto.getOriginalKeymap())) {
+			Query query = Query.query(Criteria
+					.where("taskId").is(dto.getTaskId())
+					.and("originalTableName").is(dto.getOriginalTableName())
+					.and("originalKeymap").is(dto.getOriginalKeymap())
+			);
+			clientMongoOperator.delete(query, AutoInspectConstants.AUTO_INSPECT_RESULTS_COLLECTION_NAME);
+			tableItem.removeDiff(dto.getOriginalKeymap());
+		}
+	}
 
-    private void save(@NonNull TaskAutoInspectResultDto dto) {
-        CompareTableItem tableItem = progress.getTableItem(dto.getOriginalTableName());
-        if (tableItem.getDiffCounts() >= diffMaxSize) {
-            throw AutoInspectException.diffMaxSize(diffMaxSize, tableItem);
-        }
-        logger.debug("Store AutoInspectResult '{}': {}", dto.getOriginalTableName(), JSON.toJSONString(dto.getOriginalKeymap()));
-        //bug: upsert api can not save most properties
-        clientMongoOperator.insertOne(dto, AutoInspectConstants.AUTO_INSPECT_RESULTS_COLLECTION_NAME);
-        tableItem.addDiff(dto.getOriginalKeymap());
-    }
+	private void save(@NonNull TaskAutoInspectResultDto dto) {
+		CompareTableItem tableItem = progress.getTableItem(dto.getOriginalTableName());
+		if (tableItem.getDiffCounts() >= diffMaxSize) {
+			throw AutoInspectException.diffMaxSize(diffMaxSize, tableItem);
+		}
+		logger.debug("Store AutoInspectResult '{}': {}", dto.getOriginalTableName(), JSON.toJSONString(dto.getOriginalKeymap()));
+		//bug: upsert api can not save most properties
+		clientMongoOperator.insertOne(dto, AutoInspectConstants.AUTO_INSPECT_RESULTS_COLLECTION_NAME);
+		tableItem.addDiff(dto.getOriginalKeymap());
+	}
 }

@@ -2,7 +2,6 @@ package com.tapdata.entity;
 
 import com.tapdata.entity.dataflow.SyncProgress;
 
-import java.io.Serializable;
 import java.util.List;
 
 /**

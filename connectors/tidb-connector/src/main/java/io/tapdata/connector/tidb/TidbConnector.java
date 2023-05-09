@@ -4,7 +4,7 @@ import io.tapdata.common.CommonDbConnector;
 import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.kafka.config.KafkaConfig;
-import io.tapdata.connector.tidb.bean.TidbColumn;
+import io.tapdata.connector.mysql.bean.MysqlColumn;
 import io.tapdata.connector.tidb.config.TidbConfig;
 import io.tapdata.connector.tidb.ddl.TidbDDLSqlGenerator;
 import io.tapdata.connector.tidb.dml.TidbReader;
@@ -32,7 +32,6 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import org.apache.commons.collections4.CollectionUtils;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.TimeZone;
 import java.util.UUID;
@@ -75,7 +74,7 @@ public class TidbConnector extends CommonDbConnector {
         connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportReleaseExternalFunction(this::onDestroy);
         // target functions
-        connectorFunctions.supportCreateTableV2(this::createTableV2);
+        connectorFunctions.supportCreateTableV2(this::createTableV3);
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportCreateIndex(this::createIndex);
@@ -221,21 +220,7 @@ public class TidbConnector extends CommonDbConnector {
     }
 
     protected TapField makeTapField(DataMap dataMap) {
-        return new TidbColumn(dataMap).getTapField();
-    }
-
-    protected String getCreateTableSql(TapTable tapTable) {
-        char escapeChar = commonDbConfig.getEscapeChar();
-        StringBuilder sb = new StringBuilder("create table ");
-        sb.append(getSchemaAndTable(tapTable.getId())).append('(').append(commonSqlMaker.buildColumnDefinition(tapTable, true));
-        Collection<String> primaryKeys = tapTable.primaryKeys();
-        if (EmptyKit.isNotEmpty(primaryKeys)) {
-            sb.append(", primary key (").append(escapeChar)
-                    .append(String.join(escapeChar + "," + escapeChar, primaryKeys))
-                    .append(escapeChar).append(')');
-        }
-        sb.append(')');
-        return sb.toString();
+        return new MysqlColumn(dataMap).getTapField();
     }
 
     private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {

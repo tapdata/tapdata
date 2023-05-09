@@ -1,7 +1,5 @@
 package com.tapdata.entity;
 
-import java.io.Serializable;
-
 /**
  * @author samuel
  * @Description

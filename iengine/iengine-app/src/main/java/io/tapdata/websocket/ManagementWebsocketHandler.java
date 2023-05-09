@@ -135,7 +135,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	@Autowired
 	private TaskService<TaskDto> taskService;
 
-	private WebSocketSession session;
+	private final SessionOption session = new SessionOption();
 
 	@Autowired
 	private SettingService settingService;
@@ -166,10 +166,6 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 		healthThreadPool.scheduleWithFixedDelay(() -> {
 			try {
 				Thread.currentThread().setName("Management Websocket Health Check");
-				if (!isOpen()) {
-					logger.info("It is detected that the websocket is not connected, a connection will be created");
-					createClients();
-				}
 
 				try {
 					WebSocketEvent<PingDto> webSocketEvent = new WebSocketEvent<>();
@@ -186,13 +182,12 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 					});
 					if (!response) {
 						if (pingFailTime.incrementAndGet() > MAX_PING_FAIL_TIME) {
-							closeSession();
+							session.release();
 							throw new RuntimeException(String.format("No response was received for %s consecutive websocket heartbeats", MAX_PING_FAIL_TIME));
 						}
 					}
 				} catch (Throwable e) {
 					logger.error("Websocket heartbeat failed, will reconnect. Error: " + e.getMessage(), e);
-					createClients();
 				}
 			} catch (Throwable e) {
 				logger.error("Websocket heartbeat failed, will reconnect after {}s. Error: {}", PING_INTERVAL, e.getMessage(), e);
@@ -223,43 +218,6 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 		});
 	}
 
-	/**
-	 * 创建web socket 客户端
-	 */
-	public synchronized void createClients() {
-
-		if (isOpen())
-			return;
-
-		// 连接前关闭之前所有的连接
-		closeSession();
-
-		if (CollectionUtils.isNotEmpty(baseURLs)) {
-			for (String baseURL : baseURLs) {
-				connect(baseURL);
-				if (session != null && session.isOpen()) {
-					break;
-				}
-			}
-		} else {
-			logger.error("Connect to management websocket failed, base url(s) is empty");
-		}
-	}
-
-	private void closeSession() {
-		if (session != null) {
-			try {
-				session.close();
-				session = null;
-			} catch (IOException ignore) {
-			}
-		}
-	}
-
-	private boolean isOpen() {
-		return session != null && session.isOpen();
-	}
-
 	private void connect(String baseURL) {
 		currentWsUrl = null;
 		try {
@@ -274,7 +232,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 					+ "?agentId={agentId}&access_token={access_token}");
 
 			// 临时处理，连接dfs时，去掉"/console"
-			/*if (((AppType) configCenter.getConfig(ConfigurationCenter.APPTYPE)).isDfs()) {
+            /*if (((AppType) configCenter.getConfig(ConfigurationCenter.APPTYPE)).isDfs()) {
 				currentWsUrl = currentWsUrl.replace("/console", "");
 			}*/
 
@@ -298,9 +256,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 				this.listenableFuture = client.doHandshake(this, UriUtils.decode(currentWsUrl, StandardCharsets.UTF_8));
 			}
 
-			session = listenableFuture.get();
-			session.setTextMessageSizeLimit(SESSION_TEXT_LENGTH_LIMIT_BYTE);
-
+			session.setSession(listenableFuture.get());
 			logger.info("Connect to web socket server success, url {}", currentWsUrl);
 		} catch (Exception e) {
 			logger.error("Create web socket by url {} connection failed {}", currentWsUrl, e.getMessage(), e);
@@ -409,14 +365,14 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	@Override
 	public void handleTransportError(WebSocketSession session, Throwable exception) {
 		logger.error("Web socket handler occur handle transport error {}", exception.getMessage(), exception);
-		closeSession();
+		this.session.release();
 		handleWhenPingFailed();
 	}
 
 	@Override
 	public void afterConnectionClosed(WebSocketSession session, CloseStatus closeStatus) {
 		logger.info("Web socket closed, session: {}, status code: {}, reason: {}", currentWsUrl != null ? currentWsUrl : "", closeStatus.getCode(), closeStatus.getReason());
-		closeSession();
+		this.session.release();
 		handleWhenPingFailed();
 	}
 
@@ -432,34 +388,82 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	 * @param textMessage
 	 * @throws IOException
 	 */
-	public synchronized void sendMessage(TextMessage textMessage) throws RuntimeException {
-		int failTime = 0;
-		while (true) {
-			if (!isOpen()) {
-				if (++failTime > retryTime) {
-					throw new RuntimeException("Retried sending " + failTime + " times, but all failed, cancel retry.");
+	public void sendMessage(TextMessage textMessage) throws RuntimeException {
+		session.sendMessage(textMessage);
+	}
+
+	private class SessionOption implements AutoCloseable {
+		private WebSocketSession session;
+
+		synchronized boolean isOpen() {
+			return null != session && session.isOpen();
+		}
+
+		synchronized void setSession(WebSocketSession session) {
+			release();
+			this.session = session;
+			this.session.setTextMessageSizeLimit(SESSION_TEXT_LENGTH_LIMIT_BYTE);
+		}
+
+		synchronized void connect() {
+			if (isOpen()) return;
+
+			// 连接前关闭之前所有的连接
+			release();
+
+			if (CollectionUtils.isNotEmpty(baseURLs)) {
+				for (String baseURL : baseURLs) {
+					ManagementWebsocketHandler.this.connect(baseURL);
+					if (isOpen()) break;
 				}
-				continue;
-			}
-			try {
-				synchronized (session) {
-					session.sendMessage(textMessage);
-					break;
-				}
-			} catch (Throwable e) {
-				if (++failTime > retryTime) {
-					throw new RuntimeException("Retried sending " + failTime + " times, but all failed, cancel retry.", e);
-				} else {
-					logger.warn("Send websocket message failed, fail time: {}, message: {}, err: {}, stack: {}", failTime, textMessage, e.getMessage(), Log4jUtil.getStackString(e));
-					try {
-						Thread.sleep(500L);
-					} catch (InterruptedException e1) {
-						logger.warn("Waiting to be interrupted", e1);
-					}
-					closeSession();
-					createClients();
-				}
+			} else {
+				logger.error("Connect to management websocket failed, base url(s) is empty");
 			}
 		}
+
+		synchronized void release() {
+			if (null != session) {
+				try {
+					session.close();
+				} catch (IOException e) {
+					logger.warn("Close session failed: {}", e.getMessage());
+				}
+				session = null;
+			}
+		}
+
+		synchronized void sendMessage(TextMessage textMessage) {
+			long now = System.currentTimeMillis();
+			try {
+				int failTime = 0;
+				while (!Thread.interrupted()) {
+					try {
+						if (!isOpen()) {
+							release();
+							connect();
+						}
+
+						session.sendMessage(textMessage);
+						break;
+					} catch (Throwable e) {
+						if (++failTime > retryTime) {
+							throw new RuntimeException("Retried sending " + failTime + " times, duration " + (System.currentTimeMillis() - now) + ", but all failed, cancel retry.", e);
+						}
+						logger.warn("Send websocket message failed, fail time: {}, message: {}, err: {}, stack: {}", failTime, textMessage, e.getMessage(), Log4jUtil.getStackString(e));
+						release();
+					}
+
+					Thread.sleep(500L);
+				}
+			} catch (InterruptedException e) {
+				logger.warn("Waiting to be interrupted, use {}ms: {}", (System.currentTimeMillis() - now), textMessage, e);
+			}
+		}
+
+		@Override
+		public synchronized void close() throws Exception {
+			release();
+		}
 	}
+
 }

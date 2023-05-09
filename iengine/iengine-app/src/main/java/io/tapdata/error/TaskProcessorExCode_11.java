@@ -27,12 +27,12 @@ public interface TaskProcessorExCode_11 {
 	String CREATE_PROCESSOR_FAILED = "11003";
 
 	@TapExCode(
-					describe = "JavaScript node processing error.\n" +
-									"Reason\n1. The JavaScript code has an error",
-					solution = "1. Review the code and fix errors",
-					describeCN = "JavaScript节点处理出错。\n" +
-									"原因\n1. JavaScript代码存在错误",
-					solutionCN = "1. 检查代码并修正错误"
+			describe = "JavaScript node processing error.\n" +
+					"Reason\n1. The JavaScript code has an error",
+			solution = "1. Review the code and fix errors",
+			describeCN = "JavaScript节点处理出错。\n" +
+					"原因\n1. JavaScript代码存在错误",
+			solutionCN = "1. 检查代码并修正错误"
 	)
 	String JAVA_SCRIPT_PROCESS_FAILED = "11004";
 }

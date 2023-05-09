@@ -9,6 +9,7 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.DmlPolicy;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -166,7 +167,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 						globalStateMap,
 						connectorCapabilities,
 						() -> Log4jUtil.setThreadContext(taskDto),
-						InstanceFactory.instance(LogFactory.class).getLog(processorBaseContext)
+						new StopTaskOnErrorLog(InstanceFactory.instance(LogFactory.class).getLog(processorBaseContext), this)
 				)
 		);
 		logger.info(String.format("Create PDK connector on node %s[%s] complete | Associate id: %s", getNode().getName(), getNode().getId(), associateId));
@@ -175,8 +176,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	}
 
 	private void initDmlPolicy(Node<?> node, ConnectorCapabilities connectorCapabilities) {
-		if (node instanceof DatabaseNode && null != ((DatabaseNode) node).getDmlPolicy()) {
-			DmlPolicy dmlPolicy = ((DatabaseNode) node).getDmlPolicy();
+		if (node instanceof DataParentNode && null != ((DataParentNode<?>) node).getDmlPolicy()) {
+			DmlPolicy dmlPolicy = ((DataParentNode<?>) node).getDmlPolicy();
 			DmlPolicyEnum insertPolicy = null == dmlPolicy.getInsertPolicy() ? DmlPolicyEnum.update_on_exists : dmlPolicy.getInsertPolicy();
 			if (insertPolicy == DmlPolicyEnum.ignore_on_exists) {
 				connectorCapabilities.alternative(ConnectionOptions.DML_INSERT_POLICY, ConnectionOptions.DML_INSERT_POLICY_IGNORE_ON_EXISTS);

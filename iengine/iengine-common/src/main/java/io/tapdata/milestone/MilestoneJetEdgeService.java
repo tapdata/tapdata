@@ -46,7 +46,7 @@ public class MilestoneJetEdgeService extends MilestoneService {
 	public MilestoneJetEdgeService(MilestoneContext milestoneContext, MilestoneContext taskMilestoneContext) {
 		super(milestoneContext);
 		this.taskMilestoneContext = taskMilestoneContext;
-		this.executorService = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(), r->new Thread(r, "Milestone-Jet-Edge-Runner"));
+		this.executorService = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(), r -> new Thread(r, "Milestone-Jet-Edge-Runner"));
 		this.clientMongoOperator = buildOperator();
 	}
 

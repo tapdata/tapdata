@@ -8,6 +8,8 @@ import io.tapdata.js.connector.enums.JSTableKeys;
 import java.util.*;
 import java.util.function.Consumer;
 
+import static io.tapdata.base.ConnectorBase.toJson;
+
 public class SchemaAccept implements SchemaSender {
     private static final String TAG = SchemaAccept.class.getSimpleName();
     private Consumer<List<TapTable>> consumer;
@@ -137,5 +139,27 @@ public class SchemaAccept implements SchemaSender {
             return defaultValue;
         }
         return objBool;
+    }
+
+    public String tableMap(TapTable tapTable) {
+        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+        Map<String, Map<String, Object>> fields = new HashMap<>();
+        Collection<String> keys = tapTable.primaryKeys(true);
+        nameFieldMap.forEach((key, field)->{
+            Map<String, Object> fieldConfig = new HashMap<>();
+            fieldConfig.put(JSTableKeys.TABLE_FIELD_TYPE, field.getDataType());
+            fieldConfig.put(JSTableKeys.TABLE_FIELD_DEFAULT_VALUE, field.getDefaultValue());
+            fieldConfig.put(JSTableKeys.TABLE_FIELD_NULLABLE, field.getNullable());
+            fieldConfig.put(JSTableKeys.TABLE_FIELD_PRIMARY_KEY, field.getPrimaryKey());
+            fieldConfig.put(JSTableKeys.TABLE_FIELD_PRIMARY_POS_KEY, field.getPrimaryKeyPos());
+            fieldConfig.put(JSTableKeys.TABLE_FIELD_AUTO_INC, field.getAutoInc());
+            fieldConfig.put(JSTableKeys.TABLE_FIELD_COMMENT, field.getComment());
+            fields.put(key, fieldConfig);
+        });
+        Map<String,Object> tableMap = new HashMap<>();
+        tableMap.put(JSTableKeys.TABLE_NAME, tapTable.getId());
+        tableMap.put(JSTableKeys.TABLE_KEYS, keys);
+        tableMap.put(JSTableKeys.TABLE_FIELD, fields);
+        return toJson(tableMap);
     }
 }

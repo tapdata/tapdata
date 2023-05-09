@@ -5,7 +5,7 @@ package io.tapdata.flow.engine.V2.task.cleaner;
  * @Description
  * @create 2022-10-14 10:46
  **/
-public class TaskResetCleaner extends TaskCleaner{
+public class TaskResetCleaner extends TaskCleaner {
 	public TaskResetCleaner(TaskCleanerContext taskCleanerContext) {
 		super(taskCleanerContext);
 	}

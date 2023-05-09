@@ -1,0 +1,474 @@
+{
+	"info": {
+		"_postman_id": "90e6a2cd-08ca-49cc-88aa-a4482e1bee4c",
+		"name": "LarkDoc",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+		"name": "GetAppToken",
+		"request": {
+			"method": "POST",
+			"header": [
+				{
+					"key": "Content-Type",
+					"value": "application/json"
+				}
+			],
+			"body": {
+				"mode": "raw",
+				"raw": "{\n    \"app_id\": \"{{app_id}}\",\n    \"app_secret\": \"{{app_secret}}\"\n}\n"
+			},
+			"url": {
+				"raw": "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
+				"protocol": "https",
+				"host": [
+					"open",
+					"feishu",
+					"cn"
+				],
+				"path": [
+					"open-apis",
+					"auth",
+					"v3",
+					"tenant_access_token",
+					"internal"
+				]
+			}
+		},
+		"response": []
+	},
+		{
+			"name": "AppInfo",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{access_token}}"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"url": {
+					"raw": "https://open.feishu.cn/open-apis/application/v6/applications/:app_id?lang=zh_cn",
+					"protocol": "https",
+					"host": [
+						"open",
+						"feishu",
+						"cn"
+					],
+					"path": [
+						"open-apis",
+						"application",
+						"v6",
+						"applications"
+					],
+					"variable": [
+						{
+							"key": "app_id",
+							"value": "{{app_id}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get AccessToken",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{access_token}}",
+						"type": "default"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json; charset=utf-8",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"grant_type\": \"authorization_code\",\"code\": \"{{code}}\"}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://open.feishu.cn/open-apis/authen/v1/access_token",
+					"protocol": "https",
+					"host": [
+						"open",
+						"feishu",
+						"cn"
+					],
+					"path": [
+						"open-apis",
+						"authen",
+						"v1",
+						"access_token"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Refresh AccessToken",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{access_token}}",
+						"type": "default"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json; charset=utf-8",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"grant_type\": \"refresh_token\",\"refresh_token\": \"{{refresh_token}}\"}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://open.feishu.cn/open-apis/authen/v1/refresh_access_token",
+					"protocol": "https",
+					"host": [
+						"open",
+						"feishu",
+						"cn"
+					],
+					"path": [
+						"open-apis",
+						"authen",
+						"v1",
+						"refresh_access_token"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get File List",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{access_token}}",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://open.feishu.cn/open-apis/drive/v1/files?page_size=200&page_token=",
+					"protocol": "https",
+					"host": [
+						"open",
+						"feishu",
+						"cn"
+					],
+					"path": [
+						"open-apis",
+						"drive",
+						"v1",
+						"files"
+					],
+					"query": [
+						{
+							"key": "page_size",
+							"value": 200
+						},
+						{
+							"key": "page_token",
+							"value": ""
+						},
+						{
+							"key": "folder_token",
+							"value": ""
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "docx",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{access_token}}",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://open.feishu.cn/open-apis/docx/v1/documents/:docToken/raw_content?lang={{lang}}",
+					"protocol": "https",
+					"host": [
+						"open",
+						"feishu",
+						"cn"
+					],
+					"path": [
+						"open-apis",
+						"docx",
+						"v1",
+						"documents",
+						":docToken",
+						"raw_content"
+					],
+					"query": [
+						{
+							"key": "lang",
+							"value": "0"
+						}
+					],
+					"variable": [
+						{
+							"key": "docToken",
+							"value": "{{docToken}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "doc",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{access_token}}",
+						"type": "default"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json; charset=utf-8",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://open.feishu.cn/open-apis/doc/v2/:docToken/raw_content",
+					"protocol": "https",
+					"host": [
+						"open",
+						"feishu",
+						"cn"
+					],
+					"path": [
+						"open-apis",
+						"doc",
+						"v2",
+						":docToken",
+						"raw_content"
+					],
+					"variable": [
+						{
+							"key": "docToken",
+							"value": ""
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Doc Info",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{access_token}}",
+						"type": "default"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json; charset=utf-8",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"request_docs\": {{infoConfig}},\"with_url\": false}"
+				},
+				"url": {
+					"raw": "https://open.feishu.cn/open-apis/drive/v1/metas/batch_query",
+					"protocol": "https",
+					"host": [
+						"open",
+						"feishu",
+						"cn"
+					],
+					"path": [
+						"open-apis",
+						"drive",
+						"v1",
+						"metas",
+						"batch_query"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get User Info",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{access_token}}",
+						"type": "default"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json; charset=utf-8",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "none"
+				},
+				"url": {
+					"raw": "https://open.feishu.cn/open-apis/authen/v1/user_info",
+					"protocol": "https",
+					"host": [
+						"open",
+						"feishu",
+						"cn"
+					],
+					"path": [
+						"open-apis",
+						"authen",
+						"v1",
+						"user_info"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "SpaceList",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{access_token}}",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://open.feishu.cn/open-apis/wiki/v2/spaces?page_size=50&page_token=",
+					"protocol": "https",
+					"host": ["open","feishu", "cn"],
+					"path": ["open-apis","wiki", "v2", "spaces"],
+					"query": [{
+							"key": "page_size",
+							"value": "50"
+						}, {
+							"key": "page_token",
+							"value": ""
+					}]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "SubNodes",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{access_token}}",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://open.feishu.cn/open-apis/wiki/v2/spaces/:space_id/nodes?page_size=50&page_token={{page_token}}&parent_node_token={{parent_node_token}}",
+					"protocol": "https",
+					"host": [
+						"open",
+						"feishu",
+						"cn"
+					],
+					"path": [
+						"open-apis",
+						"wiki",
+						"v2",
+						"spaces",
+						":space_id",
+						"nodes"
+					],
+					"query": [
+						{
+							"key": "page_size",
+							"value": "50"
+						},
+						{
+							"key": "page_token",
+							"value": "{{page_token}}"
+						},
+						{
+							"key": "parent_node_token",
+							"value": "{{parent_node_token}}"
+						}
+					],
+					"variable": [
+						{
+							"key": "space_id",
+							"value": "{{space_id}}"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+	],
+	"variable": [
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "code",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "document_id",
+			"value": "",
+			"type": "default"
+		},{
+			"key": "lang",
+			"value": "0"
+		}
+	]
+}

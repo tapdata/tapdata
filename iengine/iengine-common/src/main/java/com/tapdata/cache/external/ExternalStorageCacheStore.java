@@ -16,40 +16,40 @@ import java.util.Map;
 
 public class ExternalStorageCacheStore implements ICacheStore {
 
-  private final ConstructIMap<Map<String, Map<String, Object>>> dataMap;
-  private final DataFlowCacheConfig cacheConfig;
+	private final ConstructIMap<Map<String, Map<String, Object>>> dataMap;
+	private final DataFlowCacheConfig cacheConfig;
 
 
-  public ExternalStorageCacheStore(DataFlowCacheConfig config, HazelcastInstance hazelcastInstance) {
-    this.cacheConfig = config;
-    ExternalStorageDto externalStorage = ExternalStorageUtil.getExternalStorage(config.getCacheNode());
-    this.dataMap = new DocumentIMap<>(hazelcastInstance, CacheUtil.CACHE_NAME_PREFIX + config.getCacheName(), externalStorage);
-  }
+	public ExternalStorageCacheStore(DataFlowCacheConfig config, HazelcastInstance hazelcastInstance) {
+		this.cacheConfig = config;
+		ExternalStorageDto externalStorage = ExternalStorageUtil.getExternalStorage(config.getCacheNode());
+		this.dataMap = new DocumentIMap<>(hazelcastInstance, CacheUtil.CACHE_NAME_PREFIX + config.getCacheName(), externalStorage);
+	}
 
-  @Override
-  public void cacheRow(String cacheName, String key, List<Map<String, Object>> rows) throws Throwable {
+	@Override
+	public void cacheRow(String cacheName, String key, List<Map<String, Object>> rows) throws Throwable {
 
-    Map<String, Map<String, Object>> recordMap;
-    if (dataMap.exists(key)) {
-      recordMap = dataMap.find(key);
-    } else {
-      recordMap = new HashMap<>(rows.size());
-    }
-    for (Map<String, Object> row : rows) {
-      recordMap.put(CacheUtil.getPk(cacheConfig.getPrimaryKeys(), row), row);
-    }
-    if (MapUtils.isNotEmpty(recordMap)) {
-      dataMap.insert(key, recordMap);
-    }
-  }
+		Map<String, Map<String, Object>> recordMap;
+		if (dataMap.exists(key)) {
+			recordMap = dataMap.find(key);
+		} else {
+			recordMap = new HashMap<>(rows.size());
+		}
+		for (Map<String, Object> row : rows) {
+			recordMap.put(CacheUtil.getPk(cacheConfig.getPrimaryKeys(), row), row);
+		}
+		if (MapUtils.isNotEmpty(recordMap)) {
+			dataMap.insert(key, recordMap);
+		}
+	}
 
-  @Override
-  public void removeByKey(String cacheName, String cacheKey, String pkKey) throws Throwable {
-    CacheUtil.removeRecord(dataMap, cacheKey, pkKey);
-  }
+	@Override
+	public void removeByKey(String cacheName, String cacheKey, String pkKey) throws Throwable {
+		CacheUtil.removeRecord(dataMap, cacheKey, pkKey);
+	}
 
-  @Override
-  public void destroy() {
-    ICacheStore.super.destroy();
-  }
+	@Override
+	public void destroy() {
+		ICacheStore.super.destroy();
+	}
 }

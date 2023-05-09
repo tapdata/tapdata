@@ -1,11 +1,11 @@
 package io.tapdata.flow.engine.V2.util;
 
 import com.tapdata.entity.task.context.ProcessorBaseContext;
-import io.tapdata.entity.logger.TapLog;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.entity.logger.Log;
+import io.tapdata.entity.logger.TapLog;
+import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 
@@ -22,6 +22,7 @@ public class LogFactoryImpl implements LogFactory {
 				processorBaseContext.getNode().getName()
 		));
 	}
+
 	@Override
 	public Log getLog(TaskDto task, String nodeId, String nodeName) {
 		return new ObsScriptLogger(ObsLoggerFactory.getInstance().getObsLogger(

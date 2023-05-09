@@ -44,7 +44,7 @@ public abstract class AbstractFileRecordWriter {
                 EmptyKit.isNull(v.getValue().getPos()) ? 99999 : v.getValue().getPos())).map(Map.Entry::getKey).collect(Collectors.toList());
         lastWriteMap = (Map<String, Long>) kvMap.get("tapdata_file_last_write");
         if (EmptyKit.isNull(lastWriteMap)) {
-            lastWriteMap = new HashMap<>();
+            lastWriteMap = new ConcurrentHashMap<>();
         }
     }
 
