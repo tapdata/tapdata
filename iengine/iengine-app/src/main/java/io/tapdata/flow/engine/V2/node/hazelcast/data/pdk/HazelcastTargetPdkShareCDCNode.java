@@ -20,6 +20,7 @@ import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.construct.HazelcastConstruct;
 import io.tapdata.construct.constructImpl.ConstructRingBuffer;
+import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
@@ -28,6 +29,7 @@ import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
 import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.TapStringValue;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
@@ -46,6 +48,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -120,6 +123,23 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		ddlEventHandlers.register(TapAlterFieldNameEvent.class, this::writeAlterFieldNameFunction);
 		ddlEventHandlers.register(TapAlterFieldAttributesEvent.class, this::writeAlterFieldAttrFunction);
 		ddlEventHandlers.register(TapDropFieldEvent.class, this::writeDropFieldFunction);
+
+		initCodecs();
+	}
+
+	private void initCodecs() {
+		if (null != codecsFilterManager) {
+			TapCodecsRegistry codecsRegistry = codecsFilterManager.getCodecsRegistry();
+			codecsRegistry.registerFromTapValue(TapStringValue.class, tapValue -> {
+				if (null == tapValue) {
+					return null;
+				}
+				if (tapValue.getOriginType().equals("OBJECT_ID") && tapValue.getOriginValue().getClass().getName().equals(ObjectId.class.getName())) {
+					return new ObjectId(tapValue.getValue());
+				}
+				return tapValue.getValue();
+			});
+		}
 	}
 
 	@Override

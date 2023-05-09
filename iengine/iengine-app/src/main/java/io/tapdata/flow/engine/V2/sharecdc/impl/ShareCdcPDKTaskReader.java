@@ -595,8 +595,13 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			return;
 		}
 		data.forEach((k, v) -> {
+			byte[] bytes = null;
 			if (v instanceof Binary) {
-				byte[] bytes = ((Binary) v).getData();
+				bytes = ((Binary) v).getData();
+			} else if (v instanceof byte[]) {
+				bytes = (byte[]) v;
+			}
+			if (null != bytes && bytes.length > 0) {
 				if (bytes.length == 26 && bytes[0] == 99 && bytes[bytes.length - 1] == 23) {
 					byte[] dest = new byte[bytes.length - 2];
 					System.arraycopy(bytes, 1, dest, 0, dest.length);
