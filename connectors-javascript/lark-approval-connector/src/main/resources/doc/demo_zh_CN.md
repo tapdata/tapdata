@@ -22,7 +22,7 @@
 
 审批类型Code需要在飞书管理员后台获取，如图所示位置：
 
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/LarkApproval/doc/ht.jpg)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/approval/approval_2.jpg)
 
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/LarkApproval/doc/code.jpg)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/approval/approval_1.jpg)
 
