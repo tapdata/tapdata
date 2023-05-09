@@ -41,6 +41,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -433,7 +434,7 @@ public class TransformSchemaService {
         String json = JsonUtil.toJsonUseJackson(wsMessageDto);
         byte[] gzip = GZIPUtil.gzip(json.getBytes());
         byte[] encode = Base64.getEncoder().encode(gzip);
-        String dataString = new String(encode);
+        String dataString = new String(encode, StandardCharsets.UTF_8);
         data.put("data", dataString);
 
         String processId = availableAgent.get(0).getProcessId();
