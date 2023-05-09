@@ -39,10 +39,10 @@ At this time, the FeiShu data source is created successfully!
 
 - You need to ensure that the user with the current mobile phone number or email address is in the visible range of this application. If not in the visible range of the current application version, you will not be able to send messages to this user. If necessary, you can check the visible range under the latest version in the application version management and publishing, and create a new version and add this user to the visible range.
 
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/FeiShu/doc/version.PNG)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/step_2.PNG)
 
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/FeiShu/doc/rang.PNG)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/step_3.PNG)
 
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/FeiShu/doc/createdVersion.PNG)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/step_4.PNG)
 
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/FeiShu/doc/modifyRang.PNG)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/step_6.PNG)
