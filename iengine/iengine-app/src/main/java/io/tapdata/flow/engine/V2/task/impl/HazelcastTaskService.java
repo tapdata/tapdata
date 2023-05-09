@@ -76,6 +76,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkCache
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkDataNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkShareCDCNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcessor;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastDateProcessorNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastJavaScriptProcessorNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMigrateFieldRenameProcessorNode;
