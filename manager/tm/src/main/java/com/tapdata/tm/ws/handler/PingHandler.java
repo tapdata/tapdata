@@ -19,6 +19,8 @@ import com.tapdata.tm.ws.dto.WebSocketContext;
 import com.tapdata.tm.ws.dto.WebSocketResult;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.enums.MessageType;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Metrics;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 
@@ -35,6 +37,8 @@ public class PingHandler implements WebSocketHandler {
 	private final WorkerService workerService;
 	private final UserService userService;
 	private final TaskService taskService;
+
+	private final Counter taskPing = Counter.builder("task_ping").register(Metrics.globalRegistry);
 
 	public PingHandler(WorkerService workerService, UserService userService, TaskService taskService) {
 		this.workerService = workerService;
@@ -96,6 +100,7 @@ public class PingHandler implements WebSocketHandler {
 				}
 				UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(context.getUserId()));
 				long count = taskService.updateByWhere(where, update, userDetail);
+				taskPing.increment(count);
 				if (count > 0) {
 					pingDto.ok();
 				} else {
