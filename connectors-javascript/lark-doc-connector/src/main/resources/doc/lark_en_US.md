@@ -4,9 +4,9 @@ Please be aware of the following before use:
 #### *** Data Source Configuration ***
 You need to go to https://open.feishu.cn/app Find the corresponding application and find it in the ***credentials and basic information*** of the application:
 
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/FeiShu/doc/findApp.PNG)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/step_0.PNG)
 
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/FeiShu/doc/appIdAndSecret.PNG)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/step_1.PNG)
 
 1. Obtain the ***App ID*** and fill it in here.
 

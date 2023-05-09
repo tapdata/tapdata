@@ -2,9 +2,9 @@
 
 You need to go to https://open.feishu.cn/app Find the corresponding application and find it in the ***voucher and basic information*** of the application:
 
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/FeiShu/doc/findApp.PNG)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/step_0.PNG)
 
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/FeiShu/doc/appIdAndSecret.PNG)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/step_1.PNG)
 
 1. Get ***App ID*** and fill in here.
 
