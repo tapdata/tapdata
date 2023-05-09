@@ -234,7 +234,7 @@
       "database": "database",
       "username": "username",
       "password": "password",
-      "addtionalString": "Connection Parameter String",
+      "extParams": "Connection Parameter String",
       "timezone": "timezone",
       "timestamp": "timestamp field",
       "doc": "docs/tdengine_en_US.md"
@@ -245,7 +245,7 @@
       "database": "数据库",
       "username": "账号",
       "password": "密码",
-      "addtionalString": "连接参数",
+      "extParams": "连接参数",
       "timezone": "时区",
       "timestamp": "时间戳字段",
       "doc": "docs/tdengine_zh_CN.md"
@@ -256,7 +256,7 @@
       "database": "數據庫",
       "username": "賬號",
       "password": "密碼",
-      "addtionalString": "連接參數",
+      "extParams": "連接參數",
       "timezone": "時區",
       "timestamp": "時間戳字段",
       "doc": "docs/tdengine_zh_TW.md"
