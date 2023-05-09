@@ -22,21 +22,21 @@ You need to go to https://open.feishu.cn/app Find the corresponding application 
 2. You can also configure according to the following wizard:
 
 (1) Create or add robots to designated group chats.
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark-doc/doc/robot.PNG)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/doc/doc_1.png)
 
 (2) Enter the knowledge base management interface:[https://fvs22k9l2w.feishu.cn/wiki/](https://fvs22k9l2w.feishu.cn/wiki/)
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark-doc/doc/home.PNG)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/doc/doc_5.png)
 
 (3) Select an existing knowledge base or create a new one
 A. Select an existing knowledge base and directly enter the editing page
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark-doc/doc/chiose-wiki.PNG)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/doc/doc_2.png)
 B. Create a new knowledge base and then enter the editing page
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark-doc/doc/new-wiki.PNG)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/doc/doc_6.png)
 
 (4) Enter member settings and click on Add Administrator
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark-doc/doc/config-1.PNG)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/doc/doc_3.png)
 
 (5) Add the group where the robot is located
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark-doc/doc/config-2.PNG)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/doc/doc_4.png)
 
 (6) Permission configuration completed.
