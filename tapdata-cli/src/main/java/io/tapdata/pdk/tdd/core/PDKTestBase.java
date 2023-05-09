@@ -527,22 +527,22 @@ public class PDKTestBase {
         if (leftValue instanceof DateTime) {
             long time = ((DateTime) leftValue).toDate().getTime();
             left = new SimpleDateFormat(format).format(time);
-        }else if (leftValue instanceof Date) {
+        } else if (leftValue instanceof Date) {
             left = new SimpleDateFormat(format).format(((Date) leftValue).getTime());
-        }else if (leftValue instanceof Number) {
+        } else if (leftValue instanceof Number) {
             left = new SimpleDateFormat(format).format(((Number) leftValue).longValue());
-        }else {
+        } else {
             left = String.valueOf(leftValue);
         }
 
         if (rightValue instanceof DateTime) {
             long time = ((DateTime) rightValue).toDate().getTime();
             right = new SimpleDateFormat(format).format(time);
-        }else if (rightValue instanceof Date) {
+        } else if (rightValue instanceof Date) {
             right = new SimpleDateFormat(format).format(((Date) rightValue).getTime());
-        }else if (rightValue instanceof Number) {
+        } else if (rightValue instanceof Number) {
             right = new SimpleDateFormat(format).format(((Number) rightValue).longValue());
-        }else {
+        } else {
             right = String.valueOf(rightValue);
         }
         return left.equals(right);
@@ -677,6 +677,11 @@ public class PDKTestBase {
                             DateUtil.DATE_TIME_GMT_FORMAT,
                             new SimpleTimeZone(8,"GMT")
                     ).replace("1970-01-01 ","");
+        } else if (value instanceof String){
+            if (TDDUtils.isJsonString((String) value)){
+                return TDDUtils.replaceSpace((String) value);
+            }
+            return value;
         } else {
             return value;
         }
@@ -877,26 +882,7 @@ public class PDKTestBase {
     protected String originToSourceId;
     protected TapNodeInfo tapNodeInfo;
     protected String testTableId;
-    protected TapTable targetTable = table(testTableId)
-            .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-            .add(field("Type_ARRAY", JAVA_Array).tapType(tapArray()))
-            .add(field("Type_BINARY", JAVA_Binary).tapType(tapBinary().bytes(100L)))
-            .add(field("Type_BOOLEAN", JAVA_Boolean).tapType(tapBoolean()))
-            .add(field("Type_DATE", JAVA_Date).tapType(tapDate()))
-            .add(field("Type_DATETIME", "Date_Time").tapType(tapDateTime().fraction(3)))
-            .add(field("Type_DATETIME_WITH_TIME_ZONE", "Date_Time").tapType(tapDateTime().fraction(3).withTimeZone(true)))
-            .add(field("Type_MAP", JAVA_Map).tapType(tapMap()))
-            .add(field("Type_NUMBER_Long", JAVA_Long).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-            .add(field("Type_NUMBER_INTEGER", JAVA_Integer).tapType(tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))))
-            .add(field("Type_NUMBER_BigDecimal", JAVA_BigDecimal).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(200).scale(4).fixed(true)))
-            .add(field("Type_NUMBER_Float", JAVA_Float).tapType(tapNumber().maxValue(BigDecimal.valueOf(Float.MAX_VALUE)).minValue(BigDecimal.valueOf(-Float.MAX_VALUE)).precision(200).scale(4).fixed(false)))
-            .add(field("Type_NUMBER_Double", JAVA_Double).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(200).scale(4).fixed(false)))
-            .add(field("Type_STRING_1", JAVA_String).tapType(tapString().bytes(50L)))
-            .add(field("Type_STRING_2", JAVA_String).tapType(tapString().bytes(50L)))
-            .add(field("Type_INT64", "INT64").tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-            .add(field("Type_TIME", "Time").tapType(tapTime().withTimeZone(false)))
-            .add(field("Type_TIME_WITH_TIME_ZONE", "Time").tapType(tapTime().withTimeZone(true)))
-            .add(field("Type_YEAR", "Year").tapType(tapYear()));
+    protected TapTable targetTable = Record.testTable(testTableId);
 
     protected Map<String,Object> transform(TestNode prepare, TapTable tapTable, Map<String ,Object> data){
         return transform(prepare.connectorNode(),tapTable,data);
@@ -905,7 +891,9 @@ public class PDKTestBase {
     private TapCodecsFilterManager codecs = new TapCodecsFilterManager(TapCodecsRegistry.create());
     protected Map<String,Object> transform(ConnectorNode prepare, TapTable tapTable, Map<String ,Object> data){
         prepare.getCodecsFilterManager().transformToTapValueMap(data, tapTable.getNameFieldMap());
-        codecs.transformFromTapValueMap(data);
+        TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(data);
+//        prepare.getCodecsFilterManager().transformToTapValueMap(data, tapTable.getNameFieldMap());
+//        codecs.transformFromTapValueMap(data);
         return data;
     }
 
