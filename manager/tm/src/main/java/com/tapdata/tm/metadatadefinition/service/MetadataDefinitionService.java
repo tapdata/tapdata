@@ -146,7 +146,27 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
             }
         }
 
-        return super.save(metadataDefinitionDto,userDetail);
+        MetadataDefinitionDto saveValue = super.save(metadataDefinitionDto, userDetail);
+
+        if (exsitedOne != null) {
+            if (CollectionUtils.isNotEmpty(saveValue.getItemType()) && StringUtils.isNotBlank(metadataDefinitionDto.getValue())
+                    && !metadataDefinitionDto.getValue().equals(exsitedOne.getValue())) {
+                Criteria criteria = Criteria.where("listtags")
+                        .elemMatch(Criteria.where("id").is(metadataDefinitionDto.getId().toHexString()));
+                Update update = Update.update("listtags.$.value", metadataDefinitionDto.getValue());
+                if (saveValue.getItemType().contains("dataflow")){
+                    mongoTemplate.updateMulti(new Query(criteria), update, TaskEntity.class);
+                }
+
+                if (saveValue.getItemType().contains("database")){
+                    mongoTemplate.updateMulti(new Query(criteria), update, DataSourceEntity.class);
+                }
+            }
+
+        }
+
+        return saveValue;
+
 
     }
 
