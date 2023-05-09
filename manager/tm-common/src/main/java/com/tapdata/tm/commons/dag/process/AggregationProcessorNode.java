@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.TableIndex;
 import com.tapdata.tm.commons.schema.TableIndexColumn;
 import com.tapdata.tm.commons.task.dto.Aggregation;
+import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import lombok.Getter;
@@ -164,7 +165,7 @@ public class AggregationProcessorNode extends ProcessorNode {
             field.setColumnSize(100);
             field.setOriPrecision(100);
         }
-        field.setId(new ObjectId().toHexString());
+        field.setId(MetaDataBuilderUtils.generateFieldId(this.getId(), tableName, name));
         field.setTableName(tableName);
         field.setOriginalFieldName(name);
         return field;
