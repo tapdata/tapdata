@@ -111,7 +111,7 @@ import java.util.stream.Collectors;
  * @create 2022-05-11 14:59
  **/
 public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
-	private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
+	private static final String TAG = HazelcastSourcePdkBaseNode.class.getSimpleName();
 	public static final long PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT = 10L;
 	public static final String TAPEVENT_INFO_EVENT_ID_KEY = "eventId";
 	private static final int ASYNCLY_COUNT_SNAPSHOT_ROW_SIZE_TABLE_THRESHOLD = 100;

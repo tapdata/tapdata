@@ -182,45 +182,40 @@ public class MapUtilV2 extends MapUtil {
 		if (dataMap == null) {
 			return;
 		}
-		String[] split;
-		if (StringUtils.isNotBlank(splitStr)) {
-			split = key.split(splitStr);
-		} else {
-			split = new String[]{key};
-		}
 		Object tempValue = dataMap;
-		if (split.length <= 0 && StringUtils.isAllBlank(split)) {
-			dataMap.put(key, value);
-			return;
-		}
-		List<String> keys = Arrays.stream(split).filter(StringUtils::isNotBlank).collect(Collectors.toList());
-		if (keys.size() <= 1) {
-			putInMapWithMerge(value, tempValue, keys, 0, key);
-		} else {
-			if (value instanceof TapList) {
-				putTapListInMap(dataMap, keys, (TapList) value);
+		if (needSplit(key)) {
+			String[] split = key.split(splitStr);
+			List<String> keys = Arrays.stream(split).filter(StringUtils::isNotBlank).collect(Collectors.toList());
+			if (keys.size() <= 1) {
+				putInMapWithMerge(value, tempValue, keys, 0, key);
 			} else {
-				for (int i = 0; i < keys.size(); i++) {
-					String subKey = keys.get(i);
-					if (tempValue instanceof Map) {
-						if (i < keys.size() - 1) {
-							if (!((Map) tempValue).containsKey(subKey)) {
-								((Map) tempValue).put(subKey, new HashMap<>());
+				if (value instanceof TapList) {
+					putTapListInMap(dataMap, keys, (TapList) value);
+				} else {
+					for (int i = 0; i < keys.size(); i++) {
+						String subKey = keys.get(i);
+						if (tempValue instanceof Map) {
+							if (i < keys.size() - 1) {
+								if (!((Map) tempValue).containsKey(subKey)) {
+									((Map) tempValue).put(subKey, new HashMap<>());
+								}
+								tempValue = ((Map) tempValue).get(subKey);
+							} else {
+								putInMapWithMerge(value, tempValue, keys, i, subKey);
 							}
-							tempValue = ((Map) tempValue).get(subKey);
-						} else {
-							putInMapWithMerge(value, tempValue, keys, i, subKey);
-						}
-					} else if (tempValue instanceof List) {
-						if (CollectionUtils.isEmpty((Collection) tempValue)) {
-							((List) tempValue).add(new HashMap<>());
-						}
-						for (Object o : (List) tempValue) {
-							putInMapWithMerge(value, o, keys, i, subKey);
+						} else if (tempValue instanceof List) {
+							if (CollectionUtils.isEmpty((Collection) tempValue)) {
+								((List) tempValue).add(new HashMap<>());
+							}
+							for (Object o : (List) tempValue) {
+								putInMapWithMerge(value, o, keys, i, subKey);
+							}
 						}
 					}
 				}
 			}
+		} else {
+			dataMap.put(key, value);
 		}
 	}
 
