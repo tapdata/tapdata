@@ -192,7 +192,7 @@ public abstract class DataParentNode<S> extends Node<S> {
                     String op = operation.getOp();
                     String operand = operation.getOperand();
                     if ("CREATE".equalsIgnoreCase(op)) {
-                        Field f = createField(operation);
+                        Field f = createField(this.getId(), s.getOriginalName(), operation);
                         fields.add(f);
                     } else if ("REMOVE".equalsIgnoreCase(op)) {
                         fields.forEach(f -> {

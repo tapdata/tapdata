@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.schema;
 
 import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
+import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
@@ -194,7 +195,7 @@ public class SchemaUtils {
         //return JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(schemas), new TypeReference<List<Schema>>() {});
     }
 
-    public static Field createField(FieldProcessorNode.Operation operation) {
+    public static Field createField(String nodeId, String tableName, FieldProcessorNode.Operation operation) {
         Field field = new Field();
         field.setFieldName(operation.getField());
         field.setSource("manual");
@@ -204,7 +205,7 @@ public class SchemaUtils {
         if (StringUtils.isNotBlank(operation.getId())) {
             field.setId(operation.getId());
         } else {
-            field.setId(new ObjectId().toHexString());
+					field.setId(MetaDataBuilderUtils.generateFieldId(nodeId, tableName, operation.getField()));
         }
         field.setTableName(operation.getTableName());
         field.setOriginalFieldName(operation.getField());
