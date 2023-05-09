@@ -21,6 +21,6 @@
 
 審批類型Code需要在飛書管理員後臺獲取，如圖所示位置：
 
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/LarkApproval/doc/ht.jpg)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/approval/approval_2.jpg)
 
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/LarkApproval/doc/code.jpg)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/approval/approval_1.jpg)

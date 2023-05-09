@@ -22,6 +22,6 @@ Approval type Code: 49636CC4-9156-48C0-9609-32CAACC85E00
 
 The approval type Code needs to be obtained in the background of the flybook administrator, as shown in the picture:
 
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/LarkApproval/doc/ht.jpg)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/approval/approval_2.jpg)
 
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/LarkApproval/doc/code.jpg)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/approval/approval_1.jpg)
