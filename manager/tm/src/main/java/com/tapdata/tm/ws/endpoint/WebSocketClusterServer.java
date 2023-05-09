@@ -246,7 +246,7 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
             List<String> userIds = session.getHandshakeHeaders().get("user_id");
             if (CollectionUtils.isNotEmpty(userIds)){
                 UserDetail userDetail = userService.loadUserByExternalId(userIds.get(0));
-                return userDetail != null ? userDetail.getUserId() : null;
+                return userDetail != null ? userDetail.getExternalUserId() : null;
             }
         }catch (Exception e){
             log.error("WebSocket get userId error,message: {}", e.getMessage());
