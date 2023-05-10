@@ -3,7 +3,9 @@
     "name": "GitHub",
     "icon": "icon/github.png",
     "doc" : "${doc}",
-    "id": "GitHub"
+    "id": "GitHub",
+    "authentication": "Alpha",
+    "tags": ["SaaS"]
   },
   "configOptions": {
     "pdkExpansion": [],

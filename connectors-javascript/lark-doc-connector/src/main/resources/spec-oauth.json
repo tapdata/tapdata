@@ -3,7 +3,9 @@
     "name": "Lark Doc",
     "icon": "icon/lark-doc.png",
     "doc" : "${doc}",
-    "id": "lark-doc"
+    "id": "lark-doc",
+    "authentication": "Alpha",
+    "tags": ["SaaS"]
   },
   "configOptions": {
     "pdkExpansion": [],
