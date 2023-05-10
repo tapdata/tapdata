@@ -106,7 +106,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
         jdbcContext.queryAllTables(list(), batchSize, listConsumer);
     }
 
-    protected CreateTableOptions createTableV2(TapConnectorContext connectorContext, TapCreateTableEvent createTableEvent) throws SQLException {
+    private CreateTableOptions createTable(TapConnectorContext connectorContext, TapCreateTableEvent createTableEvent, Boolean commentInField) throws SQLException {
         TapTable tapTable = createTableEvent.getTable();
         CreateTableOptions createTableOptions = new CreateTableOptions();
         if (jdbcContext.queryAllTables(Collections.singletonList(tapTable.getId())).size() > 0) {
@@ -125,21 +125,33 @@ public abstract class CommonDbConnector extends ConnectorBase {
             }
         }
         List<String> sqlList = TapSimplify.list();
-        sqlList.add(getCreateTableSql(tapTable));
-        //comment on table and column
-        if (EmptyKit.isNotNull(tapTable.getComment())) {
-            sqlList.add(getTableCommentSql(tapTable));
-        }
-        for (String fieldName : fieldMap.keySet()) {
-            TapField field = fieldMap.get(fieldName);
-            String fieldComment = field.getComment();
-            if (EmptyKit.isNotNull(fieldComment)) {
-                sqlList.add(getColumnCommentSql(tapTable, field));
+        sqlList.add(getCreateTableSql(tapTable, commentInField));
+        if (!commentInField) {
+            //comment on table and column
+            if (EmptyKit.isNotNull(tapTable.getComment())) {
+                sqlList.add(getTableCommentSql(tapTable));
+            }
+            for (String fieldName : fieldMap.keySet()) {
+                TapField field = fieldMap.get(fieldName);
+                String fieldComment = field.getComment();
+                if (EmptyKit.isNotNull(fieldComment)) {
+                    sqlList.add(getColumnCommentSql(tapTable, field));
+                }
             }
         }
         jdbcContext.batchExecute(sqlList);
         createTableOptions.setTableExists(false);
         return createTableOptions;
+    }
+
+    //for pg,oracle type
+    protected CreateTableOptions createTableV2(TapConnectorContext connectorContext, TapCreateTableEvent createTableEvent) throws SQLException {
+        return createTable(connectorContext, createTableEvent, false);
+    }
+
+    //for mysql type
+    protected CreateTableOptions createTableV3(TapConnectorContext connectorContext, TapCreateTableEvent createTableEvent) throws SQLException {
+        return createTable(connectorContext, createTableEvent, true);
     }
 
     protected void batchReadV3(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
@@ -407,10 +419,10 @@ public abstract class CommonDbConnector extends ConnectorBase {
         return sb.toString();
     }
 
-    protected String getCreateTableSql(TapTable tapTable) {
+    private String getCreateTableSql(TapTable tapTable, Boolean commentInField) {
         char escapeChar = commonDbConfig.getEscapeChar();
         StringBuilder sb = new StringBuilder("create table ");
-        sb.append(getSchemaAndTable(tapTable.getId())).append('(').append(commonSqlMaker.buildColumnDefinition(tapTable, false));
+        sb.append(getSchemaAndTable(tapTable.getId())).append('(').append(commonSqlMaker.buildColumnDefinition(tapTable, commentInField));
         Collection<String> primaryKeys = tapTable.primaryKeys();
         if (EmptyKit.isNotEmpty(primaryKeys)) {
             sb.append(", primary key (").append(escapeChar)
@@ -418,6 +430,9 @@ public abstract class CommonDbConnector extends ConnectorBase {
                     .append(escapeChar).append(')');
         }
         sb.append(')');
+        if (commentInField) {
+            sb.append(" comment='").append(tapTable.getComment()).append("'");
+        }
         return sb.toString();
     }
 

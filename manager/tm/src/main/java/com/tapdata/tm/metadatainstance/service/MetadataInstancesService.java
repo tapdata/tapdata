@@ -358,7 +358,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     if (StringUtils.isBlank(field.getId())) {
                         field.setDataTypeTemp(field.getDataType());
                         field.setSourceDbType(connectionDto.getDatabase_type());
-                        field.setId(new ObjectId().toHexString());
+                        field.setId(MetaDataBuilderUtils.generateFieldId(connectionId, data.getOriginalName(), field.getFieldName()));
                         field.setSource("auto");
                     }
                 }
