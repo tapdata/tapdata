@@ -15,17 +15,17 @@ public class DDLFilterTest {
 	@Test
 	public void testFilter() {
 		DDLParserType ddlParserType = DDLParserType.MYSQL_CCJ_SQL_PARSER;
-		DDLType ddlType = DDLFilter.testAndGetType(ddlParserType, "alter table TEST.DDL_TEST ADD COLUMN F1 INT");
+		DDLType ddlType = new DDLFilter().testAndGetType(ddlParserType, "alter table TEST.DDL_TEST ADD COLUMN F1 INT");
 		Assertions.assertEquals(DDLType.Type.ADD_COLUMN, ddlType.getType());
-		ddlType = DDLFilter.testAndGetType(ddlParserType, "alter table TEST.DDL_TEST ADD F1 INT");
+		ddlType = new DDLFilter().testAndGetType(ddlParserType, "alter table TEST.DDL_TEST ADD F1 INT");
 		Assertions.assertEquals(DDLType.Type.ADD_COLUMN, ddlType.getType());
-		ddlType = DDLFilter.testAndGetType(ddlParserType, "alter table TEST.DDL_TEST CHANGE");
+		ddlType = new DDLFilter().testAndGetType(ddlParserType, "alter table TEST.DDL_TEST CHANGE");
 		Assertions.assertNull(ddlType);
-		ddlType = DDLFilter.testAndGetType(ddlParserType, "alter table TEST.DDL_TEST CHANGE F1 F1_NEW varchar(50)");
+		ddlType = new DDLFilter().testAndGetType(ddlParserType, "alter table TEST.DDL_TEST CHANGE F1 F1_NEW varchar(50)");
 		Assertions.assertEquals(DDLType.Type.CHANGE_COLUMN, ddlType.getType());
-		ddlType = DDLFilter.testAndGetType(ddlParserType, "alter table TEST.DDL_TEST RENAME COLUMN F1 TO F1_NEW");
+		ddlType = new DDLFilter().testAndGetType(ddlParserType, "alter table TEST.DDL_TEST RENAME COLUMN F1 TO F1_NEW");
 		Assertions.assertEquals(DDLType.Type.RENAME_COLUMN, ddlType.getType());
-		ddlType = DDLFilter.testAndGetType(ddlParserType, "alter table TEST.DDL_TEST DROP column F1");
+		ddlType = new DDLFilter().testAndGetType(ddlParserType, "alter table TEST.DDL_TEST DROP column F1");
 		Assertions.assertEquals(DDLType.Type.DROP_COLUMN, ddlType.getType());
 	}
 }
