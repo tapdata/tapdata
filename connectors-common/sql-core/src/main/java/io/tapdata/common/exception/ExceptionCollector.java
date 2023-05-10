@@ -22,4 +22,6 @@ public interface ExceptionCollector {
     void collectViolateUnique(String targetFieldName, Object data, Object constraint, SQLException cause) throws SQLException;
 
     void collectViolateNull(String targetFieldName, SQLException cause) throws SQLException;
+
+    void collectCdcConfigInvalid(SQLException cause) throws SQLException;
 }
