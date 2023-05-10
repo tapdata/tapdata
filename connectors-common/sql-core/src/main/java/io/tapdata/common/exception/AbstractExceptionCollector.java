@@ -49,4 +49,9 @@ public abstract class AbstractExceptionCollector implements ExceptionCollector {
     public void collectViolateNull(String targetFieldName, SQLException cause) throws SQLException {
         throw cause;
     }
+
+    @Override
+    public void collectCdcConfigInvalid(SQLException cause) throws SQLException {
+        throw cause;
+    }
 }
