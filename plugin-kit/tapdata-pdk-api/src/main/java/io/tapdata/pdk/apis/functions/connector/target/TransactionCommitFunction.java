@@ -10,10 +10,6 @@ import java.util.function.Consumer;
 
 public interface TransactionCommitFunction extends TapConnectorFunction {
 
-    /**
-     * insert, update, delete events.
-     *
-     */
     void commit(TapConnectorContext connectorContext) throws Throwable;
 
 }

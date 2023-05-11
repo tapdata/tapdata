@@ -10,10 +10,6 @@ import java.util.function.Consumer;
 
 public interface TransactionRollbackFunction extends TapConnectorFunction {
 
-    /**
-     * insert, update, delete events.
-     *
-     */
     void rollback(TapConnectorContext connectorContext) throws Throwable;
 
 }

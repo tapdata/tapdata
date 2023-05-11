@@ -10,10 +10,6 @@ import java.util.function.Consumer;
 
 public interface TransactionBeginFunction extends TapConnectorFunction {
 
-    /**
-     * insert, update, delete events.
-     *
-     */
     void begin(TapConnectorContext connectorContext) throws Throwable;
 
 }
