@@ -5,6 +5,7 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
+import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -48,12 +49,25 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 		super(repository, ExternalStorageDto.class, ExternalStorageEntity.class);
 	}
 
+	@Override
+	public <T extends BaseDto> ExternalStorageDto save(ExternalStorageDto externalStorage, UserDetail userDetail) {
+		if (externalStorage.getId() != null) {
+			Query query = new Query(Criteria.where("_id").is(externalStorage.getId()));
+			this.updateByWhere(query, externalStorage, userDetail);
+			return findOne(query);
+		} else {
+			externalStorage.setId(null);
+			return super.save(externalStorage, userDetail);
+		}
+
+	}
+
 	protected void beforeSave(ExternalStorageDto externalStorage, UserDetail user) {
 		if (StringUtils.isBlank(externalStorage.getName())) {
 			throw new BizException("External.Storage.Name.Blank");
 		}
 		ExternalStorageDto exists = findOne(Query.query(Criteria.where("name").is(externalStorage.getName())));
-		if (null != exists) {
+		if (null != exists && !exists.getId().equals(externalStorage.getId())) {
 			throw new BizException("External.Storage.Name.Exists", externalStorage.getName());
 		}
 		if (StringUtils.isBlank(externalStorage.getType())) {
