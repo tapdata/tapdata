@@ -2,17 +2,14 @@ package io.tapdata.connector.tidb.dml;
 
 import io.tapdata.common.WriteRecorder;
 import io.tapdata.connector.tidb.ddl.TidbSqlMaker;
-import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
-import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -161,30 +158,20 @@ public class TidbWriteRecorder extends WriteRecorder {
         preparedStatement.addBatch();
     }
 
-    public void addUpdateBatch(Map<String, Object> after, Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
-        if (EmptyKit.isEmpty(after) || EmptyKit.isEmpty(uniqueCondition)) {
-            return;
-        }
-        if (EmptyKit.isEmpty(afterKeys)) {
-            afterKeys = new ArrayList<>(after.keySet());
-        }
-        if (!afterKeys.equals(new ArrayList<>(after.keySet()))) {
-            executeBatch(listResult);
-            preparedStatement = null;
-            afterKeys = new ArrayList<>(after.keySet());
-        }
-        Map<String, Object> lastBefore = new HashMap<>();
-        uniqueCondition.forEach(v -> lastBefore.put(v, (EmptyKit.isNotEmpty(before) && before.containsKey(v)) ? before.get(v) : after.get(v)));
-        if (EmptyKit.isNull(preparedStatement)) {
-            String sql = String.format(UPDATE_SQL, formatTableName(), appendSetClause(), appendWhereClause());
-            preparedStatement = connection.prepareStatement(sql);
-        }
-        preparedStatement.clearParameters();
-        int pos = 1;
-        pos = setParametersForSetClause(preparedStatement, after, pos);
-        setParametersForWhereClause(preparedStatement, lastBefore, pos);
-        preparedStatement.addBatch();
-    }
+//    public void addUpdateBatch(Map<String, Object> after, Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
+//        if (EmptyKit.isEmpty(after)) {
+//            return;
+//        }
+//        if (EmptyKit.isNull(preparedStatement)) {
+//            String sql = String.format(UPDATE_SQL, formatTableName(), appendSetClause(), appendWhereClause());
+//            preparedStatement = connection.prepareStatement(sql);
+//        }
+//        preparedStatement.clearParameters();
+//        int pos = 1;
+//        pos = setParametersForSetClause(preparedStatement, after, pos);
+//        setParametersForWhereClause(preparedStatement, getBeforeForUpdate(after, before, listResult), pos);
+//        preparedStatement.addBatch();
+//    }
 
     private int setParametersForSetClause(PreparedStatement pstmt, Map<String, Object> data, int pos) throws SQLException {
         pos = setAllObject(pstmt, data, pos);
