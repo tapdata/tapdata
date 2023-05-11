@@ -8,6 +8,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
 import io.tapdata.mongodb.codecs.TapdataBigDecimalCodec;
+import io.tapdata.mongodb.codecs.TapdataBigIntegerCodec;
 import io.tapdata.mongodb.entity.MongodbConfig;
 import io.tapdata.mongodb.util.SSLUtil;
 import org.apache.commons.collections4.CollectionUtils;
@@ -263,7 +264,10 @@ public class MongodbUtil {
 
 	public static MongoClient createMongoClient(MongodbConfig mongodbConfig) {
 		CodecRegistry defaultCodecRegistry = MongoClientSettings.getDefaultCodecRegistry();
-		CodecRegistry codecRegistry = CodecRegistries.fromRegistries(CodecRegistries.fromCodecs(new TapdataBigDecimalCodec()), defaultCodecRegistry);
+		CodecRegistry codecRegistry = CodecRegistries.fromRegistries(CodecRegistries.fromCodecs(
+				new TapdataBigDecimalCodec(),
+				new TapdataBigIntegerCodec()
+		), defaultCodecRegistry);
 		final MongoClientSettings.Builder builder = MongoClientSettings.builder().codecRegistry(codecRegistry);
 		String mongodbUri = mongodbConfig.getUri();
 		if (null == mongodbUri || "".equals(mongodbUri)) {
