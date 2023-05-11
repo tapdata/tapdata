@@ -973,9 +973,8 @@ public class TaskController extends BaseController {
 
     @PostMapping("migrate-js/test-run")
     @Operation(description = "js节点试运行")
-    public ResponseMessage<Void> testRun(@RequestBody TestRunDto dto) {
-        taskNodeService.testRunJsNode(dto, getLoginUser());
-        return success();
+    public ResponseMessage<Map<String, Object>> testRun(@RequestBody TestRunDto dto, @RequestParam("access_token") String accessToken) {
+        return success(taskNodeService.testRunJsNode(dto, getLoginUser(), accessToken));
     }
 
     @PostMapping("migrate-js/save-result")

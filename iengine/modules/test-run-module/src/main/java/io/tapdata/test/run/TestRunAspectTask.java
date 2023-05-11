@@ -29,6 +29,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 @AspectTaskSession(includeTypes = TaskDto.SYNC_TYPE_TEST_RUN, order = Integer.MAX_VALUE)
@@ -46,6 +47,8 @@ public class TestRunAspectTask extends AspectTask {
 
   private boolean multipleTables;
 
+  private AtomicReference<Object> jsResult;
+
   public TestRunAspectTask() {
     observerClassHandlers.register(ProcessorNodeProcessAspect.class, this::processorNodeProcessAspect);
     TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
@@ -58,7 +61,7 @@ public class TestRunAspectTask extends AspectTask {
     Optional<Node> optional = task.getDag().getNodes().stream().filter(n -> n.getType().equals("virtualTarget")).findFirst();
     optional.ifPresent(node -> this.nodeIds = task.getDag().predecessors(node.getId()).stream()
             .map(Element::getId).collect(Collectors.toSet()));
-
+    jsResult = (AtomicReference<Object>)startAspect.info("JSRunResult");
     this.multipleTables = CollectionUtils.isNotEmpty(task.getDag().getSourceNode());
 
   }
@@ -111,8 +114,10 @@ public class TestRunAspectTask extends AspectTask {
       paramMap.put("before", resultMap.get("before"));
       paramMap.put("after", resultMap.get("after"));
     }
-    ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
-    clientMongoOperator.insertOne(paramMap, "/task/migrate-js/save-result");
+
+    jsResult.set(paramMap);
+    //ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
+    //clientMongoOperator.insertOne(paramMap, "/task/migrate-js/save-result");
 
     logger.info("return to tm {}", paramMap);
   }

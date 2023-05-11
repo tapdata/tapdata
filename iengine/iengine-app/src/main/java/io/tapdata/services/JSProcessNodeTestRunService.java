@@ -1,0 +1,71 @@
+package io.tapdata.services;
+
+import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.JSONUtil;
+import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.task.dto.ParentTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.aspect.TaskStopAspect;
+import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.exception.ExceptionUtil;
+import io.tapdata.flow.engine.V2.task.TaskClient;
+import io.tapdata.flow.engine.V2.task.TaskService;
+import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.service.skeleton.annotation.RemoteService;
+
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
+
+/**
+ * @author GavinXiao
+ * @description JSProcessNodeTestRunService create by Gavin
+ * @create 2023/5/11 12:31
+ **/
+@RemoteService
+public class JSProcessNodeTestRunService {
+    private final Map<String, TaskDto> taskDtoMap = new ConcurrentHashMap<>();
+    public Object testRun(Map<String, Object> events) {
+        TaskService<TaskDto> taskService = BeanUtil.getBean(HazelcastTaskService.class);
+        long startTs = System.currentTimeMillis();
+        TaskDto taskDto = JSONUtil.map2POJO(events, TaskDto.class);
+        ObsLogger logger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
+        taskDto.setType(ParentTaskDto.TYPE_INITIAL_SYNC);
+        String taskId = taskDto.getId().toHexString();
+        if (taskDtoMap.putIfAbsent(taskId, taskDto) != null) {
+            Map<String,Object> paramMap = new HashMap<>();
+            paramMap.put("taskId", taskId);
+            paramMap.put("ts", new Date().getTime());
+            paramMap.put("code", "error");
+            paramMap.put("message", taskId + " task is running, skip");
+            return paramMap;
+        }
+        logger.info("{} task start", taskId);
+        TaskClient<TaskDto> taskClient = null;
+        AtomicReference<Object> clientResult = new AtomicReference<>();
+        try {
+            taskClient = taskService.startTestTask(taskDto, clientResult);
+            taskClient.join();
+            AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()).error(taskClient.getError()));
+        } catch (Throwable throwable) {
+            logger.error(taskId + " task error", throwable);
+            if (taskClient != null) {
+                AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()).error(throwable));
+            }
+            Map<String,Object> paramMap = new HashMap<>();
+            paramMap.put("taskId", taskId);
+            paramMap.put("ts", new Date().getTime());
+            paramMap.put("code", "error");
+            paramMap.put("message", throwable.getMessage());
+            return paramMap;
+        } finally {
+            taskDtoMap.remove(taskId);
+        }
+        logger.info("test run task {} {}, cost {}ms", taskId, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
+        return clientResult.get();
+    }
+}

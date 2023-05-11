@@ -17,7 +17,6 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
-import com.tapdata.processor.LoggingOutputStream;
 import com.tapdata.processor.ScriptConnection;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
@@ -37,6 +36,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.Log;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -46,12 +46,12 @@ import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.script.ScriptExecutorsManager;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.js.connector.base.JsUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -63,6 +63,8 @@ import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
@@ -189,6 +191,21 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			} catch (Throwable ex) {
 				throw new RuntimeException(String.format("script eval error: %s, %s, %s, %s", jsEngineName, e, scripts, contextClassLoader), ex);
 			}
+
+			try {
+				e.put("tapUtil", new JsUtil());
+				e.put("tapLog", logger);
+				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/csvUtils.js"));
+				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/arrayUtils.js"));
+				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/dateUtils.js"));
+				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/exceptionUtils.js"));
+				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/stringUtils.js"));
+				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/mapUtils.js"));
+				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/log.js"));
+			}catch (Throwable ex){
+				throw new RuntimeException(String.format("script eval js util error: %s, %s, %s, %s", jsEngineName, e, scripts, contextClassLoader), ex);
+			}
+
 			Optional.ofNullable(source).ifPresent(s -> e.put("source", s));
 			Optional.ofNullable(target).ifPresent(s -> e.put("target", s));
 			Optional.ofNullable(memoryCacheGetter).ifPresent(s -> e.put("CacheService", s));
@@ -479,4 +496,21 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		return buildInMethod.toString();
 	}
 
+	public static void main(String[] args)throws FileNotFoundException, ScriptException {
+		final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
+		ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(JSEngineEnum.GRAALVM_JS.getEngineName()));
+		e.put("tapUtil", new JsUtil());
+		e.put("tapLog", new TapLog());
+		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/csvUtils.js"));
+		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/arrayUtils.js"));
+		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/dateUtils.js"));
+		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/exceptionUtils.js"));
+		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/stringUtils.js"));
+		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/mapUtils.js"));
+		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/log.js"));
+
+		Object invoker = e.eval("dateUtils.timeStamp2Date(new Date().getTime(), \"yyyy-MM-dd'T'HH:mm:ssXXX\");");
+		System.out.println(invoker + " ---- " + new JsUtil().timeStamp2Date(System.currentTimeMillis(), "yyyy-MM-dd'T'HH:mm:ssXXX"));
+		e.eval("log.warn(\"Hello Log, i'm %s\", 'Gavin');");
+	}
 }

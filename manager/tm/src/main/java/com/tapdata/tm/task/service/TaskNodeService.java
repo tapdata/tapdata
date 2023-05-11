@@ -9,11 +9,13 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.vo.JsResultDto;
 import com.tapdata.tm.task.vo.JsResultVo;
 
+import java.util.Map;
+
 public interface TaskNodeService {
     Page<MetadataTransformerItemDto> getNodeTableInfo(String taskId, String taskRecordId, String nodeId, String searchTableName,
                                                       Integer page, Integer pageSize, UserDetail userDetail);
 
-    void testRunJsNode(TestRunDto dto, UserDetail userDetail);
+    Map<String, Object> testRunJsNode(TestRunDto dto, UserDetail userDetail, String accessToken);
 
     void saveResult(JsResultDto jsResultDto);
 

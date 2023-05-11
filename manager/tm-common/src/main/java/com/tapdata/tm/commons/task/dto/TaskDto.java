@@ -162,14 +162,11 @@ public class TaskDto extends ParentTaskDto {
         return dag;
     }
 
-		public boolean isTestTask() {
-			if (StringUtils.equalsAnyIgnoreCase(getSyncType(), SYNC_TYPE_TEST_RUN, SYNC_TYPE_DEDUCE_SCHEMA)) {
-				return true;
-			}
-			return false;
-		}
+    public boolean isTestTask() {
+        return StringUtils.equalsAnyIgnoreCase(getSyncType(), SYNC_TYPE_TEST_RUN, SYNC_TYPE_DEDUCE_SCHEMA);;
+    }
 
-		public boolean isNormalTask() {
+    public boolean isNormalTask() {
 			return !isTestTask();
 		}
 

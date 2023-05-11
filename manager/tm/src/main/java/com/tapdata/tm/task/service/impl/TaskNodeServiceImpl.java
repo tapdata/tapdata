@@ -44,6 +44,7 @@ import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
@@ -51,6 +52,12 @@ import io.tapdata.entity.schema.TapTable;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -60,12 +67,16 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static io.tapdata.entity.simplify.TapSimplify.fromJson;
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 @Service
 @Slf4j
@@ -476,7 +487,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
     @SuppressWarnings("unchecked")
     @Override
-    public void testRunJsNode(TestRunDto dto, UserDetail userDetail) {
+    public Map<String, Object> testRunJsNode(TestRunDto dto, UserDetail userDetail, String accessToken) {
         String taskId = dto.getTaskId();
         String nodeId = dto.getJsNodeId();
         String tableName = dto.getTableName();
@@ -485,19 +496,14 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         Long version = dto.getVersion();
 
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
-
         String testTaskId = taskDto.getTestTaskId();
         monitoringLogService.deleteLogs(testTaskId);
-
         DAG dtoDag = taskDto.getDag();
-
         TaskDto taskDtoCopy = new TaskDto();
         BeanUtils.copyProperties(taskDto, taskDtoCopy);
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
         taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
-
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
-
             DatabaseNode first = dtoDag.getSourceNode().getFirst();
             first.setTableNames(Lists.of(tableName));
             first.setRows(rows);
@@ -538,7 +544,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             dag = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dag), Dag.class);
             List<Node> nodes = dag.getNodes();
 
-            Node target = new VirtualTargetNode();
+            Node<?> target = new VirtualTargetNode();
             target.setId(UUID.randomUUID().toString());
             target.setName(target.getId());
             if (CollectionUtils.isNotEmpty(nodes)) {
@@ -562,8 +568,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 Edge edge = new Edge(nodeId, target.getId());
                 edges.add(edge);
             }
-
-
             dag.setNodes(nodes);
             dag.setEdges(edges);
 
@@ -575,16 +579,49 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         taskDtoCopy.setVersion(version);
         taskDtoCopy.setId(MongoUtils.toObjectId(testTaskId));
 
-        List<Worker> workers = workerService.findAvailableAgentByAccessNode(userDetail, taskDto.getAccessNodeProcessIdList());
-        if (CollectionUtils.isEmpty(workers)) {
-            throw new BizException("no agent");
+        // RPC
+        String url = "http://localhost:3000/api/proxy/call?access_token=" + accessToken;
+        OkHttpClient client = new OkHttpClient();
+        Map<String, Object> paraMap = new HashMap<>();
+        paraMap.put("className", "JSProcessNodeTestRunService");
+        paraMap.put("method", "testRun");
+        paraMap.put("args", new ArrayList<TaskDto>(){{ add(taskDtoCopy); }});
+        try {
+            Request request = new Request.Builder()
+                    .url(url)
+                    .method("POST", RequestBody.create(MediaType.parse("application/json"), JsonUtil.toJsonUseJackson(paraMap)))
+                    .addHeader("Content-Type", "application/json")
+                    .build();
+            Response response = client.newCall(request).execute();
+            if (response.isSuccessful()) {
+                return (Map<String, Object>) fromJson(response.body().string());
+            }
+            Map<String, Object> errorMap = new HashMap<>();
+            errorMap.put("taskId", testTaskId);
+            errorMap.put("ts", new Date().getTime());
+            errorMap.put("code", "error");
+            errorMap.put("message", "Not any result from RPC.");
+            return errorMap;
+        }catch (Exception e){
+            Map<String, Object> errorMap = new HashMap<>();
+            errorMap.put("taskId", testTaskId);
+            errorMap.put("ts", new Date().getTime());
+            errorMap.put("code", "error");
+            errorMap.put("message", e.getMessage());
+            return errorMap;
         }
 
-        MessageQueueDto queueDto = new MessageQueueDto();
-        queueDto.setReceiver(workers.get(0).getProcessId());
-        queueDto.setData(taskDtoCopy);
-        queueDto.setType(TaskDto.SYNC_TYPE_TEST_RUN);
-        messageQueueService.sendMessage(queueDto);
+        // WS
+        //List<Worker> workers = workerService.findAvailableAgentByAccessNode(userDetail, taskDto.getAccessNodeProcessIdList());
+        //if (CollectionUtils.isEmpty(workers)) {
+        //    throw new BizException("no agent");
+        //}
+        //
+        //MessageQueueDto queueDto = new MessageQueueDto();
+        //queueDto.setReceiver(workers.get(0).getProcessId());
+        //queueDto.setData(taskDtoCopy);
+        //queueDto.setType(TaskDto.SYNC_TYPE_TEST_RUN);
+        //messageQueueService.sendMessage(queueDto);
     }
 
     private void getPrePre(Node node, List<String> preIds) {
