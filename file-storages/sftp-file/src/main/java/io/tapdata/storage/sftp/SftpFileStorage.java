@@ -95,7 +95,7 @@ public class SftpFileStorage implements TapFileStorage {
 
     @Override
     public boolean move(String sourcePath, String destPath) {
-        throw new RuntimeException("Not supported");
+        throw new UnsupportedOperationException();
     }
 
     @Override
