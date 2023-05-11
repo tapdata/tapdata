@@ -3,7 +3,6 @@ package io.tapdata.storage.sftp;
 import com.jcraft.jsch.*;
 import io.tapdata.file.TapFile;
 import io.tapdata.file.TapFileStorage;
-import io.tapdata.pdk.apis.error.NotSupportedException;
 import io.tapdata.storage.kit.EmptyKit;
 import io.tapdata.storage.kit.FileMatchKit;
 
@@ -96,7 +95,7 @@ public class SftpFileStorage implements TapFileStorage {
 
     @Override
     public boolean move(String sourcePath, String destPath) {
-        throw new NotSupportedException();
+        throw new RuntimeException("Not supported");
     }
 
     @Override

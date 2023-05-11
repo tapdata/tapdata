@@ -2,7 +2,6 @@ package io.tapdata.storage.ftp;
 
 import io.tapdata.file.TapFile;
 import io.tapdata.file.TapFileStorage;
-import io.tapdata.pdk.apis.error.NotSupportedException;
 import io.tapdata.storage.kit.EmptyKit;
 import io.tapdata.storage.kit.FileMatchKit;
 import org.apache.commons.net.ftp.FTP;
@@ -114,7 +113,7 @@ public class FtpFileStorage implements TapFileStorage {
 
     @Override
     public boolean move(String sourcePath, String destPath) {
-        throw new NotSupportedException();
+        throw new RuntimeException("Not supported");
     }
 
     @Override
