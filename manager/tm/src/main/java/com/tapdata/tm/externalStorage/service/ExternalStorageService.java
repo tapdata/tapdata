@@ -75,9 +75,6 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 				if (StringUtils.isBlank(database)) {
 					throw new BizException("External.Storage.MongoDB.Database.Blank");
 				}
-				if (StringUtils.isBlank(externalStorage.getTable())) {
-					throw new BizException("External.Storage.MongoDB.Table.Blank");
-				}
 				break;
 			case rocksdb:
 				if (StringUtils.isBlank(externalStorage.getUri())) {

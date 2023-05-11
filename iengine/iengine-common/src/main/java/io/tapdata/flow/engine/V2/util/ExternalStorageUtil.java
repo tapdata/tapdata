@@ -132,13 +132,19 @@ public class ExternalStorageUtil {
 			throw new IllegalArgumentException(LOG_PREFIX + "Init hazelcast persistence failed" + e.getMessage());
 		}
 		String table = externalStorageDto.getTable();
+		boolean exclusiveCollection = false;
+		if (StringUtils.isBlank(table)) {
+			table = "ExternalStorage_" + constructName;
+			exclusiveCollection = true;
+		}
 		if (StringUtils.isBlank(table)) {
 			throw new IllegalArgumentException(LOG_PREFIX + "Init hazelcast persistence failed. Collection name cannot be empty");
 		}
 		PersistenceMongoDBConfig mongoDBConfig = PersistenceMongoDBConfig.create(constructType, constructName)
 				.uri(uri)
 				.database(mongoClientURI.getDatabase())
-				.collection(table);
+				.collection(table)
+				.exclusiveCollection(exclusiveCollection);
 		mongoDBConfig.setInMemSize(DEFAULT_IN_MEM_SIZE);
 		return mongoDBConfig;
 	}

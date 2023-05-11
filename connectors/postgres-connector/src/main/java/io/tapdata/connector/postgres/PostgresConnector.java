@@ -257,7 +257,7 @@ public class PostgresConnector extends CommonDbConnector {
         cdcRunner.useSlot(slotName.toString()).watch(tableList).offset(offsetState).registerConsumer(consumer, recordSize);
         cdcRunner.startCdcRunner();
         if (EmptyKit.isNotNull(cdcRunner) && EmptyKit.isNotNull(cdcRunner.getThrowable().get())) {
-            throw cdcRunner.getThrowable().get();
+            throw ErrorKit.getLastCause(cdcRunner.getThrowable().get());
         }
     }
 
