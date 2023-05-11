@@ -123,6 +123,7 @@ public class RegisterMain {
         String[] tags = System.getProperty("tags", "all").split(",");
         ConnectorEnums.addByTags(postList, tags);
         Main.registerCommands().execute(postList.toArray(new String[0]));
+        System.exit(0); 
     }
 
     private static String basePath() {
