@@ -40,8 +40,8 @@ import org.postgresql.jdbc.PgSQLXML;
 import org.postgresql.util.PGInterval;
 import org.postgresql.util.PGobject;
 
-import java.sql.ResultSet;
 import java.math.BigDecimal;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -560,7 +560,7 @@ public class PostgresConnector extends CommonDbConnector {
         cdcRunner.useSlot(slotName.toString()).watch(tableList).offset(offsetState).registerConsumer(consumer, recordSize);
         cdcRunner.startCdcRunner();
         if (EmptyKit.isNotNull(cdcRunner) && EmptyKit.isNotNull(cdcRunner.getThrowable().get())) {
-            throw cdcRunner.getThrowable().get();
+            throw ErrorKit.getLastCause(cdcRunner.getThrowable().get());
         }
     }
 
@@ -579,7 +579,7 @@ public class PostgresConnector extends CommonDbConnector {
     }
 
     private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
-        DataMap dataMap =postgresJdbcContext.getTableInfo(tableName);
+        DataMap dataMap = postgresJdbcContext.getTableInfo(tableName);
         TableInfo tableInfo = TableInfo.create();
         tableInfo.setNumOfRows(Long.valueOf(dataMap.getString("size")));
         tableInfo.setStorageSize(new BigDecimal(dataMap.getString("rowcount")).longValue());
