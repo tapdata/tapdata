@@ -167,6 +167,9 @@
           "default": "List",
           "x-decorator": "FormItem",
           "x-component": "Select",
+          "x-decorator-props": {
+            "tooltip": "${valueTypeTooltip}"
+          },
           "x-index": 1,
           "enum": [
             {
@@ -189,6 +192,9 @@
           "x-decorator": "FormItem",
           "x-component": "Switch",
           "x-index": 2,
+          "x-decorator-props": {
+            "tooltip": "${oneKeyTooltip}"
+          },
           "default": true,
           "x-reactions": [
             {
@@ -207,6 +213,9 @@
           "x-decorator": "FormItem",
           "x-component": "Switch",
           "x-index": 4,
+          "x-decorator-props": {
+            "tooltip": "${listHeadTooltip}"
+          },
           "default": true,
           "x-reactions": [
             {
@@ -225,6 +234,9 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "x-index": 5,
+          "x-decorator-props": {
+            "tooltip": "${keyExpressionTooltip}"
+          },
           "required": true,
           "x-reactions": [
             {
@@ -243,6 +255,9 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "x-index": 6,
+          "x-decorator-props": {
+            "tooltip": "${keyPrefixTooltip}"
+          },
           "x-reactions": [
             {
               "dependencies": [".valueType",".oneKey","type"],
@@ -261,6 +276,9 @@
           "x-component": "Input",
           "default": "-",
           "x-index": 7,
+          "x-decorator-props": {
+            "tooltip": "${keyJoinTooltip}"
+          },
           "x-reactions": [
             {
               "dependencies": [".valueType",".oneKey","type"],
@@ -278,6 +296,9 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "x-index": 8,
+          "x-decorator-props": {
+            "tooltip": "${keySuffixTooltip}"
+          },
           "x-reactions": [
             {
               "dependencies": [".valueType",".oneKey","type"],
@@ -296,6 +317,9 @@
           "x-decorator": "FormItem",
           "x-component": "Select",
           "x-index": 9,
+          "x-decorator-props": {
+            "tooltip": "${valueDataTooltip}"
+          },
           "enum": [
             {
               "label": "Text",
@@ -322,6 +346,9 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "x-index": 10,
+          "x-decorator-props": {
+            "tooltip": "${valueJoinStringTooltip}"
+          },
           "default": ",",
           "required": true,
           "x-reactions": [
@@ -341,6 +368,9 @@
           "x-decorator": "FormItem",
           "x-component": "Switch",
           "x-index": 11,
+          "x-decorator-props": {
+            "tooltip": "${csvFormatTooltip}"
+          },
           "default": true,
           "x-reactions": [
             {
@@ -385,7 +415,17 @@
       "csvFormat": "Csv Format",
       "expireTime": "Expire time(second)",
       "resetExpire": "Reset expire time when updated",
-      "prompt": "Add"
+      "prompt": "Add",
+      "valueTypeTooltip": "Redis storage data structure (currently supports three types: String, List, and Hash)",
+      "oneKeyTooltip": "When turning on the single key storage switch, all data will be written to the same Redis key (special note: Redis single key supports up to 512M)",
+      "listHeadTooltip": "Stored as a List and in single click mode, this switch supports adding header rows",
+      "keyExpressionTooltip": "Key expression (dedicated to data development). When stored as Hash or non single key mode, each data can be stored in a custom formatted key. For example: tap_ ${id} _ ${colName} (special note: it is recommended to use a combination of primary keys or update condition fields. If fewer fields are selected, it may cause key overwriting; if too many other fields are selected, it may affect deletion and update functions",
+      "keyPrefixTooltip": "Key prefix (a specialized combination for data replication). When stored in Hash or non single key mode, each data can be stored in a key with a custom prefix",
+      "keyJoinTooltip": "Key connector (a specialized combination for data replication). When stored in Hash or non single key mode, each data can be stored in a custom connector. For example, fill in '-', ${pk1}-${pk2}-${pk3}",
+      "keySuffixTooltip": "Key suffix (a specialized combination for data replication). When stored in Hash or non single key mode, each data can be stored in a custom suffix key",
+      "valueDataTooltip": "The format of each row of data stored, supporting text and JSON formats",
+      "valueJoinStringTooltip": "If the data is in TEXT format, the interval character can be customized",
+      "csvFormatTooltip": "Turn on the CSV formatting switch to convert TEXT to a standard line of CSV"
     },
     "zh_CN": {
       "doc": "docs/redis_zh_CN.md",
@@ -414,7 +454,17 @@
       "csvFormat": "Csv格式化",
       "expireTime": "有效时间（秒）",
       "resetExpire": "更新时重置有效时间",
-      "prompt": "添加"
+      "prompt": "添加",
+      "valueTypeTooltip": "Redis存储的数据结构（目前暂时支持String，List，Hash三种）",
+      "oneKeyTooltip": "打开单键存储开关时，所有数据会写入同一个Redis键（特别留意：Redis单键最多支持512M）",
+      "listHeadTooltip": "存储为List且单键方式，该开关支持加入标题行",
+      "keyExpressionTooltip": "键表达式（数据开发专用），存储为Hash或非单键方式时，可以将每条数据存入自定义格式的键。例如：tap_${id}_${colName}（特别留意：推荐使用主键或更新条件字段的组合，若少选字段，可能导致键覆盖；若选过多其它字段，可能会影响删除、更新功能）",
+      "keyPrefixTooltip": "键前缀（数据复制专用组合），存储为Hash或非单键方式时，可以将每条数据存入自定义前缀的键。",
+      "keyJoinTooltip": "键连接符（数据复制专用组合），存储为Hash或非单键方式时，可以将每条数据存入自定义连接符。例如：填写'-',${pk1}-${pk2}-${pk3}",
+      "keySuffixTooltip": "键后缀（数据复制专用组合），存储为Hash或非单键方式时，可以将每条数据存入自定义后缀的键",
+      "valueDataTooltip": "存储的每行数据的格式，支持TEXT、JSON格式",
+      "valueJoinStringTooltip": "若数据为TEXT格式，可自定义间隔符",
+      "csvFormatTooltip": "打开CSV格式化开关，可以将TEXT转换为CSV的标准行"
     },
     "zh_TW": {
       "doc": "docs/redis_zh_TW.md",
@@ -443,7 +493,17 @@
       "csvFormat": "Csv格式化",
       "expireTime": "有效時間（秒）",
       "resetExpire": "更新時重置有效時間",
-      "prompt": "添加"
+      "prompt": "添加",
+      "valueTypeTooltip": "Redis存儲的資料結構（現時暫時支持String，List，Hash三種）",
+      "oneKeyTooltip": "打開單鍵存儲開關時，所有數據會寫入同一個Redis鍵（特別留意：Redis單鍵最多支持512M）",
+      "listHeadTooltip": "存儲為List且單鍵管道，該開關支持加入標題行",
+      "keyExpressionTooltip": "鍵運算式（數據開發專用），存儲為Hash或非單鍵管道時，可以將每條數據存入自定義格式的鍵。例如：tap_${id}_${colName}（特別留意：推薦使用主鍵或更新條件欄位的組合，若少選欄位，可能導致鍵覆蓋；若選過多其它欄位，可能會影響删除、更新功能）",
+      "keyPrefixTooltip": "鍵首碼（數據複製專用組合），存儲為Hash或非單鍵管道時，可以將每條數據存入自定義首碼的鍵。",
+      "keyJoinTooltip": "鍵連接符（數據複製專用組合），存儲為Hash或非單鍵管道時，可以將每條數據存入自定義連接符。例如：填寫'-'，${pk1}-${pk2}-${pk3}",
+      "keySuffixTooltip": "鍵尾碼（數據複製專用組合），存儲為Hash或非單鍵管道時，可以將每條數據存入自定義尾碼的鍵",
+      "valueDataTooltip": "存儲的每行數據的格式，支持TEXT、JSON格式",
+      "valueJoinStringTooltip": "若數據為TEXT格式，可自定義間隔符",
+      "csvFormatTooltip": "打開CSV格式化開關，可以將TEXT轉換為CSV的標準行"
     }
   },
   "dataTypes": {
