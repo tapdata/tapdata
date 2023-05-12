@@ -19,6 +19,9 @@ public interface TaskNodeService {
 
     void saveResult(JsResultDto jsResultDto);
 
+    /**
+     * @deprecated 执行试运行后即可获取到试运行结果和试运行日志，无需使用此获取结果，不久的将来会移除这个function
+     * */
     ResponseMessage<JsResultVo> getRun(String taskId, String jsNodeId, Long version);
 
     void checkFieldNode(TaskDto taskDto, UserDetail userDetail);

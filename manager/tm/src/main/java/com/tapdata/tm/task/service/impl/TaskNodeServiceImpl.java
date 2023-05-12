@@ -645,6 +645,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
     }
 
+    /**
+     * @deprecated 执行试运行后即可获取到试运行结果和试运行日志，无需使用此获取结果，不久的将来会移除这个function
+     * */
     @Override
     public ResponseMessage<JsResultVo> getRun(String taskId, String jsNodeId, Long version) {
         ResponseMessage<JsResultVo> res = new ResponseMessage<>();
