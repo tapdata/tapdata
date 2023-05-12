@@ -8,6 +8,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.index.TapDeleteIndexEvent;
 import io.tapdata.entity.event.ddl.table.*;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
@@ -47,6 +48,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
     protected JdbcContext jdbcContext;
     protected CommonDbConfig commonDbConfig;
     protected CommonSqlMaker commonSqlMaker;
+    protected Log tapLogger;
     protected ExceptionCollector exceptionCollector = new AbstractExceptionCollector() {
     };
 
