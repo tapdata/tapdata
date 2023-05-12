@@ -466,6 +466,7 @@ public class ProxyController extends BaseController {
         //    response.sendError(SC_UNAUTHORIZED);
         //    return;
         //}
+        UserDetail userDetail = getLoginUser();
         List<String> keysList= new ArrayList<>();
         keysList.add("TapConnectorManager");
         if(processId != null) {
