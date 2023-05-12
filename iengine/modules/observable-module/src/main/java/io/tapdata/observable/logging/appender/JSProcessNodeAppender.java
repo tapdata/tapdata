@@ -1,12 +1,9 @@
 package io.tapdata.observable.logging.appender;
 
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
+import io.tapdata.observable.logging.with.FixedSizeBlockingDeque;
 
-import java.util.Collection;
 import java.util.List;
-import java.util.Queue;
-import java.util.concurrent.BlockingDeque;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -21,14 +18,14 @@ public class JSProcessNodeAppender extends BaseTaskAppender<MonitoringLogsDto> {
     //日志输出默认100条
     public int defaultLogLength = 100;
 
-    public FixedSizeArrayList<MonitoringLogsDto> logList = new FixedSizeArrayList<>(defaultLogLength);//new FixSizeLinkedList<>(defaultLogLength);
+    public FixedSizeBlockingDeque<MonitoringLogsDto> logList = new FixedSizeBlockingDeque<>(defaultLogLength);//new FixSizeLinkedList<>(defaultLogLength);
     AtomicReference<Object> logCollector;
     //日志输出上限500条
     public static final int LOG_UPPER_LIMIT = 500;
 
     private JSProcessNodeAppender(String taskId, AtomicReference<Object> logCollector) {
         super(taskId);
-        logCollector.set(logList.elementObj());
+        logCollector.set(logList);
         this.logCollector = logCollector;
     }
 
@@ -39,12 +36,12 @@ public class JSProcessNodeAppender extends BaseTaskAppender<MonitoringLogsDto> {
     public JSProcessNodeAppender maxLogCount(int maxLogCount) {
         if (maxLogCount <= 0) return this;
         defaultLogLength = Math.min(maxLogCount, LOG_UPPER_LIMIT);
-        FixedSizeArrayList<MonitoringLogsDto> linkedList = new FixedSizeArrayList<>(defaultLogLength);//new FixSizeLinkedList<>(defaultLogLength);
+        FixedSizeBlockingDeque<MonitoringLogsDto> linkedList = new FixedSizeBlockingDeque<>(defaultLogLength);//new FixSizeLinkedList<>(defaultLogLength);
         if (!logList.isEmpty()) {
             linkedList.addAll(logList);
         }
         logList = linkedList;
-        logCollector.set(logList.elementObj());
+        logCollector.set(linkedList);
         return this;
     }
 
@@ -73,7 +70,7 @@ public class JSProcessNodeAppender extends BaseTaskAppender<MonitoringLogsDto> {
     }
 
     public static void main(String[] args) {
-        FixedSizeArrayList<Object> list = new FixedSizeArrayList<>(5);
+        FixedSizeBlockingDeque<Object> list = new FixedSizeBlockingDeque<>(5);
         for (int i = 0; i < 20; i++) {
             final int aaa = i;
             new Thread(() -> {
@@ -125,49 +122,3 @@ public class JSProcessNodeAppender extends BaseTaskAppender<MonitoringLogsDto> {
 //    }
 //}
 
-class FixedSizeArrayList<T> {
-    private final BlockingDeque<T> deque;
-
-    public FixedSizeArrayList(int size) {
-        deque = new LinkedBlockingDeque<>(size);
-    }
-
-    public void add(T item) {
-        boolean added = deque.offerLast(item);
-        if (!added) {
-            deque.pollFirst(); // remove oldest element
-            deque.offerLast(item); // add newest element
-        }
-    }
-
-    public T get(int index) {
-        return (index >= 0 && index < deque.size()) ? deque.toArray((T[])new Object[0])[index] : null;
-    }
-
-    public int size() {
-        return deque.size();
-    }
-
-    public boolean isEmpty(){
-        return deque.isEmpty();
-    }
-
-    public boolean addAll(Collection<T> collection){
-        collection.forEach(deque::add);
-        return true;
-    }
-
-    public boolean addAll(FixedSizeArrayList<T> collection){
-        collection.deque.forEach(deque::add);
-        return true;
-    }
-
-    @Override
-    public String toString() {
-        return deque.toString();
-    }
-
-    public Queue<T> elementObj(){
-        return deque;
-    }
-}
