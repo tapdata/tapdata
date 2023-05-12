@@ -461,11 +461,11 @@ public class ProxyController extends BaseController {
 
     @Operation(summary = "External callback url")
     @GetMapping("memory/connectors")
-    public void memoryV2Get(@RequestParam(name = "t", required = false) String token, @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
-        if(token == null || !token.equals(TOKEN)) {
-            response.sendError(SC_UNAUTHORIZED);
-            return;
-        }
+    public void memoryV2Get(@RequestParam(name = "access_token", required = false) String token, @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        //if(token == null || !token.equals(TOKEN)) {
+        //    response.sendError(SC_UNAUTHORIZED);
+        //    return;
+        //}
         List<String> keysList= new ArrayList<>();
         keysList.add("TapConnectorManager");
         if(processId != null) {
@@ -487,14 +487,15 @@ public class ProxyController extends BaseController {
             @RequestParam(name = "access_token") String token,
             @RequestParam(name = "associateIds", required = false) String associateIds,
             @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
-        if(token == null || !token.equals(TOKEN)) {
-            response.sendError(SC_UNAUTHORIZED);
-            return;
-        }
+        //if(token == null || !token.equals(TOKEN)) {
+        //    response.sendError(SC_UNAUTHORIZED);
+        //    return;
+        //}
         UserDetail userDetail = getLoginUser();
+        String ip = request.getLocalAddr();
         String doMain = String.format(
                 "http://%s:%s%s?access_token=%s&pid=%s&associateIds=",
-                request.getLocalAddr(),
+                "0:0:0:0:0:0:0:1".equals(ip) ? "127.0.0.1" : ip,
                 request.getLocalPort(),
                 request.getRequestURI(),
                 token,
