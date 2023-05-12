@@ -451,11 +451,33 @@ public class ProxyController extends BaseController {
                     .method("memory")
                     .args(new Object[]{splitStrings(keys)});
             serviceCaller.subscribeIds("processId_" + processId);
-//        Locale locale = WebUtils.getLocale(request);
+            //Locale locale = WebUtils.getLocale(request);
             executeServiceCaller(request, response, serviceCaller, null);
         } else {
             response.setContentType("application/json");
             response.getOutputStream().write(PDKIntegration.outputMemoryFetchers(splitStrings(keys), null, "Detail").getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    @Operation(summary = "External callback url")
+    @GetMapping("memory/connectors")
+    public void memoryV2Get(@RequestParam(name = "t", required = false) String token, @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        if(token == null || !token.equals(TOKEN)) {
+            response.sendError(SC_UNAUTHORIZED);
+            return;
+        }
+        List<String> keysList= new ArrayList<>();
+        keysList.add("TapConnectorManager");
+        if(processId != null) {
+            ServiceCaller serviceCaller = new ServiceCaller()
+                    .className("MemoryService")
+                    .method("memory")
+                    .args(new Object[]{keysList});
+            serviceCaller.subscribeIds("processId_" + processId);
+            executeServiceCaller(request, response, serviceCaller, null);
+        } else {
+            response.setContentType("application/json");
+            response.getOutputStream().write(PDKIntegration.outputMemoryFetchers(keysList, null, "Detail").getBytes(StandardCharsets.UTF_8));
         }
     }
 
@@ -465,12 +487,11 @@ public class ProxyController extends BaseController {
             @RequestParam(name = "access_token") String token,
             @RequestParam(name = "associateIds", required = false) String associateIds,
             @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
-//        if(token == null || !token.equals(TOKEN)) {
-//            response.sendError(SC_UNAUTHORIZED);
-//            return;
-//        }
+        if(token == null || !token.equals(TOKEN)) {
+            response.sendError(SC_UNAUTHORIZED);
+            return;
+        }
         UserDetail userDetail = getLoginUser();
-        String method = "";
         String doMain = String.format(
                 "http://%s:%s%s?access_token=%s&pid=%s&associateIds=",
                 request.getLocalAddr(),
@@ -479,11 +500,7 @@ public class ProxyController extends BaseController {
                 token,
                 processId
         );
-        if (Objects.isNull(associateIds) || associateIds.trim().equals("")){
-            method = "Summary_" + doMain;
-        }else {
-            method = "Connectors_" + associateIds;
-        }
+        String method = Objects.isNull(associateIds) || associateIds.trim().equals("") ? "Summary_" + doMain : "Connectors_" + associateIds;
         List<String> keys = new ArrayList<>();
         keys.add("TaskResourceSupervisorManager");
         if(processId != null) {
