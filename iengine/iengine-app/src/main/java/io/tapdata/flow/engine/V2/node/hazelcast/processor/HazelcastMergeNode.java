@@ -8,6 +8,7 @@ import com.tapdata.constant.MapUtilV2;
 import com.tapdata.constant.NotExistsNode;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.OperationType;
+import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -354,6 +355,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	}
 
 	private boolean needLookup(TapdataEvent tapdataEvent) {
+		SyncStage syncStage = tapdataEvent.getSyncStage();
+		if (SyncStage.INITIAL_SYNC.equals(syncStage)) {
+			return false;
+		}
 		if (isInvalidOperation(tapdataEvent)) return false;
 		String op = getOp(tapdataEvent);
 		if (op.equals(OperationType.DELETE.getOp())) {
