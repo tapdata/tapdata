@@ -1,5 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
+import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.persistence.PersistenceStorage;
 import com.tapdata.cache.CacheUtil;
 import com.tapdata.cache.ICacheService;
 import com.tapdata.constant.HazelcastUtil;
@@ -18,8 +20,10 @@ import io.tapdata.error.TapEventException;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
@@ -101,6 +105,32 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 			throw new RuntimeException("Cache key not in row data: " + cacheKeys);
 		}
 		return CacheUtil.cacheKey(cacheKeyValues);
+	}
+
+	@Override
+	public void doClose() throws Exception {
+		if (dataMap != null) {
+			PersistenceStorage.getInstance().destroy(dataMap.getName());
+		}
+		super.doClose();
+	}
+
+	public static void clearCache(Node<?> node) {
+		if (!(node instanceof CacheNode)) return;
+		ExternalStorageDto externalStorage = ExternalStorageUtil.getExternalStorage(node);
+		recursiveClearCache(externalStorage, ((CacheNode) node).getCacheName(), HazelcastUtil.getInstance());
+	}
+
+	private static void recursiveClearCache(ExternalStorageDto externalStorageDto, String cacheName, HazelcastInstance hazelcastInstance) {
+		if (StringUtils.isEmpty(cacheName)) return;
+		cacheName = CacheUtil.CACHE_NAME_PREFIX + cacheName;
+		ConstructIMap<Document> imap = new ConstructIMap<>(hazelcastInstance, cacheName, externalStorageDto);
+		try {
+			imap.clear();
+			imap.destroy();
+		} catch (Exception e) {
+			throw new RuntimeException("Clear imap failed, name: " + cacheName + ", error message: " + e.getMessage(), e);
+		}
 	}
 
 }

@@ -35,6 +35,7 @@ import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.kit.ErrorKit;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
@@ -318,7 +319,7 @@ public class MysqlReader implements Closeable {
                     .build();
             embeddedEngine.run();
             if (null != throwableAtomicReference.get()) {
-                throw throwableAtomicReference.get();
+                throw ErrorKit.getLastCause(throwableAtomicReference.get());
             }
         } finally {
             Optional.ofNullable(mysqlSchemaHistoryMonitor).ifPresent(ExecutorService::shutdownNow);

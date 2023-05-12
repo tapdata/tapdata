@@ -323,6 +323,9 @@
           "title": "${modelName}",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "x-decorator-props": {
+            "tooltip": "${modelNameTooltip}"
+          },
           "apiServerKey": "modelName",
           "x-index": 1
         },
@@ -332,6 +335,9 @@
           "default": "*.csv",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "x-decorator-props": {
+            "tooltip": "${includeRegStringTooltip}"
+          },
           "apiServerKey": "includeRegString",
           "x-index": 2,
           "x-reactions": [
@@ -350,6 +356,9 @@
           "title": "${excludeRegString}",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "x-decorator-props": {
+            "tooltip": "${excludeRegStringTooltip}"
+          },
           "apiServerKey": "excludeRegString",
           "x-index": 3,
           "x-reactions": [
@@ -369,6 +378,9 @@
           "default": true,
           "x-decorator": "FormItem",
           "x-component": "Switch",
+          "x-decorator-props": {
+            "tooltip": "${recursiveTooltip}"
+          },
           "x-index": 4,
           "x-reactions": [
             {
@@ -386,6 +398,9 @@
           "title": "${fileEncoding}",
           "x-decorator": "FormItem",
           "x-component": "Select",
+          "x-decorator-props": {
+            "tooltip": "${fileEncodingTooltip}"
+          },
           "x-index": 6,
           "default": "UTF-8",
           "enum": [
@@ -413,6 +428,9 @@
           "default": false,
           "x-decorator": "FormItem",
           "x-component": "Switch",
+          "x-decorator-props": {
+            "tooltip": "${offStandardTooltip}"
+          },
           "x-index": 7,
           "x-reactions": [
             {
@@ -431,6 +449,9 @@
           "title": "${lineExpression}",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "x-decorator-props": {
+            "tooltip": "${lineExpressionTooltip}"
+          },
           "x-index": 8,
           "x-reactions": [
             {
@@ -448,6 +469,9 @@
           "title": "${header}",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "x-decorator-props": {
+            "tooltip": "${headerTooltip}"
+          },
           "apiServerKey": "header",
           "x-index": 9
         },
@@ -457,6 +481,9 @@
           "default": 1,
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
+          "x-decorator-props": {
+            "tooltip": "${headerLineTooltip}"
+          },
           "x-index": 10
         },
         "dataStartLine": {
@@ -466,6 +493,9 @@
           "default": 2,
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
+          "x-decorator-props": {
+            "tooltip": "${dataStartLineTooltip}"
+          },
           "apiServerKey": "dataStartLine",
           "x-index": 11,
           "x-reactions": [
@@ -482,9 +512,12 @@
         "justString": {
           "type": "boolean",
           "title": "${justString}",
-          "default": false,
+          "default": true,
           "x-decorator": "FormItem",
           "x-component": "Switch",
+          "x-decorator-props": {
+            "tooltip": "${justStringTooltip}"
+          },
           "x-index": 12,
           "x-reactions": [
             {
@@ -502,6 +535,9 @@
           "title": "${writeFilePath}",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "x-decorator-props": {
+            "tooltip": "${writeFilePathTooltip}"
+          },
           "apiServerKey": "writeFilePath",
           "x-index": 13,
           "required": true,
@@ -521,6 +557,9 @@
           "title": "${fileNameExpression}",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "x-decorator-props": {
+            "tooltip": "${fileNameExpressionTooltip}"
+          },
           "apiServerKey": "fileNameExpression",
           "x-index": 14,
           "required": true,
@@ -540,6 +579,9 @@
           "title": "${separator}",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "x-decorator-props": {
+            "tooltip": "${separatorTooltip}"
+          },
           "apiServerKey": "separator",
           "x-index": 15,
           "required": true,
@@ -560,6 +602,9 @@
           "title": "${quoteChar}",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "x-decorator-props": {
+            "tooltip": "${quoteCharTooltip}"
+          },
           "apiServerKey": "quoteChar",
           "x-index": 16,
           "required": true,
@@ -621,7 +666,24 @@
       "lineExpression": "Expression Each Line",
       "separator": "Separator(single-character)",
       "quoteChar": "Quote Character(single-character)",
-      "lineEnd": "Line End"
+      "lineEnd": "Line End",
+      "filePathStringTooltip": "The root path of all files that need to be read",
+      "includeRegStringTooltip": "Includes wildcards, supports * and ?, takes precedence over excluding wildcards (non regular expressions) ",
+      "excludeRegStringTooltip": "Exclude wildcards, support * and ?, exclude (non regular expressions) if wildcards are included",
+      "recursiveTooltip": "When the directory recursion switch is turned on, files that meet the wildcard requirements will be traversed through the subdirectories",
+      "delimiterTooltip": "The separator used in CSV files usually includes commas, spaces, or tabs",
+      "headerTooltip": "Header names can be customized, separated by commas: if left blank, headers will be generated based on the file content; if not empty, header rows will be ignored, and it should be noted that if the number of headers is not enough, it will result in fewer data collection columns for CSV",
+      "dataStartLineTooltip": "The true starting line for data collection",
+      "modelNameTooltip": "The model name has no actual meaning, and is used to distinguish CSV models for products",
+      "headerLineTooltip": "Header row, default to the first row, ignored when there is a custom header",
+      "justStringTooltip": "CSV defaults to fully converting to strings. If each column of data is well organized, especially in numerical and time formats, and does not contain any strings, it can be turned off (reload the model to see the effect)",
+      "fileEncodingTooltip": "When there is Chinese garbled code when loading the model or data, pay special attention to whether to choose GBK or UTF-8",
+      "writeFilePathTooltip": "The path to the file written when CSV is written as the target",
+      "fileNameExpressionTooltip": "When CSV is used as the target for writing, it is allowed to write to multiple files simultaneously. The file content can be categorized and split using field values and date formats, and saved with corresponding file names. For example: tap_\\${record. id}_\\${date:yyyyMMdd}.csv ",
+      "offStandardTooltip": "Non standard CSV format text files that can be customized to collect file content through regular expression matching and used in conjunction with line expressions",
+      "lineExpressionTooltip": "Regular expressions that can match each column of fields. When unfamiliar with usage, file data demos can be provided for customer service assistance",
+      "separatorTooltip": "Column spacing character (single character), if preventing tab (TAB) from being filtered, can be enclosed in []",
+      "quoteCharTooltip": "Column quotation marks (single character), each column of data will be wrapped around that character"
     },
     "zh_CN": {
       "doc": "docs/csv_zh_CN.md",
@@ -664,7 +726,24 @@
       "lineExpression": "行表达式",
       "separator": "列间隔符（单字符）",
       "quoteChar": "列引号（单字符）",
-      "lineEnd": "换行符"
+      "lineEnd": "换行符",
+      "filePathStringTooltip": "需要读取的所有文件所在的根路径",
+      "includeRegStringTooltip": "包含通配，支持*和?，优先于排除通配（非正则表达式）",
+      "excludeRegStringTooltip": "排除通配，支持*和?，在包含通配的前提下排除（非正则表达式）",
+      "recursiveTooltip": "目录递归开关打开，会向子目录遍历满足通配的文件",
+      "delimiterTooltip": "CSV文件所用的分隔符，一般会有逗号、空格或制表符等",
+      "headerTooltip": "可以自定义表头名称，用逗号分隔：置空情况会按文件内容生成表头；非空情况将忽略表头行，且注意若表头数量不够会导致CSV的数据采集列变少",
+      "dataStartLineTooltip": "真正的数据采集起始行",
+      "modelNameTooltip": "模型名无实际含义，产品区分CSV模型用",
+      "headerLineTooltip": "表头行，默认为首行，当有自定义表头时会忽略该值",
+      "justStringTooltip": "CSV默认全转换为字符串，如果每列数据很规整，尤其为数字和时间格式，且不参杂一些字符串时，可以关闭（重新加载模型即可查看效果）",
+      "fileEncodingTooltip": "加载模型或者数据出现中文乱码时，特别留意该选择GBK还是UTF-8",
+      "writeFilePathTooltip": "CSV作为目标写入时，所写文件的路径",
+      "fileNameExpressionTooltip": "CSV作为目标写入时，允许向多个文件同时写入，文件内容可以用字段值和日期格式作归类分割，并以对应的文件名保存。例如：tap_\\${record.id}_\\${date:yyyyMMdd}.csv",
+      "offStandardTooltip": "非标准CSV格式的文本文件，可以通过正则表达式匹配定制化采集文件内容，配合行表达式使用",
+      "lineExpressionTooltip": "能匹配每列字段的正则表达式，当不熟悉使用方式时，可以给出文件数据demo求助客服",
+      "separatorTooltip": "列间隔符（单字符），若防止制表符（TAB）被过滤，可以用[]括起来",
+      "quoteCharTooltip": "列引号（单字符），每列数据将会以该字符包绕"
     },
     "zh_TW": {
       "doc": "docs/csv_zh_TW.md",
@@ -707,7 +786,24 @@
       "lineExpression": "行運算式",
       "separator": "列間隔符（單字元）",
       "quoteChar": "列引號（單字元）",
-      "lineEnd": "分行符號"
+      "lineEnd": "分行符號",
+      "filePathStringTooltip": "需要讀取的所有檔案所在的根路徑",
+      "includeRegStringTooltip": "包含通配，支持*和？，優先於排除通配（非規則運算式）",
+      "excludeRegStringTooltip": "排除通配，支持*和？，在包含通配的前提下排除（非規則運算式）",
+      "recursiveTooltip": "目錄遞迴開關打開，會向子目錄遍歷滿足通配的檔案",
+      "delimiterTooltip": "CSV檔案所用的分隔符號，一般會有逗號、空格或定位字元等",
+      "headerTooltip": "可以自定義表頭名稱，用逗號分隔：置空情况會按檔案內容生成表頭；非空情况將忽略錶頭行，且注意若表頭數量不够會導致CSV的資料獲取列變少",
+      "dataStartLineTooltip": "真正的資料獲取起始行",
+      "modelNameTooltip": "模型名無實際含義，產品區分CSV模型用",
+      "headerLineTooltip": "表頭行，默認為首行，當有自定義表頭時會忽略該值",
+      "justStringTooltip": "CSV默認全轉換為字串，如果每列數據很規整，尤其為數位和時間格式，且不參雜一些字串時，可以關閉（重新加載模型即可查看效果）",
+      "fileEncodingTooltip": "加載模型或者數據出現中文亂碼時，特別留意該選擇GBK還是UTF-8",
+      "writeFilePathTooltip": "CSV作為目標寫入時，所寫檔案的路徑",
+      "fileNameExpressionTooltip": "CSV作為目標寫入時，允許向多個檔案同時寫入，檔案內容可以用欄位值和日期格式作歸類分割，並以對應的檔名保存。例如：tap_\\${record.id}_\\${date:yyyyMMdd}.csv",
+      "offStandardTooltip": "非標準CSV格式的文字檔，可以通過規則運算式匹配定制化採集檔案內容，配合行運算式使用",
+      "lineExpressionTooltip": "能匹配每列欄位的規則運算式，當不熟悉使用管道時，可以給出檔案數據demo求助客服",
+      "separatorTooltip": "列間隔符（單字元），若防止定位字元（TAB）被過濾，可以用[]括起來",
+      "quoteCharTooltip": "列引號（單字元），每列數據將會以該字元包繞"
     }
   },
   "dataTypes": {

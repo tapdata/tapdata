@@ -9,25 +9,20 @@ import io.tapdata.PDKExCode_10;
  **/
 public class TapDbCdcConfigInvalidEx extends TapPdkBaseException {
 
-	protected TapDbCdcConfigInvalidEx(String pdkId, Throwable cause) {
-		super(PDKExCode_10.DB_CDC_CONFIG_INVALID, pdkId, cause);
-	}
+    private String solutionSuggestions;
 
-	protected TapDbCdcConfigInvalidEx(String message, String pdkId, Throwable cause) {
-		super(PDKExCode_10.DB_CDC_CONFIG_INVALID, message, pdkId, cause);
-	}
+    public TapDbCdcConfigInvalidEx(String pdkId, Throwable cause) {
+        super(PDKExCode_10.DB_CDC_CONFIG_INVALID, pdkId, cause);
+    }
 
-	@Override
-	public String getMessage() {
-		// TODO
-		return null;
-	}
+    public TapDbCdcConfigInvalidEx(String pdkId, String solutionSuggestions, Throwable cause) {
+        super(PDKExCode_10.DB_CDC_CONFIG_INVALID, pdkId, cause);
+        this.solutionSuggestions = solutionSuggestions;
+    }
 
-	@Override
-	protected void clone(TapRuntimeException tapRuntimeException) {
-		super.clone(tapRuntimeException);
-		if (tapRuntimeException instanceof TapDbCdcConfigInvalidEx) {
-			// TODO
-		}
-	}
+    @Override
+    public String getMessage() {
+        return "You need to do more configuration for the CDC of the data source, solution suggestions: " + solutionSuggestions;
+    }
+
 }

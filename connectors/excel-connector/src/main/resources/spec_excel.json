@@ -323,6 +323,9 @@
           "title": "${modelName}",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "x-decorator-props": {
+            "tooltip": "${modelNameTooltip}"
+          },
           "apiServerKey": "modelName",
           "x-index": 1
         },
@@ -332,6 +335,9 @@
           "default": "*.xls,*.xlsx",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "x-decorator-props": {
+            "tooltip": "${includeRegStringTooltip}"
+          },
           "apiServerKey": "includeRegString",
           "x-index": 2
         },
@@ -340,6 +346,9 @@
           "title": "${excludeRegString}",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "x-decorator-props": {
+            "tooltip": "${excludeRegStringTooltip}"
+          },
           "apiServerKey": "excludeRegString",
           "x-index": 3
         },
@@ -349,6 +358,9 @@
           "default": true,
           "x-decorator": "FormItem",
           "x-component": "Switch",
+          "x-decorator-props": {
+            "tooltip": "${recursiveTooltip}"
+          },
           "x-index": 4
         },
         "excelPassword": {
@@ -356,6 +368,9 @@
           "title": "${excelPassword}",
           "x-decorator": "FormItem",
           "x-component": "Password",
+          "x-decorator-props": {
+            "tooltip": "${excelPasswordTooltip}"
+          },
           "apiServerKey": "excelPassword",
           "x-index": 5
         },
@@ -364,6 +379,9 @@
           "title": "${sheetLocation}",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "x-decorator-props": {
+            "tooltip": "${sheetLocationTooltip}"
+          },
           "apiServerKey": "sheetLocation",
           "x-index": 6
         },
@@ -373,6 +391,9 @@
           "title": "${colLocation}",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "x-decorator-props": {
+            "tooltip": "${colLocationTooltip}"
+          },
           "apiServerKey": "colLocation",
           "x-index": 7
         },
@@ -381,6 +402,9 @@
           "title": "${header}",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "x-decorator-props": {
+            "tooltip": "${headerTooltip}"
+          },
           "apiServerKey": "header",
           "x-index": 8
         },
@@ -390,6 +414,9 @@
           "default": 1,
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
+          "x-decorator-props": {
+            "tooltip": "${headerLineTooltip}"
+          },
           "x-index": 9
         },
         "dataStartLine": {
@@ -399,15 +426,21 @@
           "default": 2,
           "x-decorator": "FormItem",
           "x-component": "InputNumber",
+          "x-decorator-props": {
+            "tooltip": "${dataStartLineTooltip}"
+          },
           "apiServerKey": "dataStartLine",
           "x-index": 10
         },
         "justString": {
           "type": "boolean",
           "title": "${justString}",
-          "default": false,
+          "default": true,
           "x-decorator": "FormItem",
           "x-component": "Switch",
+          "x-decorator-props": {
+            "tooltip": "${justStringTooltip}"
+          },
           "x-index": 12,
           "x-reactions": [
             {
@@ -461,7 +494,19 @@
       "dataStartLine": "Data Line",
       "modelName": "Model Name",
       "headerLine": "Header Line",
-      "justString": "All To String"
+      "justString": "All To String",
+      "filePathStringTooltip": "The root path of all files that need to be read",
+      "includeRegStringTooltip": "Includes wildcards, supports * and ?, takes precedence over excluding wildcards (non regular expressions) ",
+      "excludeRegStringTooltip": "Exclude wildcards, support * and ?, exclude (non regular expressions) if wildcards are included",
+      "recursiveTooltip": "When the directory recursion switch is turned on, files that meet the wildcard requirements will be traversed through the subdirectories",
+      "excelPasswordTooltip": "If there is no password, you can enter it freely",
+      "sheetLocationTooltip": "If left blank, all sheet pages will be loaded by default. If you need to specify page loading, for example, 2,4-6,8 means loading pages 2,4,5,6,8 (comma tilde should be in lowercase English) ",
+      "colLocationTooltip": "Specify the range of data columns, such as A~BC representing columns A to BC (tilde in lowercase English) ",
+      "headerTooltip": "Header names can be customized, separated by commas: if left blank, headers will be generated based on the file content; if not empty, header rows will be ignored, and it should be noted that if the number of headers is not enough, it will result in fewer data collection columns for Excel",
+      "dataStartLineTooltip": "The true starting line for data collection",
+      "modelNameTooltip": "The model name has no actual meaning, and is used to distinguish Excel models for products",
+      "headerLineTooltip": "Header row, default to the first row, ignored when there is a custom header",
+      "justStringTooltip": "Excel defaults to fully converting to strings. If each column of data is well organized, especially in numerical and time formats, and does not contain any strings, it can be turned off (reload the model to see the effect)"
     },
     "zh_CN": {
       "doc": "docs/excel_zh_CN.md",
@@ -498,7 +543,19 @@
       "dataStartLine": "正文起始行",
       "modelName": "模型名",
       "headerLine": "表头行",
-      "justString": "全转换字符串"
+      "justString": "全转换字符串",
+      "filePathStringTooltip": "需要读取的所有文件所在的根路径",
+      "includeRegStringTooltip": "包含通配，支持*和?，优先于排除通配（非正则表达式）",
+      "excludeRegStringTooltip": "排除通配，支持*和?，在包含通配的前提下排除（非正则表达式）",
+      "recursiveTooltip": "目录递归开关打开，会向子目录遍历满足通配的文件",
+      "excelPasswordTooltip": "若无密码，可任意输入",
+      "sheetLocationTooltip": "若置空，默认会加载所有sheet页。如需要指定页加载，如2,4~6,8表示加载第2,4,5,6,8页（逗号波浪号注意英文小写）",
+      "colLocationTooltip": "指定数据列的范围，如A~BC表示A列到BC列（波浪号注意英文小写）",
+      "headerTooltip": "可以自定义表头名称，用逗号分隔：置空情况会按文件内容生成表头；非空情况将忽略表头行，且注意若表头数量不够会导致Excel的数据采集列变少",
+      "dataStartLineTooltip": "真正的数据采集起始行",
+      "modelNameTooltip": "模型名无实际含义，产品区分Excel模型用",
+      "headerLineTooltip": "表头行，默认为首行，当有自定义表头时会忽略该值",
+      "justStringTooltip": "Excel默认全转换为字符串，如果每列数据很规整，尤其为数字和时间格式，且不参杂一些字符串时，可以关闭（重新加载模型即可查看效果）"
     },
     "zh_TW": {
       "doc": "docs/excel_zh_TW.md",
@@ -535,7 +592,19 @@
       "dataStartLine": "正文起始行",
       "modelName": "模型名",
       "headerLine": "表頭行",
-      "justString": "全轉換字符串"
+      "justString": "全轉換字符串",
+      "filePathStringTooltip": "需要讀取的所有檔案所在的根路徑",
+      "includeRegStringTooltip": "包含通配，支持*和？，優先於排除通配（非規則運算式）",
+      "excludeRegStringTooltip": "排除通配，支持*和？，在包含通配的前提下排除（非規則運算式）",
+      "recursiveTooltip": "目錄遞迴開關打開，會向子目錄遍歷滿足通配的檔案",
+      "excelPasswordTooltip": "若無密碼，可任意輸入",
+      "sheetLocationTooltip": "若置空，默認會加載所有sheet頁。如需要指定頁加載，如2,4~6,8表示加載第2,4,5,6,8頁（逗號波浪號注意英文小寫）",
+      "colLocationTooltip": "指定數據列的範圍，如A~BC表示A列到BC列（波浪號注意英文小寫）",
+      "headerTooltip": "可以自定義表頭名稱，用逗號分隔：置空情况會按檔案內容生成表頭；非空情况將忽略錶頭行，且注意若表頭數量不够會導致Excel的資料獲取列變少",
+      "dataStartLineTooltip": "真正的資料獲取起始行",
+      "modelNameTooltip": "模型名無實際含義，產品區分Excel模型用",
+      "headerLineTooltip": "表頭行，默認為首行，當有自定義表頭時會忽略該值",
+      "justStringTooltip": "Excel默認全轉換為字串，如果每列數據很規整，尤其為數位和時間格式，且不參雜一些字串時，可以關閉（重新加載模型即可查看效果）"
     }
   },
   "dataTypes": {

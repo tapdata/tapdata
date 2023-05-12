@@ -160,20 +160,20 @@ public class TidbWriteRecorder extends WriteRecorder {
         preparedStatement.addBatch();
     }
 
-    public void addUpdateBatch(Map<String, Object> after, Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
-        if (EmptyKit.isEmpty(after)) {
-            return;
-        }
-        if (EmptyKit.isNull(preparedStatement)) {
-            String sql = String.format(UPDATE_SQL, formatTableName(), appendSetClause(), appendWhereClause());
-            preparedStatement = connection.prepareStatement(sql);
-        }
-        preparedStatement.clearParameters();
-        int pos = 1;
-        pos = setParametersForSetClause(preparedStatement, after, pos);
-        setParametersForWhereClause(preparedStatement, getBeforeForUpdate(after, before, listResult), pos);
-        preparedStatement.addBatch();
-    }
+//    public void addUpdateBatch(Map<String, Object> after, Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
+//        if (EmptyKit.isEmpty(after)) {
+//            return;
+//        }
+//        if (EmptyKit.isNull(preparedStatement)) {
+//            String sql = String.format(UPDATE_SQL, formatTableName(), appendSetClause(), appendWhereClause());
+//            preparedStatement = connection.prepareStatement(sql);
+//        }
+//        preparedStatement.clearParameters();
+//        int pos = 1;
+//        pos = setParametersForSetClause(preparedStatement, after, pos);
+//        setParametersForWhereClause(preparedStatement, getBeforeForUpdate(after, before, listResult), pos);
+//        preparedStatement.addBatch();
+//    }
 
     private int setParametersForSetClause(PreparedStatement pstmt, Map<String, Object> data, int pos) throws SQLException {
         pos = setAllObject(pstmt, data, pos);
