@@ -2,21 +2,24 @@ package io.tapdata.services;
 
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.JSONUtil;
-import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
-import io.tapdata.exception.ExceptionUtil;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.observable.logging.appender.JSProcessNodeAppender;
 import io.tapdata.service.skeleton.annotation.RemoteService;
+import org.eclipse.collections.api.list.FixedSizeList;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -28,14 +31,24 @@ import java.util.concurrent.atomic.AtomicReference;
  **/
 @RemoteService
 public class JSProcessNodeTestRunService {
+
     private final Map<String, TaskDto> taskDtoMap = new ConcurrentHashMap<>();
-    public Object testRun(Map<String, Object> events) {
+
+    public Object testRun(Map<String, Object> events){
+        return testRun(events, -1);
+    }
+
+    public Object testRun(Map<String, Object> events, final int logOutputCount) {
         TaskService<TaskDto> taskService = BeanUtil.getBean(HazelcastTaskService.class);
         long startTs = System.currentTimeMillis();
         TaskDto taskDto = JSONUtil.map2POJO(events, TaskDto.class);
+        AtomicReference<Object> logCollector = new AtomicReference<>();
+        String taskId = taskDto.getId().toHexString();
+        taskDto.taskInfo(JSProcessNodeAppender.LOG_LIST_KEY  + taskId, logCollector);
+        taskDto.taskInfo(JSProcessNodeAppender.MAX_LOG_LENGTH_KEY + taskId, logOutputCount);
+
         ObsLogger logger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
         taskDto.setType(ParentTaskDto.TYPE_INITIAL_SYNC);
-        String taskId = taskDto.getId().toHexString();
         if (taskDtoMap.putIfAbsent(taskId, taskDto) != null) {
             Map<String,Object> paramMap = new HashMap<>();
             paramMap.put("taskId", taskId);
@@ -66,6 +79,8 @@ public class JSProcessNodeTestRunService {
             taskDtoMap.remove(taskId);
         }
         logger.info("test run task {} {}, cost {}ms", taskId, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
-        return clientResult.get();
+        Map<String, Object> resultMap = (Map<String, Object>)clientResult.get();
+        resultMap.put("logs", logCollector.get());
+        return resultMap;
     }
 }

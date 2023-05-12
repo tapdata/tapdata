@@ -32,6 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author Dexter
@@ -103,7 +104,11 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 					.withTaskLogSetting(getLogSettingLogLevel(task), getLogSettingRecordCeiling(task), getLogSettingIntervalCeiling(task));
 			if (task.isTestTask()){
 				//js处理器试运行收集日志，不入库不额外操作，仅返回给前端
-				taskLogger.witAppender((WithAppender<MonitoringLogsDto>)(() -> (BaseTaskAppender<MonitoringLogsDto>) JSProcessNodeAppender.create(taskId)));
+				taskLogger.witAppender(
+						(WithAppender<MonitoringLogsDto>)(() ->
+								(BaseTaskAppender<MonitoringLogsDto>) JSProcessNodeAppender.create(taskId, (AtomicReference<Object>)task.taskInfo(JSProcessNodeAppender.LOG_LIST_KEY + taskId))
+										.maxLogCount((int)task.taskInfo(JSProcessNodeAppender.MAX_LOG_LENGTH_KEY + taskId)))
+				);
 			} else {
 				taskLogger.witAppender(this.fileAppender(taskId))
 						.witAppender(this.obsHttpTMAppender(taskId));

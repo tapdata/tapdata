@@ -494,6 +494,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         Integer rows = dto.getRows();
         String script = dto.getScript();
         Long version = dto.getVersion();
+        int logOutputCount = dto.getLogOutputCount();
 
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
         String testTaskId = taskDto.getTestTaskId();
@@ -585,7 +586,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         Map<String, Object> paraMap = new HashMap<>();
         paraMap.put("className", "JSProcessNodeTestRunService");
         paraMap.put("method", "testRun");
-        paraMap.put("args", new ArrayList<TaskDto>(){{ add(taskDtoCopy); }});
+        paraMap.put("args", new ArrayList<Object>(){{ add(taskDtoCopy); add(logOutputCount); }});
         try {
             Request request = new Request.Builder()
                     .url(url)
