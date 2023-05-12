@@ -502,6 +502,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
             while (isAlive() && resultSet.next()) {
                 DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
                 assert dataMap != null;
+                processDataMap(dataMap, tapTable);
                 tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
                 if (tapEvents.size() == eventBatchSize) {
                     eventsOffsetConsumer.accept(tapEvents, new HashMap<>());
