@@ -2,7 +2,6 @@ package io.tapdata.services;
 
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.JSONUtil;
-import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskStopAspect;
@@ -14,12 +13,9 @@ import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.observable.logging.appender.JSProcessNodeAppender;
 import io.tapdata.service.skeleton.annotation.RemoteService;
-import org.eclipse.collections.api.list.FixedSizeList;
 
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;

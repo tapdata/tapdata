@@ -1,22 +1,13 @@
 package io.tapdata.observable.logging.appender;
 
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
-import org.apache.commons.collections.buffer.CircularFifoBuffer;
-import org.apache.commons.collections4.list.FixedSizeList;
-import org.apache.commons.collections4.queue.CircularFifoQueue;
-import sun.plugin2.jvm.CircularByteBuffer;
 
-import java.lang.reflect.Field;
 import java.util.Collection;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.BlockingDeque;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author GavinXiao
