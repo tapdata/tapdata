@@ -36,7 +36,7 @@ public class NodeHealthManager implements MemoryFetcher {
 	private final AtomicBoolean started = new AtomicBoolean(false);
 
 	private NodeHealth currentNodeHealth;
-	private int nodeDeadExpiredSeconds = 600;
+	private int nodeDeadExpiredSeconds = 1800;
 	@Bean
 	private NodeRegistryService nodeRegistryService;
 	@Bean
@@ -57,7 +57,7 @@ public class NodeHealthManager implements MemoryFetcher {
 				healthWeightListeners.addAll(Arrays.asList(listeners));
 			int checkHealthPeriodSeconds = CommonUtils.getPropertyInt("tapdata_check_health_period_seconds", 10);
 			int cleanUpDeadNodesPeriodSeconds = CommonUtils.getPropertyInt("tapdata_cleanup_dead_nodes_period_seconds", 60);
-			nodeDeadExpiredSeconds = CommonUtils.getPropertyInt("tapdata_node_dead_expired_seconds", 120);
+			nodeDeadExpiredSeconds = CommonUtils.getPropertyInt("tapdata_node_dead_expired_seconds", 1800);
 			String nodeId = CommonUtils.getProperty("tapdata_node_id");
 			if(nodeId == null)
 				throw new CoreException(NetErrors.CURRENT_NODE_ID_NOT_FOUND, "Current nodeId for NodeHealthManager#start not found");
@@ -175,9 +175,17 @@ public class NodeHealthManager implements MemoryFetcher {
 		List<String> deletedNodes = new ArrayList<>();
 		for(NodeRegistry nodeRegistry : nodes) {
 			String id = nodeRegistry.id();
+
+			if(this.currentNodeHealth.getId().equals(id))
+				continue;
+
 			NodeHandler aliveNode = getAliveNode(id);
-			if(aliveNode != null && stillAlive(aliveNode.getNodeHealth()))
+			if(aliveNode != null)
 				continue; //ignore alive node or dead node which was alive within 120 seconds
+			NodeHealth nodeHealth = nodeHealthService.get(id);
+			if(withinDeadExpiredSeconds(nodeHealth))
+				continue;
+
 
 //			if(!nodeConnectionFactory.isDisconnected(id)) {
 //				nodeConnectionFactory.getNodeConnection(id);
@@ -206,7 +214,7 @@ public class NodeHealthManager implements MemoryFetcher {
 		return deletedNodes;
 	}
 
-	private boolean stillAlive(NodeHealth nodeHealth) {
+	private boolean withinDeadExpiredSeconds(NodeHealth nodeHealth) {
 		return nodeHealth != null && nodeHealth.getTime() != null && (System.currentTimeMillis() - nodeHealth.getTime()) < TimeUnit.SECONDS.toMillis(nodeDeadExpiredSeconds);
 	}
 
