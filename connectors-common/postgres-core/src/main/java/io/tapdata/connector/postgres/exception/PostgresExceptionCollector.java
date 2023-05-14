@@ -64,6 +64,7 @@ public class PostgresExceptionCollector extends AbstractExceptionCollector imple
 
     @Override
     public void collectWriteLength(String targetFieldName, String targetFieldType, Object data, Throwable cause) {
+        //string length
         if (cause instanceof PSQLException && "22001".equals(((PSQLException) cause).getSQLState())) {
             Pattern pattern = Pattern.compile("ERROR: value too long for type (.*)");
             Matcher matcher = pattern.matcher(ErrorKit.getLastCause(cause).getMessage());
@@ -72,6 +73,10 @@ public class PostgresExceptionCollector extends AbstractExceptionCollector imple
                 fieldType = matcher.group(1);
             }
             throw new TapPdkWriteLengthEx(pdkId, null, fieldType, data, ErrorKit.getLastCause(cause));
+        }
+        //number length
+        if (cause instanceof PSQLException && "22003".equals(((PSQLException) cause).getSQLState())) {
+            throw new TapPdkWriteLengthEx(pdkId, null, null, data, ErrorKit.getLastCause(cause));
         }
     }
 
@@ -105,19 +110,19 @@ public class PostgresExceptionCollector extends AbstractExceptionCollector imple
     public void collectCdcConfigInvalid(Throwable cause) {
         if (cause instanceof PSQLException) {
             switch (((PSQLException) cause).getSQLState()) {
-                case "58P01":
+                case "58P01": //log plugin selected is not available
                     throw new TapDbCdcConfigInvalidEx(pdkId,
                             "Please select the correct logging plugin. If there are no available plugins on the server, you can refer to Markdown for installation and deployment",
                             ErrorKit.getLastCause(cause));
-                case "55000":
+                case "55000": //wal_level not logical
                     throw new TapDbCdcConfigInvalidEx(pdkId,
                             "Please find postgres.conf, change with wal_level = logical",
                             ErrorKit.getLastCause(cause));
-                case "53400":
+                case "53400": //max_replication_slots is full
                     throw new TapDbCdcConfigInvalidEx(pdkId,
                             "Check the maximum number of logical replication slots (max_replication_slots) in postgres.conf and promptly clean up any unused replication slots",
                             ErrorKit.getLastCause(cause));
-                case "28000":
+                case "28000": //pg_hba.conf has no permission for replication
                     throw new TapDbCdcConfigInvalidEx(pdkId,
                             "Check pg_hba.conf, confirm if you have permission to create a logical replication slot",
                             ErrorKit.getLastCause(cause));
