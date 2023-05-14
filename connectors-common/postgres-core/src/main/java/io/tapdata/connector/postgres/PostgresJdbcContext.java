@@ -2,6 +2,7 @@ package io.tapdata.connector.postgres;
 
 import io.tapdata.common.JdbcContext;
 import io.tapdata.connector.postgres.config.PostgresConfig;
+import io.tapdata.connector.postgres.exception.PostgresExceptionCollector;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
@@ -18,6 +19,7 @@ public class PostgresJdbcContext extends JdbcContext {
 
     public PostgresJdbcContext(PostgresConfig config) {
         super(config);
+        exceptionCollector = new PostgresExceptionCollector();
     }
 
     /**

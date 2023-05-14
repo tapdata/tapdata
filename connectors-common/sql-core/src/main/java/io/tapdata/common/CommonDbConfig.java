@@ -1,6 +1,5 @@
 package io.tapdata.common;
 
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.BeanUtils;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
@@ -18,12 +17,11 @@ import java.util.Properties;
  */
 public class CommonDbConfig implements Serializable {
 
-    private static final String TAG = CommonDbConfig.class.getSimpleName();
     protected static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class); //json util
     protected static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
 
-    private String __connectionType;
-    private String dbType;
+    private String __connectionType; //target or source, see ConnectionTypeEnum
+    private String dbType; //db protocol, set it when init
     private String host;
     private int port;
     private String database;
@@ -67,10 +65,8 @@ public class CommonDbConfig implements Serializable {
             beanUtils.copyProperties(jsonParser.fromJson(json, this.getClass()), this);
             return this;
         } catch (Exception e) {
-            TapLogger.error(TAG, "config json file is invalid!");
-            e.printStackTrace();
+            throw new IllegalArgumentException("json string is not valid for db config");
         }
-        return null;
     }
 
     /**

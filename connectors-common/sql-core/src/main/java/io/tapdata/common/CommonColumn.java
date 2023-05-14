@@ -1,6 +1,7 @@
 package io.tapdata.common;
 
 import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.utils.DataMap;
 
 /**
  * attributes for common columns
@@ -18,6 +19,14 @@ public class CommonColumn {
     protected String autoInc;
 
     public CommonColumn() {
+    }
+
+    public CommonColumn(DataMap dataMap) {
+        this.columnName = dataMap.getString("columnName");
+        this.dataType = dataMap.getString("dataType");
+        this.nullable = dataMap.getString("nullable");
+        this.remarks = dataMap.getString("columnComment");
+        this.columnDefaultValue = null;
     }
 
     protected Boolean isNullable() {
