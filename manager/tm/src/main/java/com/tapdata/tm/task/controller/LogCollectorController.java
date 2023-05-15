@@ -139,14 +139,20 @@ public class LogCollectorController extends BaseController {
 
     @GetMapping("connectionInfo")
     @Operation(summary = "查询合并的连接表详情")
-    public ResponseMessage<ShareCdcConnectionInfo> connectionInfo(@RequestParam("taskId") String taskId, @RequestParam("connectionId") String connectionId) {
-        return success();
+    public ResponseMessage<Page<ShareCdcConnectionInfo>> connectionInfo(@RequestParam("taskId") String taskId, @RequestParam("connectionId") String connectionId,
+                                                                  @RequestParam(value = "page", defaultValue = "1") Integer page,
+                                                                  @RequestParam(value = "size", defaultValue = "20") Integer size) {
+        Page<ShareCdcConnectionInfo> connectionInfos = logCollectorService.connectionInfo(taskId, connectionId, page, size, getLoginUser());
+        return success(connectionInfos);
     }
 
 
     @PostMapping("cancel/merge")
     @Operation(summary = "取消当前连接的合并")
     public ResponseMessage<Void> cancelMerge(@RequestParam("taskId") String taskId, @RequestParam("connectionId") String connectionId) {
+
+        logCollectorService.cancelMerge(taskId, connectionId, getLoginUser());
+
         return success();
     }
 

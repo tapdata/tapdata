@@ -1351,4 +1351,59 @@ public class LogCollectorService {
         logCollectorNode.setTableNames(null);
         return true;
     }
+
+    public void cancelMerge(String taskId, String connectionId, UserDetail user) {
+        TaskDto shareCdcTask = taskService.findById(MongoUtils.toObjectId(taskId), user);
+        DAG dag = shareCdcTask.getDag();
+        List<Node> sources = dag.getSources();
+        LogCollectorNode logCollectorNode = (LogCollectorNode)sources.get(0);
+        Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
+        if (logCollectorConnConfigs != null && logCollectorConnConfigs.size() != 0) {
+            //new version shareCdc task
+            LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
+        }
+    }
+
+    public Page<ShareCdcConnectionInfo> connectionInfo(String taskId, String connectionId, Integer page, Integer size, UserDetail user) {
+        TaskDto shareCdcTask = taskService.findById(MongoUtils.toObjectId(taskId), user);
+        DAG dag = shareCdcTask.getDag();
+        List<Node> sources = dag.getSources();
+        LogCollectorNode logCollectorNode = (LogCollectorNode)sources.get(0);
+        Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
+        List<String> tableNames = new ArrayList<>();
+        if (logCollectorConnConfigs == null || logCollectorConnConfigs.size() == 0) {
+            //old version shareCdc task
+            tableNames = logCollectorNode.getTableNames();
+        } else {
+            //new version shareCdc task
+            LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
+            tableNames = logCollecotrConnConfig.getTableNames();
+        }
+        int limit = page * size;
+        int tableCount = tableNames.size();
+
+        Field field = new Field();
+        field.put("_id", true);
+        field.put("name", true);
+        DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId), field, user);
+        String connectionName = connectionDto.getName();
+        List<ShareCdcConnectionInfo> shareCdcConnectionInfos = new ArrayList<>();
+        for (int i = limit; i< size; i++) {
+            if (tableCount < i) {
+                break;
+            }
+            String tableName = tableNames.get(i);
+            ShareCdcConnectionInfo shareCdcConnectionInfo = new ShareCdcConnectionInfo();
+            shareCdcConnectionInfo.setId(connectionId);
+            shareCdcConnectionInfo.setName(connectionName);
+            //shareCdcConnectionInfo.setTableInfos();
+            shareCdcConnectionInfos.add(shareCdcConnectionInfo);
+
+        }
+
+        Page<ShareCdcConnectionInfo> shareCdcTableInfoPage = new Page<>();
+        shareCdcTableInfoPage.setTotal(tableCount);
+        shareCdcTableInfoPage.setItems(shareCdcConnectionInfos);
+        return shareCdcTableInfoPage;
+    }
 }
