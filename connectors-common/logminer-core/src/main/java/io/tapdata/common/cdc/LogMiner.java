@@ -1,17 +1,12 @@
 package io.tapdata.common.cdc;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
-import io.tapdata.common.ddl.DDLFactory;
 import io.tapdata.common.ddl.ccj.CCJBaseDDLWrapper;
 import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.constant.SqlConstant;
 import io.tapdata.constant.TapLog;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
-import io.tapdata.entity.event.dml.TapInsertRecordEvent;
-import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.BeanUtils;
@@ -36,7 +31,6 @@ public abstract class LogMiner implements ILogMiner {
     protected final static int ROLLBACK_TEMP_LIMIT = 50; //max temp which can be rollback
     protected final static int LOG_QUEUE_SIZE = 5000; //size of queue which read logs
 
-    private final static String TAG = LogMiner.class.getSimpleName();
     protected static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
     public static final CCJBaseDDLWrapper.CCJDDLWrapperConfig DDL_WRAPPER_CONFIG = CCJBaseDDLWrapper.CCJDDLWrapperConfig.create().split("\""); //DDL parser config
     protected DDLParserType ddlParserType; //DDL parser type
@@ -56,6 +50,7 @@ public abstract class LogMiner implements ILogMiner {
     protected boolean hasRollbackTemp; //whether rollback temp exists
 
     protected String connectorId;
+    protected Log tapLogger;
     protected KVReadOnlyMap<TapTable> tableMap; //pdk tableMap in streamRead
     protected List<String> tableList; //tableName list
     protected Map<String, TapTable> lobTables; //table those have lob type
@@ -99,11 +94,11 @@ public abstract class LogMiner implements ILogMiner {
             while (!logQueue.offer(redoLogContent, 1, TimeUnit.SECONDS)) {
                 fullQueueWarn++;
                 if (fullQueueWarn < 4) {
-                    TapLogger.info(TAG, "log queue is full, waiting...");
+                    tapLogger.info("log queue is full, waiting...");
                 }
             }
             if (fullQueueWarn > 0) {
-                TapLogger.info(TAG, "log queue has been released!");
+                tapLogger.info("log queue has been released!");
                 fullQueueWarn = 0;
             }
         } catch (InterruptedException ignore) {
@@ -112,7 +107,7 @@ public abstract class LogMiner implements ILogMiner {
 
     @Override
     public void stopMiner() throws Throwable {
-        TapLogger.info(TAG, "Log Miner is shutting down...");
+        tapLogger.info("Log Miner is shutting down...");
         isRunning.set(false);
         Optional.ofNullable(redoLogConsumerThreadPool).ifPresent(ExecutorService::shutdown);
         redoLogConsumerThreadPool = null;
@@ -132,7 +127,7 @@ public abstract class LogMiner implements ILogMiner {
                 for (String waitingCommitXid : oracleTransactions) {
                     final LogTransaction logTransaction = transactionBucket.get(waitingCommitXid);
                     if (logTransaction != null) {
-                        TapLogger.info(TAG, "Delay commit transaction[scn: {}, xid: {}], redo size: {}",
+                        tapLogger.info("Delay commit transaction[scn: {}, xid: {}], redo size: {}",
                                 logTransaction.getScn(), logTransaction.getXid(), logTransaction.getSize());
                         commitTransaction(redoLogContentConsumer, logTransaction);
                     }
@@ -149,7 +144,7 @@ public abstract class LogMiner implements ILogMiner {
             case SqlConstant.REDO_LOG_OPERATION_LOB_WRITE:
             case SqlConstant.REDO_LOG_OPERATION_SEL_LOB_LOCATOR:
                 if (!transactionBucket.containsKey(xid)) {
-                    TapLogger.debug(TAG, TapLog.D_CONN_LOG_0003.getMsg(), xid);
+                    tapLogger.debug(TapLog.D_CONN_LOG_0003.getMsg(), xid);
                     Map<String, List> redoLogContents = new LinkedHashMap<>();
                     redoLogContents.put(rsId, new ArrayList<>(4));
                     redoLogContents.get(rsId).add(redoLogContent);
@@ -168,11 +163,11 @@ public abstract class LogMiner implements ILogMiner {
                             logTransaction.incrementSize(1);
                             long txLogContentsSize = logTransaction.getSize();
                             if (txLogContentsSize % logTransaction.getLargeTransactionUpperLimit() == 0) {
-                                TapLogger.info(TAG, TapLog.CON_LOG_0008.getMsg(), xid, txLogContentsSize);
+                                tapLogger.info(TapLog.CON_LOG_0008.getMsg(), xid, txLogContentsSize);
                             }
                         }
                     } catch (Exception e) {
-                        TapLogger.error(TAG, e.getMessage());
+                        tapLogger.warn(e.getMessage());
                     }
                 }
                 break;
@@ -203,7 +198,7 @@ public abstract class LogMiner implements ILogMiner {
                 }
                 break;
             case SqlConstant.REDO_LOG_OPERATION_DDL:
-                TapLogger.debug(TAG, TapLog.D_CONN_LOG_0003.getMsg(), xid);
+                tapLogger.debug(TapLog.D_CONN_LOG_0003.getMsg(), xid);
                 Map<String, List> redoLogContents = new LinkedHashMap<>();
                 redoLogContents.put(rsId, new ArrayList<>(4));
                 redoLogContents.get(rsId).add(redoLogContent);
@@ -220,7 +215,7 @@ public abstract class LogMiner implements ILogMiner {
                 if (transactionBucket.containsKey(xid)) {
                     LogTransaction logTransaction = transactionBucket.get(xid);
                     if (logTransaction.isLarge()) {
-                        TapLogger.debug(TAG, "Found large transaction be rolled back: {}", logTransaction);
+                        tapLogger.debug("Found large transaction be rolled back: {}", logTransaction);
                     }
                     hasRollbackTemp = true;
                     logTransaction.setRollbackTemp(1);
@@ -284,7 +279,7 @@ public abstract class LogMiner implements ILogMiner {
                 bucketTransaction.setRollbackTemp(++rollbackTemp);
                 hasRollbackTemp = true;
             } else {
-                TapLogger.info(TAG, "It was found that the transaction[first scn: {}, xid: {}] that was rolled back did not commit after {} events, " +
+                tapLogger.info("It was found that the transaction[first scn: {}, xid: {}] that was rolled back did not commit after {} events, " +
                         "and the modification of this transaction was truly discarded", bucketTransaction.getScn(), bucketXid, ROLLBACK_TEMP_LIMIT);
                 bucketTransaction.clearRedoLogContents();
                 iterator.remove();
@@ -314,12 +309,12 @@ public abstract class LogMiner implements ILogMiner {
         transactionBucket.remove(xid);
         long txLogContentsSize = orclTransaction.getSize();
         if (orclTransaction.isHasRollback()) {
-            TapLogger.info(TAG, "Found commit that had a rollback before it, first scn: {}, xid: {}, log content size: {}", orclTransaction.getScn(), xid, txLogContentsSize);
+            tapLogger.info("Found commit that had a rollback before it, first scn: {}, xid: {}, log content size: {}", orclTransaction.getScn(), xid, txLogContentsSize);
         }
         if (txLogContentsSize >= orclTransaction.getLargeTransactionUpperLimit()) {
-            TapLogger.info(TAG, TapLog.D_CONN_LOG_0002.getMsg(), xid, txLogContentsSize);
+            tapLogger.info(TapLog.D_CONN_LOG_0002.getMsg(), xid, txLogContentsSize);
         } else {
-            TapLogger.debug(TAG, TapLog.D_CONN_LOG_0002.getMsg(), xid, txLogContentsSize);
+            tapLogger.debug(TapLog.D_CONN_LOG_0002.getMsg(), xid, txLogContentsSize);
         }
         Map<String, LogTransaction> cacheCommitTraction = new HashMap<>();
         cacheCommitTraction.put(xid, orclTransaction);
@@ -353,7 +348,7 @@ public abstract class LogMiner implements ILogMiner {
                     if (SqlConstant.REDO_LOG_OPERATION_INSERT.equals(logContent.getOperation())) {
                         String insertedRowId = logContent.getRowId();
                         if (insertedRowId.equals(rowId)) {
-                            TapLogger.info("Found insert row was deleted by row id {} on the same transaction, insert event {}, delete event {}", rowId, logContent, redoLogContent);
+                            tapLogger.info("Found insert row was deleted by row id {} on the same transaction, insert event {}, delete event {}", rowId, logContent, redoLogContent);
                             iterator.remove();
                             needToAborted = true;
                         }
@@ -385,7 +380,7 @@ public abstract class LogMiner implements ILogMiner {
                             needToAborted = true;
                         }
                         if (needToAborted) {
-                            TapLogger.debug(TAG, "Found update row was undo updated by row id {} on the same transaction, update event {}, undo update event {}", rowId, logContent, redoLogContent);
+                            tapLogger.debug("Found update row was undo updated by row id {} on the same transaction, update event {}, undo update event {}", rowId, logContent, redoLogContent);
                             iterator.remove();
                             break;
                         }
@@ -417,7 +412,7 @@ public abstract class LogMiner implements ILogMiner {
                     if (rowId.equals(logContent.getRowId())
                             && redoLogContent.getSqlRedo().equals(logContent.getSqlUndo())
                     ) {
-                        TapLogger.info(TAG, "Found delete row was undo inserted by row id {} on the same transaction, delete event {}, undo insert event {}", rowId, logContent, redoLogContent);
+                        tapLogger.info("Found delete row was undo inserted by row id {} on the same transaction, delete event {}, undo insert event {}", rowId, logContent, redoLogContent);
                         iterator.remove();
                         needToAborted = true;
                     }
