@@ -25,7 +25,7 @@ public class SnapshotOrderService {
 		String taskId = taskDto.getId().toHexString();
 		Map<String, Object> attrs = taskDto.getAttrs();
 		List<NodeControlLayer> snapshotOrderList = null;
-		if (attrs.containsKey(SNAPSHOT_ORDER_LIST_KEY)) {
+		if (null!=attrs && attrs.containsKey(SNAPSHOT_ORDER_LIST_KEY)) {
 			Object o = attrs.get(SNAPSHOT_ORDER_LIST_KEY);
 			if (o instanceof byte[]) {
 				Object object = InstanceFactory.instance(ObjectSerializable.class).toObject((byte[]) o);
