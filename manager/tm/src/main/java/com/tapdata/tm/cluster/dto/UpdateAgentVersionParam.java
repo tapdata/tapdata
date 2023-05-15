@@ -27,4 +27,11 @@ public class UpdateAgentVersionParam {
     private String version;
     private String token;
 
+    /**
+     * upgrade: 升级实例版本
+     * start: 启动agent
+     * restart: 重启agent
+     */
+    private String op;
+
 }

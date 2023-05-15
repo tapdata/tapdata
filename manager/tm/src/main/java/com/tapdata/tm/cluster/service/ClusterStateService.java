@@ -87,11 +87,15 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
     public String updateAgent(UpdateAgentVersionParam param,UserDetail userDetail) {
         String retResult = "1";
         String processId = param.getProcessId();
-        String version = param.getVersion();
+
         if ((StringUtils.isEmpty(processId))) {
             throw new BizException("Cluster.ProcessId.Null");
-        } else if (StringUtils.isEmpty(param.getDownloadUrl())) {
-            throw new BizException("Cluster.DownloadUrl.Null");
+        }
+
+        if (ClusterOperationTypeEnum.upgrade.name().equals(param.getOp())) {
+            if (StringUtils.isEmpty(param.getDownloadUrl())) {
+                throw new BizException("Cluster.DownloadUrl.Null");
+            }
         }
         //根据processId 查找 clusterState
         Query query = Query.query(Criteria.where("systemInfo.process_id").is(processId));
@@ -100,19 +104,24 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             //如果找不到就更新对应的worker信息
             Query workQuery = Query.query(Criteria.where("process_id").is(processId));
             Update update = Update.update("updateStatus", "fail");
-            update.set("updateMsg", "can not find the agent");
+            update.set("updateMsg", "Execute '" + param.getOp() + "' operation failed, can not find the tapdata agent by process id");
             update.set("updateTime", new Date());
-            update.set("updateVersion", version);
+            update.set("updateVersion", param.getVersion());
 //            workerService.update(workQuery, update);
             workerService.update(query,update, userDetail);
             retResult = "1";
         } else {
-            List<String> downList = Arrays.asList("tapdata", "tapdata.exe", "tapdata-agent", "log4j2.yml");
-            clusterStateDtoList.forEach(clusterStateDto -> {
-                addNewClusterOperation(clusterStateDto, param, downList);
-                updateWorker(processId, param.getVersion(), userDetail);
-            });
-
+            if (ClusterOperationTypeEnum.upgrade.name().equals(param.getOp())) {
+                List<String> downList = Arrays.asList("tapdata", "tapdata.exe", "tapdata-agent", "log4j2.yml");
+                clusterStateDtoList.forEach(clusterStateDto -> {
+                    addNewClusterOperation(clusterStateDto, param, downList);
+                    updateWorker(processId, param.getVersion(), userDetail);
+                });
+            } else {
+                clusterStateDtoList.forEach(clusterStateDto -> {
+                    addNewClusterOperation(clusterStateDto, param, null);
+                });
+            }
         }
         return retResult;
     }
@@ -233,12 +242,18 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
     private void addNewClusterOperation(ClusterStateDto clusterStateDto, UpdateAgentVersionParam param, List downloadList) {
         ClusterOperationEntity cluserOperationEntity = new ClusterOperationEntity();
         cluserOperationEntity.setOperationTime(new Date());
-        cluserOperationEntity.setType(ClusterOperationTypeEnum.update.toString());
         cluserOperationEntity.setProcess_id(param.getProcessId());
         cluserOperationEntity.setUuid(clusterStateDto.getUuid());
-        cluserOperationEntity.setDownloadUrl(param.getDownloadUrl());
-        cluserOperationEntity.setToken(param.getToken());
-        cluserOperationEntity.setDownloadList(downloadList);
+
+        if (ClusterOperationTypeEnum.upgrade.name().equals(param.getOp())) {
+            cluserOperationEntity.setType(ClusterOperationTypeEnum.update.toString());
+            cluserOperationEntity.setDownloadUrl(param.getDownloadUrl());
+            cluserOperationEntity.setToken(param.getToken());
+            cluserOperationEntity.setDownloadList(downloadList);
+        } else {
+            cluserOperationEntity.setType(ClusterOperationTypeEnum.valueOf(param.getOp()).name());
+        }
+
         cluserOperationEntity.setStatus(AgentStatusEnum.NEED_UPDATE.getValue());
         cluserOperationEntity.setCreateAt(new Date());
         cluserOperationEntity.setLastUpdAt(new Date());
