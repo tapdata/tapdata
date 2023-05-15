@@ -118,19 +118,20 @@ public class JsFunctionService extends BaseService<JsFunctionDto, JsFunctionEnti
 						}
 					}
 					if (one == null || cover) {
-//						ObjectId objectId = null;
-//						if (one != null) {
-//							objectId = one.getId();
-//						}
+						ObjectId objectId = null;
+						if (one != null) {
+							objectId = one.getId();
+						}
 
 						if (one == null) {
 							if (jsFunctionDto.getId() == null) {
 								jsFunctionDto.setId(new ObjectId());
 							}
-							//taskDto.setId(null);
 							JsFunctionEntity importEntity = repository.importEntity(convertToEntity(JsFunctionEntity.class, jsFunctionDto), user);
 							log.info("import js function {}", importEntity);
 //							jsFunctionDto = convertToDto(importEntity, JsFunctionDto.class);
+						} else {
+							updateByWhere(new Query(Criteria.where("_id").is(objectId)), jsFunctionDto, user);
 						}
 					}
 				}
