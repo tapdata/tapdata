@@ -76,6 +76,7 @@ public class MysqlConnector extends CommonDbConnector {
         commonDbConfig = mysqlConfig;
         jdbcContext = mysqlJdbcContext;
         commonSqlMaker = new CommonSqlMaker('`');
+        exceptionCollector = new MysqlExceptionCollector();
         if (tapConnectionContext instanceof TapConnectorContext) {
             this.mysqlWriter = new MysqlSqlBatchWriter(mysqlJdbcContext);
             this.mysqlReader = new MysqlReader(mysqlJdbcContext);
@@ -275,6 +276,7 @@ public class MysqlConnector extends CommonDbConnector {
             }
             return createTableOptions;
         } catch (Throwable t) {
+            exceptionCollector.collectWritePrivileges("createTable", Collections.emptyList(), t);
             throw new RuntimeException("Create table failed, message: " + t.getMessage(), t);
         }
     }

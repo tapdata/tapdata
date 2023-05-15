@@ -1,5 +1,7 @@
 package io.tapdata.connector.mysql.writer;
 
+import io.tapdata.common.exception.ExceptionCollector;
+import io.tapdata.connector.mysql.MysqlExceptionCollector;
 import io.tapdata.connector.mysql.MysqlJdbcContextV2;
 import io.tapdata.connector.mysql.util.ExceptionWrapper;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -31,11 +33,13 @@ public abstract class MysqlWriter {
     private static final String TAG = MysqlWriter.class.getSimpleName();
     protected MysqlJdbcContextV2 mysqlJdbcContext;
     protected ExceptionWrapper exceptionWrapper;
+    protected ExceptionCollector exceptionCollector;
     private final AtomicBoolean running;
 
     public MysqlWriter(MysqlJdbcContextV2 mysqlJdbcContext) throws Throwable {
         this.mysqlJdbcContext = mysqlJdbcContext;
         this.exceptionWrapper = new ExceptionWrapper();
+        this.exceptionCollector = new MysqlExceptionCollector();
         this.running = new AtomicBoolean(true);
     }
 

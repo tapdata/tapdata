@@ -35,6 +35,7 @@ public class MysqlJdbcContextV2 extends JdbcContext {
 
     public MysqlJdbcContextV2(CommonDbConfig config) {
         super(config);
+        exceptionCollector = new MysqlExceptionCollector();
     }
 
     @Override
