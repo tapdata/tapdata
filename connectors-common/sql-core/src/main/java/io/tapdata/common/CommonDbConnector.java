@@ -8,6 +8,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.index.TapDeleteIndexEvent;
 import io.tapdata.entity.event.ddl.table.*;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
@@ -36,17 +37,25 @@ import java.util.stream.Collectors;
 
 public abstract class CommonDbConnector extends ConnectorBase {
 
+    //SQL for Primary key sorting area reading
     private final static String FIND_KEY_FROM_OFFSET = "select * from (select %s, row_number() over (order by %s) as tap__rowno from %s ) a where tap__rowno=%s";
     private final static String wherePattern = "where %s ";
+    //offset for Primary key sorting area reading
     private final static Long offsetSize = 1000000L;
-
-    protected BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
-    protected DDLSqlGenerator ddlSqlGenerator;
     protected static final int BATCH_ADVANCE_READ_LIMIT = 1000;
+
+    //ddlHandlers which for ddl collection
+    protected BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
+    //ddlSqlMaker which for ddl execution
+    protected DDLSqlGenerator ddlSqlGenerator;
+    //Once the task is started, this ID is a unique identifier and stored in the stateMap
     protected String firstConnectorId;
+    //jdbc context for each relation datasource
     protected JdbcContext jdbcContext;
+    //db config for each relation datasource (load properties from TapConnectionContext)
     protected CommonDbConfig commonDbConfig;
     protected CommonSqlMaker commonSqlMaker;
+    protected Log tapLogger;
     protected ExceptionCollector exceptionCollector = new AbstractExceptionCollector() {
     };
 
@@ -92,6 +101,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
         syncSchemaSubmit(tapTableList, consumer);
     }
 
+    //some datasource makePrimaryKeyAndIndex in not the same way, such as db2
     protected void makePrimaryKeyAndIndex(List<DataMap> indexList, String table, List<String> primaryKey, List<TapIndex> tapIndexList) {
         Map<String, List<DataMap>> indexMap = indexList.stream().filter(idx -> table.equals(idx.getString("tableName")))
                 .collect(Collectors.groupingBy(idx -> idx.getString("indexName"), LinkedHashMap::new, Collectors.toList()));
@@ -104,7 +114,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
     }
 
     protected TapField makeTapField(DataMap dataMap) {
-        throw new UnsupportedOperationException();
+        return new CommonColumn(dataMap).getTapField();
     }
 
     protected void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) throws SQLException {
@@ -144,7 +154,12 @@ public abstract class CommonDbConnector extends ConnectorBase {
                 }
             }
         }
-        jdbcContext.batchExecute(sqlList);
+        try {
+            jdbcContext.batchExecute(sqlList);
+        } catch (SQLException e) {
+            exceptionCollector.collectWritePrivileges("createTable", Collections.emptyList(), e);
+            throw e;
+        }
         createTableOptions.setTableExists(false);
         return createTableOptions;
     }
@@ -159,6 +174,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
         return createTable(connectorContext, createTableEvent, true);
     }
 
+    //Primary key sorting area reading
     protected void batchReadV3(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
         List<String> primaryKeys = new ArrayList<>(tapTable.primaryKeys());
         char escapeChar = commonDbConfig.getEscapeChar();
@@ -311,10 +327,15 @@ public abstract class CommonDbConnector extends ConnectorBase {
     }
 
     protected long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
-        AtomicLong count = new AtomicLong(0);
-        String sql = "select count(1) from " + getSchemaAndTable(tapTable.getId());
-        jdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
-        return count.get();
+        try {
+            AtomicLong count = new AtomicLong(0);
+            String sql = "select count(1) from " + getSchemaAndTable(tapTable.getId());
+            jdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
+            return count.get();
+        } catch (SQLException e) {
+            exceptionCollector.collectReadPrivileges("batchCount", Collections.emptyList(), e);
+            throw e;
+        }
     }
 
     //one filter can only match one record
@@ -509,13 +530,20 @@ public abstract class CommonDbConnector extends ConnectorBase {
             List<TapEvent> tapEvents = list();
             //get all column names
             List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
-            while (isAlive() && resultSet.next()) {
-                DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
-                tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
-                if (tapEvents.size() == eventBatchSize) {
-                    eventsOffsetConsumer.accept(tapEvents, new HashMap<>());
-                    tapEvents = list();
+            try {
+                while (isAlive() && resultSet.next()) {
+                    DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
+                    processDataMap(dataMap, tapTable);
+                    tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
+                    if (tapEvents.size() == eventBatchSize) {
+                        eventsOffsetConsumer.accept(tapEvents, new HashMap<>());
+                        tapEvents = list();
+                    }
                 }
+            } catch (SQLException e) {
+                exceptionCollector.collectTerminateByServer(e);
+                exceptionCollector.collectReadPrivileges("batchReadWithoutOffset", Collections.emptyList(), e);
+                throw e;
             }
             //last events those less than eventBatchSize
             if (EmptyKit.isNotEmpty(tapEvents)) {

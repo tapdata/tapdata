@@ -8,6 +8,7 @@ import io.tapdata.connector.postgres.cdc.PostgresCdcRunner;
 import io.tapdata.connector.postgres.cdc.offset.PostgresOffset;
 import io.tapdata.connector.postgres.config.PostgresConfig;
 import io.tapdata.connector.postgres.ddl.PostgresDDLSqlGenerator;
+import io.tapdata.connector.postgres.exception.PostgresExceptionCollector;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
@@ -42,6 +43,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -196,9 +198,25 @@ public class PostgresConnector extends CommonDbConnector {
         });
     }
 
-    private void buildSlot() throws Throwable {
-        slotName = "tapdata_cdc_" + UUID.randomUUID().toString().replaceAll("-", "_");
-        postgresJdbcContext.execute("SELECT pg_create_logical_replication_slot('" + slotName + "','" + postgresConfig.getLogPluginName() + "')");
+    private void buildSlot(TapConnectorContext connectorContext, Boolean needCheck) throws Throwable {
+        if (EmptyKit.isNull(slotName)) {
+            slotName = "tapdata_cdc_" + UUID.randomUUID().toString().replaceAll("-", "_");
+            postgresJdbcContext.execute("SELECT pg_create_logical_replication_slot('" + slotName + "','" + postgresConfig.getLogPluginName() + "')");
+            tapLogger.info("new logical replication slot created, slotName:{}", slotName);
+            connectorContext.getStateMap().put("tapdata_pg_slot", slotName);
+        } else if (needCheck) {
+            AtomicBoolean existSlot = new AtomicBoolean(true);
+            postgresJdbcContext.queryWithNext("SELECT COUNT(*) FROM pg_replication_slots WHERE slot_name='" + slotName + "'", resultSet -> {
+                if (resultSet.getInt(1) <= 0) {
+                    existSlot.set(false);
+                }
+            });
+            if (existSlot.get()) {
+                tapLogger.info("Using an existing logical replication slot, slotName:{}", slotName);
+            } else {
+                tapLogger.warn("The previous logical replication slot no longer exists. Although it has been rebuilt, there is a possibility of data loss. Please check");
+            }
+        }
     }
 
     @Override
@@ -213,22 +231,24 @@ public class PostgresConnector extends CommonDbConnector {
     }
 
     //initialize jdbc context, slot name, version
-    private void initConnection(TapConnectionContext connectorContext) {
-        postgresConfig = (PostgresConfig) new PostgresConfig().load(connectorContext.getConnectionConfig());
+    private void initConnection(TapConnectionContext connectionContext) {
+        postgresConfig = (PostgresConfig) new PostgresConfig().load(connectionContext.getConnectionConfig());
         postgresTest = new PostgresTest(postgresConfig, testItem -> {
         }).initContext();
         postgresJdbcContext = new PostgresJdbcContext(postgresConfig);
         commonDbConfig = postgresConfig;
         jdbcContext = postgresJdbcContext;
-        isConnectorStarted(connectorContext, tapConnectorContext -> slotName = tapConnectorContext.getStateMap().get("tapdata_pg_slot"));
+        isConnectorStarted(connectionContext, tapConnectorContext -> slotName = tapConnectorContext.getStateMap().get("tapdata_pg_slot"));
         commonSqlMaker = new CommonSqlMaker();
         postgresVersion = postgresJdbcContext.queryVersion();
         ddlSqlGenerator = new PostgresDDLSqlGenerator();
+        tapLogger = connectionContext.getLog();
         fieldDDLHandlers = new BiClassHandlers<>();
         fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
         fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
         fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
         fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
+        exceptionCollector = new PostgresExceptionCollector();
     }
 
     //write records as all events, prepared
@@ -250,23 +270,24 @@ public class PostgresConnector extends CommonDbConnector {
 
     private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
         cdcRunner = new PostgresCdcRunner(postgresJdbcContext);
-        if (EmptyKit.isNull(slotName)) {
-            buildSlot();
-            nodeContext.getStateMap().put("tapdata_pg_slot", slotName);
-        }
+        buildSlot(nodeContext, true);
         cdcRunner.useSlot(slotName.toString()).watch(tableList).offset(offsetState).registerConsumer(consumer, recordSize);
         cdcRunner.startCdcRunner();
         if (EmptyKit.isNotNull(cdcRunner) && EmptyKit.isNotNull(cdcRunner.getThrowable().get())) {
-            throw cdcRunner.getThrowable().get();
+            Throwable throwable = ErrorKit.getLastCause(cdcRunner.getThrowable().get());
+            if (throwable instanceof SQLException) {
+                exceptionCollector.collectTerminateByServer(throwable);
+                exceptionCollector.collectCdcConfigInvalid(throwable);
+            }
+            throw throwable;
         }
     }
 
     private Object timestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) throws Throwable {
         //test streamRead log plugin
         boolean canCdc = EmptyKit.isNotNull(postgresTest.testStreamRead()) && postgresTest.testStreamRead();
-        if (canCdc && EmptyKit.isNull(slotName)) {
-            buildSlot();
-            connectorContext.getStateMap().put("tapdata_pg_slot", slotName);
+        if (canCdc) {
+            buildSlot(connectorContext, false);
         }
         return new PostgresOffset();
     }

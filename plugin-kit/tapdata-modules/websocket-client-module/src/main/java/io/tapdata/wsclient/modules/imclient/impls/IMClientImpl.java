@@ -37,14 +37,14 @@ public class IMClientImpl implements IMClient {
     ConcurrentHashMap<String, Class<? extends Data>> contentTypeClassMap;
 
     private MonitorThread<?> monitorThread;
-    static {
-        System.setProperty
-                ("java.util.concurrent.ForkJoinPool.common.parallelism", "4");
-        System.setProperty
-                ("java.util.concurrent.ForkJoinPool.common.threadFactory", "com.dobybros.tccore.modules.imclient.impls.IMClientThreadFactory");
-        System.setProperty
-                ("java.util.concurrent.ForkJoinPool.common.exceptionHandler", "com.dobybros.tccore.modules.imclient.impls.IMClientUncaughtExceptionHandler");
-    }
+//    static {
+//        System.setProperty
+//                ("java.util.concurrent.ForkJoinPool.common.parallelism", "4");
+//        System.setProperty
+//                ("java.util.concurrent.ForkJoinPool.common.threadFactory", "io.tapdata.wsclient.modules.imclient.impls.IMClientThreadFactory");
+//        System.setProperty
+//                ("java.util.concurrent.ForkJoinPool.common.exceptionHandler", "io.tapdata.wsclient.modules.imclient.impls.IMClientUncaughtExceptionHandler");
+//    }
 
 
     public IMClientImpl(String prefix, String clientId, String service, Integer terminal, String token, List<String> baseUrls) {

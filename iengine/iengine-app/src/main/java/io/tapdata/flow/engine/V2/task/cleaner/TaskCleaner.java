@@ -9,6 +9,7 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
+import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.AggregationProcessorNode;
@@ -24,6 +25,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkCacheNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
@@ -102,6 +104,8 @@ public abstract class TaskCleaner {
 					dataNodeDestroy(node);
 				} else if (node instanceof MergeTableNode) {
 					mergeNodeDestroy(node);
+				} else if (node instanceof CacheNode) {
+					cacheNodeDestroy(node);
 				} else if (node instanceof AggregationProcessorNode) {
 					aggregateNodeDestroy(node);
 				} else if (node instanceof CustomProcessorNode) {
@@ -163,6 +167,18 @@ public abstract class TaskCleaner {
 			succeed(node, NodeResetDesc.task_reset_merge_node, (System.currentTimeMillis() - startTs));
 		} catch (Throwable e) {
 			String msg = String.format("Clean merge node cache data occur an error: %s\n Task: %s(%s), node: %s(%s)", e.getMessage(), taskDto.getName(), taskDto.getId(), node.getName(), node.getId());
+			TaskCleanerException taskCleanerException = new TaskCleanerException(msg, e, true);
+			failed(node, NodeResetDesc.task_reset_merge_node, (System.currentTimeMillis() - startTs), taskCleanerException);
+		}
+	}
+
+	private void cacheNodeDestroy(Node<?> node) {
+		long startTs = System.currentTimeMillis();
+		try {
+			HazelcastTargetPdkCacheNode.clearCache(node);
+			succeed(node, NodeResetDesc.task_reset_merge_node, (System.currentTimeMillis() - startTs));
+		} catch (Throwable e) {
+			String msg = String.format("Clean cache node cache data occur an error: %s\n Task: %s(%s), node: %s(%s)", e.getMessage(), taskDto.getName(), taskDto.getId(), node.getName(), node.getId());
 			TaskCleanerException taskCleanerException = new TaskCleanerException(msg, e, true);
 			failed(node, NodeResetDesc.task_reset_merge_node, (System.currentTimeMillis() - startTs), taskCleanerException);
 		}

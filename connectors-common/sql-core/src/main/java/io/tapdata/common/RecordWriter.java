@@ -12,6 +12,7 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -80,6 +81,7 @@ public class RecordWriter {
             exceptionCollector.collectViolateNull(null, e);
             TapRecordEvent errorEvent = listResult.getErrorMap().keySet().stream().findFirst().orElse(null);
             exceptionCollector.collectViolateUnique(toJson(tapTable.primaryKeys(true)), errorEvent, null, e);
+            exceptionCollector.collectWritePrivileges("writeRecord", Collections.emptyList(), e);
             exceptionCollector.collectWriteType(null, null, errorEvent, e);
             exceptionCollector.collectWriteLength(null, null, errorEvent, e);
             throw e;

@@ -30,6 +30,8 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderController;
+import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.PartitionConsumer;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.PartitionErrorCodes;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.partition.PartitionTableOffset;
@@ -51,6 +53,7 @@ import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
@@ -70,6 +73,7 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static io.tapdata.entity.simplify.TapSimplify.sleep;
@@ -443,7 +447,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 			}
 
 			initialSyncWorker = asyncMaster.createAsyncQueueWorker("InitialSync " + getNode().getId()).setAsyncJobErrorListener((id, job ,t) -> listenerError(() -> errorHandle(id,job,t)))
-					.job("batchRead", this::handleBatchReadForTables).finished().start(JobContext.create(null).context(sourceContext));
+					.job("batchRead", this::handleBatchReadForTablesWithControl).finished().start(JobContext.create(null).context(sourceContext));
 		} else {
 			Snapshot2CDCAspect.execute(dataProcessorContext);
 		}
@@ -457,6 +461,22 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 		} else {
 			BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClient(dataProcessorContext.getTaskDto().getId().toHexString()).terminalMode(TerminalMode.COMPLETE);
 		}
+	}
+
+	private JobContext handleBatchReadForTablesWithControl(JobContext jobContext) {
+		AtomicReference<JobContext> jobContextAtomicReference = new AtomicReference<>(jobContext);
+		CommonUtils.AnyError runner = ()-> jobContextAtomicReference.set(handleBatchReadForTables(jobContext));
+		try {
+			SnapshotOrderController controller = SnapshotOrderService.getInstance().getController(dataProcessorContext.getTaskDto().getId().toHexString());
+			if (null != controller) {
+				controller.runWithControl(getNode(), runner);
+			} else {
+				runner.run();
+			}
+		} catch (Throwable e) {
+			throw new RuntimeException(e);
+		}
+		return jobContextAtomicReference.get();
 	}
 
 	@Override

@@ -21,11 +21,6 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.classification.dto.ClassificationDto;
 import com.tapdata.tm.classification.service.ClassificationService;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.DataSourceEnum;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.schema.bean.Schema;
@@ -52,17 +47,15 @@ import com.tapdata.tm.libSupported.repository.LibSupportedsRepository;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.task.service.LogCollectorService;
-import com.tapdata.tm.typemappings.constant.TypeMappingDirection;
-import com.tapdata.tm.typemappings.entity.TypeMappingsEntity;
-import com.tapdata.tm.typemappings.service.TypeMappingsService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.proxy.dto.SubscribeDto;
 import com.tapdata.tm.proxy.dto.SubscribeResponseDto;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
+import com.tapdata.tm.task.service.LogCollectorService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.typemappings.service.TypeMappingsService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -159,6 +152,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	public DataSourceConnectionDto add(DataSourceConnectionDto connectionDto, UserDetail userDetail) {
 		Boolean submit = connectionDto.getSubmit();
 		connectionDto.setLastUpdAt(new Date());
+		checkMongoUri(connectionDto);
 		connectionDto = save(connectionDto, userDetail);
 
 		desensitizeMongoConnection(connectionDto);
@@ -171,13 +165,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		connectionDto.setLastUpdAt(new Date());
 
 		beforeSave(connectionDto, userDetail);
-
+		checkMongoUri(connectionDto);
 		repository.insert(convertToEntity(DataSourceEntity.class, connectionDto), userDetail);
 
 		connectionDto = findById(connectionDto.getId(), userDetail);
 
 		desensitizeMongoConnection(connectionDto);
 		sendTestConnection(connectionDto, false, submit, userDetail);
+		defaultDataDirectoryService.addConnection(connectionDto, userDetail);
 		return connectionDto;
 	}
 
@@ -211,7 +206,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	public DataSourceConnectionDto update(UserDetail user, DataSourceConnectionDto updateDto, boolean changeLast) {
 		Boolean submit = updateDto.getSubmit();
 		String oldName = updateCheck(user, updateDto);
-
+		checkMongoUri(updateDto);
 		Assert.isFalse(StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), updateDto.getAccessNodeType())
 				&& CollectionUtils.isEmpty(updateDto.getAccessNodeProcessIdList()), "manually_specified_by_the_user processId is null");
 
@@ -558,6 +553,31 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			}
 		}
 		return newResultObj;
+	}
+
+
+	private void checkMongoUri(DataSourceConnectionDto dto) {
+		if (dto != null && !Objects.isNull(dto.getConfig())
+				&& !dto.getConfig().isEmpty()) {
+			if (dto.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo") && dto.getConfig().get("uri") != null) {
+				String uri = (String) dto.getConfig().get("uri");
+				try {
+					new ConnectionString(uri);
+				} catch (Exception e) {
+					if (uri.startsWith("mongodb+srv:")) {
+						try {
+							new ConnectionString(uri.replace("mongodb+srv:", "mongodb:"));
+						} catch (Exception e1) {
+							log.error("Parse connection string failed ({}) {}", uri, e);
+							throw new BizException("Datasource.IllegalUserNameOrPasswd");
+						}
+					} else {
+						log.error("Parse connection string failed ({}) {}", uri, e);
+						throw new BizException("Datasource.IllegalUserNameOrPasswd");
+					}
+				}
+			}
+		}
 	}
 
 	private void hiddenMqPasswd(DataSourceConnectionDto item) {
@@ -1742,20 +1762,37 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	}
 
 	public Long countTaskByConnectionId(String connectionId, UserDetail userDetail) {
-		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId)
-				.and("syncType").ne(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
-				.andOperator(Criteria.where("is_deleted").is(false),Criteria.where("status").ne("delete_failed")));
-		query.fields().include("_id", "name", "syncType");
-		return taskService.count(query, userDetail);
+		return countTaskByConnectionId(connectionId, null, userDetail);
 	}
+
+	public Long countTaskByConnectionId(String connectionId, String syncType, UserDetail userDetail) {
+		return taskService.count(getTaskQuery(connectionId, syncType), userDetail);
+	}
+
 	public List<TaskDto> findTaskByConnectionId(String connectionId, int limit, UserDetail userDetail) {
-		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId)
-				.and("syncType").ne(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
-				.andOperator(Criteria.where("is_deleted").is(false),Criteria.where("status").ne("delete_failed")));
-		query.fields().include("_id", "name", "syncType");
+		return findTaskByConnectionId(connectionId, limit, null, userDetail);
+	}
+	public List<TaskDto> findTaskByConnectionId(String connectionId, int limit, String syncType, UserDetail userDetail) {
+		Query query = getTaskQuery(connectionId, syncType);
 		query.limit(limit);
 		query.with(Sort.by(Sort.Direction.ASC, "_id"));
 		return taskService.findAllDto(query, userDetail);
+	}
+
+	private Query getTaskQuery(String connectionId, String syncType) {
+		Criteria criteria = new Criteria()
+				.andOperator(Criteria.where("is_deleted").is(false), Criteria.where("status").ne("delete_failed"));
+
+		if (StringUtils.equals(syncType, TaskDto.SYNC_TYPE_LOG_COLLECTOR)) {
+			criteria.and("dag.nodes.connectionIds").in(connectionId).and("syncType").is(syncType);
+		} else if (StringUtils.isEmpty(syncType)){
+			criteria.and("dag.nodes.connectionId").is(connectionId).and("syncType").ne(TaskDto.SYNC_TYPE_CONN_HEARTBEAT);
+		} else {
+			criteria.and("dag.nodes.connectionId").is(connectionId).and("syncType").is(syncType);
+		}
+		Query query = new Query(criteria);
+		query.fields().include("_id", "name", "syncType");
+		return query;
 	}
 
 	public ConnectionStats stats(UserDetail userDetail) {
