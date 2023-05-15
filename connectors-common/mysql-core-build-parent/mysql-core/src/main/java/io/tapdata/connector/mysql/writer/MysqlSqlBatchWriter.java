@@ -20,6 +20,8 @@ import java.sql.Statement;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
+
 /**
  * @author samuel
  * @Description
@@ -88,6 +90,13 @@ public class MysqlSqlBatchWriter extends MysqlJdbcWriter {
             getJdbcCache().getConnection().commit();
         } catch (Throwable e) {
             if (isAlive()) {
+                exceptionCollector.collectTerminateByServer(e);
+                exceptionCollector.collectViolateNull(null, e);
+                TapRecordEvent errorEvent = writeListResult.get().getErrorMap().keySet().stream().findFirst().orElse(null);
+                exceptionCollector.collectViolateUnique(toJson(tapTable.primaryKeys(true)), errorEvent, null, e);
+                exceptionCollector.collectWritePrivileges("writeRecord", Collections.emptyList(), e);
+                exceptionCollector.collectWriteType(null, null, errorEvent, e);
+                exceptionCollector.collectWriteLength(null, null, errorEvent, e);
                 throw e;
             }
         }

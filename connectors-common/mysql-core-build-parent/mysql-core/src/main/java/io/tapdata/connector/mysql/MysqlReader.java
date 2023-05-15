@@ -8,6 +8,7 @@ import io.tapdata.common.ddl.DDLFactory;
 import io.tapdata.common.ddl.ccj.CCJBaseDDLWrapper;
 import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.common.ddl.wrapper.DDLWrapperConfig;
+import io.tapdata.common.exception.ExceptionCollector;
 import io.tapdata.connector.mysql.config.MysqlConfig;
 import io.tapdata.connector.mysql.entity.MysqlBinlogPosition;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
@@ -90,9 +91,11 @@ public class MysqlReader implements Closeable {
     private static final int MIN_BATCH_SIZE = 1000;
     private TimeZone DB_TIME_ZONE;
     private final AtomicReference<Throwable> throwableAtomicReference = new AtomicReference<>();
+    private final ExceptionCollector exceptionCollector;
 
     public MysqlReader(MysqlJdbcContextV2 mysqlJdbcContext) {
         this.mysqlJdbcContext = mysqlJdbcContext;
+        this.exceptionCollector = new MysqlExceptionCollector();
         this.running = new AtomicBoolean(true);
         try {
             this.DB_TIME_ZONE = mysqlJdbcContext.queryTimeZone();
@@ -319,7 +322,11 @@ public class MysqlReader implements Closeable {
                     .build();
             embeddedEngine.run();
             if (null != throwableAtomicReference.get()) {
-                throw ErrorKit.getLastCause(throwableAtomicReference.get());
+                Throwable e = ErrorKit.getLastCause(throwableAtomicReference.get());
+                exceptionCollector.collectTerminateByServer(e);
+                exceptionCollector.collectOffsetInvalid(offset, e);
+                exceptionCollector.collectCdcConfigInvalid(e);
+                throw e;
             }
         } finally {
             Optional.ofNullable(mysqlSchemaHistoryMonitor).ifPresent(ExecutorService::shutdownNow);

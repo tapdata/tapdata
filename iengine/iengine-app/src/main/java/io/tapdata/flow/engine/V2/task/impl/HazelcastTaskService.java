@@ -59,9 +59,32 @@ import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
+import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderController;
+import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderControllerExCode_21;
+import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastBlank;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastCacheTarget;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastSchemaTargetNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskSource;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskSourceAndTarget;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskTarget;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastVirtualTargetNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastPdkSourceAndTargetTableNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSampleSourcePdkDataNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePartitionReadDataNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkShareCDCNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkAutoInspectNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkCacheNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkDataNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkShareCDCNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcessor;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastDateProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastJavaScriptProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMigrateFieldRenameProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastRenameTableProcessorNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -84,7 +107,11 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -190,7 +217,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 		DAG dag = new DAG();
 		AtomicReference<TaskDto> taskDtoAtomicReference = new AtomicReference<>(taskDto);
-		TaskConfig taskConfig = getTaskConfig(taskDto);
 
 		Long tmCurrentTime = taskDtoAtomicReference.get().getTmCurrentTime();
 		if (null != tmCurrentTime && tmCurrentTime.compareTo(0L) > 0 && taskDto.isNormalTask()) {
@@ -203,6 +229,9 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				throw new RuntimeException("Get task history failed, param: " + params + ", result is null");
 			}
 		}
+
+		TaskConfig taskConfig = getTaskConfig(taskDtoAtomicReference.get());
+		initSnapshotOrder(taskDtoAtomicReference);
 
 		final List<Node> nodes = taskDtoAtomicReference.get().getDag().getNodes();
 		final List<Edge> edges = taskDtoAtomicReference.get().getDag().getEdges();
@@ -300,6 +329,17 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		}
 
 		return new JetDag(dag, hazelcastBaseNodeMap, typeConvertMap);
+	}
+
+	private static void initSnapshotOrder(AtomicReference<TaskDto> taskDtoAtomicReference) {
+		try {
+			SnapshotOrderService snapshotOrderService = SnapshotOrderService.getInstance();
+			SnapshotOrderController snapshotOrderController = snapshotOrderService.addController(taskDtoAtomicReference.get());
+			snapshotOrderController.flush();
+			ObsLoggerFactory.getInstance().getObsLogger(taskDtoAtomicReference.get()).info(snapshotOrderService.getController(taskDtoAtomicReference.get().getId().toHexString()).toString());
+		} catch (Exception e) {
+			throw new TapCodeException(SnapshotOrderControllerExCode_21.UNKNOWN_ERROR, e);
+		}
 	}
 
 	private static TapTableMap<String, TapTable> getTapTableMap(TaskDto taskDto, Long tmCurrentTime, Node node) {

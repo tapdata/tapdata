@@ -13,6 +13,7 @@ import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.flow.engine.V2.common.HazelcastStatusMappingEnum;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
+import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.util.SupplierImpl;
@@ -160,6 +161,14 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 					err -> {
 						obsLogger.warn(String.format("Stop task aspect(s) failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
 					}
+			);
+			CommonUtils.handleAnyError(
+					() -> {
+						if (SnapshotOrderService.getInstance().removeController(taskDto.getId().toHexString())) {
+							obsLogger.info("Snapshot order controller have been removed");
+						}
+					},
+					error -> obsLogger.warn("Remove snapshot order controller failed, error: %s\n %s", error.getMessage(), Log4jUtil.getStackString(error))
 			);
 		}
 		return job.getStatus().isTerminal();
