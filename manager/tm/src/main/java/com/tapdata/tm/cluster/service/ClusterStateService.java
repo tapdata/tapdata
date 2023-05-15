@@ -244,14 +244,14 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         cluserOperationEntity.setOperationTime(new Date());
         cluserOperationEntity.setProcess_id(param.getProcessId());
         cluserOperationEntity.setUuid(clusterStateDto.getUuid());
-
+        cluserOperationEntity.setType(ClusterOperationTypeEnum.update.toString());
         if (ClusterOperationTypeEnum.upgrade.name().equals(param.getOp())) {
-            cluserOperationEntity.setType(ClusterOperationTypeEnum.update.toString());
             cluserOperationEntity.setDownloadUrl(param.getDownloadUrl());
             cluserOperationEntity.setToken(param.getToken());
             cluserOperationEntity.setDownloadList(downloadList);
         } else {
-            cluserOperationEntity.setType(ClusterOperationTypeEnum.valueOf(param.getOp()).name());
+            cluserOperationEntity.setOperation(ClusterOperationTypeEnum.valueOf(param.getOp()).name());
+            cluserOperationEntity.setServer("engine");
         }
 
         cluserOperationEntity.setStatus(AgentStatusEnum.NEED_UPDATE.getValue());
