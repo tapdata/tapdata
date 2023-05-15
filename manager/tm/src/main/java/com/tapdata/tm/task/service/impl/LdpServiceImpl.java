@@ -583,12 +583,10 @@ public class LdpServiceImpl implements LdpService {
                             update.set("listtags", listtags);
                         }
                         metadataInstancesService.updateById(metaData.getId(), update, user);
-
+                        break;
                     }
-
                     buildSourceMeta(setTag, metaData);
                     metadataInstancesService.save(metaData, user);
-
                 }
             }
 
@@ -657,18 +655,12 @@ public class LdpServiceImpl implements LdpService {
         metaData.setQualifiedName(oldQualifiedName);
         metaData.setNodeId(null);
 
-        SourceDto source = metaData.getSource();
-        if (source != null) {
-            String id = source.get_id();
-            if (StringUtils.isNotBlank(id)) {
-                List<Tag> listtags = metaData.getListtags();
-                if (listtags == null) {
-                    listtags = new ArrayList<>();
-                    metaData.setListtags(listtags);
-                }
-                listtags.add(tag);
-            }
+        List<Tag> listtags = metaData.getListtags();
+        if (listtags == null) {
+            listtags = new ArrayList<>();
+            metaData.setListtags(listtags);
         }
+        listtags.add(tag);
         metaData.setId(null);
     }
 

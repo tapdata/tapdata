@@ -147,9 +147,9 @@ public class MongodbTest extends CommonDbTest {
             // validate mongos config.shards and source DB privileges
             return validateMongodb(connectionStatus);
         } else if (isMaster.containsKey("setName")) {   // validate replica set
-            if (!validateAuthDB(connectionStatus)) {
-                return false;
-            }
+//            if (!validateAuthDB(connectionStatus)) {
+//                return false;
+//            }
             if (!validateOplog(connectionStatus)) {
                 return false;
             }

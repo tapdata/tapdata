@@ -21,11 +21,6 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.classification.dto.ClassificationDto;
 import com.tapdata.tm.classification.service.ClassificationService;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.DataSourceEnum;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.schema.bean.Schema;
@@ -52,17 +47,15 @@ import com.tapdata.tm.libSupported.repository.LibSupportedsRepository;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.task.service.LogCollectorService;
-import com.tapdata.tm.typemappings.constant.TypeMappingDirection;
-import com.tapdata.tm.typemappings.entity.TypeMappingsEntity;
-import com.tapdata.tm.typemappings.service.TypeMappingsService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.proxy.dto.SubscribeDto;
 import com.tapdata.tm.proxy.dto.SubscribeResponseDto;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
+import com.tapdata.tm.task.service.LogCollectorService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.typemappings.service.TypeMappingsService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -1867,6 +1860,16 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	public DataSourceConnectionDto importEntity(DataSourceConnectionDto dto, UserDetail userDetail) {
 		DataSourceEntity dataSourceEntity = repository.importEntity(convertToEntity(DataSourceEntity.class, dto), userDetail);
 		return convertToDto(dataSourceEntity, DataSourceConnectionDto.class);
+	}
+
+
+	public DataSourceConnectionDto addConnection(DataSourceConnectionDto connectionDto, UserDetail userDetail) {
+
+		DataSourceDefinitionDto dataSourceDefinitionDto =
+				dataSourceDefinitionService.getMongoDbByDataSourceType(connectionDto.getDatabase_type());
+		connectionDto.setPdkType("pdk");
+		connectionDto.setPdkHash(dataSourceDefinitionDto.getPdkHash());
+		return add(connectionDto,userDetail);
 	}
 
 }

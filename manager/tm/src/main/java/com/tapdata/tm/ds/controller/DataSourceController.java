@@ -2,7 +2,6 @@ package com.tapdata.tm.ds.controller;
 
 import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Field;
@@ -12,6 +11,7 @@ import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.CreateTypeEnum;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.bean.NoSchemaFilter;
 import com.tapdata.tm.ds.dto.ConnectionStats;
@@ -580,6 +580,15 @@ public class DataSourceController extends BaseController {
             }
         }
         return success(taskIds);
+    }
+
+
+    @Operation(summary = "添加数据源连接")
+    @PostMapping("/addConnection")
+    public ResponseMessage<String> addConnection(@RequestBody DataSourceConnectionDto connection) {
+        connection.setId(null);
+        DataSourceConnectionDto dataSourceConnectionDto =  dataSourceService.addConnection(connection, getLoginUser());
+        return success(dataSourceConnectionDto.getId().toHexString());
     }
 
 }

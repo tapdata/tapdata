@@ -38,6 +38,7 @@ import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.SendStatus;
 import com.tapdata.tm.utils.UUIDUtil;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -253,6 +254,12 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
 
                 userDetail = getUserDetail(user);
                 roleMappingService.initUserDefaultRole(user, userDetail);
+
+                UserDetail finalUserDetail = userDetail;
+                CommonUtils.ignoreAnyError(() -> {
+                    //添加ldp目录
+                    ldpService.addLdpDirectory(finalUserDetail);
+                }, "TMUSER");
             }
         }
 
