@@ -1339,8 +1339,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			query.fields().include("_id", "user_id");
 			ModulesDto one = findOne(query, user);
 
-			modulesDto.setListtags(null);
-			modulesDto.setStatus(TaskDto.STATUS_EDIT);
+			modulesDto.setIsDeleted(false);
 
 			if (one == null) {
 				ModulesDto one1 = findOne(new Query(Criteria.where("_id").is(modulesDto.getId()).and("is_deleted").ne(true)));
@@ -1364,6 +1363,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 						modulesDto.setId(new ObjectId());
 					}
 					ModulesEntity importEntity = repository.importEntity(convertToEntity(ModulesEntity.class, modulesDto), user);
+					log.info("import api modules {}", importEntity);
 				} else {
 					updateByWhere(new Query(Criteria.where("_id").is(objectId)), modulesDto, user);
 				}
