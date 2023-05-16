@@ -53,6 +53,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -461,14 +462,19 @@ public class ProxyController extends BaseController {
 
     @Operation(summary = "External callback url")
     @GetMapping("memory/connectors")
-    public void memoryV2Get(@RequestParam(name = "access_token", required = false) String token, @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
+    public void memoryV2Get(@RequestParam(name = "access_token", required = false) String token, @RequestParam(name = "fileName",required = false) String fileName, @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
         //if(token == null || !token.equals(TOKEN)) {
         //    response.sendError(SC_UNAUTHORIZED);
         //    return;
         //}
+        if (null == fileName || "".equals(fileName.trim())){
+            fileName = "connectors_memory_" + UUID.randomUUID().toString() + ".json";
+        }
         UserDetail userDetail = getLoginUser();
         List<String> keysList= new ArrayList<>();
         keysList.add("TapConnectorManager");
+        response.setContentType("application/octet-stream");
+        response.setHeader("Content-Disposition", "attachment;filename=" + URLEncoder.encode(fileName, "UTF-8"));
         if(processId != null) {
             ServiceCaller serviceCaller = new ServiceCaller()
                     .className("MemoryService")
@@ -477,7 +483,7 @@ public class ProxyController extends BaseController {
             serviceCaller.subscribeIds("processId_" + processId);
             executeServiceCaller(request, response, serviceCaller, null);
         } else {
-            response.setContentType("application/json");
+            //response.setContentType("application/json");
             response.getOutputStream().write(PDKIntegration.outputMemoryFetchers(keysList, null, "Detail").getBytes(StandardCharsets.UTF_8));
         }
     }
@@ -487,11 +493,15 @@ public class ProxyController extends BaseController {
     public void supervisorInfo(
             @RequestParam(name = "access_token") String token,
             @RequestParam(name = "associateIds", required = false) String associateIds,
+            @RequestParam(name = "fileName",required = false) String fileName,
             @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
         //if(token == null || !token.equals(TOKEN)) {
         //    response.sendError(SC_UNAUTHORIZED);
         //    return;
         //}
+        if (null == fileName || "".equals(fileName.trim())){
+            fileName = "supervisor_memory_" + UUID.randomUUID().toString() + ".json";
+        }
         UserDetail userDetail = getLoginUser();
         String ip = request.getLocalAddr();
         String doMain = String.format(
@@ -502,9 +512,11 @@ public class ProxyController extends BaseController {
                 token,
                 processId
         );
-        String method = Objects.isNull(associateIds) || associateIds.trim().equals("") ? "Summary_" + doMain : "Connectors_" + associateIds;
+        String method = Objects.isNull(associateIds) || "".equals(associateIds.trim()) ? "Summary_" + doMain : "Connectors_" + associateIds;
         List<String> keys = new ArrayList<>();
         keys.add("TaskResourceSupervisorManager");
+        response.setContentType("application/octet-stream");
+        response.setHeader("Content-Disposition", "attachment;filename=" + URLEncoder.encode(fileName, "UTF-8"));
         if(processId != null) {
             ServiceCaller serviceCaller = new ServiceCaller()
                     .className("MemoryService")
