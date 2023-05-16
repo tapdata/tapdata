@@ -528,11 +528,11 @@ public class ProxyController extends BaseController {
             fileName = processId + "_supervisor_details_" + UUID.randomUUID().toString() + ".json";
         }
         UserDetail userDetail = getLoginUser();
-        String ip = request.getLocalAddr();
+        String ip = request.getServerName();
         String doMain = String.format(
                 "http://%s:%s%s?access_token=%s&pid=%s&associateIds=",
                 "0:0:0:0:0:0:0:1".equals(ip) ? "127.0.0.1" : ip,
-                request.getLocalPort(),
+                request.getServerPort(),
                 request.getRequestURI(),
                 token,
                 processId
