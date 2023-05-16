@@ -29,6 +29,7 @@
 		<junit.jupiter.version>5.8.1</junit.jupiter.version>
 		<junit.platform.version>1.8.1</junit.platform.version>
 		<error-code-core.version>1.0-SNAPSHOT</error-code-core.version>
+		<error-code-scanner.version>1.0-SNAPSHOT</error-code-scanner.version>
 	</properties>
 	<dependencyManagement>
 		<dependencies>
@@ -97,6 +98,11 @@
 				<groupId>io.tapdata</groupId>
 				<artifactId>error-code-core</artifactId>
 				<version>${error-code-core.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.tapdata</groupId>
+				<artifactId>error-code-scanner</artifactId>
+				<version>${error-code-scanner.version}</version>
 			</dependency>
 		</dependencies>
 
