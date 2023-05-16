@@ -30,10 +30,17 @@ public class RecordWriter {
     protected final TapTable tapTable;
     protected ExceptionCollector exceptionCollector = new AbstractExceptionCollector() {
     };
+    protected boolean isTransaction = false;
 
     public RecordWriter(JdbcContext jdbcContext, TapTable tapTable) throws SQLException {
         this.connection = jdbcContext.getConnection();
         this.tapTable = tapTable;
+    }
+
+    public RecordWriter(Connection connection, TapTable tapTable) throws SQLException {
+        this.connection = connection;
+        this.tapTable = tapTable;
+        isTransaction = true;
     }
 
     public void write(List<TapRecordEvent> tapRecordEvents, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws SQLException {
@@ -71,7 +78,7 @@ public class RecordWriter {
             updateRecorder.executeBatch(listResult);
             deleteRecorder.executeBatch(listResult);
             //some datasource must be auto commit, error will occur when commit
-            if (!connection.getAutoCommit()) {
+            if (!connection.getAutoCommit() && !isTransaction) {
                 connection.commit();
             }
             //release resource
@@ -89,7 +96,9 @@ public class RecordWriter {
             insertRecorder.releaseResource();
             updateRecorder.releaseResource();
             deleteRecorder.releaseResource();
-            connection.close();
+            if (!isTransaction) {
+                connection.close();
+            }
             writeListResultConsumer.accept(listResult
                     .insertedCount(insertRecorder.getAtomicLong().get())
                     .modifiedCount(updateRecorder.getAtomicLong().get())
