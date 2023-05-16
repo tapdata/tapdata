@@ -589,6 +589,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     public void checkTaskName(String newName, UserDetail user, ObjectId id) {
+        if (StringUtils.isBlank(newName)) {
+            throw new BizException("Task.NameIsNull");
+        }
         if (checkTaskNameNotError(newName, user, id)) {
             throw new BizException("Task.RepeatName");
         }
