@@ -31,10 +31,16 @@ public class PDKMethodInvoker {
     private long maxRetryTimeMinute; //util:seconds
     private TapLogger.LogListener logListener;
     private Runnable startRetry;
+	private Runnable resetRetry;
     private boolean enableSkipErrorEvent;
 
     public PDKMethodInvoker startRetry(Runnable startRetry) {
         this.startRetry = startRetry;
+        return this;
+    }
+
+    public PDKMethodInvoker resetRetry(Runnable resetRetry) {
+        this.resetRetry = resetRetry;
         return this;
     }
 
@@ -172,6 +178,10 @@ public class PDKMethodInvoker {
     public Runnable getStartRetry() {
         return startRetry;
     }
+
+	public Runnable getResetRetry() {
+		return resetRetry;
+	}
 
     public boolean isEnableSkipErrorEvent() {
         return enableSkipErrorEvent;
