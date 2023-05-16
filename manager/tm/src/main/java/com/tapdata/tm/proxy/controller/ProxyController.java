@@ -462,13 +462,26 @@ public class ProxyController extends BaseController {
 
     @Operation(summary = "External callback url")
     @GetMapping("memory/connectors")
-    public void memoryV2Get(@RequestParam(name = "access_token", required = false) String token, @RequestParam(name = "fileName",required = false) String fileName, @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
+    public void memoryV2GetDefaultName(
+            @RequestParam(name = "access_token") String token,
+            @RequestParam(name = "fileName", required = false) String fileName,
+            @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        memoryV2Get(token, null, processId, request, response);
+    }
+
+    @Operation(summary = "External callback url")
+    @GetMapping("memory/connectors/{fileName}")
+    public void memoryV2Get(
+            @RequestParam(name = "access_token", required = false) String token,
+            @PathVariable(name = "fileName",required = false) String fileName,
+            @RequestParam(name = "pid", required = false) String processId,
+            HttpServletRequest request, HttpServletResponse response) throws IOException {
         //if(token == null || !token.equals(TOKEN)) {
         //    response.sendError(SC_UNAUTHORIZED);
         //    return;
         //}
         if (null == fileName || "".equals(fileName.trim())){
-            fileName = "connectors_memory_" + UUID.randomUUID().toString() + ".json";
+            fileName = processId + "_connectors_memory_" + UUID.randomUUID().toString() + ".json";
         }
         UserDetail userDetail = getLoginUser();
         List<String> keysList= new ArrayList<>();
@@ -490,17 +503,29 @@ public class ProxyController extends BaseController {
 
     @Operation(summary = "External callback url")
     @GetMapping("supervisor")
+    public void supervisorInfoDefaultName(
+            @RequestParam(name = "access_token") String token,
+            @RequestParam(name = "associateIds", required = false) String associateIds,
+            @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        supervisorInfo(token, associateIds, null, processId, request, response);
+    }
+
+    @Operation(summary = "External callback url")
+    @GetMapping("supervisor/{fileName}")
     public void supervisorInfo(
             @RequestParam(name = "access_token") String token,
             @RequestParam(name = "associateIds", required = false) String associateIds,
-            @RequestParam(name = "fileName",required = false) String fileName,
+            @PathVariable(name = "fileName",required = false) String fileName,
             @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
         //if(token == null || !token.equals(TOKEN)) {
         //    response.sendError(SC_UNAUTHORIZED);
         //    return;
         //}
         if (null == fileName || "".equals(fileName.trim())){
-            fileName = "supervisor_memory_" + UUID.randomUUID().toString() + ".json";
+            fileName = processId + "_supervisor_summary_" + UUID.randomUUID().toString() + ".json";
+        }
+        if (null != associateIds && !"".equals(associateIds.trim())){
+            fileName = processId + "_supervisor_details_" + UUID.randomUUID().toString() + ".json";
         }
         UserDetail userDetail = getLoginUser();
         String ip = request.getLocalAddr();
