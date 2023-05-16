@@ -54,6 +54,7 @@ import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -593,7 +594,14 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         taskDtoCopy.setId(MongoUtils.toObjectId(testTaskId));
 
         // RPC
-        String url = "http://localhost:3000/api/proxy/call?access_token=" + accessToken;
+        String serverPort = CommonUtils.getProperty("tapdata_proxy_server_port", "3000");
+        int port;
+        try {
+            port = Integer.parseInt(serverPort);
+        } catch (Exception exception){
+            return resultMap(testTaskId, false, "Can't get server port.");
+        }
+        String url = "http://localhost:" + port +"/api/proxy/call?access_token=" + accessToken;
         OkHttpClient client = new OkHttpClient();
         Map<String, Object> paraMap = new HashMap<>();
         paraMap.put("className", "JSProcessNodeTestRunService");
@@ -606,22 +614,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                     .addHeader("Content-Type", "application/json")
                     .build();
             Response response = client.newCall(request).execute();
-            if (response.isSuccessful()) {
-                return (Map<String, Object>) fromJson(response.body().string());
-            }
-            Map<String, Object> errorMap = new HashMap<>();
-            errorMap.put("taskId", testTaskId);
-            errorMap.put("ts", new Date().getTime());
-            errorMap.put("code", "error");
-            errorMap.put("message", "Not any result from RPC.");
-            return errorMap;
+            return (Map<String, Object>) fromJson(response.body().string());
         }catch (Exception e){
-            Map<String, Object> errorMap = new HashMap<>();
-            errorMap.put("taskId", testTaskId);
-            errorMap.put("ts", new Date().getTime());
-            errorMap.put("code", "error");
-            errorMap.put("message", e.getMessage());
-            return errorMap;
+            return resultMap(testTaskId, false, e.getMessage());
         }
 
         // WS
@@ -635,6 +630,15 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         //queueDto.setData(taskDtoCopy);
         //queueDto.setType(TaskDto.SYNC_TYPE_TEST_RUN);
         //messageQueueService.sendMessage(queueDto);
+    }
+
+    private Map<String,Object> resultMap(String testTaskId, boolean isSucceed, String message){
+        Map<String, Object> errorMap = new HashMap<>();
+        errorMap.put("taskId", testTaskId);
+        errorMap.put("ts", new Date().getTime());
+        errorMap.put("code", isSucceed ? "succeed" : "error");
+        errorMap.put("message", message);
+        return errorMap;
     }
 
     private void getPrePre(Node node, List<String> preIds) {

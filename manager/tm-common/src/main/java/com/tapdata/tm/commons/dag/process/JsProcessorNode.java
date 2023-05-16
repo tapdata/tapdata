@@ -35,6 +35,9 @@ public class JsProcessorNode extends ProcessorNode {
 
     protected String declareScript;
 
+    @EqField/* default value is 0, it's sepresents default JS ; if value is 1, */
+    private Integer jsType;
+
 
     @Override
     protected Schema loadSchema(List<String> includes) {

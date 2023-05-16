@@ -43,6 +43,9 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
     @EqField
     private String declareScript;
 
+    @EqField/* default value is 0, it's sepresents default JS ; if value is 1, */
+    private Integer jsType;
+
     @Override
     protected List<Schema> loadSchema(List<String> includes) {
         Map<String, List<Schema>> schemaMap = new HashMap<>();

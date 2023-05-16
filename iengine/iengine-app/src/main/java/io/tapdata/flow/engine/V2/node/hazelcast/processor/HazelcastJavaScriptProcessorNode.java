@@ -30,6 +30,7 @@ import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.StandardJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.StandardMigrateJsProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.ProcessorNodeType;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -101,7 +102,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	 * standard js
 	 */
 	private boolean standard;
-	private final boolean finalJs;
+
+	private boolean finalJs = false;
 
 	@SneakyThrows
 	public HazelcastJavaScriptProcessorNode(ProcessorBaseContext processorBaseContext) {
@@ -111,7 +113,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		if (node instanceof JsProcessorNode) {
 			script = ((JsProcessorNode) node).getScript();
 		} else if (node instanceof MigrateJsProcessorNode) {
-			script = ((MigrateJsProcessorNode) node).getScript();
+			MigrateJsProcessorNode processorNode = (MigrateJsProcessorNode) node;
+			script = processorNode.getScript();
 		} else if (node instanceof CacheLookupProcessorNode) {
 			script = ((CacheLookupProcessorNode) node).getScript();
 		} else {
@@ -120,6 +123,15 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 		if (node instanceof StandardJsProcessorNode || node instanceof StandardMigrateJsProcessorNode) {
 			this.standard = true;
+			int jsType ;
+			if (node instanceof StandardMigrateJsProcessorNode) {
+				StandardMigrateJsProcessorNode processorNode = (StandardMigrateJsProcessorNode) node;
+				jsType = Optional.ofNullable(processorNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
+			} else {
+				StandardJsProcessorNode processorNode = (StandardJsProcessorNode) node;
+				jsType = Optional.ofNullable(processorNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
+			}
+			finalJs = standard && ProcessorNodeType.Standard_JS.contrast(jsType);
 		}
 
 		List<JavaScriptFunctions> javaScriptFunctions;
@@ -130,12 +142,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 					ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class);
 		}
 
-		//@TODO
-		finalJs = standard;
-
 		ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
-
-		//@TODO
 		this.engine = finalJs ?
 			ScriptUtil.getScriptEngine(
 				JSEngineEnum.GRAALVM_JS.getEngineName(),
