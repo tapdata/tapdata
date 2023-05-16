@@ -18,7 +18,11 @@ public enum AlarmKeyEnum {
 
     SYSTEM_FLOW_EGINGE_DOWN(Constant.TYPE_METRIC),
 
-    SYSTEM_FLOW_EGINGE_UP(Constant.TYPE_METRIC);
+    SYSTEM_FLOW_EGINGE_UP(Constant.TYPE_METRIC),
+	INSPECT_TASK_ERROR(Constant.TYPE_EVENT),
+	INSPECT_COUNT_ERROR(Constant.TYPE_EVENT),
+	INSPECT_VALUE_ERROR(Constant.TYPE_EVENT),
+	;
 
 
     private String type;

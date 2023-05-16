@@ -2,6 +2,8 @@ package com.tapdata.tm.inspect.entity;
 
 import com.tapdata.tm.base.entity.SchedulableEntity;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.inspect.bean.Limit;
 import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.inspect.bean.Timing;
@@ -42,4 +44,7 @@ public class InspectEntity extends SchedulableEntity {
     private PlatformInfo platformInfo;
     private  Boolean is_deleted;
     private String taskId;
+
+		private List<AlarmSettingVO> alarmSettings;
+		private List<AlarmRuleVO> alarmRules;
 }
