@@ -461,12 +461,11 @@ public class ProxyController extends BaseController {
 
     @Operation(summary = "External callback url")
     @GetMapping("memory/connectors")
-    public void memoryV2Get(@RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
+    public void memoryV2Get(@RequestParam(name = "access_token", required = false) String token, @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
         //if(token == null || !token.equals(TOKEN)) {
         //    response.sendError(SC_UNAUTHORIZED);
         //    return;
         //}
-        String token = request.getHeader("access_token");
         UserDetail userDetail = getLoginUser();
         List<String> keysList= new ArrayList<>();
         keysList.add("TapConnectorManager");
@@ -486,13 +485,13 @@ public class ProxyController extends BaseController {
     @Operation(summary = "External callback url")
     @GetMapping("supervisor")
     public void supervisorInfo(
+            @RequestParam(name = "access_token") String token,
             @RequestParam(name = "associateIds", required = false) String associateIds,
             @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
         //if(token == null || !token.equals(TOKEN)) {
         //    response.sendError(SC_UNAUTHORIZED);
         //    return;
         //}
-        String token = request.getHeader("access_token");
         UserDetail userDetail = getLoginUser();
         String ip = request.getLocalAddr();
         String doMain = String.format(
