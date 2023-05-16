@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.sharecdc.impl;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
 import com.hazelcast.spi.exception.DistributedObjectDestroyedException;
 import com.tapdata.constant.ConnectorConstant;
@@ -51,10 +52,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import java.io.IOException;
 import java.io.Serializable;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -388,16 +386,27 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			}
 			try {
 				while (running.get()) {
+					ShareCdcReaderResource shareCdcReaderResource;
+					HazelcastConstruct<Document> construct;
 					for (String tableName : tableNames) {
-						HazelcastConstruct<Document> construct = readerResourceMap.get(tableName).construct;
-						if (null == readerResourceMap.get(tableName).sequence) {
+						shareCdcReaderResource = readerResourceMap.get(tableName);
+						if (null == shareCdcReaderResource) {
+							if (running.get()) {
+								continue;
+							} else {
+								break;
+							}
+						}
+
+						construct = shareCdcReaderResource.construct;
+						if (null == shareCdcReaderResource.sequence) {
 							try {
 								// Find first sequence by timestamp
 								if (null == this.shareCdcContext.getCdcStartTs()) {
 									throw new RuntimeException("Cannot found table[" + tableName + "] share cdc start time from sync progress");
 								}
 								long sequenceFindByTs = construct.findSequence(this.shareCdcContext.getCdcStartTs());
-								readerResourceMap.get(tableName).sequence(sequenceFindByTs);
+								shareCdcReaderResource.sequence(sequenceFindByTs);
 								sequenceMap.put(tableName, sequenceFindByTs);
 								shareCdcContext.getObsLogger().info(logWrapper("Find sequence in construct(" + tableName + ") by timestamp(" + Instant.ofEpochMilli(this.shareCdcContext.getCdcStartTs()) + "): " + sequenceFindByTs));
 							} catch (Exception e) {
@@ -406,22 +415,22 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 								return;
 							}
 						}
-						if (readerResourceMap.get(tableName).firstTime) {
-							readerResourceMap.get(tableName).firstTime = false;
+						if (shareCdcReaderResource.firstTime) {
+							shareCdcReaderResource.firstTime = false;
 							readCountDown.countDown();
 							if (readCountDown.getCount() <= 0 && null != streamReadConsumer) {
 								streamReadConsumer.streamReadStarted();
 							}
-							shareCdcContext.getObsLogger().info(logWrapper("Starting read '{}' log, sequence: {}"), tableName, readerResourceMap.get(tableName).sequence);
+							shareCdcContext.getObsLogger().info(logWrapper("Starting read '{}' log, sequence: {}"), tableName, shareCdcReaderResource.sequence);
 						}
 						// Find hazelcast construct iterator
 						Map<String, Object> filter = new HashMap<>();
-						filter.put(ConstructRingBuffer.SEQUENCE_KEY, readerResourceMap.get(tableName).sequence);
+						filter.put(ConstructRingBuffer.SEQUENCE_KEY, shareCdcReaderResource.sequence);
 						ConstructIterator<Document> iterator;
-						if (null == readerResourceMap.get(tableName).iterator) {
+						if (null == shareCdcReaderResource.iterator) {
 							try {
 								iterator = construct.find(filter);
-								readerResourceMap.get(tableName).iterator = iterator;
+								shareCdcReaderResource.iterator = iterator;
 								logger.info(logWrapper("Find by " + tableName + " filter: " + filter));
 							} catch (Exception e) {
 								String err = "Find from hazelcast construct " + construct.getClass().getName() + " failed, filter: " + filter + "; Error: " + e.getMessage();
@@ -429,7 +438,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 								return;
 							}
 						}
-						iterator = readerResourceMap.get(tableName).iterator;
+						iterator = shareCdcReaderResource.iterator;
 						if (iterator == null) {
 							String err = "Find hazelcast construct " + construct.getClass().getName() + " failed, iterator result is null, filter: " + filter;
 							handleFailed(err);
@@ -462,9 +471,9 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 						}
 						sequenceMap.put(tableName, iterator.getSequence());
 						documents.forEach(doc -> enqueue(tapEventWrapper(doc)));
-						if (readerResourceMap.get(tableName).firstData) {
+						if (shareCdcReaderResource.firstData) {
 							shareCdcContext.getObsLogger().info(logWrapper("Successfully read " + tableName + "'s first log data, will continue to read the log"));
-							readerResourceMap.get(tableName).firstData = false;
+							shareCdcReaderResource.firstData = false;
 						}
 					}
 				}
@@ -475,16 +484,12 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		}
 
 		public void close() {
-			CommonUtils.ignoreAnyError(() -> {
-				if (MapUtils.isNotEmpty(readerResourceMap)) {
-					readerResourceMap.values().forEach(r -> {
-						try {
-							PersistenceStorage.getInstance().destroy(r.construct.getName());
-						} catch (Exception ignored) {
-						}
-					});
-				}
-			}, ReadRunner.class.getSimpleName());
+			String tag = ReadRunner.class.getSimpleName();
+			for (String tableName : tableNames) {
+				ShareCdcReaderResource readerResource = readerResourceMap.remove(tableName);
+				if (null == readerResource) continue;
+				CommonUtils.ignoreAnyError(() -> PersistenceStorage.getInstance().destroy(ConstructType.RINGBUFFER, readerResource.construct.getName()), tag);
+			}
 		}
 	}
 
