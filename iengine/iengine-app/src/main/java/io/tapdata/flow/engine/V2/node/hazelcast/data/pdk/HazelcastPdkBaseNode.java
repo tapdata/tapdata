@@ -121,7 +121,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				.retryPeriodSeconds(retryIntervalSecond)
 				.maxRetryTimeMinute(maxRetryTimeSecond)
 				.logListener(logListener)
-				.startRetry(taskRetryService::start);
+				.startRetry(taskRetryService::start)
+				.resetRetry(taskRetryService::reset);
 		this.pdkMethodInvokerList.add(pdkMethodInvoker);
 		return pdkMethodInvoker;
 	}
