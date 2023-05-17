@@ -606,6 +606,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     public void checkTaskName(String newName, UserDetail user, ObjectId id) {
+        if (StringUtils.isBlank(newName)) {
+            throw new BizException("Task.NameIsNull");
+        }
         if (checkTaskNameNotError(newName, user, id)) {
             throw new BizException("Task.RepeatName");
         }
@@ -1059,17 +1062,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void renew(ObjectId id, UserDetail user) {
         TaskDto taskDto = checkExistById(id, user);
         boolean needCreateRecord = !TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
+        TaskEntity taskSnapshot = null;
         if (needCreateRecord) {
-            String lastTaskRecordId = new ObjectId().toHexString();
-            Update update = Update.update(TaskDto.LASTTASKRECORDID, lastTaskRecordId);
-            updateById(id.toHexString(), update, user);
-
-            taskDto.setTaskRecordId(lastTaskRecordId);
-            TaskEntity taskSnapshot = new TaskEntity();
+            taskSnapshot = new TaskEntity();
             BeanUtil.copyProperties(taskDto, taskSnapshot);
-
-            disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD,
-                    new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
         }
 //        String status = taskDto.getStatus();
 //        if (TaskDto.STATUS_WAIT_START.equals(status)) {
@@ -1093,6 +1089,16 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.debug("check task status complete, task name = {}", taskDto.getName());
             taskResetLogService.clearLogByTaskId(id.toHexString());
             sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_RESET);
+
+            if (needCreateRecord) {
+                String lastTaskRecordId = new ObjectId().toHexString();
+                Update update = Update.update(TaskDto.LASTTASKRECORDID, lastTaskRecordId);
+                updateById(id.toHexString(), update, user);
+
+                taskSnapshot.setTaskRecordId(lastTaskRecordId);
+                disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD,
+                        new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+            }
         }
         //afterRenew(taskDto, user);
     }
@@ -3143,10 +3149,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
 
-        if (TaskDto.LDP_TYPE_FDM.equals(taskDto.getLdpType())) {
-            //如果是共享挖掘任务给一个队列，避免混乱
-            lockControlService.fdmStartQueue(user);
-        }
+//        if (TaskDto.LDP_TYPE_FDM.equals(taskDto.getLdpType())) {
+//            //如果是共享挖掘任务给一个队列，避免混乱
+//            lockControlService.fdmStartQueue(user);
+//        }
 
         Update update = Update.update("lastStartDate", System.currentTimeMillis());
         if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
@@ -3248,6 +3254,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param userDetail
      */
     public void updateTaskRecordStatus(TaskDto dto, String status, UserDetail userDetail) {
+
+        //对于重置是异步的，并且在并发情况下可能存在多条运行记录，如果在这里过滤掉重置状态。可以调整创建运行记录的时间点避免
+        if (TaskDto.STATUS_RENEWING.equals(status)) {
+            return;
+        }
+
         dto.setStatus(status);
         if (StringUtils.isNotBlank(dto.getTaskRecordId())) {
             SyncTaskStatusDto info = SyncTaskStatusDto.builder()

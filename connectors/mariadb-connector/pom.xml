@@ -28,6 +28,12 @@
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-api</artifactId>
+            <version>${tapdata.pdk.api.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
             <artifactId>connector-core</artifactId>
         </dependency>
 
@@ -40,7 +46,7 @@
 
         <dependency>
             <groupId>io.tapdata</groupId>
-            <artifactId>mysql-core</artifactId>
+            <artifactId>mysql-connector</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
 

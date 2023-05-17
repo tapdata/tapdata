@@ -69,7 +69,10 @@ public class RetryUtils extends CommonUtils {
 					if (errThrowable instanceof TapCodeException) {
 						String code = ((TapCodeException) errThrowable).getCode();
 						ErrorCodeEntity errorCode = ErrorCodeConfig.getInstance().getErrorCode(code);
-						if (errorCode.isSkippable()) {
+						if (null != errorCode && errorCode.isSkippable()) {
+							if (!errorCode.isRecoverable()) {
+								Optional.ofNullable(invoker.getResetRetry()).ifPresent(Runnable::run);
+							}
 							throw (TapCodeException) errThrowable;
 						}
 					}
@@ -81,6 +84,7 @@ public class RetryUtils extends CommonUtils {
 					case WHEN_NEED:
 						if (null == errorHandleFunction) {
 							TapLogger.debug(logTag, "This PDK data source not support retry. ");
+							Optional.ofNullable(invoker.getResetRetry()).ifPresent(Runnable::run);
 							wrapAndThrowError(errThrowable);
 						}
 						break;
@@ -94,7 +98,7 @@ public class RetryUtils extends CommonUtils {
 					boolean needDefaultRetry = needDefaultRetry(errThrowable);
 					RetryOptions retryOptions = callErrorHandleFunctionIfNeed(method, message, errThrowable, errorHandleFunction, functionAndContext.tapConnectionContext());
 					if (!needDefaultRetry) {
-						throwIfNeed(retryOptions, message, errThrowable);
+						throwIfNeed(invoker, retryOptions, message, errThrowable);
 					}
 					Optional.ofNullable(invoker.getLogListener())
 							.ifPresent(log -> log.warn(String.format("AutoRetry info: retry times (%s) | periodSeconds (%s s) | error [%s] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage())));
@@ -139,6 +143,14 @@ public class RetryUtils extends CommonUtils {
 	}
 
 	private static RetryOptions callErrorHandleFunctionIfNeed(PDKMethod method, String message, Throwable errThrowable, ErrorHandleFunction function, TapConnectionContext tapConnectionContext) {
+		if (errThrowable instanceof TapCodeException) {
+			String code = ((TapCodeException) errThrowable).getCode();
+			ErrorCodeEntity errorCode = ErrorCodeConfig.getInstance().getErrorCode(code);
+			if (null != errorCode && !errorCode.isRecoverable()) {
+				return RetryOptions.create().beforeRetryMethod(() -> {}).needRetry(false);
+			}
+		}
+
 		if (null == function) {
 			return null;
 		}
@@ -151,7 +163,7 @@ public class RetryUtils extends CommonUtils {
 		return retryOptions;
 	}
 
-	private static void throwIfNeed(RetryOptions retryOptions, String message, Throwable errThrowable) {
+	private static void throwIfNeed(PDKMethodInvoker invoker, RetryOptions retryOptions, String message, Throwable errThrowable) {
 		if (null == retryOptions) {
 			return;
 		}
@@ -160,6 +172,7 @@ public class RetryUtils extends CommonUtils {
 				throw errThrowable;
 			}
 		} catch (Throwable e) {
+			Optional.ofNullable(invoker.getResetRetry()).ifPresent(Runnable::run);
 			wrapAndThrowError(e);
 		}
 	}

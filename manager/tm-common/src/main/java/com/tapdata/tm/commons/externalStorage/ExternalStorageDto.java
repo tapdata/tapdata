@@ -18,6 +18,7 @@ public class ExternalStorageDto extends BaseDto {
 	private String name;
 	private String type;
 	private String uri;
+	@Deprecated
 	private String table;
 	private Integer ttlDay;
 	private boolean canEdit = false;
@@ -52,7 +53,7 @@ public class ExternalStorageDto extends BaseDto {
 				"name='" + name + '\'' +
 				", type='" + type + '\'' +
 				", uri='" + maskUriPassword() + '\'' +
-				(type.equals("mongodb") ? (", table='" + table + '\'') : "") +
+				("mongodb".equals(type) ? (", table='" + table + '\'') : "") +
 				"} ";
 	}
 }

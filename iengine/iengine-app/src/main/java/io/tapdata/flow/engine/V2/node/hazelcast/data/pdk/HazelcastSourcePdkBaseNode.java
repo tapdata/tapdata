@@ -111,7 +111,7 @@ import java.util.stream.Collectors;
  * @create 2022-05-11 14:59
  **/
 public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
-	private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
+	private static final String TAG = HazelcastSourcePdkBaseNode.class.getSimpleName();
 	public static final long PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT = 10L;
 	public static final String TAPEVENT_INFO_EVENT_ID_KEY = "eventId";
 	private static final int ASYNCLY_COUNT_SNAPSHOT_ROW_SIZE_TABLE_THRESHOLD = 100;
@@ -468,7 +468,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}
 			TapdataEvent dataEvent = null;
 			if (!isRunning()) {
-				return null == error;
+				return true;
 			}
 			if (pendingEvent != null) {
 				dataEvent = pendingEvent;
@@ -508,14 +508,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					this.running.set(false);
 				}
 			}
-			/*if (1 == 1) {
-				Thread.sleep(5000L);
-				throw new RuntimeException("test");
-			}*/
+
 		} catch (Exception e) {
 			String errorMsg = String.format("Source sync failed: %s", e.getMessage());
-			obsLogger.error(errorMsg, e);
-//			throw new RuntimeException(errorMsg, e);
+
 			errorHandle(e, errorMsg);
 		} finally {
 			ThreadContext.clearAll();
@@ -758,6 +754,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						throw new RuntimeException("Deep clone batch offset map failed: " + e.getMessage(), e);
 					}
 					tapdataEvent.setBatchOffset(newMap);
+					tapdataEvent.setStreamOffset(syncProgress.getStreamOffsetObj());
 					tapdataEvent.setSourceTime(syncProgress.getSourceTime());
 				}
 			} else if (SyncStage.CDC == syncStage) {
@@ -770,10 +767,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			tapdataEvent = TapdataHeartbeatEvent.create(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
 		} else if (tapEvent instanceof TapDDLEvent) {
 			obsLogger.info("Source node received an ddl event: " + tapEvent);
+
 			if (null != ddlFilter && !ddlFilter.test((TapDDLEvent) tapEvent)) {
 				obsLogger.warn("DDL events are filtered\n - Event: " + tapEvent + "\n - Filter: " + JSON.toJSONString(ddlFilter));
 				return null;
 			}
+
+
 			tapdataEvent.setStreamOffset(offsetObj);
 			tapdataEvent.setSourceTime(((TapDDLEvent) tapEvent).getReferenceTime());
 			if (sourceMode.equals(SourceMode.NORMAL)) {

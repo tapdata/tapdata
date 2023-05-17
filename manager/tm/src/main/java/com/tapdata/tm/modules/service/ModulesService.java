@@ -3,9 +3,10 @@ package com.tapdata.tm.modules.service;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
+import cn.hutool.extra.cglib.CglibUtil;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.mongodb.ConnectionString;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.service.ApiCallService;
@@ -15,26 +16,31 @@ import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.Tag;
+import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
-import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.file.service.FileService;
+import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.modules.constant.ApiTypeEnum;
-import com.tapdata.tm.modules.constant.ParamTypeEnum;
-import com.tapdata.tm.modules.dto.Param;
-import com.tapdata.tm.modules.vo.ModulesDetailVo;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
+import com.tapdata.tm.modules.constant.ParamTypeEnum;
 import com.tapdata.tm.modules.dto.ModulesDto;
+import com.tapdata.tm.modules.dto.ModulesUpAndLoadDto;
+import com.tapdata.tm.modules.dto.Param;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.param.AttrsParam;
 import com.tapdata.tm.modules.repository.ModulesRepository;
 import com.tapdata.tm.modules.vo.*;
+import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.utils.AES256Util;
+import com.tapdata.tm.utils.FunctionUtils;
+import com.tapdata.tm.utils.GZIPUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -47,11 +53,16 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import javax.servlet.http.HttpServletResponse;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -65,6 +76,12 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
     @Autowired
     DataSourceService dataSourceService;
+
+		@Autowired
+		private MetadataInstancesService metadataInstancesService;
+
+		@Autowired
+		private FileService fileService;
 
     @Autowired
     ApiCallService apiCallService;
@@ -1212,4 +1229,164 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
             }
         }
     }
+
+	public void batchLoadTask(HttpServletResponse response, List<String> ids, UserDetail user) {
+
+		List<TaskUpAndLoadDto> jsonList = new ArrayList<>();
+		List<ModulesDto> allModules = findAllModulesByIds(ids);
+		Map<String, ModulesDto> modulesDtoMap = allModules.stream().collect(Collectors.toMap(t -> t.getId().toHexString(), Function.identity(), (e1, e2) -> e1));
+		for (String id : ids) {
+			ModulesDto modulesDto = modulesDtoMap.get(id);
+			if (null != modulesDto) {
+				modulesDto.setCreateUser(null);
+				modulesDto.setCustomId(null);
+				modulesDto.setLastUpdBy(null);
+				modulesDto.setUserId(null);
+				modulesDto.setListtags(null);
+				jsonList.add(new TaskUpAndLoadDto("Modules", JsonUtil.toJsonUseJackson(modulesDto)));
+
+				DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(MongoUtils.toObjectId(modulesDto.getConnectionId()));
+				dataSourceConnectionDto.setCreateUser(null);
+				dataSourceConnectionDto.setCustomId(null);
+				dataSourceConnectionDto.setLastUpdBy(null);
+				dataSourceConnectionDto.setUserId(null);
+				dataSourceConnectionDto.setListtags(null);
+				String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", dataSourceConnectionDto, null);
+				MetadataInstancesDto dataSourceMetadataInstance = metadataInstancesService.findOne(
+								Query.query(Criteria.where("qualified_name").is(databaseQualifiedName).and("is_deleted").ne(true)), user);
+				jsonList.add(new TaskUpAndLoadDto("MetadataInstances", JsonUtil.toJsonUseJackson(dataSourceMetadataInstance)));
+				jsonList.add(new TaskUpAndLoadDto("Connections", JsonUtil.toJsonUseJackson(dataSourceConnectionDto)));
+			}
+		}
+		String json = JsonUtil.toJsonUseJackson(jsonList);
+
+		AtomicReference<String> fileName = new AtomicReference<>("");
+		String yyyymmdd = DateUtil.today().replaceAll("-", "");
+		FunctionUtils.isTureOrFalse(ids.size() > 1).trueOrFalseHandle(
+						() -> fileName.set("module_batch" + "-" + yyyymmdd),
+						() -> fileName.set(modulesDtoMap.get(ids.get(0)).getName() + "-" + yyyymmdd)
+		);
+		fileService.viewImg1(json, response, fileName.get() + ".json.gz");
+	}
+
+	public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover) {
+
+		if (!Objects.requireNonNull(multipartFile.getOriginalFilename()).endsWith("json.gz")) {
+			//不支持其他的格式文件
+			throw new BizException("Modules.ImportFormatError");
+		}
+		try {
+			byte[] bytes = GZIPUtil.unGzip(multipartFile.getBytes());
+
+			String json = new String(bytes, StandardCharsets.UTF_8);
+
+			List<ModulesUpAndLoadDto> modulesUpAndLoadDtos = JsonUtil.parseJsonUseJackson(json, new TypeReference<List<ModulesUpAndLoadDto>>() {
+			});
+
+			if (modulesUpAndLoadDtos == null) {
+				//不支持其他的格式文件
+				throw new BizException("Modules.ImportFormatError");
+			}
+
+			List<MetadataInstancesDto> metadataInstancess = new ArrayList<>();
+			List<ModulesDto> modulesDtos = new ArrayList<>();
+			List<DataSourceConnectionDto> connections = new ArrayList<>();
+			for (ModulesUpAndLoadDto modulesUpAndLoadDto : modulesUpAndLoadDtos) {
+				try {
+					String dtoJson = modulesUpAndLoadDto.getJson();
+					if (org.apache.commons.lang3.StringUtils.isBlank(modulesUpAndLoadDto.getJson())) {
+						continue;
+					}
+					if ("MetadataInstances".equals(modulesUpAndLoadDto.getCollectionName())) {
+						metadataInstancess.add(JsonUtil.parseJsonUseJackson(dtoJson, MetadataInstancesDto.class));
+					} else if ("Modules".equals(modulesUpAndLoadDto.getCollectionName())) {
+						modulesDtos.add(JsonUtil.parseJsonUseJackson(dtoJson, ModulesDto.class));
+					} else if ("Connections".equals(modulesUpAndLoadDto.getCollectionName())) {
+						connections.add(JsonUtil.parseJsonUseJackson(dtoJson, DataSourceConnectionDto.class));
+					}
+				} catch (Exception e) {
+					log.error("error", e);
+				}
+			}
+
+			Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
+			Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
+			try {
+				conMap = dataSourceService.batchImport(connections, user, cover);
+				metaMap = metadataInstancesService.batchImport(metadataInstancess, user, cover, conMap);
+			} catch (Exception e) {
+				log.error("metadataInstancesService.batchImport error", e);
+			}
+			try {
+				batchImport(modulesDtos, user, cover, conMap, metaMap);
+			} catch (Exception e) {
+				log.error("Modules.batchImport error", e);
+			}
+
+		} catch (Exception e) {
+			//e.printStackTrace();
+			//不支持其他的格式文件
+			throw new BizException("Modules.ImportFormatError");
+		}
+
+	}
+
+	private void batchImport(List<ModulesDto> modulesDtos, UserDetail user, boolean cover, Map<String, DataSourceConnectionDto> conMap, Map<String, MetadataInstancesDto> metaMap) {
+
+
+		for (ModulesDto modulesDto : modulesDtos) {
+			Query query = new Query(Criteria.where("_id").is(modulesDto.getId()).and("is_deleted").ne(true));
+			query.fields().include("_id", "user_id");
+			ModulesDto one = findOne(query, user);
+
+			modulesDto.setIsDeleted(false);
+
+			if (one == null) {
+				ModulesDto one1 = findOne(new Query(Criteria.where("_id").is(modulesDto.getId()).and("is_deleted").ne(true)));
+				if (one1 != null) {
+					modulesDto.setId(null);
+				}
+			}
+
+			if (one == null || cover) {
+				ObjectId objectId = null;
+				if (one != null) {
+					objectId = one.getId();
+				}
+
+				while (checkTaskNameNotError(modulesDto.getName(), user, objectId)) {
+					modulesDto.setName(modulesDto.getName() + "_import");
+				}
+
+				if (one == null) {
+					if (modulesDto.getId() == null) {
+						modulesDto.setId(new ObjectId());
+					}
+					ModulesEntity importEntity = repository.importEntity(convertToEntity(ModulesEntity.class, modulesDto), user);
+					log.info("import api modules {}", importEntity);
+				} else {
+					updateByWhere(new Query(Criteria.where("_id").is(objectId)), modulesDto, user);
+				}
+			}
+		}
+	}
+
+	private boolean checkTaskNameNotError(String newName, UserDetail user, ObjectId id) {
+		Criteria criteria = Criteria.where("name").is(newName).and("is_deleted").ne(true);
+		if (id != null) {
+			criteria.and("_id").ne(id);
+		}
+		Query query = new Query(criteria);
+		long count = count(query, user);
+		return count > 0;
+	}
+
+	public List<ModulesDto> findAllModulesByIds(List<String> list) {
+		List<ObjectId> ids = list.stream().map(ObjectId::new).collect(Collectors.toList());
+
+		Query query = new Query(Criteria.where("_id").in(ids));
+		List<ModulesEntity> entityList = findAllEntity(query);
+		return CglibUtil.copyList(entityList, ModulesDto::new);
+//        return findAll(query);
+	}
 }

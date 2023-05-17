@@ -10,7 +10,6 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -34,7 +33,7 @@ public class RecordEventExecute {
     Map<String, Object> tddConfig;
 
     public Map<String, Object> code(Map<String,Object> map){
-        LinkedHashMap<String, TapField> nameFieldMap = base.getTargetTable().getNameFieldMap();
+        LinkedHashMap<String, TapField> nameFieldMap = base.getTargetTable(connectorNode).getNameFieldMap();
         TapCodecsFilterManager codecsFilterManager = new TapCodecsFilterManager(TapCodecsRegistry.create());
         codecsFilterManager.transformToTapValueMap(map,nameFieldMap);
         TapCodecsFilterManager targetCodecsFilterManager = connectorNode.getCodecsFilterManager();
@@ -159,7 +158,7 @@ public class RecordEventExecute {
     public WriteListResult<TapRecordEvent> insert(List<Record> records) throws Throwable {
         List<TapRecordEvent> tapInsertRecordEvents = new ArrayList<>();
         records.forEach(record -> {
-            TapInsertRecordEvent insertRecordEvent = new TapInsertRecordEvent().table(base.getTargetTable().getId());
+            TapInsertRecordEvent insertRecordEvent = new TapInsertRecordEvent().table(base.getSourceTable().getId());
             insertRecordEvent.setAfter(record);
             insertRecordEvent.setReferenceTime(System.currentTimeMillis());
             tapInsertRecordEvents.add(insertRecordEvent);
@@ -168,7 +167,7 @@ public class RecordEventExecute {
         writeRecordFunction.writeRecord(
                 connectorNode.getConnectorContext(),
                 tapInsertRecordEvents,
-                base.getTargetTable(),
+                base.getSourceTable(),
                 consumer -> {
                     if (null != consumer) consumerBack.set(consumer);
                 }
@@ -179,7 +178,7 @@ public class RecordEventExecute {
     public WriteListResult<TapRecordEvent> update(List<Record> records) throws Throwable {
         List<TapRecordEvent> tapUpdateRecordEvents = new ArrayList<>();
         records.forEach(record -> {
-            TapUpdateRecordEvent updateRecordEvent = new TapUpdateRecordEvent().table(base.getTargetTable().getId());
+            TapUpdateRecordEvent updateRecordEvent = new TapUpdateRecordEvent().table(base.getSourceTable().getId());
             updateRecordEvent.setAfter(record);
             updateRecordEvent.setReferenceTime(System.currentTimeMillis());
             tapUpdateRecordEvents.add(updateRecordEvent);
@@ -188,7 +187,7 @@ public class RecordEventExecute {
         writeRecordFunction.writeRecord(
                 connectorNode.getConnectorContext(),
                 tapUpdateRecordEvents,
-                base.getTargetTable(),
+                base.getSourceTable(),
                 consumer -> {
                     if (null != consumer) consumerBack.set(consumer);
                 }
@@ -199,7 +198,7 @@ public class RecordEventExecute {
     public WriteListResult<TapRecordEvent> deletes(List<Record> records) throws Throwable {
         List<TapRecordEvent> tapDeleteRecordEvents = new ArrayList<>();
         records.forEach(record -> {
-            TapDeleteRecordEvent deleteRecordEvent = new TapDeleteRecordEvent().table(base.getTargetTable().getId());
+            TapDeleteRecordEvent deleteRecordEvent = new TapDeleteRecordEvent().table(base.getSourceTable().getId());
             deleteRecordEvent.setBefore(record);
             deleteRecordEvent.setReferenceTime(System.currentTimeMillis());
             tapDeleteRecordEvents.add(deleteRecordEvent);
@@ -208,7 +207,7 @@ public class RecordEventExecute {
         writeRecordFunction.writeRecord(
                 connectorNode.getConnectorContext(),
                 tapDeleteRecordEvents,
-                base.getTargetTable(),
+                base.getSourceTable(),
                 consumer -> {
                     if (null != consumer)
                         consumerBack.set(consumer);
@@ -224,7 +223,7 @@ public class RecordEventExecute {
         CreateTableV2Function createTable = connectorFunctions.getCreateTableV2Function();
         CreateTableFunction createTableFunction = connectorFunctions.getCreateTableFunction();
         Assertions.assertTrue(null == createTable || null == createTableFunction, "%{please_support_create_table_function}%");
-        TapCreateTableEvent createTableEvent = new TapCreateTableEvent().table(base.getTargetTable());
+        TapCreateTableEvent createTableEvent = new TapCreateTableEvent().table(base.getSourceTable());
         if (null != createTable) {
             CreateTableOptions table = createTable.createTable(connectorNode.getConnectorContext(), createTableEvent);
             Assertions.assertNull(table, "%{null_after_create_table}%");
@@ -239,7 +238,7 @@ public class RecordEventExecute {
     }
 
     public void dropTable() {
-        this.drop(this.base.getTargetTable());
+        this.drop(this.base.getSourceTable());
     }
 
     public void dropTable(TapTable tapTable) {

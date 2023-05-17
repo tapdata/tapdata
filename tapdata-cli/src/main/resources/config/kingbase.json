@@ -1,0 +1,13 @@
+{
+  "connection": {
+    "host": "192.168.1.189",
+    "port": 54321,
+    "database": "test",
+    "schema": "public",
+    "user": "system",
+    "password": "123456",
+    "logPluginName": "wal2json"
+  },
+  "node": {
+  }
+}

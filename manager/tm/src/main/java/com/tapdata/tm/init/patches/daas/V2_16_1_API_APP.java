@@ -45,7 +45,7 @@ public class V2_16_1_API_APP extends AbsPatch {
 
         if (metadataDefinition == null) {
             MetadataDefinitionEntity entity = new MetadataDefinitionEntity();
-            entity.setValue("default_app_api");
+            entity.setValue("Default");
             entity.setItemType(Lists.of("app"));
             entity.setCreateAt(new Date());
             entity.setReadOnly(true);

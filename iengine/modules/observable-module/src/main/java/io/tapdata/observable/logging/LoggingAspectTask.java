@@ -5,7 +5,21 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.*;
+import io.tapdata.aspect.BatchReadFuncAspect;
+import io.tapdata.aspect.ClearTableFuncAspect;
+import io.tapdata.aspect.CreateIndexFuncAspect;
+import io.tapdata.aspect.CreateTableFuncAspect;
+import io.tapdata.aspect.DataNodeInitAspect;
+import io.tapdata.aspect.DropTableFuncAspect;
+import io.tapdata.aspect.ProcessorFunctionAspect;
+import io.tapdata.aspect.ProcessorNodeInitAspect;
+import io.tapdata.aspect.ProcessorNodeProcessAspect;
+import io.tapdata.aspect.SourceStateAspect;
+import io.tapdata.aspect.StreamReadFuncAspect;
+import io.tapdata.aspect.TableCountFuncAspect;
+import io.tapdata.aspect.TaskStartAspect;
+import io.tapdata.aspect.TaskStopAspect;
+import io.tapdata.aspect.WriteRecordFuncAspect;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.entity.aspect.Aspect;
@@ -20,14 +34,20 @@ import io.tapdata.observable.logging.tag.TargetNodeTag;
 import io.tapdata.observable.metric.aspect.ConnectionPingAspect;
 
 import java.lang.reflect.Method;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC})
 public class LoggingAspectTask extends AspectTask {
 	private final ClassHandlers loggingClassHandlers = new ClassHandlers();
+	private ObsLogger taskLogger;
+	private final ConcurrentHashMap<String, ObsLogger> nodeLoggerMap = new ConcurrentHashMap<>();
 
 	public LoggingAspectTask() {
 		loggingClassHandlers.register(DataNodeInitAspect.class, this::handleDataNodeInit);
@@ -54,6 +74,7 @@ public class LoggingAspectTask extends AspectTask {
 	 */
 	@Override
 	public void onStart(TaskStartAspect startAspect) {
+		this.taskLogger = ObsLoggerFactory.getInstance().getObsLogger(task);
 		getObsLogger().info("Task initialization...");
 	}
 
@@ -100,11 +121,14 @@ public class LoggingAspectTask extends AspectTask {
 
 
 	private ObsLogger getObsLogger() {
-		return ObsLoggerFactory.getInstance().getObsLogger(task);
+		return taskLogger;
 	}
 
 	private ObsLogger getObsLogger(Node<?> node) {
-		return ObsLoggerFactory.getInstance().getObsLogger(task, node.getId(), node.getName());
+		return nodeLoggerMap.computeIfAbsent(
+				node.getId(),
+				nodeId -> ObsLoggerFactory.getInstance().getObsLogger(task, nodeId, node.getName())
+		);
 	}
 
 	public boolean noNeedLog(String level) {

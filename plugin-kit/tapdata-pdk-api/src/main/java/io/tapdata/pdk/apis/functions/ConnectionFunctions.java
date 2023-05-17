@@ -1,20 +1,14 @@
 package io.tapdata.pdk.apis.functions;
 
-import io.tapdata.entity.schema.TapTable;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.Capability;
-import io.tapdata.pdk.apis.functions.connection.*;
-import io.tapdata.pdk.apis.functions.connector.TapFunction;
-import io.tapdata.pdk.apis.functions.connector.common.ReleaseExternalFunction;
-import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
-import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
-import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
-import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
-import io.tapdata.pdk.apis.functions.connector.target.*;
-
-import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.List;
+import io.tapdata.pdk.apis.functions.connection.CheckTableNameFunction;
+import io.tapdata.pdk.apis.functions.connection.CommandCallbackFunction;
+import io.tapdata.pdk.apis.functions.connection.ConnectionCheckFunction;
+import io.tapdata.pdk.apis.functions.connection.ConnectorWebsiteFunction;
+import io.tapdata.pdk.apis.functions.connection.ErrorHandleFunction;
+import io.tapdata.pdk.apis.functions.connection.GetCharsetsFunction;
+import io.tapdata.pdk.apis.functions.connection.GetTableInfoFunction;
+import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
+import io.tapdata.pdk.apis.functions.connection.TableWebsiteFunction;
 
 public class ConnectionFunctions<T extends ConnectionFunctions<?>> extends CommonFunctions<T> {
     protected GetTableInfoFunction getTableInfoFunction;
@@ -24,6 +18,11 @@ public class ConnectionFunctions<T extends ConnectionFunctions<?>> extends Commo
     protected GetCharsetsFunction getCharsetsFunction;
     protected CommandCallbackFunction commandCallbackFunction;
     protected ErrorHandleFunction errorHandleFunction;
+
+
+    protected ConnectorWebsiteFunction connectorWebsiteFunction;
+    protected TableWebsiteFunction tableWebsiteFunction;
+
     public T supportGetTableInfoFunction(GetTableInfoFunction function) {
         getTableInfoFunction = function;
         return (T) this;
@@ -54,6 +53,17 @@ public class ConnectionFunctions<T extends ConnectionFunctions<?>> extends Commo
         return (T) this;
     }
 
+    public ConnectionFunctions supportConnectorWebsite(ConnectorWebsiteFunction connectorWebsiteFunction){
+        this.connectorWebsiteFunction = connectorWebsiteFunction;
+        return this;
+    }
+
+    public ConnectionFunctions supportTableWebsite(TableWebsiteFunction tableWebsiteFunction){
+        this.tableWebsiteFunction = tableWebsiteFunction;
+        return this;
+    }
+
+
     public GetTableNamesFunction getGetTableNamesFunction() {
         return getTableNamesFunction;
     }
@@ -78,5 +88,13 @@ public class ConnectionFunctions<T extends ConnectionFunctions<?>> extends Commo
 
     public GetTableInfoFunction getGetTableInfoFunction() {
         return getTableInfoFunction;
+    }
+
+    public TableWebsiteFunction getTableWebsiteFunction(){
+        return this.tableWebsiteFunction;
+    }
+
+    public ConnectorWebsiteFunction getConnectorWebsiteFunction(){
+        return this.connectorWebsiteFunction;
     }
 }

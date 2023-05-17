@@ -1,8 +1,11 @@
 package io.tapdata.pdk.tdd.tests.v3;
 
+import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -59,10 +62,10 @@ public class WriteTimeTypeRecordTest extends PDKTestBaseV2 {
     {
         targetTable = table(testTableId)
                 .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-                .add(field("TYPE_DATE", JAVA_Date).tapType(tapDate()))
-                .add(field("TYPE_DATETIME", "Date_Time").tapType(tapDateTime().fraction(3)))
-                .add(field("TYPE_TIME", "Time").tapType(tapTime().withTimeZone(false)))
-                .add(field("TYPE_YEAR", "Year").tapType(tapYear()));
+                .add(field("Type_DATE", JAVA_Date).tapType(tapDate()))
+                .add(field("Type_DATETIME", "Date_Time").tapType(tapDateTime().fraction(3)))
+                .add(field("Type_TIME", "Time").tapType(tapTime().withTimeZone(false)))
+                .add(field("Type_YEAR", "Year").tapType(tapYear()));
     }
 
     private static final int recordCount = 1;
@@ -89,7 +92,8 @@ public class WriteTimeTypeRecordTest extends PDKTestBaseV2 {
             }
             //查询数据，并校验
             Record[] recordCopy = execute.records();
-            List<Map<String, Object>> result = super.queryRecords(node, super.targetTable, recordCopy);
+            TapTable targetTableModel = super.getTargetTable(node.connectorNode());
+            List<Map<String, Object>> result = super.queryRecords(node, targetTableModel, recordCopy);
             final int filterCount = result.size();
             if (filterCount != recordCount) {
                 TapAssert.error(execute.testCase(), langUtil.formatLang("writeTime.queryFilter.fail",
@@ -99,7 +103,9 @@ public class WriteTimeTypeRecordTest extends PDKTestBaseV2 {
             } else {
                 Map<String, Object> resultMap = result.get(0);
                 StringBuilder builder = new StringBuilder();
-                boolean equals = super.mapEquals(recordCopy[0], resultMap, builder);
+                //node.connectorNode().getCodecsFilterManager().transformToTapValueMap(resultMap, targetTableModel.getNameFieldMap());
+                //TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(resultMap);
+                boolean equals = super.mapEquals(transform(node, targetTableModel, recordCopy[0]), resultMap, builder, targetTableModel.getNameFieldMap());
                 TapAssert.asserts(() -> {
                     Assertions.assertTrue(equals, langUtil.formatLang("writeTime.queryFilter.notEquals",
                             recordCount,
@@ -183,10 +189,11 @@ public class WriteTimeTypeRecordTest extends PDKTestBaseV2 {
                         TapAssert.error(testCase, langUtil.formatLang("writeTime.batchRead.after.null", recordCount));
                         return;
                     }
+                    TapTable targetTableModel = super.getTargetTable(node.connectorNode());
                     Map<String, Object> result = insertEvent.getAfter();
                     StringBuilder builder = new StringBuilder();
                     TapAssert.asserts(() -> assertTrue(
-                            super.mapEquals(record, transform(node, targetTable, result), builder),
+                            super.mapEquals(transform(node, targetTableModel, record), result, builder, targetTableModel.getNameFieldMap()),
                             langUtil.formatLang("writeTime.batchRead.notEquals", recordCount, builder.toString())
                     )).acceptAsWarn(testCase, langUtil.formatLang("writeTime.batchRead.succeed", recordCount));
                 }

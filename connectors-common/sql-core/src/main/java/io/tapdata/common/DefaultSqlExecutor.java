@@ -21,7 +21,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
-public class DefaultSqlExecutor {
+public class DefaultSqlExecutor implements SqlExecutor {
 
   private static final String PARAMS_NAME = "name";
   private static final String PARAMS_TYPE = "type";
@@ -33,6 +33,16 @@ public class DefaultSqlExecutor {
   private static final String MODE_IN_OUT = "in/out";
   private static final String MODE_RETURN = "return";
 
+	private Consumer<DataMap> processDataMapConsumer;
+
+	public DefaultSqlExecutor(Consumer<DataMap> processDataMapConsumer) {
+		this.processDataMapConsumer = processDataMapConsumer;
+	}
+
+	public DefaultSqlExecutor() {
+	}
+
+	@Override
   public void execute(String sql, TapSupplier<Connection> connectionSupplier, Consumer<Object> consumer, Supplier<Boolean> aliveSupplier, int batchSize) throws Throwable {
     try (Connection connection = connectionSupplier.get();
          Statement sqlStatement = connection.createStatement()) {
@@ -43,6 +53,7 @@ public class DefaultSqlExecutor {
           List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
           while (aliveSupplier.get() && resultSet.next()) {
             DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
+						processDataMap(dataMap);
             list.add(dataMap);
             if (list.size() == batchSize) {
               consumer.accept(list);
@@ -60,6 +71,7 @@ public class DefaultSqlExecutor {
     }
   }
 
+	@Override
   public ExecuteResult<?> execute(String sql, TapSupplier<Connection> connectionSupplier) {
     ExecuteResult<?> executeResult;
     try (Connection connection = connectionSupplier.get();
@@ -68,6 +80,7 @@ public class DefaultSqlExecutor {
       if (isQuery) {
         try (ResultSet resultSet = sqlStatement.getResultSet()) {
           List<DataMap> dataMaps = DbKit.getDataFromResultSet(resultSet);
+					processDataMap(dataMaps);
           executeResult = new ExecuteResult<>().result(dataMaps);
         }
       } else {
@@ -80,6 +93,19 @@ public class DefaultSqlExecutor {
     }
     return executeResult;
   }
+
+	private void processDataMap(DataMap dataMap) throws SQLException {
+		if (processDataMapConsumer != null) {
+			processDataMapConsumer.accept(dataMap);
+		}
+	}
+
+	private void processDataMap(List<DataMap> dataMaps) throws SQLException {
+		for (DataMap dataMap : dataMaps) {
+			processDataMap(dataMap);
+		}
+	}
+	@Override
   public ExecuteResult<?> call(String funcName, List<Map<String, Object>> params, TapSupplier<Connection> connectionSupplier) {
     if (funcName == null || "".equals(funcName)) {
       throw new IllegalArgumentException("procedure/function is null");

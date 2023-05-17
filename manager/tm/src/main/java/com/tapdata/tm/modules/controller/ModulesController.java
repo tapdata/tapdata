@@ -1,5 +1,6 @@
 package com.tapdata.tm.modules.controller;
 
+import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
@@ -8,13 +9,18 @@ import com.tapdata.tm.modules.vo.ModulesDetailVo;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import javax.servlet.http.HttpServletResponse;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -222,5 +228,19 @@ public class ModulesController extends BaseController {
   public ResponseMessage apiDetail(@RequestBody ApiDetailParam apiDetailParam){
     return success(modulesService.apiDetail(apiDetailParam,getLoginUser()));
   }
+
+	@Operation(summary = "api导出")
+	@GetMapping("batch/load")
+	public void batchLoadTasks(@RequestParam("id") List<String> id, HttpServletResponse response) {
+		modulesService.batchLoadTask(response, id, getLoginUser());
+	}
+
+	@Operation(summary = "api导入")
+	@PostMapping(path = "batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
+																			@RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover) {
+		modulesService.batchUpTask(file, getLoginUser(), cover);
+		return success();
+	}
 
 }

@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import lombok.Data;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.Serializable;
 import java.util.List;
@@ -79,10 +80,8 @@ public class TaskDto extends ParentTaskDto {
 
     private Map<String, Object> logSetting;
 
-    /** 编辑中 待启动 */
+    /** 编辑中 */
     public static final String STATUS_EDIT = "edit";
-    /** 准备中 */
-    public static final String STATUS_PREPARING = "preparing";
     /** 调度中 */
     public static final String STATUS_SCHEDULING = "scheduling";
     /** 调度失败 */
@@ -93,23 +92,23 @@ public class TaskDto extends ParentTaskDto {
     public static final String STATUS_RUNNING = "running";
     /** 停止中 */
     public static final String STATUS_STOPPING = "stopping";
-    /** 暂停中 */
-    //public static final String STATUS_PAUSING = "pausing";
     /** 错误 */
     public static final String STATUS_ERROR = "error";
     /** 完成 */
     public static final String STATUS_COMPLETE = "complete";
     /** 已停止 */
     public static final String STATUS_STOP = "stop";
-    /** 已暂停 */
-    //public static final String STATUS_PAUSE = "pause";
 
-    /** 编辑中 待启动 */
+    /** 待启动 */
     public static final String STATUS_WAIT_START = "wait_start";
 
+    /** 重置中 */
     public static final String STATUS_RENEWING = "renewing";
+    /** 删除中*/
     public static final String STATUS_DELETING = "deleting";
+    /** 重置失败 */
     public static final String STATUS_RENEW_FAILED = "renew_failed";
+    /** 删除失败 */
     public static final String STATUS_DELETE_FAILED = "delete_failed";
 
 
@@ -162,6 +161,17 @@ public class TaskDto extends ParentTaskDto {
         }
         return dag;
     }
+
+		public boolean isTestTask() {
+			if (StringUtils.equalsAnyIgnoreCase(getSyncType(), SYNC_TYPE_TEST_RUN, SYNC_TYPE_DEDUCE_SCHEMA)) {
+				return true;
+			}
+			return false;
+		}
+
+		public boolean isNormalTask() {
+			return !isTestTask();
+		}
 
     @Data
     public static class SyncPoint implements Serializable {

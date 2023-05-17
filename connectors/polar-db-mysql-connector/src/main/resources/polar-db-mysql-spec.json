@@ -57,7 +57,7 @@
           "x-index": 3,
           "required": true
         },
-        "username": {
+        "user": {
           "type": "string",
           "title": "${username}",
           "x-decorator": "FormItem",
@@ -74,12 +74,12 @@
           "apiServerKey": "database_password",
           "x-index": 5
         },
-        "addtionalString": {
+        "extParams": {
           "type": "string",
-          "title": "${addtionalString}",
+          "title": "${extParams}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "apiServerKey": "additionalString",
+          "apiServerKey": "extParams",
           "x-index": 6
         },
         "timezone": {
@@ -211,7 +211,7 @@
       "database": "database",
       "username": "username",
       "password": "password",
-      "addtionalString": "Connection Parameter String",
+      "extParams": "Connection Parameter String",
       "timezone": "timezone",
       "doc": "docs/polar_db_mysql_en_US.md"
     },
@@ -221,7 +221,7 @@
       "database": "数据库",
       "username": "账号",
       "password": "密码",
-      "addtionalString": "连接参数",
+      "extParams": "连接参数",
       "timezone": "时区",
       "doc": "docs/polar_db_mysql_zh_CN.md"
     },
@@ -231,7 +231,7 @@
       "database": "數據庫",
       "username": "賬號",
       "password": "密碼",
-      "addtionalString": "連接參數",
+      "extParams": "連接參數",
       "timezone": "時區",
       "doc": "docs/polar_db_mysql_zh_TW.md"
     }

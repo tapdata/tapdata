@@ -5,6 +5,7 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -17,16 +18,24 @@ import io.tapdata.pdk.tdd.core.base.StreamStopException;
 import io.tapdata.pdk.tdd.core.base.TapAssertException;
 import io.tapdata.pdk.tdd.core.base.TddConfigKey;
 import io.tapdata.pdk.tdd.core.base.TestNode;
-import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.tdd.tests.basic.RecordEventExecute;
+import io.tapdata.pdk.tdd.tests.support.LangUtil;
+import io.tapdata.pdk.tdd.tests.support.Record;
+import io.tapdata.pdk.tdd.tests.support.TapAssert;
+import io.tapdata.pdk.tdd.tests.support.TapGo;
+import io.tapdata.pdk.tdd.tests.support.TapTestCase;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
@@ -39,7 +48,7 @@ import static io.tapdata.entity.simplify.TapSimplify.toJson;
  * 测试失败按错误上报
  */
 @DisplayName("checkStreamReadTest")
-@TapGo(tag = "V3", sort = 10070, debug = true)
+@TapGo(tag = "V3", sort = 10070, debug = false)
 public class CheckStreamReadTest extends PDKTestBaseV2 {
     {
         if (PDKTestBaseV2.testRunning) {
@@ -96,6 +105,18 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
                 return;
             }
 
+            ConnectorFunctions connectorFunctions = node.connectorNode().getConnectorFunctions();
+            TimestampToStreamOffsetFunction timestampToStreamOffsetFunction = connectorFunctions.getTimestampToStreamOffsetFunction();
+            Object streamOffset = null;
+            if (timestampToStreamOffsetFunction == null) {
+                streamOffset = System.currentTimeMillis();
+            } else {
+                try {
+                    streamOffset = timestampToStreamOffsetFunction.timestampToStreamOffset(node.connectorNode().getConnectorContext(), null);
+                } catch (Throwable throwable) {
+                    streamOffset = System.currentTimeMillis();
+                }
+            }
             Record[] records = Record.testRecordWithTapTable(super.targetTable, recordCount);
             StreamReadConsumer consumerRead = StreamReadConsumer.create((events, offset) -> {
                 if (Objects.nonNull(events) && !events.isEmpty()) {
@@ -111,55 +132,56 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
                 if (Objects.isNull(to) || !to.equals(StreamReadConsumer.STATE_STREAM_READ_STARTED)) {
                     //增量未手动开启
                     TapAssert.error(testCase, langUtil.formatLang("checkStreamRead.stream.notOpen"));
-                    synchronized (stop){
+                    synchronized (stop) {
                         stop.set(true);
                     }
                 } else {
                     //增量已开启
                     TapAssert.succeed(testCase, langUtil.formatLang("checkStreamRead.stream.opened"));
                     task.schedule(() -> {
-                       try {
-                           //写入三条数据
-                           if (!insert(node, testCase, records, reference, operatorType)) {
-                               //throw new StreamStopException("Stream need over.");
-                               synchronized (stop){
-                                   stop.set(true);
-                               }
-                               return;
-                           }
-                           //修改一条数据
-                           if (!update(node, testCase, records, reference, operatorType)) {
-                               //throw new StreamStopException("Stream need over.");
-                               synchronized (stop){
-                                   stop.set(true);
-                               }
-                               return;
-                           }
-                           //删除一条数据
-                           if (!delete(node, testCase, records, reference, operatorType)) {
-                               //throw new StreamStopException("Stream need over.");
-                               synchronized (stop){
-                                   stop.set(true);
-                               }
-                               return;
-                           }
-                       }finally {
-                           synchronized (stop){
-                               stop.set(true);
-                           }
-                       }
+                        try {
+                            //写入三条数据
+                            if (!insert(node, testCase, records, reference, operatorType)) {
+                                //throw new StreamStopException("Stream need over.");
+                                synchronized (stop) {
+                                    stop.set(true);
+                                }
+                                return;
+                            }
+                            //修改一条数据
+                            if (!update(node, testCase, records, reference, operatorType)) {
+                                //throw new StreamStopException("Stream need over.");
+                                synchronized (stop) {
+                                    stop.set(true);
+                                }
+                                return;
+                            }
+                            //删除一条数据
+                            if (!delete(node, testCase, records, reference, operatorType)) {
+                                //throw new StreamStopException("Stream need over.");
+                                synchronized (stop) {
+                                    stop.set(true);
+                                }
+                                return;
+                            }
+                        } finally {
+                            synchronized (stop) {
+                                stop.set(true);
+                            }
+                        }
                         //throw new StreamStopException("Stream need over.");
                     }, incrementalDelaySec, TimeUnit.SECONDS);
                 }
             });
             ConnectorFunctions functions = node.connectorNode().getConnectorFunctions();
             StreamReadFunction streamRead = functions.getStreamReadFunction();
-            task.schedule(()->{
+            Object finalStreamOffset = streamOffset;
+            task.schedule(() -> {
                 try {
                     streamRead.streamRead(
                             node.connectorNode().getConnectorContext(),
                             list(super.targetTable.getId()),
-                            null,
+                            finalStreamOffset,
                             200,
                             consumerRead);
                 } catch (Throwable throwable) {
@@ -179,21 +201,21 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
                     } else {
                         throw (StreamStopException) throwable;
                     }
-                }finally {
-                    synchronized (stop){
+                } finally {
+                    synchronized (stop) {
                         stop.set(true);
                     }
                 }
-            },0,TimeUnit.SECONDS);
-            while (true){
-                synchronized (stop){
+            }, 0, TimeUnit.SECONDS);
+            while (true) {
+                synchronized (stop) {
                     if (stop.get()) {
                         task.shutdown();
                         break;
                     }
                     try {
                         stop.wait(1000);
-                    }catch (Exception e){
+                    } catch (Exception e) {
 
                     }
                 }
@@ -270,8 +292,8 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
             TapAssert.succeed(testCase, langUtil.formatLang("checkStreamRead.insert.timely", recordCount, delay <= 0 ? (readTime - writeTime) * 0.000001F : delay));
         }
         Record[] recordCopy = execute.records();
-        if (event.size() != recordCopy.length) {
-            TapAssert.errorNotThrow(testCase, langUtil.formatLang("checkStreamRead.insert.delay", recordCount, delay));
+        if (event.size() != recordCount) {
+            TapAssert.errorNotThrow(testCase, langUtil.formatLang("checkStreamRead.insert.countError", recordCount, recordCount, event.size()));
             return Boolean.TRUE;
         }
         for (int index = 0; index < event.size(); index++) {
@@ -371,6 +393,7 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
         } else {
             TapAssert.succeed(testCase, langUtil.formatLang("checkStreamRead.delete.timely", recordCount, updateCount, deleteCount, delay <= 0 ? (readTime - writeTime) * 0.000001F : delay));
         }
+        TapTable targetTableModel = getTargetTable(node.connectorNode());
         for (int index = 0; index < event.size(); index++) {
             TapEvent tapEvent = event.get(index);
             if (!(tapEvent instanceof TapDeleteRecordEvent)) {
@@ -379,7 +402,7 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
                 return Boolean.FALSE;
             }
             TapDeleteRecordEvent eventEnt = (TapDeleteRecordEvent) tapEvent;
-            Map<String, Object> before = transform(node,targetTable,eventEnt.getBefore());
+            Map<String, Object> before = transform(node, targetTableModel, eventEnt.getBefore());
             if (Objects.isNull(before) || before.isEmpty()) {
                 TapAssert.errorNotThrow(testCase, langUtil.formatLang("checkStreamRead.delete.noKeys", recordCount, updateCount, deleteCount, index + 1, deleteCount));
                 return Boolean.FALSE;
@@ -393,12 +416,12 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
                 Object keyValue2 = before.get(key);
                 if (!(equals = Objects.nonNull(keyValue2))) {
                     //主键不能为空
-                    TapAssert.warn(testCase, langUtil.formatLang("checkStreamRead.delete.keyError", recordCount, updateCount, deleteCount, index + 1, toJson(primaryKeys),toJson(before)));
+                    TapAssert.warn(testCase, langUtil.formatLang("checkStreamRead.delete.keyError", recordCount, updateCount, deleteCount, index + 1, toJson(primaryKeys), toJson(before)));
                     break;
                 }
                 if (!(equals = Objects.equals(keyValue1, keyValue2))) {
                     //变更前后主键需要相同
-                    TapAssert.warn(testCase, langUtil.formatLang("checkStreamRead.delete.orderError", recordCount, updateCount, deleteCount, index + 1, toJson(primaryKeys),toJson(before),key,toJson(keyValue1)));
+                    TapAssert.warn(testCase, langUtil.formatLang("checkStreamRead.delete.orderError", recordCount, updateCount, deleteCount, index + 1, toJson(primaryKeys), toJson(before), key, toJson(keyValue1)));
                     break;
                 }
             }
@@ -475,6 +498,8 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
         } else {
             TapAssert.succeed(testCase, langUtil.formatLang("checkStreamRead.update.timely", recordCount, updateCount, delay <= 0 ? (readTime - writeTime) * 0.000001F : delay));
         }
+
+        TapTable targetTableModel = super.getTargetTable(node.connectorNode());
         // 验证after是否包含主键内容
         for (int index = 0; index < event.size(); index++) {
             TapEvent tapEvent = event.get(index);
@@ -488,8 +513,8 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
                 return Boolean.FALSE;
             }
             TapUpdateRecordEvent eventEnt = (TapUpdateRecordEvent) tapEvent;
-            Map<String, Object> before = transform(node,targetTable,eventEnt.getBefore());
-            Map<String, Object> after = transform(node,targetTable,eventEnt.getAfter());
+            Map<String, Object> before = transform(node, targetTableModel, eventEnt.getBefore());
+            Map<String, Object> after = transform(node, targetTableModel, eventEnt.getAfter());
             if (Objects.isNull(before) || before.isEmpty()) {
                 //修改事件的before中无键值信息，至少应该包含主键，告警
                 TapAssert.warn(testCase, langUtil.formatLang("checkStreamRead.update.noKeys",
@@ -540,7 +565,9 @@ public class CheckStreamReadTest extends PDKTestBaseV2 {
             }
 
             StringBuilder builder = new StringBuilder();
-            equals = super.mapEquals(r[0], transform(node, targetTable, after), builder);
+
+            //TapTable targetTableModel = super.getTargetTable(node.connectorNode());
+            equals = super.mapEquals(transform(node, targetTableModel, r[0]), after, builder, targetTableModel.getNameFieldMap());
             if (!equals) {
                 //修改前后数据进行比对
                 TapAssert.warn(testCase, langUtil.formatLang("checkStreamRead.update.notEquals", recordCount, updateCount, index + 1, builder.toString()));

@@ -2,6 +2,7 @@ package io.tapdata.connector.postgres;
 
 import io.tapdata.common.JdbcContext;
 import io.tapdata.common.RecordWriter;
+import io.tapdata.connector.postgres.exception.PostgresExceptionCollector;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.kit.EmptyKit;
@@ -14,6 +15,7 @@ public class PostgresRecordWriter extends RecordWriter {
     public PostgresRecordWriter(PostgresJdbcContext jdbcContext, TapTable tapTable) throws SQLException {
         super(jdbcContext, tapTable);
         openIdentity(jdbcContext);
+        exceptionCollector = new PostgresExceptionCollector();
         insertRecorder = new PostgresWriteRecorder(connection, tapTable, jdbcContext.getConfig().getSchema(), makeSureHasUnique(jdbcContext, tapTable));
         updateRecorder = new PostgresWriteRecorder(connection, tapTable, jdbcContext.getConfig().getSchema());
         deleteRecorder = new PostgresWriteRecorder(connection, tapTable, jdbcContext.getConfig().getSchema());
@@ -26,8 +28,8 @@ public class PostgresRecordWriter extends RecordWriter {
         }
     }
 
-    protected boolean makeSureHasUnique(PostgresJdbcContext jdbcContext, TapTable tapTable) {
-        return jdbcContext.queryAllIndexes(Collections.singletonList(tapTable.getId())).stream().anyMatch(v -> (boolean) v.get("is_unique"));
+    protected boolean makeSureHasUnique(PostgresJdbcContext jdbcContext, TapTable tapTable) throws SQLException {
+        return jdbcContext.queryAllIndexes(Collections.singletonList(tapTable.getId())).stream().anyMatch(v -> "1".equals(v.getString("isUnique")));
     }
 
 }

@@ -59,6 +59,9 @@ import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderController;
+import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderControllerExCode_21;
+import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastBlank;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastCacheTarget;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastSchemaTargetNode;
@@ -214,10 +217,9 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 		DAG dag = new DAG();
 		AtomicReference<TaskDto> taskDtoAtomicReference = new AtomicReference<>(taskDto);
-		TaskConfig taskConfig = getTaskConfig(taskDto);
 
 		Long tmCurrentTime = taskDtoAtomicReference.get().getTmCurrentTime();
-		if (null != tmCurrentTime && tmCurrentTime.compareTo(0L) > 0) {
+		if (null != tmCurrentTime && tmCurrentTime.compareTo(0L) > 0 && taskDto.isNormalTask()) {
 			Map<String, Object> params = new HashMap<>();
 			params.put("id", taskDto.getId().toHexString());
 			params.put("time", tmCurrentTime);
@@ -227,6 +229,9 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				throw new RuntimeException("Get task history failed, param: " + params + ", result is null");
 			}
 		}
+
+		TaskConfig taskConfig = getTaskConfig(taskDtoAtomicReference.get());
+		initSnapshotOrder(taskDtoAtomicReference);
 
 		final List<Node> nodes = taskDtoAtomicReference.get().getDag().getNodes();
 		final List<Edge> edges = taskDtoAtomicReference.get().getDag().getEdges();
@@ -324,6 +329,17 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		}
 
 		return new JetDag(dag, hazelcastBaseNodeMap, typeConvertMap);
+	}
+
+	private static void initSnapshotOrder(AtomicReference<TaskDto> taskDtoAtomicReference) {
+		try {
+			SnapshotOrderService snapshotOrderService = SnapshotOrderService.getInstance();
+			SnapshotOrderController snapshotOrderController = snapshotOrderService.addController(taskDtoAtomicReference.get());
+			snapshotOrderController.flush();
+			ObsLoggerFactory.getInstance().getObsLogger(taskDtoAtomicReference.get()).info(snapshotOrderService.getController(taskDtoAtomicReference.get().getId().toHexString()).toString());
+		} catch (Exception e) {
+			throw new TapCodeException(SnapshotOrderControllerExCode_21.UNKNOWN_ERROR, e);
+		}
 	}
 
 	private static TapTableMap<String, TapTable> getTapTableMap(TaskDto taskDto, Long tmCurrentTime, Node node) {

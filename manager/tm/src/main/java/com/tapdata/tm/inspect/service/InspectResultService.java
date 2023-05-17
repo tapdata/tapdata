@@ -2,6 +2,13 @@ package com.tapdata.tm.inspect.service;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
+import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
+import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
+import com.tapdata.tm.alarm.entity.AlarmInfo;
+import com.tapdata.tm.alarm.service.AlarmService;
+import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -20,10 +27,12 @@ import com.tapdata.tm.inspect.entity.InspectResultEntity;
 import com.tapdata.tm.inspect.param.SaveInspectResultParam;
 import com.tapdata.tm.inspect.repository.InspectResultRepository;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.bson.types.ObjectId;
@@ -35,8 +44,9 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -52,6 +62,9 @@ public class InspectResultService extends BaseService<InspectResultDto, InspectR
 
     @Autowired
     private DataSourceService dataSourceService;
+
+		@Autowired
+		private AlarmService alarmService;
 
     public InspectResultService(@NonNull InspectResultRepository repository) {
         super(repository, InspectResultDto.class, InspectResultEntity.class);
@@ -255,6 +268,7 @@ public class InspectResultService extends BaseService<InspectResultDto, InspectR
     public InspectResultDto upsertInspectResultByWhere(Where where, SaveInspectResultParam saveInspectResultParam, UserDetail userDetail) {
         InspectResultDto inspectResultDto = BeanUtil.copyProperties(saveInspectResultParam, InspectResultDto.class);
 
+				handlerStatusDoSomething(inspectResultDto, userDetail);
         List<Stats> inspectResultStats = inspectResultDto.getStats() != null ? inspectResultDto.getStats() :
                 Collections.emptyList();
 
@@ -318,7 +332,116 @@ public class InspectResultService extends BaseService<InspectResultDto, InspectR
         return resultDto;
     }
 
-    public void createAndPatch(InspectResultDto result) {
+	private void handlerStatusDoSomething(InspectResultDto inspectResultDto, UserDetail userDetail) {
+
+		try {
+			if (!InspectResultDto.STATUS_DONE.equals(inspectResultDto.getStatus())) {
+				log.info("ignore process status: {}", inspectResultDto.getStatus());
+			}
+			List<Stats> inspectResultStats = inspectResultDto.getStats();
+			if (CollectionUtils.isEmpty(inspectResultStats)) {
+				return;
+			}
+			InspectDto inspectDto = inspectService.findById(MongoUtils.toObjectId(inspectResultDto.getInspect_id()));
+			if (inspectDto == null) {
+				log.warn("inspect is null");
+				return;
+			}
+			String inspectMethod = inspectDto.getInspectMethod();
+			List<AlarmSettingVO> alarmSettings = inspectDto.getAlarmSettings();
+			AlarmKeyEnum alarmKeyEnum;
+			Function<Stats, AlarmInfo> alarmInfoFunction;
+			if (StringUtils.equalsAny(inspectMethod, "row_count", "cdcCount")) {
+				alarmKeyEnum = AlarmKeyEnum.INSPECT_COUNT_ERROR;
+			} else {
+				alarmKeyEnum = AlarmKeyEnum.INSPECT_VALUE_ERROR;
+			}
+
+			alarmInfoFunction = (stats) -> {
+				Optional<AlarmSettingVO> voOptional = alarmSettings.stream()
+								.filter(AlarmSettingVO::isOpen)
+								.filter(alarmSettingVO -> alarmSettingVO.getKey() == alarmKeyEnum)
+								.findFirst();
+				if (!voOptional.isPresent()) {
+					return null;
+				}
+				AlarmSettingVO alarmSettingVO = voOptional.get();
+				Map<String, Object> params = alarmSettingVO.getParams();
+				if (MapUtils.isEmpty(params)) {
+					return null;
+				}
+				Map<String, Object> alarmParams = new HashMap<>();
+				alarmParams.put("inspectName", inspectDto.getName());
+				if (alarmKeyEnum == AlarmKeyEnum.INSPECT_COUNT_ERROR) {
+					Integer maxDifferentialRows = (Integer) params.get("maxDifferentialRows");
+					if (maxDifferentialRows == null) {
+						maxDifferentialRows = 0;
+					}
+					long diff0 = Math.abs(stats.getSourceTotal() - stats.getTargetTotal());
+					long diff1 = Math.abs(stats.getSourceOnly() - stats.getTargetOnly());
+					if (diff0 < diff1) {
+						diff0 = diff1;
+					}
+					if (diff0 >= maxDifferentialRows) {
+						alarmParams.put("count", diff0);
+						return AlarmInfo.builder().status(AlarmStatusEnum.ING)
+										.level(Level.WARNING)
+										.component(AlarmComponentEnum.FE)
+										.type(AlarmTypeEnum.INSPECT_ALARM)
+										.agentId(inspectDto.getAgentId())
+										.inspectId(inspectDto.getId().toHexString())
+										.name(inspectDto.getName())
+										.summary("INSPECT_COUNT_ERROR")
+										.metric(AlarmKeyEnum.INSPECT_COUNT_ERROR)
+										.param(alarmParams)
+										.build();
+					}
+				} else {
+					Integer maxDifferentialValues = (Integer) params.get("maxDifferentialValues");
+					if (maxDifferentialValues == null) {
+						maxDifferentialValues = 0;
+					}
+					if (stats.getRowFailed() != null && stats.getRowFailed() >= maxDifferentialValues) {
+						alarmParams.put("count", stats.getRowFailed());
+						return AlarmInfo.builder().status(AlarmStatusEnum.ING)
+										.level(Level.WARNING)
+										.component(AlarmComponentEnum.FE)
+										.type(AlarmTypeEnum.INSPECT_ALARM)
+										.agentId(inspectDto.getAgentId())
+										.inspectId(inspectDto.getId().toHexString())
+										.name(inspectDto.getName())
+										.summary("jointField".equals(inspectMethod) ? "INSPECT_VALUE_JOIN_ERROR" : "INSPECT_VALUE_ALL_ERROR")
+										.metric(AlarmKeyEnum.INSPECT_VALUE_ERROR)
+										.param(alarmParams)
+										.build();
+					}
+				}
+				return null;
+			};
+
+			List<Stats> statsList = inspectResultStats.stream()
+							.filter(i -> StringUtils.equals(i.getStatus(), InspectStatusEnum.DONE.getValue()))
+							.filter(i ->  "failed".equals(i.getResult()))
+							.collect(Collectors.toList());
+
+			if (CollectionUtils.isNotEmpty(statsList)) {
+				for (Stats stats : statsList) {
+					boolean checkOpen = alarmService.checkOpen(alarmSettings, alarmKeyEnum, null, userDetail);
+					if (checkOpen) {
+						AlarmInfo alarmInfo = alarmInfoFunction.apply(stats);
+						if (alarmInfo != null) {
+							alarmInfo.setUserId(inspectDto.getUserId());
+							alarmService.save(alarmInfo);
+						}
+					}
+				}
+			}
+		} catch (Exception e) {
+			log.error("handlerStatusDoSomething error", e);
+		}
+	}
+
+	public void createAndPatch(InspectResultDto result) {
         if (!InspectResultDto.STATUS_ERROR.equals(result.getStatus()) && !InspectResultDto.STATUS_DONE.equals(result.getStatus())) {
             return;
         }

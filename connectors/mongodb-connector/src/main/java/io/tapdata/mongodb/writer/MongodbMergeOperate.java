@@ -374,12 +374,12 @@ public class MongodbMergeOperate {
 
 	private static List<Document> arrayFilter(Map<String, Object> data, List<Map<String, String>> joinKeys, String targetPath) {
 		List<Document> arrayFilter = new ArrayList<>();
+		Document filter = new Document();
 		for (Map<String, String> joinKey : joinKeys) {
-			Document filter = new Document();
 			String[] paths = joinKey.get("target").split("\\.");
 			filter.put("element1." + paths[paths.length - 1], MapUtil.getValueByKey(data, joinKey.get("source")));
-			arrayFilter.add(filter);
 		}
+		arrayFilter.add(filter);
 		return arrayFilter;
 	}
 

@@ -7,6 +7,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.entity.Projection;
+import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 
 import java.text.DecimalFormat;
@@ -135,8 +136,30 @@ public class CommonSqlMaker {
             if (EmptyKit.isNotEmpty(filter.getMatch())) {
                 builder.append("AND ");
             }
-            builder.append(filter.getOperators().stream().map(v -> v.toString(String.valueOf(escapeChar))).collect(Collectors.joining(" AND "))).append(' ');
+            builder.append(filter.getOperators().stream().map(v -> queryOperatorToString(v, String.valueOf(escapeChar))).collect(Collectors.joining(" AND "))).append(' ');
         }
+    }
+
+    public String queryOperatorToString(QueryOperator operator, String quote) {
+        String operatorStr;
+        switch (operator.getOperator()) {
+            case 1:
+                operatorStr = ">";
+                break;
+            case 2:
+                operatorStr = ">=";
+                break;
+            case 3:
+                operatorStr = "<";
+                break;
+            case 4:
+                operatorStr = "<=";
+                break;
+            default:
+                operatorStr = "";
+        }
+
+        return quote + operator.getKey() + quote + operatorStr + buildValueString(operator.getValue());
     }
 
     public void buildOrderClause(StringBuilder builder, TapAdvanceFilter filter) {
@@ -187,16 +210,22 @@ public class CommonSqlMaker {
         if (EmptyKit.isNotEmpty(record)) {
             record.forEach((fieldName, value) -> {
                 builder.append(escapeChar).append(fieldName).append(escapeChar).append(operator);
-                if (value instanceof Number) {
-                    builder.append(value);
-                } else if (value instanceof DateTime) {
-                    builder.append(toTimestampString((DateTime) value));
-                } else {
-                    builder.append('\'').append(value).append('\'');
-                }
+                builder.append(buildValueString(value));
                 builder.append(' ').append(splitSymbol).append(' ');
             });
             builder.delete(builder.length() - splitSymbol.length() - 1, builder.length());
+        }
+        return builder.toString();
+    }
+
+    public String buildValueString(Object value) {
+        StringBuilder builder = new StringBuilder();
+        if (value instanceof Number) {
+            builder.append(value);
+        } else if (value instanceof DateTime) {
+            builder.append(toTimestampString((DateTime) value));
+        } else {
+            builder.append('\'').append(value).append('\'');
         }
         return builder.toString();
     }

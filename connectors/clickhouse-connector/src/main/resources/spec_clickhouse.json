@@ -65,12 +65,12 @@
           "apiServerKey": "database_password",
           "x-index": 5
         },
-        "addtionalString": {
+        "extParams": {
           "type": "string",
-          "title": "${addtionalString}",
+          "title": "${extParams}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "apiServerKey": "additionalString",
+          "apiServerKey": "extParams",
           "x-index": 6
         },
         "timezone": {
@@ -202,7 +202,7 @@
       "database": "database",
       "user": "user",
       "password": "password",
-      "addtionalString": "Connection Parameter String",
+      "extParams": "Connection Parameter String",
       "timezone": "timezone",
       "doc": "docs/clickhouse_en_US.md"
     },
@@ -212,7 +212,7 @@
       "database": "数据库",
       "user": "账号",
       "password": "密码",
-      "addtionalString": "连接参数",
+      "extParams": "连接参数",
       "timezone": "时区",
       "doc": "docs/clickhouse_zh_CN.md"
     },
@@ -222,7 +222,7 @@
       "database": "數據庫",
       "user": "賬號",
       "password": "密碼",
-      "addtionalString": "連接參數",
+      "extParams": "連接參數",
       "timezone": "時區",
       "doc": "docs/clickhouse_zh_TW.md"
     }

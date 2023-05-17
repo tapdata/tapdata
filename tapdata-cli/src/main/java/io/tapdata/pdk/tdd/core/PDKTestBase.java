@@ -21,6 +21,7 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -67,6 +68,7 @@ import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -471,7 +473,8 @@ public class PDKTestBase {
         return this.testOptions;
     }
 
-    protected boolean mapEquals(Map<String, Object> firstRecord, Map<String, Object> result, StringBuilder builder) {
+
+    protected boolean mapEquals(Map<String, Object> firstRecord, Map<String, Object> result, StringBuilder builder, LinkedHashMap<String, TapField> nameFieldMap) {
         MapDifference<String, Object> difference = Maps.difference(firstRecord, result);
         Map<String, MapDifference.ValueDifference<Object>> differenceMap = difference.entriesDiffering();
         builder.append("\t\t\tDifferences: \n");
@@ -480,14 +483,18 @@ public class PDKTestBase {
             MapDifference.ValueDifference<Object> diff = entry.getValue();
             Object leftValue = diff.leftValue();
             Object rightValue = diff.rightValue();
-            boolean equalResult = objectIsEqual(leftValue, rightValue);
-            if (!equalResult) {
+            boolean equalResult = objectIsEqual(leftValue, rightValue, nameFieldMap.get(entry.getKey()));
+            Object leftValueObj = this.value(diff.leftValue());
+            Object rightValueObj = this.value(diff.rightValue());
+            if (!equalResult && null != leftValueObj &&( ((!(leftValueObj instanceof String) && !(rightValueObj instanceof String)) && !leftValueObj.toString().equals(rightValueObj.toString()))
+                      || (leftValueObj instanceof String && rightValueObj instanceof String && !TDDUtils.replaceSpace((String) leftValueObj).equals(TDDUtils.replaceSpace((String) rightValueObj)))
+                    )) {
                 different = true;
                 builder.append("\t\t\t\t").append("Key ").append(entry.getKey()).append("\n");
                 Object valueObj = diff.leftValue();
                 String valueClassName = Objects.isNull(valueObj) ? "" : valueObj.getClass().getSimpleName();
-                builder.append("\t\t\t\t\t").append("Left ").append(this.value(diff.leftValue())).append(" class ").append(valueClassName).append("\n");
-                builder.append("\t\t\t\t\t").append("Right ").append(this.value(diff.rightValue())).append(" class ").append(valueClassName).append("\n");
+                builder.append("\t\t\t\t\t").append("Left ").append(leftValueObj).append(" class ").append(valueClassName).append("\n");
+                builder.append("\t\t\t\t\t").append("Right ").append(rightValueObj).append(" class ").append(valueClassName).append("\n");
             }
         }
         Map<String, Object> onlyOnLeft = difference.entriesOnlyOnLeft();
@@ -513,7 +520,35 @@ public class PDKTestBase {
         return !different;
     }
 
-    public boolean objectIsEqual(Object leftValue, Object rightValue) {
+
+    public boolean equalDate(Object leftValue, Object rightValue, String format){
+        String left = null;
+        String right = null;
+        if (leftValue instanceof DateTime) {
+            long time = ((DateTime) leftValue).toDate().getTime();
+            left = new SimpleDateFormat(format).format(time);
+        } else if (leftValue instanceof Date) {
+            left = new SimpleDateFormat(format).format(((Date) leftValue).getTime());
+        } else if (leftValue instanceof Number) {
+            left = new SimpleDateFormat(format).format(((Number) leftValue).longValue());
+        } else {
+            left = String.valueOf(leftValue);
+        }
+
+        if (rightValue instanceof DateTime) {
+            long time = ((DateTime) rightValue).toDate().getTime();
+            right = new SimpleDateFormat(format).format(time);
+        } else if (rightValue instanceof Date) {
+            right = new SimpleDateFormat(format).format(((Date) rightValue).getTime());
+        } else if (rightValue instanceof Number) {
+            right = new SimpleDateFormat(format).format(((Number) rightValue).longValue());
+        } else {
+            right = String.valueOf(rightValue);
+        }
+        return left.equals(right);
+    }
+
+    public boolean objectIsEqual(Object leftValue, Object rightValue, TapField tapField) {
         boolean equalResult = false;
         //if ((leftValue instanceof List) && (rightValue instanceof List)) {
         //    if (((List<?>) leftValue).size() == ((List<?>) rightValue).size()) {
@@ -523,6 +558,47 @@ public class PDKTestBase {
         //        }
         //    }
         //}
+        if(tapField != null && tapField.getTapType() != null) {
+            switch (tapField.getTapType().getType()) {
+                case TapType.TYPE_DATE:
+                    return equalDate(leftValue, rightValue, "yyyy-MM-dd");
+                case TapType.TYPE_TIME:
+                    return equalDate(leftValue, rightValue, "hh:mm:ss");
+                case TapType.TYPE_DATETIME:
+                    Long left = null;
+                    Long right = null;
+                    if (leftValue instanceof DateTime) {
+                        left = ((DateTime) leftValue).toDate().getTime();
+                    }else if (leftValue instanceof Date) {
+                        left = ((Date) leftValue).getTime();
+                    }else if (leftValue instanceof Number) {
+                        left = ((Number) leftValue).longValue();
+                    }else {
+                        try{
+                            left = Long.parseLong(String.valueOf(leftValue));
+                        }catch (Exception e){
+                            left = 0L;
+                        }
+                    }
+                    if (rightValue instanceof DateTime) {
+                        right = ((DateTime) rightValue).toDate().getTime();
+                    }else if (rightValue instanceof Date) {
+                        right = ((Date) rightValue).getTime();
+                    }else if (rightValue instanceof Number) {
+                        right = ((Number) rightValue).longValue();
+                    }else {
+                        try{
+                            right = Long.parseLong(String.valueOf(rightValue));
+                        }catch (Exception e){
+                            right = 0L;
+                        }
+                    }
+                    return left.equals(right);
+                case TapType.TYPE_YEAR:
+                    return equalDate(leftValue, rightValue, "yyyy");
+            }
+        }
+
         if(rightValue instanceof DateTime && !(leftValue instanceof DateTime)) {
             DateTime leftDateTime = AnyTimeToDateTime.toDateTime(leftValue);
             equalResult = rightValue.equals(leftDateTime);
@@ -601,38 +677,16 @@ public class PDKTestBase {
                             DateUtil.DATE_TIME_GMT_FORMAT,
                             new SimpleTimeZone(8,"GMT")
                     ).replace("1970-01-01 ","");
+        } else if (value instanceof String){
+            if (TDDUtils.isJsonString((String) value)){
+                return TDDUtils.replaceSpace((String) value);
+            }
+            return value;
         } else {
             return value;
         }
     }
 
-    public DataMap buildInsertRecord() {
-        DataMap insertRecord = new DataMap();
-        insertRecord.put("id", "id_2");
-        insertRecord.put("tap_string", "1234");
-        insertRecord.put("tap_string10", "0987654321");
-        insertRecord.put("tap_int", 123123);
-        insertRecord.put("tap_boolean", true);
-        insertRecord.put("tap_number", 123.0);
-        insertRecord.put("tap_number52", 343.22);
-        insertRecord.put("tap_binary", new byte[]{123, 21, 3, 2});
-        return insertRecord;
-    }
-
-    public DataMap buildFilterMap() {
-        DataMap filterMap = new DataMap();
-        filterMap.put("id", "id_2");
-        filterMap.put("tap_string", "1234");
-        return filterMap;
-    }
-
-    public DataMap buildUpdateMap() {
-        DataMap updateMap = new DataMap();
-        updateMap.put("id", "id_2");
-        updateMap.put("tap_string", "1234");
-        updateMap.put("tap_int", 5555);
-        return updateMap;
-    }
 
     public void sendInsertRecordEvent(DataFlowEngine dataFlowEngine, TapDAG dag, String sourceTable, DataMap after) {
         sendInsertRecordEvent(dataFlowEngine, dag, sourceTable, after, null);
@@ -680,7 +734,7 @@ public class PDKTestBase {
         dataFlowEngine.sendExternalTapEvent(dag.getId(), patrolEvent);
     }
 
-    protected void verifyUpdateOneRecord(ConnectorNode targetNode, DataMap before, DataMap verifyRecord) {
+    protected void verifyUpdateOneRecord(ConnectorNode targetNode, DataMap before, DataMap verifyRecord, LinkedHashMap<String,TapField> nameFieldMap) {
         TapFilter filter = new TapFilter();
         filter.setMatch(before);
         //filter.setTableId(targetNode.getTable());
@@ -689,7 +743,7 @@ public class PDKTestBase {
         $(() -> assertNotNull(filterResult, "The filter " + InstanceFactory.instance(JsonParser.class).toJson(before) + " can not get any result. Please make sure writeRecord method update record correctly and queryByFilter/queryByAdvanceFilter can query it out for verification. "));
         $(() -> assertNotNull(filterResult.getResult().get("tap_int"), "The value of tapInt should not be null"));
         for (Map.Entry<String, Object> entry : verifyRecord.entrySet()) {
-            $(() -> assertTrue(objectIsEqual(entry.getValue(), filterResult.getResult().get(entry.getKey())), "The value of \"" + entry.getKey() + "\" should be \"" + entry.getValue() + "\",but actual it is \"" + filterResult.getResult().get(entry.getKey()) + "\", please make sure TapUpdateRecordEvent is handled well in writeRecord method"));
+            $(() -> assertTrue(objectIsEqual(entry.getValue(), filterResult.getResult().get(entry.getKey()), nameFieldMap.get(entry.getKey())), "The value of \"" + entry.getKey() + "\" should be \"" + entry.getValue() + "\",but actual it is \"" + filterResult.getResult().get(entry.getKey()) + "\", please make sure TapUpdateRecordEvent is handled well in writeRecord method"));
         }
     }
 
@@ -750,26 +804,6 @@ public class PDKTestBase {
         if (result != null) {
             $(() -> assertNotNull(filterResult.getError(), "If table not exist case, an error should be throw, otherwise not correct. "));
         }
-    }
-
-    protected void verifyBatchRecordExists(ConnectorNode sourceNode, ConnectorNode targetNode, DataMap filterMap) {
-        TapFilter filter = new TapFilter();
-        filter.setMatch(filterMap);
-        TapTable sourceTable = sourceNode.getConnectorContext().getTableMap().get(sourceNode.getTable());
-        TapTable targetTable = targetNode.getConnectorContext().getTableMap().get(targetNode.getTable());
-
-        FilterResult filterResult = filterResults(targetNode, filter, targetTable);
-        $(() -> assertNotNull(filterResult, "The filter " + InstanceFactory.instance(JsonParser.class).toJson(filterMap) + " can not get any result. Please make sure writeRecord method update record correctly and queryByFilter/queryByAdvanceFilter can query it out for verification. "));
-
-        $(() -> Assertions.assertNull(filterResult.getError(), "Error occurred while queryByFilter " + InstanceFactory.instance(JsonParser.class).toJson(filterMap) + " error " + filterResult.getError()));
-        $(() -> assertNotNull(filterResult.getResult(), "Result should not be null, as the record has been inserted"));
-        Map<String, Object> result = filterResult.getResult();
-
-        targetNode.getCodecsFilterManager().transformToTapValueMap(result, sourceTable.getNameFieldMap());
-        targetNode.getCodecsFilterManager().transformFromTapValueMap(result);
-
-        StringBuilder builder = new StringBuilder();
-        $(() -> assertTrue(mapEquals(buildInsertRecord(), result, builder), builder.toString()));
     }
 
     public TapConnector getTestConnector() {
@@ -848,24 +882,7 @@ public class PDKTestBase {
     protected String originToSourceId;
     protected TapNodeInfo tapNodeInfo;
     protected String testTableId;
-    protected TapTable targetTable = table(testTableId)
-            .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-            .add(field("TYPE_ARRAY", JAVA_Array).tapType(tapArray()))
-            .add(field("TYPE_BINARY", JAVA_Binary).tapType(tapBinary().bytes(100L)))
-            .add(field("TYPE_BOOLEAN", JAVA_Boolean).tapType(tapBoolean()))
-            .add(field("TYPE_DATE", JAVA_Date).tapType(tapDate()))
-            .add(field("TYPE_DATETIME", "Date_Time").tapType(tapDateTime().fraction(3)))
-            .add(field("TYPE_MAP", JAVA_Map).tapType(tapMap()))
-            .add(field("TYPE_NUMBER_Long", JAVA_Long).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-            .add(field("TYPE_NUMBER_INTEGER", JAVA_Integer).tapType(tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))))
-            .add(field("TYPE_NUMBER_BigDecimal", JAVA_BigDecimal).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(200).scale(4).fixed(true)))
-            .add(field("TYPE_NUMBER_Float", JAVA_Float).tapType(tapNumber().maxValue(BigDecimal.valueOf(Float.MAX_VALUE)).minValue(BigDecimal.valueOf(-Float.MAX_VALUE)).precision(200).scale(4).fixed(false)))
-            .add(field("TYPE_NUMBER_Double", JAVA_Double).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(200).scale(4).fixed(false)))
-            .add(field("TYPE_STRING_1", JAVA_String).tapType(tapString().bytes(50L)))
-            .add(field("TYPE_STRING_2", JAVA_String).tapType(tapString().bytes(50L)))
-            .add(field("TYPE_INT64", "INT64").tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-            .add(field("TYPE_TIME", "Time").tapType(tapTime().withTimeZone(false)))
-            .add(field("TYPE_YEAR", "Year").tapType(tapYear()));
+    protected TapTable targetTable = Record.testTable(testTableId);
 
     protected Map<String,Object> transform(TestNode prepare, TapTable tapTable, Map<String ,Object> data){
         return transform(prepare.connectorNode(),tapTable,data);
@@ -874,7 +891,9 @@ public class PDKTestBase {
     private TapCodecsFilterManager codecs = new TapCodecsFilterManager(TapCodecsRegistry.create());
     protected Map<String,Object> transform(ConnectorNode prepare, TapTable tapTable, Map<String ,Object> data){
         prepare.getCodecsFilterManager().transformToTapValueMap(data, tapTable.getNameFieldMap());
-        codecs.transformFromTapValueMap(data);
+        TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(data);
+//        prepare.getCodecsFilterManager().transformToTapValueMap(data, tapTable.getNameFieldMap());
+//        codecs.transformFromTapValueMap(data);
         return data;
     }
 
@@ -1225,7 +1244,12 @@ public class PDKTestBase {
         return createTableEvent;
     }
 
-    public TapTable getTargetTable() {
+    //
+    public TapTable getSourceTable() {
         return this.targetTable;
+    }
+
+    public TapTable getTargetTable(ConnectorNode connectorNode){
+       return modelDeductionForTapTable(connectorNode);
     }
 }

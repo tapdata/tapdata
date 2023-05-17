@@ -1,6 +1,7 @@
 package io.tapdata.pdk.tdd.tests.v2;
 
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
@@ -26,7 +27,7 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
 /**
  * 都需使用随机ID建表， 如果有DropTableFunction实现， 测试用例应该自动删除创建的临时表（无论成功或是失败）
  * */
-@TapGo(tag = "V2", sort = 130)
+@TapGo(tag = "V2", sort = 130,debug = false)
 public class BatchCountTest extends PDKTestBase {
     {
         if (PDKTestBase.testRunning) {
@@ -61,14 +62,15 @@ public class BatchCountTest extends PDKTestBase {
                     );
                 }).acceptAsError(testCase, LangUtil.format("batchCountTest.insert", records.length, insert.getInsertedCount()));
                 //使用BatchCountFunction查询记录数， 返回2为正确
-                if (createTable = (null != insert && insert.getInsertedCount() == records.length)) {
+                if (createTable = (insert.getInsertedCount() == records.length)) {
+                    TapTable targetTableModel = super.getTargetTable(prepare.connectorNode());
                     ConnectorNode connectorNode = prepare.connectorNode();
                     ConnectorFunctions functions = connectorNode.getConnectorFunctions();
                     if (super.verifyFunctions(functions, testCase)) {
                         return;
                     }
                     BatchCountFunction batchCount = functions.getBatchCountFunction();
-                    long count = batchCount.count(connectorNode.getConnectorContext(), targetTable);
+                    long count = batchCount.count(connectorNode.getConnectorContext(), targetTableModel);
                     TapAssert.asserts(() -> {
                         Assertions.assertEquals(records.length, count, LangUtil.format("batchCount.afterInsert.error", records.length, count));
                     }).acceptAsError(testCase, LangUtil.format("batchCount.afterInsert.succeed", records.length, count));

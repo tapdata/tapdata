@@ -1,25 +1,14 @@
 package io.tapdata.connector.mysql;
 
 import com.alibaba.fastjson.JSONObject;
-import io.tapdata.common.CommonDbConfig;
 import io.tapdata.common.CommonDbTest;
-import io.tapdata.common.ddl.DDLFactory;
-import io.tapdata.common.ddl.type.DDLParserType;
+import io.tapdata.connector.mysql.config.MysqlConfig;
 import io.tapdata.connector.mysql.constant.MysqlTestItem;
-import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.constant.ConnectionTypeEnum;
-import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.utils.DataMap;
-import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.pdk.apis.entity.Capability;
-import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
-import io.tapdata.util.NetUtil;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.io.IOException;
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -45,71 +34,20 @@ public class MysqlConnectionTest extends CommonDbTest {
     protected static final String CHECK_CREATE_TABLE_PRIVILEGES_SQL = "SELECT count(1)\n" +
             "FROM INFORMATION_SCHEMA.USER_PRIVILEGES\n" +
             "WHERE GRANTEE LIKE '%%%s%%' and PRIVILEGE_TYPE = 'CREATE'";
-    protected MysqlJdbcContext mysqlJdbcContext;
-
-    protected TapConnectionContext tapConnectionContext;
-
-    protected ConnectionOptions connectionOptions;
 
     protected boolean cdcCapability = true;
 
-    public MysqlConnectionTest(MysqlJdbcContext mysqlJdbcContext, TapConnectionContext tapConnectionContext,
-                               Consumer<TestItem> consumer, CommonDbConfig commonDbConfig, ConnectionOptions connectionOptions) {
-        super(commonDbConfig, consumer);
-        this.mysqlJdbcContext = mysqlJdbcContext;
-        this.tapConnectionContext = tapConnectionContext;
-        this.connectionOptions = connectionOptions;
+    public MysqlConnectionTest(MysqlConfig mysqlConfig, Consumer<TestItem> consumer) {
+        super(mysqlConfig, consumer);
+        jdbcContext = new MysqlJdbcContextV2(mysqlConfig);
         if (!ConnectionTypeEnum.SOURCE.getType().equals(commonDbConfig.get__connectionType())) {
             testFunctionMap.put("testCreateTablePrivilege", this::testCreateTablePrivilege);
+            testFunctionMap.put("testWritePrivilege", this::testWritePrivilege);
         }
         if (!ConnectionTypeEnum.TARGET.getType().equals(commonDbConfig.get__connectionType())) {
             testFunctionMap.put("testBinlogMode", this::testBinlogMode);
             testFunctionMap.put("testBinlogRowImage", this::testBinlogRowImage);
             testFunctionMap.put("testCDCPrivileges", this::testCDCPrivileges);
-            testFunctionMap.put("setCdcCapabilitie", this::setCdcCapabilitie);
-        }
-    }
-
-    @Override
-    public Boolean testHostPort() {
-        DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
-        String host = String.valueOf(connectionConfig.get("host"));
-        int port = ((Number) connectionConfig.get("port")).intValue();
-        try {
-            NetUtil.validateHostPortWithSocket(host, port);
-            consumer.accept(testItem(MysqlTestItem.HOST_PORT.getContent(), TestItem.RESULT_SUCCESSFULLY));
-            return true;
-        } catch (IOException e) {
-            consumer.accept(testItem(MysqlTestItem.HOST_PORT.getContent(), TestItem.RESULT_FAILED, e.getMessage()));
-            return false;
-
-        }
-    }
-
-    @Override
-    public Boolean testConnect() {
-        try (
-                Connection connection = mysqlJdbcContext.getConnection();
-        ) {
-            consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY));
-            return true;
-        } catch (Exception e) {
-            if (e instanceof SQLException) {
-                String errMsg = e.getMessage();
-                if (errMsg.contains("using password")) {
-                    String password = mysqlJdbcContext.getTapConnectionContext().getConnectionConfig().getString("password");
-                    if (StringUtils.isNotEmpty(password)) {
-                        errMsg = "password or username is error ,please check";
-                    } else {
-                        errMsg = "password is empty,please enter password";
-                    }
-                    consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, errMsg));
-                    return false;
-
-                }
-            }
-            consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, e.getMessage()));
-            return false;
         }
     }
 
@@ -119,9 +57,7 @@ public class MysqlConnectionTest extends CommonDbTest {
     }
 
     private boolean WriteOrReadPrivilege(String mark) {
-        DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
-        String databaseName = String.valueOf(connectionConfig.get("database"));
-        List<String> tableList = new ArrayList();
+        List<String> tableList = new ArrayList<>();
         AtomicReference<Boolean> globalWrite = new AtomicReference<>();
         AtomicReference<TestItem> testItem = new AtomicReference<>();
         String itemMark = TestItem.ITEM_READ;
@@ -130,10 +66,10 @@ public class MysqlConnectionTest extends CommonDbTest {
         }
         try {
             String finalItemMark = itemMark;
-            mysqlJdbcContext.query(CHECK_DATABASE_PRIVILEGES_SQL, resultSet -> {
+            jdbcContext.normalQuery(CHECK_DATABASE_PRIVILEGES_SQL, resultSet -> {
                 while (resultSet.next()) {
                     String grantSql = resultSet.getString(1);
-                    if (testWriteOrReadPrivilege(grantSql, tableList, databaseName, mark)) {
+                    if (testWriteOrReadPrivilege(grantSql, tableList, commonDbConfig.getDatabase(), mark)) {
                         testItem.set(testItem(finalItemMark, TestItem.RESULT_SUCCESSFULLY));
                         globalWrite.set(true);
                         return;
@@ -203,37 +139,12 @@ public class MysqlConnectionTest extends CommonDbTest {
         return WriteOrReadPrivilege("read");
     }
 
-    @Override
-    public Boolean testVersion() {
-        try {
-            String version = mysqlJdbcContext.getMysqlVersion();
-            String versionMsg = "version: " + version;
-            if (StringUtils.isNotBlank(version)) {
-                if (version.startsWith("5") || version.startsWith("8")) {
-                    int diff = version.compareTo("5.1");
-                    if (diff < 0) {
-                        consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, versionMsg + " not supported well"));
-                        return true;
-                    }
-                } else {
-                    consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, versionMsg + " not supported well"));
-                    return true;
-                }
-            }
-        } catch (Throwable e) {
-            consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_FAILED, e.getMessage()));
-            return false;
-        }
-        consumer.accept(testItem(TestItem.ITEM_VERSION, TestItem.RESULT_SUCCESSFULLY));
-        return true;
-    }
-
     public Boolean testCDCPrivileges() {
         AtomicReference<TestItem> testItem = new AtomicReference<>();
         try {
             StringBuilder missPri = new StringBuilder();
             List<CdcPrivilege> cdcPrivileges = new ArrayList<>(Arrays.asList(CdcPrivilege.values()));
-            mysqlJdbcContext.query(CHECK_DATABASE_PRIVILEGES_SQL, resultSet -> {
+            jdbcContext.normalQuery(CHECK_DATABASE_PRIVILEGES_SQL, resultSet -> {
                 while (resultSet.next()) {
                     String grantSql = resultSet.getString(1);
                     Iterator<CdcPrivilege> iterator = cdcPrivileges.iterator();
@@ -246,7 +157,7 @@ public class MysqlConnectionTest extends CommonDbTest {
                             match = grantSql.contains(privilege);
                             if (match) {
                                 if (cdcPrivilege.onlyNeed) {
-                                    testItem.set(testItem(MysqlTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY));
+                                    testItem.set(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY));
                                     return;
                                 }
                                 break;
@@ -273,12 +184,12 @@ public class MysqlConnectionTest extends CommonDbTest {
 
                     missPri.replace(missPri.length() - 2, missPri.length(), "");
                     cdcCapability = false;
-                    testItem.set(testItem(MysqlTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+                    testItem.set(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
                             "User does not have privileges [" + missPri + "], will not be able to use the incremental sync feature."));
                 }
             }
             if (null == testItem.get()) {
-                testItem.set(testItem(MysqlTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY));
+                testItem.set(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY));
             }
         } catch (SQLException e) {
             int errorCode = e.getErrorCode();
@@ -287,27 +198,26 @@ public class MysqlConnectionTest extends CommonDbTest {
 
             // 如果源库是关闭密码认证时，默认权限校验通过
             if (errorCode == 1290 && "HY000".equals(sqlState) && StringUtils.isNotBlank(message) && message.contains("--skip-grant-tables")) {
-                consumer.accept(testItem(MysqlTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY));
+                testItem.set(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY));
             } else {
                 cdcCapability = false;
-                consumer.accept(testItem(MysqlTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+                testItem.set(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
                         "Check cdc privileges failed; " + e.getErrorCode() + " " + e.getSQLState() + " " + e.getMessage() + "\n" + getStackString(e)));
             }
 
         } catch (Throwable e) {
-            consumer.accept(testItem(MysqlTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+            testItem.set(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
                     "Check cdc privileges failed; " + e.getMessage() + "\n" + getStackString(e)));
             cdcCapability = false;
-            return true;
         }
         consumer.accept(testItem.get());
-        return true;
+        return cdcCapability;
     }
 
     public Boolean testBinlogMode() {
         AtomicReference<TestItem> testItem = new AtomicReference<>();
         try {
-            mysqlJdbcContext.query(CHECK_DATABASE_BINLOG_STATUS_SQL, resultSet -> {
+            jdbcContext.normalQuery(CHECK_DATABASE_BINLOG_STATUS_SQL, resultSet -> {
                 String mode = null;
                 String logbin = null;
                 while (resultSet.next()) {
@@ -326,24 +236,19 @@ public class MysqlConnectionTest extends CommonDbTest {
                     testItem.set(testItem(MysqlTestItem.CHECK_BINLOG_MODE.getContent(), TestItem.RESULT_SUCCESSFULLY));
                 }
             });
-        } catch (SQLException e) {
+        } catch (Exception e) {
             cdcCapability = false;
-            consumer.accept(testItem(MysqlTestItem.CHECK_BINLOG_MODE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
-                    "Check binlog mode failed; " + e.getErrorCode() + " " + e.getSQLState() + " " + e.getMessage() + "\n" + getStackString(e)));
-
-        } catch (Throwable e) {
-            cdcCapability = false;
-            consumer.accept(testItem(MysqlTestItem.CHECK_BINLOG_MODE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+            testItem.set(testItem(MysqlTestItem.CHECK_BINLOG_MODE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
                     "Check binlog mode failed; " + e.getMessage() + "\n" + getStackString(e)));
         }
         consumer.accept(testItem.get());
-        return true;
+        return cdcCapability;
     }
 
     public Boolean testBinlogRowImage() {
         AtomicReference<TestItem> testItem = new AtomicReference<>();
         try {
-            mysqlJdbcContext.query(CHECK_DATABASE_BINLOG_ROW_IMAGE_SQL, resultSet -> {
+            jdbcContext.normalQuery(CHECK_DATABASE_BINLOG_ROW_IMAGE_SQL, resultSet -> {
                 while (resultSet.next()) {
                     String value = resultSet.getString(2);
                     if (!StringUtils.equalsAnyIgnoreCase("FULL", value)) {
@@ -357,19 +262,17 @@ public class MysqlConnectionTest extends CommonDbTest {
                 testItem.set(testItem(MysqlTestItem.CHECK_BINLOG_ROW_IMAGE.getContent(), TestItem.RESULT_SUCCESSFULLY));
             }
         } catch (Throwable e) {
-            consumer.accept(testItem(MysqlTestItem.CHECK_BINLOG_ROW_IMAGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
-                    "Check binlog row image failed; " + e.getMessage() + "\n" + getStackString(e)));
             cdcCapability = false;
+            testItem.set(testItem(MysqlTestItem.CHECK_BINLOG_ROW_IMAGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+                    "Check binlog row image failed; " + e.getMessage() + "\n" + getStackString(e)));
         }
         consumer.accept(testItem.get());
-        return true;
+        return cdcCapability;
     }
 
     public Boolean testCreateTablePrivilege() {
         try {
-            DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
-            String username = String.valueOf(connectionConfig.get("username"));
-            boolean missed = checkMySqlCreateTablePrivilege(username);
+            boolean missed = checkMySqlCreateTablePrivilege(commonDbConfig.getUser());
             if (missed) {
                 consumer.accept(testItem(MysqlTestItem.CHECK_CREATE_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
                         "User does not have privileges [ create ], will not be able to use the create table(s) feature"));
@@ -399,7 +302,7 @@ public class MysqlConnectionTest extends CommonDbTest {
 
     protected boolean checkMySqlCreateTablePrivilege(String username) throws Throwable {
         AtomicBoolean result = new AtomicBoolean(true);
-        mysqlJdbcContext.query(String.format(CHECK_CREATE_TABLE_PRIVILEGES_SQL, username), resultSet -> {
+        jdbcContext.normalQuery(String.format(CHECK_CREATE_TABLE_PRIVILEGES_SQL, username), resultSet -> {
             while (resultSet.next()) {
                 if (resultSet.getInt(1) > 0) {
                     result.set(false);
@@ -407,25 +310,6 @@ public class MysqlConnectionTest extends CommonDbTest {
             }
         });
         return result.get();
-    }
-
-    public Boolean setCdcCapabilitie() {
-        if (cdcCapability) {
-            List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDLParserType.MYSQL_CCJ_SQL_PARSER);
-            ddlCapabilities.forEach(connectionOptions::capability);
-        }
-        return true;
-    }
-
-    @Override
-    public void close() {
-        try {
-            if (mysqlJdbcContext != null) {
-                mysqlJdbcContext.close();
-            }
-        } catch (Exception ignore) {
-            TapLogger.warn(TAG, ignore.getMessage());
-        }
     }
 
     protected enum CdcPrivilege {

@@ -194,12 +194,12 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         // if current node pre has js node need get data from metaInstances
         boolean preHasJsNode = dag.getPreNodes(nodeId).stream().anyMatch(n -> n instanceof MigrateJsProcessorNode);
         if (preHasJsNode)
-            return getMetaByJsNode(nodeId, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, predecessors, taskId);
+            return getMetaByJsNode(nodeId, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, predecessors, taskId, userDetail);
         else
             return getMetadataTransformerItemDtoPage(userDetail, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, taskId, predecessors, currentNode);
     }
 
-    private Page<MetadataTransformerItemDto> getMetaByJsNode(String nodeId, Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource, List<Node<?>> predecessors, String taskId) {
+    private Page<MetadataTransformerItemDto> getMetaByJsNode(String nodeId, Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource, List<Node<?>> predecessors, String taskId, UserDetail user) {
         // table rename
         LinkedList<TableRenameProcessNode> tableRenameProcessNodes = predecessors.stream()
                 .filter(node -> node instanceof TableRenameProcessNode)
@@ -208,6 +208,23 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         Map<String, TableRenameTableInfo> tableNameMapping = null;
         if (CollectionUtils.isNotEmpty(tableRenameProcessNodes)) {
             tableNameMapping = tableRenameProcessNodes.getLast().originalMap();
+        }
+
+        Node currentNode = null;
+        if(CollectionUtils.isNotEmpty(predecessors)) {
+            currentNode = predecessors.get(predecessors.size() - 1);
+        }
+
+        Map<String, Map<String, Boolean>> mappingMap = new HashMap<>();
+        if (currentNode != null) {
+            if (currentNode instanceof MigrateFieldRenameProcessorNode) {
+                LinkedList<TableFieldInfo> fieldsMapping = ((MigrateFieldRenameProcessorNode) currentNode).getFieldsMapping();
+                for (TableFieldInfo tableFieldInfo : fieldsMapping) {
+                    LinkedList<FieldInfo> fields = tableFieldInfo.getFields();
+                    Map<String, Boolean> fieldMap = fields.stream().collect(Collectors.toMap(FieldInfo::getSourceFieldName, FieldInfo::getIsShow));
+                    mappingMap.put(tableFieldInfo.getOriginTableName(), fieldMap);
+                }
+            }
         }
 
         String metaType = "mongodb".equals(targetDataSource.getDatabase_type()) ? "collection" : "table";
@@ -227,19 +244,39 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             }
         }
 
+        Map<String, String> sourceMetaMap = new HashMap<>();
+        if (sourceNode != null && StringUtils.isNotBlank(sourceNode.getId())) {
+            List<MetadataInstancesDto> sourceMetas = metadataInstancesService.findByNodeId(sourceNode.getId(), user, taskId);
+            if (CollectionUtils.isNotEmpty(sourceMetas)) {
+                sourceMetaMap = sourceMetas.stream().collect(Collectors.
+                        toMap(MetadataInstancesDto::getAncestorsName, MetadataInstancesDto::getQualifiedName, (k1, k2) -> k1));
+            }
+        }
+        Map<String, String> targetMetaMap = new HashMap<>();
+        if (targetNode != null && StringUtils.isNotBlank(targetNode.getId())) {
+            List<MetadataInstancesDto> targetMetas = metadataInstancesService.findByNodeId(targetNode.getId(), user, taskId);
+            if (CollectionUtils.isNotEmpty(targetMetas)) {
+                targetMetaMap = targetMetas.stream().collect(Collectors.
+                        toMap(MetadataInstancesDto::getAncestorsName, MetadataInstancesDto::getQualifiedName, (k1, k2) -> k1));
+            }
+        }
+
+
         List<MetadataInstancesDto> instances = metadataInstancesService.findByQualifiedNameList(qualifiedNames, taskId);
         if (CollectionUtils.isNotEmpty(instances)) {
             List<MetadataTransformerItemDto> data = Lists.newArrayList();
             for (MetadataInstancesDto instance : instances) {
                 MetadataTransformerItemDto item = new MetadataTransformerItemDto();
-                item.setSourceObjectName(instance.getOriginalName());
+                item.setSourceObjectName(instance.getAncestorsName());
                 item.setPreviousTableName(instance.getOriginalName());
                 item.setSinkObjectName(instance.getName());
-                item.setSinkQulifiedName(instance.getQualifiedName());
+                item.setSinkQulifiedName(targetMetaMap.get(instance.getAncestorsName()));
+                item.setSourceQualifiedName(sourceMetaMap.get(instance.getAncestorsName()));
 
                 List<FieldsMapping> fieldsMapping = Lists.newArrayList();
                 List<Field> fields = instance.getFields().stream().sorted(Comparator.comparing(Field::getColumnPosition)).collect(Collectors.toList());
                 if (CollectionUtils.isNotEmpty(fields)) {
+                    Map<String, Boolean> fieldMap = mappingMap.get(instance.getAncestorsName());
                     for (Field field : fields) {
                         String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
                         int primaryKey = Objects.isNull(field.getPrimaryKeyPosition()) ? 0 : field.getPrimaryKeyPosition();
@@ -251,6 +288,12 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                             setType("auto");
                             setDefaultValue(defaultValue);
                             setIsShow(true);
+                            if (fieldMap != null) {
+                                Boolean show = fieldMap.get(field.getOriginalFieldName());
+                                if (show != null) {
+                                    setIsShow(show);
+                                }
+                            }
                             setMigrateType("system");
                             setPrimary_key_position(primaryKey);
                             setUseDefaultValue(field.getUseDefaultValue());

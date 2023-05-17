@@ -42,7 +42,6 @@
 		<module>aliyun-adb-mysql-connector</module>
 		<module>aliyun-rds-mysql-connector</module>
 		<module>mysql-pxc-connector</module>
-		<module>tencent-db-mysql-connector</module>
 		<module>polar-db-mysql-connector</module>
 		<module>tencent-db-mongodb-connector</module>
 		<module>aliyun-mongodb-connector</module>
@@ -63,7 +62,7 @@
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
 		<java.version>8</java.version>
 		<tapdata.pdk.runner.version>1.2-SNAPSHOT</tapdata.pdk.runner.version>
-		<tapdata.pdk.api.version>1.2.0</tapdata.pdk.api.version>
+		<tapdata.pdk.api.version>1.2.1</tapdata.pdk.api.version>
 		<tapdata.pdk.connector.core.version>1.0-SNAPSHOT</tapdata.pdk.connector.core.version>
 		<junit.jupiter.version>5.8.1</junit.jupiter.version>
 		<junit.platform.version>1.8.1</junit.platform.version>

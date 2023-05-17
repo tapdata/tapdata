@@ -7,6 +7,9 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+
 /**
  * @Author:
  * @Date: 2022/06/20
@@ -14,8 +17,8 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public class MonitoringLogsRepository extends BaseRepository<MonitoringLogsEntity, ObjectId> {
-    public MonitoringLogsRepository(@Qualifier(value = "logMongoTemplate") MongoTemplate mongoOperations) {
-        super(MonitoringLogsEntity.class, mongoOperations);
+    public MonitoringLogsRepository(@Qualifier(value = "logMongoTemplate") CompletableFuture<MongoTemplate> mongoOperations) throws ExecutionException, InterruptedException {
+        super(MonitoringLogsEntity.class, mongoOperations.get());
     }
 
     @Override

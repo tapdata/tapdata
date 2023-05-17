@@ -10,12 +10,11 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 public class AliyunADBPostgresWriteRecorder extends PostgresWriteRecorder {
+
     public AliyunADBPostgresWriteRecorder(Connection connection, TapTable tapTable, String schema) {
         super(connection, tapTable, schema);
     }
@@ -24,17 +23,18 @@ public class AliyunADBPostgresWriteRecorder extends PostgresWriteRecorder {
         super(connection, tapTable, schema);
         uniqueConditionIsIndex = uniqueConditionIsIndex && hasUnique;
     }
+
     @Override
     public void addInsertBatch(Map<String, Object> after) throws SQLException {
         if (EmptyKit.isEmpty(after)) {
             return;
         }
         if (EmptyKit.isNotEmpty(uniqueCondition)) {
-                if (insertPolicy.equals("ignore-on-exists")) {
-                    conflictIgnoreInsert(after);
-                } else {
-                    conflictUpdateInsert(after);
-                }
+            if (insertPolicy.equals("ignore-on-exists")) {
+                conflictIgnoreInsert(after);
+            } else {
+                conflictUpdateInsert(after);
+            }
         } else {
             justInsert(after);
         }
@@ -49,7 +49,7 @@ public class AliyunADBPostgresWriteRecorder extends PostgresWriteRecorder {
                     + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") " +
                     "VALUES(" + StringKit.copyString("?", allColumn.size(), ",") + ") ON CONFLICT("
                     + uniqueCondition.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", "))
-                    + ") DO UPDATE SET " + allColumn.stream().filter(k -> !uniqueCondition.contains(k) ).map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", "));
+                    + ") DO UPDATE SET " + allColumn.stream().filter(k -> !uniqueCondition.contains(k)).map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", "));
             preparedStatement = connection.prepareStatement(insertSql);
         }
         preparedStatement.clearParameters();
@@ -58,7 +58,7 @@ public class AliyunADBPostgresWriteRecorder extends PostgresWriteRecorder {
             preparedStatement.setObject(pos++, after.get(key));
         }
         for (String key : allColumn) {
-            if(!uniqueCondition.contains(key)){
+            if (!uniqueCondition.contains(key)) {
                 preparedStatement.setObject(pos++, after.get(key));
             }
 
@@ -96,25 +96,16 @@ public class AliyunADBPostgresWriteRecorder extends PostgresWriteRecorder {
             preparedStatement.setObject(pos++, after.get(key));
         }
     }
+
     @Override
     public void addUpdateBatch(Map<String, Object> after, Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
-        if (EmptyKit.isEmpty(after) || EmptyKit.isEmpty(uniqueCondition)) {
+        if (EmptyKit.isEmpty(after)) {
             return;
         }
-        if (EmptyKit.isEmpty(afterKeys)) {
-            afterKeys = new ArrayList<>(after.keySet());
-        }
-        if (!afterKeys.equals(new ArrayList<>(after.keySet()))) {
-            executeBatch(listResult);
-            preparedStatement = null;
-            afterKeys = new ArrayList<>(after.keySet());
-        }
-        Map<String, Object> lastBefore = new HashMap<>();
-        uniqueCondition.forEach(v -> lastBefore.put(v, (EmptyKit.isNotEmpty(before) && before.containsKey(v)) ? before.get(v) : after.get(v)));
         if (updatePolicy.equals(ConnectionOptions.DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS)) {
-            insertUpdate(after, lastBefore);
+            insertUpdate(after, getBeforeForUpdate(after, before, listResult));
         } else {
-            justUpdate(after, lastBefore);
+            justUpdate(after, getBeforeForUpdate(after, before, listResult));
         }
         preparedStatement.addBatch();
     }
@@ -143,10 +134,10 @@ public class AliyunADBPostgresWriteRecorder extends PostgresWriteRecorder {
     private void insertUpdate(Map<String, Object> after, Map<String, Object> before) throws SQLException {
         if (EmptyKit.isNull(preparedStatement)) {
             String updateSql = "INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
-                        + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") " +
-                        "VALUES(" + StringKit.copyString("?", allColumn.size(), ",") + ") ON CONFLICT("
-                        + before.keySet().stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", "))
-                        + ") DO UPDATE SET " + allColumn.stream().filter(k -> !before.keySet().contains(k) ).map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", "));
+                    + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") " +
+                    "VALUES(" + StringKit.copyString("?", allColumn.size(), ",") + ") ON CONFLICT("
+                    + before.keySet().stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", "))
+                    + ") DO UPDATE SET " + allColumn.stream().filter(k -> !before.containsKey(k)).map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", "));
             preparedStatement = connection.prepareStatement(updateSql);
         }
         preparedStatement.clearParameters();
@@ -155,15 +146,11 @@ public class AliyunADBPostgresWriteRecorder extends PostgresWriteRecorder {
             preparedStatement.setObject(pos++, after.get(key));
         }
         for (String key : allColumn) {
-            if(!before.keySet().contains(key)){
+            if (!before.containsKey(key)) {
                 preparedStatement.setObject(pos++, after.get(key));
             }
 
         }
         //dealNullBefore(before, pos);
     }
-
-
-
-
 }

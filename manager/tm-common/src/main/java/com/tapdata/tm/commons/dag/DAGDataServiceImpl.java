@@ -233,7 +233,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                     if (field.getId() != null) {
                         field.getOldIdList().add(field.getId());
                     }
-                    field.setId(new ObjectId().toHexString());
+//                    field.setId(new ObjectId().toHexString());
                 }
                 set.add(field.getId());
             }

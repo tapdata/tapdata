@@ -16,4 +16,5 @@ public interface ProxySubscriptionService {
 	boolean delete(String id, Long time);
 
 	ProxySubscription get(String id);
+
 }

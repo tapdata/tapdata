@@ -7,6 +7,7 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -32,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 都需使用随机ID建表， 如果有DropTableFunction实现， 测试用例应该自动删除创建的临时表（无论成功或是失败）
  */
 @DisplayName("batchRead")//BatchReadFunction全量读数据（依赖WriteRecordFunction）
-@TapGo(tag = "V2", sort = 120, debug = true)
+@TapGo(tag = "V2", sort = 120, debug = false)
 public class BatchReadTest extends PDKTestBase {
     {
         if (PDKTestBase.testRunning) {
@@ -82,10 +83,11 @@ public class BatchReadTest extends PDKTestBase {
                     return;
                 }
                 BatchReadFunction batchReadFun = functions.getBatchReadFunction();
+                TapTable targetTableModel = super.getTargetTable(prepare.connectorNode());
                 //使用BatchReadFunction， batchSize为10读出所有数据，
                 final int batchSize = 10;
                 List<TapEvent> list = new ArrayList<>();
-                batchReadFun.batchRead(context, targetTable, null, batchSize, (events, obj) -> {
+                batchReadFun.batchRead(context, targetTableModel, null, batchSize, (events, obj) -> {
                     if (null != events && !events.isEmpty()) list.addAll(events);
 //                        Map<String, Object> info = tapEvent.getInfo();
 //                        DataMap filterMap = (DataMap) info;
@@ -112,7 +114,7 @@ public class BatchReadTest extends PDKTestBase {
 //                                if (null!=filterResult.getResult()){
 //                                    Map<String, Object> result = filterResult.getResult();
 //                                    connectorNode.getCodecsFilterManager().transformToTapValueMap(result, targetTable.getNameFieldMap());
-//                                    connectorNode.getCodecsFilterManager().transformFromTapValueMap(result);
+//                                    TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(result);
 //                                    StringBuilder builder = new StringBuilder();
 //                                    TapAssert.asserts(()->assertTrue(
 //                                        mapEquals(record, result, builder),
@@ -164,11 +166,11 @@ public class BatchReadTest extends PDKTestBase {
                         } else {
                             result = new HashMap<>();
                         }
-                        result = transform(prepare, targetTable, result);
+                        //result = transform(prepare, targetTableModel, result);
                         StringBuilder builder = new StringBuilder();
                         Map<String, Object> finalResult = result;
                         TapAssert.asserts(() -> assertTrue(
-                                mapEquals(record, finalResult, builder),
+                                mapEquals(transform(prepare, targetTableModel, record), finalResult, builder, targetTableModel.getNameFieldMap()),
                                 LangUtil.format("exact.equals.failed", recordCount, builder.toString())
                         )).acceptAsWarn(testCase, LangUtil.format("exact.equals.succeed", recordCount, builder.toString()));
                     }

@@ -1,5 +1,6 @@
 package com.tapdata.tm.externalStorage.controller;
 
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
@@ -13,6 +14,7 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -48,7 +50,6 @@ public class ExternalStorageController extends BaseController {
 	@Operation(summary = "Create a new instance of the model and persist it into the data source")
 	@PostMapping
 	public ResponseMessage<ExternalStorageDto> save(@RequestBody(required = false) ExternalStorageDto externalStorage) {
-		externalStorage.setId(null);
 		return success(externalStorageService.save(externalStorage, getLoginUser()));
 	}
 
@@ -97,7 +98,6 @@ public class ExternalStorageController extends BaseController {
 			filter = new Filter();
 		}
 		Page<ExternalStorageDto> data = externalStorageService.find(filter, getLoginUser());
-		Optional.ofNullable(data.getItems()).ifPresent(list -> list.forEach(info -> info.setUri(info.maskUriPassword())));
 		return success(data);
 	}
 

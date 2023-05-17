@@ -162,4 +162,11 @@ public interface PDKExCode_10 {
 			seeAlso = {"https://docs.tapdata.io/enterprise/user-guide/connect-database/"}
 	)
 	String SKIPPABLE_DATA = "10010";
+
+	@TapExCode(
+			describe = "Some configurations of the data source do not effectively support CDC functionality. Please refer to the exception details and suggestions for details;",
+			describeCN = "数据源的某些配置并不能有效地支持CDC功能，具体可以查看异常详情与建议；",
+			seeAlso = {"https://docs.tapdata.io/enterprise/user-guide/connect-database/"}
+	)
+	String DB_CDC_CONFIG_INVALID = "10011";
 }

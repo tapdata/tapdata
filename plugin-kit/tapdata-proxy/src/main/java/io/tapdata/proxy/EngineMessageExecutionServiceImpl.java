@@ -191,7 +191,7 @@ public class EngineMessageExecutionServiceImpl implements EngineMessageExecution
 						biConsumer.accept(response, null);
 						return;
 					} catch (IOException ioException) {
-						TapLogger.debug(TAG, "Send to nodeId {} failed {} and will try next, command {}", id, ioException.getMessage(), engineMessage);
+						TapLogger.info(TAG, "Send to nodeId {} failed {} and will try next, command {}", id, ioException.getMessage(), engineMessage);
 						error = ioException;
 					}
 				}
@@ -200,7 +200,7 @@ public class EngineMessageExecutionServiceImpl implements EngineMessageExecution
 		if(error != null) {
 			biConsumer.accept(null, error);
 		} else {
-			biConsumer.accept(null, new CoreException(NetErrors.NO_AVAILABLE_ENGINE, "No available engine"));
+			biConsumer.accept(null, new CoreException(NetErrors.NO_AVAILABLE_ENGINE, "No available engine from list {}", list));
 		}
 	}
 

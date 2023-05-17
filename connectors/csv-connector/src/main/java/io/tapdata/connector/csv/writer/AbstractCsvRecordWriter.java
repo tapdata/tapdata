@@ -100,7 +100,7 @@ public abstract class AbstractCsvRecordWriter extends AbstractFileRecordWriter {
                 .removedCount(delete));
     }
 
-    protected CsvFileWriter getCsvFileWriterAndInit(String uniquePath) throws Exception {
+    protected synchronized CsvFileWriter getCsvFileWriterAndInit(String uniquePath) throws Exception {
         CsvFileWriter csvFileWriter;
         CsvConfig csvConfig = (CsvConfig) fileConfig;
         if (fileWriterMap.containsKey(uniquePath)) {
@@ -132,6 +132,7 @@ public abstract class AbstractCsvRecordWriter extends AbstractFileRecordWriter {
             } else {
                 csvFileWriter.getCsvWriter().writeNext(fileConfig.getHeader().split(","));
             }
+            lastWriteMap.put(uniquePath, System.currentTimeMillis());
         }
         return csvFileWriter;
     }

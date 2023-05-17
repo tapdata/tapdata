@@ -12,8 +12,10 @@ public class TDDFactory {
     public static final String baseJarPath = "./connectors/dist/";
     public static final String baseConfPath = "tapdata-cli/src/main/resources/config/";
     private enum TddPath{
+//        KINGBASE("kingbaser6-connector-v1.0-SNAPSHOT.jar","kingbase.json"),
+//        OPENGAUSS("opengauss-connector-v1.0-SNAPSHOT.jar","opengauss.json"),
 //        PGSQL("postgres-connector-v1.0-SNAPSHOT.jar","postgres.json"),
-//        MySql("mysql-connector-v1.0-SNAPSHOT.jar","mysql.json"),
+        MySql("mysql-connector-v1.0-SNAPSHOT.jar","mysql.json"),
 //        PolarDBMySql("polar-db-mysql-connector-v1.0-SNAPSHOT.jar","polar-db-mysql.json"),
 //        MongoDB("mongodb-connector-v1.0-SNAPSHOT.jar","mongodb.json"),
 //        Coding("coding-connector-v1.0-SNAPSHOT.jar","coding.json"),

@@ -58,6 +58,12 @@
             <version>${hadoop.version}</version>
         </dependency>
         <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>2.0.6</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-runner</artifactId>
             <scope>test</scope>
@@ -177,4 +183,23 @@
             </plugin>
         </plugins>
     </build>
+    <repositories>
+        <repository>
+            <id>tapdata-tapdata-maven</id>
+            <name>maven</name>
+            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>huaweicloudsdk</id>
+            <url>https://repo.huaweicloud.com/repository/maven/huaweicloudsdk/</url>
+            <releases><enabled>true</enabled></releases>
+            <snapshots><enabled>true</enabled></snapshots>
+        </repository>
+    </repositories>
 </project>

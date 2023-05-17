@@ -59,20 +59,45 @@ public class ApiAppServiceImpl implements ApiAppService {
     }
 
     @Override
+    public Page<ApiAppDetail> findAndModel(Filter filter, UserDetail user) {
+        Page<MetadataDefinitionDto> page = metadataDefinitionService.find(filter, user);
+        Page<ApiAppDetail> returnPage = new Page<>();
+        returnPage.setTotal(page.getTotal());
+
+        //添加api总数，跟已发布的api数量。
+        if (CollectionUtils.isNotEmpty(page.getItems())) {
+            List<ApiAppDetail> appDetails = page.getItems().stream().map(s -> {
+                ApiAppDetail apiAppDetail = new ApiAppDetail();
+                BeanUtils.copyProperties(s, apiAppDetail);
+                return apiAppDetail;
+            }).collect(Collectors.toList());
+            returnPage.setItems(appDetails);
+            addApiCount(appDetails, user, true);
+        }
+        return returnPage;
+    }
+
+    @Override
     public Page<MetadataDefinitionDto> find(Filter filter, UserDetail user) {
+        Page<MetadataDefinitionDto> page = metadataDefinitionService.find(filter, user);
+        //添加api总数，跟已发布的api数量。
+        addApiCount(page.getItems(), user);
+        return page;
+    }
+    public Page<MetadataDefinitionDto> findPage(Filter filter, UserDetail user) {
 
         boolean addModel = false;
         if (filter != null) {
             if (filter.getWhere() != null) {
-                Object addMode = filter.getWhere().get("addMode");
+                Object addMode = filter.getWhere().get("addModel");
                 if (addMode != null) {
                     addModel = (boolean) addMode;
                 }
+                filter.getWhere().remove("addModel");
             }
         }
         Page<MetadataDefinitionDto> page = metadataDefinitionService.find(filter, user);
-        //添加api总数，跟已发布的api数量。
-        addApiCount(page.getItems(), user, addModel);
+
 
         return page;
     }
@@ -125,10 +150,12 @@ public class ApiAppServiceImpl implements ApiAppService {
     }
 
     private void addApiCount(List<MetadataDefinitionDto> metadatas, UserDetail user) {
-        addApiCount(metadatas, user, false);
+        List<ApiAppDetail> appDetails = new ArrayList<>();
+        BeanUtils.copyProperties(metadatas, appDetails);
+        addApiCount(appDetails, user, false);
     }
 
-    private void addApiCount(List<MetadataDefinitionDto> metadatas, UserDetail user, boolean addModel) {
+    private void addApiCount(List<ApiAppDetail> metadatas, UserDetail user, boolean addModel) {
         if (CollectionUtils.isEmpty(metadatas)) {
             return;
         }

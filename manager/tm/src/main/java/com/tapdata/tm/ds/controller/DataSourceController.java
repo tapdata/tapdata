@@ -552,6 +552,23 @@ public class DataSourceController extends BaseController {
         return success(result);
     }
 
+    @Operation(summary = "Find logCollector tasks referencing the current connection")
+    @GetMapping("logCollectorTask/{id}/{limit}")
+    public ResponseMessage<Map<String, Object>> findLogCollectorTaskByConnectionId(@PathVariable("id") String connectionId, @PathVariable("limit") int limit) {
+        UserDetail loginUser = getLoginUser();
+        Long total = dataSourceService.countTaskByConnectionId(connectionId, TaskDto.SYNC_TYPE_LOG_COLLECTOR, loginUser);
+        List<TaskDto> taskList = dataSourceService.findTaskByConnectionId(connectionId, limit, TaskDto.SYNC_TYPE_LOG_COLLECTOR, loginUser);
+        List<Document> items = taskList.stream()
+                .map(task -> new Document("id", task.getId().toHexString())
+                        .append("name", task.getName())
+                        .append("syncType", task.getSyncType())).collect(Collectors.toList());
+        Map<String, Object> result = new HashMap<String, Object>() {{
+            put("items", items);
+            put("total", total);
+        }};
+        return success(result);
+    }
+
     @Operation(summary = "Connection statistics api")
     @GetMapping("/stats")
     public ResponseMessage<ConnectionStats> stats() {

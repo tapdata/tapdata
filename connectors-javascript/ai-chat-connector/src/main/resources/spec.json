@@ -1,0 +1,63 @@
+{
+  "properties": {
+    "name": "AIChat",
+    "icon": "icon/chat.png",
+    "doc" : "${doc}",
+    "id": "ai-chat",
+    "authentication": "Alpha",
+    "tags": ["SaaS"]
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "String",
+          "title": "${c_host}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 10,
+          "required": true,
+          "x-decorator-props": {
+            "tooltip": "${tip_url}"
+          }
+        },
+        "token": {
+          "type": "String",
+          "title": "${c_token}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 20,
+          "required": true
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "doc/chat_en_US.md",
+      "c_host": "URL Base",
+      "c_token": "Token",
+      "tip_url": "Such as: http://127.0.0.1:80 or https://127.0.0.1:443"
+    },
+    "zh_CN": {
+      "doc": "doc/chat_zh_CN.md",
+      "c_host": "访问地址",
+      "c_token": "Token",
+      "tip_url": "例如: http://127.0.0.1:80 或 https://127.0.0.1:443"
+    },
+    "zh_TW": {
+      "doc": "doc/chat_zh_TW.md",
+      "c_host": "訪問地址",
+      "c_token": "Token",
+      "tip_url": "例如: http://127.0.0.1:80 或 https://127.0.0.1:443"
+    }
+  }
+}
