@@ -100,7 +100,7 @@ public class ScriptExecutorsManager {
 
 	public ScriptExecutor create(Connections connections, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, Log scriptLogger) {
 		return new ScriptExecutor(connections, clientMongoOperator, hazelcastInstance, scriptLogger,
-				this.getClass().getSimpleName() + "-" + taskId + "-" + nodeId + "-" + UUIDGenerator.uuid(), trialRun);
+						this.getClass().getSimpleName() + "-" + taskId + "-" + nodeId + "-" + connections.getId(), trialRun);
 	}
 
 	public void close() {
