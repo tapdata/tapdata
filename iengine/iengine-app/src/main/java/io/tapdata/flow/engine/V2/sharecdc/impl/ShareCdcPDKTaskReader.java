@@ -488,7 +488,10 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			for (String tableName : tableNames) {
 				ShareCdcReaderResource readerResource = readerResourceMap.remove(tableName);
 				if (null == readerResource) continue;
-				CommonUtils.ignoreAnyError(() -> PersistenceStorage.getInstance().destroy(ConstructType.RINGBUFFER, readerResource.construct.getName()), tag);
+				CommonUtils.ignoreAnyError(() -> {
+					String constructName = readerResource.construct.getName();
+					PersistenceStorage.getInstance().destroy(ConstructType.RINGBUFFER, constructName);
+				}, tag);
 			}
 		}
 	}
