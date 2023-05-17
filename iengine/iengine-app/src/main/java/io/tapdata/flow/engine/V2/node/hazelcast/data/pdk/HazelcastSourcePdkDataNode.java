@@ -704,13 +704,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				if (CollectionUtils.isNotEmpty(conditions)) {
 					DataMap match = new DataMap();
 					for (QueryOperator queryOperator : conditions) {
-						TapField tapField = tapTable.getNameFieldMap().get(queryOperator.getKey());
-						TapType tapType = tapField.getTapType();
-						Object convertValue;
-						if (queryOperator.getValue() != null) {
-							convertValue = getConvertValue(tapType, queryOperator.getValue().toString());
-							queryOperator.setValue(convertValue);
-						}
 						if (EQUAL_VALUE == queryOperator.getOperator()) {
 							match.put(queryOperator.getKey(), queryOperator.getValue());
 						} else {
