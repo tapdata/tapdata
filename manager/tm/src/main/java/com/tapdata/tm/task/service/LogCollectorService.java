@@ -3,9 +3,6 @@ package com.tapdata.tm.task.service;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Maps;
 import com.mongodb.ConnectionString;
-import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
-import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Field;
@@ -15,11 +12,13 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
+import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DataNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
@@ -28,6 +27,7 @@ import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.CreateTypeEnum;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -38,6 +38,7 @@ import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.bean.*;
+import com.tapdata.tm.task.param.TableLogCollectorParam;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
@@ -64,6 +65,7 @@ import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * @Author: Zed
@@ -1405,4 +1407,114 @@ public class LogCollectorService {
         shareCdcTableInfoPage.setItems(shareCdcConnectionInfos);
         return shareCdcTableInfoPage;
     }
+
+	public void configTables(String taskId, List<TableLogCollectorParam> params, String type, UserDetail user) {
+
+		TaskDto shareCdcTask = taskService.findById(MongoUtils.toObjectId(taskId), user);
+		DAG dag = shareCdcTask.getDag();
+		List<Node> sources = dag.getSources();
+		LogCollectorNode logCollectorNode = (LogCollectorNode)sources.get(0);
+		Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap = processOldData(logCollectorNode);
+		if (type.equals("type")) {
+			logCollectorConnConfigMap = exclusionTables(logCollectorConnConfigMap, params);
+		} else if (type.equals("add")) {
+			logCollectorConnConfigMap = addTables(logCollectorConnConfigMap, params);
+		} else {
+			throw new IllegalArgumentException("type param is illegal");
+		}
+		logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigMap);
+		taskService.update(Query.query(Criteria.where("_id").is(shareCdcTask.getId())), shareCdcTask);
+		taskService.pause(shareCdcTask.getId(), user, false, true);
+	}
+
+	private Map<String, LogCollecotrConnConfig> addTables(Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap, List<TableLogCollectorParam> params) {
+		Map<String, LogCollecotrConnConfig> paramMap = params.stream()
+						.collect(Collectors.toMap(TableLogCollectorParam::getConnectionId, e -> new LogCollecotrConnConfig(e.getConnectionId(), new ArrayList<>(e.getTableNames())), (o, n) -> {
+							o.getTableNames().addAll(n.getTableNames());
+							return o;
+						}));
+		logCollectorConnConfigMap = Stream.of(paramMap, logCollectorConnConfigMap).flatMap(map -> map.entrySet().stream())
+						.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (o, n) -> {
+							if (o.getTableNames() == null) {
+								o.setTableNames(n.getTableNames());
+							} else {
+								o.getTableNames().addAll(n.getTableNames());
+							}
+							return o;
+						}));
+		logCollectorConnConfigMap.values().forEach(v-> v.getExclusionTables().removeIf(v.getTableNames()::contains));
+		return logCollectorConnConfigMap;
+	}
+
+	private Map<String, LogCollecotrConnConfig> processOldData(LogCollectorNode logCollectorNode) {
+		Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap = logCollectorNode.getLogCollectorConnConfigs();
+		if (logCollectorConnConfigMap == null) {
+			logCollectorConnConfigMap = new HashMap<>();
+			//把以前的转移新config中
+			String oldConnectionId = logCollectorNode.getConnectionIds().get(0);
+			List<String> oldTableNames = logCollectorNode.getTableNames();
+			LogCollecotrConnConfig logCollecotrConnConfig = new LogCollecotrConnConfig(oldConnectionId, oldTableNames);
+			logCollectorConnConfigMap.put(logCollecotrConnConfig.getConnectionId(), logCollecotrConnConfig);
+			logCollectorNode.setTableNames(null);
+			logCollectorNode.setConnectionIds(null);
+		}
+		return logCollectorConnConfigMap;
+	}
+
+	private Map<String, LogCollecotrConnConfig> exclusionTables(Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap, List<TableLogCollectorParam> params) {
+		Map<String, LogCollecotrConnConfig> paramMap = params.stream()
+						.collect(Collectors.toMap(TableLogCollectorParam::getConnectionId,
+										e -> new LogCollecotrConnConfig(e.getConnectionId(), new ArrayList<>(), new ArrayList<>(e.getTableNames())),
+										(o, n) -> {
+											o.getExclusionTables().addAll(n.getExclusionTables());
+											return o;
+						}));
+		logCollectorConnConfigMap = Stream.of(paramMap, logCollectorConnConfigMap).flatMap(map -> map.entrySet().stream())
+						.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (o, n) -> {
+							if (o.getExclusionTables() == null) {
+								o.setExclusionTables(n.getExclusionTables());
+							} else {
+								o.getExclusionTables().addAll(n.getExclusionTables());
+							}
+							return o;
+						}));
+		logCollectorConnConfigMap.values().forEach(v-> v.getTableNames().removeIf(v.getExclusionTables()::contains));
+		return logCollectorConnConfigMap;
+	}
+
+	public static void main(String[] args) {
+		Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap = new HashMap<String, LogCollecotrConnConfig>() {{
+			put("connectionId_1", new LogCollecotrConnConfig("connectionId_1",
+							new ArrayList<String>() {{
+								add("table_1");
+								add("table_2");
+								add("table_3");
+							}},
+							new ArrayList<String>() {{
+								add("table_3");
+								add("table_4");
+								add("table_5");
+								add("table_6");
+							}}
+			));
+		}};
+		List<TableLogCollectorParam> addParams = new ArrayList<TableLogCollectorParam>() {{
+			add(new TableLogCollectorParam("connectionId_1", new HashSet<String>() {{
+				add("table_4");
+				add("table_5");
+			}}));
+		}};
+
+		List<TableLogCollectorParam> exclusionParams = new ArrayList<TableLogCollectorParam>() {{
+			add(new TableLogCollectorParam("connectionId_1", new HashSet<String>() {{
+				add("table_1");
+				add("table_2");
+			}}));
+		}};
+
+//		Map<String, LogCollecotrConnConfig> logCollecotrConnConfigMap = new LogCollectorService().addTables(logCollectorConnConfigMap, addParams);
+//		System.out.println(logCollecotrConnConfigMap);
+
+
+	}
 }
