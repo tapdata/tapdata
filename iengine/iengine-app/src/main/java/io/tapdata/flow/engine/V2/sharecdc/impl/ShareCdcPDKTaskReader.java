@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.sharecdc.impl;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
 import com.hazelcast.spi.exception.DistributedObjectDestroyedException;
 import com.tapdata.constant.ConnectorConstant;
@@ -484,11 +485,13 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 
 		public void close() {
 			String tag = ReadRunner.class.getSimpleName();
-			ShareCdcReaderResource readerResource;
 			for (String tableName : tableNames) {
-				readerResource = readerResourceMap.remove(tableName);
+				ShareCdcReaderResource readerResource = readerResourceMap.remove(tableName);
 				if (null == readerResource) continue;
-				CommonUtils.ignoreAnyError(readerResource.construct::destroy, tag);
+				CommonUtils.ignoreAnyError(() -> {
+					String constructName = readerResource.construct.getName();
+					PersistenceStorage.getInstance().destroy(ConstructType.RINGBUFFER, constructName);
+				}, tag);
 			}
 		}
 	}
