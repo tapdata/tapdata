@@ -12,28 +12,21 @@
     "node": {
       "type": "object",
       "properties": {
-        "illustrateTitle": {
-          "title": "${node_illustrate_title}",
-          "type": "void",
-          "x-decorator": "FormItem",
-          "x-component": "Text",
-          "x-component-props": {
-            "content": "${node_return_type}: // data is an array or object\n return data = {\n\t\"eventType\": \" i \", // i is insert, u is update, d is delete\n\t\"tableName\": \" \", // source table name\n\t\"data\": { }, // master data\n}"
-          },
-          "x-index": 10
-        },
         "eventScript": {
           "title": "${node_script_title}",
           "type": "string",
           "x-decorator": "FormItem",
           "x-decorator-props": {
             "gridSpan": 2,
-            "colon": false
+            "colon": false,
+            "tooltip": "${node_tip_script}"
           },
+          "content": "\t//${node_return_type}\n\t//data is an array or object\n\t//return data = {\n\t\t//\"eventType\": \" i \", // i is insert, u is update, d is delete\n\t\t//\"tableName\": \" \", // source table name\n\t\t//\"data\": { }, // master data\n\t}",
           "x-component": "JsEditor",
           "x-component-props": {
             "height": 240,
             "before": "function handleEvent(event) {",
+            "content": "\t//${node_return_type}\n\t//data is an array or object\n\t//return data = {\n\t\t//\"eventType\": \" i \", // i is insert, u is update, d is delete\n\t\t//\"tableName\": \" \", // source table name\n\t\t//\"data\": { }, // master data\n\t}",
             "after": "}",
             "theme": "one_dark"
           },
@@ -89,7 +82,8 @@
 
       "node_script_title": "Data processing script",
       "node_illustrate_title": "JavaScript Writing Instructions",
-      "node_return_type": "Script Method Return Value Specification: "
+      "node_return_type": "Script Method Return Value Specification: ",
+      "node_tip_script": "You can preprocess the data received by the receiver from third-party platforms through this script, and return the type (eventType), table (tableName), and final data body of this data according to the specified structure (data)."
     },
     "zh_CN": {
       "doc": "docs/coding_zh_CN.md",
@@ -98,7 +92,8 @@
       "hookButton": "生成服务 URL",
       "node_script_title": "数据处理脚本",
       "node_illustrate_title": "JavaScript编写说明",
-      "node_return_type": "脚本方法返回值规范："
+      "node_return_type": "脚本方法返回值规范：",
+      "node_tip_script": "您可以通过此脚本预处理接收器收到的第三方平台推送过来的数据，并按指定结构返回这个数据的类型（eventType）、所属表（tableName）、以及最终数据体（data）。"
     },
     "zh_TW": {
       "doc": "docs/coding_zh_TW.md",
@@ -107,7 +102,8 @@
       "hookButton": "生成服務URL",
       "node_script_title": "數據處理腳本",
       "node_illustrate_title": "JavaScript編寫說明",
-      "node_return_type": "腳本方法返回值規範："
+      "node_return_type": "腳本方法返回值規範：",
+      "node_tip_script": "您可以通過此腳本預處理接收器收到的協力廠商平臺推送過來的數據，並按指定結構返回這個數據的類型（eventType）、所屬錶（tableName）、以及最終數據體（data）。"
     }
   },
   "dataTypes": {
