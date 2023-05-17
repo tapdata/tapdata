@@ -34,7 +34,7 @@ public class ProcessorNodeSampleHandler extends AbstractNodeSampleHandler {
         Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(recorder.getNewestEventTimestamp()));
         Optional.ofNullable(replicateLag).ifPresent(counter -> {
             if (null != recorder.getReplicateLagTotal()) {
-                counter.setValue(recorder.getTotal(), recorder.getReplicateLagTotal());
+                counter.setValue(recorder.getReplicateLagTotal());
             }
         });
     }
