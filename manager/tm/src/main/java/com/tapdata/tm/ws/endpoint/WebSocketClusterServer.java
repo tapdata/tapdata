@@ -98,6 +98,7 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
      */
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
+        log.debug("Receive {}: {}", session.getId(), message.getPayload());
         handleMessage(session, message);
     }
 
@@ -124,7 +125,14 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
             return;
         }
         WebSocketSession webSocketSession = agentInfo.getSession();
-        webSocketSession.sendMessage(new TextMessage(message));
+        sendMessage(webSocketSession, message);
+    }
+
+    private static void sendMessage(WebSocketSession session, String message) throws IOException {
+        if (session != null && message != null) {
+            log.debug("Send to {}: {}", session.getId(), message);
+            session.sendMessage(new TextMessage(message));
+        }
     }
 
     // todo 发送分开
@@ -138,7 +146,7 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
             messageQueueService.save(queueDto);
         } else {
             WebSocketSession webSocketSession = agentInfo.getSession();
-            webSocketSession.sendMessage(new TextMessage(message));
+            sendMessage(webSocketSession, message);
         }
     }
 
@@ -147,7 +155,7 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
         try {
             Map map = JsonUtil.parseJson(message.getPayload(), Map.class);
             if (map == null || map.get("sign") == null) {
-                session.sendMessage(new TextMessage("Payload or sign is null"));
+                sendMessage(session, "Payload or sign is null");
                 return;
             }
             String msgReceived = JsonUtil.toJsonUseJackson(map);
@@ -160,12 +168,12 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
             Long timeStamp = MapUtils.getAsLong(map, "timestamp");
 
             if (!checkSign(sign, timeStamp, message.getPayload())) {
-                session.sendMessage(new TextMessage("Check sign failed"));
+                sendMessage(session, "Check sign failed");
                 return;
             }
 
             if (!map.containsKey("type")) {
-                session.sendMessage(new TextMessage("Type is empty"));
+                sendMessage(session, "Type is empty");
                 return;
             }
 
@@ -227,14 +235,14 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
                     uploadLogService.handleUploadHeartBeat(map);
                     break;
                 default:
-                    session.sendMessage(new TextMessage("Type is not supported"));
+                    sendMessage(session, "Type is not supported");
                     break;
             }
 
         } catch (Exception e) {
             log.error("Handle message failed,message: {}", e.getMessage(), e);
             try {
-                session.sendMessage(new TextMessage("Handle message failed,message:" + e.getMessage()));
+                sendMessage(session, "Handle message failed,message:" + e.getMessage());
             } catch (Exception ex) {
                 log.error("Websocket send message failed,message: {}", ex.getMessage(), ex);
             }
@@ -258,7 +266,7 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
     private void getLatestDownloadUrl(WebSocketSession session) {
         WebSocketResult webSocketResult = WebSocketResult.ok(tcmService.getDownloadUrl(getUserId(session)), "downloadUrl");
         try {
-            session.sendMessage(new TextMessage(JsonUtil.toJson(webSocketResult)));
+            sendMessage(session, JsonUtil.toJson(webSocketResult));
         } catch (Exception e) {
             log.error("Websocket send message failed,message: {}", e.getMessage(), e);
         }
@@ -276,7 +284,7 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
         WebSocketResult webSocketResult = WebSocketResult.ok(versionInfo, "checkTapdataAgentVersion");
 
         try {
-            session.sendMessage(new TextMessage(JsonUtil.toJson(webSocketResult)));
+            sendMessage(session, JsonUtil.toJson(webSocketResult));
         } catch (Exception e) {
             log.error("Websocket send message failed,message: {}", e.getMessage(), e);
         }
