@@ -1,6 +1,7 @@
 package io.tapdata.http.entity;
 
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.http.util.Tags;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
 /**
@@ -9,11 +10,12 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
  * @create 2023/5/17 17:20
  **/
 public class ConnectionConfig {
+    public static final String EVENT_FUNCTION_NAME = "handleEvent";
     private String tableName;
     private String hookUrl;
     private String script;
 
-    public static ConnectionConfig create(TapConnectionContext context){
+    public static ConnectionConfig create(TapConnectionContext context) {
         DataMap config = context.getConnectionConfig();
         return new ConnectionConfig()
                 .tableName(config.getString("tableName"))
@@ -21,31 +23,31 @@ public class ConnectionConfig {
                 .script(config.getString("eventScript"));
     }
 
-    public ConnectionConfig tableName(String tableName){
+    public ConnectionConfig tableName(String tableName) {
         this.tableName = tableName;
         return this;
     }
 
-    public String tableName(){
+    public String tableName() {
         return this.tableName;
     }
 
-    public ConnectionConfig hookUrl(String hookUrl){
+    public ConnectionConfig hookUrl(String hookUrl) {
         this.hookUrl = hookUrl;
         return this;
     }
 
-    public String hookUrl(){
+    public String hookUrl() {
         return this.hookUrl;
     }
 
 
-    public ConnectionConfig script(String script){
-        this.script = script;
+    public ConnectionConfig script(String script) {
+        this.script = Tags.script(script);
         return this;
     }
 
-    public String script(){
+    public String script() {
         return this.script;
     }
 

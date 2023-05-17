@@ -2,11 +2,17 @@ package io.tapdata.http;
 
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.script.ScriptFactory;
+import io.tapdata.entity.script.ScriptOptions;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.http.entity.ConnectionConfig;
 import io.tapdata.http.receiver.ConnectionTest;
+import io.tapdata.http.receiver.EventHandle;
+import io.tapdata.http.util.Checker;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -14,6 +20,9 @@ import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 
+import javax.script.Invocable;
+import javax.script.ScriptEngine;
+import javax.script.ScriptException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,9 +36,20 @@ import java.util.function.Consumer;
  **/
 @TapConnectorClass("spec.json")
 public class HttpReceiverConnector extends ConnectorBase {
+    public static final String TAG = HttpReceiverConnector.class.getSimpleName();
+    private static final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
+    private ScriptEngine scriptEngine;
+    private ConnectionConfig config;
+
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
-
+        this.scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
+        this.config = ConnectionConfig.create(connectionContext);
+        if (null != this.scriptEngine) {
+            this.scriptEngine.eval(this.config.script());
+        } else {
+            throw new CoreException("Can not get event handle script, please check you connection config.");
+        }
     }
 
     @Override
@@ -40,18 +60,53 @@ public class HttpReceiverConnector extends ConnectorBase {
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry tapCodecsRegistry) {
         connectorFunctions.supportBatchRead(this::batchRead)
+                .supportTimestampToStreamOffset(this::offset)
                 .supportRawDataCallbackFilterFunctionV2(this::callback);
     }
 
-    private void batchRead(TapConnectorContext context, TapTable tapTable, Object offset, int batchSize, BiConsumer<List<TapEvent>, Object> con) {
-
+    private Object offset(TapConnectorContext context, Long time) {
+        if (null != time) {
+            return time;
+        }
+        return System.currentTimeMillis();
     }
 
-    private List<TapEvent> callback(TapConnectorContext context, Map<String, Object> eventMap) {
-        return null;
+    private void batchRead(TapConnectorContext context, TapTable tapTable, Object offset, int batchSize, BiConsumer<List<TapEvent>, Object> con) {
+        context.getLog().info(TAG, "Http Receiver can not support batch read, and batch read is over now.");
     }
 
     private List<TapEvent> callback(TapConnectorContext context, List<String> tableName, Map<String, Object> eventMap) {
+        if (null == config) {
+            config = ConnectionConfig.create(context);
+        }
+        String name = config.tableName();
+        if (Checker.isEmpty(eventMap)) {
+            TapLogger.debug(TAG, "WebHook of http body is empty, Data callback has been over.");
+            return null;
+        }
+        //Object listObj = eventMap.get("array");
+        //if (Checker.isEmpty(listObj) || !(listObj instanceof Collection)){
+        //    TapLogger.debug(TAG,"WebHook of http body is empty or not Collection, Data callback has been over.");
+        //    return null;
+        //}
+        //List<Map<String,Object>> dataEventList = (List<Map<String, Object>>)listObj;
+
+        if (null != this.scriptEngine) {
+            Invocable invocable = (Invocable) this.scriptEngine;
+            try {
+                Object invokeResult = invocable.invokeFunction(ConnectionConfig.EVENT_FUNCTION_NAME, eventMap);
+                if (null != invokeResult) {
+                    return EventHandle.eventList(name, invokeResult);
+                }
+                context.getLog().info(TAG, "After script filtering, the current record has been ignored. Please be informed, record is {}", toJson(eventMap));
+            } catch (ScriptException e) {
+                context.getLog().warn(TAG, "Occur exception When execute script, error message: {}", e.getMessage());
+            } catch (NoSuchMethodException methodException) {
+                context.getLog().warn(TAG, "Occur exception When execute script, error message: Can not find function named is '{}' in script.", ConnectionConfig.EVENT_FUNCTION_NAME);
+            }
+        } else {
+            throw new CoreException("Can not get script engine, please check you connection config.");
+        }
         return null;
     }
 
@@ -69,7 +124,7 @@ public class HttpReceiverConnector extends ConnectorBase {
         ConnectionOptions options = ConnectionOptions.create();
         consumer.accept(test.testTableName());
         consumer.accept(test.testHookUrl());
-        consumer.accept(test.testScript());
+        //consumer.accept(test.testScript());
         return options;
     }
 
@@ -77,4 +132,6 @@ public class HttpReceiverConnector extends ConnectorBase {
     public int tableCount(TapConnectionContext tapConnectionContext) throws Throwable {
         return 1;
     }
+
+
 }
