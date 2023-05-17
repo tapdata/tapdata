@@ -4,6 +4,7 @@ import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -53,7 +54,7 @@ public class HttpReceiverConnector extends ConnectorBase{
 
     @Override
     public void discoverSchema(TapConnectionContext tapConnectionContext, List<String> list, int i, Consumer<List<TapTable>> consumer) throws Throwable {
-
+        DataMap config = tapConnectionContext.getConnectionConfig();
     }
 
     @Override
