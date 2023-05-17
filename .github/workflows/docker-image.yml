@@ -2,7 +2,7 @@ name: LDP Continuous Integration With TEST
 
 on:
   push:
-    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
+    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*", "update-workflow" ]
   pull_request:
     branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
   schedule:
@@ -98,29 +98,9 @@ jobs:
         with:
           ref: report-test
           path: report-test
-      - name: compile plugin-kit module
+      - name: compile
         run: |
-          chmod u+x build/build.sh
-          build/build.sh -c plugin-kit || exit 1
-      - name: file-storages 模块编译
-        run: |
-          chmod u+x build/build.sh
-          build/build.sh -c file-storages || exit 1
-      - name: compile connectors-common module
-        run:
-          build/build.sh -c connectors-common
-      - name: compile manager module
-        run:
-          build/build.sh -c manager
-      - name: compile iengine modules
-        run: |
-          build/build.sh -c iengine
-      - name: compile connectors module
-        run:
-          build/build.sh -c connectors
-      - name: compile opensource tapdata-cli module
-        run:
-          build/build.sh -c tapdata-cli
+          mvn clean install -DskipTests
       - name: package module and make image
         run: |
           cur_timestamp=$((`date '+%s'`))
