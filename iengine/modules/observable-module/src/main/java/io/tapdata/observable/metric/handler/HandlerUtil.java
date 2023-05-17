@@ -43,6 +43,9 @@ public class HandlerUtil {
         EventTypeRecorder recorder = new EventTypeRecorder();
         for (TapEvent tapEvent : events) {
             referenceTime = countEventTypeAndGetReferenceTime(tapEvent, recorder);
+            if (tapEvent instanceof TapBaseEvent) {
+                recorder.setTableName(((TapBaseEvent) tapEvent).getTableId());
+            }
             recorder.incrProcessTimeTotal(now, tapEvent.getTime());
             recorder.incrReplicateLagTotal(now, referenceTime);
         }
@@ -112,6 +115,7 @@ public class HandlerUtil {
         private Long replicateLagTotal;
         private Long oldestEventTimestamp;
         private Long newestEventTimestamp;
+        private String tableName;
 
         public void incrDdlTotal() {
             this.ddlTotal += 1;

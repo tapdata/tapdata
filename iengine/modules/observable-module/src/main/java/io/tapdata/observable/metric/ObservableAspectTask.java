@@ -456,7 +456,13 @@ public class ObservableAspectTask extends AspectTask {
 
 								String syncType = aspect.getDataProcessorContext().getTaskDto().getSyncType();
 								if (TaskDto.SYNC_TYPE_SYNC.equals(syncType) || TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(syncType)) {
-									return handlers.values().stream().findFirst();
+									TableSampleHandler tableSampleHandler = null;
+									for (String k : handlers.keySet()) {
+										if (k.equals(recorder.getTableName())) {
+											tableSampleHandler = handlers.get(k);
+										}
+									}
+									return tableSampleHandler != null ? Optional.ofNullable(tableSampleHandler) : handlers.values().stream().findFirst();
 								} else {
 									LinkedHashMap<String, String> tableNameRelation = ((DatabaseNode) node).getSyncObjects().get(0).getTableNameRelation();
 									String targetTableName = HashBiMap.create(tableNameRelation).inverse().get(table);
