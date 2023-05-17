@@ -2,10 +2,12 @@
   "properties": {
     "name": "Http Receiver",
     "icon": "icons/http.png",
-    "doc" : "${doc}",
+    "doc": "${doc}",
     "id": "http-receiver",
     "authentication": "Beta",
-    "tags": ["SaaS"]
+    "tags": [
+      "SaaS"
+    ]
   },
   "configOptions": {
     "pdkExpansion": [],
@@ -21,12 +23,11 @@
             "colon": false,
             "tooltip": "${node_tip_script}"
           },
-          "content": "\t//${node_return_type}\n\t//data is an array or object\n\t//return data = {\n\t\t//\"eventType\": \" i \", // i is insert, u is update, d is delete\n\t\t//\"tableName\": \" \", // source table name\n\t\t//\"data\": { }, // master data\n\t}",
+          "default": "function handleEvent(event) {\n\n\t//${node_return_type}\n\t//data is an array or object\n\t//return data = {\n\t\t//\"eventType\": \" i \", // i is insert, u is update, d is delete\n\t\t//\"tableName\": \" \", // source table name\n\t\t//\"data\": { }, // master data\n\t}\n}",
           "x-component": "JsEditor",
           "x-component-props": {
             "height": 240,
             "before": "function handleEvent(event) {",
-            "content": "\t//${node_return_type}\n\t//data is an array or object\n\t//return data = {\n\t\t//\"eventType\": \" i \", // i is insert, u is update, d is delete\n\t\t//\"tableName\": \" \", // source table name\n\t\t//\"data\": { }, // master data\n\t}",
             "after": "}",
             "theme": "one_dark"
           },
@@ -40,7 +41,27 @@
               }
             }
           },
-          "x-index": 20
+          "x-index": 10
+        },
+        "script": {
+          "type": "string",
+          "required": true,
+          "default": "function handleEvent(event) {\n\n\t//${node_return_type}\n\t//data is an array or object\n\t//return data = {\n\t\t//\"eventType\": \" i \", // i is insert, u is update, d is delete\n\t\t//\"tableName\": \" \", // source table name\n\t\t//\"data\": { }, // master data\n\t}\n}",
+          "x-component": "JsProcessor",
+          "x-component-props": {
+            "height": 500,
+            "options": {
+              "showPrintMargin": false,
+              "wrap": false
+            },
+            "includeBeforeAndAfter": true,
+            "before": "function handleEvent(event) {",
+            "beforeRegexp": "^[^]*function\\s+handleEvent\\s*\\(event\\)\\{",
+            "afterRegexp": "}[^}]*$",
+            "after": "}",
+            "param": "schemaApplyResultList",
+            "handleAddCompleter": "{{addDeclaredCompleterForMigrate}}"
+          }
         }
       }
     },
@@ -67,7 +88,7 @@
           },
           "x-component": "Input",
           "x-index": 70,
-          "actionOnCopy" : "NEW_WEB_HOOK_URL"
+          "actionOnCopy": "NEW_WEB_HOOK_URL"
         }
       }
     }
@@ -76,10 +97,8 @@
     "default": "en_US",
     "en_US": {
       "doc": "docs/http_en_US.md",
-
       "webHook": "Service Hook",
       "hookButton": "Generate Service URL",
-
       "node_script_title": "Data processing script",
       "node_illustrate_title": "JavaScript Writing Instructions",
       "node_return_type": "Script Method Return Value Specification: ",
@@ -87,7 +106,6 @@
     },
     "zh_CN": {
       "doc": "docs/coding_zh_CN.md",
-
       "webHook": "Service Hook",
       "hookButton": "生成服务 URL",
       "node_script_title": "数据处理脚本",
@@ -97,7 +115,6 @@
     },
     "zh_TW": {
       "doc": "docs/coding_zh_TW.md",
-
       "webHook": "Service Hook",
       "hookButton": "生成服務URL",
       "node_script_title": "數據處理腳本",
@@ -107,6 +124,5 @@
     }
   },
   "dataTypes": {
-
   }
 }
