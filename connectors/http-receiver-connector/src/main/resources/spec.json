@@ -14,57 +14,6 @@
     "node": {
       "type": "object",
       "properties": {
-        "eventScript1": {
-          "title": "${node_script_title}",
-          "type": "string",
-          "x-decorator": "FormItem",
-          "x-decorator-props": {
-            "gridSpan": 2,
-            "colon": false,
-            "tooltip": "${node_tip_script}"
-          },
-          "default": "function handleEvent(event) {\n\n\t//${node_return_type}\n\t//data is an array or object\n\t//return data = {\n\t\t//\"eventType\": \" i \", // i is insert, u is update, d is delete\n\t\t//\"tableName\": \" \", // source table name\n\t\t//\"data\": { }, // master data\n\t}\n}",
-          "x-component": "JsEditor",
-          "x-component-props": {
-            "height": 240,
-            "before": "function handleEvent(event) {",
-            "after": "}",
-            "theme": "one_dark"
-          },
-          "x-reactions": {
-            "dependencies": [
-              "__TAPDATA.connection_type"
-            ],
-            "fulfill": {
-              "schema": {
-                "x-decorator-props.style.display": "{{$deps[0]!==\"source\" ? null:\"none\"}}"
-              }
-            }
-          },
-          "x-index": 10,
-          "x-display": "hidden"
-        },
-        "eventScripta": {
-          "type": "string",
-          "required": true,
-          "default": "function handleEvent(event) {\n\n\t//${node_return_type}\n\t//data is an array or object\n\t//return data = {\n\t\t//\"eventType\": \" i \", // i is insert, u is update, d is delete\n\t\t//\"tableName\": \" \", // source table name\n\t\t//\"data\": { }, // master data\n\t}\n}",
-          "x-component": "JsProcessor",
-          "x-component-props": {
-            "height": 500,
-            "options": {
-              "showPrintMargin": false,
-              "wrap": false
-            },
-            "includeBeforeAndAfter": true,
-            "before": "function handleEvent(event) {",
-            "beforeRegexp": "^[^]*function\\s+handleEvent\\s*\\(event\\)\\{",
-            "afterRegexp": "}[^}]*$",
-            "after": "}",
-            "param": "schemaApplyResultList",
-            "handleAddCompleter": "{{addDeclaredCompleterForMigrate}}"
-          },
-          "x-display": "hidden"
-        }
       }
     },
     "connection": {
@@ -123,29 +72,6 @@
             "afterRegexp": "}[^}]*$"
           },
           "x-index": 40
-        },
-        "eventScript1": {
-          "type": "string",
-          "required": true,
-          "default": "function handleEvent(event) {\n\n//${node_return_type}\tdata is an array or object\n//\treturn {\n//\t\t\"eventType\": \"i\", // i is insert, u is update, d is delete\n//\t\t\"data\": { }, // master data\n//\t}\n\treturn \\{\n\t\t\"eventType\": \"i\", \n\t\t\"data\": event\n\t}\n}",
-          "x-component": "JsProcessor",
-          "x-decorator-props": {
-            "tooltip": "${node_tip_script}"
-          },
-          "x-component-props": {
-            "height": 500,
-            "options": {
-              "showPrintMargin": false,
-              "wrap": false
-            },
-            "includeBeforeAndAfter": true,
-            "before": "function handleEvent(event) {",
-            "beforeRegexp": "^[^]*function\\s+handleEvent\\s*\\(event\\)\\s+\\{",
-            "afterRegexp": "}[^}]*$",
-            "after": "}"
-          },
-          "x-index": 50,
-          "x-display": "hidden"
         }
       }
     }
