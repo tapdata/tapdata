@@ -708,7 +708,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						TapType tapType = tapField.getTapType();
 						Object convertValue;
 						if (queryOperator.getValue() != null) {
-							convertValue = getConvertValue(tapType,queryOperator.getValue().toString());
+							convertValue = getConvertValue(tapType, queryOperator.getValue().toString());
 							queryOperator.setValue(convertValue);
 						}
 						if (EQUAL_VALUE == queryOperator.getOperator()) {
@@ -805,7 +805,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				TapType tapType = tapField.getTapType();
 				Object convertValue = defaultValue;
 				if (null != convertValue) {
-					convertValue = getConvertValue(tapType,defaultValue);
+					convertValue = getConvertValue(tapType, defaultValue);
 				}
 				tablePollingCDCOffset.put(field, convertValue);
 			}
@@ -816,7 +816,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		return tablePollingCDCOffset;
 	}
 
-	private Object  getConvertValue(TapType tapType,String defaultValue){
+	private Object getConvertValue(TapType tapType, String defaultValue) {
 		Object convertValue = defaultValue;
 		switch (tapType.getType()) {
 			case TapType.TYPE_NUMBER:
@@ -859,7 +859,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			default:
 				break;
 		}
-        return convertValue;
+		return convertValue;
 	}
 
 	private void flushPollingCDCOffset(List<TapEvent> tapEvents) {
@@ -931,7 +931,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					TapType tapType = tapField.getTapType();
 					Object convertValue;
 					if (queryOperator.getValue() != null) {
-						convertValue = getConvertValue(tapType,queryOperator.getValue().toString());
+						convertValue = getConvertValue(tapType, queryOperator.getValue().toString());
 						queryOperator.setValue(convertValue);
 					}
 					if (EQUAL_VALUE == queryOperator.getOperator()) {
