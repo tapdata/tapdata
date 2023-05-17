@@ -99,6 +99,7 @@ jobs:
           path: report-test
       - name: compile
         run: |
+          chmod u+x build/build.sh
           sudo build/build.sh -c 1
       - name: package module and make image
         run: |
