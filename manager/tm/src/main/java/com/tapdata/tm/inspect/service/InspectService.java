@@ -2,22 +2,36 @@ package com.tapdata.tm.inspect.service;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.bean.copier.CopyOptions;
+import cn.hutool.core.date.DateUtil;
+import cn.hutool.extra.cglib.CglibUtil;
+import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.entity.Settings;
+import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
+import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
+import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
+import com.tapdata.tm.alarm.entity.AlarmInfo;
+import com.tapdata.tm.alarm.service.AlarmService;
+import com.tapdata.tm.alarmrule.service.AlarmRuleService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
+import com.tapdata.tm.commons.schema.bean.PlatformInfo;
+import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
-import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.inspect.bean.Stats;
 import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.inspect.bean.Timing;
@@ -30,7 +44,6 @@ import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.entity.InspectEntity;
 import com.tapdata.tm.inspect.repository.InspectRepository;
 import com.tapdata.tm.inspect.vo.InspectDetailVo;
-import com.tapdata.tm.inspect.vo.InspectListVo;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.service.MessageService;
@@ -42,6 +55,7 @@ import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.CronUtil;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.UUIDUtil;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -61,6 +75,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -98,6 +113,13 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
 
     @Autowired
     private WorkerService workerService;
+
+		@Autowired
+		private AlarmSettingService alarmSettingService;
+		@Autowired
+		private AlarmRuleService alarmRuleService;
+		@Autowired
+		private AlarmService alarmService;
 
     public InspectService(@NonNull InspectRepository repository) {
         super(repository, InspectDto.class, InspectEntity.class);
@@ -309,6 +331,8 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
         inspectDto.setPing_time(now.getTime());
         inspectDto.setLastStartTime(now.getTime());
 
+				supplementAlarm(inspectDto, user);
+
         super.save(inspectDto, user);
 
         Where where = new Where();
@@ -373,6 +397,7 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
      * @return
      */
     public InspectDto updateInspectByWhere(Where where, InspectDto updateDto, UserDetail user) {
+				supplementAlarm(updateDto, user);
         InspectDto retDto = null;
         if (InspectStatusEnum.SCHEDULING.getValue().equals(updateDto.getStatus())) {
             log.info("用户点击了校验");
@@ -507,6 +532,7 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
     public InspectDto updateById(ObjectId objectId, InspectDto inspectDto, UserDetail userDetail) {
         Where where = new Where();
         where.put("id", objectId);
+				supplementAlarm(inspectDto, userDetail);
 
         List<Task> newTaskList = inspectDto.getTasks();
         if (CollectionUtils.isNotEmpty(newTaskList)) {
@@ -697,5 +723,75 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
         UpdateResult updateResult = update(query, update);
     }
 
+		public void supplementAlarm(InspectDto inspectDto, UserDetail userDetail) {
+			List<AlarmSettingDto> settingDtos = alarmSettingService.findAllAlarmSetting(userDetail);
+			List<AlarmRuleDto> ruleDtos = alarmRuleService.findAllAlarm(userDetail);
 
+			Map<AlarmKeyEnum, AlarmSettingDto> settingDtoMap = settingDtos.stream().collect(Collectors.toMap(AlarmSettingDto::getKey, Function.identity(), (e1, e2) -> e1));
+			Map<AlarmKeyEnum, AlarmRuleDto> ruleDtoMap = ruleDtos.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
+
+			if (CollectionUtils.isEmpty(inspectDto.getAlarmSettings())) {
+				List<AlarmSettingDto> alarmSettingDtos = Lists.newArrayList();
+				alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.INSPECT_TASK_ERROR));
+				alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.INSPECT_COUNT_ERROR));
+				alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.INSPECT_VALUE_ERROR));
+				inspectDto.setAlarmSettings(CglibUtil.copyList(alarmSettingDtos, AlarmSettingVO::new));
+			}
+
+			List<AlarmRuleDto> alarmRuleDtos = Lists.newArrayList();
+//			if (CollectionUtils.isEmpty(inspectDto.getAlarmRules())) {
+//				alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
+//				inspectDto.setAlarmRules(CglibUtil.copyList(alarmRuleDtos, AlarmRuleVO::new));
+//			}
+
+		}
+
+	@Override
+	public long updateByWhere(Where where, InspectDto dto, UserDetail userDetail) {
+			//更新状态
+		String status = dto.getStatus();
+		switch (Objects.requireNonNull(InspectStatusEnum.of(status))) {
+			case ERROR:
+			case FAILED:
+				List<InspectDto> inspectDtos = this.findAll(new Filter(where));
+				if (CollectionUtils.isNotEmpty(inspectDtos)) {
+					for (InspectDto inspectDto : inspectDtos) {
+						boolean checkOpen = alarmService.checkOpen(inspectDto.getAlarmSettings(), AlarmKeyEnum.INSPECT_TASK_ERROR, null, userDetail);
+						if (checkOpen) {
+							Map<String, Object> param = Maps.newHashMap();
+							param.put("inspectName", inspectDto.getName());
+							param.put("alarmDate", DateUtil.now());
+							AlarmInfo errorInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.CRITICAL).component(AlarmComponentEnum.FE)
+											.type(AlarmTypeEnum.INSPECT_ALARM).agentId(inspectDto.getAgentId()).inspectId(inspectDto.getId().toHexString())
+											.name(inspectDto.getName()).summary("INSPECT_TASK_ERROR").metric(AlarmKeyEnum.INSPECT_TASK_ERROR)
+											.param(param)
+											.build();
+							errorInfo.setUserId(inspectDto.getUserId());
+							alarmService.save(errorInfo);
+						}
+					}
+				}
+				break;
+			case SCHEDULING:
+				Object id = where.get("id");
+				if (id instanceof ObjectId) {
+					id = ((ObjectId) id).toHexString();
+				} else {
+					id = id.toString();
+				}
+				alarmService.closeWhenInspectTaskRunning((String) id);
+				break;
+
+		}
+		return super.updateByWhere(where, dto, userDetail);
+	}
+
+	public List<InspectDto> findAllByIds(List<String> inspectIds) {
+		List<ObjectId> ids = inspectIds.stream().map(ObjectId::new).collect(Collectors.toList());
+
+		Query query = new Query(Criteria.where("_id").in(ids));
+		List<InspectEntity> entityList = findAllEntity(query);
+		return CglibUtil.copyList(entityList, InspectDto::new);
+//        return findAll(query);
+	}
 }
