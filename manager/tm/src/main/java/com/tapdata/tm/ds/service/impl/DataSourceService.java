@@ -1193,9 +1193,9 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			availableAgent = workerService.findAvailableAgent(user);
 		}
 		if (CollectionUtils.isEmpty(availableAgent)) {
-			Criteria.where("id").is(connectionDto.getId());
-			Update updateInvalid = Update.update("status", "invalid").set("errorMsg", "no agent");
-			updateByIdNotChangeLast(connectionDto.getId(), updateInvalid, user);
+//			Criteria.where("id").is(connectionDto.getId());
+//			Update updateInvalid = Update.update("status", "invalid").set("errorMsg", "no agent");
+//			updateByIdNotChangeLast(connectionDto.getId(), updateInvalid, user);
 			log.info("send test connection, agent not found");
 			return;
 
