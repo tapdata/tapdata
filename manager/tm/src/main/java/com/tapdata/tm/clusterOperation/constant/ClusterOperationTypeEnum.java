@@ -8,4 +8,5 @@ public enum ClusterOperationTypeEnum {
     restart,
     upgrade,
     stop,
+    changeStatus,
 }
