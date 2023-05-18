@@ -765,6 +765,7 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
 											.type(AlarmTypeEnum.INSPECT_ALARM).agentId(inspectDto.getAgentId()).inspectId(inspectDto.getId().toHexString())
 											.name(inspectDto.getName()).summary("INSPECT_TASK_ERROR").metric(AlarmKeyEnum.INSPECT_TASK_ERROR)
 											.param(param)
+											.lastNotifyTime(DateUtil.date())
 											.build();
 							errorInfo.setUserId(inspectDto.getUserId());
 							alarmService.save(errorInfo);

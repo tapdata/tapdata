@@ -82,7 +82,15 @@ public class TapRunScriptEngine implements ScriptEngine, Invocable, Closeable {
 
     @Override
     public Object eval(Reader reader) throws ScriptException {
-        throw new NotSupportedException();
+        try {
+            return this.scriptEngine.eval(reader);
+        }finally {
+            try {
+                reader.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     @Override
