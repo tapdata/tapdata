@@ -138,12 +138,22 @@ public class LogCollectorController extends BaseController {
 
 
 
-    @GetMapping("connectionInfo")
+    @GetMapping("tableInfos")
     @Operation(summary = "查询合并的连接表详情")
-    public ResponseMessage<Page<ShareCdcConnectionInfo>> connectionInfo(@RequestParam("taskId") String taskId, @RequestParam("connectionId") String connectionId,
+    public ResponseMessage<Page<ShareCdcTableInfo>> tableInfos(@RequestParam("taskId") String taskId, @RequestParam("connectionId") String connectionId,
                                                                   @RequestParam(value = "page", defaultValue = "1") Integer page,
                                                                   @RequestParam(value = "size", defaultValue = "20") Integer size) {
-        Page<ShareCdcConnectionInfo> connectionInfos = logCollectorService.connectionInfo(taskId, connectionId, page, size, getLoginUser());
+        Page<ShareCdcTableInfo> connectionInfos = logCollectorService.tableInfos(taskId, connectionId, page, size, getLoginUser());
+        return success(connectionInfos);
+    }
+
+
+    @GetMapping("excludeTableInfos")
+    @Operation(summary = "查询合并的连接表详情")
+    public ResponseMessage<Page<ShareCdcTableInfo>> excludeTableInfos(@RequestParam("taskId") String taskId, @RequestParam("connectionId") String connectionId,
+                                                                   @RequestParam(value = "page", defaultValue = "1") Integer page,
+                                                                   @RequestParam(value = "size", defaultValue = "20") Integer size) {
+        Page<ShareCdcTableInfo> connectionInfos = logCollectorService.excludeTableInfos(taskId, connectionId, page, size, getLoginUser());
         return success(connectionInfos);
     }
 

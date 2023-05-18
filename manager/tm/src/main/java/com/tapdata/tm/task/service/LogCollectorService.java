@@ -61,6 +61,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Nullable;
+import java.math.BigDecimal;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1365,7 +1366,7 @@ public class LogCollectorService {
         }
     }
 
-    public Page<ShareCdcConnectionInfo> connectionInfo(String taskId, String connectionId, Integer page, Integer size, UserDetail user) {
+    public Page<ShareCdcTableInfo> tableInfos(String taskId, String connectionId, Integer page, Integer size, UserDetail user) {
         TaskDto shareCdcTask = taskService.findById(MongoUtils.toObjectId(taskId), user);
         DAG dag = shareCdcTask.getDag();
         List<Node> sources = dag.getSources();
@@ -1380,6 +1381,30 @@ public class LogCollectorService {
             LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
             tableNames = logCollecotrConnConfig.getTableNames();
         }
+        return getShareCdcTableInfoPage(connectionId, page, size, user, tableNames);
+    }
+
+
+    public Page<ShareCdcTableInfo> excludeTableInfos(String taskId, String connectionId, Integer page, Integer size, UserDetail user) {
+        TaskDto shareCdcTask = taskService.findById(MongoUtils.toObjectId(taskId), user);
+        DAG dag = shareCdcTask.getDag();
+        List<Node> sources = dag.getSources();
+        LogCollectorNode logCollectorNode = (LogCollectorNode)sources.get(0);
+        Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
+        List<String> tableNames = new ArrayList<>();
+        if (logCollectorConnConfigs == null || logCollectorConnConfigs.size() == 0) {
+            //old version shareCdc task
+            tableNames = logCollectorNode.getExclusionTables();
+        } else {
+            //new version shareCdc task
+            LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
+            tableNames = logCollecotrConnConfig.getExclusionTables();
+        }
+        return getShareCdcTableInfoPage(connectionId, page, size, user, tableNames);
+    }
+
+    @NotNull
+    private Page<ShareCdcTableInfo> getShareCdcTableInfoPage(String connectionId, Integer page, Integer size, UserDetail user, List<String> tableNames) {
         int limit = page * size;
         int tableCount = tableNames.size();
 
@@ -1388,27 +1413,32 @@ public class LogCollectorService {
         field.put("name", true);
         DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId), field, user);
         String connectionName = connectionDto.getName();
-        List<ShareCdcConnectionInfo> shareCdcConnectionInfos = new ArrayList<>();
+        List<ShareCdcTableInfo> shareCdcTableInfos = new ArrayList<>();
         for (int i = limit; i< size; i++) {
             if (tableCount < i) {
                 break;
             }
             String tableName = tableNames.get(i);
-            ShareCdcConnectionInfo shareCdcConnectionInfo = new ShareCdcConnectionInfo();
-            shareCdcConnectionInfo.setId(connectionId);
-            shareCdcConnectionInfo.setName(connectionName);
-            //shareCdcConnectionInfo.setTableInfos();
-            shareCdcConnectionInfos.add(shareCdcConnectionInfo);
+            ShareCdcTableInfo shareCdcTableInfo = new ShareCdcTableInfo();
+            shareCdcTableInfo.setName(tableName);
+            shareCdcTableInfo.setConnectionName(connectionName);
+            shareCdcTableInfo.setJoinTime(new Date());
+            shareCdcTableInfo.setFirstLogTime(new Date());
+            shareCdcTableInfo.setLastLogTime(new Date());
+            shareCdcTableInfo.setAllCount(new BigDecimal(100));
+            shareCdcTableInfo.setTodayCount(100L);
+
+            shareCdcTableInfos.add(shareCdcTableInfo);
 
         }
 
-        Page<ShareCdcConnectionInfo> shareCdcTableInfoPage = new Page<>();
+        Page<ShareCdcTableInfo> shareCdcTableInfoPage = new Page<>();
         shareCdcTableInfoPage.setTotal(tableCount);
-        shareCdcTableInfoPage.setItems(shareCdcConnectionInfos);
+        shareCdcTableInfoPage.setItems(shareCdcTableInfos);
         return shareCdcTableInfoPage;
     }
 
-	public void configTables(String taskId, List<TableLogCollectorParam> params, String type, UserDetail user) {
+    public void configTables(String taskId, List<TableLogCollectorParam> params, String type, UserDetail user) {
 
 		TaskDto shareCdcTask = taskService.findById(MongoUtils.toObjectId(taskId), user);
 		DAG dag = shareCdcTask.getDag();
