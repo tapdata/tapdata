@@ -132,4 +132,12 @@ public class MysqlExceptionCollector extends AbstractExceptionCollector implemen
     public void collectCdcConfigInvalid(Throwable cause) {
         super.collectCdcConfigInvalid(cause);
     }
+
+    //exception collector for mysql needed to add later
+    /*
+     * 1、SQLSyntaxErrorException SQLState 42000 ErrorCode 1118
+     * Row size too large. The maximum row size for the used table type, not counting BLOBs, is 65535. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+     *
+     *
+     * */
 }

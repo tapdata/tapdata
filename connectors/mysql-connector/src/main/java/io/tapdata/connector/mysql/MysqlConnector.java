@@ -276,13 +276,7 @@ public class MysqlConnector extends CommonDbConnector {
                     return createTableOptions;
                 }
                 String[] createTableSqls = sqlMaker.createTable(tapConnectorContext, tapCreateTableEvent, mysqlVersion);
-                for (String createTableSql : createTableSqls) {
-                    try {
-                        mysqlJdbcContext.execute(createTableSql);
-                    } catch (Throwable e) {
-                        throw new Exception("Execute create table failed, sql: " + createTableSql + ", message: " + e.getMessage(), e);
-                    }
-                }
+                mysqlJdbcContext.batchExecute(Arrays.asList(createTableSqls));
                 createTableOptions.setTableExists(false);
             }
             return createTableOptions;
