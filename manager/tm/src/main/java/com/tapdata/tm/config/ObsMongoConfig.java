@@ -45,7 +45,7 @@ public class ObsMongoConfig implements AsyncConfigurer {
                 String uri = productList.contains("dfs") ? obsUri : defaultUri;
                 MongoTemplate mongoTemplate = new MongoTemplate(new SimpleMongoClientDatabaseFactory(uri));
                 MongoCollection<Document> agentMeasurementV2 = mongoTemplate.getCollection("AgentMeasurementV2");
-                if (agentMeasurementV2.countDocuments() == 0) {
+                if (agentMeasurementV2.estimatedDocumentCount() == 0) {
                     agentMeasurementV2.dropIndexes();
 
                     agentMeasurementV2.createIndex(Indexes.compoundIndex(new BsonDocument("grnty", new BsonInt32(1)),

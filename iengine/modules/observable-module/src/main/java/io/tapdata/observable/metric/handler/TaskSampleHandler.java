@@ -1,8 +1,5 @@
 package io.tapdata.observable.metric.handler;
 
-import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.sampler.AverageSampler;
@@ -12,13 +9,12 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.kafka.common.metrics.stats.Max;
-import org.springframework.util.ObjectUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * @author Dexter
@@ -155,7 +151,7 @@ public class TaskSampleHandler extends AbstractHandler {
 
         collector.addSampler(Constants.CURR_EVENT_TS, () -> {
             AtomicReference<Long> currentEventTimestampRef = new AtomicReference<>();
-            for (DataNodeSampleHandler h : targetNodeHandlers.values()) {
+            Stream.concat(sourceNodeHandlers.values().stream(), targetNodeHandlers.values().stream()).forEach(h -> {
                 Optional.ofNullable(h.getCurrentEventTimestamp()).ifPresent(sampler -> {
                     Number value = sampler.value();
                     if (null == value) return;
@@ -164,26 +160,24 @@ public class TaskSampleHandler extends AbstractHandler {
                         currentEventTimestampRef.set(v);
                     }
                 });
-
-            }
+            });
             return currentEventTimestampRef.get();
         });
         collector.addSampler(Constants.REPLICATE_LAG, () -> {
             AtomicReference<Long> replicateLagRef = new AtomicReference<>(null);
-
-            if (snapshotDoneAt != null || TaskDto.TYPE_CDC.equals(task.getType())) {
-                for (DataNodeSampleHandler h : targetNodeHandlers.values()) {
-                    Optional.ofNullable(h.getReplicateLag()).ifPresent(sampler -> {
-                        Number value = sampler.getTemp();
-                        if (Objects.nonNull(value)) {
-                            long v = value.longValue();
-                            if (null == replicateLagRef.get() || replicateLagRef.get() < v) {
-                                replicateLagRef.set(v);
+            Stream.concat(sourceNodeHandlers.values().stream(), targetNodeHandlers.values().stream())
+                    .forEach(h -> {
+                        Optional.ofNullable(h.getReplicateLag()).ifPresent(sampler -> {
+                            Number value = sampler.value();
+                            if (Objects.nonNull(value)) {
+                                long v = value.longValue();
+                                if (null == replicateLagRef.get() || replicateLagRef.get() < v) {
+                                    replicateLagRef.set(v);
+                                }
                             }
-                        }
+                        });
                     });
-                }
-            }
+
             return replicateLagRef.get();
         });
 
@@ -205,11 +199,17 @@ public class TaskSampleHandler extends AbstractHandler {
 
         collector.addSampler(SNAPSHOT_DONE_AT, () -> {
             if (Objects.isNull(snapshotDoneAt)) {
-                sourceNodeHandlers.values().stream()
-                        .filter(h -> Objects.nonNull(h.getSnapshotDoneAt()))
-                        .findAny().ifPresent(dh -> this.snapshotDoneAt = dh.getSnapshotDoneAt());
+                long allSourceSize = sourceNodeHandlers.values().size();
+                long completeSize = sourceNodeHandlers.values().stream()
+                        .filter(h -> Objects.nonNull(h.getSnapshotDoneAt())).count();
+                if (allSourceSize == completeSize) {
+                   return Collections.max(sourceNodeHandlers.values().stream()
+                           .map(DataNodeSampleHandler::getSnapshotDoneAt)
+                           .filter(Objects::nonNull).collect(Collectors.toList())) ;
+                }
+                return null;
             }
-            return snapshotDoneAt;
+            return null;
         });
 
         collector.addSampler(SNAPSHOT_DONE_COST, () -> {

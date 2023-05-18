@@ -144,4 +144,10 @@ public interface TaskMergeProcessorExCode_16 {
 			describeCN = "连接id不能为空"
 	)
 	String CONNECTION_ID_CANNOT_BE_BLANK = "16024";
+
+	@TapExCode(
+		describe = "The merged source table node not found, please check you config",
+		describeCN = "合并的源表节点不存在，请检查你的配置"
+	)
+	String TAP_MERGE_TABLE_NODE_NOT_FOUND = "16025";
 }

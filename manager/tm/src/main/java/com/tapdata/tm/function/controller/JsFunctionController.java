@@ -13,8 +13,11 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import javax.servlet.http.HttpServletResponse;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -266,5 +269,20 @@ public class JsFunctionController extends BaseController {
         Where where = parseWhere(whereJson);
         return success(jsFunctionService.upsertByWhere(where, jsFunction, getLoginUser()));
     }
+
+    @Operation(summary = "函数导出")
+    @GetMapping("batch/load")
+    public void batchLoadTasks(@RequestParam("id") List<String> id, HttpServletResponse response) {
+        jsFunctionService.batchLoadTask(response, id, getLoginUser());
+    }
+
+    @Operation(summary = "函数导入")
+    @PostMapping(path = "batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
+                                        @RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover) {
+        jsFunctionService.batchUpTask(file, getLoginUser(), cover);
+        return success();
+    }
+
 
 }

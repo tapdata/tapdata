@@ -39,7 +39,7 @@ public class LogMongoConfig {
 
                 // check monitoringLogs index
                 MongoCollection<Document> monitoringLogs = mongoTemplate.getCollection("monitoringLogs");
-                if (monitoringLogs.countDocuments() == 0) {
+                if (monitoringLogs.estimatedDocumentCount() == 0) {
                     monitoringLogs.dropIndexes();
 
                     monitoringLogs.createIndex(Indexes.compoundIndex(new BsonDocument("taskId", new BsonInt32(1)),

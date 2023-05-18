@@ -35,6 +35,10 @@
             <artifactId>tapdata-pdk-runner</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>pdk-error-code</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
