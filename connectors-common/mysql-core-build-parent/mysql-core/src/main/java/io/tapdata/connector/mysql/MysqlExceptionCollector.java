@@ -46,7 +46,7 @@ public class MysqlExceptionCollector extends AbstractExceptionCollector implemen
     @Override
     public void collectWritePrivileges(Object operation, List<String> privileges, Throwable cause) {
         if (cause instanceof SQLException && "42000".equals(((SQLException) cause).getSQLState())) {
-            throw new TapPdkReadMissingPrivilegesEx(pdkId, operation, privileges, ErrorKit.getLastCause(cause));
+            throw new TapPdkWriteMissingPrivilegesEx(pdkId, operation, privileges, ErrorKit.getLastCause(cause));
         }
     }
 

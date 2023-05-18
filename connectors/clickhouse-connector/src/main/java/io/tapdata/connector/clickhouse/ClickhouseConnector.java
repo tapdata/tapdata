@@ -82,6 +82,7 @@ public class ClickhouseConnector extends CommonDbConnector {
         clickhouseVersion = clickhouseJdbcContext.queryVersion();
         commonSqlMaker = new ClickhouseSqlMaker().withVersion(clickhouseVersion);
         tapLogger = connectionContext.getLog();
+        exceptionCollector = new ClickhouseExceptionCollector();
     }
 
     @Override
@@ -267,13 +268,18 @@ public class ClickhouseConnector extends CommonDbConnector {
         }
         WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>();
         TapTableWriter instance = clickhouseWriter.partition(clickhouseJdbcContext, this::isAlive);
-        for (TapRecordEvent event : tapRecordEvents) {
-            if (!isAlive()) {
-                throw new InterruptedException("node not alive");
+        try {
+            for (TapRecordEvent event : tapRecordEvents) {
+                if (!isAlive()) {
+                    throw new InterruptedException("node not alive");
+                }
+                instance.addBath(tapTable, event, writeListResult);
             }
-            instance.addBath(tapTable, event, writeListResult);
+            instance.summit(writeListResult);
+        } catch (Exception e) {
+            exceptionCollector.collectTerminateByServer(e);
+            throw e;
         }
-        instance.summit(writeListResult);
         consumer.accept(writeListResult);
     }
 

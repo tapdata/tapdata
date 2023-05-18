@@ -43,7 +43,7 @@ public class PostgresExceptionCollector extends AbstractExceptionCollector imple
     @Override
     public void collectWritePrivileges(Object operation, List<String> privileges, Throwable cause) {
         if (cause instanceof PSQLException && "42501".equals(((PSQLException) cause).getSQLState())) {
-            throw new TapPdkReadMissingPrivilegesEx(pdkId, operation, privileges, ErrorKit.getLastCause(cause));
+            throw new TapPdkWriteMissingPrivilegesEx(pdkId, operation, privileges, ErrorKit.getLastCause(cause));
         }
     }
 
