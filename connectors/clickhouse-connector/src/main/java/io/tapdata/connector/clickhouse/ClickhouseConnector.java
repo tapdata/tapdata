@@ -249,6 +249,7 @@ public class ClickhouseConnector extends CommonDbConnector {
             TapLogger.info("table :", "table -> {}", tapTable.getId());
             clickhouseJdbcContext.batchExecute(sqlList);
         } catch (Throwable e) {
+            exceptionCollector.collectWritePrivileges("createTable", Collections.emptyList(), e);
             throw new RuntimeException("Create Table " + tapTable.getId() + " Failed! " + e.getMessage(), e);
         }
         createTableOptions.setTableExists(false);
@@ -278,6 +279,8 @@ public class ClickhouseConnector extends CommonDbConnector {
             instance.summit(writeListResult);
         } catch (Exception e) {
             exceptionCollector.collectTerminateByServer(e);
+            exceptionCollector.collectWritePrivileges("writeRecord", Collections.emptyList(), e);
+            exceptionCollector.collectViolateNull(null, e);
             throw e;
         }
         consumer.accept(writeListResult);
