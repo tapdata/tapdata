@@ -1,5 +1,6 @@
 package io.tapdata.pdk.apis.functions;
 
+import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -43,6 +44,7 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> {
@@ -210,7 +212,21 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
                 return 0;
             }
         });
-        System.out.println("array " + connectorFunctions.getCapabilities());
+        connectorFunctions.supportRawDataCallbackFilterFunctionV2(new RawDataCallbackFilterFunctionV2() {
+            @Override
+            public List<TapEvent> filter(TapConnectorContext context, List<String> tables, Map<String, Object> rawData) {
+                return null;
+            }
+        });
+        connectorFunctions.supportRawDataCallbackFilterFunction(new RawDataCallbackFilterFunction() {
+            @Override
+            public List<TapEvent> filter(TapConnectorContext context, Map<String, Object> rawData) {
+                return null;
+            }
+        });
+        for (Capability capability : connectorFunctions.getCapabilities()) {
+            System.out.println("array " + capability);
+        }
     }
 
     public ConnectorFunctions supportReleaseExternalFunction(ReleaseExternalFunction function) {
