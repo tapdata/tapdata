@@ -68,6 +68,12 @@
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-api</artifactId>
+            <version>${tapdata.pdk.api.verison}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
             <artifactId>sql-core</artifactId>
         </dependency>
         <dependency>

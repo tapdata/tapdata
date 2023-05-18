@@ -4,6 +4,7 @@ package com.tapdata.entity;
 import com.tapdata.entity.dataflow.SyncProgress;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 
 import java.io.Serializable;
@@ -36,6 +37,7 @@ public class TapdataEvent implements Serializable, Cloneable {
 	private Object streamOffset;
 	protected SyncProgress.Type type;
 	protected volatile Map<String, Object> info;
+	private TapInsertRecordEvent exactlyOnceWriteCache;
 
 	public TapdataEvent() {
 		this.nodeIds = new ArrayList<>();
@@ -254,6 +256,14 @@ public class TapdataEvent implements Serializable, Cloneable {
 		}
 	}
 
+	public TapInsertRecordEvent getExactlyOnceWriteCache() {
+		return exactlyOnceWriteCache;
+	}
+
+	public void setExactlyOnceWriteCache(TapInsertRecordEvent exactlyOnceWriteCache) {
+		this.exactlyOnceWriteCache = exactlyOnceWriteCache;
+	}
+
 	@Override
 	public String toString() {
 		final StringBuilder sb = new StringBuilder("TapdataEvent{");
@@ -262,7 +272,6 @@ public class TapdataEvent implements Serializable, Cloneable {
 		sb.append(", nodeIds=").append(nodeIds);
 		sb.append(", sourceTime=").append(sourceTime);
 		sb.append(", sourceSerialNo=").append(sourceSerialNo);
-		sb.append(", messageEntity=").append(messageEntity);
 		sb.append('}');
 		return sb.toString();
 	}
