@@ -1427,6 +1427,26 @@ public class LogCollectorService {
 		taskService.pause(shareCdcTask.getId(), user, false, true);
 	}
 
+    public List<ShareCdcConnectionInfo> getConnectionIds(String taskId, UserDetail user) {
+        TaskDto shareCdcTask = taskService.findById(MongoUtils.toObjectId(taskId), user);
+        DAG dag = shareCdcTask.getDag();
+        List<Node> sources = dag.getSources();
+        LogCollectorNode logCollectorNode = (LogCollectorNode)sources.get(0);
+        Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
+        Set<String> connectionIds;
+        if (logCollectorConnConfigs == null) {
+            connectionIds = new HashSet<>(logCollectorNode.getConnectionIds());
+        } else {
+            connectionIds = logCollectorConnConfigs.keySet();
+        }
+        List<DataSourceConnectionDto> alls = dataSourceService.findAllByIds(new ArrayList<>(connectionIds));
+        if (alls != null) {
+            return alls.stream().map(c -> new ShareCdcConnectionInfo(c.getId().toHexString(), c.getName())).collect(Collectors.toList());
+        }
+
+        return new ArrayList<>();
+    }
+
 	private Map<String, LogCollecotrConnConfig> addTables(Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap, List<TableLogCollectorParam> params) {
 		Map<String, LogCollecotrConnConfig> paramMap = params.stream()
 						.collect(Collectors.toMap(TableLogCollectorParam::getConnectionId, e -> new LogCollecotrConnConfig(e.getConnectionId(), new ArrayList<>(e.getTableNames())), (o, n) -> {

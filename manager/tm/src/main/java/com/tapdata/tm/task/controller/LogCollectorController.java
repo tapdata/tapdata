@@ -171,6 +171,13 @@ public class LogCollectorController extends BaseController {
 		return success();
 	}
 
+    @GetMapping("connectionIds/{taskId}")
+    @Operation(summary = "查询合并的连接表详情")
+    public ResponseMessage<List<ShareCdcConnectionInfo>> connections(@PathVariable("taskId") String taskId) {
+        List<ShareCdcConnectionInfo> connectionInfos = logCollectorService.getConnectionIds(taskId, getLoginUser());
+        return success(connectionInfos);
+    }
+
 
 
 }
