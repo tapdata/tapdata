@@ -39,6 +39,7 @@ import org.postgresql.util.PGInterval;
 import org.postgresql.util.PGobject;
 
 import java.math.BigDecimal;
+import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -170,7 +171,9 @@ public class PostgresConnector extends CommonDbConnector {
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
         codecRegistry.registerFromTapValue(TapYearValue.class, "character(4)", tapYearValue -> formatTapDateTime(tapYearValue.getValue(), "yyyy"));
         connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
-
+        connectorFunctions.supportTransactionBeginFunction(this::beginTransaction);
+        connectorFunctions.supportTransactionCommitFunction(this::commitTransaction);
+        connectorFunctions.supportTransactionRollbackFunction(this::rollbackTransaction);
     }
 
     //clear resource outer and jdbc context
@@ -261,11 +264,28 @@ public class PostgresConnector extends CommonDbConnector {
         if (updateDmlPolicy == null) {
             updateDmlPolicy = ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS;
         }
-        new PostgresRecordWriter(postgresJdbcContext, tapTable)
-                .setVersion(postgresVersion)
-                .setInsertPolicy(insertDmlPolicy)
-                .setUpdatePolicy(updateDmlPolicy)
-                .write(tapRecordEvents, writeListResultConsumer);
+        if (isTransaction) {
+            String threadName = Thread.currentThread().getName();
+            Connection connection;
+            if (transactionConnectionMap.containsKey(threadName)) {
+                connection = transactionConnectionMap.get(threadName);
+            } else {
+                connection = postgresJdbcContext.getConnection();
+                transactionConnectionMap.put(threadName, connection);
+            }
+            new PostgresRecordWriter(postgresJdbcContext, connection, tapTable)
+                    .setVersion(postgresVersion)
+                    .setInsertPolicy(insertDmlPolicy)
+                    .setUpdatePolicy(updateDmlPolicy)
+                    .write(tapRecordEvents, writeListResultConsumer);
+
+        } else {
+            new PostgresRecordWriter(postgresJdbcContext, tapTable)
+                    .setVersion(postgresVersion)
+                    .setInsertPolicy(insertDmlPolicy)
+                    .setUpdatePolicy(updateDmlPolicy)
+                    .write(tapRecordEvents, writeListResultConsumer);
+        }
     }
 
     private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {

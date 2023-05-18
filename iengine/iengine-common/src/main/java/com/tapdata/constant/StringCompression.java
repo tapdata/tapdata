@@ -27,6 +27,17 @@ public class StringCompression {
 		return out.toString(DEFAULT_CODE);
 	}
 
+	public static byte[] compressToBytes(String str) throws IOException {
+		if (str == null || str.length() == 0) {
+			return null;
+		}
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		GZIPOutputStream gzip = new GZIPOutputStream(out);
+		gzip.write(str.getBytes());
+		gzip.close();
+		return out.toByteArray();
+	}
+
 	public static String uncompress(String str) throws IOException {
 		if (str == null || str.length() == 0) {
 			return str;

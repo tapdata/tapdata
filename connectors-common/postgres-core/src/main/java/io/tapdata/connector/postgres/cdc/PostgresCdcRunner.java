@@ -10,6 +10,7 @@ import io.tapdata.connector.postgres.config.PostgresConfig;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.TapSimplify;
@@ -135,23 +136,30 @@ public class PostgresCdcRunner extends DebeziumCdcRunner {
                 continue;
             }
             String op = struct.getString("op");
+            String lsn = String.valueOf(offset.get("lsn"));
             String table = struct.getStruct("source").getString("table");
             Struct after = struct.getStruct("after");
             Struct before = struct.getStruct("before");
+            TapRecordEvent event = null;
             switch (op) { //snapshot.mode = 'never'
                 case "c": //after running --insert
                 case "r": //after slot but before running --read
-                    eventList.add(new TapInsertRecordEvent().init().table(table).after(getMapFromStruct(after)).referenceTime(referenceTime));
+                    event = new TapInsertRecordEvent().init().table(table).after(getMapFromStruct(after));
                     break;
                 case "d": //after running --delete
-                    eventList.add(new TapDeleteRecordEvent().init().table(table).before(getMapFromStruct(before)).referenceTime(referenceTime));
+                    event = new TapDeleteRecordEvent().init().table(table).before(getMapFromStruct(before));
                     break;
                 case "u": //after running --update
-                    eventList.add(new TapUpdateRecordEvent().init().table(table).after(getMapFromStruct(after)).before(getMapFromStruct(before)).referenceTime(referenceTime));
+                    event = new TapUpdateRecordEvent().init().table(table).after(getMapFromStruct(after)).before(getMapFromStruct(before));
                     break;
                 default:
                     break;
             }
+            if (EmptyKit.isNotNull(event)) {
+                event.setReferenceTime(referenceTime);
+                event.setExactlyOnceId(lsn);
+            }
+            eventList.add(event);
             if (eventList.size() >= recordSize) {
                 postgresOffset.setSourceOffset(TapSimplify.toJson(offset));
                 consumer.accept(eventList, postgresOffset);
