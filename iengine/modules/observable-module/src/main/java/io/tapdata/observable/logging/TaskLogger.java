@@ -10,6 +10,7 @@ import io.tapdata.observable.logging.appender.AppenderFactory;
 import io.tapdata.observable.logging.appender.BaseTaskAppender;
 import io.tapdata.observable.logging.appender.FileAppender;
 import io.tapdata.observable.logging.appender.ObsHttpTMAppender;
+import io.tapdata.observable.logging.with.WithAppender;
 import lombok.Getter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.Level;
@@ -19,6 +20,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.function.BiConsumer;
@@ -50,20 +52,15 @@ class TaskLogger extends ObsLogger {
 		this.taskRecordId = taskRecordId;
 		this.logAppendFactory = AppenderFactory.getInstance();
 
-		// add file appender
-		String workDir = GlobalConstant.getInstance().getConfigurationCenter().getConfig(ConfigurationCenter.WORK_DIR).toString();
-		BaseTaskAppender<MonitoringLogsDto> fileAppender = FileAppender.create(workDir, taskId);
-		tapObsAppenders.add(fileAppender);
-		this.logAppendFactory.addTaskAppender(fileAppender);
-
-		// add tm appender
-		ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
-		BaseTaskAppender<MonitoringLogsDto> obsHttpTMAppender = ObsHttpTMAppender.create(clientMongoOperator, taskId);
-		tapObsAppenders.add(obsHttpTMAppender);
-		this.logAppendFactory.addTaskAppender(obsHttpTMAppender);
-
 		// add close debug consumer
 		this.closeDebugConsumer = consumer;
+	}
+
+	public TaskLogger witAppender(WithAppender<?> appender){
+		Appender<?> append = appender.append();
+		tapObsAppenders.add(append);
+		this.logAppendFactory.addTaskAppender((BaseTaskAppender<MonitoringLogsDto>)append);
+		return this;
 	}
 
 	TaskLogger withTask(String taskId, String taskName, String taskRecordId) {

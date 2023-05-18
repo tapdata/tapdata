@@ -4,6 +4,7 @@ package io.tapdata.flow.engine.V2.task;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * operate task
@@ -22,6 +23,10 @@ public interface TaskService<T> {
 	TaskClient<T> startTask(T task);
 
 	TaskClient<TaskDto> startTestTask(TaskDto taskDto);
+
+	default TaskClient<TaskDto> startTestTask(TaskDto taskDto, AtomicReference<Object> clientResult){
+		return null;
+	}
 
 	/**
 	 * Returns the active or last started task client with the given taskId or {@code
