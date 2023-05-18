@@ -124,4 +124,11 @@ public class LogCollectorNode extends Node<List<Schema>> {
             return true;
         }).collect(Collectors.toList());
     }
+
+    public List<String> getConnectionIds() {
+        if (logCollectorConnConfigs != null) {
+            return new ArrayList<>(logCollectorConnConfigs.keySet());
+        }
+        return connectionIds;
+    }
 }
