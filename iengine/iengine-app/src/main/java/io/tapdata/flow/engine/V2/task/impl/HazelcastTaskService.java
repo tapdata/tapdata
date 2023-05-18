@@ -42,6 +42,7 @@ import com.tapdata.tm.commons.dag.process.MigrateDateProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
+import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
@@ -50,6 +51,7 @@ import io.tapdata.autoinspect.utils.AutoInspectNodeUtil;
 import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.logger.TapLog;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TaskProcessorExCode_11;
@@ -174,6 +176,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 //        TaskThreadGroup threadGroup = new TaskThreadGroup(taskDto);
 //        try (ThreadPoolExecutorEx threadPoolExecutorEx = AsyncUtils.createThreadPoolExecutor("RootTask-" + taskDto.getName(), 1, threadGroup, TAG)) {
 		try {
+			selfCheckTask(taskDto);
+
 			ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
 			AspectUtils.executeAspect(new TaskStartAspect().task(taskDto).log(InstanceFactory.instance(LogFactory.class).getLog(taskDto)));
 //            return threadPoolExecutorEx.submitSync(() -> {
@@ -190,6 +194,41 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			ObsLoggerFactory.getInstance().getObsLogger(taskDto).error(throwable);
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
 			throw throwable;
+		}
+	}
+
+	private void selfCheckTask(TaskDto taskDto) {
+		com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag();
+		if(dag != null) {
+			List<Node> nodes = dag.getNodes();
+			if(nodes != null) {
+				for (Node node : nodes) {
+					if (node instanceof MergeTableNode) {
+						MergeTableNode mergeTableNode = (MergeTableNode) node;
+						selfCheckMergeTableProperties(mergeTableNode.getMergeProperties());
+					}
+				}
+			}
+		}
+	}
+
+	private void selfCheckMergeTableProperties(List<MergeTableProperties> mergeTableProperties) {
+		if(mergeTableProperties == null)
+			return;
+		for(MergeTableProperties tableProperties : mergeTableProperties) {
+			if(tableProperties.getMergeType().equals(MergeTableProperties.MergeType.updateIntoArray)) {
+				List<MergeTableProperties> children = tableProperties.getChildren();
+				if(children != null) {
+					for (MergeTableProperties ch : children) {
+						if(!ch.getIsArray()) {
+							ch.setArray(true);
+							TapLogger.warn(TAG, "Fixed merge table properties, set array to true when mergeType is updateIntoArray, table: " + ch.getTableName() + " targetPath: " + ch.getTargetPath());
+						}
+					}
+				}
+			}
+
+			selfCheckMergeTableProperties(tableProperties.getChildren());
 		}
 	}
 

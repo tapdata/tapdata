@@ -77,11 +77,13 @@ public class SnapshotOrderController implements Serializable {
 				}
 				nodeControllers.add(nodeController);
 			}
-			snapshotOrderList.add(new NodeControlLayer(nodeControllers));
 
 			if (CollectionUtils.isNotEmpty(mergeTableProperty.getChildren())) {
 				nextLevelMergeProperties.addAll(mergeTableProperty.getChildren());
 			}
+		}
+		if (CollectionUtils.isNotEmpty(nodeControllers)) {
+			snapshotOrderList.add(new NodeControlLayer(nodeControllers));
 		}
 		if (CollectionUtils.isNotEmpty(nextLevelMergeProperties)) {
 			recursiveBuildSnapshotOrderListByMergeNode(nextLevelMergeProperties, snapshotOrderList, mergeNode, level + 1);
