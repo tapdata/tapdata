@@ -1,6 +1,7 @@
 package com.tapdata.tm.externalStorage.service;
 
 import com.mongodb.ConnectionString;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
@@ -43,6 +44,8 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 
 	@Autowired
 	private TaskService taskService;
+	@Autowired
+	private SettingsService settingsService;
 
 	public ExternalStorageService(@NonNull ExternalStorageRepository repository) {
 		super(repository, ExternalStorageDto.class, ExternalStorageEntity.class);
@@ -118,6 +121,11 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 	@Override
 	public Page<ExternalStorageDto> find(Filter filter, UserDetail userDetail) {
 		Page<ExternalStorageDto> externalStorageDtoPage = super.find(filter, userDetail);
+		if (settingsService.isCloud()) {
+			externalStorageDtoPage = super.find(filter);
+		} else {
+			externalStorageDtoPage = super.find(filter, userDetail);
+		}
 		if (null == filter.getWhere() || filter.getWhere().isEmpty()) {
 			List<ExternalStorageEntity> initExternalStorages = repository.findAll(Query.query(Criteria.where("init").is(true)));
 			List<ExternalStorageDto> items = externalStorageDtoPage.getItems();
