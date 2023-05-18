@@ -105,9 +105,12 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 			if (task.isTestTask()){
 				//js处理器试运行收集日志，不入库不额外操作，仅返回给前端
 				taskLogger.witAppender(
-						(WithAppender<MonitoringLogsDto>)(() ->
-								(BaseTaskAppender<MonitoringLogsDto>) JSProcessNodeAppender.create(taskId, (AtomicReference<Object>)task.taskInfo(JSProcessNodeAppender.LOG_LIST_KEY + taskId))
-										.maxLogCount((int)task.taskInfo(JSProcessNodeAppender.MAX_LOG_LENGTH_KEY + taskId)))
+					(WithAppender<MonitoringLogsDto>)(() ->
+						(BaseTaskAppender<MonitoringLogsDto>) JSProcessNodeAppender.create(
+							taskId,
+							(AtomicReference<Object>)task.taskInfo(JSProcessNodeAppender.LOG_LIST_KEY + taskId),
+							(Integer) task.taskInfo(JSProcessNodeAppender.MAX_LOG_LENGTH_KEY + taskId))
+					)
 				);
 			} else {
 				taskLogger.witAppender(this.fileAppender(taskId))
@@ -164,6 +167,21 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 		loggerToBeRemoved.putIfAbsent(taskId, System.currentTimeMillis());
 	}
 
+	public void forceRemoveTaskLogger(TaskDto taskDto) {
+		if(taskDto == null || taskDto.getId() == null)
+			return;
+		String taskId = taskDto.getId().toHexString();
+		TaskLogger remove = taskLoggersMap.remove(taskId);
+		if(remove != null) {
+			try {
+				remove.close();
+			} catch (Exception e) {
+				throw new RuntimeException(String.format("Close task %s[%s] logger failed, error message: %s", remove.getTaskName(), remove.getTaskId(), e.getMessage()), e);
+			} finally {
+				loggerToBeRemoved.remove(taskId);
+			}
+		}
+	}
 	public void removeTaskLogger() {
 		Thread.currentThread().setName("Remove-Task-Logger-Scheduler");
 		try {

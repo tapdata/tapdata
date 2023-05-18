@@ -2,8 +2,11 @@ package io.tapdata.observable.logging.appender;
 
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import io.tapdata.observable.logging.with.FixedSizeBlockingDeque;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -14,36 +17,40 @@ import java.util.concurrent.atomic.AtomicReference;
 public class JSProcessNodeAppender extends BaseTaskAppender<MonitoringLogsDto> {
     public static final String MAX_LOG_LENGTH_KEY = "maxLogCount_";
     public static final String LOG_LIST_KEY = "logCollector_";
+    public static final String LOGGER_NAME_PREFIX = "js-test-run-log-";
 
     //日志输出默认100条
     public int defaultLogLength = 100;
+    private final Logger logger;
 
     public FixedSizeBlockingDeque<MonitoringLogsDto> logList = new FixedSizeBlockingDeque<>(defaultLogLength);//new FixSizeLinkedList<>(defaultLogLength);
     AtomicReference<Object> logCollector;
     //日志输出上限500条
     public static final int LOG_UPPER_LIMIT = 500;
 
-    private JSProcessNodeAppender(String taskId, AtomicReference<Object> logCollector) {
+    private JSProcessNodeAppender(String taskId, AtomicReference<Object> logCollector, Integer maxLogCount) {
         super(taskId);
-        logCollector.set(logList);
+        this.logger = LogManager.getLogger(LOGGER_NAME_PREFIX + taskId);
         this.logCollector = logCollector;
+        if (null != logCollector)
+            Optional.ofNullable(logCollector.get()).ifPresent(list -> logList = (FixedSizeBlockingDeque<MonitoringLogsDto>)list);
     }
 
-    public static JSProcessNodeAppender create(String taskId, AtomicReference<Object> logCollector) {
-        return new JSProcessNodeAppender(taskId, logCollector);
+    public static JSProcessNodeAppender create(String taskId, AtomicReference<Object> logCollector, Integer maxLogCount) {
+        return new JSProcessNodeAppender(taskId, logCollector, maxLogCount);
     }
 
-    public JSProcessNodeAppender maxLogCount(int maxLogCount) {
-        if (maxLogCount <= 0) return this;
-        defaultLogLength = Math.min(maxLogCount, LOG_UPPER_LIMIT);
-        FixedSizeBlockingDeque<MonitoringLogsDto> linkedList = new FixedSizeBlockingDeque<>(defaultLogLength);//new FixSizeLinkedList<>(defaultLogLength);
-        if (!logList.isEmpty()) {
-            linkedList.addAll(logList);
-        }
-        logList = linkedList;
-        logCollector.set(linkedList);
-        return this;
-    }
+//    public JSProcessNodeAppender maxLogCount(int maxLogCount) {
+//        if (maxLogCount <= 0) return this;
+//        defaultLogLength = Math.min(maxLogCount, LOG_UPPER_LIMIT);
+//        FixedSizeBlockingDeque<MonitoringLogsDto> linkedList = new FixedSizeBlockingDeque<>(defaultLogLength);//new FixSizeLinkedList<>(defaultLogLength);
+//        if (!logList.isEmpty()) {
+//            linkedList.addAll(logList);
+//        }
+//        logList = linkedList;
+//        logCollector.set(linkedList);
+//        return this;
+//    }
 
     @Override
     public void append(MonitoringLogsDto log) {
@@ -66,7 +73,9 @@ public class JSProcessNodeAppender extends BaseTaskAppender<MonitoringLogsDto> {
 
     @Override
     public void stop() {
-
+        if (null != logger) {
+            removeAppenders((org.apache.logging.log4j.core.Logger) logger);
+        }
     }
 
     public static void main(String[] args) {

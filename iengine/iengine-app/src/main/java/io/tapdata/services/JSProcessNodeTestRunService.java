@@ -2,6 +2,7 @@ package io.tapdata.services;
 
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.JSONUtil;
+import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskStopAspect;
@@ -12,11 +13,14 @@ import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.observable.logging.appender.JSProcessNodeAppender;
+import io.tapdata.observable.logging.with.FixedSizeBlockingDeque;
 import io.tapdata.service.skeleton.annotation.RemoteService;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -39,6 +43,13 @@ public class JSProcessNodeTestRunService {
         long startTs = System.currentTimeMillis();
         TaskDto taskDto = JSONUtil.map2POJO(events, TaskDto.class);
         AtomicReference<Object> logCollector = new AtomicReference<>();
+        int defaultLogLength = 100;
+        if (logOutputCount > 0) {
+            defaultLogLength = Math.min(logOutputCount, JSProcessNodeAppender.LOG_UPPER_LIMIT);
+        }
+        FixedSizeBlockingDeque<MonitoringLogsDto> logList = new FixedSizeBlockingDeque<>(defaultLogLength);
+        logCollector.set(logList);
+
         String taskId = taskDto.getId().toHexString();
         taskDto.taskInfo(JSProcessNodeAppender.LOG_LIST_KEY  + taskId, logCollector);
         taskDto.taskInfo(JSProcessNodeAppender.MAX_LOG_LENGTH_KEY + taskId, logOutputCount);
@@ -73,10 +84,11 @@ public class JSProcessNodeTestRunService {
             return paramMap;
         } finally {
             taskDtoMap.remove(taskId);
+            ObsLoggerFactory.getInstance().forceRemoveTaskLogger(taskDto);
         }
         logger.info("test run task {} {}, cost {}ms", taskId, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
         Map<String, Object> resultMap = (Map<String, Object>)clientResult.get();
-        resultMap.put("logs", logCollector.get());
+        resultMap.put("logs", Optional.ofNullable(logCollector.get()).orElse(new ArrayList<>()));
         return resultMap;
     }
 }

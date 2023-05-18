@@ -170,6 +170,11 @@ public class TaskDto extends ParentTaskDto {
         return taskInfo.get(key);
     }
 
+    public void removeTaskInfo(String key){
+        if (null == taskInfo) return;
+        taskInfo.remove(key);
+    }
+
     public TaskDto taskInfo(String key, Object value){
         if (null == key) return this;
         if (null == taskInfo) taskInfo = new ConcurrentHashMap<>();

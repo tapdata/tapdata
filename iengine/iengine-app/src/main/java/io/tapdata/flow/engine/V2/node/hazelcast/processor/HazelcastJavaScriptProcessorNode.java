@@ -123,15 +123,11 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 		if (node instanceof StandardJsProcessorNode || node instanceof StandardMigrateJsProcessorNode) {
 			this.standard = true;
-			int jsType ;
-			if (node instanceof StandardMigrateJsProcessorNode) {
-				StandardMigrateJsProcessorNode processorNode = (StandardMigrateJsProcessorNode) node;
-				jsType = Optional.ofNullable(processorNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
-			} else {
-				StandardJsProcessorNode processorNode = (StandardJsProcessorNode) node;
-				jsType = Optional.ofNullable(processorNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
-			}
-			finalJs = standard && ProcessorNodeType.Standard_JS.contrast(jsType);
+		}
+		if (node instanceof JsProcessorNode){
+			JsProcessorNode processorNode = (JsProcessorNode) node;
+			int jsType = Optional.ofNullable(processorNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
+			finalJs = !standard && ProcessorNodeType.Standard_JS.contrast(jsType);
 		}
 
 		List<JavaScriptFunctions> javaScriptFunctions;
@@ -144,17 +140,17 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 		ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
 		this.engine = finalJs ?
-			ScriptUtil.getScriptEngine(
-				JSEngineEnum.GRAALVM_JS.getEngineName(),
-				script,
-				javaScriptFunctions,
-				clientMongoOperator,
-				null,
-				null,
-				scriptCacheService,
-				new ObsScriptLogger(obsLogger, logger),
-				this.standard)
-			: getScriptEngine(
+			getScriptEngine(
+					JSEngineEnum.GRAALVM_JS.getEngineName(),
+					script,
+					javaScriptFunctions,
+					clientMongoOperator,
+					null,
+					null,
+					scriptCacheService,
+					new ObsScriptLogger(obsLogger, logger),
+					this.standard)
+			: ScriptUtil.getScriptEngine(
 				JSEngineEnum.GRAALVM_JS.getEngineName(),
 				script,
 				javaScriptFunctions,
