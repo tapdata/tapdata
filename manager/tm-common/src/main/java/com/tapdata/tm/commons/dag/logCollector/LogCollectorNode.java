@@ -45,8 +45,8 @@ public class LogCollectorNode extends Node<List<Schema>> {
     /** 表名 ， selectType为 allTables ：就不用填写表名， reservationTable： 为需要缓存的表， exclusionTable：不需要缓存的表名 */
     private List<String> tableNames;
 
-		@EqField
-		private List<String> exclusionTables;
+    @EqField
+    private List<String> exclusionTables;
 
     private Map<String, LogCollecotrConnConfig> logCollectorConnConfigs;
 
