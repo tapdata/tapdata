@@ -22,7 +22,7 @@ function updateRecord(connectionConfig, nodeConfig, eventDataMap, tableJsonStrin
 }
 function writeData(eventDataMap, tableJsonString, isInsert){
     let tableMap = JSON.parse(tableJsonString);
-    let csvData = jsonToCSV([eventDataMap.afterData]);
+    let csvData = csvUtils.format([eventDataMap.afterData]);
     let bodyConfig = {
         "data_id" : tableMap.keys[0],
         "content" : csvData,
@@ -39,22 +39,6 @@ function writeData(eventDataMap, tableJsonString, isInsert){
         log.warn("Fail to {} record, record: {}, msg: {}", isInsert ? "insert" : "update", csvData, exceptionUtil.eMessage(e));
         return false;
     }
-}
-function jsonToCSV(arrData) {
-    let csv = '', row = '';
-    for (let index in arrData[0])  row += index + ',';
-    row = row.slice(0, -1)
-    csv += row + '\r\n';
-    for (let i = 0; i < arrData.length; i++) {
-        let rows = '';
-        for (let index in arrData[i]) {
-            let arrValue = arrData[i][index] == null ? '' : '' + arrData[i][index];
-            rows += arrValue + ',';
-        }
-        rows = rows.slice(0, rows.length - 1);
-        csv += rows + '\r\n';
-    }
-    return csv;
 }
 function connectorWebsite(connectionConfig){
     return {

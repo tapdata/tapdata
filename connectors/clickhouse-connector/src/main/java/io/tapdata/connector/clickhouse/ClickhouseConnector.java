@@ -1,20 +1,22 @@
 package io.tapdata.connector.clickhouse;
 
-import com.google.common.collect.Lists;
 import io.tapdata.common.CommonDbConnector;
 import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.SqlExecuteCommandFunction;
+import io.tapdata.connector.clickhouse.bean.ClickhouseColumn;
 import io.tapdata.connector.clickhouse.config.ClickhouseConfig;
-import io.tapdata.connector.clickhouse.ddl.sqlmaker.ClickhouseDDLSqlMaker;
+import io.tapdata.connector.clickhouse.ddl.sqlmaker.ClickhouseDDLSqlGenerator;
+import io.tapdata.connector.clickhouse.ddl.sqlmaker.ClickhouseSqlMaker;
 import io.tapdata.connector.clickhouse.dml.ClickhouseBatchWriter;
 import io.tapdata.connector.clickhouse.dml.TapTableWriter;
 import io.tapdata.entity.codec.TapCodecsRegistry;
-import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapIndex;
+import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
@@ -28,42 +30,34 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.apache.commons.codec.binary.Base64;
-import org.apache.commons.collections4.CollectionUtils;
 
 import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 @TapConnectorClass("spec_clickhouse.json")
 public class ClickhouseConnector extends CommonDbConnector {
 
-
     public static final String TAG = ClickhouseConnector.class.getSimpleName();
 
     private ClickhouseConfig clickhouseConfig;
-
     private ClickhouseJdbcContext clickhouseJdbcContext;
-
-    private static final int BATCH_ADVANCE_READ_LIMIT = 1000;
-
-    private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
-
-//    private String connectionTimezone;
-
-    private ClickhouseDDLSqlMaker ddlSqlMaker;
+    private String clickhouseVersion;
 
     private final ClickhouseBatchWriter clickhouseWriter = new ClickhouseBatchWriter(TAG);
-
+    private ExecutorService executorService;
+    private Long lastMergeTime;
+    private final Map<String, TapTable> tapTableMap = new ConcurrentHashMap<>();
 
     @Override
-    public void onStart(TapConnectionContext connectionContext) throws Throwable {
+    public void onStart(TapConnectionContext connectionContext) throws SQLException {
         initConnection(connectionContext);
-        ddlSqlMaker = new ClickhouseDDLSqlMaker();
+        ddlSqlGenerator = new ClickhouseDDLSqlGenerator();
         fieldDDLHandlers = new BiClassHandlers<>();
         fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
         fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
@@ -79,108 +73,75 @@ public class ClickhouseConnector extends CommonDbConnector {
 
     }
 
-    protected List<String> dropField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
-        if (!(tapFieldBaseEvent instanceof TapDropFieldEvent)) {
-            return null;
-        }
-        TapDropFieldEvent tapDropFieldEvent = (TapDropFieldEvent) tapFieldBaseEvent;
-        return ddlSqlMaker.dropColumn(tapConnectorContext, tapDropFieldEvent);
-    }
-
-    protected List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
-        if (!(tapFieldBaseEvent instanceof TapNewFieldEvent)) {
-            return null;
-        }
-        TapNewFieldEvent tapNewFieldEvent = (TapNewFieldEvent) tapFieldBaseEvent;
-        return ddlSqlMaker.addColumn(tapConnectorContext, tapNewFieldEvent);
-    }
-
-    protected List<String> alterFieldName(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
-        if (!(tapFieldBaseEvent instanceof TapAlterFieldNameEvent)) {
-            return null;
-        }
-        TapAlterFieldNameEvent tapAlterFieldNameEvent = (TapAlterFieldNameEvent) tapFieldBaseEvent;
-        return ddlSqlMaker.alterColumnName(tapConnectorContext, tapAlterFieldNameEvent);
-    }
-
-    protected List<String> alterFieldAttr(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
-        if (!(tapFieldBaseEvent instanceof TapAlterFieldAttributesEvent)) {
-            return null;
-        }
-        TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent = (TapAlterFieldAttributesEvent) tapFieldBaseEvent;
-        return ddlSqlMaker.alterColumnAttr(tapConnectorContext, tapAlterFieldAttributesEvent);
-    }
-
-    private void initConnection(TapConnectionContext connectionContext) throws Throwable {
-        clickhouseConfig = (ClickhouseConfig) new ClickhouseConfig().load(connectionContext.getConnectionConfig());
+    private void initConnection(TapConnectionContext connectionContext) throws SQLException {
+        clickhouseConfig = new ClickhouseConfig().load(connectionContext.getConnectionConfig());
+        isConnectorStarted(connectionContext, connectorContext -> clickhouseConfig.load(connectorContext.getNodeConfig()));
         clickhouseJdbcContext = new ClickhouseJdbcContext(clickhouseConfig);
         commonDbConfig = clickhouseConfig;
         jdbcContext = clickhouseJdbcContext;
-//        clickhouseVersion = clickhouseJdbcContext.queryVersion();
-//        this.connectionTimezone = connectionContext.getConnectionConfig().getString("timezone");
-//        if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
-//            this.connectionTimezone = clickhouseJdbcContext.timezone();
-//        }
+        clickhouseVersion = clickhouseJdbcContext.queryVersion();
+        commonSqlMaker = new ClickhouseSqlMaker().withVersion(clickhouseVersion);
+        tapLogger = connectionContext.getLog();
     }
 
     @Override
-    public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) {
-        List<DataMap> tableList = clickhouseJdbcContext.queryAllTables(tables);
-        List<List<DataMap>> tableLists = Lists.partition(tableList, tableSize);
-        try {
-            tableLists.forEach(subList -> {
-                List<TapTable> tapTableList = TapSimplify.list();
-                List<String> subTableNames = subList.stream().map(v -> v.getString("name")).collect(Collectors.toList());
-                List<DataMap> columnList = clickhouseJdbcContext.queryAllColumns(subTableNames);
-
-                AtomicInteger primaryPos = new AtomicInteger(1);
-                subList.forEach(subTable -> {
-                    //1.table name/comment
-                    String table = subTable.getString("name");
-                    TapTable tapTable = table(table);
-                    tapTable.setComment(subTable.getString("comment"));
-                    List<String> primaryKey = TapSimplify.list();
-                    columnList.stream().filter(col -> table.equals(col.getString("table")))
-                            .forEach(col -> {
-                                String columnName = col.getString("name");
-                                String columnType = col.getString("type");
-                                Boolean nullable = false;
-                                if (columnType.contains("Nullable")) {
-                                    columnType = columnType.replace("Nullable(", "");
-                                    columnType = columnType.substring(0, columnType.length() - 1);
-                                    nullable = true;
-                                }
-                                TapField field = TapSimplify.field(columnName, columnType);
-                                field.nullable(nullable);
-                                int ordinalPosition = Integer.parseInt(col.getString("position"));
-                                field.pos(ordinalPosition);
-
-                                //                            String is_in_sorting_key = col.getString("is_in_sorting_key");
-                                String is_in_primary_key = col.getString("is_in_primary_key");
-                                if (Integer.parseInt(is_in_primary_key) == 1) {
-                                    field.setPrimaryKey(true);
-                                    field.primaryKeyPos(primaryPos.getAndIncrement());
-                                }
-                                tapTable.add(field);
-                            });
-                    tapTableList.add(tapTable);
-                });
-                if (CollectionUtils.isNotEmpty(columnList)) {
-                    consumer.accept(tapTableList);
-                    tapTableList.clear();
-                }
-            });
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-
+    protected void singleThreadDiscoverSchema(List<DataMap> subList, Consumer<List<TapTable>> consumer) throws SQLException {
+        List<TapTable> tapTableList = TapSimplify.list();
+        List<String> subTableNames = subList.stream().map(v -> v.getString("tableName")).collect(Collectors.toList());
+        List<DataMap> columnList = jdbcContext.queryAllColumns(subTableNames);
+        subList.forEach(subTable -> {
+            //1、table name/comment
+            String table = subTable.getString("tableName");
+            TapTable tapTable = table(table);
+            tapTable.setComment(subTable.getString("tableComment"));
+            //2、table columns info
+            AtomicInteger keyPos = new AtomicInteger(0);
+            AtomicInteger primaryKeyPos = new AtomicInteger(0);
+//            AtomicInteger partitionKeyPos = new AtomicInteger(0);
+            List<TapIndexField> sortingIndexFields = new ArrayList<>();
+            List<TapIndexField> primaryIndexFields = new ArrayList<>();
+            columnList.stream().filter(col -> table.equals(col.getString("tableName")))
+                    .forEach(col -> {
+                        ClickhouseColumn column = new ClickhouseColumn(col);
+                        TapField tapField = column.getTapField();
+                        tapField.setPos(keyPos.incrementAndGet());
+                        if (column.isPrimary()) {
+                            tapField.setPrimaryKey(true);
+                            tapField.setPrimaryKeyPos(primaryKeyPos.incrementAndGet());
+                            primaryIndexFields.add(new TapIndexField().name(tapField.getName()).fieldAsc(true));
+                        }
+                        if (column.isSorting()) {
+                            sortingIndexFields.add(new TapIndexField().name(tapField.getName()).fieldAsc(true));
+                        }
+//                        if (column.isPartition()) {
+//                            tapField.setPartitionKey(column.isPartition());
+//                            tapField.setPartitionKeyPos(partitionKeyPos.incrementAndGet());
+//                        }
+                        tapTable.add(tapField);
+                    });
+            if (EmptyKit.isNotEmpty(primaryIndexFields)) {
+                TapIndex tapIndex = new TapIndex().primary(true).unique(true);
+                tapIndex.setIndexFields(primaryIndexFields);
+                tapTable.add(tapIndex);
+            }
+            if (EmptyKit.isNotEmpty(sortingIndexFields) && (primaryIndexFields.size() != sortingIndexFields.size())) {
+                TapIndex tapIndex = new TapIndex().primary(false).unique(false);
+                tapIndex.setIndexFields(sortingIndexFields);
+                tapTable.add(tapIndex);
+            }
+            tapTableList.add(tapTable);
+        });
+        syncSchemaSubmit(tapTableList, consumer);
     }
-
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
         EmptyKit.closeQuietly(clickhouseJdbcContext);
         EmptyKit.closeQuietly(clickhouseWriter);
+        if (EmptyKit.isNotNull(executorService)) {
+            executorService.shutdown();
+            executorService = null;
+        }
     }
 
     @Override
@@ -225,21 +186,21 @@ public class ClickhouseConnector extends CommonDbConnector {
 
         connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         //target
-        connectorFunctions.supportCreateTable(this::createTable);
+        connectorFunctions.supportCreateTableV2(this::createTableV2);
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportClearTable(this::clearTable);
 //        connectorFunctions.supportCreateIndex(this::createIndex);
         connectorFunctions.supportWriteRecord(this::writeRecord);
 
 
-        //source 暂未找到 增量方案，1.x 不支持源
-//        connectorFunctions.supportBatchCount(this::batchCount);
-//        connectorFunctions.supportBatchRead(this::batchRead);
+        //source
+        connectorFunctions.supportBatchCount(this::batchCount);
+        connectorFunctions.supportBatchRead(this::batchReadWithoutOffset);
 //        connectorFunctions.supportStreamRead(this::streamRead);
 //        connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
         //query
         connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilter);
-//        connectorFunctions.supportQueryByFilter(this::queryByFilter);
+        connectorFunctions.supportQueryByFilter(this::queryByFilter);
 
         // ddl
         connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
@@ -253,14 +214,19 @@ public class ClickhouseConnector extends CommonDbConnector {
 
     }
 
-    private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
+    protected CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws SQLException {
         TapTable tapTable = tapCreateTableEvent.getTable();
+        CreateTableOptions createTableOptions = new CreateTableOptions();
+        if (clickhouseJdbcContext.queryAllTables(Collections.singletonList(tapTable.getId())).size() > 0) {
+            createTableOptions.setTableExists(true);
+            return createTableOptions;
+        }
         StringBuilder sql = new StringBuilder("CREATE TABLE IF NOT EXISTS ");
         sql.append(TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapTable.getId()));
-        sql.append("(").append(ClickhouseDDLSqlMaker.buildColumnDefinition(tapTable, true));
+        sql.append("(").append(commonSqlMaker.buildColumnDefinition(tapTable, true));
         sql.setLength(sql.length() - 1);
 
-        // 主键
+        // primary key
         Collection<String> primaryKeys = tapTable.primaryKeys(true);
         if (EmptyKit.isNotEmpty(primaryKeys)) {
             sql.append(") ENGINE = ReplacingMergeTree");
@@ -269,8 +235,7 @@ public class ClickhouseConnector extends CommonDbConnector {
             sql.append(") ENGINE = MergeTree");
         }
 
-        // 关联键排序
-        primaryKeys = tapTable.primaryKeys(true);
+        // sorting key
         if (EmptyKit.isNotEmpty(primaryKeys)) {
             sql.append(" ORDER BY (").append(TapTableWriter.sqlQuota(",", primaryKeys)).append(")");
         } else {
@@ -278,31 +243,28 @@ public class ClickhouseConnector extends CommonDbConnector {
         }
 
         try {
-            List<String> sqls = TapSimplify.list();
-            sqls.add(sql.toString());
-            TapLogger.info("table 为:", "table->{}", tapTable.getId());
-            clickhouseJdbcContext.batchExecute(sqls);
+            List<String> sqlList = TapSimplify.list();
+            sqlList.add(sql.toString());
+            TapLogger.info("table :", "table -> {}", tapTable.getId());
+            clickhouseJdbcContext.batchExecute(sqlList);
         } catch (Throwable e) {
             throw new RuntimeException("Create Table " + tapTable.getId() + " Failed! " + e.getMessage(), e);
         }
-    }
-
-    protected void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
-        List<String> sqls = fieldDDLHandlers.handle(tapFieldBaseEvent, tapConnectorContext);
-        if (null == sqls) {
-            return;
-        }
-        for (String sql : sqls) {
-            try {
-                TapLogger.info(TAG, "Execute ddl sql: " + sql);
-                clickhouseJdbcContext.execute(sql);
-            } catch (SQLException e) {
-                throw new RuntimeException("Execute ddl sql failed: " + sql + ", error: " + e.getMessage(), e);
-            }
-        }
+        createTableOptions.setTableExists(false);
+        return createTableOptions;
     }
 
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
+        synchronized (this) {
+            if (EmptyKit.isNull(lastMergeTime)) {
+                lastMergeTime = (Long) tapConnectorContext.getStateMap().get("lastMergeTime");
+            }
+            if (EmptyKit.isNull(lastMergeTime)) {
+                lastMergeTime = System.currentTimeMillis();
+                tapConnectorContext.getStateMap().put("lastMergeTime", lastMergeTime);
+            }
+            startMergeThreadIfNeeded(tapConnectorContext, tapTable);
+        }
         WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>();
         TapTableWriter instance = clickhouseWriter.partition(clickhouseJdbcContext, this::isAlive);
         for (TapRecordEvent event : tapRecordEvents) {
@@ -313,6 +275,32 @@ public class ClickhouseConnector extends CommonDbConnector {
         }
         instance.summit(writeListResult);
         consumer.accept(writeListResult);
+    }
+
+    private void startMergeThreadIfNeeded(TapConnectorContext tapConnectorContext, TapTable tapTable) {
+        if (!tapTableMap.containsKey(tapTable.getId())) {
+            tapTableMap.put(tapTable.getId(), tapTable);
+        }
+        if (EmptyKit.isNull(executorService)) {
+            executorService = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
+            executorService.submit(() -> {
+                while (isAlive()) {
+                    TapSimplify.sleep(1000);
+                    if (System.currentTimeMillis() - lastMergeTime > 1000L * 60 * clickhouseConfig.getMergeMinutes()) {
+                        List<String> sqlList = tapTableMap.values().stream().map(v -> "OPTIMIZE TABLE `" + clickhouseConfig.getDatabase() + "`.`" + v.getId() + "`").collect(Collectors.toList());
+                        try {
+                            tapLogger.info("Clickhouse Optimize Table start, tables: {}", toJson(tapTableMap.keySet()));
+                            clickhouseJdbcContext.batchExecute(sqlList);
+                            tapLogger.info("Clickhouse Optimize Table end");
+                        } catch (Throwable e) {
+                            tapLogger.warn("Clickhouse Optimize Table failed");
+                        }
+                        lastMergeTime = System.currentTimeMillis();
+                        tapConnectorContext.getStateMap().put("lastMergeTime", lastMergeTime);
+                    }
+                }
+            });
+        }
     }
 
     //需要改写成ck的创建索引方式
@@ -360,7 +348,7 @@ public class ClickhouseConnector extends CommonDbConnector {
                 }
             }
             if (EmptyKit.isNotEmpty(filterResults.getResults())) {
-                filterResults.getResults().stream().forEach(l -> l.entrySet().forEach(v -> {
+                filterResults.getResults().forEach(l -> l.entrySet().forEach(v -> {
                     if (v.getValue() instanceof String) {
                         v.setValue(((String) v.getValue()).trim());
                     }
@@ -370,67 +358,10 @@ public class ClickhouseConnector extends CommonDbConnector {
         });
     }
 
-
-    // 不支持偏移量
-    protected void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
-        String sql = "SELECT * FROM " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapTable.getId());
-        clickhouseJdbcContext.query(sql, resultSet -> {
-            List<TapEvent> tapEvents = list();
-            //get all column names
-            List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
-            while (isAlive() && resultSet.next()) {
-                DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
-                for (Map.Entry<String, Object> e : dataMap.entrySet()) {
-                    Object value = e.getValue();
-                    if (value instanceof String) {
-                        e.setValue(((java.lang.String) value).trim());
-                    }
-                }
-                tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
-                if (tapEvents.size() == eventBatchSize) {
-                    eventsOffsetConsumer.accept(tapEvents, null);
-                    tapEvents = list();
-                }
-            }
-            eventsOffsetConsumer.accept(tapEvents, null);
-        });
-
-    }
-
-    protected long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
-        AtomicLong count = new AtomicLong(0);
-        String sql = "SELECT COUNT(1) FROM " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapTable.getId());
-        clickhouseJdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
-        return count.get();
-    }
-
-    protected void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
-        try {
-            if (clickhouseJdbcContext.queryAllTables(Collections.singletonList(tapClearTableEvent.getTableId())).size() == 1) {
-                clickhouseJdbcContext.execute("TRUNCATE TABLE " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapClearTableEvent.getTableId()));
-            }
-        } catch (Throwable e) {
-            e.printStackTrace();
-            throw new RuntimeException("TRUNCATE Table " + tapClearTableEvent.getTableId() + " Failed! \n ");
-        }
-    }
-
-    protected void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
-        try {
-            if (clickhouseJdbcContext.queryAllTables(Collections.singletonList(tapDropTableEvent.getTableId())).size() == 1) {
-                clickhouseJdbcContext.execute("DROP TABLE IF EXISTS " + TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapDropTableEvent.getTableId()));
-            }
-        } catch (Throwable e) {
-            e.printStackTrace();
-            throw new RuntimeException("Drop Table " + tapDropTableEvent.getTableId() + " Failed! \n ");
-        }
-    }
-
-
     @Override
-    public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
+    public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) {
         ConnectionOptions connectionOptions = ConnectionOptions.create();
-        clickhouseConfig = (ClickhouseConfig) new ClickhouseConfig().load(connectionContext.getConnectionConfig());
+        clickhouseConfig = new ClickhouseConfig().load(connectionContext.getConnectionConfig());
         try (
                 ClickhouseTest clickhouseTest = new ClickhouseTest(clickhouseConfig, consumer)
         ) {
@@ -439,18 +370,12 @@ public class ClickhouseConnector extends CommonDbConnector {
         }
     }
 
-    @Override
-    public int tableCount(TapConnectionContext connectionContext) {
-        return clickhouseJdbcContext.queryAllTables(null).size();
-    }
-
-    private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
+    private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) {
         DataMap dataMap = clickhouseJdbcContext.getTableInfo(tableName);
         TableInfo tableInfo = TableInfo.create();
         tableInfo.setNumOfRows(Long.valueOf(dataMap.getString("NUM_ROWS")));
         tableInfo.setStorageSize(Long.valueOf(dataMap.getString("AVG_ROW_LEN")));
         return tableInfo;
     }
-
 
 }

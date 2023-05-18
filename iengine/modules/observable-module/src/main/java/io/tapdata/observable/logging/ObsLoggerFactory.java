@@ -2,12 +2,20 @@ package io.tapdata.observable.logging;
 
 
 import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.flow.engine.V2.entity.GlobalConstant;
+import io.tapdata.observable.logging.appender.BaseTaskAppender;
+import io.tapdata.observable.logging.appender.FileAppender;
+import io.tapdata.observable.logging.appender.JSProcessNodeAppender;
+import io.tapdata.observable.logging.appender.ObsHttpTMAppender;
+import io.tapdata.observable.logging.with.WithAppender;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,6 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author Dexter
@@ -93,11 +102,41 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 			loggerToBeRemoved.remove(taskId);
 			TaskLogger taskLogger = TaskLogger.create(taskId, task.getName(), task.getTaskRecordId(), this::closeDebugForTask)
 					.withTaskLogSetting(getLogSettingLogLevel(task), getLogSettingRecordCeiling(task), getLogSettingIntervalCeiling(task));
+			if (task.isTestTask()){
+				//js处理器试运行收集日志，不入库不额外操作，仅返回给前端
+				taskLogger.witAppender(
+					(WithAppender<MonitoringLogsDto>)(() ->
+						(BaseTaskAppender<MonitoringLogsDto>) JSProcessNodeAppender.create(
+							taskId,
+							(AtomicReference<Object>)task.taskInfo(JSProcessNodeAppender.LOG_LIST_KEY + taskId),
+							(Integer) task.taskInfo(JSProcessNodeAppender.MAX_LOG_LENGTH_KEY + taskId))
+					)
+				);
+			} else {
+				taskLogger.witAppender(this.fileAppender(taskId))
+						.witAppender(this.obsHttpTMAppender(taskId));
+			}
 			taskLogger.start();
 			return taskLogger;
 		});
 
 		return taskLoggersMap.get(taskId);
+	}
+
+	private WithAppender<MonitoringLogsDto> fileAppender(String taskId){
+		return () -> {
+			// add file appender
+			String workDir = GlobalConstant.getInstance().getConfigurationCenter().getConfig(ConfigurationCenter.WORK_DIR).toString();
+			return (BaseTaskAppender<MonitoringLogsDto>) FileAppender.create(workDir, taskId);
+		};
+	}
+
+	private WithAppender<MonitoringLogsDto> obsHttpTMAppender(String taskId){
+		return () -> {
+			// add tm appender
+			ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
+			return (BaseTaskAppender<MonitoringLogsDto>) ObsHttpTMAppender.create(clientMongoOperator, taskId);
+		};
 	}
 
 	public ObsLogger getObsLogger(String taskId) {
@@ -128,6 +167,22 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 		loggerToBeRemoved.putIfAbsent(taskId, System.currentTimeMillis());
 	}
 
+	public void forceRemoveTaskLogger(TaskDto taskDto) {
+		if(taskDto == null || taskDto.getId() == null)
+			return;
+		String taskId = taskDto.getId().toHexString();
+		taskLoggerNodeProxyMap.remove(taskId);
+		TaskLogger remove = taskLoggersMap.remove(taskId);
+		if(remove != null) {
+			try {
+				remove.close();
+			} catch (Exception e) {
+				throw new RuntimeException(String.format("Close task %s[%s] logger failed, error message: %s", remove.getTaskName(), remove.getTaskId(), e.getMessage()), e);
+			} finally {
+				loggerToBeRemoved.remove(taskId);
+			}
+		}
+	}
 	public void removeTaskLogger() {
 		Thread.currentThread().setName("Remove-Task-Logger-Scheduler");
 		try {

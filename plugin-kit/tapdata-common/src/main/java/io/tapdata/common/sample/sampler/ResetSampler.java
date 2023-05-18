@@ -6,32 +6,25 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class ResetSampler implements Sampler {
-    private AtomicReference<Long> counter;
     private AtomicReference<Long> value;
-
     private AtomicReference<Long> valueTemp;
-    private AtomicReference<Long> counterTemp;
 
     public ResetSampler() {
     }
 
-    public ResetSampler(Long counter, Long value) {
-        this.counter = new AtomicReference<>(counter);
+    public ResetSampler(Long value) {
         this.value = new AtomicReference<>(value);
-        this.counterTemp = new AtomicReference<>(counter);
         this.valueTemp = new AtomicReference<>(value);
     }
 
-    public void setValue(Long counter, Long value) {
-        this.counter = new AtomicReference<>(counter);
+    public void setValue(Long value) {
         this.value = new AtomicReference<>(value);
-        this.counterTemp = new AtomicReference<>(counter);
         this.valueTemp = new AtomicReference<>(value);
     }
 
     public Long getTemp() {
-        if (Objects.nonNull(valueTemp.get()) && Objects.nonNull(counterTemp.get())) {
-            return (valueTemp.getAndSet(null)) / (counterTemp.getAndSet(null));
+        if (Objects.nonNull(valueTemp.get())) {
+            return valueTemp.get();
         } else {
             return null;
         }
@@ -39,8 +32,8 @@ public class ResetSampler implements Sampler {
 
     @Override
     public Number value() {
-        if (Objects.nonNull(value.get()) && Objects.nonNull(value.get()) ) {
-            return (value.getAndSet(null)) / (counter.getAndSet(null));
+        if (Objects.nonNull(value.get())) {
+            return value.get();
         } else {
             return null;
         }

@@ -1509,8 +1509,8 @@ public class LogCollectorService {
 
     public void configTables(String taskId, List<TableLogCollectorParam> params, String type, UserDetail user) {
 
-		TaskDto shareCdcTask = taskService.findById(MongoUtils.toObjectId(taskId), user);
-		DAG dag = shareCdcTask.getDag();
+		TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), user);
+		DAG dag = taskDto.getDag();
 		List<Node> sources = dag.getSources();
 		LogCollectorNode logCollectorNode = (LogCollectorNode)sources.get(0);
 		Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap = processOldData(logCollectorNode);
@@ -1522,8 +1522,10 @@ public class LogCollectorService {
 			throw new IllegalArgumentException("type param is illegal");
 		}
 		logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigMap);
-		taskService.update(Query.query(Criteria.where("_id").is(shareCdcTask.getId())), shareCdcTask);
-		taskService.pause(shareCdcTask.getId(), user, false, true);
+		taskService.update(Query.query(Criteria.where("_id").is(taskDto.getId())), taskDto);
+        if (taskDto.getStatus().equals(TaskDto.STATUS_RUNNING)) {
+            taskService.pause(taskDto.getId(), user, false, true);
+        }
 	}
 
     public List<ShareCdcConnectionInfo> getConnectionIds(String taskId, UserDetail user) {
