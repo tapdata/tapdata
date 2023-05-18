@@ -1486,11 +1486,13 @@ public class LogCollectorService {
 						}));
 		logCollectorConnConfigMap = Stream.of(paramMap, logCollectorConnConfigMap).flatMap(map -> map.entrySet().stream())
 						.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (o, n) -> {
-							if (o.getTableNames() == null) {
-								o.setTableNames(n.getTableNames());
-							} else {
-								o.getTableNames().addAll(n.getTableNames());
-							}
+                            if (n.getTableNames() != null) {
+                                if (o.getTableNames() == null) {
+                                    o.setTableNames(n.getTableNames());
+                                } else {
+                                    o.getTableNames().addAll(n.getTableNames());
+                                }
+                            }
 							return o;
 						}));
 		logCollectorConnConfigMap.values().forEach(v-> v.getExclusionTables().removeIf(v.getTableNames()::contains));
@@ -1522,11 +1524,13 @@ public class LogCollectorService {
 						}));
 		logCollectorConnConfigMap = Stream.of(paramMap, logCollectorConnConfigMap).flatMap(map -> map.entrySet().stream())
 						.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (o, n) -> {
-							if (o.getExclusionTables() == null) {
-								o.setExclusionTables(n.getExclusionTables());
-							} else {
-								o.getExclusionTables().addAll(n.getExclusionTables());
-							}
+                            if (n.getExclusionTables() != null) {
+                                if (o.getExclusionTables() == null) {
+                                    o.setExclusionTables(n.getExclusionTables());
+                                } else {
+                                    o.getExclusionTables().addAll(n.getExclusionTables());
+                                }
+                            }
 							return o;
 						}));
 		logCollectorConnConfigMap.values().forEach(v-> v.getTableNames().removeIf(v.getExclusionTables()::contains));
