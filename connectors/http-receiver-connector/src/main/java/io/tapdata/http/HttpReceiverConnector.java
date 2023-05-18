@@ -43,10 +43,10 @@ public class HttpReceiverConnector extends ConnectorBase {
 
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
-        this.scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
-        this.config = ConnectionConfig.create(connectionContext);
-        if (null != this.scriptEngine) {
-            this.scriptEngine.eval(this.config.script());
+        scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
+        config = ConnectionConfig.create(connectionContext);
+        if (null != scriptEngine) {
+            scriptEngine.eval(config.script());
         } else {
             throw new CoreException("Can not get event handle script, please check you connection config.");
         }
@@ -91,8 +91,8 @@ public class HttpReceiverConnector extends ConnectorBase {
         //}
         //List<Map<String,Object>> dataEventList = (List<Map<String, Object>>)listObj;
 
-        if (null != this.scriptEngine) {
-            Invocable invocable = (Invocable) this.scriptEngine;
+        if (null != scriptEngine) {
+            Invocable invocable = (Invocable) scriptEngine;
             try {
                 Object invokeResult = invocable.invokeFunction(ConnectionConfig.EVENT_FUNCTION_NAME, eventMap);
                 if (null != invokeResult) {

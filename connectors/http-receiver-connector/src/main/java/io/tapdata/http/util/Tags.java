@@ -9,7 +9,9 @@ import java.util.Optional;
  **/
 public class Tags {
     public static final String OP_TYPE_KEY = "opType";
-    public static final String EVENT_DATA_KAY = "data";
+    public static final String EVENT_AFTER_KAY = "after";
+    public static final String EVENT_BEFORE_KAY = "before";
+    public static final String EVENT_REFERENCE_TIME = "time";
 
     public static final String OP_INSERT = "i";
     public static final String OP_UPDATE = "u";
@@ -31,6 +33,18 @@ public class Tags {
             return OP_INSERT.charAt(0) == type || OP_UPDATE.charAt(0) == type || OP_DELETE.charAt(0) == type;
         }else {
             return false;
+        }
+    }
+
+    public static String getOp(Object opType){
+        if (opType instanceof String){
+            String type = (String) opType;
+            return OP_INSERT.equals(type) || OP_UPDATE.equals(type) || OP_DELETE.equals(type) ? type : Tags.OP_INSERT;
+        } else if (opType instanceof Character){
+            char type = (char) opType;
+            return OP_INSERT.charAt(0) == type || OP_UPDATE.charAt(0) == type || OP_DELETE.charAt(0) == type ? String.valueOf(type) : Tags.OP_INSERT;
+        }else {
+            return Tags.OP_INSERT;
         }
     }
 }
