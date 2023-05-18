@@ -7,6 +7,8 @@ import java.util.Map;
 
 public class ClickhouseConfig extends CommonDbConfig implements Serializable {
 
+    private Integer mergeMinutes = 60;
+
     public ClickhouseConfig() {
         setDbType("clickhouse");
         setEscapeChar('`');
@@ -18,6 +20,14 @@ public class ClickhouseConfig extends CommonDbConfig implements Serializable {
         ClickhouseConfig config = (ClickhouseConfig) super.load(map);
         setSchema(getDatabase());
         return config;
+    }
+
+    public Integer getMergeMinutes() {
+        return mergeMinutes;
+    }
+
+    public void setMergeMinutes(Integer mergeMinutes) {
+        this.mergeMinutes = mergeMinutes;
     }
 
 }

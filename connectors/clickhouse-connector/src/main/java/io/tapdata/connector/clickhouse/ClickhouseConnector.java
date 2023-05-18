@@ -6,7 +6,7 @@ import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.clickhouse.bean.ClickhouseColumn;
 import io.tapdata.connector.clickhouse.config.ClickhouseConfig;
 import io.tapdata.connector.clickhouse.ddl.sqlmaker.ClickhouseDDLSqlGenerator;
-import io.tapdata.connector.clickhouse.ddl.sqlmaker.ClickhouseDDLSqlMaker;
+import io.tapdata.connector.clickhouse.ddl.sqlmaker.ClickhouseSqlMaker;
 import io.tapdata.connector.clickhouse.dml.ClickhouseBatchWriter;
 import io.tapdata.connector.clickhouse.dml.TapTableWriter;
 import io.tapdata.entity.codec.TapCodecsRegistry;
@@ -30,13 +30,12 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.apache.commons.codec.binary.Base64;
 
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -51,9 +50,12 @@ public class ClickhouseConnector extends CommonDbConnector {
     private String clickhouseVersion;
 
     private final ClickhouseBatchWriter clickhouseWriter = new ClickhouseBatchWriter(TAG);
+    private ExecutorService executorService;
+    private Long lastMergeTime;
+    private final Map<String, TapTable> tapTableMap = new ConcurrentHashMap<>();
 
     @Override
-    public void onStart(TapConnectionContext connectionContext) throws Throwable {
+    public void onStart(TapConnectionContext connectionContext) throws SQLException {
         initConnection(connectionContext);
         ddlSqlGenerator = new ClickhouseDDLSqlGenerator();
         fieldDDLHandlers = new BiClassHandlers<>();
@@ -71,13 +73,15 @@ public class ClickhouseConnector extends CommonDbConnector {
 
     }
 
-    private void initConnection(TapConnectionContext connectionContext) throws Throwable {
+    private void initConnection(TapConnectionContext connectionContext) throws SQLException {
         clickhouseConfig = new ClickhouseConfig().load(connectionContext.getConnectionConfig());
+        isConnectorStarted(connectionContext, connectorContext -> clickhouseConfig.load(connectorContext.getNodeConfig()));
         clickhouseJdbcContext = new ClickhouseJdbcContext(clickhouseConfig);
         commonDbConfig = clickhouseConfig;
         jdbcContext = clickhouseJdbcContext;
         clickhouseVersion = clickhouseJdbcContext.queryVersion();
-        commonSqlMaker = new CommonSqlMaker('`');
+        commonSqlMaker = new ClickhouseSqlMaker().withVersion(clickhouseVersion);
+        tapLogger = connectionContext.getLog();
     }
 
     @Override
@@ -134,6 +138,10 @@ public class ClickhouseConnector extends CommonDbConnector {
     public void onStop(TapConnectionContext connectionContext) {
         EmptyKit.closeQuietly(clickhouseJdbcContext);
         EmptyKit.closeQuietly(clickhouseWriter);
+        if (EmptyKit.isNotNull(executorService)) {
+            executorService.shutdown();
+            executorService = null;
+        }
     }
 
     @Override
@@ -178,7 +186,7 @@ public class ClickhouseConnector extends CommonDbConnector {
 
         connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         //target
-        connectorFunctions.supportCreateTable(this::createTable);
+        connectorFunctions.supportCreateTableV2(this::createTableV2);
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportClearTable(this::clearTable);
 //        connectorFunctions.supportCreateIndex(this::createIndex);
@@ -206,11 +214,16 @@ public class ClickhouseConnector extends CommonDbConnector {
 
     }
 
-    private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
+    protected CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws SQLException {
         TapTable tapTable = tapCreateTableEvent.getTable();
+        CreateTableOptions createTableOptions = new CreateTableOptions();
+        if (clickhouseJdbcContext.queryAllTables(Collections.singletonList(tapTable.getId())).size() > 0) {
+            createTableOptions.setTableExists(true);
+            return createTableOptions;
+        }
         StringBuilder sql = new StringBuilder("CREATE TABLE IF NOT EXISTS ");
         sql.append(TapTableWriter.sqlQuota(".", clickhouseConfig.getDatabase(), tapTable.getId()));
-        sql.append("(").append(ClickhouseDDLSqlMaker.buildColumnDefinition(tapTable, true));
+        sql.append("(").append(commonSqlMaker.buildColumnDefinition(tapTable, true));
         sql.setLength(sql.length() - 1);
 
         // primary key
@@ -230,16 +243,28 @@ public class ClickhouseConnector extends CommonDbConnector {
         }
 
         try {
-            List<String> sqls = TapSimplify.list();
-            sqls.add(sql.toString());
+            List<String> sqlList = TapSimplify.list();
+            sqlList.add(sql.toString());
             TapLogger.info("table :", "table -> {}", tapTable.getId());
-            clickhouseJdbcContext.batchExecute(sqls);
+            clickhouseJdbcContext.batchExecute(sqlList);
         } catch (Throwable e) {
             throw new RuntimeException("Create Table " + tapTable.getId() + " Failed! " + e.getMessage(), e);
         }
+        createTableOptions.setTableExists(false);
+        return createTableOptions;
     }
 
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
+        synchronized (this) {
+            if (EmptyKit.isNull(lastMergeTime)) {
+                lastMergeTime = (Long) tapConnectorContext.getStateMap().get("lastMergeTime");
+            }
+            if (EmptyKit.isNull(lastMergeTime)) {
+                lastMergeTime = System.currentTimeMillis();
+                tapConnectorContext.getStateMap().put("lastMergeTime", lastMergeTime);
+            }
+            startMergeThreadIfNeeded(tapConnectorContext, tapTable);
+        }
         WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>();
         TapTableWriter instance = clickhouseWriter.partition(clickhouseJdbcContext, this::isAlive);
         for (TapRecordEvent event : tapRecordEvents) {
@@ -250,6 +275,32 @@ public class ClickhouseConnector extends CommonDbConnector {
         }
         instance.summit(writeListResult);
         consumer.accept(writeListResult);
+    }
+
+    private void startMergeThreadIfNeeded(TapConnectorContext tapConnectorContext, TapTable tapTable) {
+        if (!tapTableMap.containsKey(tapTable.getId())) {
+            tapTableMap.put(tapTable.getId(), tapTable);
+        }
+        if (EmptyKit.isNull(executorService)) {
+            executorService = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
+            executorService.submit(() -> {
+                while (isAlive()) {
+                    TapSimplify.sleep(1000);
+                    if (System.currentTimeMillis() - lastMergeTime > 1000L * 60 * clickhouseConfig.getMergeMinutes()) {
+                        List<String> sqlList = tapTableMap.values().stream().map(v -> "OPTIMIZE TABLE `" + clickhouseConfig.getDatabase() + "`.`" + v.getId() + "`").collect(Collectors.toList());
+                        try {
+                            tapLogger.info("Clickhouse Optimize Table start, tables: {}", toJson(tapTableMap.keySet()));
+                            clickhouseJdbcContext.batchExecute(sqlList);
+                            tapLogger.info("Clickhouse Optimize Table end");
+                        } catch (Throwable e) {
+                            tapLogger.warn("Clickhouse Optimize Table failed");
+                        }
+                        lastMergeTime = System.currentTimeMillis();
+                        tapConnectorContext.getStateMap().put("lastMergeTime", lastMergeTime);
+                    }
+                }
+            });
+        }
     }
 
     //需要改写成ck的创建索引方式
@@ -297,7 +348,7 @@ public class ClickhouseConnector extends CommonDbConnector {
                 }
             }
             if (EmptyKit.isNotEmpty(filterResults.getResults())) {
-                filterResults.getResults().stream().forEach(l -> l.entrySet().forEach(v -> {
+                filterResults.getResults().forEach(l -> l.entrySet().forEach(v -> {
                     if (v.getValue() instanceof String) {
                         v.setValue(((String) v.getValue()).trim());
                     }
@@ -308,7 +359,7 @@ public class ClickhouseConnector extends CommonDbConnector {
     }
 
     @Override
-    public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
+    public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) {
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         clickhouseConfig = new ClickhouseConfig().load(connectionContext.getConnectionConfig());
         try (
@@ -319,7 +370,7 @@ public class ClickhouseConnector extends CommonDbConnector {
         }
     }
 
-    private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
+    private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) {
         DataMap dataMap = clickhouseJdbcContext.getTableInfo(tableName);
         TableInfo tableInfo = TableInfo.create();
         tableInfo.setNumOfRows(Long.valueOf(dataMap.getString("NUM_ROWS")));
