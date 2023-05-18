@@ -1,0 +1,10 @@
+{
+  "default": {
+    "tapdata": "tapdata",
+    "Tapdata": "Tapdata"
+  },
+  "ikas": {
+    "tapdata": "ikas",
+    "Tapdata": "IKAS"
+  }
+}
