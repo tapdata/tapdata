@@ -139,7 +139,7 @@ public class LogCollectorController extends BaseController {
 
 
     @GetMapping("tableInfos")
-    @Operation(summary = "查询合并的连接表详情")
+    @Operation(summary = "正在挖掘的表")
     public ResponseMessage<Page<ShareCdcTableInfo>> tableInfos(@RequestParam("taskId") String taskId, @RequestParam("connectionId") String connectionId,
                                                                   @RequestParam(value = "page", defaultValue = "1") Integer page,
                                                                   @RequestParam(value = "size", defaultValue = "20") Integer size) {
@@ -149,7 +149,7 @@ public class LogCollectorController extends BaseController {
 
 
     @GetMapping("excludeTableInfos")
-    @Operation(summary = "查询合并的连接表详情")
+    @Operation(summary = "已停止挖掘的表")
     public ResponseMessage<Page<ShareCdcTableInfo>> excludeTableInfos(@RequestParam("taskId") String taskId, @RequestParam("connectionId") String connectionId,
                                                                    @RequestParam(value = "page", defaultValue = "1") Integer page,
                                                                    @RequestParam(value = "size", defaultValue = "20") Integer size) {
@@ -182,7 +182,7 @@ public class LogCollectorController extends BaseController {
 	}
 
     @GetMapping("connectionIds/{taskId}")
-    @Operation(summary = "查询合并的连接表详情")
+    @Operation(summary = "查询挖掘任务涉及到的连接信息")
     public ResponseMessage<List<ShareCdcConnectionInfo>> connections(@PathVariable("taskId") String taskId) {
         List<ShareCdcConnectionInfo> connectionInfos = logCollectorService.getConnectionIds(taskId, getLoginUser());
         return success(connectionInfos);
