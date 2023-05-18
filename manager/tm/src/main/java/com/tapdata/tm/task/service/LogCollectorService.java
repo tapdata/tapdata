@@ -940,82 +940,17 @@ public class LogCollectorService {
             query1.fields().include("dag", "status", "name", "currentEventTimestamp");
             List<String> connectionIds = v.stream().map(d -> d.getId().toHexString()).collect(Collectors.toList());
             TaskDto oldLogCollectorTask = taskService.findOne(query1, user);
+
             if (oldLogCollectorTask != null) {
                 List<Node> sources1 = oldLogCollectorTask.getDag().getSources();
                 LogCollectorNode logCollectorNode = (LogCollectorNode) sources1.get(0);
-                boolean updateConfig = convertLogCollectorNode(logCollectorNode);
-                Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
-                for (String id : ids) {
-                    newLogCollectorMap.put(id, oldLogCollectorTask.getId().toHexString());
-                }
-
-
-
-//                for (String connectionId : connectionIds) {
-//                    if (!oldConnectionIds.contains(connectionId)) {
-//                        oldConnectionIds.add(connectionId);
-//                        updateConnectionId = true;
-//                    }
-//                }
-
-
-                for (String connectionId : connectionIds) {
-                    LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
-                    if (logCollecotrConnConfig == null) {
-                        logCollecotrConnConfig = new LogCollecotrConnConfig(connectionId, tableMaps.get(connectionId));
-                        logCollectorConnConfigs.put(connectionId, logCollecotrConnConfig);
-                        updateConfig = true;
-                    } else {
-                        List<String> tableNames = tableMaps.get(connectionId);
-                        List<String> oldConfigTableNames = logCollecotrConnConfig.getTableNames();
-                        tableNames.addAll(oldConfigTableNames);
-                        tableNames = tableNames.stream().distinct().collect(Collectors.toList());
-                        if (tableNames.size() != oldConfigTableNames.size()) {
-                            updateConfig =  true;
-                        }
-                    }
-                }
-
-
-
-
-                if (!updateConfig) {
-                    //检查状态，如果状态不是启动的，需要启动起来
-                    String status = oldLogCollectorTask.getStatus();
-//                    if (updateConnectionId) {
-//                        taskService.confirmById(oldLogCollectorTask, user, true);
-//                    }
-
-                    if (TaskDto.STATUS_RUNNING.equals(status)) {
-                        FunctionUtils.ignoreAnyError(() -> {
-                            String template = "relate share cdc task: {0}, table name: {1}, current status {2}, currentEventTimestamp is {3}.";
-                            String msg = MessageFormat.format(template, oldLogCollectorTask.getName(), JSON.toJSONString(finalTableNames), oldLogCollectorTask.getStatus(), oldLogCollectorTask.getCurrentEventTimestamp());
-                            monitoringLogsService.startTaskErrorLog(oldTaskDto, user, msg, Level.INFO);
-                        });
-                        return;
-                    }
-
-                    FunctionUtils.ignoreAnyError(() -> {
-                        String template = "relate share cdc task: {0}, table name: {1}, current status {2}, currentEventTimestamp is {3}, will start this task.";
-                        String msg = MessageFormat.format(template, oldLogCollectorTask.getName(), JSON.toJSONString(finalTableNames), oldLogCollectorTask.getStatus(), oldLogCollectorTask.getCurrentEventTimestamp());
-                        monitoringLogsService.startTaskErrorLog(oldTaskDto, user, msg, Level.INFO);
-                    });
-                    taskService.start(oldLogCollectorTask.getId(), user);
+                boolean oldShareCdcNode = isOldShareCdcNode(logCollectorNode);
+                if (oldShareCdcNode) {
+                    oldShareCdcProcess(user, oldTaskDto, newLogCollectorMap, finalTableNames, ids, connectionIds, oldLogCollectorTask, logCollectorNode);
                     return;
                 }
 
-                logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
-                taskService.updateById(oldLogCollectorTask, user);
-                updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
-
-                FunctionUtils.ignoreAnyError(() -> {
-                    String template = "relate share cdc task: {0}, table name: {1}, current status {2}, currentEventTimestamp is {3}.";
-                    String msg = MessageFormat.format(template, oldLogCollectorTask.getName(), JSON.toJSONString(finalTableNames), oldLogCollectorTask.getStatus(), oldLogCollectorTask.getCurrentEventTimestamp());
-                    monitoringLogsService.startTaskErrorLog(oldTaskDto, user, msg, Level.INFO);
-                });
-
-                //这个stop是异步的， 需要重启，重启的逻辑是通过定时任务跑的
-                taskService.pause(oldLogCollectorTask.getId(), user, false, true);
+                newShareCdcProcess(user, oldTaskDto, newLogCollectorMap, tableMaps, finalTableNames, ids, connectionIds, oldLogCollectorTask, logCollectorNode);
                 return;
             }
 
@@ -1076,6 +1011,135 @@ public class LogCollectorService {
         });
 
         updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
+    }
+
+    private void newShareCdcProcess(UserDetail user, TaskDto oldTaskDto, Map<String, String> newLogCollectorMap, Map<String, List<String>> tableMaps, Set<String> finalTableNames, List<String> ids, List<String> connectionIds, TaskDto oldLogCollectorTask, LogCollectorNode logCollectorNode) {
+        boolean updateConfig = false;
+        Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
+        for (String id : ids) {
+            newLogCollectorMap.put(id, oldLogCollectorTask.getId().toHexString());
+        }
+        for (String connectionId : connectionIds) {
+            LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
+            if (logCollecotrConnConfig == null) {
+                logCollecotrConnConfig = new LogCollecotrConnConfig(connectionId, tableMaps.get(connectionId));
+                logCollectorConnConfigs.put(connectionId, logCollecotrConnConfig);
+                updateConfig = true;
+            } else {
+                List<String> tableNames = tableMaps.get(connectionId);
+                List<String> oldConfigTableNames = logCollecotrConnConfig.getTableNames();
+                tableNames.addAll(oldConfigTableNames);
+                tableNames = tableNames.stream().distinct().collect(Collectors.toList());
+                if (tableNames.size() != oldConfigTableNames.size()) {
+                    updateConfig =  true;
+                    logCollecotrConnConfig.setTableNames(tableNames);
+                }
+            }
+        }
+        if (!updateConfig) {
+            //检查状态，如果状态不是启动的，需要启动起来
+            String status = oldLogCollectorTask.getStatus();
+
+            if (TaskDto.STATUS_RUNNING.equals(status)) {
+                FunctionUtils.ignoreAnyError(() -> {
+                    String template = "relate share cdc task: {0}, table name: {1}, current status {2}, currentEventTimestamp is {3}.";
+                    String msg = MessageFormat.format(template, oldLogCollectorTask.getName(), JSON.toJSONString(finalTableNames), oldLogCollectorTask.getStatus(), oldLogCollectorTask.getCurrentEventTimestamp());
+                    monitoringLogsService.startTaskErrorLog(oldTaskDto, user, msg, Level.INFO);
+                });
+                return;
+            }
+
+            FunctionUtils.ignoreAnyError(() -> {
+                String template = "relate share cdc task: {0}, table name: {1}, current status {2}, currentEventTimestamp is {3}, will start this task.";
+                String msg = MessageFormat.format(template, oldLogCollectorTask.getName(), JSON.toJSONString(finalTableNames), oldLogCollectorTask.getStatus(), oldLogCollectorTask.getCurrentEventTimestamp());
+                monitoringLogsService.startTaskErrorLog(oldTaskDto, user, msg, Level.INFO);
+            });
+            taskService.start(oldLogCollectorTask.getId(), user);
+            return;
+        }
+
+        logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
+        taskService.updateById(oldLogCollectorTask, user);
+        updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
+
+        FunctionUtils.ignoreAnyError(() -> {
+            String template = "relate share cdc task: {0}, table name: {1}, current status {2}, currentEventTimestamp is {3}.";
+            String msg = MessageFormat.format(template, oldLogCollectorTask.getName(), JSON.toJSONString(finalTableNames), oldLogCollectorTask.getStatus(), oldLogCollectorTask.getCurrentEventTimestamp());
+            monitoringLogsService.startTaskErrorLog(oldTaskDto, user, msg, Level.INFO);
+        });
+
+        //这个stop是异步的， 需要重启，重启的逻辑是通过定时任务跑的
+        pause(oldLogCollectorTask, user);
+        taskService.pause(oldLogCollectorTask.getId(), user, false, true);
+    }
+
+    private void pause(TaskDto oldLogCollectorTask, UserDetail user) {
+        if (TaskDto.STATUS_RUNNING.equals(oldLogCollectorTask.getStatus())) {
+            taskService.pause(oldLogCollectorTask.getId(), user, false, true);
+            return;
+        }
+
+        taskService.start(oldLogCollectorTask.getId(), user);
+
+    }
+
+    private void oldShareCdcProcess(UserDetail user, TaskDto oldTaskDto, Map<String, String> newLogCollectorMap, Set<String> finalTableNames, List<String> ids, List<String> connectionIds, TaskDto oldLogCollectorTask, LogCollectorNode logCollectorNode) {
+        List<String> oldTableNames = logCollectorNode.getTableNames();
+        for (String id : ids) {
+            newLogCollectorMap.put(id, oldLogCollectorTask.getId().toHexString());
+        }
+
+        List<String> oldConnectionIds = logCollectorNode.getConnectionIds();
+
+        boolean updateConnectionId = false;
+        for (String connectionId : connectionIds) {
+            if (!oldConnectionIds.contains(connectionId)) {
+                oldConnectionIds.add(connectionId);
+                updateConnectionId = true;
+            }
+        }
+
+
+        if (CollectionUtils.isNotEmpty(oldTableNames) && new HashSet<>(oldTableNames).containsAll(finalTableNames)) {
+            //检查状态，如果状态不是启动的，需要启动起来
+            String status = oldLogCollectorTask.getStatus();
+            if (updateConnectionId) {
+                taskService.confirmById(oldLogCollectorTask, user, true);
+            }
+
+            if (TaskDto.STATUS_RUNNING.equals(status)) {
+                FunctionUtils.ignoreAnyError(() -> {
+                    String template = "relate share cdc task: {0}, table name: {1}, current status {2}, currentEventTimestamp is {3}.";
+                    String msg = MessageFormat.format(template, oldLogCollectorTask.getName(), JSON.toJSONString(finalTableNames), oldLogCollectorTask.getStatus(), oldLogCollectorTask.getCurrentEventTimestamp());
+                    monitoringLogsService.startTaskErrorLog(oldTaskDto, user, msg, Level.INFO);
+                });
+                return;
+            }
+
+            FunctionUtils.ignoreAnyError(() -> {
+                String template = "relate share cdc task: {0}, table name: {1}, current status {2}, currentEventTimestamp is {3}, will start this task.";
+                String msg = MessageFormat.format(template, oldLogCollectorTask.getName(), JSON.toJSONString(finalTableNames), oldLogCollectorTask.getStatus(), oldLogCollectorTask.getCurrentEventTimestamp());
+                monitoringLogsService.startTaskErrorLog(oldTaskDto, user, msg, Level.INFO);
+            });
+            taskService.start(oldLogCollectorTask.getId(), user);
+            return;
+        }
+        if (CollectionUtils.isNotEmpty(oldTableNames)) {
+            finalTableNames.addAll(oldTableNames);
+        }
+        List<String> collect = finalTableNames.stream().distinct().collect(Collectors.toList());
+        logCollectorNode.setTableNames(collect);
+        taskService.updateById(oldLogCollectorTask, user);
+        updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
+
+        FunctionUtils.ignoreAnyError(() -> {
+            String template = "relate share cdc task: {0}, table name: {1}, current status {2}, currentEventTimestamp is {3}.";
+            String msg = MessageFormat.format(template, oldLogCollectorTask.getName(), JSON.toJSONString(finalTableNames), oldLogCollectorTask.getStatus(), oldLogCollectorTask.getCurrentEventTimestamp());
+            monitoringLogsService.startTaskErrorLog(oldTaskDto, user, msg, Level.INFO);
+        });
+
+        //这个stop是异步的， 需要重启，重启的逻辑是通过定时任务跑的
+        pause(oldLogCollectorTask, user);
     }
 
     /**
@@ -1327,6 +1391,10 @@ public class LogCollectorService {
     }
 
 
+    private boolean isOldShareCdcNode(LogCollectorNode logCollectorNode) {
+        Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
+        return logCollectorConnConfigs == null || logCollectorConnConfigs.size() == 0;
+    }
     private boolean convertLogCollectorNode(LogCollectorNode logCollectorNode) {
 
 
