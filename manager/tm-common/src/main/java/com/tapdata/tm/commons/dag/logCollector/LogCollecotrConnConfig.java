@@ -12,7 +12,7 @@ import java.util.List;
 public class LogCollecotrConnConfig {
     private String connectionId;
     private List<String> tableNames;
-		private List<String> exclusionTables;
+	private List<String> exclusionTables;
 
 	public LogCollecotrConnConfig(String connectionId, List<String> tableNames) {
 		this.connectionId = connectionId;

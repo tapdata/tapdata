@@ -17,6 +17,8 @@ public class ShareCdcConnectionInfo {
     /** 连接表详情*/
     private List<ShareCdcTableInfo> tableInfos;
 
+    private List<ShareCdcTableInfo> exclusionTables;
+
     public ShareCdcConnectionInfo(String id, String name) {
         this.id = id;
         this.name = name;
