@@ -14,6 +14,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * @author Dexter
@@ -150,7 +151,7 @@ public class TaskSampleHandler extends AbstractHandler {
 
         collector.addSampler(Constants.CURR_EVENT_TS, () -> {
             AtomicReference<Long> currentEventTimestampRef = new AtomicReference<>();
-            for (DataNodeSampleHandler h : targetNodeHandlers.values()) {
+            Stream.concat(sourceNodeHandlers.values().stream(), targetNodeHandlers.values().stream()).forEach(h -> {
                 Optional.ofNullable(h.getCurrentEventTimestamp()).ifPresent(sampler -> {
                     Number value = sampler.value();
                     if (null == value) return;
@@ -159,26 +160,24 @@ public class TaskSampleHandler extends AbstractHandler {
                         currentEventTimestampRef.set(v);
                     }
                 });
-
-            }
+            });
             return currentEventTimestampRef.get();
         });
         collector.addSampler(Constants.REPLICATE_LAG, () -> {
             AtomicReference<Long> replicateLagRef = new AtomicReference<>(null);
-
-            if (snapshotDoneAt != null || TaskDto.TYPE_CDC.equals(task.getType())) {
-                for (DataNodeSampleHandler h : targetNodeHandlers.values()) {
-                    Optional.ofNullable(h.getReplicateLag()).ifPresent(sampler -> {
-                        Number value = sampler.getTemp();
-                        if (Objects.nonNull(value)) {
-                            long v = value.longValue();
-                            if (null == replicateLagRef.get() || replicateLagRef.get() < v) {
-                                replicateLagRef.set(v);
+            Stream.concat(sourceNodeHandlers.values().stream(), targetNodeHandlers.values().stream())
+                    .forEach(h -> {
+                        Optional.ofNullable(h.getReplicateLag()).ifPresent(sampler -> {
+                            Number value = sampler.value();
+                            if (Objects.nonNull(value)) {
+                                long v = value.longValue();
+                                if (null == replicateLagRef.get() || replicateLagRef.get() < v) {
+                                    replicateLagRef.set(v);
+                                }
                             }
-                        }
+                        });
                     });
-                }
-            }
+
             return replicateLagRef.get();
         });
 

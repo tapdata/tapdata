@@ -972,10 +972,9 @@ public class TaskController extends BaseController {
     }
 
     @PostMapping("migrate-js/test-run")
-    @Operation(description = "js节点试运行")
-    public ResponseMessage<Void> testRun(@RequestBody TestRunDto dto) {
-        taskNodeService.testRunJsNode(dto, getLoginUser());
-        return success();
+    @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
+    public Map<String, Object> testRun(@RequestBody TestRunDto dto, @RequestParam("access_token") String accessToken) {
+        return taskNodeService.testRunJsNode(dto, getLoginUser(), accessToken);
     }
 
     @PostMapping("migrate-js/save-result")
@@ -986,7 +985,7 @@ public class TaskController extends BaseController {
     }
 
     @GetMapping("migrate-js/get-result")
-    @Operation(description = "js节点试运行结果获取")
+    @Operation(description = "js节点试运行结果获取, 执行试运行后即可获取到试运行结果和试运行日志，无需使用此获取结果，不久的将来会移除这个function", deprecated = true)
     public ResponseMessage<JsResultVo> getRun(@RequestParam String taskId,
                                          @RequestParam String jsNodeId, @RequestParam Long version) {
         return taskNodeService.getRun(taskId, jsNodeId, version);
