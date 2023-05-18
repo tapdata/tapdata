@@ -43,7 +43,7 @@ public class ClickhouseTest extends CommonDbTest {
         return true;
     }
 
-    private static final String TEST_CK_CREATE_TABLE = "create table %s(col1 int,col2 int, primary key(col1)) ENGINE = MergeTree ORDER BY col1";
+    private static final String TEST_CK_CREATE_TABLE = "create table %s(col1 int,col2 int) ENGINE = MergeTree primary key(col1) ORDER BY col1";
     private static final String TEST_CK_WRITE_RECORD = "insert into %s values(0,0)";
     private static final String TEST_CK_UPDATE_RECORD = "alter table %s update col2=1 where 1=1";
     private static final String TEST_CK_DELETE_RECORD = "alter table %s delete where 1=1";

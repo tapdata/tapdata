@@ -1,10 +1,11 @@
 package io.tapdata.js.connector.base;
 
+import io.tapdata.entity.simplify.TapSimplify;
+
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.function.Function;
 
-import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 public class JsUtil {
     public Object toMap(Object obj) {
@@ -92,7 +93,7 @@ public class JsUtil {
     }
 
     public String fromJson(Object obj){
-        return Objects.isNull(obj)?"":toJson(obj);
+        return Objects.isNull(obj)?"": TapSimplify.toJson(obj);
     }
 
     public String timeStamp2Date(Object millSecondsStr, String format){

@@ -118,7 +118,6 @@ public class SnapshotOrderController implements Serializable {
 		if (null == nodeController) {
 			nodeController = new NodeController(node);
 			nodeController.running();
-			throw new TapCodeException(SnapshotOrderControllerExCode_21.NODE_CONTROLLER_NOT_FOUND, String.format("Cannot found node controller by node id: %s[%s]", node.getName(), nodeId));
 		}
 		AtomicInteger status = nodeController.getStatus();
 		boolean needRun;
@@ -173,7 +172,7 @@ public class SnapshotOrderController implements Serializable {
 			}
 		}
 		if (null == currentLayer) {
-			throw new TapCodeException(SnapshotOrderControllerExCode_21.NODE_CONTROL_LAYER_NOT_FOUND, String.format("Cannot found node control layer by node id: %s[%s]", node.getName(), node.getId()));
+			return;
 		}
 
 		if (null == currentLayer.getNodeControllers().stream().filter(nc -> nc.getStatus().get() != NodeController.FINISH).findFirst().orElse(null)) {

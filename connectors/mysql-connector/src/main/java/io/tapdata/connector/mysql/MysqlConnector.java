@@ -58,7 +58,6 @@ import java.util.stream.Collectors;
 @TapConnectorClass("mysql-spec.json")
 public class MysqlConnector extends CommonDbConnector {
     private static final String TAG = MysqlConnector.class.getSimpleName();
-    private static final int MAX_FILTER_RESULT_SIZE = 100;
 
     private MysqlJdbcContextV2 mysqlJdbcContext;
     private MysqlConfig mysqlConfig;
@@ -418,7 +417,7 @@ public class MysqlConnector extends CommonDbConnector {
         return startTime;
     }
 
-    private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) throws Throwable {
+    private TableInfo getTableInfo(TapConnectionContext tapConnectorContext, String tableName) {
         DataMap dataMap = mysqlJdbcContext.getTableInfo(tableName);
         TableInfo tableInfo = TableInfo.create();
         tableInfo.setNumOfRows(Long.valueOf(dataMap.getString("TABLE_ROWS")));

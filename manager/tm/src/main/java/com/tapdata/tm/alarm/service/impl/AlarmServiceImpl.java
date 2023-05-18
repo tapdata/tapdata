@@ -23,16 +23,20 @@ import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.aop.MeasureAOP;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
+import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.events.constant.Type;
 import com.tapdata.tm.events.service.EventsService;
+import com.tapdata.tm.inspect.dto.InspectDto;
+import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.message.constant.*;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.message.entity.MessageEntity;
@@ -79,6 +83,7 @@ public class AlarmServiceImpl implements AlarmService {
 
     private MongoTemplate mongoTemplate;
     private TaskService taskService;
+		private InspectService inspectService;
     private AlarmSettingService alarmSettingService;
     private MessageService messageService;
     private SettingsService settingsService;
@@ -164,7 +169,31 @@ public class AlarmServiceImpl implements AlarmService {
         return openTask && openSys;
     }
 
-    @NotNull
+	public boolean checkOpen(List<AlarmSettingVO> alarmSettingVOS, AlarmKeyEnum key, NotifyEnum type, UserDetail userDetail) {
+		boolean openTask = false;
+		if (CollectionUtils.isNotEmpty(alarmSettingVOS)) {
+			openTask = alarmSettingVOS.stream().anyMatch(t ->
+							t.getKey().equals(key) && t.isOpen() && (type == null || t.getNotify().contains(type)));
+		}
+		boolean openSys = false;
+		List<AlarmSettingDto> all = alarmSettingService.findAllAlarmSetting(userDetail);
+		if (CollectionUtils.isNotEmpty(all)) {
+			openSys = all.stream().anyMatch(t ->
+							t.getKey().equals(key) && t.isOpen() && (type == null ||  t.getNotify().contains(type)));
+		}
+
+		return openTask && openSys;
+	}
+
+	@Override
+	public void closeWhenInspectTaskRunning(String id) {
+		if (StringUtils.isNotEmpty(id)) {
+			Update update = Update.update("status", AlarmStatusEnum.CLOESE);
+			mongoTemplate.updateMulti(Query.query(Criteria.where("inspectId").is(id)), update, AlarmInfo.class);
+		}
+	}
+
+	@NotNull
     @SuppressWarnings("unchecked")
     private static List<AlarmSettingDto> getAlarmSettingDtos(TaskDto taskDto, String nodeId) {
         List<AlarmSettingDto> alarmSettingDtos = Lists.newArrayList();
@@ -218,17 +247,35 @@ public class AlarmServiceImpl implements AlarmService {
             return;
         }
 
-        List<String> taskIds = alarmInfos.stream().map(AlarmInfo::getTaskId).collect(Collectors.toList());
-        List<TaskDto> tasks = taskService.findAllTasksByIds(taskIds);
-        if (CollectionUtils.isEmpty(tasks)) {
-            return;
-        }
-        Map<String, TaskDto> taskDtoMap = tasks.stream()
+        List<String> taskIds = alarmInfos.stream().map(AlarmInfo::getTaskId).filter(StringUtils::isNotEmpty).collect(Collectors.toList());
+				List<TaskDto> tasks = new ArrayList<>();
+				if (CollectionUtils.isNotEmpty(taskIds)) {
+					tasks = taskService.findAllTasksByIds(taskIds);
+					if (CollectionUtils.isEmpty(tasks)) {
+						tasks = new ArrayList<>();
+					}
+				}
+
+			List<String> inspectIds = alarmInfos.stream().map(AlarmInfo::getInspectId).filter(StringUtils::isNotEmpty).collect(Collectors.toList());
+			List<InspectDto> inspectDtos = new ArrayList<>();
+			if (CollectionUtils.isNotEmpty(inspectIds)) {
+				inspectDtos = inspectService.findAllByIds(inspectIds);
+				if (CollectionUtils.isEmpty(inspectDtos)) {
+					inspectDtos = new ArrayList<>();
+				}
+			}
+
+			Map<String, TaskDto> taskDtoMap = tasks.stream()
                 .filter(t -> !t.is_deleted())
                 .collect(Collectors.toMap(t -> t.getId().toHexString(), Function.identity(), (e1, e2) -> e1));
+			Map<String, InspectDto> inspectDtoMap = inspectDtos.stream().filter(t -> t.getIs_deleted() == null || !t.getIs_deleted())
+							.collect(Collectors.toMap(t -> t.getId().toHexString(), Function.identity(), (e1, e2) -> e1));
 
-        List<String> userIds = tasks.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
-        List<UserDetail> userByIdList = userService.getUserByIdList(userIds);
+			List<String> userIds = tasks.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
+			List<String> inspectUserIds = inspectDtos.stream().map(BaseDto::getUserId).distinct().collect(Collectors.toList());
+			userIds.addAll(inspectUserIds);
+
+			List<UserDetail> userByIdList = userService.getUserByIdList(userIds);
         Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
 
         for (AlarmInfo info : alarmInfos) {
@@ -236,11 +283,48 @@ public class AlarmServiceImpl implements AlarmService {
                 continue;
             }
 
-            TaskDto taskDto = taskDtoMap.get(info.getTaskId());
-            UserDetail userDetail = userDetailMap.get(taskDto.getUserId());
+					UserDetail userDetail;
+					AlarmMessageDto alarmMessageDto;
+					if (StringUtils.isNotEmpty(info.getTaskId())) {
+
+						TaskDto taskDto = taskDtoMap.get(info.getTaskId());
+						if (taskDto == null) {
+							continue;
+						}
+						userDetail = userDetailMap.get(taskDto.getUserId());
+						alarmMessageDto = AlarmMessageDto.builder()
+										.agentId(taskDto.getAgentId())
+										.userId(taskDto.getUserId())
+										.name(taskDto.getName())
+										.systemOpen(checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SYSTEM, userDetail))
+										.systemOpen(checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.EMAIL, userDetail))
+										.systemOpen(checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SMS, userDetail))
+										.systemOpen(checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.WECHAT, userDetail))
+										.build();
+
+					} else if (StringUtils.isNotEmpty(info.getInspectId())) {
+						InspectDto inspectDto = inspectDtoMap.get(info.getInspectId());
+						if (inspectDto == null) {
+							continue;
+						}
+						userDetail = userDetailMap.get(inspectDto.getUserId());
+						alarmMessageDto = AlarmMessageDto.builder()
+										.agentId(inspectDto.getAgentId())
+										.userId(inspectDto.getUserId())
+										.name(inspectDto.getName())
+										.systemOpen(checkOpen(inspectDto.getAlarmSettings(),  info.getMetric(), NotifyEnum.SYSTEM, userDetail))
+										.emailOpen(checkOpen(inspectDto.getAlarmSettings(),  info.getMetric(), NotifyEnum.EMAIL, userDetail))
+										.emailOpen(checkOpen(inspectDto.getAlarmSettings(),  info.getMetric(), NotifyEnum.SMS, userDetail))
+										.emailOpen(checkOpen(inspectDto.getAlarmSettings(),  info.getMetric(), NotifyEnum.WECHAT, userDetail))
+										.build();
+
+					} else {
+						log.warn("not support...");
+						continue;
+					}
 
             FunctionUtils.ignoreAnyError(() -> {
-                boolean reuslt = sendMessage(info, taskDto, userDetail,null);
+                boolean reuslt = sendMessage(info, alarmMessageDto, userDetail,null);
                 if (!reuslt) {
                     DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(),30);
                     info.setLastNotifyTime(dateTime);
@@ -248,7 +332,7 @@ public class AlarmServiceImpl implements AlarmService {
                 }
             });
             FunctionUtils.ignoreAnyError(() -> {
-                boolean reuslt = sendMail(info, taskDto, userDetail, null);
+                boolean reuslt = sendMail(info, alarmMessageDto, userDetail, null);
                 if (!reuslt) {
                     DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
                     info.setLastNotifyTime(dateTime);
@@ -259,7 +343,7 @@ public class AlarmServiceImpl implements AlarmService {
             boolean isCloud = settingsService.isCloud();
             if (isCloud) {
                 FunctionUtils.ignoreAnyError(() -> {
-                    boolean reuslt = sendSms(info, taskDto, userDetail, null);
+                    boolean reuslt = sendSms(info, alarmMessageDto, userDetail, null);
                     if (!reuslt) {
                         DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
                         info.setLastNotifyTime(dateTime);
@@ -267,7 +351,7 @@ public class AlarmServiceImpl implements AlarmService {
                     }
                 });
                 FunctionUtils.ignoreAnyError(() -> {
-                    boolean reuslt = sendWeChat(info, taskDto, userDetail, null);
+                    boolean reuslt = sendWeChat(info, alarmMessageDto, userDetail, null);
                     if (!reuslt) {
                         DateTime dateTime = DateUtil.offsetSecond(info.getLastNotifyTime(), 30);
                         info.setLastNotifyTime(dateTime);
@@ -279,12 +363,12 @@ public class AlarmServiceImpl implements AlarmService {
 
     }
 
-    private boolean sendMessage(AlarmInfo info, TaskDto taskDto, UserDetail userDetail, MessageDto messageDto) {
+    private boolean sendMessage(AlarmInfo info, AlarmMessageDto alarmMessageDto, UserDetail userDetail, MessageDto messageDto) {
         try {
             MessageEntity messageEntity = new MessageEntity();
             Date date = DateUtil.date();
             if (messageDto == null) {
-                if (!checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SYSTEM, userDetail)) {
+                if (!alarmMessageDto.isSystemOpen()) {
                     log.info("Current user ({}, {}) can't open system notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
                     return true;
                 }
@@ -295,17 +379,17 @@ public class AlarmServiceImpl implements AlarmService {
                 String template = MessageUtil.getAlarmMsg(Locale.US, info.getSummary());
                 String content = parser.parseExpression(template, parserContext).getValue(info.getParam(), String.class);
 
-                String taskId = taskDto.getId().toHexString();
+                String taskId = alarmMessageDto.getTaskId();
                 messageEntity.setLevel(info.getLevel().name());
-                messageEntity.setAgentId(taskDto.getAgentId());
-                messageEntity.setServerName(taskDto.getAgentId());
+                messageEntity.setAgentId(alarmMessageDto.getAgentId());
+                messageEntity.setServerName(alarmMessageDto.getAgentId());
                 messageEntity.setMsg(MsgTypeEnum.ALARM.getValue());
 
                 messageEntity.setTitle(content);
-                MessageMetadata metadata = new MessageMetadata(taskDto.getName(), taskId);
+                MessageMetadata metadata = new MessageMetadata(alarmMessageDto.getName(), taskId);
                 messageEntity.setMessageMetadata(metadata);
                 messageEntity.setSystem(SystemEnum.MIGRATION.getValue());
-                messageEntity.setUserId(taskDto.getUserId());
+                messageEntity.setUserId(alarmMessageDto.getUserId());
                 messageEntity.setRead(false);
                 messageEntity.setParam(info.getParam());
             } else {
@@ -356,17 +440,17 @@ public class AlarmServiceImpl implements AlarmService {
         return true;
     }
 
-    private boolean sendMail(AlarmInfo info, TaskDto taskDto, UserDetail userDetail, MessageDto messageDto) {
+    private boolean sendMail(AlarmInfo info, AlarmMessageDto alarmMessageDto, UserDetail userDetail, MessageDto messageDto) {
         try {
             String title = null;
             String content = null;
             MailAccountDto mailAccount;
             if (messageDto == null) {
-                 mailAccount = getMailAccount(taskDto.getUserId());
-                if (!checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.EMAIL, userDetail)) {
+                if (!alarmMessageDto.isEmailOpen()) {
                     log.error("Current user ({}, {}) can't bind email, cancel send message {}.", userDetail.getUsername(), userDetail.getUserId(), JSON.toJSONString(info));
                     return true;
                 }
+								mailAccount = getMailAccount(alarmMessageDto.getUserId());
                 Map<String, String> map = getTaskTitleAndContent(info);
                 content = map.get("content");
                 title = map.get("title");
@@ -483,7 +567,7 @@ public class AlarmServiceImpl implements AlarmService {
         return  permission;
     }
 
-    private boolean sendSms(AlarmInfo info, TaskDto taskDto, UserDetail userDetail, MessageDto messageDto) {
+    private boolean sendSms(AlarmInfo info, AlarmMessageDto alarmMessageDto, UserDetail userDetail, MessageDto messageDto) {
         try {
             if (StringUtils.isEmpty(userDetail.getPhone())) {
                 log.error("Current user ({}, {}) can't bind phone, cancel send message.", userDetail.getUsername(), userDetail.getUserId());
@@ -497,7 +581,7 @@ public class AlarmServiceImpl implements AlarmService {
             String templateParam="";
             // task alarm
             if (messageDto == null) {
-                if (!checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SMS, userDetail)) {
+                if (!alarmMessageDto.isSmsOpen()) {
                     log.info("Current user ({}, {}) can't open sms notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
                     return true;
                 }
@@ -505,9 +589,9 @@ public class AlarmServiceImpl implements AlarmService {
                 String smsEvent = map.get("smsEvent");
                 if (info.getMetric().equals(AlarmKeyEnum.TASK_FULL_COMPLETE) || info.getMetric().equals(AlarmKeyEnum.TASK_INCREMENT_START)) {
                     smsTemplateCode = SmsService.TASK_NOTICE;
-                    templateParam = "{\"JobName\":\"" + "【" + taskDto.getName() + "】" + smsEvent + "\"}";
+                    templateParam = "{\"JobName\":\"" + "【" + alarmMessageDto.getName() + "】" + smsEvent + "\"}";
                 } else {
-                    templateParam = "{\"JobName\":\"" + "【" + taskDto.getName() + "】" + "\",\"eventName\":\"" + smsEvent + "\"}";
+                    templateParam = "{\"JobName\":\"" + "【" + alarmMessageDto.getName() + "】" + "\",\"eventName\":\"" + smsEvent + "\"}";
                     smsTemplateCode = SmsService.TASK_ABNORMITY_NOTICE;
                 }
                 smsContent = map.get("content");
@@ -559,7 +643,7 @@ public class AlarmServiceImpl implements AlarmService {
 
 
 
-    private boolean sendWeChat(AlarmInfo info, TaskDto taskDto, UserDetail userDetail, MessageDto messageDto) {
+    private boolean sendWeChat(AlarmInfo info, AlarmMessageDto alarmMessageDto, UserDetail userDetail, MessageDto messageDto) {
         try {
             String openId = userDetail.getOpenid();
             if (StringUtils.isBlank(openId)) {
@@ -571,7 +655,7 @@ public class AlarmServiceImpl implements AlarmService {
             String content = "";
             // 任务级别的告警
             if (messageDto == null) {
-                if (!checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.WECHAT, userDetail)) {
+                if (!alarmMessageDto.isWechatOpen()) {
                     log.info("Current user ({}, {}) can't open weChat notice, cancel send message", userDetail.getUsername(), userDetail.getUserId());
                     return true;
                 }

@@ -248,6 +248,24 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
 			throw throwable;
 		}
+	}
+
+	@Override
+	public TaskClient<TaskDto> startTestTask(TaskDto taskDto, AtomicReference<Object> result) {
+		try {
+			AspectUtils.executeAspect(new TaskStartAspect().task(taskDto).info("JSRunResult", result).log(new TapLog()));
+			long startTs = System.currentTimeMillis();
+			final JetDag jetDag = task2HazelcastDAG(taskDto);
+			JobConfig jobConfig = new JobConfig();
+			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
+			logger.info("task2HazelcastDAG cost {}ms", (System.currentTimeMillis() - startTs));
+			Job job = hazelcastInstance.getJet().newLightJob(jetDag.getDag(), jobConfig);
+			return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
+		} catch (Throwable throwable) {
+			ObsLoggerFactory.getInstance().getObsLogger(taskDto).error(throwable);
+			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
+			throw throwable;
+		}
 
 	}
 

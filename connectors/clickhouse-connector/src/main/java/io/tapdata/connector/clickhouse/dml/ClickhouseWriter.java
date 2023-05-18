@@ -11,9 +11,6 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.JsonParser;
-import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -21,7 +18,10 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.collections4.map.LRUMap;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -77,13 +77,13 @@ public class ClickhouseWriter {
                     throw e;
                 }
             }
-            ClickhouseJdbcContext.tryCommit(connection);
+            JdbcUtil.tryCommit(connection);
         } catch (Throwable e) {
             writeListResult.setInsertedCount(0);
             writeListResult.setModifiedCount(0);
             writeListResult.setRemovedCount(0);
             if (null != errorRecord) writeListResult.addError(errorRecord, e);
-            ClickhouseJdbcContext.tryRollBack(connection);
+            JdbcUtil.tryRollBack(connection);
             throw e;
         }
         return writeListResult;
@@ -160,7 +160,7 @@ public class ClickhouseWriter {
                 continue;
             }
             //clickhouse 更新的时候不能更新主键，否则会报错
-            if(!(tapRecordEvent instanceof TapUpdateRecordEvent) || !uniqueKeys.contains(fieldName)){
+            if (!(tapRecordEvent instanceof TapUpdateRecordEvent) || !uniqueKeys.contains(fieldName)) {
                 preparedStatement.setObject(parameterIndex++, after.get(fieldName));
             }
             afterKeys.remove(fieldName);
@@ -401,7 +401,6 @@ public class ClickhouseWriter {
         }
         return after;
     }
-
 
 
     protected PreparedStatement getInsertPreparedStatement(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent, Map<String, PreparedStatement> insertMap) throws Throwable {
