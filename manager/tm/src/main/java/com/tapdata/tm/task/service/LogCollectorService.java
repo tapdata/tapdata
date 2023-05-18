@@ -1405,7 +1405,7 @@ public class LogCollectorService {
 
     @NotNull
     private Page<ShareCdcTableInfo> getShareCdcTableInfoPage(String connectionId, Integer page, Integer size, UserDetail user, List<String> tableNames) {
-        int limit = page * size;
+        int limit = (page - 1) * size;
         int tableCount = tableNames.size();
 
         Field field = new Field();
@@ -1415,7 +1415,7 @@ public class LogCollectorService {
         String connectionName = connectionDto.getName();
         List<ShareCdcTableInfo> shareCdcTableInfos = new ArrayList<>();
         for (int i = limit; i< size; i++) {
-            if (tableCount < i) {
+            if (tableCount <= i) {
                 break;
             }
             String tableName = tableNames.get(i);
