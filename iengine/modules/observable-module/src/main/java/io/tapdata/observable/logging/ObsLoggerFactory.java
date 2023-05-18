@@ -171,6 +171,7 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 		if(taskDto == null || taskDto.getId() == null)
 			return;
 		String taskId = taskDto.getId().toHexString();
+		taskLoggerNodeProxyMap.remove(taskId);
 		TaskLogger remove = taskLoggersMap.remove(taskId);
 		if(remove != null) {
 			try {

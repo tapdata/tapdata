@@ -7,6 +7,7 @@ import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
@@ -38,6 +39,7 @@ public class JSProcessNodeTestRunService {
         return testRun(events, -1);
     }
 
+    public static final int ERROR_REPEAT_EXECUTION  = 18000;
     public Object testRun(Map<String, Object> events, final int logOutputCount) {
         TaskService<TaskDto> taskService = BeanUtil.getBean(HazelcastTaskService.class);
         long startTs = System.currentTimeMillis();
@@ -57,12 +59,7 @@ public class JSProcessNodeTestRunService {
         ObsLogger logger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
         taskDto.setType(ParentTaskDto.TYPE_INITIAL_SYNC);
         if (taskDtoMap.putIfAbsent(taskId, taskDto) != null) {
-            Map<String,Object> paramMap = new HashMap<>();
-            paramMap.put("taskId", taskId);
-            paramMap.put("ts", new Date().getTime());
-            paramMap.put("code", "error");
-            paramMap.put("message", taskId + " task is running, skip");
-            return paramMap;
+            throw new CoreException(ERROR_REPEAT_EXECUTION, "The trial run is currently in progress, please do not repeat it.");
         }
         logger.info("{} task start", taskId);
         TaskClient<TaskDto> taskClient = null;
