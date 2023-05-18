@@ -11,6 +11,8 @@ public class ShareCdcTableInfo {
     private String name;
     /** 连接名称 */
     private String connectionName;
+
+    private String connectionId;
     /** 加入挖掘时间*/
     private Date joinTime;
     /** 首条日志时间*/

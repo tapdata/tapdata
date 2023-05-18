@@ -1422,6 +1422,7 @@ public class LogCollectorService {
             ShareCdcTableInfo shareCdcTableInfo = new ShareCdcTableInfo();
             shareCdcTableInfo.setName(tableName);
             shareCdcTableInfo.setConnectionName(connectionName);
+            shareCdcTableInfo.setConnectionId(connectionId);
             shareCdcTableInfo.setJoinTime(new Date());
             shareCdcTableInfo.setFirstLogTime(new Date());
             shareCdcTableInfo.setLastLogTime(new Date());
@@ -1445,7 +1446,7 @@ public class LogCollectorService {
 		List<Node> sources = dag.getSources();
 		LogCollectorNode logCollectorNode = (LogCollectorNode)sources.get(0);
 		Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap = processOldData(logCollectorNode);
-		if (type.equals("type")) {
+		if (type.equals("exclusion")) {
 			logCollectorConnConfigMap = exclusionTables(logCollectorConnConfigMap, params);
 		} else if (type.equals("add")) {
 			logCollectorConnConfigMap = addTables(logCollectorConnConfigMap, params);

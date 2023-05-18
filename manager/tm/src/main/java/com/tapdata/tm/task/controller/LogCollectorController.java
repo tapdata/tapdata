@@ -167,12 +167,12 @@ public class LogCollectorController extends BaseController {
         return success();
     }
 
-		@PostMapping("exclusionTables/{taskId}")
-		@Operation(summary = "排除表挖掘")
-		public ResponseMessage<Void> exclusionTables(@PathVariable("taskId") String taskId, @RequestBody List<TableLogCollectorParam> params) {
-			logCollectorService.configTables(taskId, params, "exclusion",  getLoginUser());
-			return success();
-		}
+    @PostMapping("exclusionTables/{taskId}")
+    @Operation(summary = "排除表挖掘")
+    public ResponseMessage<Void> exclusionTables(@PathVariable("taskId") String taskId, @RequestBody List<TableLogCollectorParam> params) {
+        logCollectorService.configTables(taskId, params, "exclusion",  getLoginUser());
+        return success();
+    }
 
 	@PostMapping("addTables/{taskId}")
 	@Operation(summary = "增加表挖掘")
