@@ -139,6 +139,18 @@ public class MysqlConnector extends CommonDbConnector {
         //connectorFunctions.supportQueryFieldMinMaxValueFunction(this::minMaxValue);
         //connectorFunctions.supportGetReadPartitionsFunction(this::getReadPartitions);
         connectorFunctions.supportRunRawCommandFunction(this::runRawCommand);
+        connectorFunctions.supportTransactionBeginFunction(this::begin);
+        connectorFunctions.supportTransactionCommitFunction(this::commit);
+        connectorFunctions.supportTransactionRollbackFunction(this::rollback);
+    }
+
+    private void rollback(TapConnectorContext tapConnectorContext) {
+    }
+
+    private void commit(TapConnectorContext tapConnectorContext) {
+    }
+
+    private void begin(TapConnectorContext tapConnectorContext) {
     }
 
     private void getReadPartitions(TapConnectorContext connectorContext, TapTable table, GetReadPartitionOptions options) {
@@ -334,6 +346,7 @@ public class MysqlConnector extends CommonDbConnector {
     @Override
     protected void queryByAdvanceFilterWithOffset(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
         String sql = commonSqlMaker.buildSelectClause(table, filter) + getSchemaAndTable(table.getId()) + commonSqlMaker.buildSqlByAdvanceFilter(filter);
+        int batchSize = null != filter.getBatchSize() && filter.getBatchSize().compareTo(0) > 0 ? filter.getBatchSize() : BATCH_ADVANCE_READ_LIMIT;
         jdbcContext.query(sql, resultSet -> {
             FilterResults filterResults = new FilterResults();
             //get all column names
@@ -341,7 +354,7 @@ public class MysqlConnector extends CommonDbConnector {
             ResultSetMetaData metaData = resultSet.getMetaData();
             while (isAlive() && resultSet.next()) {
                 filterResults.add(filterTimeForMysql(resultSet, metaData, dateTypeSet));
-                if (filterResults.getResults().size() == BATCH_ADVANCE_READ_LIMIT) {
+                if (filterResults.getResults().size() == batchSize) {
                     consumer.accept(filterResults);
                     filterResults = new FilterResults();
                 }

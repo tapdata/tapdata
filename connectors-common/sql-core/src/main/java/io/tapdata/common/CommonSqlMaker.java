@@ -129,7 +129,7 @@ public class CommonSqlMaker {
 
     public void buildWhereClause(StringBuilder builder, TapAdvanceFilter filter) {
         if (EmptyKit.isNotEmpty(filter.getMatch()) || EmptyKit.isNotEmpty(filter.getOperators())) {
-            builder.append("WHERE ");
+            builder.append(" WHERE ");
             builder.append(buildKeyAndValue(filter.getMatch(), "AND", "="));
         }
         if (EmptyKit.isNotEmpty(filter.getOperators())) {
