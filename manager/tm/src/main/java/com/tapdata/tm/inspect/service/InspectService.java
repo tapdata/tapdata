@@ -773,8 +773,6 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
 				}
 				break;
 			case SCHEDULING:
-			case DONE:
-			case PASSED:
 				Object id = where.get("id");
 				if (id instanceof ObjectId) {
 					id = ((ObjectId) id).toHexString();

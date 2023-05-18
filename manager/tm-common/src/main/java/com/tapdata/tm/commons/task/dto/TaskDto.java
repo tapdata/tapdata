@@ -15,6 +15,7 @@ import org.apache.commons.lang3.StringUtils;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 
 /**
@@ -162,14 +163,30 @@ public class TaskDto extends ParentTaskDto {
         return dag;
     }
 
-		public boolean isTestTask() {
-			if (StringUtils.equalsAnyIgnoreCase(getSyncType(), SYNC_TYPE_TEST_RUN, SYNC_TYPE_DEDUCE_SCHEMA)) {
-				return true;
-			}
-			return false;
-		}
+    private transient Map<String, Object> taskInfo;
 
-		public boolean isNormalTask() {
+    public Object taskInfo(String key){
+        if (null == taskInfo) return null;
+        return taskInfo.get(key);
+    }
+
+    public void removeTaskInfo(String key){
+        if (null == taskInfo) return;
+        taskInfo.remove(key);
+    }
+
+    public TaskDto taskInfo(String key, Object value){
+        if (null == key) return this;
+        if (null == taskInfo) taskInfo = new ConcurrentHashMap<>();
+        taskInfo.put(key, value);
+        return this;
+    }
+
+    public boolean isTestTask() {
+        return StringUtils.equalsAnyIgnoreCase(getSyncType(), SYNC_TYPE_TEST_RUN, SYNC_TYPE_DEDUCE_SCHEMA);
+    }
+
+    public boolean isNormalTask() {
 			return !isTestTask();
 		}
 

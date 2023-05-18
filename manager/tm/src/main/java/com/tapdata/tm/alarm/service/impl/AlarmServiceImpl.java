@@ -323,9 +323,6 @@ public class AlarmServiceImpl implements AlarmService {
 						continue;
 					}
 
-
-
-
             FunctionUtils.ignoreAnyError(() -> {
                 boolean reuslt = sendMessage(info, alarmMessageDto, userDetail,null);
                 if (!reuslt) {

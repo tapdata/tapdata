@@ -53,6 +53,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -451,7 +452,7 @@ public class ProxyController extends BaseController {
                     .method("memory")
                     .args(new Object[]{splitStrings(keys)});
             serviceCaller.subscribeIds("processId_" + processId);
-//        Locale locale = WebUtils.getLocale(request);
+            //Locale locale = WebUtils.getLocale(request);
             executeServiceCaller(request, response, serviceCaller, null);
         } else {
             response.setContentType("application/json");
@@ -460,32 +461,84 @@ public class ProxyController extends BaseController {
     }
 
     @Operation(summary = "External callback url")
+    @GetMapping("memory/connectors")
+    public void memoryV2GetDefaultName(
+            @RequestParam(name = "access_token", required = false) String token,
+            @RequestParam(name = "fileName", required = false) String fileName,
+            @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        memoryV2Get(token, null, processId, request, response);
+    }
+
+    @Operation(summary = "External callback url")
+    @GetMapping("memory/connectors/{fileName}")
+    public void memoryV2Get(
+            @RequestParam(name = "access_token", required = false) String token,
+            @PathVariable(name = "fileName",required = false) String fileName,
+            @RequestParam(name = "pid", required = false) String processId,
+            HttpServletRequest request, HttpServletResponse response) throws IOException {
+        //if(token == null || !token.equals(TOKEN)) {
+        //    response.sendError(SC_UNAUTHORIZED);
+        //    return;
+        //}
+        if (null == fileName || "".equals(fileName.trim())){
+            fileName = processId + "_connectors_memory_" + UUID.randomUUID().toString() + ".json";
+        }
+        UserDetail userDetail = getLoginUser();
+        List<String> keysList= new ArrayList<>();
+        keysList.add("TapConnectorManager");
+        response.setContentType("application/octet-stream");
+        response.setHeader("Content-Disposition", "attachment;filename=" + URLEncoder.encode(fileName, "UTF-8"));
+        if(processId != null) {
+            ServiceCaller serviceCaller = new ServiceCaller()
+                    .className("MemoryService")
+                    .method("memory")
+                    .args(new Object[]{keysList});
+            serviceCaller.subscribeIds("processId_" + processId);
+            executeServiceCaller(request, response, serviceCaller, null);
+        } else {
+            //response.setContentType("application/json");
+            response.getOutputStream().write(PDKIntegration.outputMemoryFetchers(keysList, null, "Detail").getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    @Operation(summary = "External callback url")
     @GetMapping("supervisor")
-    public void supervisorInfo(
-            @RequestParam(name = "access_token") String token,
+    public void supervisorInfoDefaultName(
+            @RequestParam(name = "access_token", required = false) String token,
             @RequestParam(name = "associateIds", required = false) String associateIds,
             @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
-//        if(token == null || !token.equals(TOKEN)) {
-//            response.sendError(SC_UNAUTHORIZED);
-//            return;
-//        }
+        supervisorInfo(token, associateIds, null, processId, request, response);
+    }
+
+    @Operation(summary = "External callback url")
+    @GetMapping("supervisor/{fileName}")
+    public void supervisorInfo(
+            @RequestParam(name = "access_token", required = false) String token,
+            @RequestParam(name = "associateIds", required = false) String associateIds,
+            @PathVariable(name = "fileName",required = false) String fileName,
+            @RequestParam(name = "pid", required = false) String processId, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        //if(token == null || !token.equals(TOKEN)) {
+        //    response.sendError(SC_UNAUTHORIZED);
+        //    return;
+        //}
+        if (null == fileName || "".equals(fileName.trim())){
+            fileName = processId + "_supervisor_summary_" + UUID.randomUUID().toString() + ".json";
+        }
+        if (null != associateIds && !"".equals(associateIds.trim())){
+            fileName = processId + "_supervisor_details_" + UUID.randomUUID().toString() + ".json";
+        }
         UserDetail userDetail = getLoginUser();
-        String method = "";
         String doMain = String.format(
-                "http://%s:%s%s?access_token=%s&pid=%s&associateIds=",
-                request.getLocalAddr(),
-                request.getLocalPort(),
-                request.getRequestURI(),
+                "%s?access_token=%s&pid=%s&associateIds=",
+                request.getRequestURL(),
                 token,
                 processId
         );
-        if (Objects.isNull(associateIds) || associateIds.trim().equals("")){
-            method = "Summary_" + doMain;
-        }else {
-            method = "Connectors_" + associateIds;
-        }
+        String method = Objects.isNull(associateIds) || "".equals(associateIds.trim()) ? "Summary_" + doMain : "Connectors_" + associateIds;
         List<String> keys = new ArrayList<>();
         keys.add("TaskResourceSupervisorManager");
+        response.setContentType("application/octet-stream");
+        response.setHeader("Content-Disposition", "attachment;filename=" + URLEncoder.encode(fileName, "UTF-8"));
         if(processId != null) {
             ServiceCaller serviceCaller = new ServiceCaller()
                     .className("MemoryService")

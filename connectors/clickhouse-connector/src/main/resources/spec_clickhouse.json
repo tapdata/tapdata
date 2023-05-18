@@ -5,17 +5,25 @@
     "id": "clickhouse",
     "doc": "${doc}",
     "authentication": "Alpha",
-    "tags": ["Database"]
+    "tags": [
+      "Database"
+    ]
   },
   "configOptions": {
-    "capabilities":[
+    "capabilities": [
       {
         "id": "dml_insert_policy",
-        "alternatives": ["update_on_exists", "ignore_on_exists"]
+        "alternatives": [
+          "update_on_exists",
+          "ignore_on_exists"
+        ]
       },
       {
         "id": "dml_update_policy",
-        "alternatives": ["ignore_on_nonexists", "insert_on_nonexists"]
+        "alternatives": [
+          "ignore_on_nonexists",
+          "insert_on_nonexists"
+        ]
       }
     ],
     "connection": {
@@ -192,6 +200,32 @@
           ]
         }
       }
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+        "mergeMinutes": {
+          "required": true,
+          "type": "string",
+          "title": "${mergeMinutes}",
+          "default": 60,
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "x-index": 1,
+          "x-reactions": [
+            {
+              "dependencies": [
+                "$inputs"
+              ],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0].length > 0 ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
+        }
+      }
     }
   },
   "messages": {
@@ -204,6 +238,7 @@
       "password": "password",
       "extParams": "Connection Parameter String",
       "timezone": "timezone",
+      "mergeMinutes": "Optimize Interval (Minutes)",
       "doc": "docs/clickhouse_en_US.md"
     },
     "zh_CN": {
@@ -214,6 +249,7 @@
       "password": "密码",
       "extParams": "连接参数",
       "timezone": "时区",
+      "mergeMinutes": "合并分区间隔(分钟)",
       "doc": "docs/clickhouse_zh_CN.md"
     },
     "zh_TW": {
@@ -224,6 +260,7 @@
       "password": "密碼",
       "extParams": "連接參數",
       "timezone": "時區",
+      "mergeMinutes": "合併分區間隔(分鐘)",
       "doc": "docs/clickhouse_zh_TW.md"
     }
   },
@@ -354,7 +391,7 @@
       ]
     },
     "Float32[($precision,$scale)]": {
-      "queryOnly" : true,
+      "queryOnly": true,
       "to": "TapNumber",
       "name": "float",
       "precision": [
@@ -369,7 +406,7 @@
       "fixed": false
     },
     "Float64": {
-      "queryOnly" : true,
+      "queryOnly": true,
       "to": "TapNumber",
       "precision": [
         0,
@@ -448,13 +485,14 @@
       "to": "TapArray",
       "queryOnly": true,
       "byte": 16383
-    },"Array($type)": {
+    },
+    "Array($type)": {
       "to": "TapArray",
       "queryOnly": true
-    },"Tuple($type)": {
+    },
+    "Tuple($type)": {
       "to": "TapArray",
       "queryOnly": true
     }
-
   }
 }
