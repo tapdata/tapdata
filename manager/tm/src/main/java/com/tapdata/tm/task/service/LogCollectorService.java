@@ -1495,7 +1495,11 @@ public class LogCollectorService {
                             }
 							return o;
 						}));
-		logCollectorConnConfigMap.values().forEach(v-> v.getExclusionTables().removeIf(v.getTableNames()::contains));
+		logCollectorConnConfigMap.values().forEach(v -> {
+            if (v.getExclusionTables() !=null) {
+                v.getExclusionTables().removeIf(v.getTableNames()::contains);
+            }
+        });
 		return logCollectorConnConfigMap;
 	}
 
@@ -1533,7 +1537,12 @@ public class LogCollectorService {
                             }
 							return o;
 						}));
-		logCollectorConnConfigMap.values().forEach(v-> v.getTableNames().removeIf(v.getExclusionTables()::contains));
+        logCollectorConnConfigMap.values().forEach(v -> {
+            if (v.getTableNames() != null) {
+                v.getTableNames().removeIf(v.getExclusionTables()::contains);
+            }
+        });
+
 		return logCollectorConnConfigMap;
 	}
 
