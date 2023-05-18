@@ -772,47 +772,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				TapType tapType = tapField.getTapType();
 				Object convertValue = defaultValue;
 				if (null != convertValue) {
-					switch (tapType.getType()) {
-						case TapType.TYPE_NUMBER:
-							if (defaultValue.contains(".")) {
-								try {
-									convertValue = Double.valueOf(defaultValue);
-								} catch (NumberFormatException e) {
-									throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to Double failed", e);
-								}
-							} else {
-								try {
-									convertValue = Long.valueOf(defaultValue);
-								} catch (NumberFormatException e) {
-									throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to Long failed", e);
-								}
-							}
-							break;
-						case TapType.TYPE_DATE:
-							LocalDate localDate;
-							String dateFormat = "yyyy-MM-dd";
-							try {
-								localDate = LocalDate.parse(defaultValue, DateTimeFormatter.ofPattern(dateFormat));
-							} catch (Exception e) {
-								throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to LocalDate failed, format: " + dateFormat);
-							}
-							ZonedDateTime gmtZonedDate = localDate.atStartOfDay(ZoneId.of("GMT"));
-							convertValue = new DateTime(gmtZonedDate);
-							break;
-						case TapType.TYPE_DATETIME:
-							LocalDateTime localDateTime;
-							String datetimeFormat = "yyyy-MM-dd HH:mm:ss";
-							try {
-								localDateTime = LocalDateTime.parse(defaultValue, DateTimeFormatter.ofPattern(datetimeFormat));
-							} catch (Exception e) {
-								throw new RuntimeException("The input string format is incorrect, expected format: " + datetimeFormat + ", actual value: " + defaultValue);
-							}
-							ZonedDateTime gmtZonedDateTime = localDateTime.atZone(ZoneId.of("GMT"));
-							convertValue = new DateTime(gmtZonedDateTime);
-							break;
-						default:
-							break;
-					}
+					convertValue = getConvertValue(tapType, defaultValue);
 				}
 				tablePollingCDCOffset.put(field, convertValue);
 			}
@@ -821,6 +781,52 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			tablePollingCDCOffset = (Map<String, Object>) streamOffsetObj.get(tableName);
 		}
 		return tablePollingCDCOffset;
+	}
+
+	private Object getConvertValue(TapType tapType, String defaultValue) {
+		Object convertValue = defaultValue;
+		switch (tapType.getType()) {
+			case TapType.TYPE_NUMBER:
+				if (defaultValue.contains(".")) {
+					try {
+						convertValue = Double.valueOf(defaultValue);
+					} catch (NumberFormatException e) {
+						throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to Double failed", e);
+					}
+				} else {
+					try {
+						convertValue = Long.valueOf(defaultValue);
+					} catch (NumberFormatException e) {
+						throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to Long failed", e);
+					}
+				}
+				break;
+			case TapType.TYPE_DATE:
+				LocalDate localDate;
+				String dateFormat = "yyyy-MM-dd";
+				try {
+					localDate = LocalDate.parse(defaultValue, DateTimeFormatter.ofPattern(dateFormat));
+				} catch (Exception e) {
+					throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to LocalDate failed, format: " + dateFormat);
+				}
+				ZonedDateTime gmtZonedDate = localDate.atStartOfDay(ZoneId.of("GMT"));
+				convertValue = new DateTime(gmtZonedDate);
+				break;
+			case TapType.TYPE_DATETIME:
+				LocalDateTime localDateTime;
+				String datetimeFormat = "yyyy-MM-dd HH:mm:ss";
+				try {
+					localDateTime = LocalDateTime.parse(defaultValue, DateTimeFormatter.ofPattern(datetimeFormat));
+				} catch (Exception e) {
+					throw new RuntimeException("The input string format is incorrect, expected format: " + datetimeFormat + ", actual value: " + defaultValue);
+				}
+				ZonedDateTime gmtZonedDateTime = localDateTime.atZone(ZoneId.of("GMT"));
+				convertValue = new DateTime(gmtZonedDateTime);
+				break;
+			default:
+				break;
+		}
+		return convertValue;
 	}
 
 	private void flushPollingCDCOffset(List<TapEvent> tapEvents) {
@@ -883,9 +889,18 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (isTableFilter(tableNode)) {
 			List<QueryOperator> conditions = tableNode.getConditions();
 			if (CollectionUtils.isNotEmpty(conditions)) {
+				String tableName = tableNode.getTableName();
+				TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableName);
 				DataMap match = new DataMap();
 				List<QueryOperator> queryOperators = new ArrayList<>();
 				for (QueryOperator queryOperator : conditions) {
+					TapField tapField = tapTable.getNameFieldMap().get(queryOperator.getKey());
+					TapType tapType = tapField.getTapType();
+					Object convertValue;
+					if (queryOperator.getValue() != null) {
+						convertValue = getConvertValue(tapType, queryOperator.getValue().toString());
+						queryOperator.setValue(convertValue);
+					}
 					if (EQUAL_VALUE == queryOperator.getOperator()) {
 						match.put(queryOperator.getKey(), queryOperator.getValue());
 					} else {
@@ -911,5 +926,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 		return tapAdvanceFilter;
 	}
+
 
 }
