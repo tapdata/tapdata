@@ -169,7 +169,8 @@ public class TableNode extends DataNode {
     private boolean enableCustomCommand;
     private Map<String, Object> customCommand;
 
-
+    private Boolean incrementExactlyOnceEnable;
+    private Integer incrementExactlyOnceEnableTimeWindowDay = 3;
 
 
     public TableNode() {

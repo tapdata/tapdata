@@ -93,7 +93,8 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                     if (CollectionUtils.isEmpty(updateConditionFields)) {
                         TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_UPDATE_ERROR"), name);
                         result.add(log);
-                    } else {
+                    }/* else {
+                    //根据#139501 缺陷转需求，去掉模型中是否包含更新字段的校验。
                         List<MetadataInstancesDto> nodeSchemas = metadataInstancesService.findByNodeId(nodeId, userDetail);
                         Optional.ofNullable(nodeSchemas).flatMap(list -> list.stream().filter(i -> tableNode.getTableName().equals(i.getName())).findFirst()).ifPresent(schema -> {
                             List<String> fields = schema.getFields().stream().map(Field::getFieldName).collect(Collectors.toList());
@@ -103,7 +104,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                                 result.add(log);
                             }
                         });
-                    }
+                    }*/
                 }
             }
 

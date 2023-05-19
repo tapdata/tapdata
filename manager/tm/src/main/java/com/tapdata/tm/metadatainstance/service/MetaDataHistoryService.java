@@ -75,6 +75,10 @@ public class MetaDataHistoryService {
             metaDataHistory = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedName, user);
         }
 
+        if (metaDataHistory == null) {
+            return null;
+        }
+
         return PdkSchemaConvert.toPdk(metaDataHistory);
     }
 

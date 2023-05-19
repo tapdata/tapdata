@@ -1,12 +1,15 @@
 package com.tapdata.tm.ds.service.impl;
 
 import com.google.common.collect.Maps;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
 import com.tapdata.tm.ds.vo.PdkFileTypeEnum;
 import com.tapdata.tm.file.service.FileService;
+import com.tapdata.tm.utils.FunctionUtils;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
@@ -39,6 +42,7 @@ public class PkdSourceService {
 
     private DataSourceDefinitionService dataSourceDefinitionService;
     private FileService fileService;
+    private SettingsService settingsService;
 
     @SuppressWarnings (value="unchecked")
     public void uploadPdk(CommonsMultipartFile [] files, List<PdkSourceDto> pdkSourceDtos, boolean latest, UserDetail user) {
@@ -187,6 +191,21 @@ public class PkdSourceService {
             } else {
                 dataSourceDefinitionService.upsert(Query.query(Criteria.where("_id").is(definitionDto.getId())), definitionDto, user);
             }
+
+            //根据数据源类型删除可能存在的旧的pdk
+            FunctionUtils.ignoreAnyError(() ->{
+                Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
+                if (Objects.isNull(buildProfile)) {
+                    buildProfile = "DAAS";
+                }
+
+                boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+                if (!isCloud) {
+                    Query query = DataSourceDefinitionService.getQueryByDatasourceType(Lists.of(definitionDto.getType()), user, definitionDto.getId());
+                    dataSourceDefinitionService.deleteAll(query);
+                }
+            });
+
         }
     }
 

@@ -120,4 +120,22 @@ public class StringUtil {
 
 		return keys;
 	}
+
+	/**
+	 * Intercept the string, if the length of the string is less than or equal to the specified length, return the original string, otherwise return the string of the specified length + specified suffix
+	 * @param originStr
+	 * @param keepLength
+	 * @return
+	 */
+	public static String subLongString(String originStr, int keepLength, String suffix) {
+		if (StringUtils.isBlank(originStr)) {
+			return "";
+		}
+
+		if (originStr.length() <= keepLength) {
+			return originStr;
+		}
+
+		return originStr.substring(0, keepLength) + suffix;
+	}
 }

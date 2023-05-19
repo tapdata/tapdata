@@ -13,6 +13,7 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.util.CapabilityEnum;
+import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.DataSourceDefinitionUpdateDto;
 import com.tapdata.tm.ds.dto.DataSourceTypeDto;
@@ -28,6 +29,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -303,19 +305,31 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         return null;
     }
     public List<DataSourceDefinitionDto> getByDataSourceType(List<String> dataSourceType, UserDetail user, String... fields) {
-        Criteria customCriteria = new Criteria();
-        customCriteria.and("customId").is(user.getCustomerId());
-        Criteria userCriteria = Criteria.where("user_id").is(user.getUserId());
-        Criteria supplierCriteria = Criteria.where("pdkType").ne(DataSourceDefinitionDto.PDK_TYPE);
-        Criteria scopeCriteria = Criteria.where("scope").is("public");
-        Criteria criteria = Criteria.where("type").in(dataSourceType).and("pdkHash").exists(true);;
-        criteria.orOperator(customCriteria, userCriteria, supplierCriteria, scopeCriteria);
-        Query query = Query.query(criteria);
+        Query query = getQueryByDatasourceType(dataSourceType, user);
         if (fields != null  && fields.length != 0) {
             query.fields().include(fields);
         }
         query.with(Sort.by("createTime").descending());
         return findAll(query);
+    }
+
+    @NotNull
+    public static Query getQueryByDatasourceType(List<String> dataSourceType, UserDetail user) {
+        return getQueryByDatasourceType(dataSourceType, user, null);
+    }
+    public static Query getQueryByDatasourceType(List<String> dataSourceType, UserDetail user, ObjectId excludeId) {
+        Criteria customCriteria = new Criteria();
+        customCriteria.and("customId").is(user.getCustomerId());
+        Criteria userCriteria = Criteria.where("user_id").is(user.getUserId());
+        Criteria supplierCriteria = Criteria.where("pdkType").ne(DataSourceDefinitionDto.PDK_TYPE);
+        Criteria scopeCriteria = Criteria.where("scope").is("public");
+        Criteria criteria = Criteria.where("type").in(dataSourceType).and("pdkHash").exists(true);
+        criteria.orOperator(customCriteria, userCriteria, supplierCriteria, scopeCriteria);
+        if (excludeId != null) {
+            criteria.and("_id").ne(excludeId);
+        }
+        Query query = Query.query(criteria);
+        return query;
     }
 
 
