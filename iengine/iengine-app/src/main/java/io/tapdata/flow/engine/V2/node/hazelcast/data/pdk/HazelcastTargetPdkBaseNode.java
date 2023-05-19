@@ -7,6 +7,7 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataCompleteSnapshotEvent;
+import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TapdataHeartbeatEvent;
 import com.tapdata.entity.TapdataShareLogEvent;
@@ -44,6 +45,8 @@ import io.tapdata.error.TapdataEventException;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderController;
+import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionConcurrentProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.KeysPartitioner;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.TapEventPartitionKeySelector;
@@ -369,17 +372,19 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     throw ((TapdataTaskErrorEvent) tapdataEvent).getThrowable();
                 } else if (tapdataEvent instanceof TapdataShareLogEvent) {
                     handleTapdataShareLogEvent(tapdataShareLogEvents, tapdataEvent, lastTapdataEvent::set);
-                } else {
-                    if (tapdataEvent.isDML()) {
-                        handleTapdataRecordEvent(tapdataEvent, tapEvents, lastTapdataEvent::set);
-                    } else if (tapdataEvent.isDDL()) {
-                        handleTapdataDDLEvent(tapdataEvent, tapEvents, lastTapdataEvent::set);
-                    } else {
-                        if (null != tapdataEvent.getTapEvent()) {
-                            obsLogger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
-                        }
-                    }
-                }
+				} else if (tapdataEvent instanceof TapdataCompleteTableSnapshotEvent) {
+					handleTapdataCompleteTableSnapshotEvent((TapdataCompleteTableSnapshotEvent) tapdataEvent);
+				} else {
+					if (tapdataEvent.isDML()) {
+						handleTapdataRecordEvent(tapdataEvent, tapEvents, lastTapdataEvent::set);
+					} else if (tapdataEvent.isDDL()) {
+						handleTapdataDDLEvent(tapdataEvent, tapEvents, lastTapdataEvent::set);
+					} else {
+						if (null != tapdataEvent.getTapEvent()) {
+							obsLogger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
+						}
+					}
+				}
             } catch (Throwable throwable) {
 				throw new TapdataEventException(TaskTargetProcessorExCode_15.HANDLE_EVENTS_FAILED, throwable).addEvent(tapdataEvent);
             }
@@ -405,7 +410,24 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
     }
 
-    private void flushOffsetByTapdataEventForNoConcurrent(AtomicReference<TapdataEvent> lastTapdataEvent) {
+	private void handleTapdataCompleteTableSnapshotEvent(TapdataCompleteTableSnapshotEvent tapdataEvent) {
+		String sourceTableName = tapdataEvent.getSourceTableName();
+		List<String> nodeIds = tapdataEvent.getNodeIds();
+		if (CollectionUtils.isEmpty(nodeIds) && nodeIds.size() >= 1) {
+			return;
+		}
+		String srcNodeId = nodeIds.get(0);
+		Node srcNode = dataProcessorContext.getNodes().stream().filter(n -> n.getId().equals(srcNodeId)).findFirst().orElse(null);
+		if (null == srcNode) {
+			return;
+		}
+		SnapshotOrderController snapshotOrderController = SnapshotOrderService.getInstance().getController(dataProcessorContext.getTaskDto().getId().toHexString());
+		if (null != snapshotOrderController) {
+			snapshotOrderController.finish(srcNode);
+		}
+	}
+
+	private void flushOffsetByTapdataEventForNoConcurrent(AtomicReference<TapdataEvent> lastTapdataEvent) {
         if (null != lastTapdataEvent.get()) {
             SyncStage syncStage = lastTapdataEvent.get().getSyncStage();
             if (null != syncStage) {
