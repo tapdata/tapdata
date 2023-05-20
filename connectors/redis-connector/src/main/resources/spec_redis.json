@@ -508,91 +508,8 @@
   },
   "dataTypes": {
     "string": {
-      "queryOnly": true,
+      "byte": "512m",
       "to": "TapString"
-    },
-    "text": {
-      "byte": "4g",
-      "to": "TapString"
-    },
-    "keyword": {
-      "byte": 32766,
-      "to": "TapString"
-    },
-    "long": {
-      "bit": 64,
-      "priority": 3,
-      "value": [
-        -9223372036854775808,
-        9223372036854775807
-      ],
-      "to": "TapNumber"
-    },
-    "integer": {
-      "bit": 32,
-      "priority": 1,
-      "value": [
-        -2147483648,
-        2147483647
-      ],
-      "to": "TapNumber"
-    },
-    "short": {
-      "bit": 16,
-      "priority": 3,
-      "value": [
-        -32768,
-        32767
-      ],
-      "to": "TapNumber"
-    },
-    "byte": {
-      "bit": 8,
-      "priority": 3,
-      "value": [
-        -128,
-        127
-      ],
-      "to": "TapNumber"
-    },
-    "double": {
-      "precision": [
-        1,
-        17
-      ],
-      "preferPrecision": 11,
-      "scale": [
-        0,
-        17
-      ],
-      "preferScale": 4,
-      "fixed": false,
-      "to": "TapNumber"
-    },
-    "float": {
-      "precision": [
-        1,
-        6
-      ],
-      "scale": [
-        0,
-        6
-      ],
-      "fixed": false,
-      "to": "TapNumber"
-    },
-    "half_float": {
-      "queryOnly": true,
-      "fixed": false,
-      "to": "TapNumber"
-    },
-    "scaled_float": {
-      "queryOnly": true,
-      "fixed": false,
-      "to": "TapNumber"
-    },
-    "boolean": {
-      "to": "TapBoolean"
     },
     "date": {
       "byte": 3,
@@ -609,12 +526,7 @@
         "9999-12-31 23:59:59 999999999"
       ],
       "to": "TapDateTime"
-    },
-    "binary": {
-      "to": "TapBinary"
-    },
-    "object": {
-      "to": "TapString"
     }
+
   }
 }
