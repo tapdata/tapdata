@@ -49,6 +49,9 @@ public class TestRunAspectTask extends AspectTask {
 
   private AtomicReference<Object> jsResult;
 
+  //标记是否标准化JS，默认不是，当jsResult不为空则是
+  private boolean isNewVersionJSType = false;
+
   public TestRunAspectTask() {
     observerClassHandlers.register(ProcessorNodeProcessAspect.class, this::processorNodeProcessAspect);
     TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
@@ -62,6 +65,7 @@ public class TestRunAspectTask extends AspectTask {
     optional.ifPresent(node -> this.nodeIds = task.getDag().predecessors(node.getId()).stream()
             .map(Element::getId).collect(Collectors.toSet()));
     jsResult = (AtomicReference<Object>)startAspect.info("JSRunResult");
+    isNewVersionJSType = null != jsResult;
     this.multipleTables = CollectionUtils.isNotEmpty(task.getDag().getSourceNode());
 
   }
@@ -111,13 +115,16 @@ public class TestRunAspectTask extends AspectTask {
       paramMap.put("message", ExceptionUtil.getMessage(stopAspect.getError()));
     } else {
       paramMap.put("code", "ok");
-      paramMap.put("before", resultMap.get("before"));
-      paramMap.put("after", resultMap.get("after"));
+      paramMap.put("before", Optional.ofNullable(resultMap.get("before")).orElse(new ArrayList<>()));
+      paramMap.put("after", Optional.ofNullable(resultMap.get("after")).orElse(new ArrayList<>()));
     }
 
-    jsResult.set(paramMap);
-    //ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
-    //clientMongoOperator.insertOne(paramMap, "/task/migrate-js/save-result");
+    if (isNewVersionJSType) {
+      jsResult.set(paramMap);
+    } else {
+      ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
+      clientMongoOperator.insertOne(paramMap, "/task/migrate-js/save-result");
+    }
 
     logger.info("return to tm {}", paramMap);
   }
