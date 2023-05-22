@@ -14,6 +14,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -102,6 +103,20 @@ public class TcmService {
                 log.error("Update UploadStatus failed {}({})", responseMessage.getCode(), responseMessage.getMessage());
             }
         }
+    }
+
+    public Date getLatestProductReleaseCreateTime() {
+        String responseStr = HttpUtils.sendGetData(TMC_URL + "/api/tcm/productRelease/create_time/latest", null);
+        if (StringUtils.isNotEmpty(responseStr)) {
+            ResponseMessage responseMessage = JsonUtil.parseJson(responseStr, ResponseMessage.class);
+            if (ResponseMessage.OK.equals(responseMessage.getCode())) {
+                Map dataMap = (Map) responseMessage.getData();
+                return (Date) dataMap.get("createTime");
+            } else {
+                log.error("tcm处理异常。responseMessage：{}", responseMessage);
+            }
+        }
+        return null;
     }
 
 }
