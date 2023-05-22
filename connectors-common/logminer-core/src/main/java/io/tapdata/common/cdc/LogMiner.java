@@ -15,6 +15,7 @@ import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.pdk.apis.functions.connector.source.ConnectionConfigWithTables;
 
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -53,10 +54,12 @@ public abstract class LogMiner implements ILogMiner {
     protected Log tapLogger;
     protected KVReadOnlyMap<TapTable> tableMap; //pdk tableMap in streamRead
     protected List<String> tableList; //tableName list
+    protected Map<String, List<String>> schemaTableMap; //schemaName and tableName map
     protected Map<String, TapTable> lobTables; //table those have lob type
     protected int recordSize;
     protected StreamReadConsumer consumer;
     protected AtomicReference<Throwable> threadException = new AtomicReference<>();
+    protected Boolean withSchema = false;
 
     //init with pdk params
     @Override
@@ -66,6 +69,18 @@ public abstract class LogMiner implements ILogMiner {
         this.recordSize = recordSize;
         this.consumer = consumer;
         makeLobTables();
+    }
+
+    //multi init with pdk params
+    @Override
+    public void multiInit(List<ConnectionConfigWithTables> connectionConfigWithTables, KVReadOnlyMap<TapTable> tableMap, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
+        this.withSchema = true;
+        this.tableMap = tableMap;
+        this.schemaTableMap = connectionConfigWithTables.stream().collect(Collectors.toMap(v -> v.getConnectionConfig().getString("schema"), ConnectionConfigWithTables::getTables));
+        this.recordSize = recordSize;
+        this.consumer = consumer;
+        DDL_WRAPPER_CONFIG.withSchema(true);
+        multiMakeLobTables();
     }
 
     public void setLargeTransactionUpperLimit(long largeTransactionUpperLimit) {
@@ -87,6 +102,20 @@ public abstract class LogMiner implements ILogMiner {
             }
         });
         this.lobTables = lobTables.stream().collect(Collectors.toMap(TapTable::getId, Function.identity()));
+    }
+
+    //multi makeLobTables
+    protected void multiMakeLobTables() {
+        lobTables = new HashMap<>();
+        schemaTableMap.forEach((schema, tables) -> tables.forEach(table -> {
+            TapTable tapTable = tableMap.get(schema + "." + table);
+            if (null == tapTable || null == tapTable.getNameFieldMap()) {
+                return;
+            }
+            if (tapTable.getNameFieldMap().entrySet().stream().anyMatch(field -> field.getValue().getDataType().contains("LOB"))) {
+                lobTables.put(schema + "." + table, tapTable);
+            }
+        }));
     }
 
     protected void enqueueRedoLogContent(RedoLogContent redoLogContent) {
