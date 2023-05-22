@@ -1,16 +1,23 @@
 package com.tapdata.tm.ds.service.impl;
 
+import cn.hutool.core.date.DateUtil;
+import cn.hutool.core.lang.Assert;
 import com.google.common.collect.Maps;
+import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
+import com.tapdata.tm.ds.dto.PdkVersionCheckDto;
 import com.tapdata.tm.ds.vo.PdkFileTypeEnum;
 import com.tapdata.tm.file.service.FileService;
+import com.tapdata.tm.tcm.service.TcmService;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
@@ -24,6 +31,7 @@ import org.springframework.web.multipart.commons.CommonsMultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -39,6 +47,7 @@ public class PkdSourceService {
 
     private DataSourceDefinitionService dataSourceDefinitionService;
     private FileService fileService;
+    private TcmService tcmService;
 
     @SuppressWarnings (value="unchecked")
     public void uploadPdk(CommonsMultipartFile [] files, List<PdkSourceDto> pdkSourceDtos, boolean latest, UserDetail user) {
@@ -263,5 +272,37 @@ public class PkdSourceService {
         }
 
         fileService.viewImg(MongoUtils.toObjectId(resourceId), response);
+    }
+
+    public List<PdkVersionCheckDto> versionCheck(int days) {
+        List<PdkVersionCheckDto> result = Lists.newArrayList();
+
+        List<DataSourceDefinitionDto> all = dataSourceDefinitionService.findAll(Query.query(Criteria.where("is_deleted").is(false).and("scope").is("public")));
+        if (CollectionUtils.isNotEmpty(all)) {
+            // get tcm build info
+            Date tcmReleaseDate = tcmService.getLatestProductReleaseCreateTime();
+//            Date tcmReleaseDate = new Date();
+            Assert.notNull(tcmReleaseDate, "tcmReleaseDate is null");
+
+            all.forEach(info -> {
+                PdkVersionCheckDto checkDto = PdkVersionCheckDto.builder().pdkId(info.getPdkId()).pdkVersion(info.getPdkAPIVersion()).pdkHash(info.getPdkHash()).build();
+
+                 Date buildDate;
+                if (Objects.nonNull(info.getManifest()) && Objects.nonNull(info.getManifest().get("Git-Build-Time"))) {
+                    String buildTime = info.getManifest().get("Git-Build-Time");
+                    buildDate = DateUtil.parseDate(buildTime);
+                } else {
+                    buildDate = info.getLastUpdAt();
+                }
+                checkDto.setGitBuildTime(buildDate.toString());
+
+                boolean isLatest = tcmReleaseDate.before(buildDate) || ChronoUnit.DAYS.between(buildDate.toInstant(), tcmReleaseDate.toInstant()) <= days;
+                // compare with tcm build info
+                checkDto.setLatest(isLatest);
+                result.add(checkDto);
+            });
+        }
+
+        return result;
     }
 }

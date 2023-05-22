@@ -5,8 +5,10 @@ import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
+import com.tapdata.tm.ds.dto.PdkVersionCheckDto;
 import com.tapdata.tm.ds.service.impl.PkdSourceService;
 import com.tapdata.tm.ds.vo.PdkFileTypeEnum;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Setter;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -80,5 +82,11 @@ public class PdkController extends BaseController {
     public void downloadDoc(@RequestParam("pdkHash") String pdkHash,
                             HttpServletResponse response) {
         pkdSourceService.uploadAndView(pdkHash, null, getLoginUser(),PdkFileTypeEnum.MARKDOWN, response);
+    }
+
+    @Operation(summary = "获取pdk版本是否是最新版本")
+    @GetMapping("/version/check")
+    public ResponseMessage<List<PdkVersionCheckDto>> versionCheck(@RequestParam(value = "days", defaultValue = "7") int days) {
+        return success(pkdSourceService.versionCheck(days));
     }
 }

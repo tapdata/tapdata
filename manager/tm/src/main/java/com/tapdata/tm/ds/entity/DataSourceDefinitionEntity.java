@@ -11,6 +11,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 数据源定义模型
@@ -102,4 +103,5 @@ public class DataSourceDefinitionEntity extends BaseEntity {
     private Integer pdkAPIBuildNumber;
     private String authentication;
     private List<String> tags;
+    private Map<String, String> manifest;
 }
