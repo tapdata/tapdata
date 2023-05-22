@@ -68,6 +68,7 @@ public class TestRunTaskHandler implements WebSocketEventHandler<WebSocketEventR
 			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.TEST_RUN, throwable.getMessage());
 		} finally {
 			taskDtoMap.remove(taskId);
+			ObsLoggerFactory.getInstance().forceRemoveTaskLogger(taskDto);
 		}
 
 		logger.info("test run task {} {}, cost {}ms", taskId, taskClient.getStatus(), (System.currentTimeMillis() - startTs));

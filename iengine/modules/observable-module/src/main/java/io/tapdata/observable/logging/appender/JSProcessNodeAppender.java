@@ -35,10 +35,10 @@ public class JSProcessNodeAppender extends BaseTaskAppender<MonitoringLogsDto> {
         this.logger = LogManager.getLogger(LOGGER_NAME_PREFIX + taskId);
         this.logCollector = logCollector;
         if (null != logCollector)
-            Optional.ofNullable(logCollector.get()).ifPresent(list -> logList = (FixedSizeBlockingDeque<MonitoringLogsDto>)list);
+            Optional.ofNullable(logCollector.get()).ifPresent(list -> logList = (FixedSizeBlockingDeque<MonitoringLogsDto>) list);
     }
 
-    public JSProcessNodeAppender nodeID(String jsNodeId){
+    public JSProcessNodeAppender nodeID(String jsNodeId) {
         this.jsNodeId = jsNodeId;
         return this;
     }
@@ -78,9 +78,6 @@ public class JSProcessNodeAppender extends BaseTaskAppender<MonitoringLogsDto> {
 
     @Override
     public void stop() {
-        if (null != logger) {
-            removeAppenders((org.apache.logging.log4j.core.Logger) logger);
-        }
     }
 
     public static void main(String[] args) {
@@ -89,7 +86,7 @@ public class JSProcessNodeAppender extends BaseTaskAppender<MonitoringLogsDto> {
             final int aaa = i;
             new Thread(() -> {
                 list.add(aaa);
-                System.out.println( Thread.currentThread().getName() + ":" + list.toString());
+                System.out.println(Thread.currentThread().getName() + ":" + list.toString());
             }, "TH-" + i).start();
         }
     }
