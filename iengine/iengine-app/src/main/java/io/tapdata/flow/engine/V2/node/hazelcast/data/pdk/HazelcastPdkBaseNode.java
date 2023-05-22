@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.Log4jUtil;
+import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskConfig;
@@ -40,14 +41,11 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.PdkTableMap;
 import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -280,5 +278,25 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	protected void removeGlobalMap(String key) {
 		globalMap().remove(key);
+	}
+
+	protected void removeNotSupportFields(TapEvent tapEvent) {
+		String tableId = TapEventUtil.getTableId(tapEvent);
+		removeNotSupportFields(tableId, TapEventUtil.getAfter(tapEvent));
+		removeNotSupportFields(tableId, TapEventUtil.getBefore(tapEvent));
+	}
+
+	protected void removeNotSupportFields(String tableName, Map<String, Object> data) {
+		Map<String, List<String>> notSupportFieldMap = getNode().getNotSupportFieldMap();
+		if (StringUtils.isEmpty(tableName) || MapUtils.isEmpty(data) || MapUtils.isEmpty(notSupportFieldMap) || notSupportFieldMap.get(tableName) == null) {
+			return;
+		}
+		List<String> notSupportFieldList = notSupportFieldMap.get(tableName);
+		for (String notSupportField : notSupportFieldList) {
+			if (obsLogger.isDebugEnabled()) {
+				obsLogger.debug("remove not support field [{}] from data [{}]", notSupportField, data);
+			}
+			MapUtil.removeKey(data, notSupportField);
+		}
 	}
 }

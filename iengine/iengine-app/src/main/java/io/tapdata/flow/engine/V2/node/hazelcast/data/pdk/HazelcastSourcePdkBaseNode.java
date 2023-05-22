@@ -743,6 +743,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		tapdataEvent.setTapEvent(tapEvent);
 		tapdataEvent.setSyncStage(syncStage);
 		if (tapEvent instanceof TapRecordEvent) {
+			removeNotSupportFields(tapEvent);
 			if (SyncStage.INITIAL_SYNC == syncStage) {
 				if (isLast && !StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
 						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
