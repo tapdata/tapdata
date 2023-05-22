@@ -73,7 +73,7 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
                 List<String> notSupportFields = Lists.newArrayList();
                 findPossibleDataTypes.forEach((k, v) -> {
-                    if (v.getLastMatchedDataType() == null) {
+                    if (CollectionUtils.isEmpty(v.getDataTypes())) {
                         notSupportFields.add(k);
                     }
                 });
