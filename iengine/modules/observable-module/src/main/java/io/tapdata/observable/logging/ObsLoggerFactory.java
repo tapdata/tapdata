@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -102,14 +103,14 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 			loggerToBeRemoved.remove(taskId);
 			TaskLogger taskLogger = TaskLogger.create(taskId, task.getName(), task.getTaskRecordId(), this::closeDebugForTask)
 					.withTaskLogSetting(getLogSettingLogLevel(task), getLogSettingRecordCeiling(task), getLogSettingIntervalCeiling(task));
-			if (task.isTestTask()){
+			AtomicReference<Object> taskInfo = (AtomicReference<Object>) task.taskInfo(JSProcessNodeAppender.LOG_LIST_KEY + taskId);
+			if (task.isTestTask() && null != taskInfo){
 				//js处理器试运行收集日志，不入库不额外操作，仅返回给前端
 				taskLogger.witAppender(
 					(WithAppender<MonitoringLogsDto>)(() ->
 						(BaseTaskAppender<MonitoringLogsDto>) JSProcessNodeAppender.create(
-							taskId,
-							(AtomicReference<Object>)task.taskInfo(JSProcessNodeAppender.LOG_LIST_KEY + taskId),
-							(Integer) task.taskInfo(JSProcessNodeAppender.MAX_LOG_LENGTH_KEY + taskId))
+							taskId, taskInfo, Optional.ofNullable((Integer) task.taskInfo(JSProcessNodeAppender.MAX_LOG_LENGTH_KEY + taskId)).orElse(100))
+							.nodeID((String)task.taskInfo(JSProcessNodeAppender.JS_NODE_ID_KEY + taskId))
 					)
 				);
 			} else {

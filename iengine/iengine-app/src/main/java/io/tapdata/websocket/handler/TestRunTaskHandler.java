@@ -81,5 +81,11 @@ public class TestRunTaskHandler implements WebSocketEventHandler<WebSocketEventR
 			taskDtoTaskClient.error(error);
 		}
 	}
+	public static void removeTaskClient(String taskId) {
+		taskClientMap.remove(taskId);
+	}
 
+	public static void registerTaskClient(String taskId, TaskClient<TaskDto> taskClient) {
+		taskClientMap.put(taskId, taskClient);
+	}
 }

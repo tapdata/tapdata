@@ -973,8 +973,15 @@ public class TaskController extends BaseController {
 
     @PostMapping("migrate-js/test-run")
     @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
-    public Map<String, Object> testRun(@RequestBody TestRunDto dto, @RequestParam("access_token") String accessToken) {
-        return taskNodeService.testRunJsNode(dto, getLoginUser(), accessToken);
+    public ResponseMessage<Void> testRun(@RequestBody TestRunDto dto, @RequestParam("access_token") String accessToken) {
+        taskNodeService.testRunJsNode(dto, getLoginUser(), accessToken);
+        return success();
+    }
+
+    @PostMapping("migrate-js/test-run-rpc")
+    @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
+    public Map<String, Object> testRunRPC(@RequestBody TestRunDto dto, @RequestParam("access_token") String accessToken) {
+        return taskNodeService.testRunJsNodeRPC(dto, getLoginUser(), accessToken);
     }
 
     @PostMapping("migrate-js/save-result")

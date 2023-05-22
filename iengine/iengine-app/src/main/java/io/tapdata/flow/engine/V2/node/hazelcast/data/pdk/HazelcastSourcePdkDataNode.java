@@ -4,6 +4,7 @@ import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.CollectionUtil;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataCompleteSnapshotEvent;
+import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TapdataHeartbeatEvent;
 import com.tapdata.entity.TapdataStartedCdcEvent;
@@ -204,7 +205,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (null != controller) {
 			CommonUtils.AnyError runner = () -> doSnapshot(tableList);
 			controller.runWithControl(getNode(), runner);
-			controller.finish(getNode());
 		}
 	}
 
@@ -342,6 +342,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											)
 									));
 							executeAspect(new SnapshotReadTableEndAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
+							enqueue(new TapdataCompleteTableSnapshotEvent(tableName));
 						} catch (Throwable throwable) {
 							executeAspect(new SnapshotReadTableErrorAspect().dataProcessorContext(dataProcessorContext).tableName(tableName).error(throwable));
 							Throwable throwableWrapper = throwable;
