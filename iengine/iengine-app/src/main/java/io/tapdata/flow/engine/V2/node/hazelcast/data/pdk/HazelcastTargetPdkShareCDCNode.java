@@ -11,11 +11,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
-import io.tapdata.aspect.AlterFieldAttributesFuncAspect;
-import io.tapdata.aspect.AlterFieldNameFuncAspect;
-import io.tapdata.aspect.DropFieldFuncAspect;
-import io.tapdata.aspect.NewFieldFuncAspect;
-import io.tapdata.aspect.WriteRecordFuncAspect;
+import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.construct.HazelcastConstruct;
@@ -51,17 +47,8 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -317,7 +304,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 	private <E extends TapEvent> WriteListResult<E> writeLogContents(List<LogContent> logContents) {
 		WriteListResult<E> writeListResult = new WriteListResult<>();
 		for (LogContent logContent : logContents) {
-			String tableId = logContent.getFromTable();
+			String tableId = ShareCdcUtil.getTableId(logContent);
 			Document document = logContent2Document(logContent);
 			if (!batchCacheData.containsKey(tableId)) {
 				batchCacheData.put(tableId, new ArrayList<>());
@@ -380,6 +367,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 					op,
 					offsetStr
 			);
+			logContent.setTableNamespaces(TapEventUtil.getNamespaces(tapEvent));
 		} else if (tapdataShareLogEvent.isDDL()) {
 			verifyDDL(tapEvent, tableId, op, timestamp, offsetStr);
 			byte[] bytes = OBJECT_SERIALIZABLE.fromObject(tapEvent);
@@ -390,6 +378,7 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 					offsetStr,
 					bytes
 			);
+			logContent.setTableNamespaces(TapEventUtil.getNamespaces(tapEvent));
 		}
 		return logContent;
 	}
@@ -427,9 +416,9 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		Integer shareCdcTtlDay = null;
 		List<Node<?>> predecessors = GraphUtil.predecessors(processorBaseContext.getNode(), n -> n instanceof LogCollectorNode);
 		if (CollectionUtils.isNotEmpty(predecessors)) {
-			Node<?> firstPreNode = predecessors.get(0);
-			shareCdcTtlDay = ((LogCollectorNode) firstPreNode).getStorageTime();
-			tableNames = ((LogCollectorNode) firstPreNode).getTableNames();
+			LogCollectorNode logCollectorNode = (LogCollectorNode) predecessors.get(0);
+			shareCdcTtlDay = logCollectorNode.getStorageTime();
+			tableNames = ShareCdcUtil.getTableNames(logCollectorNode);
 		}
 		if (null == shareCdcTtlDay || shareCdcTtlDay.compareTo(0) <= 0) {
 			shareCdcTtlDay = DEFAULT_SHARE_CDC_TTL_DAY;

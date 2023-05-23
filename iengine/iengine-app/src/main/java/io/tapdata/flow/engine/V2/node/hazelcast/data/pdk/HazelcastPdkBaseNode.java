@@ -15,6 +15,7 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.PDKNodeInitAspect;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -253,8 +254,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	protected void tapRecordToTapValue(TapEvent tapEvent, TapCodecsFilterManager codecsFilterManager) {
 		if (tapEvent instanceof TapRecordEvent) {
-			String tableName;
-			tableName = ((TapRecordEvent) tapEvent).getTableId();
+			TapRecordEvent tapRecordEvent = (TapRecordEvent) tapEvent;
+			String tableName = ShareCdcUtil.getTapRecordEventTableName(tapRecordEvent);
 			Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
 			toTapValue(after, tableName, codecsFilterManager);
 			Map<String, Object> before = TapEventUtil.getBefore(tapEvent);

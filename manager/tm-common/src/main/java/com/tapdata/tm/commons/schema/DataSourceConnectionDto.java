@@ -289,6 +289,7 @@ public class DataSourceConnectionDto extends BaseDto {
         private Boolean heartbeatEnable;
 
         private String multiConnectionInstanceId;
+        private List<String> namespace;
 
 
         /**

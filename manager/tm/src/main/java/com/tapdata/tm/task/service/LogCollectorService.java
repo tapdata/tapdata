@@ -954,12 +954,11 @@ public class LogCollectorService {
                 return;
             }
 
-
             Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = new HashMap<>();
-            for (String connectionId : connectionIds) {
-                LogCollecotrConnConfig logCollecotrConnConfig = new LogCollecotrConnConfig(connectionId, tableMaps.get(connectionId));
-                logCollectorConnConfigs.put(connectionId, logCollecotrConnConfig);
-            }
+			for (String connectionId : connectionIds) {
+				LogCollecotrConnConfig logCollecotrConnConfig = new LogCollecotrConnConfig(connectionId, tableMaps.get(connectionId));
+				logCollectorConnConfigs.put(connectionId, logCollecotrConnConfig);
+			}
 
             LogCollectorNode logCollectorNode = new LogCollectorNode();
             logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
@@ -1395,32 +1394,32 @@ public class LogCollectorService {
         Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
         return logCollectorConnConfigs == null || logCollectorConnConfigs.size() == 0;
     }
-    private boolean convertLogCollectorNode(LogCollectorNode logCollectorNode) {
-
-
-        Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
-        if (logCollectorConnConfigs != null && logCollectorConnConfigs.size() != 0) {
-            return false;
-        }
-
-        List<String> connectionIds = logCollectorNode.getConnectionIds();
-        List<String> tableNames = logCollectorNode.getTableNames();
-        logCollectorConnConfigs = new HashMap<>();
-        if (CollectionUtils.isNotEmpty(connectionIds)) {
-            logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
-            return true;
-        }
-
-        for (String connectionId : connectionIds) {
-            logCollectorConnConfigs.put(connectionId, new LogCollecotrConnConfig(connectionId, tableNames));
-        }
-
-        logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
-
-        logCollectorNode.setConnectionIds(null);
-        logCollectorNode.setTableNames(null);
-        return true;
-    }
+//    private boolean convertLogCollectorNode(LogCollectorNode logCollectorNode) {
+//
+//
+//        Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
+//        if (logCollectorConnConfigs != null && logCollectorConnConfigs.size() != 0) {
+//            return false;
+//        }
+//
+//        List<String> connectionIds = logCollectorNode.getConnectionIds();
+//        List<String> tableNames = logCollectorNode.getTableNames();
+//        logCollectorConnConfigs = new HashMap<>();
+//        if (CollectionUtils.isNotEmpty(connectionIds)) {
+//            logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
+//            return true;
+//        }
+//
+//        for (String connectionId : connectionIds) {
+//            logCollectorConnConfigs.put(connectionId, new LogCollecotrConnConfig(connectionId, tableNames));
+//        }
+//
+//        logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
+//
+//        logCollectorNode.setConnectionIds(null);
+//        logCollectorNode.setTableNames(null);
+//        return true;
+//    }
 
     public void cancelMerge(String taskId, String connectionId, UserDetail user) {
         TaskDto shareCdcTask = taskService.findById(MongoUtils.toObjectId(taskId), user);

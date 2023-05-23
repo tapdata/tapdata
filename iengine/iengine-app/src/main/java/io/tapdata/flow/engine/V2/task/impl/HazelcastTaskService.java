@@ -48,6 +48,7 @@ import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.autoinspect.utils.AutoInspectNodeUtil;
 import io.tapdata.common.SettingService;
+import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.schema.TapTable;
@@ -62,29 +63,9 @@ import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderController;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderControllerExCode_21;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastBlank;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastCacheTarget;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastSchemaTargetNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskSource;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskSourceAndTarget;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskTarget;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastVirtualTargetNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastPdkSourceAndTargetTableNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSampleSourcePdkDataNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePartitionReadDataNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkShareCDCNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkAutoInspectNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkCacheNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkDataNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkShareCDCNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcessor;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastDateProcessorNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastJavaScriptProcessorNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMigrateFieldRenameProcessorNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastRenameTableProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -107,11 +88,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -297,9 +274,12 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 					connection = getConnection(((DataParentNode<?>) node).getConnectionId());
 					databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
 				} else if (node.isLogCollectorNode()) {
-					String connectionId = ((LogCollectorNode) node).getConnectionIds().get(0);
+					LogCollectorNode logCollectorNode = (LogCollectorNode) node;
+					String connectionId = logCollectorNode.getConnectionIds().get(0);
 					connection = getConnection(connectionId);
 					databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
+
+					ShareCdcUtil.fillConfigNamespace(logCollectorNode, this::getConnection);
 				} else if (node instanceof CacheNode) {
 					Optional<Edge> edge = edges.stream().filter(e -> e.getTarget().equals(node.getId())).findFirst();
 					Node<?> sourceNode = null;
