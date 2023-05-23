@@ -76,7 +76,28 @@ public abstract class LogMiner implements ILogMiner {
     public void multiInit(List<ConnectionConfigWithTables> connectionConfigWithTables, KVReadOnlyMap<TapTable> tableMap, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
         this.withSchema = true;
         this.tableMap = tableMap;
-        this.schemaTableMap = connectionConfigWithTables.stream().collect(Collectors.toMap(v -> v.getConnectionConfig().getString("schema"), ConnectionConfigWithTables::getTables));
+        this.schemaTableMap = new HashMap<>();
+		for (ConnectionConfigWithTables withTables : connectionConfigWithTables) {
+			if (null == withTables.getConnectionConfig())
+				throw new RuntimeException("Not found connection config");
+			if (null == withTables.getConnectionConfig().get("schema"))
+				throw new RuntimeException("Not found connection schema");
+			if (null == withTables.getTables())
+				throw new RuntimeException("Not found connection tables");
+
+			schemaTableMap.compute(String.valueOf(withTables.getConnectionConfig().get("schema")), (schema, tableList) -> {
+				if (null == tableList) {
+					tableList = new ArrayList<>();
+				}
+
+				for (String tableName : withTables.getTables()) {
+					if (!tableList.contains(tableName)) {
+						tableList.add(tableName);
+					}
+				}
+				return tableList;
+			});
+		}
         this.recordSize = recordSize;
         this.consumer = consumer;
         DDL_WRAPPER_CONFIG.withSchema(true);

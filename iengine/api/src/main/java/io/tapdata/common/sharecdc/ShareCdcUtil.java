@@ -71,19 +71,17 @@ public class ShareCdcUtil {
 	}
 
 	public static List<String> getTableNames(LogCollectorNode logCollectorNode) {
-		List<String> tableNames;
 		if (null != logCollectorNode.getLogCollectorConnConfigs() && !logCollectorNode.getLogCollectorConnConfigs().isEmpty()) {
-			tableNames = new ArrayList<>();
+			Set<String> tableNames = new HashSet<>();
 			for (LogCollecotrConnConfig config : logCollectorNode.getLogCollectorConnConfigs().values()) {
 				String tableNamePrefix = joinNamespaces(config.getNamespace());
 				for (String tableName : config.getTableNames()) {
 					tableNames.add(joinNamespaces(Arrays.asList(tableNamePrefix, tableName)));
 				}
 			}
-		} else {
-			tableNames = logCollectorNode.getTableNames();
+			return new ArrayList<>(tableNames);
 		}
-		return tableNames;
+		return logCollectorNode.getTableNames();
 	}
 
 	public static void fillConfigNamespace(LogCollectorNode logCollectorNode, Function<String, Connections> findConnection) {

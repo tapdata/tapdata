@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.JSONUtil;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -469,6 +470,15 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		CommonUtils.AnyError anyError = null;
 		List<String> tables = new ArrayList<>();
 		if (null != streamReadMultiConnectionFunction) {
+			Set<String> tableSet = new HashSet<>();
+			for (ConnectionConfigWithTables withTables : connectionConfigWithTables) {
+				for (String tableName : withTables.getTables()) {
+					tableSet.add(ShareCdcUtil.joinNamespaces(Arrays.asList(
+						withTables.getConnectionConfig().getString("schema"), tableName
+					)));
+				}
+			}
+			tables.addAll(tableSet);
 			streamReadFunctionName = streamReadMultiConnectionFunction.getClass().getSimpleName();
 			anyError = () -> {
 				streamReadMultiConnectionFunction.streamRead(getConnectorNode().getConnectorContext(), connectionConfigWithTables,
@@ -512,7 +522,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 
 		if (null != anyError) {
-			obsLogger.info("Starting stream read, table list: " + tables + ", offset: " + syncProgress.getStreamOffsetObj());
+			obsLogger.info("Starting stream read, table list: " + tables + ", offset: " + JSONUtil.obj2Json(syncProgress.getStreamOffsetObj()));
 
 			CommonUtils.AnyError finalAnyError = anyError;
 			String finalStreamReadFunctionName = streamReadFunctionName;
