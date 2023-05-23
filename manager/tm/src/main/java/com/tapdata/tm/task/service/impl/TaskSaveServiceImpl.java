@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.service.impl;
 
 import cn.hutool.extra.cglib.CglibUtil;
+import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
@@ -25,6 +26,7 @@ import com.tapdata.tm.task.service.TaskSaveService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import io.tapdata.entity.conversion.PossibleDataTypes;
+import io.tapdata.entity.schema.type.TapType;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -66,17 +68,28 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             }
 
             for (MetadataInstancesDto instancesDto : metadataInstancesDtos) {
-                Map<String, PossibleDataTypes> findPossibleDataTypes = instancesDto.getFindPossibleDataTypes();
-                if (Objects.isNull(findPossibleDataTypes)) {
-                    continue;
-                }
 
                 List<String> notSupportFields = Lists.newArrayList();
-                findPossibleDataTypes.forEach((k, v) -> {
-                    if (CollectionUtils.isEmpty(v.getDataTypes())) {
-                        notSupportFields.add(k);
+                if (Node.SourceType.source == node.sourceType()) {
+                    instancesDto.getFields().forEach(k -> {
+                        TapType tapType = JSON.parseObject(k.getTapType(), TapType.class);
+                        if (TapType.TYPE_RAW == tapType.getType()) {
+                            notSupportFields.add(k.getOriginalFieldName());
+                        }
+                    });
+
+                } else {
+                    Map<String, PossibleDataTypes> findPossibleDataTypes = instancesDto.getFindPossibleDataTypes();
+                    if (Objects.isNull(findPossibleDataTypes)) {
+                        continue;
                     }
-                });
+
+                    findPossibleDataTypes.forEach((k, v) -> {
+                        if (CollectionUtils.isEmpty(v.getDataTypes())) {
+                            notSupportFields.add(k);
+                        }
+                    });
+                }
 
                 if (CollectionUtils.isNotEmpty(notSupportFields)) {
                     notSupportFieldMap.put(instancesDto.getOriginalName(), notSupportFields);
