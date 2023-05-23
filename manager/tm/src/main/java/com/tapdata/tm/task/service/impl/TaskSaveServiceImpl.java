@@ -68,17 +68,8 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             }
 
             for (MetadataInstancesDto instancesDto : metadataInstancesDtos) {
-
                 List<String> notSupportFields = Lists.newArrayList();
-                if (Node.SourceType.source == node.sourceType()) {
-                    instancesDto.getFields().forEach(k -> {
-                        TapType tapType = JSON.parseObject(k.getTapType(), TapType.class);
-                        if (TapType.TYPE_RAW == tapType.getType()) {
-                            notSupportFields.add(k.getOriginalFieldName());
-                        }
-                    });
-
-                } else {
+                if (Node.SourceType.target == node.sourceType()) {
                     Map<String, PossibleDataTypes> findPossibleDataTypes = instancesDto.getFindPossibleDataTypes();
                     if (Objects.isNull(findPossibleDataTypes)) {
                         continue;
@@ -92,6 +83,12 @@ public class TaskSaveServiceImpl implements TaskSaveService {
                 }
 
                 if (CollectionUtils.isNotEmpty(notSupportFields)) {
+                    instancesDto.getFields().forEach(field -> {
+                        if (field.getDataTypeTemp()!=null && !Objects.equals(field.getDataType(), field.getDataTypeTemp())) {
+                            notSupportFields.remove(field.getFieldName());
+                        }
+                    });
+
                     notSupportFieldMap.put(instancesDto.getOriginalName(), notSupportFields);
                 }
             }
