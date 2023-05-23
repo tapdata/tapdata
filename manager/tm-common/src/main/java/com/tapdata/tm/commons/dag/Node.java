@@ -388,11 +388,11 @@ public abstract class Node<S> extends Element{
             return SourceType.source_and_target;
         }
 
-        if (source) {
-            return SourceType.source;
+        if (target) {
+            return SourceType.target;
         }
 
-        return SourceType.target;
+        return SourceType.source;
     }
 
 
