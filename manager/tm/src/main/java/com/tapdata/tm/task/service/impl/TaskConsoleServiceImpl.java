@@ -29,7 +29,6 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Service
 @Setter(onMethod_ = {@Autowired})
@@ -56,6 +55,8 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
         //} else if (RelationTaskRequest.type_inspect.equals(request.getType())) {
         } else if (RelationTaskRequest.type_task_by_collector.equals(request.getType())) {
             getTaskByCollector(result, request, taskDto);
+        } else if (RelationTaskRequest.type_task_by_collector_table.equals(request.getType())) {
+            getTaskByCollectorTable(result, request, taskDto);
         } else {
             getLogCollector(connectionIds, result, request, taskDto);
 //            getShareCache(connectionIds, result, request, nodes);
@@ -66,6 +67,31 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
         getShareCacheByTaskAttrs(result, request, taskDto);
         getHeartbeat(result, request, taskDto);
         return result;
+    }
+
+    private void getTaskByCollectorTable(List<RelationTaskInfoVo> result, RelationTaskRequest request, TaskDto taskDto) {
+        Map<String, Set<String>> tableNameMap = request.getTableNameMap();
+        List<Criteria> criteriaList = new ArrayList<>();
+        for (Map.Entry<String, Set<String>> entry : tableNameMap.entrySet()) {
+					criteriaList.add(Criteria.where("dag.nodes").elemMatch(new Criteria().andOperator(
+									Criteria.where("connectionId").is(entry.getKey()),
+									new Criteria().orOperator(Criteria.where("tableName").in(entry.getValue()), Criteria.where("tableNames").in(entry.getValue())))));
+        }
+        Criteria criteria = new Criteria().andOperator(
+                Criteria.where("is_deleted").is(false).and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE),
+                new Criteria().orOperator(criteriaList));
+        List<TaskDto> logTasks = getFilterCriteria(request, criteria);
+        if (CollectionUtils.isEmpty(logTasks)) {
+            return;
+        }
+        List<RelationTaskInfoVo> list = logTasks.stream().map(task -> RelationTaskInfoVo.builder()
+                .id(task.getId().toHexString())
+                .name(task.getName())
+                .taskType(task.getType())
+                .syncType(task.getSyncType())
+                .status(task.getStatus())
+                .build()).collect(Collectors.toList());
+        result.addAll(list);
     }
 
     private void getShareCacheByTaskAttrs(List<RelationTaskInfoVo> result, RelationTaskRequest request, TaskDto taskDto) {

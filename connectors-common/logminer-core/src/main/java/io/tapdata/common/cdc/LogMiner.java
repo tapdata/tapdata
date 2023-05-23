@@ -15,6 +15,7 @@ import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.pdk.apis.functions.connector.source.ConnectionConfigWithTables;
 
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -53,10 +54,12 @@ public abstract class LogMiner implements ILogMiner {
     protected Log tapLogger;
     protected KVReadOnlyMap<TapTable> tableMap; //pdk tableMap in streamRead
     protected List<String> tableList; //tableName list
+    protected Map<String, List<String>> schemaTableMap; //schemaName and tableName map
     protected Map<String, TapTable> lobTables; //table those have lob type
     protected int recordSize;
     protected StreamReadConsumer consumer;
     protected AtomicReference<Throwable> threadException = new AtomicReference<>();
+    protected Boolean withSchema = false;
 
     //init with pdk params
     @Override
@@ -66,6 +69,39 @@ public abstract class LogMiner implements ILogMiner {
         this.recordSize = recordSize;
         this.consumer = consumer;
         makeLobTables();
+    }
+
+    //multi init with pdk params
+    @Override
+    public void multiInit(List<ConnectionConfigWithTables> connectionConfigWithTables, KVReadOnlyMap<TapTable> tableMap, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
+        this.withSchema = true;
+        this.tableMap = tableMap;
+        this.schemaTableMap = new HashMap<>();
+		for (ConnectionConfigWithTables withTables : connectionConfigWithTables) {
+			if (null == withTables.getConnectionConfig())
+				throw new RuntimeException("Not found connection config");
+			if (null == withTables.getConnectionConfig().get("schema"))
+				throw new RuntimeException("Not found connection schema");
+			if (null == withTables.getTables())
+				throw new RuntimeException("Not found connection tables");
+
+			schemaTableMap.compute(String.valueOf(withTables.getConnectionConfig().get("schema")), (schema, tableList) -> {
+				if (null == tableList) {
+					tableList = new ArrayList<>();
+				}
+
+				for (String tableName : withTables.getTables()) {
+					if (!tableList.contains(tableName)) {
+						tableList.add(tableName);
+					}
+				}
+				return tableList;
+			});
+		}
+        this.recordSize = recordSize;
+        this.consumer = consumer;
+        DDL_WRAPPER_CONFIG.withSchema(true);
+        multiMakeLobTables();
     }
 
     public void setLargeTransactionUpperLimit(long largeTransactionUpperLimit) {
@@ -87,6 +123,20 @@ public abstract class LogMiner implements ILogMiner {
             }
         });
         this.lobTables = lobTables.stream().collect(Collectors.toMap(TapTable::getId, Function.identity()));
+    }
+
+    //multi makeLobTables
+    protected void multiMakeLobTables() {
+        lobTables = new HashMap<>();
+        schemaTableMap.forEach((schema, tables) -> tables.forEach(table -> {
+            TapTable tapTable = tableMap.get(schema + "." + table);
+            if (null == tapTable || null == tapTable.getNameFieldMap()) {
+                return;
+            }
+            if (tapTable.getNameFieldMap().entrySet().stream().anyMatch(field -> field.getValue().getDataType().contains("LOB"))) {
+                lobTables.put(schema + "." + table, tapTable);
+            }
+        }));
     }
 
     protected void enqueueRedoLogContent(RedoLogContent redoLogContent) {
