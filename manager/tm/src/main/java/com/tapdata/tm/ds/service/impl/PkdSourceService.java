@@ -277,13 +277,23 @@ public class PkdSourceService {
     public List<PdkVersionCheckDto> versionCheck(int days) {
         List<PdkVersionCheckDto> result = Lists.newArrayList();
 
-        List<DataSourceDefinitionDto> all = dataSourceDefinitionService.findAll(Query.query(Criteria.where("is_deleted").is(false).and("scope").is("public")));
+        Query query = Query.query(Criteria.where("is_deleted").is(false).and("scope").is("public"));
+        List<DataSourceDefinitionDto> all = dataSourceDefinitionService.findAll(query);
         if (CollectionUtils.isNotEmpty(all)) {
-            // get tcm build info
+//             get tcm build info
             String tcmReleaseTemp = tcmService.getLatestProductReleaseCreateTime();
+//            String tcmReleaseTemp = "2023-04-28T03:27:04.856+00:00";
             Assert.notNull(tcmReleaseTemp, "tcmReleaseDate is null");
 
-            all.forEach(info -> {
+            List<DataSourceDefinitionDto> list = all.stream()
+                    .collect(Collectors.groupingBy(DataSourceDefinitionDto::getPdkId))
+                    .values().stream()
+                    .map(group -> group.stream()
+                            .max(Comparator.comparing(DataSourceDefinitionDto::getPdkAPIBuildNumber))
+                            .orElse(null))
+                    .collect(Collectors.toList());
+
+            list.forEach(info -> {
                 PdkVersionCheckDto checkDto = PdkVersionCheckDto.builder().pdkId(info.getPdkId()).pdkVersion(info.getPdkAPIVersion()).pdkHash(info.getPdkHash()).build();
 
                  Date buildDate;
@@ -293,7 +303,7 @@ public class PkdSourceService {
                 } else {
                     buildDate = info.getLastUpdAt();
                 }
-                checkDto.setGitBuildTime(buildDate.toString());
+                checkDto.setGitBuildTime(DateUtil.formatDateTime(buildDate));
 
                 Date tcmReleaseDate = DateUtil.parseDate(tcmReleaseTemp);
                 boolean isLatest = tcmReleaseDate.before(buildDate) || ChronoUnit.DAYS.between(buildDate.toInstant(), tcmReleaseDate.toInstant()) <= days;
@@ -303,6 +313,8 @@ public class PkdSourceService {
             });
         }
 
+        // sort by isLatest asc
+        result.sort(Comparator.comparing(PdkVersionCheckDto::isLatest));
         return result;
     }
 }

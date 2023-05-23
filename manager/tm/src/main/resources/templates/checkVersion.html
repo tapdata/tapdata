@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>PDK List</title>
+</head>
+<body>
+<h1>PDK List</h1>
+<table>
+    <thead>
+    <tr>
+        <th>pdkId</th>
+        <th>pdkHash</th>
+        <th>pdkVersion</th>
+        <th>gitBuildTime</th>
+        <th>isLatest</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="v : ${pdks}">
+        <td th:text="${v.pdkId}"></td>
+        <td th:text="${v.pdkHash}"></td>
+        <td th:text="${v.pdkVersion}"></td>
+        <td th:text="${v.gitBuildTime}"></td>
+        <td th:text="${v.isLatest}"></td>
+    </tr>
+    </tbody>
+</table>
+</body>
+</html>

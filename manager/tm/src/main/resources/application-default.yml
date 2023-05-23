@@ -9,6 +9,9 @@ spring:
   application:
     name: TCMApplication
 
+  thymeleaf:
+    cache: false
+
   data:
     mongodb:
       cursorBatchSize: 1000
