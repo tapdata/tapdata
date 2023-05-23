@@ -1,0 +1,35 @@
+{
+  "properties": {
+    "name": "Temu",
+    "icon": "icon/temu.png",
+    "doc" : "${doc}",
+    "id": "temu",
+    "authentication": "Alpha",
+    "tags": ["SaaS"]
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "doc/temu_en_US.md"
+    },
+    "zh_CN": {
+      "doc": "doc/temu_zh_CN.md"
+    },
+    "zh_TW": {
+      "doc": "doc/temu_zh_TW.md"
+    }
+  }
+}

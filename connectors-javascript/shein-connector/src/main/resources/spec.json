@@ -1,0 +1,35 @@
+{
+  "properties": {
+    "name": "Shein",
+    "icon": "icon/shein.png",
+    "doc" : "${doc}",
+    "id": "shein",
+    "authentication": "Alpha",
+    "tags": ["SaaS"]
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "doc/shein_en_US.md"
+    },
+    "zh_CN": {
+      "doc": "doc/shein_zh_CN.md"
+    },
+    "zh_TW": {
+      "doc": "doc/shein_zh_TW.md"
+    }
+  }
+}
