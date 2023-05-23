@@ -66,7 +66,10 @@
 <!--            <version>${guava.version}</version>-->
             <version>31.0.1-jre</version>
         </dependency>
-
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>pdk-error-code</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>

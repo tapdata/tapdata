@@ -4,6 +4,7 @@ import cn.hutool.core.bean.BeanUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataService;
 import com.tapdata.tm.commons.dag.Edge;
@@ -32,9 +33,11 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import com.tapdata.tm.commons.util.ProcessorNodeType;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
@@ -47,6 +50,7 @@ import com.tapdata.tm.task.vo.JsResultVo;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -58,6 +62,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import okhttp3.Call;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -81,8 +86,10 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.StringJoiner;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -500,14 +507,13 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
     @SuppressWarnings("unchecked")
     @Override
-    public Map<String, Object> testRunJsNode(TestRunDto dto, UserDetail userDetail, String accessToken) {
+    public void testRunJsNode(TestRunDto dto, UserDetail userDetail, String accessToken) {
         String taskId = dto.getTaskId();
         String nodeId = dto.getJsNodeId();
         String tableName = dto.getTableName();
         Integer rows = dto.getRows();
         String script = dto.getScript();
         Long version = dto.getVersion();
-        int logOutputCount = dto.getLogOutputCount();
 
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
         String testTaskId = taskDto.getTestTaskId();
@@ -551,7 +557,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             taskDtoCopy.setDag(temp);
         } else if (TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
             final List<String> predIds = new ArrayList<>();
-
             getPrePre(dtoDag.getNode(nodeId), predIds);
             predIds.add(nodeId);
             Dag dag = dtoDag.toDag();
@@ -592,7 +597,121 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         taskDtoCopy.setName(taskDto.getName() + "(101)");
         taskDtoCopy.setVersion(version);
         taskDtoCopy.setId(MongoUtils.toObjectId(testTaskId));
+        List<Worker> workers = workerService.findAvailableAgentByAccessNode(userDetail, taskDto.getAccessNodeProcessIdList());
+        if (CollectionUtils.isEmpty(workers)) {
+            throw new BizException("no agent");
+        }
 
+        MessageQueueDto queueDto = new MessageQueueDto();
+        queueDto.setReceiver(workers.get(0).getProcessId());
+        queueDto.setData(taskDtoCopy);
+        queueDto.setType(TaskDto.SYNC_TYPE_TEST_RUN);
+        messageQueueService.sendMessage(queueDto);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public Map<String, Object> testRunJsNodeRPC(TestRunDto dto, UserDetail userDetail, String accessToken) {
+        String taskId = dto.getTaskId();
+        String nodeId = dto.getJsNodeId();
+        String tableName = dto.getTableName();
+        Integer rows = dto.getRows();
+        String script = dto.getScript();
+        Long version = dto.getVersion();
+        int logOutputCount = dto.getLogOutputCount();
+
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+        String testTaskId = taskDto.getTestTaskId();
+        monitoringLogService.deleteLogs(testTaskId);
+        DAG dtoDag = taskDto.getDag();
+        TaskDto taskDtoCopy = new TaskDto();
+        BeanUtils.copyProperties(taskDto, taskDtoCopy);
+        taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
+        taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
+        int jsType = ProcessorNodeType.DEFAULT.type();
+        if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+            DatabaseNode first = dtoDag.getSourceNode().getFirst();
+            first.setTableNames(Lists.of(tableName));
+            first.setRows(rows);
+
+            Dag build = dtoDag.toDag();
+            build = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(build), Dag.class);
+            List<Node<?>> nodes = dtoDag.nodeMap().get(nodeId);
+            MigrateJsProcessorNode jsNode = (MigrateJsProcessorNode) dtoDag.getNode(nodeId);
+            if (StringUtils.isNotBlank(script)) {
+                jsNode.setScript(script);
+            }
+            nodes.add(jsNode);
+
+            Node<?> target = new VirtualTargetNode();
+            target.setId(UUID.randomUUID().toString());
+            target.setName(target.getId());
+            if (CollectionUtils.isNotEmpty(nodes)) {
+                nodes.add(target);
+            }
+
+            List<Edge> edges = dtoDag.edgeMap().get(nodeId);
+            if (CollectionUtils.isNotEmpty(edges)) {
+                Edge edge = new Edge(nodeId, target.getId());
+                edges.add(edge);
+            }
+
+            Objects.requireNonNull(build).setNodes(new LinkedList<Node>(){{addAll(nodes);}});
+            build.setEdges(edges);
+
+            DAG temp = DAG.build(build);
+            taskDtoCopy.setDag(temp);
+        } else if (TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
+            final List<String> predIds = new ArrayList<>();
+            Node<?> node = dtoDag.getNode(nodeId);
+            if (node instanceof JsProcessorNode){
+                JsProcessorNode processorNode = (JsProcessorNode) node;
+                jsType = Optional.ofNullable(processorNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
+            }
+            getPrePre(node, predIds);
+            predIds.add(nodeId);
+            Dag dag = dtoDag.toDag();
+            dag = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dag), Dag.class);
+            List<Node> nodes = dag.getNodes();
+
+            Node<?> target = new VirtualTargetNode();
+            target.setId(UUID.randomUUID().toString());
+            target.setName(target.getId());
+            if (CollectionUtils.isNotEmpty(nodes)) {
+                nodes = nodes.stream()
+                        .peek(n -> {
+                            if (n instanceof JsProcessorNode) {
+                                ((JsProcessorNode)n).setScript(script);
+                            }
+                        })
+                        .filter(n -> predIds.contains(n.getId()))
+                        .peek(n -> {
+                            if (n instanceof TableNode) ((TableNode) n).setRows(rows);
+                        })
+                        .collect(Collectors.toList());
+                nodes.add(target);
+            }
+
+            List<Edge> edges = dag.getEdges();
+            if (org.apache.commons.collections4.CollectionUtils.isNotEmpty(edges)) {
+                edges = edges.stream().filter(e -> (predIds.contains(e.getTarget()) || predIds.contains(e.getSource())) && !e.getSource().equals(nodeId)).collect(Collectors.toList());
+                Edge edge = new Edge(nodeId, target.getId());
+                edges.add(edge);
+            }
+            dag.setNodes(nodes);
+            dag.setEdges(edges);
+
+            DAG build = DAG.build(dag);
+            taskDtoCopy.setDag(build);
+        }
+
+        taskDtoCopy.setName(taskDto.getName() + "(101)");
+        taskDtoCopy.setVersion(version);
+        taskDtoCopy.setId(MongoUtils.toObjectId(testTaskId));
+        return jsType == 1 ? rpcTestRun(testTaskId, accessToken, taskDtoCopy, logOutputCount, nodeId) : wsTestRun(userDetail, taskDto, taskDtoCopy);
+    }
+
+    private Map<String, Object> rpcTestRun(String testTaskId, String accessToken, TaskDto taskDtoCopy, int logOutputCount, String nodeId){
         // RPC
         String serverPort = CommonUtils.getProperty("tapdata_proxy_server_port", "3000");
         int port;
@@ -602,34 +721,41 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             return resultMap(testTaskId, false, "Can't get server port.");
         }
         String url = "http://localhost:" + port +"/api/proxy/call?access_token=" + accessToken;
-        OkHttpClient client = new OkHttpClient();
         Map<String, Object> paraMap = new HashMap<>();
         paraMap.put("className", "JSProcessNodeTestRunService");
         paraMap.put("method", "testRun");
-        paraMap.put("args", new ArrayList<Object>(){{ add(taskDtoCopy); add(logOutputCount); }});
+        paraMap.put("args", new ArrayList<Object>(){{ add(taskDtoCopy); add(nodeId); add(logOutputCount); }});
         try {
+            OkHttpClient client = new OkHttpClient.Builder()
+                    .connectTimeout(90, TimeUnit.SECONDS)
+                    .readTimeout(90, TimeUnit.SECONDS)
+                    .build();
             Request request = new Request.Builder()
                     .url(url)
                     .method("POST", RequestBody.create(MediaType.parse("application/json"), JsonUtil.toJsonUseJackson(paraMap)))
                     .addHeader("Content-Type", "application/json")
                     .build();
-            Response response = client.newCall(request).execute();
+            Call call = client.newCall(request);
+            Response response = call.execute();
             return (Map<String, Object>) fromJson(response.body().string());
         }catch (Exception e){
             return resultMap(testTaskId, false, e.getMessage());
         }
+    }
 
+    private Map<String, Object> wsTestRun(UserDetail userDetail, TaskDto taskDto, TaskDto taskDtoCopy){
         // WS
-        //List<Worker> workers = workerService.findAvailableAgentByAccessNode(userDetail, taskDto.getAccessNodeProcessIdList());
-        //if (CollectionUtils.isEmpty(workers)) {
-        //    throw new BizException("no agent");
-        //}
-        //
-        //MessageQueueDto queueDto = new MessageQueueDto();
-        //queueDto.setReceiver(workers.get(0).getProcessId());
-        //queueDto.setData(taskDtoCopy);
-        //queueDto.setType(TaskDto.SYNC_TYPE_TEST_RUN);
-        //messageQueueService.sendMessage(queueDto);
+        List<Worker> workers = workerService.findAvailableAgentByAccessNode(userDetail, taskDto.getAccessNodeProcessIdList());
+        if (CollectionUtils.isEmpty(workers)) {
+            throw new BizException("no agent");
+        }
+
+        MessageQueueDto queueDto = new MessageQueueDto();
+        queueDto.setReceiver(workers.get(0).getProcessId());
+        queueDto.setData(taskDtoCopy);
+        queueDto.setType(TaskDto.SYNC_TYPE_TEST_RUN);
+        messageQueueService.sendMessage(queueDto);
+        return new HashMap<>();
     }
 
     private Map<String,Object> resultMap(String testTaskId, boolean isSucceed, String message){

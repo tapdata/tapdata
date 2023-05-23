@@ -19,6 +19,8 @@ public class ConnectionOptions {
     public static final String CAPABILITY_CONCURRENT_WRITE = "disable_concurrent_write";
     //Connector count is slow, should avoid to use count.
     public static final String CAPABILITY_COUNT_IS_SLOW = "count_is_slow";
+    //Connector support source support exactly once to assign exactlyOnceId for every TapBaseEvent, subclasses are TapRecordEvent and TapDDLEvent.
+    public static final String CAPABILITY_SOURCE_SUPPORT_EXACTLY_ONCE = "source_support_exactly_once";
 
     //DDL events
     public static final String DDL_ALTER_FIELD_NAME_EVENT = FormatUtils.formatTapEvent(TapAlterFieldNameEvent.class);

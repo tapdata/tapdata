@@ -12,6 +12,7 @@ import java.util.List;
 public abstract class TapBaseEvent extends TapEvent {
     protected String associateId;
     protected String tableId;
+    protected String exactlyOnceId;
     protected List<String> namespaces;
     /**
      * The reference time read from source, maybe some difference as sources are different
@@ -117,6 +118,14 @@ public abstract class TapBaseEvent extends TapEvent {
 
     public void setNamespaces(List<String> namespaces) {
         this.namespaces = namespaces;
+    }
+
+    public String getExactlyOnceId() {
+        return exactlyOnceId;
+    }
+
+    public void setExactlyOnceId(String exactlyOnceId) {
+        this.exactlyOnceId = exactlyOnceId;
     }
 
     //    @Override

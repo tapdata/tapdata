@@ -297,9 +297,9 @@ public class AlarmServiceImpl implements AlarmService {
 										.userId(taskDto.getUserId())
 										.name(taskDto.getName())
 										.systemOpen(checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SYSTEM, userDetail))
-										.systemOpen(checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.EMAIL, userDetail))
-										.systemOpen(checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SMS, userDetail))
-										.systemOpen(checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.WECHAT, userDetail))
+										.emailOpen(checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.EMAIL, userDetail))
+										.smsOpen(checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SMS, userDetail))
+										.wechatOpen(checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.WECHAT, userDetail))
 										.build();
 
 					} else if (StringUtils.isNotEmpty(info.getInspectId())) {
@@ -314,8 +314,8 @@ public class AlarmServiceImpl implements AlarmService {
 										.name(inspectDto.getName())
 										.systemOpen(checkOpen(inspectDto.getAlarmSettings(),  info.getMetric(), NotifyEnum.SYSTEM, userDetail))
 										.emailOpen(checkOpen(inspectDto.getAlarmSettings(),  info.getMetric(), NotifyEnum.EMAIL, userDetail))
-										.emailOpen(checkOpen(inspectDto.getAlarmSettings(),  info.getMetric(), NotifyEnum.SMS, userDetail))
-										.emailOpen(checkOpen(inspectDto.getAlarmSettings(),  info.getMetric(), NotifyEnum.WECHAT, userDetail))
+										.smsOpen(checkOpen(inspectDto.getAlarmSettings(),  info.getMetric(), NotifyEnum.SMS, userDetail))
+										.wechatOpen(checkOpen(inspectDto.getAlarmSettings(),  info.getMetric(), NotifyEnum.WECHAT, userDetail))
 										.build();
 
 					} else {
@@ -541,6 +541,16 @@ public class AlarmServiceImpl implements AlarmService {
                         info.getParam().get("threshold"), info.getParam().get("currentValue"), dateTime);
                 SmsEvent = "当前任务运行超过阈值";
                 break;
+					case INSPECT_TASK_ERROR:
+					case INSPECT_COUNT_ERROR:
+					case INSPECT_VALUE_ERROR:
+						title=info.getName()+"发生异常";
+						ExpressionParser parser = new SpelExpressionParser();
+						TemplateParserContext parserContext = new TemplateParserContext();
+						String template = MessageUtil.getAlarmMsg(Locale.US, info.getSummary());
+						content = parser.parseExpression(template, parserContext).getValue(info.getParam(), String.class);
+						SmsEvent ="异常";
+						break;
             default:
                 title=info.getName()+"发生异常";
                 content = StringUtils.replace(info.getSummary(), "$taskName", info.getName());

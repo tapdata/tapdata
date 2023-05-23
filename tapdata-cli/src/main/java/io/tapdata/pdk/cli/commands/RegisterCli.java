@@ -224,9 +224,12 @@ public class RegisterCli extends CommonCli {
                 }
 
             }
+
+            System.exit(0);
         } catch (Throwable throwable) {
             throwable.printStackTrace();
             CommonUtils.logError(TAG, "Start failed", throwable);
+            System.exit(-1);
         }
         return 0;
     }
