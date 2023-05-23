@@ -17,19 +17,58 @@
     "connection": {
       "type": "object",
       "properties": {
+        "openKeyId": {
+          "type": "String",
+          "title": "${con_open_key_id}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 10,
+          "required": true,
+          "x-decorator-props": {
+            "tooltip": "${tip_user_tags}"
+          }
+        },
+        "secretKey": {
+          "type": "String",
+          "title": "${con_secret_key}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 20,
+          "required": true,
+          "x-decorator-props": {
+            "tooltip": "${tip_user_tags}"
+          }
+        },
+        "doMain": {
+          "type": "String",
+          "title": "${con_secret_key}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 20,
+          "required": true
+        }
       }
     }
   },
   "messages": {
     "default": "en_US",
     "en_US": {
-      "doc": "doc/shein_en_US.md"
+      "doc": "doc/shein_en_US.md",
+
+      "con_open_key_id": "Open Key ID",
+      "con_secret_key": "Secret Key"
     },
     "zh_CN": {
-      "doc": "doc/shein_zh_CN.md"
+      "doc": "doc/shein_zh_CN.md",
+
+      "con_open_key_id": "Open Key ID",
+      "con_secret_key": "Secret Key"
     },
     "zh_TW": {
-      "doc": "doc/shein_zh_TW.md"
+      "doc": "doc/shein_zh_TW.md",
+
+      "con_open_key_id": "Open Key ID",
+      "con_secret_key": "Secret Key"
     }
   }
 }
