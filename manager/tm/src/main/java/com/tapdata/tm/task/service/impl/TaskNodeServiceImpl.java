@@ -62,6 +62,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import okhttp3.Call;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -88,6 +89,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.StringJoiner;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -719,18 +721,22 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             return resultMap(testTaskId, false, "Can't get server port.");
         }
         String url = "http://localhost:" + port +"/api/proxy/call?access_token=" + accessToken;
-        OkHttpClient client = new OkHttpClient();
         Map<String, Object> paraMap = new HashMap<>();
         paraMap.put("className", "JSProcessNodeTestRunService");
         paraMap.put("method", "testRun");
         paraMap.put("args", new ArrayList<Object>(){{ add(taskDtoCopy); add(nodeId); add(logOutputCount); }});
         try {
+            OkHttpClient client = new OkHttpClient.Builder()
+                    .connectTimeout(90, TimeUnit.SECONDS)
+                    .readTimeout(90, TimeUnit.SECONDS)
+                    .build();
             Request request = new Request.Builder()
                     .url(url)
                     .method("POST", RequestBody.create(MediaType.parse("application/json"), JsonUtil.toJsonUseJackson(paraMap)))
                     .addHeader("Content-Type", "application/json")
                     .build();
-            Response response = client.newCall(request).execute();
+            Call call = client.newCall(request);
+            Response response = call.execute();
             return (Map<String, Object>) fromJson(response.body().string());
         }catch (Exception e){
             return resultMap(testTaskId, false, e.getMessage());
