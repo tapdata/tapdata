@@ -110,8 +110,7 @@ public class TcmService {
         if (StringUtils.isNotEmpty(responseStr)) {
             ResponseMessage responseMessage = JsonUtil.parseJson(responseStr, ResponseMessage.class);
             if (ResponseMessage.OK.equals(responseMessage.getCode())) {
-                Map dataMap = (Map) responseMessage.getData();
-                return (Date) dataMap.get("createTime");
+                return (Date) responseMessage.getData();
             } else {
                 log.error("tcm处理异常。responseMessage：{}", responseMessage);
             }
