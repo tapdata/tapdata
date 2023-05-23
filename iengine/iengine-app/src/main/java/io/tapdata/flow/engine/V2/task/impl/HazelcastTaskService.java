@@ -316,7 +316,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 						);
 					} catch (Exception e) {
 						throw new TapCodeException(TaskProcessorExCode_11.CREATE_PROCESSOR_FAILED,
-								String.format("Failed to create processor based on node information, node: %s[%s]", node.getName(), node.getId()), e);
+								String.format("Failed to create processor based on node information, node: %s[%s], error msg: %s", node.getName(), node.getId(), e.getMessage()), e);
 					}
 				});
 				vertexMap.put(node.getId(), vertex);
