@@ -48,7 +48,6 @@ import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MetadataUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SchemaTransformUtils;
-import io.tapdata.entity.conversion.PossibleDataTypes;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
@@ -1924,16 +1923,6 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         for (MetadataInstancesDto item : items) {
             List<Field> fields = item.getFields();
             if (null == fields) continue;
-
-            //fields not support : lastMatchedDataType null
-            Map<String, PossibleDataTypes> dataTypes = item.getFindPossibleDataTypes();
-            if (Objects.nonNull(dataTypes)) {
-                fields.forEach(field -> {
-                    if (Objects.nonNull(dataTypes.get(field.getFieldName())) && dataTypes.get(field.getFieldName()).getLastMatchedDataType() == null) {
-                        field.setDeleted(true);
-                    }
-                });
-            }
 
             List<String> deleteFieldNames = fields.stream().filter(Field::isDeleted).map(Field::getFieldName).collect(Collectors.toList());
             item.setFields(fields.stream().filter(f->!f.isDeleted()).collect(Collectors.toList()));
