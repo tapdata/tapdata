@@ -1,73 +1,82 @@
-## **连接配置帮助**
-
-### **1. Aliyun ADB MySQL 安装说明**
-
-请遵循以下说明以确保在 Tapdata 中成功添加和使用Aliyun ADB MySQL数据库。
-
+## **連接配寘幫助**
+### **1. Aliyun RDS MySQL安裝說明**
+請遵循以下說明以確保在Tapdata中成功添加和使用Aliyun RDS MySQL資料庫。
 ### **2. 支持版本**
-Aliyun ADB MySQL 5.0、5.1、5.5、5.6、5.7、8.x
-
-### **3. 先决条件（作为源）**
-#### **3.1 开启 Binlog**
-- 必须开启 Aliyun ADB MySQL 的 binlog ，Tapdata 才能正常完成同步工作。
-- 级连删除（CASCADE DELETE），这类由数据库产生的删除不会记录在binlog内，所以不被支持。
-修改 `$MYSQL_HOME/mysql.cnf `, 例如:
+Aliyun RDS MySQL 5.0、5.1、5.5、5.6、5.7、8.x
+### **3. 先決條件（作為源）**
+#### **3.1開啟Binlog**
+-必須開啟Aliyun RDS MySQL的binlog，Tapdata才能正常完成同步工作。
+-級連删除（CASCADE DELETE），這類由資料庫產生的删除不會記錄在binlog內，所以不被支持。
+修改`$MYSQL_ HOME/mysql.cnf `，例如：
 ```
-server_id         = 223344
-log_bin           = mysql-bin
-expire_logs_days  = 1
-binlog_format     = row
-binlog_row_image  = full
+server_ id = 223344
+log_ bin = mysql-bin
+expire_ logs_ days = 1
+binlog_ format = row
+binlog_ row_ image = full
 ```
-配置解释：<br>
-server-id: 对于 Aliyun ADB MySQL 中的每个服务器和复制客户端必须是唯一的<br>
-binlog_format：必须设置为 row 或者 ROW<br>
-binlog_row_image：必须设置为 full<br>
-expire_logs_days：二进制日志文件保留的天数，到期会自动删除<br>
-log_bin：binlog 序列文件的基本名称<br>
-
-#### **3.2 重启 Aliyun ADB MySQL**
-
+配寘解釋：<br>
+server-id:對於Aliyun RDS MySQL中的每個服務器和複製用戶端必須是唯一的<br>
+binlog_ format：必須設定為row或者ROW<br>
+binlog_ row_ image：必須設定為full<br>
+expire_ logs_ days：二進位日誌檔保留的天數，到期會自動删除<br>
+log_ bin:binlog序列檔案的基本名稱<br>
+#### **3.2重啓Aliyun RDS MySQL**
 ```
 /etc/inint.d/mysqld restart
 ```
-验证 binlog 已启用，请在 mysql shell 执行以下命令
+驗證binlog已啟用，請在mysql shell執行以下命令
 ```
-show variables like 'binlog_format';
+show variables like 'binlog_ format'；
 ```
-输出的结果中，format value 应该是"ROW"
-
-验证 binlog_row_image 参数的值是否为full:
+輸出的結果中，format value應該是“ROW”
+驗證binlog_ row_ image參數的值是否為full:
 ```
-show variables like 'binlog_row_image';
+show variables like 'binlog_ row_ image'；
 ```
-输出结果中，binlog_row_image value应该是"FULL"
-
-#### **3.3 创建Aliyun ADB MySQL账号**
-Mysql8以后，对密码加密的方式不同，请注意使用对应版本的方式，设置密码，否则会导致无法进行增量同步
+輸出結果中，binlog_ row_ image value應該是“FULL”
+#### **3.3創建Aliyun RDS MySQL帳號**
+Mysql8以後，對密碼加密的管道不同，請注意使用對應版本的管道，設置密碼，否則會導致無法進行增量同步
 ##### **3.3.1 5.x版本**
 ```
-create user 'username'@'localhost' identified by 'password';
+create user 'username'@'localhost' identified by 'password'；
 ```
 ##### **3.3.2 8.x版本**
 ```
-// 创建用户
-create user 'username'@'localhost' identified with mysql_native_password by 'password';
-// 修改密码
-alter user 'username'@'localhost' identified with mysql_native_password by 'password';
-
+//創建用戶
+create user 'username'@'localhost' identified with mysql_ native_ password by 'password'；
+//修改密碼
+alter user 'username'@'localhost' identified with mysql_ native_ password by 'password'；
 ```
-
-#### **3.4 给 tapdata 账号授权**
-对于某个数据库赋于select权限
+#### **3.4給tapdata帳號授權**
+對於某個資料庫賦於select許可權
 ```
-GRANT SELECT, SHOW VIEW, CREATE ROUTINE, LOCK TABLES ON <DATABASE_NAME>.<TABLE_NAME> TO 'tapdata' IDENTIFIED BY 'password';
+GRANT SELECT，SHOW VIEW，CREATE ROUTINE，LOCK TABLES ON <DATABASE_ NAME>.< TABLE_ NAME> TO 'tapdata' IDENTIFIED BY 'password'；
 ```
-对于全局的权限
+對於全域的許可權
 ```
-GRANT RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'tapdata' IDENTIFIED BY 'password';
+GRANT RELOAD，SHOW DATABASES，REPLICATION SLAVE，REPLICATION CLIENT ON *.* TO 'tapdata' IDENTIFIED BY 'password'；
 ```
-#### **3.5 约束说明**
+#### **3.5約束說明**
 ```
-当从Aliyun ADB MySQL同步到其他异构数据库时，如果源Aliyun ADB MySQL存在表级联设置，因该级联触发产生的数据更新和删除不会传递到目标。如需要在目标端构建级联处理能力，可以视目标情况，通过触发器等手段来实现该类型的数据同步。
+當從Aliyun RDS MySQL同步到其他異構資料庫時，如果源Aliyun RDS MySQL存在錶級聯設定，因該級聯觸發產生的數據更新和删除不會傳遞到目標。 如需要在目標端構建級聯處理能力，可以視目標情况，通過觸發器等手段來實現該類型的資料同步。
+```
+### **4. 先決條件（作為目標）**
+對於某個資料庫賦於全部許可權
+```
+GRANT ALL PRIVILEGES ON <DATABASE_ NAME>.< TABLE_ NAME> TO 'tapdata' IDENTIFIED BY 'password'；
+```
+對於全域的許可權
+```
+GRANT PROCESS ON *.* TO 'tapdata' IDENTIFIED BY 'password'；
+```
+### **5. 常見錯誤**
+Unknown error 1044
+如果許可權已經grant了，但是通過tapdata還是無法通過測試連接，可以通過下麵的步驟檢查並修復
+```
+SELECT host，user，Grant_ priv，Super_ priv FROM mysql.user where user='username'；
+//查看Grant_ priv欄位的值是否為Y
+//如果不是，則執行以下命令
+UPDATE mysql.user SET Grant_ priv='Y' WHERE user='username'；
+FLUSH PRIVILEGES；
 ```
