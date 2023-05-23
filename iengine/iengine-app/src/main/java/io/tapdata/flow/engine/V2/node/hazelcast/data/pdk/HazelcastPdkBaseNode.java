@@ -63,7 +63,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	protected SyncProgress syncProgress;
 	protected String associateId;
 	protected TapLogger.LogListener logListener;
-	private List<PDKMethodInvoker> pdkMethodInvokerList = new ArrayList<>();
+	private final List<PDKMethodInvoker> pdkMethodInvokerList = new ArrayList<>();
 
 	protected Integer readBatchSize;
 

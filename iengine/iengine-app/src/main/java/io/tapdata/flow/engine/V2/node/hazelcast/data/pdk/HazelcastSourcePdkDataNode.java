@@ -4,6 +4,7 @@ import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.CollectionUtil;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataCompleteSnapshotEvent;
+import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TapdataHeartbeatEvent;
 import com.tapdata.entity.TapdataStartedCdcEvent;
@@ -14,6 +15,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.ErrorCodeConfig;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.SourceCDCDelayAspect;
 import io.tapdata.aspect.SourceJoinHeartbeatAspect;
@@ -203,7 +205,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (null != controller) {
 			CommonUtils.AnyError runner = () -> doSnapshot(tableList);
 			controller.runWithControl(getNode(), runner);
-			controller.finish(getNode());
 		}
 	}
 
@@ -341,6 +342,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											)
 									));
 							executeAspect(new SnapshotReadTableEndAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
+							enqueue(new TapdataCompleteTableSnapshotEvent(tableName));
 						} catch (Throwable throwable) {
 							executeAspect(new SnapshotReadTableErrorAspect().dataProcessorContext(dataProcessorContext).tableName(tableName).error(throwable));
 							Throwable throwableWrapper = throwable;

@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.util;
 
 import com.tapdata.entity.OperationType;
+import com.tapdata.entity.SyncStage;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;

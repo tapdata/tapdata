@@ -23,6 +23,7 @@ public class ClickhouseJdbcContext extends JdbcContext {
 
     public ClickhouseJdbcContext(ClickhouseConfig config) {
         super(config);
+        exceptionCollector = new ClickhouseExceptionCollector();
         try {
             clickhouseVersion = queryVersion();
         } catch (SQLException ignored) {

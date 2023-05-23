@@ -43,7 +43,7 @@ public class PdkStateMap implements KVMap<Object> {
 	private DocumentIMap<Document> constructIMap;
 	private ExternalStorageDto externalStorage;
 
-	private PdkStateMap() {
+	protected PdkStateMap() {
 	}
 
 	public ExternalStorageDto getExternalStorage() {

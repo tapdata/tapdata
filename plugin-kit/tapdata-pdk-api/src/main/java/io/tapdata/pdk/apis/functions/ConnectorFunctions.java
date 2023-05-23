@@ -9,35 +9,8 @@ import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.apis.functions.connector.TapFunction;
 import io.tapdata.pdk.apis.functions.connector.common.ReleaseExternalFunction;
-import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
-import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
-import io.tapdata.pdk.apis.functions.connector.source.CountByPartitionFilterFunction;
-import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
-import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionOptions;
-import io.tapdata.pdk.apis.functions.connector.source.GetReadPartitionsFunction;
-import io.tapdata.pdk.apis.functions.connector.source.QueryFieldMinMaxValueFunction;
-import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunction;
-import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunctionV2;
-import io.tapdata.pdk.apis.functions.connector.source.RunRawCommandFunction;
-import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
-import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
-import io.tapdata.pdk.apis.functions.connector.target.AlterDatabaseTimeZoneFunction;
-import io.tapdata.pdk.apis.functions.connector.target.AlterFieldAttributesFunction;
-import io.tapdata.pdk.apis.functions.connector.target.AlterFieldNameFunction;
-import io.tapdata.pdk.apis.functions.connector.target.AlterTableCharsetFunction;
-import io.tapdata.pdk.apis.functions.connector.target.ClearTableFunction;
-import io.tapdata.pdk.apis.functions.connector.target.ControlFunction;
-import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
-import io.tapdata.pdk.apis.functions.connector.target.DeleteIndexFunction;
-import io.tapdata.pdk.apis.functions.connector.target.DropFieldFunction;
-import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
-import io.tapdata.pdk.apis.functions.connector.target.NewFieldFunction;
-import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
-import io.tapdata.pdk.apis.functions.connector.target.QueryByFilterFunction;
-import io.tapdata.pdk.apis.functions.connector.target.QueryIndexesFunction;
-import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
+import io.tapdata.pdk.apis.functions.connector.source.*;
+import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.apis.partition.FieldMinMaxValue;
 
 import java.lang.reflect.Field;
@@ -87,6 +60,27 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
     protected CountByPartitionFilterFunction countByPartitionFilterFunction;
     protected GetReadPartitionsFunction getReadPartitionsFunction;
     protected QueryFieldMinMaxValueFunction queryFieldMinMaxValueFunction;
+    protected StreamReadMultiConnectionFunction streamReadMultiConnectionFunction;
+    protected TransactionBeginFunction transactionBeginFunction;
+    protected TransactionCommitFunction transactionCommitFunction;
+    protected TransactionRollbackFunction transactionRollbackFunction;
+
+    public ConnectorFunctions supportTransactionBeginFunction(TransactionBeginFunction function) {
+        transactionBeginFunction = function;
+        return this;
+    }
+    public ConnectorFunctions supportTransactionCommitFunction(TransactionCommitFunction function) {
+        transactionCommitFunction = function;
+        return this;
+    }
+    public ConnectorFunctions supportTransactionRollbackFunction(TransactionRollbackFunction function) {
+        transactionRollbackFunction = function;
+        return this;
+    }
+    public ConnectorFunctions supportStreamReadMultiConnectionFunction(StreamReadMultiConnectionFunction function) {
+        streamReadMultiConnectionFunction = function;
+        return this;
+    }
 
     public ConnectorFunctions supportRunRawCommandFunction(RunRawCommandFunction function) {
         runRawCommandFunction = function;
@@ -452,5 +446,21 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
 
     public RunRawCommandFunction getRunRawCommandFunction() {
         return runRawCommandFunction;
+    }
+
+    public StreamReadMultiConnectionFunction getStreamReadMultiConnectionFunction() {
+        return streamReadMultiConnectionFunction;
+    }
+
+    public TransactionBeginFunction getTransactionBeginFunction() {
+        return transactionBeginFunction;
+    }
+
+    public TransactionCommitFunction getTransactionCommitFunction() {
+        return transactionCommitFunction;
+    }
+
+    public TransactionRollbackFunction getTransactionRollbackFunction() {
+        return transactionRollbackFunction;
     }
 }

@@ -26,9 +26,11 @@ import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.TapFilter;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 
+import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
@@ -58,6 +60,8 @@ public abstract class CommonDbConnector extends ConnectorBase {
     protected Log tapLogger;
     protected ExceptionCollector exceptionCollector = new AbstractExceptionCollector() {
     };
+    protected Map<String, Connection> transactionConnectionMap = new ConcurrentHashMap<>();
+    protected boolean isTransaction = false;
 
     @Override
     public int tableCount(TapConnectionContext connectionContext) throws SQLException {
@@ -523,7 +527,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
     }
 
     protected void batchReadWithoutOffset(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
-        String columns = tapTable.getNameFieldMap().keySet().stream().map(c -> "\"" + c + "\"").collect(Collectors.joining(","));
+        String columns = tapTable.getNameFieldMap().keySet().stream().map(c -> commonDbConfig.getEscapeChar() + c + commonDbConfig.getEscapeChar()).collect(Collectors.joining(","));
         String sql = String.format("SELECT %s FROM " + getSchemaAndTable(tapTable.getId()), columns);
 
         jdbcContext.query(sql, resultSet -> {
@@ -568,6 +572,34 @@ public abstract class CommonDbConnector extends ConnectorBase {
                 consumer.accept(filterResults);
             }
         });
+    }
+
+    protected void beginTransaction(TapConnectorContext connectorContext) throws Throwable {
+        isTransaction = true;
+    }
+
+    protected void commitTransaction(TapConnectorContext connectorContext) throws Throwable {
+        for (Map.Entry<String, Connection> entry : transactionConnectionMap.entrySet()) {
+            try {
+                entry.getValue().commit();
+            } finally {
+                EmptyKit.closeQuietly(entry.getValue());
+            }
+        }
+        transactionConnectionMap.clear();
+        isTransaction = false;
+    }
+
+    protected void rollbackTransaction(TapConnectorContext connectorContext) throws Throwable {
+        for (Map.Entry<String, Connection> entry : transactionConnectionMap.entrySet()) {
+            try {
+                entry.getValue().rollback();
+            } finally {
+                EmptyKit.closeQuietly(entry.getValue());
+            }
+        }
+        transactionConnectionMap.clear();
+        isTransaction = false;
     }
 
     protected void queryIndexes(TapConnectorContext connectorContext, TapTable table, Consumer<List<TapIndex>> consumer) {

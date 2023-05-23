@@ -1,20 +1,22 @@
 package com.tapdata.tm.inspect.service;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.date.DateUtil;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
-import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
+import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.inspect.bean.Source;
 import com.tapdata.tm.inspect.bean.Stats;
@@ -26,7 +28,6 @@ import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.entity.InspectResultEntity;
 import com.tapdata.tm.inspect.param.SaveInspectResultParam;
 import com.tapdata.tm.inspect.repository.InspectResultRepository;
-import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.NonNull;
@@ -46,7 +47,6 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -394,6 +394,7 @@ public class InspectResultService extends BaseService<InspectResultDto, InspectR
 										.summary("INSPECT_COUNT_ERROR")
 										.metric(AlarmKeyEnum.INSPECT_COUNT_ERROR)
 										.param(alarmParams)
+										.lastNotifyTime(DateUtil.date())
 										.build();
 					}
 				} else {
@@ -413,6 +414,7 @@ public class InspectResultService extends BaseService<InspectResultDto, InspectR
 										.summary("jointField".equals(inspectMethod) ? "INSPECT_VALUE_JOIN_ERROR" : "INSPECT_VALUE_ALL_ERROR")
 										.metric(AlarmKeyEnum.INSPECT_VALUE_ERROR)
 										.param(alarmParams)
+										.lastNotifyTime(DateUtil.date())
 										.build();
 					}
 				}
