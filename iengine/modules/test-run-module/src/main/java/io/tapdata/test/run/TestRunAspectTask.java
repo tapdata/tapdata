@@ -109,13 +109,13 @@ public class TestRunAspectTask extends AspectTask {
     paramMap.put("taskId", task.getId().toHexString());
     paramMap.put("version", task.getVersion());
     paramMap.put("ts", new Date().getTime());
+    paramMap.put("before", Optional.ofNullable(resultMap.get("before")).orElse(new ArrayList<>()));
     if (stopAspect.getError() != null) {
       //run task error
       paramMap.put("code", "error");
       paramMap.put("message", ExceptionUtil.getMessage(stopAspect.getError()));
     } else {
       paramMap.put("code", "ok");
-      paramMap.put("before", Optional.ofNullable(resultMap.get("before")).orElse(new ArrayList<>()));
       paramMap.put("after", Optional.ofNullable(resultMap.get("after")).orElse(new ArrayList<>()));
     }
 
