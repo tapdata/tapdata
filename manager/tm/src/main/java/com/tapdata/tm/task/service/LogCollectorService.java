@@ -1607,7 +1607,7 @@ public class LogCollectorService {
 							return o;
 						}));
         logCollectorConnConfigMap.values().forEach(v -> {
-            if (v.getTableNames() != null) {
+            if (null != v.getTableNames() && null != v.getExclusionTables()) {
                 v.getTableNames().removeIf(v.getExclusionTables()::contains);
             }
         });
