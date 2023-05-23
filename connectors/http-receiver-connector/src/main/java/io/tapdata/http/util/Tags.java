@@ -17,7 +17,7 @@ public class Tags {
     public static final String OP_UPDATE = "u";
     public static final String OP_DELETE = "d";
 
-    public static final String SCRIPT_BEFORE = "function handleEvent(event) {";
+    public static final String SCRIPT_BEFORE = "function handleEvent(eventData) {";
     public static final String SCRIPT_AFTER = "}";
 
     public static String script(String body){

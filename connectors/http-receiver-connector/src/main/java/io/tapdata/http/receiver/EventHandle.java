@@ -1,6 +1,5 @@
 package io.tapdata.http.receiver;
 
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.TapSimplify;
@@ -19,22 +18,6 @@ import java.util.Optional;
  **/
 public class EventHandle {
     public static final String TAG = EventHandle.class.getSimpleName();
-    //public String eventType;
-    //public Map<String, Object> data;
-
-    //public static EventHandle handle(String type, Map<String, Object> data){
-    //    return new EventHandle().type(type).data(data);
-    //}
-
-    //public EventHandle type(String eventType){
-    //    this.eventType = eventType;
-    //    return this;
-    //}
-
-    //public EventHandle data(Map<String, Object> data){
-    //    this.data = data;
-    //    return this;
-    //}
 
     public static TapEvent event(String tableName, Map<String,Object> data) {
         if (null == data || data.isEmpty()){

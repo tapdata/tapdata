@@ -132,6 +132,4 @@ public class HttpReceiverConnector extends ConnectorBase {
     public int tableCount(TapConnectionContext tapConnectionContext) throws Throwable {
         return 1;
     }
-
-
 }

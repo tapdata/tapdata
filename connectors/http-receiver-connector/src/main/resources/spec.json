@@ -66,9 +66,9 @@
           "x-component": "JsEditor",
           "x-component-props": {
             "height": 300,
-            "before": "function handleEvent(event) {",
+            "before": "function handleEvent(eventData) {",
             "after": "}",
-            "beforeRegexp": "^[^]*function\\s+handleEvent\\s*\\(event\\)\\s+\\{",
+            "beforeRegexp": "^[^]*function\\s+handleEvent\\s*\\(eventData\\)\\s+\\{",
             "afterRegexp": "}[^}]*$"
           },
           "x-index": 40

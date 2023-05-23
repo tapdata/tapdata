@@ -42,7 +42,7 @@ public class ConnectionTest {
 
     public TestItem testScript() {
         try {
-
+            //String originalScript = config.originalScript();
             return testItem(TestHttpItem.TEST_EVENT_SCRIPT.content(), TestItem.RESULT_SUCCESSFULLY);
         } catch (Exception e) {
             return testItem(TestHttpItem.TEST_EVENT_SCRIPT.content(), TestItem.RESULT_FAILED, e.getMessage());

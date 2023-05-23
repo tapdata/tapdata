@@ -14,6 +14,7 @@ public class ConnectionConfig {
     private String tableName;
     private String hookUrl;
     private String script;
+    private String originalScript;
 
     public static ConnectionConfig create(TapConnectionContext context) {
         DataMap config = context.getConnectionConfig();
@@ -44,11 +45,16 @@ public class ConnectionConfig {
 
     public ConnectionConfig script(String script) {
         this.script = Tags.script(script);
+        this.originalScript = script;
         return this;
     }
 
     public String script() {
         return this.script;
+    }
+
+    public String originalScript() {
+        return this.originalScript;
     }
 
     public String getTableName() {
