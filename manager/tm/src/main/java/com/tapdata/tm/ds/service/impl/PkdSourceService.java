@@ -280,9 +280,8 @@ public class PkdSourceService {
         List<DataSourceDefinitionDto> all = dataSourceDefinitionService.findAll(Query.query(Criteria.where("is_deleted").is(false).and("scope").is("public")));
         if (CollectionUtils.isNotEmpty(all)) {
             // get tcm build info
-            Date tcmReleaseDate = tcmService.getLatestProductReleaseCreateTime();
-//            Date tcmReleaseDate = new Date();
-            Assert.notNull(tcmReleaseDate, "tcmReleaseDate is null");
+            String tcmReleaseTemp = tcmService.getLatestProductReleaseCreateTime();
+            Assert.notNull(tcmReleaseTemp, "tcmReleaseDate is null");
 
             all.forEach(info -> {
                 PdkVersionCheckDto checkDto = PdkVersionCheckDto.builder().pdkId(info.getPdkId()).pdkVersion(info.getPdkAPIVersion()).pdkHash(info.getPdkHash()).build();
@@ -296,6 +295,7 @@ public class PkdSourceService {
                 }
                 checkDto.setGitBuildTime(buildDate.toString());
 
+                Date tcmReleaseDate = DateUtil.parseDate(tcmReleaseTemp);
                 boolean isLatest = tcmReleaseDate.before(buildDate) || ChronoUnit.DAYS.between(buildDate.toInstant(), tcmReleaseDate.toInstant()) <= days;
                 // compare with tcm build info
                 checkDto.setLatest(isLatest);

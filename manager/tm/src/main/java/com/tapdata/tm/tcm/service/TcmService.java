@@ -105,12 +105,12 @@ public class TcmService {
         }
     }
 
-    public Date getLatestProductReleaseCreateTime() {
+    public String getLatestProductReleaseCreateTime() {
         String responseStr = HttpUtils.sendGetData(TMC_URL + "/api/tcm/productRelease/create_time/latest", null);
         if (StringUtils.isNotEmpty(responseStr)) {
             ResponseMessage responseMessage = JsonUtil.parseJson(responseStr, ResponseMessage.class);
             if (ResponseMessage.OK.equals(responseMessage.getCode())) {
-                return (Date) responseMessage.getData();
+                return (String) responseMessage.getData();
             } else {
                 log.error("tcm处理异常。responseMessage：{}", responseMessage);
             }
