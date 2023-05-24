@@ -5,19 +5,25 @@ import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.memory.LastData;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.http.command.Command;
 import io.tapdata.http.entity.ConnectionConfig;
 import io.tapdata.http.receiver.ConnectionTest;
 import io.tapdata.http.receiver.EventHandle;
 import io.tapdata.http.util.Checker;
+import io.tapdata.http.util.ScriptEvel;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 
 import javax.script.Invocable;
@@ -26,6 +32,7 @@ import javax.script.ScriptException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -46,6 +53,8 @@ public class HttpReceiverConnector extends ConnectorBase {
         scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
         config = ConnectionConfig.create(connectionContext);
         if (null != scriptEngine) {
+            ScriptEvel scriptEvel = ScriptEvel.create(scriptEngine);
+            scriptEvel.evalSourceForSelf();
             scriptEngine.eval(config.script());
         } else {
             throw new CoreException("Can not get event handle script, please check you connection config.");
@@ -131,5 +140,12 @@ public class HttpReceiverConnector extends ConnectorBase {
     @Override
     public int tableCount(TapConnectionContext tapConnectionContext) throws Throwable {
         return 1;
+    }
+
+    private CommandResult handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
+        //tapConnectionContext.setConnectionConfig(new DataMap(){{
+        //    Optional.ofNullable(commandInfo.getConnectionConfig()).ifPresent(this::putAll);}});
+        //tapConnectionContext.setNodeConfig(new DataMap(){{Optional.ofNullable(commandInfo.getNodeConfig()).ifPresent(this::putAll); }});
+        return Command.command(tapConnectionContext, commandInfo);
     }
 }

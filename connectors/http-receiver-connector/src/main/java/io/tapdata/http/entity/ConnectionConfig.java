@@ -4,6 +4,8 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.http.util.Tags;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
+import java.util.Map;
+
 /**
  * @author GavinXiao
  * @description ConnectionConfig create by Gavin
@@ -22,6 +24,13 @@ public class ConnectionConfig {
                 .tableName(config.getString("tableName"))
                 .hookUrl(config.getString("hookText"))
                 .script(config.getString("eventScript"));
+    }
+
+    public static ConnectionConfig create(Map<?,?> connectionConfig) {
+        return new ConnectionConfig()
+                .tableName((String) connectionConfig.get("tableName"))
+                .hookUrl((String) connectionConfig.get("hookText"))
+                .script((String) connectionConfig.get("eventScript"));
     }
 
     public ConnectionConfig tableName(String tableName) {
