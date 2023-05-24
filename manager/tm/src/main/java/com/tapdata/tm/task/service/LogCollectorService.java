@@ -1515,6 +1515,10 @@ public class LogCollectorService {
 			DAG dag = taskDto.getDag();
 			List<Node> sources = dag.getSources();
 			LogCollectorNode logCollectorNode = (LogCollectorNode)sources.get(0);
+			if (logCollectorNode.getLogCollectorConnConfigs() == null) {
+				//老任务不允许操作
+				throw new IllegalArgumentException("Operation not allowed");
+			}
 			Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap = processOldData(logCollectorNode);
 			if (type.equals("exclusion")) {
 				logCollectorConnConfigMap = exclusionTables(logCollectorConnConfigMap, params);
