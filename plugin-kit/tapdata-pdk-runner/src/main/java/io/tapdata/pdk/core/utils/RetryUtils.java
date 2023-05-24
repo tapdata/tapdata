@@ -1,5 +1,7 @@
 package io.tapdata.pdk.core.utils;
 
+import io.tapdata.ErrorCodeConfig;
+import io.tapdata.ErrorCodeEntity;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -70,6 +72,7 @@ public class RetryUtils extends CommonUtils {
 					case WHEN_NEED:
 						if (null == errorHandleFunction) {
 							TapLogger.debug(logTag, "This PDK data source not support retry. ");
+							Optional.ofNullable(invoker.getResetRetry()).ifPresent(Runnable::run);
 							errorHandle(errThrowable);
 						}
 						break;
@@ -83,7 +86,7 @@ public class RetryUtils extends CommonUtils {
 					boolean needDefaultRetry = needDefaultRetry(errThrowable);
 					RetryOptions retryOptions = callErrorHandleFunctionIfNeed(method, message, errThrowable, errorHandleFunction, functionAndContext.tapConnectionContext());
 					if (!needDefaultRetry) {
-						throwIfNeed(retryOptions, message, errThrowable);
+						throwIfNeed(invoker, retryOptions, message, errThrowable);
 					}
 					Optional.ofNullable(invoker.getLogListener())
 							.ifPresent(log -> log.warn(String.format("AutoRetry info: retry times (%s) | periodSeconds (%s s) | error [%s] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage(), errThrowable)));
@@ -128,6 +131,14 @@ public class RetryUtils extends CommonUtils {
 	}
 
 	private static RetryOptions callErrorHandleFunctionIfNeed(PDKMethod method, String message, Throwable errThrowable, ErrorHandleFunction function, TapConnectionContext tapConnectionContext) {
+		if (errThrowable instanceof TapCodeException) {
+			String code = ((TapCodeException) errThrowable).getCode();
+			ErrorCodeEntity errorCode = ErrorCodeConfig.getInstance().getErrorCode(code);
+			if (null != errorCode && !errorCode.isRecoverable()) {
+				return RetryOptions.create().beforeRetryMethod(() -> {}).needRetry(false);
+			}
+		}
+
 		if (null == function) {
 			return null;
 		}
@@ -140,7 +151,7 @@ public class RetryUtils extends CommonUtils {
 		return retryOptions;
 	}
 
-	private static void throwIfNeed(RetryOptions retryOptions, String message, Throwable errThrowable) {
+	private static void throwIfNeed(PDKMethodInvoker invoker, RetryOptions retryOptions, String message, Throwable errThrowable) {
 		if (null == retryOptions) {
 			return;
 		}
@@ -149,6 +160,7 @@ public class RetryUtils extends CommonUtils {
 				throw errThrowable;
 			}
 		} catch (Throwable e) {
+			Optional.ofNullable(invoker.getResetRetry()).ifPresent(Runnable::run);
 			errorHandle(e);
 		}
 	}
