@@ -455,6 +455,8 @@ public class RestTemplateOperator {
 						if (CollectionUtils.isNotEmpty((List) data)) {
 							responseBody.setData(((List) data).get(0));
 							return getBody(responseBody, className);
+						} else {
+							return null;
 						}
 					}
 					return getBody(responseEntity.getBody(), className);
