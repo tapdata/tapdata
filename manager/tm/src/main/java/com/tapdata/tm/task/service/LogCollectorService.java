@@ -954,19 +954,23 @@ public class LogCollectorService {
                 return;
             }
 
-            Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = new HashMap<>();
-			for (String connectionId : connectionIds) {
-				LogCollecotrConnConfig logCollecotrConnConfig = new LogCollecotrConnConfig(connectionId, tableMaps.get(connectionId));
-				logCollectorConnConfigs.put(connectionId, logCollecotrConnConfig);
-			}
-
             LogCollectorNode logCollectorNode = new LogCollectorNode();
-            logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
+            if (StringUtils.isNotBlank(dataSource.getMultiConnectionInstanceId())) {
+                Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = new HashMap<>();
+                for (String connectionId : connectionIds) {
+                    LogCollecotrConnConfig logCollecotrConnConfig = new LogCollecotrConnConfig(connectionId, tableMaps.get(connectionId));
+                    logCollectorConnConfigs.put(connectionId, logCollecotrConnConfig);
+                }
+                logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
+            }
+
+
             logCollectorNode.setId(UUIDUtil.getUUID());
             logCollectorNode.setConnectionIds(connectionIds);
             logCollectorNode.setDatabaseType(v.get(0).getDatabase_type());
             logCollectorNode.setName(v.get(0).getName());
             logCollectorNode.setSelectType(LogCollectorNode.SELECT_TYPE_RESERVATION);
+            logCollectorNode.setTableNames(new ArrayList<>(finalTableNames));
             Map<String, Object> attr = Maps.newHashMap();
             attr.put("pdkHash", dataSource.getPdkHash());
             logCollectorNode.setAttrs(attr);

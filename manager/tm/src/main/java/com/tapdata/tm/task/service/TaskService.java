@@ -3492,9 +3492,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
 
         //对于需要重启的任务，直接拉起来。
-        if (taskDto.getResetFlag() != null && taskDto.getResetFlag()) {
-            start(id, user);
-        }
+        FunctionUtils.ignoreAnyError(() -> {
+            if (taskDto.getResetFlag() != null && taskDto.getResetFlag()) {
+                start(id, user);
+            }
+        });
         return id.toHexString();
     }
 
