@@ -153,8 +153,6 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 			}
 			return currentSnapshotTableInsertRowTotal;
 		});
-
-		collector.addSampler(Constants.CURR_EVENT_TS, () -> currentEventTimestamp.value());
 	}
 
 	public void addTable(String... tables) {
