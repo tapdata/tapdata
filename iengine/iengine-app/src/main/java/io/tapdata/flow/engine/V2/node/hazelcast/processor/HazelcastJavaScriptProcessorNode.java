@@ -31,6 +31,7 @@ import com.tapdata.tm.commons.dag.process.StandardJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.StandardMigrateJsProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ProcessorNodeType;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -52,14 +53,15 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.util.ResourceUtils;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
@@ -69,6 +71,7 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -189,27 +192,23 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			if (Thread.currentThread().getContextClassLoader() == null) {
 				Thread.currentThread().setContextClassLoader(ScriptUtil.class.getClassLoader());
 			}
-			String scripts = script + System.lineSeparator() + buildInMethod;
+			String scripts = buildInMethod + System.lineSeparator() + script;
+
+			e.put("tapUtil", new JsUtil());
+			e.put("tapLog", logger);
+			evalJs(e, "js/csvUtils.js");
+			evalJs(e, "js/arrayUtils.js");
+			evalJs(e, "js/dateUtils.js");
+			evalJs(e, "js/exceptionUtils.js");
+			evalJs(e, "js/stringUtils.js");
+			evalJs(e, "js/mapUtils.js");
+			evalJs(e, "js/log.js");
+
 			try {
 				e.eval(scripts);
 			} catch (Throwable ex) {
-				throw new RuntimeException(String.format("script eval error: %s, %s, %s, %s", jsEngineName, e, scripts, contextClassLoader), ex);
+				throw new CoreException(String.format("Incorrect JS code, syntax error found: %s, please check your javascript code", ex.getMessage()));
 			}
-
-			try {
-				e.put("tapUtil", new JsUtil());
-				e.put("tapLog", logger);
-				e.eval(new FileReader(ResourceUtils.getFile("classpath:js/csvUtils.js")));
-				e.eval(new FileReader(ResourceUtils.getFile("classpath:js/arrayUtils.js")));
-				e.eval(new FileReader(ResourceUtils.getFile("classpath:js/dateUtils.js")));
-				e.eval(new FileReader(ResourceUtils.getFile("classpath:js/exceptionUtils.js")));
-				e.eval(new FileReader(ResourceUtils.getFile("classpath:js/stringUtils.js")));
-				e.eval(new FileReader(ResourceUtils.getFile("classpath:js/mapUtils.js")));
-				e.eval(new FileReader(ResourceUtils.getFile("classpath:js/log.js")));
-			}catch (Throwable ex){
-				throw new RuntimeException(String.format("script eval js util error: %s, %s, %s, %s", jsEngineName, e, scripts, contextClassLoader), ex);
-			}
-
 			Optional.ofNullable(source).ifPresent(s -> e.put("source", s));
 			Optional.ofNullable(target).ifPresent(s -> e.put("target", s));
 			Optional.ofNullable(memoryCacheGetter).ifPresent(s -> e.put("CacheService", s));
@@ -516,5 +515,14 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		Object invoker = e.eval("dateUtils.timeStamp2Date(new Date().getTime(), \"yyyy-MM-dd'T'HH:mm:ssXXX\");");
 		System.out.println(invoker + " ---- " + new JsUtil().timeStamp2Date(System.currentTimeMillis(), "yyyy-MM-dd'T'HH:mm:ssXXX"));
 		e.eval("log.warn(\"Hello Log, i'm %s\", 'Gavin');");
+	}
+
+	private void evalJs(ScriptEngine engine, String fileClassPath){
+		try {
+			ClassPathResource classPathResource = new ClassPathResource(fileClassPath);
+			engine.eval(IOUtils.toString(classPathResource.getInputStream(), StandardCharsets.UTF_8));
+		}catch (Throwable ex){
+			throw new RuntimeException(String.format("script eval js util error: %s, %s", fileClassPath, ex.getMessage()), ex);
+		}
 	}
 }
