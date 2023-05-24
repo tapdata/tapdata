@@ -1926,11 +1926,11 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             List<Field> fields = item.getFields();
             if (null == fields) continue;
 
-            //fields not support : lastMatchedDataType null
+            //fields not support : dataTypes null
             Map<String, PossibleDataTypes> dataTypes = item.getFindPossibleDataTypes();
             if (Objects.nonNull(dataTypes)) {
                 fields.forEach(field -> {
-                    if (Objects.nonNull(dataTypes.get(field.getFieldName())) && dataTypes.get(field.getFieldName()).getLastMatchedDataType() == null) {
+                    if (Objects.nonNull(dataTypes.get(field.getFieldName())) && CollectionUtils.isEmpty(dataTypes.get(field.getFieldName()).getDataTypes())) {
                         field.setDeleted(true);
                     }
                     TapType tapType = JSON.parseObject(field.getTapType(), TapType.class);
