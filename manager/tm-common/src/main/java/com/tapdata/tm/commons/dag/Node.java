@@ -77,6 +77,8 @@ public abstract class Node<S> extends Element{
 
     protected String externalStorageId;
 
+    private Map<String, List<String>> notSupportFieldMap;
+
 //    private String subTaskId;
 
     /**
