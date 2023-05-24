@@ -52,14 +52,6 @@ public class ClickhouseDDLSqlGenerator implements DDLSqlGenerator {
             } else {
                 throw new RuntimeException("CK Append add column ddl sql failed, data type is blank");
             }
-            Boolean nullable = newField.getNullable();
-            if (null != nullable) {
-                if (nullable) {
-                    sql.append(" null");
-                } else {
-                    sql.append(" not null");
-                }
-            }
             Object defaultValue = newField.getDefaultValue();
             if (null != defaultValue) {
                 sql.append(" default '").append(defaultValue).append("'");
@@ -96,17 +88,18 @@ public class ClickhouseDDLSqlGenerator implements DDLSqlGenerator {
         ValueChange<String> dataTypeChange = tapAlterFieldAttributesEvent.getDataTypeChange();
         dataTypeChange.setAfter(dataTypeChange.getAfter().replace("unsigned", "").replace("UNSIGNED", ""));
         if (StringUtils.isNotBlank(dataTypeChange.getAfter())) {
-            sql.append(" ").append(dataTypeChange.getAfter());
+            ValueChange<Boolean> nullableChange = tapAlterFieldAttributesEvent.getNullableChange();
+            if (null != nullableChange && null != nullableChange.getAfter()) {
+                if (nullableChange.getAfter()) {
+                    sql.append(" Nullable(").append(dataTypeChange.getAfter()).append(")");
+                } else {
+                    sql.append(" ").append(dataTypeChange.getAfter());
+                }
+            } else {
+                sql.append(" ").append(dataTypeChange.getAfter());
+            }
         } else {
             throw new RuntimeException("CK Append alter column attr ddl sql failed, data type is blank");
-        }
-        ValueChange<Boolean> nullableChange = tapAlterFieldAttributesEvent.getNullableChange();
-        if (null != nullableChange && null != nullableChange.getAfter()) {
-            if (nullableChange.getAfter()) {
-                sql.append(" null");
-            } else {
-                sql.append(" not null");
-            }
         }
         ValueChange<String> commentChange = tapAlterFieldAttributesEvent.getCommentChange();
         if (null != commentChange && StringUtils.isNotBlank(commentChange.getAfter())) {
