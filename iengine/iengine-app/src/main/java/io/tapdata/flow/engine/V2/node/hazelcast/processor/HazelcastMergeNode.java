@@ -94,13 +94,18 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 		if(mergeTableProperties == null)
 			return;
 		for(MergeTableProperties tableProperties : mergeTableProperties) {
-			if(tableProperties.getMergeType().equals(MergeTableProperties.MergeType.updateIntoArray)) {
+			if(tableProperties.getMergeType().equals(MergeTableProperties.MergeType.updateIntoArray) || tableProperties.getIsArray()) {
+				boolean intoArray = tableProperties.getMergeType().equals(MergeTableProperties.MergeType.updateIntoArray);
 				List<MergeTableProperties> children = tableProperties.getChildren();
 				if(children != null) {
 					for (MergeTableProperties ch : children) {
 						if(!ch.getIsArray()) {
 							ch.setArray(true);
-							TapLogger.warn(TAG, "Fixed merge table properties, set array to true when mergeType is updateIntoArray, table: " + ch.getTableName() + " targetPath: " + ch.getTargetPath());
+
+//							TapLogger.warn(TAG, "Fixed merge table properties, set array to true when mergeType is updateIntoArray, table: " + ch.getTableName() + " targetPath: " + ch.getTargetPath());
+						}
+						if(ch.getArrayPath() == null) {
+							ch.setArrayPath(intoArray ? tableProperties.getTargetPath() : tableProperties.getArrayPath());
 						}
 					}
 				}

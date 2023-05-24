@@ -17,6 +17,15 @@ public class MergeTableProperties implements Serializable {
 	private String tableName;
 	private String targetPath;
 	private boolean isArray;
+	private String arrayPath;
+
+	public String getArrayPath() {
+		return arrayPath;
+	}
+
+	public void setArrayPath(String arrayPath) {
+		this.arrayPath = arrayPath;
+	}
 
 	public MergeType getMergeType() {
 		return mergeType;

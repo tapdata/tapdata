@@ -1,6 +1,7 @@
 package com.tapdata.tm.metadatainstance.service;
 
 import cn.hutool.core.bean.BeanUtil;
+import com.alibaba.fastjson.JSON;
 import com.google.common.collect.ImmutableMap;
 import com.mongodb.BasicDBObject;
 import com.mongodb.bulk.BulkWriteResult;
@@ -1925,11 +1926,15 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             List<Field> fields = item.getFields();
             if (null == fields) continue;
 
-            //fields not support : lastMatchedDataType null
+            //fields not support : dataTypes null
             Map<String, PossibleDataTypes> dataTypes = item.getFindPossibleDataTypes();
             if (Objects.nonNull(dataTypes)) {
                 fields.forEach(field -> {
-                    if (Objects.nonNull(dataTypes.get(field.getFieldName())) && dataTypes.get(field.getFieldName()).getLastMatchedDataType() == null) {
+                    if (Objects.nonNull(dataTypes.get(field.getFieldName())) && CollectionUtils.isEmpty(dataTypes.get(field.getFieldName()).getDataTypes())) {
+                        field.setDeleted(true);
+                    }
+                    TapType tapType = JSON.parseObject(field.getTapType(), TapType.class);
+                    if (TapType.TYPE_RAW == tapType.getType()) {
                         field.setDeleted(true);
                     }
                 });
