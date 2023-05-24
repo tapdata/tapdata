@@ -31,6 +31,7 @@ import com.tapdata.tm.commons.dag.process.StandardJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.StandardMigrateJsProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ProcessorNodeType;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -192,11 +193,6 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				Thread.currentThread().setContextClassLoader(ScriptUtil.class.getClassLoader());
 			}
 			String scripts = buildInMethod + System.lineSeparator() + script;
-			try {
-				e.eval(scripts);
-			} catch (Throwable ex) {
-				throw new RuntimeException(String.format("script eval error: %s, %s, %s, %s", jsEngineName, e, scripts, contextClassLoader), ex);
-			}
 
 			e.put("tapUtil", new JsUtil());
 			e.put("tapLog", logger);
@@ -207,6 +203,12 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			evalJs(e, "js/stringUtils.js");
 			evalJs(e, "js/mapUtils.js");
 			evalJs(e, "js/log.js");
+
+			try {
+				e.eval(scripts);
+			} catch (Throwable ex) {
+				throw new CoreException(String.format("Incorrect JS code, syntax error found: %s, please check your javascript code", ex.getMessage()));
+			}
 			Optional.ofNullable(source).ifPresent(s -> e.put("source", s));
 			Optional.ofNullable(target).ifPresent(s -> e.put("target", s));
 			Optional.ofNullable(memoryCacheGetter).ifPresent(s -> e.put("CacheService", s));
