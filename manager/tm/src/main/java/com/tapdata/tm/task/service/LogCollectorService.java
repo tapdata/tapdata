@@ -1511,24 +1511,23 @@ public class LogCollectorService {
     }
 
     public void configTables(String taskId, List<TableLogCollectorParam> params, String type, UserDetail user) {
-
-		TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), user);
-		DAG dag = taskDto.getDag();
-		List<Node> sources = dag.getSources();
-		LogCollectorNode logCollectorNode = (LogCollectorNode)sources.get(0);
-		Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap = processOldData(logCollectorNode);
-		if (type.equals("exclusion")) {
-			logCollectorConnConfigMap = exclusionTables(logCollectorConnConfigMap, params);
-		} else if (type.equals("add")) {
-			logCollectorConnConfigMap = addTables(logCollectorConnConfigMap, params);
-		} else {
-			throw new IllegalArgumentException("type param is illegal");
-		}
-		logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigMap);
-		taskService.update(Query.query(Criteria.where("_id").is(taskDto.getId())), taskDto);
-        if (taskDto.getStatus().equals(TaskDto.STATUS_RUNNING)) {
-            taskService.pause(taskDto.getId(), user, false, true);
-        }
+			TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), user);
+			DAG dag = taskDto.getDag();
+			List<Node> sources = dag.getSources();
+			LogCollectorNode logCollectorNode = (LogCollectorNode)sources.get(0);
+			Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap = processOldData(logCollectorNode);
+			if (type.equals("exclusion")) {
+				logCollectorConnConfigMap = exclusionTables(logCollectorConnConfigMap, params);
+			} else if (type.equals("add")) {
+				logCollectorConnConfigMap = addTables(logCollectorConnConfigMap, params);
+			} else {
+				throw new IllegalArgumentException("type param is illegal");
+			}
+			logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigMap);
+			taskService.update(Query.query(Criteria.where("_id").is(taskDto.getId())), taskDto);
+			if (taskDto.getStatus().equals(TaskDto.STATUS_RUNNING)) {
+					taskService.pause(taskDto.getId(), user, false, true);
+			}
 	}
 
     public List<ShareCdcConnectionInfo> getConnectionIds(String taskId, UserDetail user) {
