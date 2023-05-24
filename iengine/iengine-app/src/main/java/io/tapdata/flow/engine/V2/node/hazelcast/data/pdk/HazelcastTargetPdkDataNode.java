@@ -630,7 +630,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
 		handleTapTablePrimaryKeys(tapTable);
 		events.forEach(this::addPropertyForMergeEvent);
-		tapRecordEvents.forEach(this::removeNotSupportFields);
+		tapRecordEvents.forEach(t -> removeNotSupportFields(t, tapTable.getId()));
 		WriteRecordFunction writeRecordFunction = getConnectorNode().getConnectorFunctions().getWriteRecordFunction();
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 		if (writeRecordFunction != null) {
