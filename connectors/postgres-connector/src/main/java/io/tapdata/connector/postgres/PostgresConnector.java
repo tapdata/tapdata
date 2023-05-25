@@ -304,6 +304,9 @@ public class PostgresConnector extends CommonDbConnector {
     }
 
     private Object timestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) throws Throwable {
+        if (EmptyKit.isNotNull(offsetStartTime)) {
+            tapLogger.warn("Postgres specified time start increment is not supported, use the current time as the start increment");
+        }
         //test streamRead log plugin
         boolean canCdc = EmptyKit.isNotNull(postgresTest.testStreamRead()) && postgresTest.testStreamRead();
         if (canCdc) {
