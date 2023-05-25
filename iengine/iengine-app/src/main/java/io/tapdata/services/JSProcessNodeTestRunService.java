@@ -92,7 +92,7 @@ public class JSProcessNodeTestRunService {
         } finally {
             taskDtoMap.remove(taskId);
             ObsLoggerFactory.getInstance().forceRemoveTaskLogger(taskDto);
-            logger.info("test run task {} {}, cost {}ms", taskId, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
+            logger.info("test run task {} {}, cost {}ms", taskId, null == taskClient ? "error" : taskClient.getStatus(), (System.currentTimeMillis() - startTs));
         }
         resultMap.put("logs", Optional.ofNullable(logCollector.get()).orElse(new ArrayList<>()));
         return resultMap;

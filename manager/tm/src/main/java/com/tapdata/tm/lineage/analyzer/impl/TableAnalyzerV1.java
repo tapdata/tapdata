@@ -60,40 +60,44 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 	public Graph<Node, Edge> analyzeTable(String connectionId, String table, LineageType lineageType) throws Exception {
 		Graph<Node, Edge> graph = new Graph<>(true, true, false);
 		AnalyzeLayer analyzeLayer = initAnalyzeLayer(connectionId, table, graph);
-		TaskEntity task = findTask(connectionId, table);
-		LineageTableNode lineageTableNode;
-		if (null == task) {
+		List<TaskEntity> tasks = findTasks(connectionId, table, null);
+		LineageTableNode lineageTableNode = null;
+		if (CollectionUtils.isEmpty(tasks)) {
 			DataSourceEntity dataSource = findDataSource(connectionId);
 			LineageMetadataInstance metadata = getMetadata(connectionId, table);
 			lineageTableNode = new LineageTableNode(table, connectionId, dataSource.getName(), dataSource.getPdkHash(), metadata);
 			setGraphNode(graph, lineageTableNode);
 		} else {
-			Node node = findNodeInTask(task, connectionId, table);
-			if (null == node) {
-				return null;
-			}
-			LineageTask lineageTask = wrapLineageTask(task, node);
-			analyzeLayer.setPreNode(node);
-			analyzeLayer.setPreInvalidNode(node);
-			DataSourceEntity dataSource = findDataSource(connectionId);
-			lineageTableNode = new LineageTableNode(table, dataSource.getId().toHexString(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(connectionId, table))
-					.addTask(lineageTask);
-			setGraphNode(graph, lineageTableNode);
-			analyzeLayer.setPreLineageTableNode(lineageTableNode);
-			analyzeLayer.setCurrentTask(lineageTask);
-			analyzeLayer.getNotInTaskIds().add(lineageTask.getId());
-			if (LineageType.ALL_STREAM == lineageType) {
-				analyzeLayer.setLineageType(LineageType.UPSTREAM);
+			for (TaskEntity taskEntity : tasks) {
+				Node node = findNodeInTask(taskEntity, connectionId, table);
+				if (null == node) {
+					return null;
+				}
+				LineageTask lineageTask = wrapLineageTask(taskEntity, node);
+				analyzeLayer.setPreNode(node);
+				analyzeLayer.setPreInvalidNode(node);
+				DataSourceEntity dataSource = findDataSource(connectionId);
+				lineageTableNode = new LineageTableNode(table, dataSource.getId().toHexString(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(connectionId, table))
+						.addTask(lineageTask);
+				setGraphNode(analyzeLayer, lineageTask, node);
+				analyzeLayer.setPreLineageTableNode(lineageTableNode);
+				analyzeLayer.setCurrentTask(lineageTask);
+				analyzeLayer.getNotInTaskIds().add(lineageTask.getId());
+				if (LineageType.ALL_STREAM == lineageType) {
+					analyzeLayer.setLineageType(LineageType.UPSTREAM);
+					recursiveAnalyze(analyzeLayer);
+					initAnalyzeLayer(connectionId, table, graph);
+					analyzeLayer.setLineageType(LineageType.DOWNSTREAM);
+				} else {
+					analyzeLayer.setLineageType(lineageType);
+				}
 				recursiveAnalyze(analyzeLayer);
-				initAnalyzeLayer(connectionId, table, graph);
-				analyzeLayer.setLineageType(LineageType.DOWNSTREAM);
-			} else {
-				analyzeLayer.setLineageType(lineageType);
 			}
-			recursiveAnalyze(analyzeLayer);
 		}
 
-		analyzeApiserver(analyzeLayer, lineageTableNode);
+		if (null != lineageTableNode) {
+			analyzeApiserver(analyzeLayer, lineageTableNode);
+		}
 		return analyzeLayer.getGraph();
 	}
 
@@ -273,13 +277,6 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		SyncObjects objects = syncObjects.stream().filter(so -> MapUtils.isNotEmpty(so.getTableNameRelation())).findFirst().orElse(null);
 		if (null == objects) return null;
 		return objects.getTableNameRelation();
-	}
-
-	private TaskEntity findTask(String connectionId, String table) {
-		Criteria taskCriteria = buildTaskCriteria(connectionId, table);
-		Query query = Query.query(taskCriteria);
-		taskQueryFields(query);
-		return taskRepository.findOne(query).orElse(null);
 	}
 
 	private List<TaskEntity> findTasks(String connectionId, String table, Set<String> notInTaskIds) {
