@@ -6,13 +6,11 @@ import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.http.entity.ConnectionConfig;
-import io.tapdata.http.receiver.EventHandle;
 import io.tapdata.http.util.ScriptEvel;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
 
-import javax.crypto.spec.OAEPParameterSpec;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
@@ -52,7 +50,7 @@ public class TryRun implements Command {
             try {
                 ScriptEvel scriptEvel = ScriptEvel.create(scriptEngine);
                 scriptEvel.evalSourceForSelf();
-                scriptEngine.eval(config.script());
+                scriptEngine.eval(script);
             }catch (Exception e){
                 throw new CoreException("Can not get event handle script, please check you connection config.");
             }
