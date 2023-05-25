@@ -10,6 +10,7 @@ import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.lineage.analyzer.AnalyzeLayer;
 import com.tapdata.tm.lineage.analyzer.BaseAnalyzer;
 import com.tapdata.tm.lineage.analyzer.entity.LineageAttr;
+import com.tapdata.tm.lineage.analyzer.entity.LineageMetadataInstance;
 import com.tapdata.tm.lineage.analyzer.entity.LineageModuleNode;
 import com.tapdata.tm.lineage.analyzer.entity.LineageModules;
 import com.tapdata.tm.lineage.analyzer.entity.LineageNode;
@@ -17,6 +18,7 @@ import com.tapdata.tm.lineage.analyzer.entity.LineageTableNode;
 import com.tapdata.tm.lineage.analyzer.entity.LineageTask;
 import com.tapdata.tm.lineage.analyzer.entity.LineageTaskNode;
 import com.tapdata.tm.lineage.entity.LineageType;
+import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.task.entity.TaskEntity;
@@ -38,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -52,6 +53,7 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 	private static final String[] TASK_INCLUDE_FIELDS = new String[]{"_id", "name", "dag", "syncType", "status"};
 	private static final String[] DATASOURCE_INCLUDE_FIELDS = new String[]{"_id", "name", "pdkType", "pdkHash"};
 	private static final String[] MODULES_INCLUDE_FIELDS = new String[]{"_id", "name", "datasource", "tableName", "basePath", "status", "listtags"};
+	public static final String[] METADATA_INCLUDE_FIELDS = new String[]{"_id", "sourceType"};
 	private final Map<String, DataSourceEntity> dataSourceEntityMap = new ConcurrentHashMap<>();
 
 	@Override
@@ -71,7 +73,7 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		analyzeLayer.setPreNode(node);
 		analyzeLayer.setPreInvalidNode(node);
 		DataSourceEntity dataSource = findDataSource(connectionId);
-		LineageTableNode lineageTableNode = new LineageTableNode(table, dataSource.getId().toHexString(), dataSource.getName(), dataSource.getPdkHash(), getMetadataId(connectionId, table))
+		LineageTableNode lineageTableNode = new LineageTableNode(table, dataSource.getId().toHexString(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(connectionId, table))
 				.addTask(lineageTask);
 		setGraphNode(graph, lineageTableNode);
 		analyzeLayer.setPreLineageTableNode(lineageTableNode);
@@ -366,27 +368,36 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 			lineageTableNode.addTask(lineageTask);
 		} else {
 			DataSourceEntity dataSource = findDataSource(analyzeLayer.getConnectionId());
-			lineageTableNode = new LineageTableNode(analyzeLayer.getTable(), analyzeLayer.getConnectionId(), dataSource.getName(), dataSource.getPdkHash(), getMetadataId(analyzeLayer.getConnectionId(), analyzeLayer.getTable()));
+			lineageTableNode = new LineageTableNode(analyzeLayer.getTable(), analyzeLayer.getConnectionId(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(analyzeLayer.getConnectionId(), analyzeLayer.getTable()));
 			lineageTableNode.addTask(lineageTask);
 			setGraphNode(graph, lineageTableNode);
 		}
 		return lineageTableNode;
 	}
 
-	private String getMetadataId(String connectionId, String tableName) {
-		Criteria criteria = new Criteria("source._id").is(connectionId)
-				.and("original_name").is(tableName)
-				.and("sourceType").is(SourceTypeEnum.SOURCE.name());
-		Query query = Query.query(criteria);
-		query.fields().include("_id");
-		AtomicReference<String> metadataId = new AtomicReference<>();
-		metadataInstancesRepository.findOne(query).ifPresent(meta -> {
-			ObjectId id = meta.getId();
-			if (null != id) {
-				metadataId.set(id.toHexString());
-			}
-		});
-		return metadataId.get();
+	private LineageMetadataInstance getMetadata(String connectionId, String tableName) {
+		Criteria baseCriteria = new Criteria("source._id").is(connectionId)
+				.and("original_name").is(tableName);
+		Criteria sourceCriteria = new Criteria("sourceType").is(SourceTypeEnum.SOURCE.name());
+		Criteria virtualCriteria = new Criteria("sourceType").is(SourceTypeEnum.VIRTUAL.name());
+		Query query = Query.query(new Criteria().andOperator(baseCriteria, sourceCriteria));
+		query.fields().include(METADATA_INCLUDE_FIELDS);
+		LineageMetadataInstance lineageMetadataInstance = getMetadata(query);
+		if (null == lineageMetadataInstance) {
+			query = Query.query(new Criteria().andOperator(baseCriteria, virtualCriteria));
+			query.fields().include(METADATA_INCLUDE_FIELDS);
+			lineageMetadataInstance = getMetadata(query);
+		}
+		return lineageMetadataInstance;
+	}
+
+	private LineageMetadataInstance getMetadata(Query query) {
+		MetadataInstancesEntity metadataInstancesEntity = metadataInstancesRepository.findOne(query).orElse(null);
+		if (null == metadataInstancesEntity || null == metadataInstancesEntity.getId()) return null;
+		LineageMetadataInstance lineageMetadataInstance = new LineageMetadataInstance();
+		lineageMetadataInstance.setId(metadataInstancesEntity.getId().toHexString());
+		lineageMetadataInstance.setSourceType(metadataInstancesEntity.getSourceType());
+		return lineageMetadataInstance;
 	}
 
 	private LineageModuleNode setGraphModulesNode(AnalyzeLayer analyzeLayer, LineageModules lineageModules) {
