@@ -27,14 +27,16 @@ public class LineageTableNode extends LineageNode {
 	private String connectionId;
 	private String connectionName;
 	private String pdkHash;
+	private String metadataId;
 	private Map<String, LineageTask> tasks;
 
-	public LineageTableNode(String table, String connectionId, String connectionName, String pdkHash) {
+	public LineageTableNode(String table, String connectionId, String connectionName, String pdkHash, String metadataId) {
 		super(LineageNode.genId(NODE_TYPE, connectionId, table), NODE_TYPE);
 		this.table = table;
 		this.connectionId = connectionId;
 		this.connectionName = connectionName;
 		this.pdkHash = pdkHash;
+		this.metadataId = metadataId;
 	}
 
 	public synchronized LineageTableNode addTask(LineageTask lineageTask) {

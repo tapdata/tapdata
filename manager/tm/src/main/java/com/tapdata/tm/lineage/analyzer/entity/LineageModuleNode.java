@@ -27,10 +27,11 @@ public class LineageModuleNode extends LineageNode {
 	private String table;
 	private Map<String, LineageModules> modules;
 
-	public LineageModuleNode(String table, String datasource) {
-		super(genId(NODE_TYPE, datasource, table), NODE_TYPE);
+	public LineageModuleNode(String table, String datasource, LineageModules lineageModules) {
+		super(genId(NODE_TYPE, lineageModules.getId(), datasource, table), NODE_TYPE);
 		this.table = table;
 		this.datasource = datasource;
+		addModule(lineageModules);
 	}
 
 	public synchronized LineageModuleNode addModule(LineageModules lineageModules) {

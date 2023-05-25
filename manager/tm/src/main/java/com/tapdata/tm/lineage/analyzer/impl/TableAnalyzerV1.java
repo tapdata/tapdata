@@ -7,7 +7,6 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
-import com.tapdata.tm.ds.repository.DataSourceRepository;
 import com.tapdata.tm.lineage.analyzer.AnalyzeLayer;
 import com.tapdata.tm.lineage.analyzer.BaseAnalyzer;
 import com.tapdata.tm.lineage.analyzer.entity.LineageAttr;
@@ -18,10 +17,9 @@ import com.tapdata.tm.lineage.analyzer.entity.LineageTableNode;
 import com.tapdata.tm.lineage.analyzer.entity.LineageTask;
 import com.tapdata.tm.lineage.analyzer.entity.LineageTaskNode;
 import com.tapdata.tm.lineage.entity.LineageType;
+import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.modules.entity.ModulesEntity;
-import com.tapdata.tm.modules.repository.ModulesRepository;
 import com.tapdata.tm.task.entity.TaskEntity;
-import com.tapdata.tm.task.repository.TaskRepository;
 import io.github.openlg.graphlib.Graph;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -40,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -54,10 +53,6 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 	private static final String[] DATASOURCE_INCLUDE_FIELDS = new String[]{"_id", "name", "pdkType", "pdkHash"};
 	private static final String[] MODULES_INCLUDE_FIELDS = new String[]{"_id", "name", "datasource", "tableName", "basePath", "status", "listtags"};
 	private final Map<String, DataSourceEntity> dataSourceEntityMap = new ConcurrentHashMap<>();
-
-	public TableAnalyzerV1(TaskRepository taskRepository, DataSourceRepository dataSourceRepository, ModulesRepository modulesRepository) {
-		super(taskRepository, dataSourceRepository, modulesRepository);
-	}
 
 	@Override
 	public Graph<Node, Edge> analyzeTable(String connectionId, String table, LineageType lineageType) throws Exception {
@@ -76,7 +71,8 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		analyzeLayer.setPreNode(node);
 		analyzeLayer.setPreInvalidNode(node);
 		DataSourceEntity dataSource = findDataSource(connectionId);
-		LineageTableNode lineageTableNode = new LineageTableNode(table, dataSource.getId().toHexString(), dataSource.getName(), dataSource.getPdkHash()).addTask(lineageTask);
+		LineageTableNode lineageTableNode = new LineageTableNode(table, dataSource.getId().toHexString(), dataSource.getName(), dataSource.getPdkHash(), getMetadataId(connectionId, table))
+				.addTask(lineageTask);
 		setGraphNode(graph, lineageTableNode);
 		analyzeLayer.setPreLineageTableNode(lineageTableNode);
 		analyzeLayer.setCurrentTask(lineageTask);
@@ -370,19 +366,34 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 			lineageTableNode.addTask(lineageTask);
 		} else {
 			DataSourceEntity dataSource = findDataSource(analyzeLayer.getConnectionId());
-			lineageTableNode = new LineageTableNode(analyzeLayer.getTable(), analyzeLayer.getConnectionId(), dataSource.getName(), dataSource.getPdkHash());
+			lineageTableNode = new LineageTableNode(analyzeLayer.getTable(), analyzeLayer.getConnectionId(), dataSource.getName(), dataSource.getPdkHash(), getMetadataId(analyzeLayer.getConnectionId(), analyzeLayer.getTable()));
 			lineageTableNode.addTask(lineageTask);
 			setGraphNode(graph, lineageTableNode);
 		}
 		return lineageTableNode;
 	}
 
+	private String getMetadataId(String connectionId, String tableName) {
+		Criteria criteria = new Criteria("source._id").is(connectionId)
+				.and("original_name").is(tableName)
+				.and("sourceType").is(SourceTypeEnum.SOURCE.name());
+		Query query = Query.query(criteria);
+		query.fields().include("_id");
+		AtomicReference<String> metadataId = new AtomicReference<>();
+		metadataInstancesRepository.findOne(query).ifPresent(meta -> {
+			ObjectId id = meta.getId();
+			if (null != id) {
+				metadataId.set(id.toHexString());
+			}
+		});
+		return metadataId.get();
+	}
+
 	private LineageModuleNode setGraphModulesNode(AnalyzeLayer analyzeLayer, LineageModules lineageModules) {
 		if (null == lineageModules) {
 			return null;
 		}
-		LineageModuleNode lineageModuleNode = new LineageModuleNode(analyzeLayer.getTable(), analyzeLayer.getConnectionId());
-		lineageModuleNode.addModule(lineageModules);
+		LineageModuleNode lineageModuleNode = new LineageModuleNode(analyzeLayer.getTable(), analyzeLayer.getConnectionId(), lineageModules);
 		setGraphNode(analyzeLayer.getGraph(), lineageModuleNode);
 		/*Node graphNode = analyzeLayer.getGraph().getNode(LineageNode.genId(LineageModuleNode.NODE_TYPE, analyzeLayer.getConnectionId(), analyzeLayer.getTable()));
 		LineageModuleNode lineageModuleNode;
