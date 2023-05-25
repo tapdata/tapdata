@@ -178,7 +178,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		ICacheGetter memoryCacheGetter,
 		Log logger,
 		boolean standard
-	) throws ScriptException {
+	) {
 		if (StringUtils.isBlank(script)) {
 			script = "function process(record){\n\treturn record;\n}";
 		}
@@ -196,6 +196,11 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 			e.put("tapUtil", new JsUtil());
 			e.put("tapLog", logger);
+			try {
+				e.eval("tapLog.info('Init standardized JS engine...');");
+			}catch (Exception es){
+				throw new RuntimeException(String.format("Can not init standardized JS engine, %s", es.getMessage()), es);
+			}
 			evalJs(e, "js/csvUtils.js");
 			evalJs(e, "js/arrayUtils.js");
 			evalJs(e, "js/dateUtils.js");
@@ -222,14 +227,13 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
-		Node node = getNode();
+		Node<?> node = getNode();
 		if (!this.standard) {
 			this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(obsLogger), clientMongoOperator, jetContext.hazelcastInstance(),
 					node.getTaskId(), node.getId(),
 					StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
 							TaskDto.SYNC_TYPE_TEST_RUN, TaskDto.SYNC_TYPE_DEDUCE_SCHEMA));
 			((ScriptEngine) this.engine).put("ScriptExecutorsManager", scriptExecutorsManager);
-
 			List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
 			List<Node<?>> successors = GraphUtil.successors(node, Node::isDataNode);
 
@@ -238,14 +242,13 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			((ScriptEngine) this.engine).put("source", source);
 			((ScriptEngine) this.engine).put("target", target);
 		}
-
 	}
 
 	private ScriptExecutorsManager.ScriptExecutor getDefaultScriptExecutor(List<Node<?>> nodes, String flag) {
 		if (nodes != null && nodes.size() > 0) {
 			Node<?> node = nodes.get(0);
 			if (node instanceof DataParentNode) {
-				String connectionId = ((DataParentNode) node).getConnectionId();
+				String connectionId = ((DataParentNode<?>) node).getConnectionId();
 				Connections connections = clientMongoOperator.findOne(new Query(where("_id").is(connectionId)),
 						ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
 				if (connections != null) {
@@ -325,7 +328,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			thread.start();
 			boolean threadFinished = countDownLatch.await(10L, TimeUnit.SECONDS);
 			if (!threadFinished) {
-				thread.stop();
+				thread.interrupt();
 			}
 			if (errorAtomicRef.get() != null) {
 				throw new TapCodeException(TaskProcessorExCode_11.JAVA_SCRIPT_PROCESS_FAILED, errorAtomicRef.get());
