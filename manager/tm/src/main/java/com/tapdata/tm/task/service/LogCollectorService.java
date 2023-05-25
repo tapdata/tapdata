@@ -1608,6 +1608,8 @@ public class LogCollectorService {
                 continue;
             }
 
+            MatchOperation taskMatchOperation = Aggregation.match(Criteria.where("is_delete").is(false)
+                    .and("syncType").ne(TaskDto.SYNC_TYPE_LOG_COLLECTOR));
             List<Criteria> orCriteriaList = new ArrayList<>();
             tableMap.forEach((connectionId, tableNames) -> {
                 orCriteriaList.add(
@@ -1640,7 +1642,7 @@ public class LogCollectorService {
                     .and("dag.nodes.tableNames").as("tableNames");
 
 
-            Aggregation aggregation = Aggregation.newAggregation(matchOperation, unwindOperation, nodeMatchOperation, project);
+            Aggregation aggregation = Aggregation.newAggregation(taskMatchOperation, matchOperation, unwindOperation, nodeMatchOperation, project);
             List<Map> mappedResults = taskService.aggregate(aggregation, Map.class).getMappedResults();
             if (CollectionUtils.isEmpty(mappedResults)) {
                 continue;
