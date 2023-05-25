@@ -52,6 +52,7 @@ public class EventHandle {
 
     public static List<TapEvent> eventList(String tableName, Object eventData){
         List<TapEvent> events = new ArrayList<>();
+        if (null == eventData) return events;
         if (eventData instanceof Map){
             eventList(events, tableName, (Map<String, Object>) eventData);
         }else if (eventData instanceof Collection){

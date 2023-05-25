@@ -29,6 +29,8 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,12 +54,14 @@ public class HttpReceiverConnector extends ConnectorBase {
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
         scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
         config = ConnectionConfig.create(connectionContext);
-        if (null != scriptEngine) {
-            ScriptEvel scriptEvel = ScriptEvel.create(scriptEngine);
-            scriptEvel.evalSourceForSelf();
-            scriptEngine.eval(config.script());
-        } else {
-            throw new CoreException("Can not get event handle script, please check you connection config.");
+        if (config.handleType()) {
+            if (null != scriptEngine) {
+                ScriptEvel scriptEvel = ScriptEvel.create(scriptEngine);
+                scriptEvel.evalSourceForSelf();
+                scriptEngine.eval(config.script());
+            } else {
+                throw new CoreException("Can not get event handle script, please check you connection config.");
+            }
         }
     }
 
@@ -93,17 +97,25 @@ public class HttpReceiverConnector extends ConnectorBase {
             TapLogger.debug(TAG, "WebHook of http body is empty, Data callback has been over.");
             return null;
         }
+        Object data = eventMap.get("data");
+        if (null == data){
+            context.getLog().info(TAG, "Before script filtering, the current record is empty and will be ignored.");
+            return null;
+        }
         //Object listObj = eventMap.get("array");
         //if (Checker.isEmpty(listObj) || !(listObj instanceof Collection)){
         //    TapLogger.debug(TAG,"WebHook of http body is empty or not Collection, Data callback has been over.");
         //    return null;
         //}
         //List<Map<String,Object>> dataEventList = (List<Map<String, Object>>)listObj;
+        if (!config.handleType()){
+           return EventHandle.eventList(name, data);
+        }
 
         if (null != scriptEngine) {
             Invocable invocable = (Invocable) scriptEngine;
             try {
-                Object invokeResult = invocable.invokeFunction(ConnectionConfig.EVENT_FUNCTION_NAME, eventMap);
+                Object invokeResult = invocable.invokeFunction(ConnectionConfig.EVENT_FUNCTION_NAME, data);
                 if (null != invokeResult) {
                     return EventHandle.eventList(name, invokeResult);
                 }

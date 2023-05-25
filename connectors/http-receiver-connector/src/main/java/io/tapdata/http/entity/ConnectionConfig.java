@@ -17,13 +17,15 @@ public class ConnectionConfig {
     private String hookUrl;
     private String script;
     private String originalScript;
+    private Boolean handleType;
 
     public static ConnectionConfig create(TapConnectionContext context) {
         DataMap config = context.getConnectionConfig();
         return new ConnectionConfig()
                 .tableName(config.getString("tableName"))
                 .hookUrl(config.getString("hookText"))
-                .script(config.getString("eventScript"));
+                .script(config.getString("eventScript"))
+                .handleType(config.getValue("handleType", false));
     }
 
     public static ConnectionConfig create(Map<?,?> connectionConfig) {
@@ -51,6 +53,14 @@ public class ConnectionConfig {
         return this.hookUrl;
     }
 
+    public boolean handleType(){
+        return null != handleType && handleType;
+    }
+
+    public ConnectionConfig handleType(Boolean handleType){
+        this.handleType = null != handleType && handleType;
+        return this;
+    }
 
     public ConnectionConfig script(String script) {
         this.script = Tags.script(script);

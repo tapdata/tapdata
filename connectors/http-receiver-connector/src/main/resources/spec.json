@@ -49,6 +49,26 @@
           "x-index": 30,
           "actionOnCopy": "NEW_WEB_HOOK_URL"
         },
+        "handleType": {
+          "type": "boolean",
+          "title": "${open_script}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "required": true,
+          "default": false,
+          "show": false,
+          "x-reactions": [
+            {
+              "target": "eventScript",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value===true}}"
+                }
+              }
+            }
+          ],
+          "x-index": 40
+        },
         "eventScript": {
           "required": true,
           "title": "${node_script_title}",
@@ -68,7 +88,7 @@
             "beforeRegexp": "^[^]*function\\s+handleEvent\\s*\\(eventData\\)\\s+\\{",
             "afterRegexp": "}[^}]*$"
           },
-          "x-index": 40
+          "x-index": 50
         }
       }
     }
@@ -82,6 +102,7 @@
       "webHook": "Service URL",
       "hookButton": "Generate Service URL",
       "hookTitle": "Service URL",
+      "open_script": "Enable data processing scripts",
       "node_script_title": "Data processing script",
       "node_illustrate_title": "JavaScript Writing Instructions",
       "node_return_type": "Script Method Return Value Specification: data is an array or k-v object, but if return null, this event will be ignore",
@@ -96,6 +117,7 @@
       "webHook": "Service Hook",
       "hookButton": "生成服务 URL",
       "hookTitle": "服务 URL",
+      "open_script": "开启数据处理脚本",
       "node_script_title": "数据处理脚本",
       "node_illustrate_title": "JavaScript编写说明",
       "node_return_type": "脚本方法返回值规范：返回结果可以是数组也可以是K-V对象，如果返回值为null，则会忽略此事件",
@@ -110,6 +132,7 @@
       "webHook": "Service Hook",
       "hookButton": "生成服務URL",
       "hookTitle": "服務URL",
+      "open_script": "開啟數據處理腳本",
       "node_script_title": "數據處理腳本",
       "node_illustrate_title": "JavaScript編寫說明",
       "node_return_type": "腳本方法返回值規範：返回結果可以是數組也可以是K-V對象，如果返回值為null，則會忽略此事件",
