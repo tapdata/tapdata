@@ -35,6 +35,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -189,6 +190,41 @@ public class CommonUtils {
             }
         }
     }
+
+    public static void handleAnyErrors(Consumer<Consumer<Throwable>> eachConsumer, Consumer<Throwable> errorHandle) {
+			AtomicReference<RuntimeException> error = new AtomicReference<>();
+			eachConsumer.accept((e) -> {
+				if (null == error.get()) {
+					if (e instanceof RuntimeException) {
+						error.set((RuntimeException) e);
+					} else {
+						error.set(new RuntimeException(e));
+					}
+				} else {
+					error.get().addSuppressed(e);
+				}
+			});
+
+			if (null != error.get()) {
+				if (null != errorHandle) {
+					errorHandle.accept(error.get());
+				} else {
+					throw error.get();
+				}
+			}
+		}
+
+    public static void handleAnyErrors(Consumer<Throwable> consumer, AnyError... anyErrors) {
+			handleAnyErrors((errorHandle) -> {
+				for (AnyError r : anyErrors) {
+					try {
+						r.run();
+					} catch (Throwable e) {
+						errorHandle.accept(e);
+					}
+				}
+			}, consumer);
+		}
 
     public static void logError(String logTag, String prefix, Throwable throwable) {
         TapLogger.error(logTag, errorMessage(prefix, throwable));

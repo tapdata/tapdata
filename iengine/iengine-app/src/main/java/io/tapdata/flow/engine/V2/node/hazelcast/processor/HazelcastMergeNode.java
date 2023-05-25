@@ -8,6 +8,7 @@ import com.tapdata.constant.MapUtilV2;
 import com.tapdata.constant.NotExistsNode;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.OperationType;
+import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -19,6 +20,7 @@ import io.tapdata.construct.constructImpl.ConstructIMap;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
@@ -30,6 +32,7 @@ import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
 import io.tapdata.pdk.apis.entity.merge.MergeLookupResult;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -43,16 +46,10 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.tapdata.constant.ConnectorConstant.LOOKUP_TABLE_SUFFIX;
@@ -88,10 +85,42 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	public HazelcastMergeNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 	}
+	private void selfCheckNode(Node node) {
+		if (node instanceof MergeTableNode) {
+			MergeTableNode mergeTableNode = (MergeTableNode) node;
+			selfCheckMergeTableProperties(mergeTableNode.getMergeProperties());
+		}
+	}
 
+	private void selfCheckMergeTableProperties(List<MergeTableProperties> mergeTableProperties) {
+		if(mergeTableProperties == null)
+			return;
+		for(MergeTableProperties tableProperties : mergeTableProperties) {
+			if(tableProperties.getMergeType().equals(MergeTableProperties.MergeType.updateIntoArray) || tableProperties.getIsArray()) {
+				boolean intoArray = tableProperties.getMergeType().equals(MergeTableProperties.MergeType.updateIntoArray);
+				List<MergeTableProperties> children = tableProperties.getChildren();
+				if(children != null) {
+					for (MergeTableProperties ch : children) {
+						if(!ch.getIsArray()) {
+							ch.setArray(true);
+
+//							TapLogger.warn(TAG, "Fixed merge table properties, set array to true when mergeType is updateIntoArray, table: " + ch.getTableName() + " targetPath: " + ch.getTargetPath());
+						}
+						if(ch.getArrayPath() == null) {
+							ch.setArrayPath(intoArray ? tableProperties.getTargetPath() : tableProperties.getArrayPath());
+						}
+					}
+				}
+			}
+
+			selfCheckMergeTableProperties(tableProperties.getChildren());
+		}
+	}
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
+		selfCheckNode(getNode());
+
 		initMergeTableProperties(null);
 		initLookupMergeProperties();
 		initMergeCache();
@@ -201,7 +230,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 				if (StringUtils.isBlank(cacheName)) {
 					break;
 				}
-				ConstructIMap<Document> hazelcastConstruct = new ConstructIMap<>(jetContext.hazelcastInstance(), cacheName, externalStorageDto);
+				ConstructIMap<Document> hazelcastConstruct = new ConstructIMap<>(jetContext.hazelcastInstance(), HazelcastMergeNode.class.getSimpleName(), cacheName, externalStorageDto);
 				this.mergeCacheMap.put(mergeProperty.getId(), hazelcastConstruct);
 				obsLogger.info("Create imap name: {}, external storage: {}", cacheName, externalStorageDto);
 			}
@@ -358,6 +387,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	}
 
 	private boolean needLookup(TapdataEvent tapdataEvent) {
+		SyncStage syncStage = tapdataEvent.getSyncStage();
+		if (SyncStage.INITIAL_SYNC.equals(syncStage)) {
+			return false;
+		}
 		if (isInvalidOperation(tapdataEvent)) return false;
 		String op = getOp(tapdataEvent);
 		if (op.equals(OperationType.DELETE.getOp())) {
@@ -643,7 +676,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 				throw new TapCodeException(TaskMergeProcessorExCode_16.LOOK_UP_FIND_BY_JOIN_KEY_FAILED, String.format("- Find construct name: %s\n- Join key: %s\n- Encoded join key: %s", hazelcastConstruct.getName(), joinValueKey, encodeJoinValueKey), e);
 			}
 			if (MapUtils.isEmpty(findData)) {
-				return mergeLookupResults;
+				continue;
 			}
 			io.tapdata.pdk.apis.entity.merge.MergeTableProperties pdkMergeTableProperty = copyMergeTableProperty(childMergeProperty);
 			if (MergeTableProperties.MergeType.updateWrite == mergeType) {
@@ -708,23 +741,28 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 
 	private static void recursiveClearCache(ExternalStorageDto externalStorageDto, List<MergeTableProperties> mergeTableProperties, HazelcastInstance hazelcastInstance) {
 		if (CollectionUtils.isEmpty(mergeTableProperties)) return;
-		for (MergeTableProperties mergeTableProperty : mergeTableProperties) {
+		CommonUtils.handleAnyErrors((Consumer<Throwable> consumer) -> {
 			String cacheName;
-			try {
-				cacheName = getCacheName(mergeTableProperty.getId(), mergeTableProperty.getTableName());
-			} catch (Exception e) {
-				throw new TapCodeException(TaskMergeProcessorExCode_16.CLEAR_MERGE_CACHE_GET_CACHE_NAME_FAILED, e);
+			for (MergeTableProperties mergeTableProperty : mergeTableProperties) {
+				try {
+					try {
+						cacheName = getCacheName(mergeTableProperty.getId(), mergeTableProperty.getTableName());
+					} catch (Exception e) {
+						throw new TapCodeException(TaskMergeProcessorExCode_16.CLEAR_MERGE_CACHE_GET_CACHE_NAME_FAILED, e);
+					}
+					ConstructIMap<Document> imap = new ConstructIMap<>(hazelcastInstance, HazelcastMergeNode.class.getSimpleName(), cacheName, externalStorageDto);
+					try {
+						imap.clear();
+						imap.destroy();
+					} catch (Exception e) {
+						throw new RuntimeException("Clear imap failed, name: " + cacheName + ", error message: " + e.getMessage(), e);
+					}
+					recursiveClearCache(externalStorageDto, mergeTableProperty.getChildren(), hazelcastInstance);
+				} catch (Throwable e) {
+					consumer.accept(e);
+				}
 			}
-			ConstructIMap<Document> imap = new ConstructIMap<>(hazelcastInstance, cacheName, externalStorageDto);
-			try {
-//			todo Temporarily comment this code for css #139218
-//				imap.clear();
-				imap.destroy();
-			} catch (Exception e) {
-				throw new RuntimeException("Clear imap failed, name: " + cacheName + ", error message: " + e.getMessage(), e);
-			}
-			recursiveClearCache(externalStorageDto, mergeTableProperty.getChildren(), hazelcastInstance);
-		}
+		}, null);
 	}
 
 	private TapCreateIndexEvent generateCreateIndexEventsForTarget() {
@@ -773,7 +811,11 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	protected void doClose() throws Exception {
 		if (MapUtils.isNotEmpty(mergeCacheMap)) {
 			for (ConstructIMap<Document> constructIMap : mergeCacheMap.values()) {
-				PersistenceStorage.getInstance().destroy(constructIMap.getName());
+				try {
+					constructIMap.destroy();
+				} catch (Exception e) {
+					logger.warn("Destroy merge cache failed: {}", e.getMessage());
+				}
 			}
 		}
 		super.doClose();
