@@ -1644,21 +1644,20 @@ public class LogCollectorService {
 
             Aggregation aggregation = Aggregation.newAggregation(taskMatchOperation, matchOperation, unwindOperation, nodeMatchOperation, project);
             List<Map> mappedResults = taskService.aggregate(aggregation, Map.class).getMappedResults();
-            if (CollectionUtils.isEmpty(mappedResults)) {
-                continue;
-            }
 
             Map<String, Set<String>> useMap = new HashMap<>();
-            for (Map<String, Object> mappedResult : mappedResults) {
-                String connectionId = (String) mappedResult.get("connectionId");
-                Set<String> tableSet = useMap.computeIfAbsent(connectionId, c -> new HashSet<>());
-                String tableName = (String) mappedResult.get("tableName");
-                if (tableName != null) {
-                    tableSet.add(tableName);
-                }
-                Collection<String> tableNames = (Collection<String>) mappedResult.get("tableNames");
-                if (tableNames != null) {
-                    tableSet.addAll(tableNames);
+            if (CollectionUtils.isNotEmpty(mappedResults)) {
+                for (Map<String, Object> mappedResult : mappedResults) {
+                    String connectionId = (String) mappedResult.get("connectionId");
+                    Set<String> tableSet = useMap.computeIfAbsent(connectionId, c -> new HashSet<>());
+                    String tableName = (String) mappedResult.get("tableName");
+                    if (tableName != null) {
+                        tableSet.add(tableName);
+                    }
+                    Collection<String> tableNames = (Collection<String>) mappedResult.get("tableNames");
+                    if (tableNames != null) {
+                        tableSet.addAll(tableNames);
+                    }
                 }
             }
 
