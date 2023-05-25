@@ -148,7 +148,7 @@ public class DorisStreamLoader {
 			String label = prefix + "-" + UUID.randomUUID();
 			List<String> columns = new ArrayList<>();
 			for (Map.Entry<String, TapField> entry : table.getNameFieldMap().entrySet()) {
-				columns.add(entry.getKey());
+				columns.add("`" + entry.getKey() + "`");
 			}
 			// add the DORIS_DELETE_SIGN at the end of the column
 			columns.add(Constants.DORIS_DELETE_SIGN);
