@@ -161,19 +161,19 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                         }
 
                         // check source schema field not support
-                        schemaList.forEach(sch -> {
-                            String tableName = sch.getName();
-                            List<Field> fields = sch.getFields();
-                            if (CollectionUtils.isNotEmpty(fields)) {
-                                fields.forEach(k -> {
-                                    TapType tapType = JSON.parseObject(k.getTapType(), TapType.class);
-                                    if (TapType.TYPE_RAW == tapType.getType()) {
-                                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_FIELD"), node.getName(), tableName, k.getFieldName());
-                                        result.add(log);
-                                    }
-                                });
-                            }
-                        });
+//                        schemaList.forEach(sch -> {
+//                            String tableName = sch.getName();
+//                            List<Field> fields = sch.getFields();
+//                            if (CollectionUtils.isNotEmpty(fields)) {
+//                                fields.forEach(k -> {
+//                                    TapType tapType = JSON.parseObject(k.getTapType(), TapType.class);
+//                                    if (TapType.TYPE_RAW == tapType.getType()) {
+//                                        TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_FIELD"), node.getName(), tableName, k.getFieldName());
+//                                        result.add(log);
+//                                    }
+//                                });
+//                            }
+//                        });
                     } else {
                         TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_SCHAME"), node.getName(), JSON.toJSONString(tableNames));
                         result.add(log);

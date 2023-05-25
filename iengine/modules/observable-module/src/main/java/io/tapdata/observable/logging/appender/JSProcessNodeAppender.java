@@ -15,13 +15,15 @@ import java.util.concurrent.atomic.AtomicReference;
  * @create 2023/5/11 19:00
  **/
 public class JSProcessNodeAppender extends BaseTaskAppender<MonitoringLogsDto> {
-    public static final String MAX_LOG_LENGTH_KEY = "maxLogCount_";
+    public static final String MAX_LOG_LENGTH_KEY = "JSNodeId_";
+    public static final String JS_NODE_ID_KEY = "maxLogCount_";
     public static final String LOG_LIST_KEY = "logCollector_";
     public static final String LOGGER_NAME_PREFIX = "js-test-run-log-";
 
     //日志输出默认100条
     public int defaultLogLength = 100;
     private final Logger logger;
+    private String jsNodeId;
 
     public FixedSizeBlockingDeque<MonitoringLogsDto> logList = new FixedSizeBlockingDeque<>(defaultLogLength);//new FixSizeLinkedList<>(defaultLogLength);
     AtomicReference<Object> logCollector;
@@ -33,7 +35,12 @@ public class JSProcessNodeAppender extends BaseTaskAppender<MonitoringLogsDto> {
         this.logger = LogManager.getLogger(LOGGER_NAME_PREFIX + taskId);
         this.logCollector = logCollector;
         if (null != logCollector)
-            Optional.ofNullable(logCollector.get()).ifPresent(list -> logList = (FixedSizeBlockingDeque<MonitoringLogsDto>)list);
+            Optional.ofNullable(logCollector.get()).ifPresent(list -> logList = (FixedSizeBlockingDeque<MonitoringLogsDto>) list);
+    }
+
+    public JSProcessNodeAppender nodeID(String jsNodeId) {
+        this.jsNodeId = jsNodeId;
+        return this;
     }
 
     public static JSProcessNodeAppender create(String taskId, AtomicReference<Object> logCollector, Integer maxLogCount) {
@@ -54,16 +61,14 @@ public class JSProcessNodeAppender extends BaseTaskAppender<MonitoringLogsDto> {
 
     @Override
     public void append(MonitoringLogsDto log) {
-        if (null != log && null != logList) {
+        if (null != log && null != logList && null != jsNodeId && jsNodeId.equals(log.getNodeId())) {
             logList.add(log);
         }
     }
 
     @Override
     public void append(List<MonitoringLogsDto> logs) {
-        if (null != logs && null != logList) {
-            logList.addAll(logs);
-        }
+        logs.stream().filter(log -> null != log && null != logList && null != jsNodeId && jsNodeId.equals(log.getNodeId())).forEach(log -> logList.add(log));
     }
 
     @Override
@@ -73,9 +78,6 @@ public class JSProcessNodeAppender extends BaseTaskAppender<MonitoringLogsDto> {
 
     @Override
     public void stop() {
-        if (null != logger) {
-            removeAppenders((org.apache.logging.log4j.core.Logger) logger);
-        }
     }
 
     public static void main(String[] args) {
@@ -84,7 +86,7 @@ public class JSProcessNodeAppender extends BaseTaskAppender<MonitoringLogsDto> {
             final int aaa = i;
             new Thread(() -> {
                 list.add(aaa);
-                System.out.println( Thread.currentThread().getName() + ":" + list.toString());
+                System.out.println(Thread.currentThread().getName() + ":" + list.toString());
             }, "TH-" + i).start();
         }
     }

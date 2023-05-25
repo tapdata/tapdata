@@ -20,6 +20,7 @@ import io.tapdata.construct.constructImpl.ConstructIMap;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
@@ -82,10 +83,42 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	public HazelcastMergeNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 	}
+	private void selfCheckNode(Node node) {
+		if (node instanceof MergeTableNode) {
+			MergeTableNode mergeTableNode = (MergeTableNode) node;
+			selfCheckMergeTableProperties(mergeTableNode.getMergeProperties());
+		}
+	}
 
+	private void selfCheckMergeTableProperties(List<MergeTableProperties> mergeTableProperties) {
+		if(mergeTableProperties == null)
+			return;
+		for(MergeTableProperties tableProperties : mergeTableProperties) {
+			if(tableProperties.getMergeType().equals(MergeTableProperties.MergeType.updateIntoArray) || tableProperties.getIsArray()) {
+				boolean intoArray = tableProperties.getMergeType().equals(MergeTableProperties.MergeType.updateIntoArray);
+				List<MergeTableProperties> children = tableProperties.getChildren();
+				if(children != null) {
+					for (MergeTableProperties ch : children) {
+						if(!ch.getIsArray()) {
+							ch.setArray(true);
+
+//							TapLogger.warn(TAG, "Fixed merge table properties, set array to true when mergeType is updateIntoArray, table: " + ch.getTableName() + " targetPath: " + ch.getTargetPath());
+						}
+						if(ch.getArrayPath() == null) {
+							ch.setArrayPath(intoArray ? tableProperties.getTargetPath() : tableProperties.getArrayPath());
+						}
+					}
+				}
+			}
+
+			selfCheckMergeTableProperties(tableProperties.getChildren());
+		}
+	}
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
+		selfCheckNode(getNode());
+
 		initMergeTableProperties(null);
 		initLookupMergeProperties();
 		initMergeCache();
@@ -641,7 +674,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 				throw new TapCodeException(TaskMergeProcessorExCode_16.LOOK_UP_FIND_BY_JOIN_KEY_FAILED, String.format("- Find construct name: %s\n- Join key: %s\n- Encoded join key: %s", hazelcastConstruct.getName(), joinValueKey, encodeJoinValueKey), e);
 			}
 			if (MapUtils.isEmpty(findData)) {
-				return mergeLookupResults;
+				continue;
 			}
 			io.tapdata.pdk.apis.entity.merge.MergeTableProperties pdkMergeTableProperty = copyMergeTableProperty(childMergeProperty);
 			if (MergeTableProperties.MergeType.updateWrite == mergeType) {

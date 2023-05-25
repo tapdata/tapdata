@@ -1,7 +1,7 @@
 package io.tapdata.flow.engine.V2.util;
 
 import com.tapdata.entity.OperationType;
-import com.tapdata.entity.SyncStage;
+import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -9,6 +9,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -82,5 +83,12 @@ public class TapEventUtil {
 			timestamp = ((TapDDLEvent) tapEvent).getReferenceTime();
 		}
 		return timestamp;
+	}
+
+	public static List<String> getNamespaces(TapEvent tapEvent) {
+		if (tapEvent instanceof TapBaseEvent) {
+			return ((TapBaseEvent) tapEvent).getNamespaces();
+		}
+		return null;
 	}
 }

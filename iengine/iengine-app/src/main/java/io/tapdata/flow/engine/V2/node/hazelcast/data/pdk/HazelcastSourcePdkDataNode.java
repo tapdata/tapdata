@@ -2,37 +2,19 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.CollectionUtil;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataCompleteSnapshotEvent;
-import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.TapdataHeartbeatEvent;
-import com.tapdata.entity.TapdataStartedCdcEvent;
-import com.tapdata.entity.TapdataStartingCdcEvent;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.JSONUtil;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.ErrorCodeConfig;
-import io.tapdata.aspect.BatchReadFuncAspect;
-import io.tapdata.aspect.SourceCDCDelayAspect;
-import io.tapdata.aspect.SourceJoinHeartbeatAspect;
-import io.tapdata.aspect.SourceStateAspect;
-import io.tapdata.aspect.StreamReadFuncAspect;
-import io.tapdata.aspect.TaskMilestoneFuncAspect;
-import io.tapdata.aspect.taskmilestones.CDCReadBeginAspect;
-import io.tapdata.aspect.taskmilestones.CDCReadEndAspect;
-import io.tapdata.aspect.taskmilestones.CDCReadErrorAspect;
-import io.tapdata.aspect.taskmilestones.CDCReadStartedAspect;
-import io.tapdata.aspect.taskmilestones.Snapshot2CDCAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadBeginAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadEndAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadErrorAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadTableBeginAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadTableEndAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadTableErrorAspect;
+import io.tapdata.aspect.*;
+import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -62,18 +44,10 @@ import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
-import io.tapdata.pdk.apis.entity.FilterResults;
-import io.tapdata.pdk.apis.entity.QueryOperator;
-import io.tapdata.pdk.apis.entity.SortOn;
-import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
-import io.tapdata.pdk.apis.entity.TapExecuteCommand;
+import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
-import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
-import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunction;
-import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunctionV2;
-import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.*;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
@@ -88,19 +62,14 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.data.mongodb.core.query.Query;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -108,6 +77,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
+import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 /**
  * @author jackin
@@ -204,7 +175,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (null != controller) {
 			CommonUtils.AnyError runner = () -> doSnapshot(tableList);
 			controller.runWithControl(getNode(), runner);
-			controller.finish(getNode());
 		}
 	}
 
@@ -342,6 +312,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											)
 									));
 							executeAspect(new SnapshotReadTableEndAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
+							enqueue(new TapdataCompleteTableSnapshotEvent(tableName));
 						} catch (Throwable throwable) {
 							executeAspect(new SnapshotReadTableErrorAspect().dataProcessorContext(dataProcessorContext).tableName(tableName).error(throwable));
 							Throwable throwableWrapper = throwable;
@@ -481,26 +452,80 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			logger.warn("Failed to get source node");
 			return;
 		}
-		RawDataCallbackFilterFunction rawDataCallbackFilterFunction = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunction();
-		RawDataCallbackFilterFunctionV2 rawDataCallbackFilterFunctionV2 = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunctionV2();
-//		if(rawDataCallbackFilterFunctionV2 != null) {
-//			rawDataCallbackFilterFunction = null;
-//		}
-		StreamReadFunction streamReadFunction = connectorNode.getConnectorFunctions().getStreamReadFunction();
-		if (streamReadFunction != null || rawDataCallbackFilterFunction != null || rawDataCallbackFilterFunctionV2 != null) {
-			obsLogger.info("Starting stream read, table list: " + tapTableMap.keySet() + ", offset: " + syncProgress.getStreamOffsetObj());
-			List<String> tables = new ArrayList<>(tapTableMap.keySet());
-			Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
-			int batchSize = 1;
-			String streamReadFunctionName = null;
-			if (rawDataCallbackFilterFunctionV2 != null)
-				streamReadFunctionName = rawDataCallbackFilterFunctionV2.getClass().getSimpleName();
-			if (rawDataCallbackFilterFunction != null && streamReadFunctionName == null)
-				streamReadFunctionName = rawDataCallbackFilterFunction.getClass().getSimpleName();
-			if (streamReadFunctionName == null)
-				streamReadFunctionName = streamReadFunction.getClass().getSimpleName();
-			String finalStreamReadFunctionName = streamReadFunctionName;
 
+		// If 'LogCollectorNode' is merge connection mode then 'connectionConfigWithTables' not null use 'StreamReadMultiConnectionFunction'
+		List<ConnectionConfigWithTables> connectionConfigWithTables = ShareCdcUtil.connectionConfigWithTables(getNode(), ids -> {
+			Query connectionQuery = new Query(where("_id").in(ids));
+			connectionQuery.fields().include("config").include("pdkHash");
+			return clientMongoOperator.find(connectionQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+		});
+		StreamReadMultiConnectionFunction streamReadMultiConnectionFunction = Optional.ofNullable(connectionConfigWithTables).map(configWithTables -> {
+			// first config add heartbeat table to list
+			Optional.of(cdcDelayCalculation.addHeartbeatTable(configWithTables.get(0).getTables())).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
+			return connectorNode.getConnectorFunctions().getStreamReadMultiConnectionFunction();
+		}).orElse(null);
+
+		int batchSize = 1;
+		String streamReadFunctionName = null;
+		CommonUtils.AnyError anyError = null;
+		List<String> tables = new ArrayList<>();
+		if (null != streamReadMultiConnectionFunction) {
+			Set<String> tableSet = new HashSet<>();
+			for (ConnectionConfigWithTables withTables : connectionConfigWithTables) {
+				for (String tableName : withTables.getTables()) {
+					tableSet.add(ShareCdcUtil.joinNamespaces(Arrays.asList(
+						withTables.getConnectionConfig().getString("schema"), tableName
+					)));
+				}
+			}
+			tables.addAll(tableSet);
+			streamReadFunctionName = streamReadMultiConnectionFunction.getClass().getSimpleName();
+			anyError = () -> {
+				streamReadMultiConnectionFunction.streamRead(getConnectorNode().getConnectorContext(), connectionConfigWithTables,
+						syncProgress.getStreamOffsetObj(), batchSize, streamReadConsumer);
+			};
+		} else {
+			RawDataCallbackFilterFunction rawDataCallbackFilterFunction = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunction();
+			RawDataCallbackFilterFunctionV2 rawDataCallbackFilterFunctionV2 = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunctionV2();
+//			if(rawDataCallbackFilterFunctionV2 != null) {
+//				rawDataCallbackFilterFunction = null;
+//			}
+			StreamReadFunction streamReadFunction = connectorNode.getConnectorFunctions().getStreamReadFunction();
+			if (null != streamReadFuncAspect && (null != rawDataCallbackFilterFunction || null != rawDataCallbackFilterFunctionV2)) {
+				if (null != rawDataCallbackFilterFunctionV2) {
+					streamReadFunctionName = rawDataCallbackFilterFunctionV2.getClass().getSimpleName();
+				} else {
+					streamReadFunctionName = rawDataCallbackFilterFunction.getClass().getSimpleName();
+				}
+				tables.addAll(tapTableMap.keySet());
+				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
+				anyError = () -> {
+					executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_CALLBACK_RAW_DATA).streamReadConsumer(streamReadConsumer));
+					while (isRunning()) {
+						if (!streamReadFuncAspect.waitRawData()) {
+							break;
+						}
+					}
+					if (streamReadFuncAspect.getErrorDuringWait() != null) {
+						throw streamReadFuncAspect.getErrorDuringWait();
+					}
+				};
+			} else if (null != streamReadFunction) {
+				streamReadFunctionName = streamReadFunction.getClass().getSimpleName();
+				tables.addAll(tapTableMap.keySet());
+				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
+				anyError = () -> {
+					streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
+							syncProgress.getStreamOffsetObj(), batchSize, streamReadConsumer);
+				};
+			}
+		}
+
+		if (null != anyError) {
+			obsLogger.info("Starting stream read, table list: " + tables + ", offset: " + JSONUtil.obj2Json(syncProgress.getStreamOffsetObj()));
+
+			CommonUtils.AnyError finalAnyError = anyError;
+			String finalStreamReadFunctionName = streamReadFunctionName;
 			executeDataFuncAspect(StreamReadFuncAspect.class, () -> new StreamReadFuncAspect()
 							.connectorContext(connectorNode.getConnectorContext())
 							.dataProcessorContext(getDataProcessorContext())
@@ -509,30 +534,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							.eventBatchSize(batchSize)
 							.offsetState(syncProgress.getStreamOffsetObj())
 							.start(),
-					streamReadFuncAspect -> PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_STREAM_READ,
-							streamReadMethodInvoker.runnable(
-									() -> {
-										this.streamReadFuncAspect = streamReadFuncAspect;
-
-										if ((rawDataCallbackFilterFunction != null || rawDataCallbackFilterFunctionV2 != null) && streamReadFuncAspect != null) {
-											executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_CALLBACK_RAW_DATA).streamReadConsumer(streamReadConsumer));
-											while (isRunning()) {
-												if (!streamReadFuncAspect.waitRawData()) {
-													break;
-												}
-											}
-											if (streamReadFuncAspect.getErrorDuringWait() != null) {
-												throw streamReadFuncAspect.getErrorDuringWait();
-											}
-										} else {
-											if (streamReadFunction != null) {
-												streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
-														syncProgress.getStreamOffsetObj(), batchSize, streamReadConsumer);
-											}
-										}
-									}
-							)
-					));
+					streamReadFuncAspect -> {
+						this.streamReadFuncAspect = streamReadFuncAspect;
+						PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_STREAM_READ, streamReadMethodInvoker.runnable(finalAnyError));
+					});
 		} else {
 			throw new NodeException("PDK node does not support stream read: " + dataProcessorContext.getDatabaseType()).context(getProcessorBaseContext());
 		}

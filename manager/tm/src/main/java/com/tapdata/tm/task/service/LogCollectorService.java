@@ -3,9 +3,6 @@ package com.tapdata.tm.task.service;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Maps;
 import com.mongodb.ConnectionString;
-import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
-import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Field;
@@ -15,11 +12,13 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
+import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DataNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
@@ -28,6 +27,7 @@ import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.CreateTypeEnum;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -38,6 +38,7 @@ import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.bean.*;
+import com.tapdata.tm.task.param.TableLogCollectorParam;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
@@ -60,10 +61,12 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Nullable;
+import java.math.BigDecimal;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * @Author: Zed
@@ -852,7 +855,7 @@ public class LogCollectorService {
         //查询获取所有源的数据源连接
         Criteria criteria = Criteria.where("_id").in(group.keySet());
         Query query = new Query(criteria);
-        query.fields().include("_id", "shareCdcEnable", "shareCdcTTL", "uniqueName", "database_type", "name", "pdkHash","shareCDCExternalStorageId");
+        query.fields().include("_id", "shareCdcEnable", "shareCdcTTL", "uniqueName", "multiConnectionInstanceId", "database_type", "name", "pdkHash","shareCDCExternalStorageId");
         List<DataSourceConnectionDto> dataSourceDtos = dataSourceService.findAllDto(query, user);
 
         //根据数据源连接
@@ -864,7 +867,7 @@ public class LogCollectorService {
                 continue;
             }
 
-            String uniqueName = dataSourceDto.getUniqueName();
+            String uniqueName = dataSourceDto.getMultiConnectionInstanceId();
 
             if (sourceUniqSet.contains(uniqueName)) {
                 _dataSourceDtos.add(dataSourceDto);
@@ -879,7 +882,7 @@ public class LogCollectorService {
         _dataSourceDtos.addAll(createLogCollects);
         dataSourceDtos = _dataSourceDtos;
 
-        Map<String, List<DataSourceConnectionDto>> datasourceMap = dataSourceDtos.stream().collect(Collectors.groupingBy(d -> StringUtils.isBlank(d.getUniqueName()) ? d.getId().toHexString() : d.getUniqueName()));
+        Map<String, List<DataSourceConnectionDto>> datasourceMap = dataSourceDtos.stream().collect(Collectors.groupingBy(d -> StringUtils.isBlank(d.getMultiConnectionInstanceId()) ? d.getId().toHexString() : d.getMultiConnectionInstanceId()));
 
         //不同类型数据源的id缓存
         Map<String, List<DataSourceConnectionDto>> dataSourceCacheByType = new HashMap<>();
@@ -889,17 +892,27 @@ public class LogCollectorService {
 
         datasourceMap.forEach((k, v) -> {
             //获取需要日志挖掘的表名
-            List<String> tableNames = new ArrayList<>();
+            //Set<String> tableSet = new HashSet<>();
+
+            Map<String, List<String>> tableMaps = new HashMap<>();
+            Set<String> finalTableNames = new HashSet<>();
+
             for (DataSourceConnectionDto d : v) {
+                Set<String> tableSet = new HashSet<>();
                 List<Node> nodes = group.get(d.getId());
                 for (Node node : nodes) {
                     if (node instanceof TableNode) {
-                        tableNames.add(((TableNode) node).getTableName());
+                        tableSet.add(((TableNode) node).getTableName());
                     } else if (node instanceof DatabaseNode) {
-                        tableNames = ((DatabaseNode) node).getSourceNodeTableNames();
+                        tableSet.addAll(((DatabaseNode) node).getSourceNodeTableNames());
                     }
                 }
+                List<String> tableNames = new ArrayList<>(tableSet);
+                finalTableNames.addAll(tableSet);
+                tableMaps.put(d.getId().toHexString(), tableNames);
+
             }
+
 
             //查询是否存在相同的日志挖掘任务，存在，并且表也存在，则不处理
             //根据unique name查询，或者根据id查询
@@ -907,19 +920,19 @@ public class LogCollectorService {
             List<String> ids = new ArrayList<>();
 
             //如果没有uniqname,则唯一键采用的id，所以不会存在相似的数据源
-            if (StringUtils.isBlank(dataSource.getUniqueName())) {
+            if (StringUtils.isBlank(dataSource.getMultiConnectionInstanceId())) {
                 ids.add(dataSource.getId().toHexString());
             } else {
                 List<DataSourceConnectionDto> cache = dataSourceCacheByType.get(dataSource.getDatabase_type());
                 if (CollectionUtils.isEmpty(cache)) {
                     Criteria criteria1 = Criteria.where("database_type").is(dataSource.getDatabase_type());
                     Query query1 = new Query(criteria1);
-                    query1.fields().include("_id", "uniqueName");
+                    query1.fields().include("_id", "uniqueName", "multiConnectionInstanceId");
                     cache = dataSourceService.findAllDto(query1, user);
                     dataSourceCacheByType.put(dataSource.getDatabase_type(), cache);
 
                 }
-                ids = cache.stream().filter(c -> dataSource.getUniqueName().equals(c.getUniqueName())).map(d -> d.getId().toHexString()).collect(Collectors.toList());
+                ids = cache.stream().filter(c -> dataSource.getMultiConnectionInstanceId().equals(c.getMultiConnectionInstanceId())).map(d -> d.getId().toHexString()).collect(Collectors.toList());
             }
 
             Criteria criteria1 = Criteria.where("is_deleted").is(false).and("dag.nodes").elemMatch(Criteria.where("type").is("logCollector").and("connectionIds").elemMatch(Criteria.where("$in").is(ids)));
@@ -927,76 +940,37 @@ public class LogCollectorService {
             query1.fields().include("dag", "status", "name", "currentEventTimestamp");
             List<String> connectionIds = v.stream().map(d -> d.getId().toHexString()).collect(Collectors.toList());
             TaskDto oldLogCollectorTask = taskService.findOne(query1, user);
+
             if (oldLogCollectorTask != null) {
                 List<Node> sources1 = oldLogCollectorTask.getDag().getSources();
                 LogCollectorNode logCollectorNode = (LogCollectorNode) sources1.get(0);
-                List<String> oldTableNames = logCollectorNode.getTableNames();
-                Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
-                for (String id : ids) {
-                    newLogCollectorMap.put(id, oldLogCollectorTask.getId().toHexString());
-                }
-
-                List<String> oldConnectionIds = logCollectorNode.getConnectionIds();
-
-                boolean updateConnectionId = false;
-                for (String connectionId : connectionIds) {
-                    if (!oldConnectionIds.contains(connectionId)) {
-                        oldConnectionIds.add(connectionId);
-                        updateConnectionId = true;
-                    }
-                }
-
-                List<String> finalTableNames = tableNames;
-
-                if (CollectionUtils.isNotEmpty(oldTableNames) && oldTableNames.containsAll(tableNames)) {
-                    //检查状态，如果状态不是启动的，需要启动起来
-                    String status = oldLogCollectorTask.getStatus();
-                    if (updateConnectionId) {
-                        taskService.confirmById(oldLogCollectorTask, user, true);
-                    }
-
-                    if (TaskDto.STATUS_RUNNING.equals(status)) {
-                        FunctionUtils.ignoreAnyError(() -> {
-                            String template = "relate share cdc task: {0}, table name: {1}, current status {2}, currentEventTimestamp is {3}.";
-                            String msg = MessageFormat.format(template, oldLogCollectorTask.getName(), JSON.toJSONString(finalTableNames), oldLogCollectorTask.getStatus(), oldLogCollectorTask.getCurrentEventTimestamp());
-                            monitoringLogsService.startTaskErrorLog(oldTaskDto, user, msg, Level.INFO);
-                        });
-                        return;
-                    }
-
-                    FunctionUtils.ignoreAnyError(() -> {
-                        String template = "relate share cdc task: {0}, table name: {1}, current status {2}, currentEventTimestamp is {3}, will start this task.";
-                        String msg = MessageFormat.format(template, oldLogCollectorTask.getName(), JSON.toJSONString(finalTableNames), oldLogCollectorTask.getStatus(), oldLogCollectorTask.getCurrentEventTimestamp());
-                        monitoringLogsService.startTaskErrorLog(oldTaskDto, user, msg, Level.INFO);
-                    });
-                    taskService.start(oldLogCollectorTask.getId(), user);
+                boolean oldShareCdcNode = isOldShareCdcNode(logCollectorNode);
+                if (oldShareCdcNode) {
+                    oldShareCdcProcess(user, oldTaskDto, newLogCollectorMap, finalTableNames, ids, connectionIds, oldLogCollectorTask, logCollectorNode);
                     return;
                 }
 
-                tableNames.addAll(oldTableNames);
-                tableNames = tableNames.stream().distinct().collect(Collectors.toList());
-                logCollectorNode.setTableNames(tableNames);
-                taskService.updateById(oldLogCollectorTask, user);
-                updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
-
-                FunctionUtils.ignoreAnyError(() -> {
-                    String template = "relate share cdc task: {0}, table name: {1}, current status {2}, currentEventTimestamp is {3}.";
-                    String msg = MessageFormat.format(template, oldLogCollectorTask.getName(), JSON.toJSONString(finalTableNames), oldLogCollectorTask.getStatus(), oldLogCollectorTask.getCurrentEventTimestamp());
-                    monitoringLogsService.startTaskErrorLog(oldTaskDto, user, msg, Level.INFO);
-                });
-
-                //这个stop是异步的， 需要重启，重启的逻辑是通过定时任务跑的
-                taskService.pause(oldLogCollectorTask.getId(), user, false, true);
+                newShareCdcProcess(user, oldTaskDto, newLogCollectorMap, tableMaps, finalTableNames, ids, connectionIds, oldLogCollectorTask, logCollectorNode);
                 return;
             }
 
             LogCollectorNode logCollectorNode = new LogCollectorNode();
+            if (StringUtils.isNotBlank(dataSource.getMultiConnectionInstanceId())) {
+                Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = new HashMap<>();
+                for (String connectionId : connectionIds) {
+                    LogCollecotrConnConfig logCollecotrConnConfig = new LogCollecotrConnConfig(connectionId, tableMaps.get(connectionId));
+                    logCollectorConnConfigs.put(connectionId, logCollecotrConnConfig);
+                }
+                logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
+            }
+
+
             logCollectorNode.setId(UUIDUtil.getUUID());
             logCollectorNode.setConnectionIds(connectionIds);
             logCollectorNode.setDatabaseType(v.get(0).getDatabase_type());
             logCollectorNode.setName(v.get(0).getName());
-            logCollectorNode.setTableNames(tableNames);
             logCollectorNode.setSelectType(LogCollectorNode.SELECT_TYPE_RESERVATION);
+            logCollectorNode.setTableNames(new ArrayList<>(finalTableNames));
             Map<String, Object> attr = Maps.newHashMap();
             attr.put("pdkHash", dataSource.getPdkHash());
             logCollectorNode.setAttrs(attr);
@@ -1031,16 +1005,144 @@ public class LogCollectorService {
 
             taskService.start(taskDto.getId(), user);
 
-            List<String> finalTableNames1 = tableNames;
             TaskDto finalTaskDto = taskDto;
             FunctionUtils.ignoreAnyError(() -> {
                 String template = "relate share cdc task, create new task: {0}, table name: {1}, current status {2}.";
-                String msg = MessageFormat.format(template, finalTaskDto.getName(), JSON.toJSONString(finalTableNames1), finalTaskDto.getStatus());
+                String msg = MessageFormat.format(template, finalTaskDto.getName(), JSON.toJSONString(finalTableNames), finalTaskDto.getStatus());
                 monitoringLogsService.startTaskErrorLog(oldTaskDto, user, msg, Level.INFO);
             });
         });
 
         updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
+    }
+
+    private void newShareCdcProcess(UserDetail user, TaskDto oldTaskDto, Map<String, String> newLogCollectorMap, Map<String, List<String>> tableMaps, Set<String> finalTableNames, List<String> ids, List<String> connectionIds, TaskDto oldLogCollectorTask, LogCollectorNode logCollectorNode) {
+        boolean updateConfig = false;
+        Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
+        for (String id : ids) {
+            newLogCollectorMap.put(id, oldLogCollectorTask.getId().toHexString());
+        }
+        for (String connectionId : connectionIds) {
+            LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
+            if (logCollecotrConnConfig == null) {
+                logCollecotrConnConfig = new LogCollecotrConnConfig(connectionId, tableMaps.get(connectionId));
+                logCollectorConnConfigs.put(connectionId, logCollecotrConnConfig);
+                updateConfig = true;
+            } else {
+                List<String> tableNames = tableMaps.get(connectionId);
+                List<String> oldConfigTableNames = logCollecotrConnConfig.getTableNames();
+                tableNames.addAll(oldConfigTableNames);
+                tableNames = tableNames.stream().distinct().collect(Collectors.toList());
+                if (tableNames.size() != oldConfigTableNames.size()) {
+                    updateConfig =  true;
+                    logCollecotrConnConfig.setTableNames(tableNames);
+                }
+            }
+        }
+        if (!updateConfig) {
+            //检查状态，如果状态不是启动的，需要启动起来
+            String status = oldLogCollectorTask.getStatus();
+
+            if (TaskDto.STATUS_RUNNING.equals(status)) {
+                FunctionUtils.ignoreAnyError(() -> {
+                    String template = "relate share cdc task: {0}, table name: {1}, current status {2}, currentEventTimestamp is {3}.";
+                    String msg = MessageFormat.format(template, oldLogCollectorTask.getName(), JSON.toJSONString(finalTableNames), oldLogCollectorTask.getStatus(), oldLogCollectorTask.getCurrentEventTimestamp());
+                    monitoringLogsService.startTaskErrorLog(oldTaskDto, user, msg, Level.INFO);
+                });
+                return;
+            }
+
+            FunctionUtils.ignoreAnyError(() -> {
+                String template = "relate share cdc task: {0}, table name: {1}, current status {2}, currentEventTimestamp is {3}, will start this task.";
+                String msg = MessageFormat.format(template, oldLogCollectorTask.getName(), JSON.toJSONString(finalTableNames), oldLogCollectorTask.getStatus(), oldLogCollectorTask.getCurrentEventTimestamp());
+                monitoringLogsService.startTaskErrorLog(oldTaskDto, user, msg, Level.INFO);
+            });
+            taskService.start(oldLogCollectorTask.getId(), user);
+            return;
+        }
+
+        logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
+        taskService.updateById(oldLogCollectorTask, user);
+        updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
+
+        FunctionUtils.ignoreAnyError(() -> {
+            String template = "relate share cdc task: {0}, table name: {1}, current status {2}, currentEventTimestamp is {3}.";
+            String msg = MessageFormat.format(template, oldLogCollectorTask.getName(), JSON.toJSONString(finalTableNames), oldLogCollectorTask.getStatus(), oldLogCollectorTask.getCurrentEventTimestamp());
+            monitoringLogsService.startTaskErrorLog(oldTaskDto, user, msg, Level.INFO);
+        });
+
+        //这个stop是异步的， 需要重启，重启的逻辑是通过定时任务跑的
+        pause(oldLogCollectorTask, user);
+        taskService.pause(oldLogCollectorTask.getId(), user, false, true);
+    }
+
+    private void pause(TaskDto oldLogCollectorTask, UserDetail user) {
+        if (TaskDto.STATUS_RUNNING.equals(oldLogCollectorTask.getStatus())) {
+            taskService.pause(oldLogCollectorTask.getId(), user, false, true);
+            return;
+        }
+
+        taskService.start(oldLogCollectorTask.getId(), user);
+
+    }
+
+    private void oldShareCdcProcess(UserDetail user, TaskDto oldTaskDto, Map<String, String> newLogCollectorMap, Set<String> finalTableNames, List<String> ids, List<String> connectionIds, TaskDto oldLogCollectorTask, LogCollectorNode logCollectorNode) {
+        List<String> oldTableNames = logCollectorNode.getTableNames();
+        for (String id : ids) {
+            newLogCollectorMap.put(id, oldLogCollectorTask.getId().toHexString());
+        }
+
+        List<String> oldConnectionIds = logCollectorNode.getConnectionIds();
+
+        boolean updateConnectionId = false;
+        for (String connectionId : connectionIds) {
+            if (!oldConnectionIds.contains(connectionId)) {
+                oldConnectionIds.add(connectionId);
+                updateConnectionId = true;
+            }
+        }
+
+
+        if (CollectionUtils.isNotEmpty(oldTableNames) && new HashSet<>(oldTableNames).containsAll(finalTableNames)) {
+            //检查状态，如果状态不是启动的，需要启动起来
+            String status = oldLogCollectorTask.getStatus();
+            if (updateConnectionId) {
+                taskService.confirmById(oldLogCollectorTask, user, true);
+            }
+
+            if (TaskDto.STATUS_RUNNING.equals(status)) {
+                FunctionUtils.ignoreAnyError(() -> {
+                    String template = "relate share cdc task: {0}, table name: {1}, current status {2}, currentEventTimestamp is {3}.";
+                    String msg = MessageFormat.format(template, oldLogCollectorTask.getName(), JSON.toJSONString(finalTableNames), oldLogCollectorTask.getStatus(), oldLogCollectorTask.getCurrentEventTimestamp());
+                    monitoringLogsService.startTaskErrorLog(oldTaskDto, user, msg, Level.INFO);
+                });
+                return;
+            }
+
+            FunctionUtils.ignoreAnyError(() -> {
+                String template = "relate share cdc task: {0}, table name: {1}, current status {2}, currentEventTimestamp is {3}, will start this task.";
+                String msg = MessageFormat.format(template, oldLogCollectorTask.getName(), JSON.toJSONString(finalTableNames), oldLogCollectorTask.getStatus(), oldLogCollectorTask.getCurrentEventTimestamp());
+                monitoringLogsService.startTaskErrorLog(oldTaskDto, user, msg, Level.INFO);
+            });
+            taskService.start(oldLogCollectorTask.getId(), user);
+            return;
+        }
+        if (CollectionUtils.isNotEmpty(oldTableNames)) {
+            finalTableNames.addAll(oldTableNames);
+        }
+        List<String> collect = finalTableNames.stream().distinct().collect(Collectors.toList());
+        logCollectorNode.setTableNames(collect);
+        taskService.updateById(oldLogCollectorTask, user);
+        updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
+
+        FunctionUtils.ignoreAnyError(() -> {
+            String template = "relate share cdc task: {0}, table name: {1}, current status {2}, currentEventTimestamp is {3}.";
+            String msg = MessageFormat.format(template, oldLogCollectorTask.getName(), JSON.toJSONString(finalTableNames), oldLogCollectorTask.getStatus(), oldLogCollectorTask.getCurrentEventTimestamp());
+            monitoringLogsService.startTaskErrorLog(oldTaskDto, user, msg, Level.INFO);
+        });
+
+        //这个stop是异步的， 需要重启，重启的逻辑是通过定时任务跑的
+        pause(oldLogCollectorTask, user);
     }
 
     /**
@@ -1152,7 +1254,7 @@ public class LogCollectorService {
         List<String> ids = new ArrayList<>();
 
         //如果没有uniqname,则唯一键采用的id，所以不会存在相似的数据源
-        if (StringUtils.isBlank(dataSource.getUniqueName())) {
+        if (StringUtils.isBlank(dataSource.getMultiConnectionInstanceId())) {
             ids.add(dataSource.getId().toHexString());
 
         } else {
@@ -1168,7 +1270,7 @@ public class LogCollectorService {
             }
 
 
-            ids = cache.stream().filter(c -> dataSource.getUniqueName().equals(c.getUniqueName())).map(d -> d.getId().toHexString()).collect(Collectors.toList());
+            ids = cache.stream().filter(c -> dataSource.getMultiConnectionInstanceId().equals(c.getMultiConnectionInstanceId())).map(d -> d.getId().toHexString()).collect(Collectors.toList());
         }
         return ids;
     }
@@ -1290,4 +1392,283 @@ public class LogCollectorService {
         update.set("shareCdcTaskId", shareCdcTaskId);
         taskService.updateById(taskDto.getId(), update, user);
     }
+
+
+    private boolean isOldShareCdcNode(LogCollectorNode logCollectorNode) {
+        Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
+        return logCollectorConnConfigs == null || logCollectorConnConfigs.size() == 0;
+    }
+//    private boolean convertLogCollectorNode(LogCollectorNode logCollectorNode) {
+//
+//
+//        Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
+//        if (logCollectorConnConfigs != null && logCollectorConnConfigs.size() != 0) {
+//            return false;
+//        }
+//
+//        List<String> connectionIds = logCollectorNode.getConnectionIds();
+//        List<String> tableNames = logCollectorNode.getTableNames();
+//        logCollectorConnConfigs = new HashMap<>();
+//        if (CollectionUtils.isNotEmpty(connectionIds)) {
+//            logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
+//            return true;
+//        }
+//
+//        for (String connectionId : connectionIds) {
+//            logCollectorConnConfigs.put(connectionId, new LogCollecotrConnConfig(connectionId, tableNames));
+//        }
+//
+//        logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
+//
+//        logCollectorNode.setConnectionIds(null);
+//        logCollectorNode.setTableNames(null);
+//        return true;
+//    }
+
+    public void cancelMerge(String taskId, String connectionId, UserDetail user) {
+        TaskDto shareCdcTask = taskService.findById(MongoUtils.toObjectId(taskId), user);
+        DAG dag = shareCdcTask.getDag();
+        List<Node> sources = dag.getSources();
+        LogCollectorNode logCollectorNode = (LogCollectorNode)sources.get(0);
+        Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
+        if (logCollectorConnConfigs != null && logCollectorConnConfigs.size() != 0) {
+            //new version shareCdc task
+            LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
+        }
+    }
+
+    public Page<ShareCdcTableInfo> tableInfos(String taskId, String connectionId, Integer page, Integer size, UserDetail user) {
+        TaskDto shareCdcTask = taskService.findById(MongoUtils.toObjectId(taskId), user);
+        DAG dag = shareCdcTask.getDag();
+        List<Node> sources = dag.getSources();
+        LogCollectorNode logCollectorNode = (LogCollectorNode)sources.get(0);
+        Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
+        List<String> tableNames = new ArrayList<>();
+        if (logCollectorConnConfigs == null || logCollectorConnConfigs.size() == 0) {
+            //old version shareCdc task
+            tableNames = logCollectorNode.getTableNames();
+        } else {
+            //new version shareCdc task
+            LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
+            tableNames = logCollecotrConnConfig.getTableNames();
+        }
+        return getShareCdcTableInfoPage(connectionId, page, size, user, tableNames);
+    }
+
+
+    public Page<ShareCdcTableInfo> excludeTableInfos(String taskId, String connectionId, Integer page, Integer size, UserDetail user) {
+        TaskDto shareCdcTask = taskService.findById(MongoUtils.toObjectId(taskId), user);
+        DAG dag = shareCdcTask.getDag();
+        List<Node> sources = dag.getSources();
+        LogCollectorNode logCollectorNode = (LogCollectorNode)sources.get(0);
+        Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
+        List<String> tableNames = new ArrayList<>();
+        if (logCollectorConnConfigs == null || logCollectorConnConfigs.size() == 0) {
+            //old version shareCdc task
+            tableNames = logCollectorNode.getExclusionTables();
+        } else {
+            //new version shareCdc task
+            LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
+            tableNames = logCollecotrConnConfig.getExclusionTables();
+        }
+        return getShareCdcTableInfoPage(connectionId, page, size, user, tableNames);
+    }
+
+    @NotNull
+    private Page<ShareCdcTableInfo> getShareCdcTableInfoPage(String connectionId, Integer page, Integer size, UserDetail user, List<String> tableNames) {
+        int limit = (page - 1) * size;
+        int tableCount = tableNames == null ? 0 : tableNames.size();
+
+        Field field = new Field();
+        field.put("_id", true);
+        field.put("name", true);
+        DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId), field, user);
+        String connectionName = connectionDto.getName();
+        List<ShareCdcTableInfo> shareCdcTableInfos = new ArrayList<>();
+        for (int i = limit; i< size; i++) {
+            if (tableCount <= i || tableNames == null) {
+                break;
+            }
+            String tableName = tableNames.get(i);
+            ShareCdcTableInfo shareCdcTableInfo = new ShareCdcTableInfo();
+            shareCdcTableInfo.setName(tableName);
+            shareCdcTableInfo.setConnectionName(connectionName);
+            shareCdcTableInfo.setConnectionId(connectionId);
+            shareCdcTableInfo.setJoinTime(new Date());
+            shareCdcTableInfo.setFirstLogTime(new Date());
+            shareCdcTableInfo.setLastLogTime(new Date());
+            shareCdcTableInfo.setAllCount(new BigDecimal(100));
+            shareCdcTableInfo.setTodayCount(100L);
+
+            shareCdcTableInfos.add(shareCdcTableInfo);
+
+        }
+
+        Page<ShareCdcTableInfo> shareCdcTableInfoPage = new Page<>();
+        shareCdcTableInfoPage.setTotal(tableCount);
+        shareCdcTableInfoPage.setItems(shareCdcTableInfos);
+        return shareCdcTableInfoPage;
+    }
+
+    public void configTables(String taskId, List<TableLogCollectorParam> params, String type, UserDetail user) {
+			TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), user);
+			DAG dag = taskDto.getDag();
+			List<Node> sources = dag.getSources();
+			LogCollectorNode logCollectorNode = (LogCollectorNode)sources.get(0);
+			if (logCollectorNode.getLogCollectorConnConfigs() == null) {
+				//老任务不允许操作
+				throw new IllegalArgumentException("Operation not allowed");
+			}
+			Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap = processOldData(logCollectorNode);
+			if (type.equals("exclusion")) {
+				logCollectorConnConfigMap = exclusionTables(logCollectorConnConfigMap, params);
+			} else if (type.equals("add")) {
+				logCollectorConnConfigMap = addTables(logCollectorConnConfigMap, params);
+			} else {
+				throw new IllegalArgumentException("type param is illegal");
+			}
+			logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigMap);
+			taskService.update(Query.query(Criteria.where("_id").is(taskDto.getId())), taskDto);
+			if (taskDto.getStatus().equals(TaskDto.STATUS_RUNNING)) {
+					taskService.pause(taskDto.getId(), user, false, true);
+			}
+	}
+
+    public List<ShareCdcConnectionInfo> getConnectionIds(String taskId, UserDetail user) {
+        TaskDto shareCdcTask = taskService.findById(MongoUtils.toObjectId(taskId), user);
+        DAG dag = shareCdcTask.getDag();
+        List<Node> sources = dag.getSources();
+        LogCollectorNode logCollectorNode = (LogCollectorNode)sources.get(0);
+        Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
+        Set<String> connectionIds;
+        if (logCollectorConnConfigs == null) {
+            connectionIds = new HashSet<>(logCollectorNode.getConnectionIds());
+        } else {
+            connectionIds = logCollectorConnConfigs.keySet();
+        }
+        List<DataSourceConnectionDto> alls = dataSourceService.findAllByIds(new ArrayList<>(connectionIds));
+        if (alls != null) {
+            return alls.stream().map(c -> new ShareCdcConnectionInfo(c.getId().toHexString(), c.getName())).collect(Collectors.toList());
+        }
+
+        return new ArrayList<>();
+    }
+
+	private Map<String, LogCollecotrConnConfig> addTables(Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap, List<TableLogCollectorParam> params) {
+		Map<String, LogCollecotrConnConfig> paramMap = params.stream()
+						.collect(Collectors.toMap(TableLogCollectorParam::getConnectionId, e -> new LogCollecotrConnConfig(e.getConnectionId(), new ArrayList<>(e.getTableNames())), (o, n) -> {
+							o.getTableNames().addAll(n.getTableNames());
+							return o;
+						}));
+		logCollectorConnConfigMap = Stream.of(paramMap, logCollectorConnConfigMap).flatMap(map -> map.entrySet().stream())
+						.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (o, n) -> {
+							if (n.getTableNames() != null) {
+									if (o.getTableNames() == null) {
+											o.setTableNames(n.getTableNames());
+									} else {
+											o.getTableNames().addAll(n.getTableNames());
+									}
+							}
+							if (n.getExclusionTables() != null) {
+									if (o.getExclusionTables() == null) {
+											o.setExclusionTables(n.getExclusionTables());
+									} else {
+											o.getExclusionTables().addAll(n.getExclusionTables());
+									}
+							}
+							return o;
+						}));
+		logCollectorConnConfigMap.values().forEach(v -> {
+            if (v.getExclusionTables() !=null) {
+                v.getExclusionTables().removeIf(v.getTableNames()::contains);
+            }
+        });
+		return logCollectorConnConfigMap;
+	}
+
+	private Map<String, LogCollecotrConnConfig> processOldData(LogCollectorNode logCollectorNode) {
+		Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap = logCollectorNode.getLogCollectorConnConfigs();
+		if (logCollectorConnConfigMap == null) {
+			logCollectorConnConfigMap = new HashMap<>();
+			//把以前的转移新config中
+			String oldConnectionId = logCollectorNode.getConnectionIds().get(0);
+			List<String> oldTableNames = logCollectorNode.getTableNames();
+			LogCollecotrConnConfig logCollecotrConnConfig = new LogCollecotrConnConfig(oldConnectionId, oldTableNames);
+			logCollectorConnConfigMap.put(logCollecotrConnConfig.getConnectionId(), logCollecotrConnConfig);
+			logCollectorNode.setTableNames(null);
+			logCollectorNode.setConnectionIds(null);
+		}
+		return logCollectorConnConfigMap;
+	}
+
+	private Map<String, LogCollecotrConnConfig> exclusionTables(Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap, List<TableLogCollectorParam> params) {
+		Map<String, LogCollecotrConnConfig> paramMap = params.stream()
+						.collect(Collectors.toMap(TableLogCollectorParam::getConnectionId,
+										e -> new LogCollecotrConnConfig(e.getConnectionId(), new ArrayList<>(), new ArrayList<>(e.getTableNames())),
+										(o, n) -> {
+											o.getExclusionTables().addAll(n.getExclusionTables());
+											return o;
+						}));
+		logCollectorConnConfigMap = Stream.of(paramMap, logCollectorConnConfigMap).flatMap(map -> map.entrySet().stream())
+						.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (o, n) -> {
+							if (n.getExclusionTables() != null) {
+									if (o.getExclusionTables() == null) {
+											o.setExclusionTables(n.getExclusionTables());
+									} else {
+											o.getExclusionTables().addAll(n.getExclusionTables());
+									}
+							}
+							if (n.getTableNames() != null) {
+								if (o.getTableNames() == null) {
+									o.setTableNames(n.getTableNames());
+								} else {
+									o.getTableNames().addAll(n.getTableNames());
+								}
+							}
+							return o;
+						}));
+        logCollectorConnConfigMap.values().forEach(v -> {
+            if (null != v.getTableNames() && null != v.getExclusionTables()) {
+                v.getTableNames().removeIf(v.getExclusionTables()::contains);
+            }
+        });
+
+		return logCollectorConnConfigMap;
+	}
+
+	public static void main(String[] args) {
+		Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap = new HashMap<String, LogCollecotrConnConfig>() {{
+			put("connectionId_1", new LogCollecotrConnConfig("connectionId_1",
+							new ArrayList<String>() {{
+								add("table_1");
+								add("table_2");
+								add("table_3");
+							}},
+							new ArrayList<String>() {{
+								add("table_3");
+								add("table_4");
+								add("table_5");
+								add("table_6");
+							}}
+			));
+		}};
+		List<TableLogCollectorParam> addParams = new ArrayList<TableLogCollectorParam>() {{
+			add(new TableLogCollectorParam("connectionId_1", new HashSet<String>() {{
+				add("table_4");
+				add("table_5");
+			}}));
+		}};
+
+		List<TableLogCollectorParam> exclusionParams = new ArrayList<TableLogCollectorParam>() {{
+			add(new TableLogCollectorParam("connectionId_1", new HashSet<String>() {{
+				add("table_1");
+				add("table_2");
+			}}));
+		}};
+
+//		Map<String, LogCollecotrConnConfig> logCollecotrConnConfigMap = new LogCollectorService().addTables(logCollectorConnConfigMap, addParams);
+//		System.out.println(logCollecotrConnConfigMap);
+
+
+	}
 }

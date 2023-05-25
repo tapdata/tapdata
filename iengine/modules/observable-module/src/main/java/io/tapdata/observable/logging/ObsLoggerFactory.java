@@ -28,10 +28,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -54,12 +56,30 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 		return INSTANCE;
 	}
 
+	private static final AtomicBoolean initialized = new AtomicBoolean(false);
 	private ObsLoggerFactory() {
-		this.settingService = BeanUtil.getBean(SettingService.class);
-		this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
+		this.settingService = Optional.ofNullable(BeanUtil.getBean(SettingService.class)).orElse((SettingService) getBeanAsync(SettingService.class));
+		this.clientMongoOperator = Optional.ofNullable(BeanUtil.getBean(ClientMongoOperator.class)).orElse((ClientMongoOperator) getBeanAsync(ClientMongoOperator.class));
 		this.scheduleExecutorService = new ScheduledThreadPoolExecutor(1);
 		scheduleExecutorService.scheduleAtFixedRate(this::renewTaskLogSetting, 0L, PERIOD_SECOND, TimeUnit.SECONDS);
 		scheduleExecutorService.scheduleWithFixedDelay(this::removeTaskLogger, PERIOD_SECOND, PERIOD_SECOND, TimeUnit.SECONDS);
+	}
+
+	Object getBeanAsync(Class<?> clz){
+		while (!initialized.get()) {
+			synchronized (initialized) {
+				try {
+					initialized.wait(100L);
+					Object bean = BeanUtil.getBean(clz);
+					if (null != bean ){
+						return bean;
+					}
+				} catch (InterruptedException e) {
+					throw new RuntimeException(e);
+				}
+			}
+		}
+		return null;
 	}
 
 	private static final long PERIOD_SECOND = 10L;
@@ -102,14 +122,14 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 			loggerToBeRemoved.remove(taskId);
 			TaskLogger taskLogger = TaskLogger.create(taskId, task.getName(), task.getTaskRecordId(), this::closeDebugForTask)
 					.withTaskLogSetting(getLogSettingLogLevel(task), getLogSettingRecordCeiling(task), getLogSettingIntervalCeiling(task));
-			if (task.isTestTask()){
+			AtomicReference<Object> taskInfo = (AtomicReference<Object>) task.taskInfo(JSProcessNodeAppender.LOG_LIST_KEY + taskId);
+			if (task.isTestTask() && null != taskInfo){
 				//js处理器试运行收集日志，不入库不额外操作，仅返回给前端
 				taskLogger.witAppender(
 					(WithAppender<MonitoringLogsDto>)(() ->
 						(BaseTaskAppender<MonitoringLogsDto>) JSProcessNodeAppender.create(
-							taskId,
-							(AtomicReference<Object>)task.taskInfo(JSProcessNodeAppender.LOG_LIST_KEY + taskId),
-							(Integer) task.taskInfo(JSProcessNodeAppender.MAX_LOG_LENGTH_KEY + taskId))
+							taskId, taskInfo, Optional.ofNullable((Integer) task.taskInfo(JSProcessNodeAppender.MAX_LOG_LENGTH_KEY + taskId)).orElse(100))
+							.nodeID((String)task.taskInfo(JSProcessNodeAppender.JS_NODE_ID_KEY + taskId))
 					)
 				);
 			} else {

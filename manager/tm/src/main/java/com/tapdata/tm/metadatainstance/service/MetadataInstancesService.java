@@ -1,6 +1,7 @@
 package com.tapdata.tm.metadatainstance.service;
 
 import cn.hutool.core.bean.BeanUtil;
+import com.alibaba.fastjson.JSON;
 import com.google.common.collect.ImmutableMap;
 import com.mongodb.BasicDBObject;
 import com.mongodb.bulk.BulkWriteResult;
@@ -13,29 +14,24 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DataNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.*;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
+import com.tapdata.tm.commons.dag.process.ProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.SchemaUtils;
-import com.tapdata.tm.commons.schema.TableIndex;
-import com.tapdata.tm.commons.schema.TableIndexColumn;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
-import com.tapdata.tm.commons.util.JsonUtil;
-import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
-import com.tapdata.tm.commons.util.MetaType;
-import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import com.tapdata.tm.commons.util.*;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dag.service.DAGService;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -45,12 +41,7 @@ import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.param.ClassificationParam;
 import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
 import com.tapdata.tm.metadatainstance.repository.MetadataInstancesRepository;
-import com.tapdata.tm.metadatainstance.vo.MetaTableCheckVo;
-import com.tapdata.tm.metadatainstance.vo.MetaTableVo;
-import com.tapdata.tm.metadatainstance.vo.MetadataInstancesVo;
-import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
-import com.tapdata.tm.metadatainstance.vo.TableListVo;
-import com.tapdata.tm.metadatainstance.vo.TableSupportInspectVo;
+import com.tapdata.tm.metadatainstance.vo.*;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
@@ -58,6 +49,7 @@ import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MetadataUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SchemaTransformUtils;
+import io.tapdata.entity.conversion.PossibleDataTypes;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
@@ -75,13 +67,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.aggregation.Aggregation;
-import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
-import org.springframework.data.mongodb.core.aggregation.GraphLookupOperation;
-import org.springframework.data.mongodb.core.aggregation.LimitOperation;
-import org.springframework.data.mongodb.core.aggregation.LookupOperation;
-import org.springframework.data.mongodb.core.aggregation.ProjectionOperation;
-import org.springframework.data.mongodb.core.aggregation.SkipOperation;
+import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -90,11 +76,10 @@ import org.springframework.util.Assert;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
-import static com.tapdata.tm.utils.MongoUtils.applyField;
-import static com.tapdata.tm.utils.MongoUtils.applySort;
-import static com.tapdata.tm.utils.MongoUtils.toObjectId;
+import static com.tapdata.tm.utils.MongoUtils.*;
 
 /**
  * @Author: Zed
@@ -1354,8 +1339,6 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     }
 
     private Map<String, String> getNodeMapping(UserDetail user, TaskDto taskDto, Map<String, String> kv, Node node) {
-
-
         if (node instanceof ProcessorNode) {
             kv.put(node.getId(), getQualifiedNameByNodeId(node, user, null, null, taskDto.getId().toHexString()));
             if (node instanceof MergeTableNode) {
@@ -1363,17 +1346,50 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 for (Node predecessor : predecessors) {
                     getNodeMapping(user, taskDto, kv, predecessor);
                 }
-
             }
         } else if (node instanceof TableNode) {
             kv.put(((TableNode) node).getTableName(), getQualifiedNameByNodeId(node, user, null, null, taskDto.getId().toHexString()));
         } else {
-            List<MetadataInstancesDto> metadatas = findByNodeId(node.getId(), Lists.of("original_name", "qualified_name"), user, taskDto);
-            if (CollectionUtils.isNotEmpty(metadatas)) {
-                kv = metadatas.stream()
-                        .collect(Collectors.toMap(MetadataInstancesDto::getOriginalName
-                                , MetadataInstancesDto::getQualifiedName, (m1, m2) -> m1));
-            }
+			boolean need2Parse = true;
+			if (node instanceof LogCollectorNode) {
+				LogCollectorNode logCollectorNode = (LogCollectorNode) node;
+				Map<String, LogCollecotrConnConfig> connConfigs = logCollectorNode.getLogCollectorConnConfigs();
+				if (null != connConfigs && !connConfigs.isEmpty()) {
+					need2Parse = false;
+					List<MetadataInstancesDto> metadatas = findByNodeId(node.getId(), Lists.of("original_name", "qualified_name", "source._id"), user, taskDto);
+					if (CollectionUtils.isNotEmpty(metadatas)) {
+						Map<String, String> connectionNamespace = new HashMap<>();
+						BiFunction<String, String, String> keyParser = (connectionId, originalName) -> {
+							String prefix = connectionNamespace.computeIfAbsent(connectionId, cid -> {
+								com.tapdata.tm.base.dto.Field fields = new com.tapdata.tm.base.dto.Field();
+								fields.put("namespace", true);
+								DataSourceConnectionDto connectionDto = dataSourceService.findById(new ObjectId(cid), fields);
+								if (null != connectionDto && null != connectionDto.getNamespace() && !connectionDto.getNamespace().isEmpty()) {
+									return String.join(".", connectionDto.getNamespace());
+								}
+								throw new RuntimeException("Connection '" + cid + "' not found 'namespace' property");
+							});
+							return String.join(".", prefix, originalName);
+						};
+
+						kv = metadatas.stream().collect(Collectors.toMap(m -> {
+							SourceDto source = m.getSource();
+							if (null == source)
+								throw new RuntimeException("MetadataInstances '" + m.getQualifiedName() + "' not found 'source' property");
+							return keyParser.apply(m.getSource().get_id(), m.getOriginalName());
+						}, MetadataInstancesDto::getQualifiedName, (m1, m2) -> m1));
+					}
+				}
+			}
+
+			if (need2Parse) {
+				List<MetadataInstancesDto> metadatas = findByNodeId(node.getId(), Lists.of("original_name", "qualified_name"), user, taskDto);
+				if (CollectionUtils.isNotEmpty(metadatas)) {
+					kv = metadatas.stream()
+						.collect(Collectors.toMap(MetadataInstancesDto::getOriginalName
+							, MetadataInstancesDto::getQualifiedName, (m1, m2) -> m1));
+				}
+			}
         }
         return kv;
     }
@@ -1657,15 +1673,28 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
                 } else if (node instanceof LogCollectorNode) {
                     LogCollectorNode logNode = (LogCollectorNode) node;
-                    List<String> connectionIds = logNode.getConnectionIds();
-                    if (CollectionUtils.isNotEmpty(connectionIds)) {
-                        String connectionId = connectionIds.get(0);
-                        queryMetadata.addCriteria(criteriaTable);
-                        criteriaTable.and("source._id").is(connectionId)
-                                .and("originalName").in(logNode.getTableNames()).and("is_deleted").ne(true);
-                        metadatas = findAllDto(queryMetadata, user);
-                        totals = count(queryMetadata, user);
-                    }
+					Map<String, LogCollecotrConnConfig> connConfigs = logNode.getLogCollectorConnConfigs();
+					if (null != connConfigs && !connConfigs.isEmpty()) {
+						List<Criteria> criteriaList = new ArrayList<>();
+						for (LogCollecotrConnConfig config : connConfigs.values()) {
+							criteriaList.add(Criteria.where("source._id").is(config.getConnectionId())
+								.and("originalName").in(config.getTableNames()));
+						}
+						criteriaTable.and("is_deleted").ne(true).orOperator(criteriaList);
+						queryMetadata.addCriteria(criteriaTable);
+						metadatas = findAllDto(queryMetadata, user);
+						totals = count(queryMetadata, user);
+					} else {
+						List<String> connectionIds = logNode.getConnectionIds();
+						if (CollectionUtils.isNotEmpty(connectionIds)) {
+							String connectionId = connectionIds.get(0);
+							queryMetadata.addCriteria(criteriaTable);
+							criteriaTable.and("source._id").is(connectionId)
+								.and("originalName").in(logNode.getTableNames()).and("is_deleted").ne(true);
+							metadatas = findAllDto(queryMetadata, user);
+							totals = count(queryMetadata, user);
+						}
+					}
                 }
             }
 
@@ -1896,6 +1925,20 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         for (MetadataInstancesDto item : items) {
             List<Field> fields = item.getFields();
             if (null == fields) continue;
+
+            //fields not support : dataTypes null
+            Map<String, PossibleDataTypes> dataTypes = item.getFindPossibleDataTypes();
+            if (Objects.nonNull(dataTypes)) {
+                fields.forEach(field -> {
+                    if (Objects.nonNull(dataTypes.get(field.getFieldName())) && CollectionUtils.isEmpty(dataTypes.get(field.getFieldName()).getDataTypes())) {
+                        field.setDeleted(true);
+                    }
+                    TapType tapType = JSON.parseObject(field.getTapType(), TapType.class);
+                    if (TapType.TYPE_RAW == tapType.getType()) {
+                        field.setDeleted(true);
+                    }
+                });
+            }
 
             List<String> deleteFieldNames = fields.stream().filter(Field::isDeleted).map(Field::getFieldName).collect(Collectors.toList());
             item.setFields(fields.stream().filter(f->!f.isDeleted()).collect(Collectors.toList()));
