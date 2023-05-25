@@ -44,6 +44,12 @@ public class PDKMethodInvoker {
         return this;
     }
 
+    public void resetRetry() {
+        if (null != this.resetRetry) {
+					this.resetRetry.run();
+				}
+    }
+
     public PDKMethodInvoker logListener(TapLogger.LogListener logListener) {
         this.logListener = logListener;
         return this;

@@ -670,6 +670,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 															}
 														}
 													}
+												} else {
+													// Update retry state after successful write
+													pdkMethodInvoker.resetRetry();
 												}
 
 												if (writeRecordFuncAspect != null)

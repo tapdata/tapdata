@@ -135,9 +135,11 @@ public class TaskRetryService extends RetryService implements Serializable {
 
 	@Override
 	public void reset() {
-		synchronized (this.lock) {
-			this.startRetryTimeMs = null;
-			this.endRetryTimeMs = null;
+		if (null != this.startRetryTimeMs) {
+			synchronized (this.lock) {
+				this.startRetryTimeMs = null;
+				this.endRetryTimeMs = null;
+			}
 		}
 	}
 
