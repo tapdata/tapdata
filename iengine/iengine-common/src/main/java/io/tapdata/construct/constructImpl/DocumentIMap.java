@@ -13,12 +13,12 @@ import org.bson.types.Decimal128;
 public class DocumentIMap<T> extends ConstructIMap<T> {
 	private static final String DOCUMENT_KEY = DocumentIMap.class.getName().replaceAll("\\.", "-");
 
-	public DocumentIMap(HazelcastInstance hazelcastInstance, String name) {
-		super(hazelcastInstance, name);
+	public DocumentIMap(HazelcastInstance hazelcastInstance, String referenceId, String name) {
+		super(hazelcastInstance, referenceId, name);
 	}
 
-	public DocumentIMap(HazelcastInstance hazelcastInstance, String name, ExternalStorageDto externalStorageDto) {
-		super(hazelcastInstance, name, externalStorageDto);
+	public DocumentIMap(HazelcastInstance hazelcastInstance, String referenceId, String name, ExternalStorageDto externalStorageDto) {
+		super(hazelcastInstance, referenceId, name, externalStorageDto);
 	}
 
 	@Override
