@@ -190,7 +190,8 @@ public class MongodbMergeOperate {
 			final List<Document> arrayFilter = arrayFilter(
 					MapUtils.isNotEmpty(mergeBundle.getBefore()) ? mergeBundle.getBefore() : mergeBundle.getAfter(),
 					currentProperty.getJoinKeys(),
-					currentProperty.getTargetPath()
+					currentProperty.getTargetPath(),
+					currentProperty.getArrayPath()
 			);
 			mergeResult.getUpdateOptions().arrayFilters(arrayFilter);
 		}
@@ -253,14 +254,15 @@ public class MongodbMergeOperate {
 				arrayFilter = arrayFilter(
 						MapUtils.isNotEmpty(mergeBundle.getBefore()) ? mergeBundle.getBefore() : mergeBundle.getAfter(),
 						currentProperty.getJoinKeys(),
-						arrayKeys
+						arrayKeys,
+						currentProperty.getArrayPath()
 				);
 			} else {
 				arrayFilter = arrayFilter(
 						MapUtils.isNotEmpty(mergeBundle.getBefore()) ? mergeBundle.getBefore() : mergeBundle.getAfter(),
 						currentProperty.getJoinKeys(),
-						currentProperty.getTargetPath()
-				);
+						currentProperty.getTargetPath(),
+						currentProperty.getArrayPath());
 			}
 			mergeResult.getUpdateOptions().arrayFilters(arrayFilter);
 		} else {
@@ -274,7 +276,8 @@ public class MongodbMergeOperate {
 				final List<Document> arrayFilter = arrayFilterForArrayMerge(
 						MapUtils.isNotEmpty(mergeBundle.getBefore()) ? mergeBundle.getBefore() : mergeBundle.getAfter(),
 						currentProperty.getArrayKeys(),
-						currentProperty.getTargetPath()
+						currentProperty.getTargetPath(),
+						currentProperty.getArrayPath()
 				);
 				mergeResult.getUpdateOptions().arrayFilters(arrayFilter);
 			}
@@ -372,18 +375,26 @@ public class MongodbMergeOperate {
 		return document;
 	}
 
-	private static List<Document> arrayFilter(Map<String, Object> data, List<Map<String, String>> joinKeys, String targetPath) {
+	private static List<Document> arrayFilter(Map<String, Object> data, List<Map<String, String>> joinKeys, String targetPath, String arrayPath) {
 		List<Document> arrayFilter = new ArrayList<>();
 		Document filter = new Document();
 		for (Map<String, String> joinKey : joinKeys) {
-			String[] paths = joinKey.get("target").split("\\.");
-			filter.put("element1." + paths[paths.length - 1], MapUtil.getValueByKey(data, joinKey.get("source")));
+//			String[] paths = joinKey.get("target").split("\\.");
+			filter.put("element1." + getArrayMatchString(arrayPath, joinKey)/*paths[paths.length - 1]*/, MapUtil.getValueByKey(data, joinKey.get("source")));
 		}
 		arrayFilter.add(filter);
 		return arrayFilter;
 	}
 
-	private static List<Document> arrayFilterForArrayMerge(Map<String, Object> data, List<String> arrayKeys, String targetPath) {
+	private static String getArrayMatchString(String arrayPath, Map<String, String> joinKey) {
+		String targetStr = joinKey.get("target");
+		if(targetStr.startsWith(arrayPath)) {
+			targetStr = targetStr.substring(arrayPath.length() + 1);
+		}
+		return targetStr;
+	}
+
+	private static List<Document> arrayFilterForArrayMerge(Map<String, Object> data, List<String> arrayKeys, String targetPath, String arrayPath) {
 		List<Document> arrayFilter = new ArrayList<>();
 		for (String arrayKey : arrayKeys) {
 			Document filter = new Document();
@@ -394,12 +405,12 @@ public class MongodbMergeOperate {
 		return arrayFilter;
 	}
 
-	private static List<Document> arrayFilter(Map<String, Object> data, List<Map<String, String>> joinKeys, List<String> arrayKeys) {
+	private static List<Document> arrayFilter(Map<String, Object> data, List<Map<String, String>> joinKeys, List<String> arrayKeys, String arrayPath) {
 		List<Document> arrayFilter = new ArrayList<>();
 		for (Map<String, String> joinKey : joinKeys) {
 			Document filter = new Document();
-			String[] paths = joinKey.get("target").split("\\.");
-			filter.put("element1." + paths[paths.length - 1], MapUtil.getValueByKey(data, joinKey.get("source")));
+//			String[] paths = joinKey.get("target").split("\\.");
+			filter.put("element1." + getArrayMatchString(arrayPath, joinKey)/*paths[paths.length - 1]*/, MapUtil.getValueByKey(data, joinKey.get("source")));
 			arrayFilter.add(filter);
 		}
 

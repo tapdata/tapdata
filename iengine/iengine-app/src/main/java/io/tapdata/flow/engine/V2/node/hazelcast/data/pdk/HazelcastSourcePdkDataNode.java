@@ -45,6 +45,8 @@ import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderController;
+import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.sharecdc.ReaderType;
@@ -147,7 +149,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			try {
 				if (need2InitialSync(syncProgress)) {
 					if (this.sourceRunnerFirstTime.get()) {
-						doSnapshot(new ArrayList<>(tapTableMap.keySet()));
+						doSnapshotWithControl(new ArrayList<>(tapTableMap.keySet()));
 					}
 				}
 
@@ -193,6 +195,15 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			}
 		} catch (Throwable throwable) {
 			errorHandle(throwable, throwable.getMessage());
+		}
+	}
+
+	private void doSnapshotWithControl(List<String> tableList) throws Throwable {
+		SnapshotOrderController controller = SnapshotOrderService.getInstance().getController(dataProcessorContext.getTaskDto().getId().toHexString());
+		if (null != controller) {
+			CommonUtils.AnyError runner = () -> doSnapshot(tableList);
+			controller.runWithControl(getNode(), runner);
+			controller.finish(getNode());
 		}
 	}
 
