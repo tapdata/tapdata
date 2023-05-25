@@ -81,6 +81,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 	private ExecutorService readThreadPool;
 	private TaskDto logCollectorTaskDto;
 	private HazelcastInstance hazelcastInstance;
+	private String constructReferenceId;
 	private List<String> tableNames;
 	private String connNamespaceStr;
 	private int threadNum = DEFAULT_THREAD_NUMBER;
@@ -117,6 +118,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			ShareCdcTaskContext shareCdcTaskContext = (ShareCdcTaskContext) shareCdcContext;
 			int step = 0;
 			shareCdcContext.getObsLogger().info(logWrapper("Initializing share cdc reader..."));
+			this.constructReferenceId = String.format("%s-%s-%s", getClass().getSimpleName(), shareCdcTaskContext.getNode().getTaskId(), shareCdcTaskContext.getNode().getId());
 			this.running = new AtomicBoolean(true);
 			this.hazelcastInstance = HazelcastUtil.getInstance(this.shareCdcContext.getConfigurationCenter());
 			this.connNamespaceStr = Optional.ofNullable(shareCdcTaskContext.getConnections())
@@ -247,6 +249,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		if (null != connNamespaceStr) {
 			return new ConstructRingBuffer<>(
 				hazelcastInstance,
+				constructReferenceId,
 				ShareCdcUtil.getConstructName(this.logCollectorTaskDto, ShareCdcUtil.joinNamespaces(Arrays.asList(connNamespaceStr, tableName))),
 				logCollectorExternalStorage
 			);
@@ -254,6 +257,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 
 		return new ConstructRingBuffer<>(
 			hazelcastInstance,
+			constructReferenceId,
 			ShareCdcUtil.getConstructName(this.logCollectorTaskDto, tableName),
 			logCollectorExternalStorage
 		);
@@ -311,7 +315,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			return;
 		}
 		try {
-			ConstructRingBuffer<Document> ringBuffer = new ConstructRingBuffer<>(hazelcastInstance, ShareCdcUtil.getConstructName(this.logCollectorTaskDto), logCollectorExternalStorage);
+			ConstructRingBuffer<Document> ringBuffer = new ConstructRingBuffer<>(hazelcastInstance, constructReferenceId, ShareCdcUtil.getConstructName(this.logCollectorTaskDto), logCollectorExternalStorage);
 			if (ringBuffer.isEmpty()) {
 				return;
 			}
@@ -502,7 +506,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			for (String tableName : tableNames) {
 				ShareCdcReaderResource readerResource = readerResourceMap.remove(tableName);
 				if (null == readerResource) continue;
-				CommonUtils.ignoreAnyError(() -> PersistenceStorage.getInstance().destroy(ConstructType.RINGBUFFER, readerResource.construct.getName()), tag);
+				CommonUtils.ignoreAnyError(() -> PersistenceStorage.getInstance().destroy(constructReferenceId, ConstructType.RINGBUFFER, readerResource.construct.getName()), tag);
 			}
 		}
 	}
