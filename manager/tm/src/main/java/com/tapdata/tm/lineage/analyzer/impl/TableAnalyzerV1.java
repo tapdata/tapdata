@@ -61,35 +61,39 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		Graph<Node, Edge> graph = new Graph<>(true, true, false);
 		AnalyzeLayer analyzeLayer = initAnalyzeLayer(connectionId, table, graph);
 		TaskEntity task = findTask(connectionId, table);
+		LineageTableNode lineageTableNode;
 		if (null == task) {
-			return null;
-		}
-		Node node = findNodeInTask(task, connectionId, table);
-		if (null == node) {
-			return null;
-		}
-
-		LineageTask lineageTask = wrapLineageTask(task, node);
-		analyzeLayer.setPreNode(node);
-		analyzeLayer.setPreInvalidNode(node);
-		DataSourceEntity dataSource = findDataSource(connectionId);
-		LineageTableNode lineageTableNode = new LineageTableNode(table, dataSource.getId().toHexString(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(connectionId, table))
-				.addTask(lineageTask);
-		setGraphNode(graph, lineageTableNode);
-		analyzeLayer.setPreLineageTableNode(lineageTableNode);
-		analyzeLayer.setCurrentTask(lineageTask);
-		analyzeLayer.getNotInTaskIds().add(lineageTask.getId());
-		if (LineageType.ALL_STREAM == lineageType) {
-			analyzeLayer.setLineageType(LineageType.UPSTREAM);
-			recursiveAnalyze(analyzeLayer);
-			initAnalyzeLayer(connectionId, table, graph);
-			analyzeLayer.setLineageType(LineageType.DOWNSTREAM);
+			DataSourceEntity dataSource = findDataSource(connectionId);
+			LineageMetadataInstance metadata = getMetadata(connectionId, table);
+			lineageTableNode = new LineageTableNode(table, connectionId, dataSource.getName(), dataSource.getPdkHash(), metadata);
+			setGraphNode(graph, lineageTableNode);
 		} else {
-			analyzeLayer.setLineageType(lineageType);
+			Node node = findNodeInTask(task, connectionId, table);
+			if (null == node) {
+				return null;
+			}
+			LineageTask lineageTask = wrapLineageTask(task, node);
+			analyzeLayer.setPreNode(node);
+			analyzeLayer.setPreInvalidNode(node);
+			DataSourceEntity dataSource = findDataSource(connectionId);
+			lineageTableNode = new LineageTableNode(table, dataSource.getId().toHexString(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(connectionId, table))
+					.addTask(lineageTask);
+			setGraphNode(graph, lineageTableNode);
+			analyzeLayer.setPreLineageTableNode(lineageTableNode);
+			analyzeLayer.setCurrentTask(lineageTask);
+			analyzeLayer.getNotInTaskIds().add(lineageTask.getId());
+			if (LineageType.ALL_STREAM == lineageType) {
+				analyzeLayer.setLineageType(LineageType.UPSTREAM);
+				recursiveAnalyze(analyzeLayer);
+				initAnalyzeLayer(connectionId, table, graph);
+				analyzeLayer.setLineageType(LineageType.DOWNSTREAM);
+			} else {
+				analyzeLayer.setLineageType(lineageType);
+			}
+			recursiveAnalyze(analyzeLayer);
 		}
-		analyzeApiserver(analyzeLayer, lineageTableNode);
-		recursiveAnalyze(analyzeLayer);
 
+		analyzeApiserver(analyzeLayer, lineageTableNode);
 		return analyzeLayer.getGraph();
 	}
 
@@ -294,7 +298,10 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 	@NotNull
 	private static Criteria buildTaskCriteria(String connectionId, String table) {
 		Criteria syncTaskCriteria = new Criteria("dag.nodes.connectionId").is(connectionId).and("dag.nodes.tableName").is(table);
-		Criteria migrateCriteria = new Criteria("dag.nodes.connectionId").is(connectionId).and("dag.nodes.tableNames").is(table);
+		Criteria migrateSrcCriteria = new Criteria("dag.nodes.tableNames").is(table);
+		Criteria migrateTgtCriteria = new Criteria("dag.nodes.syncObjects.objectNames").is(table);
+		Criteria migrateCriteria = new Criteria("dag.nodes.connectionId").is(connectionId)
+				.andOperator(new Criteria().orOperator(migrateSrcCriteria, migrateTgtCriteria));
 		Criteria notDeleteCriteria = new Criteria("is_deleted").is(false);
 		return new Criteria().andOperator(
 				notDeleteCriteria,
@@ -430,7 +437,7 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 			lineageAttrMap.put(lineageAttr.getId(), lineageAttr);
 			attrs.put(lineageAttr.getAttrKey(), lineageAttrMap);
 			Edge edge = new Edge(lineageAttr.getName(), attrs, node1.getId(), node2.getId());
-			graph.setEdge(node1.getId(), node2.getId(), edge, lineageAttr.getName());
+			graph.setEdge(node1.getId(), node2.getId(), edge);
 		} else {
 			Map<String, Object> attrs = existEdge.getAttrs();
 			Map.Entry<String, Object> entry = attrs.entrySet().stream().filter(e -> e.getKey().equals(lineageAttr.getAttrKey())).findFirst().orElse(null);
