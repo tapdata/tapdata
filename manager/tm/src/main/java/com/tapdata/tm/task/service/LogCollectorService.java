@@ -1556,7 +1556,7 @@ public class LogCollectorService {
 			taskService.update(Query.query(Criteria.where("_id").is(taskDto.getId())), taskDto);
       taskService.pause(taskDto.getId(), user, false, !deleteTask);
       if (deleteTask) {
-          log.info("No tables need to collect logs, the task will be deleted.");
+          log.info("No tables need to collect logs, the task [{}-{}] will be deleted. ", taskDto.getId(), taskDto.getName());
           taskService.remove(taskDto.getId(), user);
       }
 	}
