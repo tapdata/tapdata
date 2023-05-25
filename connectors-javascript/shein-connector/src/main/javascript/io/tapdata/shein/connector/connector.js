@@ -3,11 +3,28 @@ function discoverSchema(connectionConfig) {
 }
 
 function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
-
+    tableHandle.handle(tableName).batchRead(connectionConfig, nodeConfig, offset, pageSize, batchReadSender);
 }
 
 function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSize, streamReadSender) {
-
+    if (!arrayUtils.isNotEmptyArray(tableNameList)){
+        throw ("Can not get any table name, table name list is empty");
+    }
+    let tableHandles = [];
+    for (let index = 0; index < tableNameList.length; index++) {
+        let handle = tableHandle.handle(tableNameList[index]);
+        if (handle instanceof DefaultTable){
+            log.warn("Table can not be support stream read, and will ignore table which name is {}", tableNameList[index]);
+        }
+        tableHandles.push(handle);
+    }
+    while (isAlive()){
+        for (let index = 0; index < tableHandles.length; index++) {
+            if (!isAlive()) break;
+            let tableHandel = tableHandles[index];
+            tableHandel.streamRead(connectionConfig, nodeConfig, offset, pageSize, streamReadSender);
+        }
+    }
 }
 
 function connectionTest(connectionConfig) {
