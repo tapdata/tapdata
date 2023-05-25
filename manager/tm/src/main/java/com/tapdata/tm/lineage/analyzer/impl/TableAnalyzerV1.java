@@ -298,7 +298,10 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 	@NotNull
 	private static Criteria buildTaskCriteria(String connectionId, String table) {
 		Criteria syncTaskCriteria = new Criteria("dag.nodes.connectionId").is(connectionId).and("dag.nodes.tableName").is(table);
-		Criteria migrateCriteria = new Criteria("dag.nodes.connectionId").is(connectionId).and("dag.nodes.tableNames").is(table);
+		Criteria migrateSrcCriteria = new Criteria("dag.nodes.tableNames").is(table);
+		Criteria migrateTgtCriteria = new Criteria("dag.nodes.syncObjects.objectNames").is(table);
+		Criteria migrateCriteria = new Criteria("dag.nodes.connectionId").is(connectionId)
+				.andOperator(new Criteria().orOperator(migrateSrcCriteria, migrateTgtCriteria));
 		Criteria notDeleteCriteria = new Criteria("is_deleted").is(false);
 		return new Criteria().andOperator(
 				notDeleteCriteria,
