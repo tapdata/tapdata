@@ -4,7 +4,6 @@ import io.tapdata.common.exception.AbstractExceptionCollector;
 import io.tapdata.common.exception.ExceptionCollector;
 import io.tapdata.exception.*;
 import io.tapdata.kit.ErrorKit;
-import ru.yandex.clickhouse.except.ClickHouseException;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -17,28 +16,28 @@ public class ClickhouseExceptionCollector extends AbstractExceptionCollector imp
 
     @Override
     public void collectTerminateByServer(Throwable cause) {
-        if (cause instanceof ClickHouseException && ((ClickHouseException) cause).getErrorCode() == 394) {
+        if (cause instanceof SQLException && ((SQLException) cause).getErrorCode() == 394) {
             throw new TapPdkTerminateByServerEx(pdkId, ErrorKit.getLastCause(cause));
         }
     }
 
     @Override
     public void collectUserPwdInvalid(String username, Throwable cause) {
-        if (cause instanceof ClickHouseException && ((ClickHouseException) cause).getErrorCode() == 516) {
+        if (cause instanceof SQLException && ((SQLException) cause).getErrorCode() == 516) {
             throw new TapPdkUserPwdInvalidEx(pdkId, username, ErrorKit.getLastCause(cause));
         }
     }
 
     @Override
     public void collectReadPrivileges(Object operation, List<String> privileges, Throwable cause) {
-        if (cause instanceof ClickHouseException && ((ClickHouseException) cause).getErrorCode() == 497) {
+        if (cause instanceof SQLException && ((SQLException) cause).getErrorCode() == 497) {
             throw new TapPdkReadMissingPrivilegesEx(pdkId, operation, privileges, ErrorKit.getLastCause(cause));
         }
     }
 
     @Override
     public void collectWritePrivileges(Object operation, List<String> privileges, Throwable cause) {
-        if (cause instanceof ClickHouseException && ((ClickHouseException) cause).getErrorCode() == 497) {
+        if (cause instanceof SQLException && ((SQLException) cause).getErrorCode() == 497) {
             throw new TapPdkWriteMissingPrivilegesEx(pdkId, operation, privileges, ErrorKit.getLastCause(cause));
         }
     }

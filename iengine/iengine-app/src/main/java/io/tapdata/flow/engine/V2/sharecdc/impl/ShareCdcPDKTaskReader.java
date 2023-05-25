@@ -82,6 +82,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 	private TaskDto logCollectorTaskDto;
 	private HazelcastInstance hazelcastInstance;
 	private List<String> tableNames;
+	private String connNamespaceStr;
 	private int threadNum = DEFAULT_THREAD_NUMBER;
 	private List<ReadRunner> readRunners;
 	private Map<String, Long> sequenceMap;
@@ -113,11 +114,16 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			if (!(shareCdcContext instanceof ShareCdcTaskPdkContext)) {
 				throw new IllegalArgumentException("Expected: " + ShareCdcTaskPdkContext.class.getName() + ", actual: " + this.shareCdcContext.getClass().getName());
 			}
+			ShareCdcTaskContext shareCdcTaskContext = (ShareCdcTaskContext) shareCdcContext;
 			int step = 0;
 			shareCdcContext.getObsLogger().info(logWrapper("Initializing share cdc reader..."));
 			this.running = new AtomicBoolean(true);
 			this.hazelcastInstance = HazelcastUtil.getInstance(this.shareCdcContext.getConfigurationCenter());
-			this.tableNames = NodeUtil.getTableNames(((ShareCdcTaskContext) shareCdcContext).getNode());
+			this.connNamespaceStr = Optional.ofNullable(shareCdcTaskContext.getConnections())
+				.map(Connections::getNamespace)
+				.map(ShareCdcUtil::joinNamespaces)
+				.orElse(null);
+			this.tableNames = NodeUtil.getTableNames(shareCdcTaskContext.getNode());
 			step = canShareCdc(step);
 			this.readRunners = new ArrayList<>();
 			logger.info(logWrapper(++step, "Init read thread pool completed"));
@@ -238,10 +244,18 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 
 	@NotNull
 	private ConstructRingBuffer<Document> getConstruct(String tableName) {
-		return new ConstructRingBuffer<>(
+		if (null != connNamespaceStr) {
+			return new ConstructRingBuffer<>(
 				hazelcastInstance,
-				ShareCdcUtil.getConstructName(this.logCollectorTaskDto, tableName),
+				ShareCdcUtil.getConstructName(this.logCollectorTaskDto, ShareCdcUtil.joinNamespaces(Arrays.asList(connNamespaceStr, tableName))),
 				logCollectorExternalStorage
+			);
+		}
+
+		return new ConstructRingBuffer<>(
+			hazelcastInstance,
+			ShareCdcUtil.getConstructName(this.logCollectorTaskDto, tableName),
+			logCollectorExternalStorage
 		);
 	}
 

@@ -59,6 +59,7 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.util.ResourceUtils;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
@@ -198,13 +199,13 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			try {
 				e.put("tapUtil", new JsUtil());
 				e.put("tapLog", logger);
-				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/csvUtils.js"));
-				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/arrayUtils.js"));
-				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/dateUtils.js"));
-				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/exceptionUtils.js"));
-				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/stringUtils.js"));
-				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/mapUtils.js"));
-				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/log.js"));
+				e.eval(new FileReader(ResourceUtils.getFile("classpath:js/csvUtils.js")));
+				e.eval(new FileReader(ResourceUtils.getFile("classpath:js/arrayUtils.js")));
+				e.eval(new FileReader(ResourceUtils.getFile("classpath:js/dateUtils.js")));
+				e.eval(new FileReader(ResourceUtils.getFile("classpath:js/exceptionUtils.js")));
+				e.eval(new FileReader(ResourceUtils.getFile("classpath:js/stringUtils.js")));
+				e.eval(new FileReader(ResourceUtils.getFile("classpath:js/mapUtils.js")));
+				e.eval(new FileReader(ResourceUtils.getFile("classpath:js/log.js")));
 			}catch (Throwable ex){
 				throw new RuntimeException(String.format("script eval js util error: %s, %s, %s, %s", jsEngineName, e, scripts, contextClassLoader), ex);
 			}
@@ -504,13 +505,13 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(JSEngineEnum.GRAALVM_JS.getEngineName()));
 		e.put("tapUtil", new JsUtil());
 		e.put("tapLog", new TapLog());
-		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/csvUtils.js"));
-		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/arrayUtils.js"));
-		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/dateUtils.js"));
-		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/exceptionUtils.js"));
-		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/stringUtils.js"));
-		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/mapUtils.js"));
-		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/log.js"));
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/csvUtils.js"));
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/arrayUtils.js"));
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/dateUtils.js"));
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/exceptionUtils.js"));
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/stringUtils.js"));
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/mapUtils.js"));
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/log.js"));
 
 		Object invoker = e.eval("dateUtils.timeStamp2Date(new Date().getTime(), \"yyyy-MM-dd'T'HH:mm:ssXXX\");");
 		System.out.println(invoker + " ---- " + new JsUtil().timeStamp2Date(System.currentTimeMillis(), "yyyy-MM-dd'T'HH:mm:ssXXX"));

@@ -4,8 +4,8 @@ import io.tapdata.common.exception.AbstractExceptionCollector;
 import io.tapdata.common.exception.ExceptionCollector;
 import io.tapdata.exception.*;
 import io.tapdata.kit.ErrorKit;
-import org.postgresql.util.PSQLException;
 
+import java.sql.SQLException;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -16,14 +16,14 @@ public class PostgresExceptionCollector extends AbstractExceptionCollector imple
 
     @Override
     public void collectTerminateByServer(Throwable cause) {
-        if (cause instanceof PSQLException && "57014".equals(((PSQLException) cause).getSQLState())) {
+        if (cause instanceof SQLException && "57014".equals(((SQLException) cause).getSQLState())) {
             throw new TapPdkTerminateByServerEx(pdkId, ErrorKit.getLastCause(cause));
         }
     }
 
     @Override
     public void collectUserPwdInvalid(String username, Throwable cause) {
-        if (cause instanceof PSQLException && "28P01".equals(((PSQLException) cause).getSQLState())) {
+        if (cause instanceof SQLException && "28P01".equals(((SQLException) cause).getSQLState())) {
             throw new TapPdkUserPwdInvalidEx(pdkId, username, ErrorKit.getLastCause(cause));
         }
     }
@@ -35,21 +35,21 @@ public class PostgresExceptionCollector extends AbstractExceptionCollector imple
 
     @Override
     public void collectReadPrivileges(Object operation, List<String> privileges, Throwable cause) {
-        if (cause instanceof PSQLException && "42501".equals(((PSQLException) cause).getSQLState())) {
+        if (cause instanceof SQLException && "42501".equals(((SQLException) cause).getSQLState())) {
             throw new TapPdkReadMissingPrivilegesEx(pdkId, operation, privileges, ErrorKit.getLastCause(cause));
         }
     }
 
     @Override
     public void collectWritePrivileges(Object operation, List<String> privileges, Throwable cause) {
-        if (cause instanceof PSQLException && "42501".equals(((PSQLException) cause).getSQLState())) {
+        if (cause instanceof SQLException && "42501".equals(((SQLException) cause).getSQLState())) {
             throw new TapPdkWriteMissingPrivilegesEx(pdkId, operation, privileges, ErrorKit.getLastCause(cause));
         }
     }
 
     @Override
     public void collectWriteType(String targetFieldName, String targetFieldType, Object data, Throwable cause) {
-        if (cause instanceof PSQLException && "42804".equals(((PSQLException) cause).getSQLState())) {
+        if (cause instanceof SQLException && "42804".equals(((SQLException) cause).getSQLState())) {
             Pattern pattern = Pattern.compile("ERROR: column \"(.*)\" is of type (.*) but expression is of type (.*)");
             Matcher matcher = pattern.matcher(ErrorKit.getLastCause(cause).getMessage());
             String fieldName = null;
@@ -65,7 +65,7 @@ public class PostgresExceptionCollector extends AbstractExceptionCollector imple
     @Override
     public void collectWriteLength(String targetFieldName, String targetFieldType, Object data, Throwable cause) {
         //string length
-        if (cause instanceof PSQLException && "22001".equals(((PSQLException) cause).getSQLState())) {
+        if (cause instanceof SQLException && "22001".equals(((SQLException) cause).getSQLState())) {
             Pattern pattern = Pattern.compile("ERROR: value too long for type (.*)");
             Matcher matcher = pattern.matcher(ErrorKit.getLastCause(cause).getMessage());
             String fieldType = null;
@@ -75,14 +75,14 @@ public class PostgresExceptionCollector extends AbstractExceptionCollector imple
             throw new TapPdkWriteLengthEx(pdkId, null, fieldType, data, ErrorKit.getLastCause(cause));
         }
         //number length
-        if (cause instanceof PSQLException && "22003".equals(((PSQLException) cause).getSQLState())) {
+        if (cause instanceof SQLException && "22003".equals(((SQLException) cause).getSQLState())) {
             throw new TapPdkWriteLengthEx(pdkId, null, null, data, ErrorKit.getLastCause(cause));
         }
     }
 
     @Override
     public void collectViolateUnique(String targetFieldName, Object data, Object constraint, Throwable cause) {
-        if (cause instanceof PSQLException && "23505".equals(((PSQLException) cause).getSQLState())) {
+        if (cause instanceof SQLException && "23505".equals(((SQLException) cause).getSQLState())) {
             Pattern pattern = Pattern.compile("ERROR: duplicate key value violates unique constraint \"(.*)\" ");
             Matcher matcher = pattern.matcher(ErrorKit.getLastCause(cause).getMessage());
             String constraintStr = null;
@@ -95,7 +95,7 @@ public class PostgresExceptionCollector extends AbstractExceptionCollector imple
 
     @Override
     public void collectViolateNull(String targetFieldName, Throwable cause) {
-        if (cause instanceof PSQLException && "23502".equals(((PSQLException) cause).getSQLState())) {
+        if (cause instanceof SQLException && "23502".equals(((SQLException) cause).getSQLState())) {
             Pattern pattern = Pattern.compile("ERROR: null value in column \"(.*)\" of relation \"(.*)\" violates not-null constraint");
             Matcher matcher = pattern.matcher(ErrorKit.getLastCause(cause).getMessage());
             String fieldName = null;
@@ -108,8 +108,8 @@ public class PostgresExceptionCollector extends AbstractExceptionCollector imple
 
     @Override
     public void collectCdcConfigInvalid(Throwable cause) {
-        if (cause instanceof PSQLException) {
-            switch (((PSQLException) cause).getSQLState()) {
+        if (cause instanceof SQLException) {
+            switch (((SQLException) cause).getSQLState()) {
                 case "58P01": //log plugin selected is not available
                     throw new TapDbCdcConfigInvalidEx(pdkId,
                             "Please select the correct logging plugin. If there are no available plugins on the server, you can refer to Markdown for installation and deployment",

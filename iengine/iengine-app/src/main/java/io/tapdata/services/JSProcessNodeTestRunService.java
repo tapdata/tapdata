@@ -16,6 +16,7 @@ import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.observable.logging.appender.JSProcessNodeAppender;
 import io.tapdata.observable.logging.with.FixedSizeBlockingDeque;
 import io.tapdata.service.skeleton.annotation.RemoteService;
+import io.tapdata.websocket.handler.TestRunTaskHandler;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -35,12 +36,12 @@ public class JSProcessNodeTestRunService {
 
     private final Map<String, TaskDto> taskDtoMap = new ConcurrentHashMap<>();
 
-    public Object testRun(Map<String, Object> events){
-        return testRun(events, -1);
+    public Object testRun(Map<String, Object> events, String nodeId){
+        return testRun(events, nodeId, -1);
     }
 
     public static final int ERROR_REPEAT_EXECUTION  = 18000;
-    public Object testRun(Map<String, Object> events, final int logOutputCount) {
+    public Object testRun(Map<String, Object> events, final String nodeId, final int logOutputCount) {
         TaskService<TaskDto> taskService = BeanUtil.getBean(HazelcastTaskService.class);
         long startTs = System.currentTimeMillis();
         TaskDto taskDto = JSONUtil.map2POJO(events, TaskDto.class);
@@ -55,6 +56,7 @@ public class JSProcessNodeTestRunService {
         String taskId = taskDto.getId().toHexString();
         taskDto.taskInfo(JSProcessNodeAppender.LOG_LIST_KEY  + taskId, logCollector);
         taskDto.taskInfo(JSProcessNodeAppender.MAX_LOG_LENGTH_KEY + taskId, logOutputCount);
+        taskDto.taskInfo(JSProcessNodeAppender.JS_NODE_ID_KEY + taskId, nodeId);
 
         ObsLogger logger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
         taskDto.setType(ParentTaskDto.TYPE_INITIAL_SYNC);
@@ -64,27 +66,33 @@ public class JSProcessNodeTestRunService {
         logger.info("{} task start", taskId);
         TaskClient<TaskDto> taskClient = null;
         AtomicReference<Object> clientResult = new AtomicReference<>();
+        Map<String, Object> resultMap = null;
         try {
             taskClient = taskService.startTestTask(taskDto, clientResult);
+            TestRunTaskHandler.registerTaskClient(taskId, taskClient);
             taskClient.join();
             AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()).error(taskClient.getError()));
+            resultMap = (Map<String, Object>)clientResult.get();
+            if(taskClient.getError() != null) {
+                throw taskClient.getError();
+            }
         } catch (Throwable throwable) {
-            logger.error(taskId + " task error", throwable);
             if (taskClient != null) {
                 AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()).error(throwable));
             }
-            Map<String,Object> paramMap = new HashMap<>();
-            paramMap.put("taskId", taskId);
-            paramMap.put("ts", new Date().getTime());
-            paramMap.put("code", "error");
-            paramMap.put("message", throwable.getMessage());
-            return paramMap;
+            if (null == resultMap)
+                resultMap = new HashMap<>();
+            resultMap.computeIfAbsent("before", key -> new ArrayList<>());
+            resultMap.computeIfAbsent("after", key -> new ArrayList<>());
+            resultMap.put("taskId", taskId);
+            resultMap.put("ts", new Date().getTime());
+            resultMap.put("code", "error");
+            resultMap.put("message", throwable.getMessage());
         } finally {
             taskDtoMap.remove(taskId);
             ObsLoggerFactory.getInstance().forceRemoveTaskLogger(taskDto);
+            logger.info("test run task {} {}, cost {}ms", taskId, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
         }
-        logger.info("test run task {} {}, cost {}ms", taskId, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
-        Map<String, Object> resultMap = (Map<String, Object>)clientResult.get();
         resultMap.put("logs", Optional.ofNullable(logCollector.get()).orElse(new ArrayList<>()));
         return resultMap;
     }

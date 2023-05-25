@@ -1757,6 +1757,11 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			update.set("timeZone", options.getTimeZone());
 		}
 
+		if (null != options.getInstanceUniqueId()) {
+			update.set("multiConnectionInstanceId", options.getInstanceUniqueId());
+			update.set("namespace", options.getNamespaces());
+		}
+
 		updateByIdNotChangeLast(id, update, user);
 
 	}
