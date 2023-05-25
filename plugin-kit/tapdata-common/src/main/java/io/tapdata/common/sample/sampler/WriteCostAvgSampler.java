@@ -31,8 +31,8 @@ public class WriteCostAvgSampler implements Sampler {
 
     @Override
     public Number value() {
-        long counterValue = counter.sumThenReset();
-        double total = totalValue.sumThenReset();
+        long counterValue = counter.sum();
+        double total = totalValue.sum();
         if(counterValue > 0) {
             return total / counterValue;
         }

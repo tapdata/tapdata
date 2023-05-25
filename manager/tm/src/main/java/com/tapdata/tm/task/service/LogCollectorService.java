@@ -954,19 +954,23 @@ public class LogCollectorService {
                 return;
             }
 
-            Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = new HashMap<>();
-			for (String connectionId : connectionIds) {
-				LogCollecotrConnConfig logCollecotrConnConfig = new LogCollecotrConnConfig(connectionId, tableMaps.get(connectionId));
-				logCollectorConnConfigs.put(connectionId, logCollecotrConnConfig);
-			}
-
             LogCollectorNode logCollectorNode = new LogCollectorNode();
-            logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
+            if (StringUtils.isNotBlank(dataSource.getMultiConnectionInstanceId())) {
+                Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = new HashMap<>();
+                for (String connectionId : connectionIds) {
+                    LogCollecotrConnConfig logCollecotrConnConfig = new LogCollecotrConnConfig(connectionId, tableMaps.get(connectionId));
+                    logCollectorConnConfigs.put(connectionId, logCollecotrConnConfig);
+                }
+                logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
+            }
+
+
             logCollectorNode.setId(UUIDUtil.getUUID());
             logCollectorNode.setConnectionIds(connectionIds);
             logCollectorNode.setDatabaseType(v.get(0).getDatabase_type());
             logCollectorNode.setName(v.get(0).getName());
             logCollectorNode.setSelectType(LogCollectorNode.SELECT_TYPE_RESERVATION);
+            logCollectorNode.setTableNames(new ArrayList<>(finalTableNames));
             Map<String, Object> attr = Maps.newHashMap();
             attr.put("pdkHash", dataSource.getPdkHash());
             logCollectorNode.setAttrs(attr);
@@ -1507,24 +1511,27 @@ public class LogCollectorService {
     }
 
     public void configTables(String taskId, List<TableLogCollectorParam> params, String type, UserDetail user) {
-
-		TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), user);
-		DAG dag = taskDto.getDag();
-		List<Node> sources = dag.getSources();
-		LogCollectorNode logCollectorNode = (LogCollectorNode)sources.get(0);
-		Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap = processOldData(logCollectorNode);
-		if (type.equals("exclusion")) {
-			logCollectorConnConfigMap = exclusionTables(logCollectorConnConfigMap, params);
-		} else if (type.equals("add")) {
-			logCollectorConnConfigMap = addTables(logCollectorConnConfigMap, params);
-		} else {
-			throw new IllegalArgumentException("type param is illegal");
-		}
-		logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigMap);
-		taskService.update(Query.query(Criteria.where("_id").is(taskDto.getId())), taskDto);
-        if (taskDto.getStatus().equals(TaskDto.STATUS_RUNNING)) {
-            taskService.pause(taskDto.getId(), user, false, true);
-        }
+			TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), user);
+			DAG dag = taskDto.getDag();
+			List<Node> sources = dag.getSources();
+			LogCollectorNode logCollectorNode = (LogCollectorNode)sources.get(0);
+			if (logCollectorNode.getLogCollectorConnConfigs() == null) {
+				//老任务不允许操作
+				throw new IllegalArgumentException("Operation not allowed");
+			}
+			Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap = processOldData(logCollectorNode);
+			if (type.equals("exclusion")) {
+				logCollectorConnConfigMap = exclusionTables(logCollectorConnConfigMap, params);
+			} else if (type.equals("add")) {
+				logCollectorConnConfigMap = addTables(logCollectorConnConfigMap, params);
+			} else {
+				throw new IllegalArgumentException("type param is illegal");
+			}
+			logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigMap);
+			taskService.update(Query.query(Criteria.where("_id").is(taskDto.getId())), taskDto);
+			if (taskDto.getStatus().equals(TaskDto.STATUS_RUNNING)) {
+					taskService.pause(taskDto.getId(), user, false, true);
+			}
 	}
 
     public List<ShareCdcConnectionInfo> getConnectionIds(String taskId, UserDetail user) {
@@ -1555,13 +1562,20 @@ public class LogCollectorService {
 						}));
 		logCollectorConnConfigMap = Stream.of(paramMap, logCollectorConnConfigMap).flatMap(map -> map.entrySet().stream())
 						.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (o, n) -> {
-                            if (n.getTableNames() != null) {
-                                if (o.getTableNames() == null) {
-                                    o.setTableNames(n.getTableNames());
-                                } else {
-                                    o.getTableNames().addAll(n.getTableNames());
-                                }
-                            }
+							if (n.getTableNames() != null) {
+									if (o.getTableNames() == null) {
+											o.setTableNames(n.getTableNames());
+									} else {
+											o.getTableNames().addAll(n.getTableNames());
+									}
+							}
+							if (n.getExclusionTables() != null) {
+									if (o.getExclusionTables() == null) {
+											o.setExclusionTables(n.getExclusionTables());
+									} else {
+											o.getExclusionTables().addAll(n.getExclusionTables());
+									}
+							}
 							return o;
 						}));
 		logCollectorConnConfigMap.values().forEach(v -> {
@@ -1597,13 +1611,20 @@ public class LogCollectorService {
 						}));
 		logCollectorConnConfigMap = Stream.of(paramMap, logCollectorConnConfigMap).flatMap(map -> map.entrySet().stream())
 						.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (o, n) -> {
-                            if (n.getExclusionTables() != null) {
-                                if (o.getExclusionTables() == null) {
-                                    o.setExclusionTables(n.getExclusionTables());
-                                } else {
-                                    o.getExclusionTables().addAll(n.getExclusionTables());
-                                }
-                            }
+							if (n.getExclusionTables() != null) {
+									if (o.getExclusionTables() == null) {
+											o.setExclusionTables(n.getExclusionTables());
+									} else {
+											o.getExclusionTables().addAll(n.getExclusionTables());
+									}
+							}
+							if (n.getTableNames() != null) {
+								if (o.getTableNames() == null) {
+									o.setTableNames(n.getTableNames());
+								} else {
+									o.getTableNames().addAll(n.getTableNames());
+								}
+							}
 							return o;
 						}));
         logCollectorConnConfigMap.values().forEach(v -> {
