@@ -737,7 +737,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                     .build();
             Call call = client.newCall(request);
             Response response = call.execute();
-            return (Map<String, Object>) fromJson(response.body().string());
+            int code = response.code();
+            return 200 >= code && code < 300 ?
+                    (Map<String, Object>) fromJson(response.body().string())
+                    : resultMap(testTaskId, false, "Access remote service error, http code: " + code);
         }catch (Exception e){
             return resultMap(testTaskId, false, e.getMessage());
         }
@@ -762,7 +765,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         Map<String, Object> errorMap = new HashMap<>();
         errorMap.put("taskId", testTaskId);
         errorMap.put("ts", new Date().getTime());
-        errorMap.put("code", isSucceed ? "succeed" : "error");
+        errorMap.put("code", isSucceed ? "ok" : "error");
         errorMap.put("message", message);
         return errorMap;
     }
