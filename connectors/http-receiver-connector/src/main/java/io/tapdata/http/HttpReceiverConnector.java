@@ -43,12 +43,12 @@ import java.util.function.Consumer;
 @TapConnectorClass("spec.json")
 public class HttpReceiverConnector extends ConnectorBase {
     public static final String TAG = HttpReceiverConnector.class.getSimpleName();
-    private static final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
     private ScriptEngine scriptEngine;
     private ConnectionConfig config;
 
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
+        final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
         scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
         config = ConnectionConfig.create(connectionContext);
         if (config.handleType()) {
@@ -69,9 +69,12 @@ public class HttpReceiverConnector extends ConnectorBase {
 
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry tapCodecsRegistry) {
-        connectorFunctions.supportBatchRead(this::batchRead)
+        connectorFunctions
+                //.supportBatchRead(this::batchRead)
                 .supportTimestampToStreamOffset(this::offset)
-                .supportRawDataCallbackFilterFunctionV2(this::callback);
+                .supportRawDataCallbackFilterFunctionV2(this::callback)
+                .supportCommandCallbackFunction(this::handleCommand)
+        ;
     }
 
     private Object offset(TapConnectorContext context, Long time) {

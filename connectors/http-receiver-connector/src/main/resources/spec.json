@@ -110,11 +110,24 @@
           "type": "void",
           "title": " ",
           "x-decorator": "FormItem",
-          "x-component-props": {
-          },
           "x-decorator-props": {
             "colon": false
           },
+          "x-component-props": {
+            "onClick": "{{ () => handleJsDebug(['eventScript']) }}"
+          },
+          "x-reactions": [
+            {
+              "dependencies": [
+                "handleType"
+              ],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0] ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ],
           "x-content": "${try_run}",
           "x-component": "Button",
           "x-index": 60

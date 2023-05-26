@@ -1,11 +1,15 @@
 package io.tapdata.http.command;
 
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.http.HttpReceiverConnector;
+import io.tapdata.http.command.entity.CollectLog;
 import io.tapdata.http.entity.ConnectionConfig;
+import io.tapdata.http.util.ListUtil;
 import io.tapdata.http.util.ScriptEvel;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.CommandResult;
@@ -14,11 +18,15 @@ import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
-import static io.tapdata.base.ConnectorBase.toJson;
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 /**
  * @author GavinXiao
@@ -27,46 +35,133 @@ import static io.tapdata.base.ConnectorBase.toJson;
  **/
 public class TryRun implements Command {
     public static final String TAG = TryRun.class.getSimpleName();
-    public static final String EVENT_DATA_KEY = "event";
-    private static final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
+    public static final String EVENT_DATA_KEY = "before";
+    public static final String LOG_COUNT_KEY = "logSize";
     private ScriptEngine scriptEngine;
 
+    /**
+     * {
+     *      "reqId":"",
+     *      "ts": 111111111111,
+     *      "data":{
+     *           "logs":[{},{}],
+     *           "before":[{},{}],
+     *           "after":[{},{}],
+     *           "script:""
+     *      },
+     *      "code":"ok/error"
+     * }
+     */
     @Override
     public CommandResult execCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
-        ConnectionConfig config = null == tapConnectionContext ?
+        ConnectionConfig config = null == tapConnectionContext ||  null == tapConnectionContext.getConnectionConfig()?
                 ConnectionConfig.create(commandInfo.getConnectionConfig())
                 : ConnectionConfig.create(tapConnectionContext);
-        String script = config.script();
-        Map<String, Object> commandArgs = Optional.ofNullable(commandInfo.getArgMap()).orElse(new HashMap<>());
-        Object eventObj = commandArgs.get(EVENT_DATA_KEY);
-        if (null == eventObj){
-            TapLogger.warn(TAG, "No third-party push events received");
-            return Command.emptyResult();
-            //throw new CoreException("No third-party push events received");
+        if (!config.handleType()) {
+            throw new CoreException("Can not test run, data processing script not enabled");
         }
-        TapLogger.info(TAG, "third-party push event: {}", toJson(eventObj));
-        scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
-        if (null != scriptEngine) {
-            try {
-                ScriptEvel scriptEvel = ScriptEvel.create(scriptEngine);
-                scriptEvel.evalSourceForSelf();
-                scriptEngine.eval(script);
-            }catch (Exception e){
+        if (null == tapConnectionContext) {
+            throw new CoreException("Can not test run, connection config is empty");
+        }
+        return handleCommand(tapConnectionContext, commandInfo, config);
+    }
+
+    private CommandResult handleCommand(final TapConnectionContext tapConnectionContext, final CommandInfo commandInfo, final ConnectionConfig config) {
+        Map<String, Object> commandArgs = Optional.ofNullable(commandInfo.getArgMap()).orElse(new HashMap<>());
+        final int logSize = (Integer) Optional.ofNullable(commandArgs.get(LOG_COUNT_KEY)).orElse(100);
+        List<CollectLog.LogRecord> logList = new LinkedList<CollectLog.LogRecord>() {
+            private static final int MAX_SIZE = 100;
+            private boolean overflow = false;
+            private final int count = logSize <= 0 || logSize > MAX_SIZE? MAX_SIZE : logSize;
+
+            @Override
+            public boolean add(CollectLog.LogRecord o) {
+                if (overflow) {
+                    return true;
+                }
+                if (size() > count) {
+                    this.overflow = true;
+                    return super.add(new CollectLog.LogRecord("ERROR",
+                            "The log exceeds the maximum limit, ignore the following logs.", System.currentTimeMillis()));
+                }
+                return super.add(o);
+            }
+
+        };
+        List<Object> afterData = new ArrayList<>();
+        List<Object> beforeData = new ArrayList<>();
+        final CollectLog<? extends Log> logger = new CollectLog<>(tapConnectionContext.getLog(), logList);
+        Map<String, Object> resultDate = new HashMap<>();
+        resultDate.put("logs", logList);
+        resultDate.put("after", afterData);
+        resultDate.put("script", config.script());
+        CommandResult commandResult = new CommandResult();
+        commandResult.setData(resultDate);
+        try {
+            Object eventObj = commandArgs.get(EVENT_DATA_KEY);
+            if (null == eventObj) {
+                logger.warn(TAG, "No third-party push events received");
+                eventObj = new ArrayList<>();
+
+                //@todo
+                ((List<Object>) eventObj).add(new HashMap<String, Object>() {{
+                    put("key1", 11111);
+                    put("key2", "value");
+                }});
+
+            } else {
+                logger.info(TAG, "third-party push event: {}", toJson(eventObj));
+            }
+            resultDate.put(EVENT_DATA_KEY, ListUtil.addObjToList(beforeData, eventObj));
+            logger.info("Start executing command [TestRun] ");
+            testRun(beforeData, afterData, commandInfo, config, logger);
+            logger.info("Command [TestRun] execution complete.");
+        } catch (Exception e) {
+            logger.warn(" An exception occurred during the trial run: {}", e.getMessage());
+            commandResult.setCode(CommandResult.CODE_ERROR);
+            commandResult.setMessage(e.getMessage());
+        }
+        return commandResult;
+    }
+
+    private void testRun(
+            final List<Object> beforeData,
+            final List<Object> afterData,
+            final CommandInfo commandInfo,
+            final ConnectionConfig config,
+            final CollectLog<? extends Log> logger) {
+        try {
+            String script = config.script();
+            final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
+            scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
+            if (null != scriptEngine) {
+                try {
+                    ScriptEvel scriptEvel = ScriptEvel.create(scriptEngine);
+                    scriptEvel.evalSourceForSelf();
+                    scriptEngine.eval(script);
+                } catch (Exception e) {
+                    logger.warn("Can not get event handle script, please check you connection config. msg: {}", e.getMessage());
+                    throw new CoreException("Can not get event handle script, please check you connection config. msg: " + e.getMessage());
+                }
+                Invocable invocable = (Invocable) scriptEngine;
+                beforeData.stream().filter(Objects::nonNull).forEach(data -> {
+                    try {
+                        ListUtil.addObjToList(afterData, invocable.invokeFunction(ConnectionConfig.EVENT_FUNCTION_NAME, data));
+                    } catch (ScriptException e) {
+                        logger.warn(TAG, "Occur exception When execute script, error message: {}", e.getMessage());
+                    } catch (NoSuchMethodException methodException) {
+                        logger.warn(TAG, "Occur exception When execute script, error message: Can not find function named is '{}' in script.", ConnectionConfig.EVENT_FUNCTION_NAME);
+                    }
+                });
+            } else {
+                logger.warn("Can not get event handle script, please check you connection config.");
                 throw new CoreException("Can not get event handle script, please check you connection config.");
             }
-            Invocable invocable = (Invocable) scriptEngine;
-            try {
-                Object invokeResult = invocable.invokeFunction(ConnectionConfig.EVENT_FUNCTION_NAME, eventObj);
-                //@TODO return Result
 
-            } catch (ScriptException e) {
-                TapLogger.warn(TAG, "Occur exception When execute script, error message: {}", e.getMessage());
-            } catch (NoSuchMethodException methodException) {
-                TapLogger.warn(TAG, "Occur exception When execute script, error message: Can not find function named is '{}' in script.", ConnectionConfig.EVENT_FUNCTION_NAME);
-            }
-        } else {
-            throw new CoreException("Can not get event handle script, please check you connection config.");
+        } catch (Throwable e) {
+            logger.error("{} execute command error:\n {}", TAG, e.getMessage());
+            //throw new CoreException(e.getMessage(), e);
         }
-        return Command.emptyResult();
     }
+
 }
