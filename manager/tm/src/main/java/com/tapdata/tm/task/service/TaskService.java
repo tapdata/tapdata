@@ -2889,7 +2889,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
 
 
-        Update set = Update.update("agentId", null).set("agentTags", null).set("scheduleTimes", null)
+        Update set = Update.update("agentTags", null).set("scheduleTimes", null)
                 .set("scheduleTime", null)
                 .unset("milestones").unset("tmCurrentTime").set("messages", null);
 
