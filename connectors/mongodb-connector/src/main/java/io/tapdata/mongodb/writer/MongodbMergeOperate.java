@@ -396,12 +396,12 @@ public class MongodbMergeOperate {
 
 	private static List<Document> arrayFilterForArrayMerge(Map<String, Object> data, List<String> arrayKeys, String targetPath, String arrayPath) {
 		List<Document> arrayFilter = new ArrayList<>();
+		Document filter = new Document();
 		for (String arrayKey : arrayKeys) {
-			Document filter = new Document();
 			String[] paths = arrayKey.split("\\.");
 			filter.put("element1." + paths[paths.length - 1], MapUtil.getValueByKey(data, arrayKey));
-			arrayFilter.add(filter);
 		}
+		arrayFilter.add(filter);
 		return arrayFilter;
 	}
 
