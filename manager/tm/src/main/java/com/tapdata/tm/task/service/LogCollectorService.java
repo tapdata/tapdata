@@ -989,6 +989,7 @@ public class LogCollectorService {
             AtomicReference<String> targetName = new AtomicReference<>("Shared Mining Target");
             Optional.ofNullable(externalStorageService.findById(MongoUtils.toObjectId(dataSource.getShareCDCExternalStorageId()))).ifPresent(externalStorageDto -> {
                 hazelCastImdgNode.setExternaltype(externalStorageDto.getType());
+                hazelCastImdgNode.setExternalStorageId(externalStorageDto.getId().toHexString());
                 targetName.set(externalStorageDto.getName());
             });
             hazelCastImdgNode.setName(targetName.get());
