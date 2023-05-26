@@ -8,25 +8,6 @@
     "tags": ["Database"]
   },
   "configOptions": {
-    "capabilities": [
-      {
-        "id": "dml_insert_policy",
-        "alternatives": [
-          "update_on_exists",
-          "ignore_on_exists"
-        ]
-      },
-      {
-        "id": "dml_update_policy",
-        "alternatives": [
-          "ignore_on_nonexists",
-          "insert_on_nonexists"
-        ]
-      },
-      {
-        "id": "api_server_supported"
-      }
-    ],
     "connection": {
       "type": "object",
       "properties": {
@@ -48,22 +29,31 @@
           "x-index": 2,
           "required": true
         },
+        "schema": {
+          "required": true,
+          "type": "string",
+          "title": "${schema}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_owner",
+          "x-index": 3
+        },
         "database": {
           "type": "string",
           "title": "${database}",
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_name",
-          "x-index": 3,
+          "x-index": 6,
           "required": true
         },
-        "username": {
+        "user": {
           "type": "string",
-          "title": "${username}",
+          "title": "${user}",
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_username",
-          "x-index": 4,
+          "x-index": 9,
           "required": true
         },
         "password": {
@@ -72,15 +62,8 @@
           "x-decorator": "FormItem",
           "x-component": "Password",
           "apiServerKey": "database_password",
-          "x-index": 5
-        },
-        "addtionalString": {
-          "type": "string",
-          "title": "${addtionalString}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "additionalString",
-          "x-index": 6
+          "x-index": 12,
+          "required": true
         },
         "timezone": {
           "type": "string",
@@ -88,7 +71,7 @@
           "default": "",
           "x-decorator": "FormItem",
           "x-component": "Select",
-          "x-index": 7,
+          "x-index": 13,
           "enum": [
             {
               "label": "Database Timezone",
@@ -209,21 +192,21 @@
       "host": "Host",
       "port": "Port",
       "database": "database",
-      "username": "username",
+      "user": "username",
       "password": "password",
-      "addtionalString": "Connection Parameter String",
+      "schema": "schema",
       "timezone": "timezone",
-      "doc": "docs/mysql_en_US.md"
+      "doc": "docs/yashandb_en_US.md"
     },
     "zh_CN": {
       "host": "地址",
       "port": "端口",
       "database": "数据库",
-      "username": "账号",
+      "user": "用户名",
       "password": "密码",
-      "addtionalString": "连接参数",
+      "schema": "模式",
       "timezone": "时区",
-      "doc": "docs/mysql_zh_CN.md"
+      "doc": "docs/yashandb_zh_CN.md"
     },
     "zh_TW": {
       "host": "地址",
@@ -231,369 +214,160 @@
       "database": "數據庫",
       "username": "賬號",
       "password": "密碼",
-      "addtionalString": "連接參數",
+      "schema": "模式",
       "timezone": "時區",
-      "doc": "docs/mysql_zh_TW.md"
+      "doc": "docs/yashandb_zh_TW.md"
     }
   },
   "dataTypes": {
-    "char[($byte)]": {
-      "to": "TapString",
-      "byte": 255,
+    "CHAR[($byte)]": {
+      "byte": 8000,
+      "priority": 1,
       "defaultByte": 1,
-      "byteRatio": 3,
-      "fixed": true
+      "fixed": true,
+      "to": "TapString"
     },
-    "varchar($byte)": {
-      "name": "varchar",
-      "to": "TapString",
-      "byte": 16358,
-      "defaultByte": 1,
-      "byteRatio": 3
+    "VARCHAR[($byte)]": {
+      "byte": 8000,
+      "priority": 1,
+      "preferByte": 3000,
+      "to": "TapString"
     },
-    "tinytext": {
-      "to": "TapString",
-      "byte": 255,
-      "pkEnablement": false
+    "FLOAT[($precision)]": {
+      "precision": [
+        1,
+        126
+      ],
+      "scale": 125,
+      "preferScale": 8,
+      "fixed": false,
+      "defaultPrecision": 126,
+      "priority": 2,
+      "to": "TapNumber"
     },
-    "text": {
-      "to": "TapString",
-      "byte": "64k",
-      "pkEnablement": false
-    },
-    "mediumtext": {
-      "to": "TapString",
-      "byte": "16m",
-      "pkEnablement": false
-    },
-    "longtext": {
-      "to": "TapString",
-      "byte": "4g",
-      "pkEnablement": false
-    },
-    "json": {
-      "to": "TapMap",
-      "byte": "4g",
-      "pkEnablement": false
-    },
-    "binary[($byte)]": {
-      "to": "TapBinary",
-      "byte": 255,
-      "defaultByte": 1,
-      "fixed": true
-    },
-    "varbinary[($byte)]": {
-      "to": "TapBinary",
-      "byte": 65532,
-      "defaultByte": 1
-    },
-    "tinyblob": {
-      "to": "TapBinary",
-      "byte": 255
-    },
-    "blob": {
-      "to": "TapBinary",
-      "byte": "64k"
-    },
-    "mediumblob": {
-      "to": "TapBinary",
-      "byte": "16m"
-    },
-    "longblob": {
-      "to": "TapBinary",
-      "byte": "4g"
-    },
-    "bit[($bit)]": {
-      "to": "TapNumber",
-      "bit": 64,
-      "queryOnly": true
-    },
-    "tinyint[($zerofill)]": {
-      "to": "TapNumber",
-      "bit": 8,
-      "precision": 3,
-      "value": [
-        -128,
+    "NUMBER[($precision,$scale)]": {
+      "precision": [
+        1,
+        38
+      ],
+      "scale": [
+        -84,
         127
-      ]
-    },
-    "tinyint[($zerofill)] unsigned": {
-      "to": "TapNumber",
-      "bit": 8,
-      "precision": 3,
-      "value": [
-        0,
-        255
       ],
-      "unsigned": "unsigned"
+      "fixed": true,
+      "preferPrecision": 20,
+      "defaultPrecision": 38,
+      "preferScale": 8,
+      "defaultScale": 0,
+      "priority": 1,
+      "to": "TapNumber"
     },
-    "smallint[($zerofill)]": {
-      "to": "TapNumber",
-      "bit": 16,
-      "value": [
-        -32768,
-        32767
+    "BOOLEAN": {
+      "bit": 1,
+      "priority": 1,
+      "to": "TapBoolean"
+    },
+    "NUMBER($precision)": {
+      "precision": [
+        1,
+        38
       ],
-      "precision": 5
+      "fixed": true,
+      "preferPrecision": 20,
+      "defaultPrecision": 38,
+      "priority": 1,
+      "to": "TapNumber"
     },
-    "smallint[($zerofill)] unsigned": {
-      "to": "TapNumber",
-      "bit": 16,
-      "precision": 5,
-      "value": [
-        0,
-        65535
+    "DATE": {
+      "range": [
+        "0001-01-01 00:00:00",
+        "9999-12-31 23:59:59"
       ],
-      "unsigned": "unsigned"
+      "defaultFraction": 0,
+      "pattern": "yyyy-MM-dd HH:mm:ss",
+      "priority": 1,
+      "to": "TapDateTime"
     },
-    "mediumint[($zerofill)]": {
-      "to": "TapNumber",
-      "bit": 24,
-      "precision": 7,
-      "value": [
-        -8388608,
-        8388607
-      ]
-    },
-    "mediumint[($zerofill)] unsigned": {
-      "to": "TapNumber",
-      "bit": 24,
-      "precision": 8,
-      "value": [
-        0,
-        16777215
+    "INTERVAL YEAR TO MONTH": {
+      "range": [
+        "-178000000-00",
+        "178000000-00"
       ],
-      "unsigned": "unsigned"
+      "defaultFraction": 0,
+      "pattern": "yyyy-MM",
+      "priority": 1,
+      "to": "TapDateTime"
     },
-    "int[($zerofill)]": {
-      "to": "TapNumber",
-      "bit": 32,
-      "precision": 10,
-      "value": [
-        -2147483648,
-        2147483647
-      ]
+    "INTERVAL DAY TO SECOND": {
+      "range": [
+        "-100000000 00:00:00.000000",
+        "100000000 00:00:00.000000"
+      ],
+      "defaultFraction": 0,
+      "pattern": "yyyy-MM-dd HH:mm:ss",
+      "priority": 1,
+      "to": "TapDateTime"
     },
-    "int[($zerofill)] unsigned": {
-      "to": "TapNumber",
-      "bit": 32,
-      "precision": 10,
-      "value": [
+    "TIME": {
+      "range": [
+        "00:00:00.000000",
+        "23:59:59.999999"
+      ],
+      "defaultFraction": 9,
+      "pattern": "HH:mm:ss:ff",
+      "priority": 1,
+      "to": "TapTime"
+    },
+    "TIMESTAMP[($fraction)] WITH TIME ZONE": {
+      "range": [
+        "0001-01-01 00:00:00.000000",
+        "9999-12-31 23:59:59.999999"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss:ff",
+      "fraction": [
         0,
-        4294967295
-      ]
+        9
+      ],
+      "defaultFraction": 6,
+      "priority": 2,
+      "withTimeZone": true,
+      "to": "TapDateTime"
     },
-    "bigint[($zerofill)]": {
-      "to": "TapNumber",
+    "BIGINT": {
       "bit": 64,
-      "precision": 19,
+      "priority": 3,
       "value": [
         -9223372036854775808,
         9223372036854775807
-      ]
+      ],
+      "to": "TapNumber"
     },
-    "bigint[($zerofill)] unsigned": {
-      "to": "TapNumber",
-      "bit": 64,
-      "precision": 20,
-      "value": [
-        0,
-        18446744073709551615
-      ]
-    },
-    "decimal[($precision,$scale)][unsigned]": {
-      "to": "TapNumber",
-      "precision": [
-        1,
-        65
-      ],
-      "scale": [
-        0,
-        30
-      ],
-      "defaultPrecision": 10,
-      "defaultScale": 0,
-      "unsigned": "unsigned",
-      "fixed": true
-    },
-    "float($precision,$scale)[unsigned]": {
-      "to": "TapNumber",
-      "name": "float",
-      "precision": [
-        1,
-        30
-      ],
-      "scale": [
-        0,
-        30
-      ],
-      "value": [
-        "-3.402823466E+38",
-        "3.402823466E+38"
-      ],
-      "unsigned": "unsigned",
-      "fixed": false
-    },
-    "float": {
-      "to": "TapNumber",
-      "precision": [
-        1,
-        6
-      ],
-      "scale": [
-        0,
-        6
-      ],
-      "fixed": false
-    },
-    "double": {
-      "to": "TapNumber",
-      "precision": [
-        1,
-        17
-      ],
-      "preferPrecision": 11,
-      "preferScale": 4,
-      "scale": [
-        0,
-        17
-      ],
-      "fixed": false
-    },
-    "double[($precision,$scale)][unsigned]": {
-      "to": "TapNumber",
-      "precision": [
-        1,
-        255
-      ],
-      "scale": [
-        0,
-        30
-      ],
+    "DOUBLE": {
       "value": [
         "-1.7976931348623157E+308",
         "1.7976931348623157E+308"
       ],
-      "unsigned": "unsigned",
-      "fixed": false
+      "preferPrecision": 20,
+      "preferScale": 8,
+      "scale": 307,
+      "priority": 3,
+      "to": "TapNumber"
     },
-    "date": {
-      "to": "TapDate",
-      "range": [
-        "1000-01-01",
-        "9999-12-31"
-      ],
-      "pattern": "yyyy-MM-dd"
-    },
-    "year[($fraction)]": {
-      "to": "TapYear",
-      "range": [
-        "1901",
-        "2155"
-      ],
-      "fraction": [
-        0,
-        4
-      ],
-      "defaultFraction": 4,
-      "pattern": "yyyy"
-    },
-    "time[($fraction)]": {
-      "to": "TapTime",
-      "fraction": [
-        0,
-        6
-      ],
-      "defaultFraction": 0,
-      "range": [
-        "-838:59:59",
-        "838:59:59"
-      ],
-      "pattern": "HH:mm:ss"
-    },
-    "datetime[($fraction)]": {
-      "to": "TapDateTime",
-      "range": [
-        "1000-01-01 00:00:00",
-        "9999-12-31 23:59:59"
-      ],
-      "pattern": "yyyy-MM-dd HH:mm:ss",
-      "fraction": [
-        0,
-        6
-      ],
-      "defaultFraction": 0
-    },
-    "timestamp[($fraction)]": {
-      "to": "TapDateTime",
-      "range": [
-        "1970-01-01 00:00:01",
-        "2038-01-19 03:14:07"
-      ],
-      "pattern": "yyyy-MM-dd HH:mm:ss",
-      "fraction": [
-        0,
-        6
-      ],
-      "defaultFraction": 0,
-      "withTimeZone": true
-    },
-    "year[($fraction)]": {
-      "to": "TapYear",
-      "range": [
-        "1901",
-        "2155"
-      ],
-      "fraction": [
-        0,
-        4
-      ],
-      "defaultFraction": 4,
-      "pattern": "yyyy"
-    },
-    "enum($enums)": {
-      "name": "enum",
+    "JSON": {
       "to": "TapString",
-      "queryOnly": true,
-      "byte": 16383
-    },
-    "set($sets)": {
-      "name": "set",
-      "to": "TapString",
-      "queryOnly": true,
-      "byte": 16383
-    },
-    "point": {
-      "to": "TapBinary",
       "queryOnly": true
     },
-    "linestring": {
+    "BLOB": {
       "to": "TapBinary",
-      "queryOnly": true
+      "byte": "64k"
     },
-    "polygon": {
+    "CLOB": {
       "to": "TapBinary",
-      "queryOnly": true
+      "byte": "64k"
     },
-    "geometry": {
+    "RAW": {
       "to": "TapBinary",
-      "queryOnly": true
-    },
-    "multipoint": {
-      "to": "TapBinary",
-      "queryOnly": true
-    },
-    "multilinestring": {
-      "to": "TapBinary",
-      "queryOnly": true
-    },
-    "multipolygon": {
-      "to": "TapBinary",
-      "queryOnly": true
-    },
-    "geomcollection": {
-      "to": "TapBinary",
-      "queryOnly": true
+      "byte": "64k"
     }
   }
 }

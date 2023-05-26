@@ -38,7 +38,7 @@ public class Jdbcexample {
             stmt = conn.createStatement();
 
             //执行普通SQL语句。
-            stmt.execute("CREATE TABLE customer(id INTEGER, name VARCHAR(32))");
+            stmt.execute("CREATE TABLE customer2(id INTEGER, name VARCHAR(32))");
             System.out.println("create table customer succeed!");
             stmt.close();
         } catch (SQLException e) {
@@ -59,6 +59,7 @@ public class Jdbcexample {
 
         try {
             //生成预处理语句。
+            String sql = "INSERT INTO " + "customer VALUES (?,?)";
             pst = conn.prepareStatement("INSERT INTO customer VALUES (?,?)");
             for (int i = 0; i < 3; i++) {
                 //添加参数。

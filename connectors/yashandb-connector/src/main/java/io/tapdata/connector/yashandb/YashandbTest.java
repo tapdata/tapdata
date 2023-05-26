@@ -16,7 +16,7 @@ public class YashandbTest extends CommonDbTest {
     }
 
     public YashandbTest initContext() {
-        jdbcContext = new YashandbJdbcContext((YashandbConfig) commonDbConfig);
+        jdbcContext = new YashandbJdbcContext(commonDbConfig);
         return this;
     }
 }

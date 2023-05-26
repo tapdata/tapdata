@@ -49,6 +49,11 @@
 			<version>5.8.1</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com-yashandb-tapdata</groupId>
+            <artifactId>yashandb-tap</artifactId>
+            <version>1.2.2</version>
+        </dependency>
 <!--        <dependency>-->
 <!--            <groupId>io.tapdata</groupId>-->
 <!--            <artifactId>class-supervisor</artifactId>-->
@@ -93,7 +98,7 @@
                                 <PDK-API-Version>${tapdata.pdk.api.version}</PDK-API-Version>
                                 <Tapdata-API-Version>${tapdata.pdk.api.version}</Tapdata-API-Version>
                                 <Version>${project.version}</Version>
-                                <Authentication>GA</Authentication>
+                                <Authentication>Beta</Authentication>
                                 <Git-Build-Time>${git.build.time}</Git-Build-Time>
                                 <Git-Branch>${git.branch}</Git-Branch>
                                 <Git-Commit-Id>${git.commit.id}</Git-Commit-Id>
@@ -244,4 +249,17 @@
 <!--            </plugin>-->
         </plugins>
     </build>
+    <repositories>
+        <repository>
+            <id>tapdata-tapdata-maven</id>
+            <name>maven</name>
+            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
 </project>
