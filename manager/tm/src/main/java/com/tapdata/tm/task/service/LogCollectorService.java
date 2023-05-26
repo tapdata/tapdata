@@ -1695,22 +1695,23 @@ public class LogCollectorService {
         }
     }
 
-    private void addTables(LogCollectorNode logCollectorNode, List<TableLogCollectorParam> params) {
-        for (TableLogCollectorParam param : params) {
-            if (logCollectorNode.getConnectionIds().contains(param.getConnectionId())) {
-                List<String> tableNames = logCollectorNode.getTableNames();
-                if (tableNames == null) {
-                    tableNames = new ArrayList<>();
-                    logCollectorNode.setTableNames(tableNames);
-                }
-                tableNames.addAll(param.getTableNames());
-                List<String> exclusionTables = logCollectorNode.getExclusionTables();
-                if (exclusionTables != null) {
-                    exclusionTables.removeIf(tableNames::contains);
-                }
-            }
-        }
-    }
+	private void addTables(LogCollectorNode logCollectorNode, List<TableLogCollectorParam> params) {
+		for (TableLogCollectorParam param : params) {
+			if (!logCollectorNode.getConnectionIds().contains(param.getConnectionId())) {
+				throw new IllegalArgumentException("not support add table for connectionId: " + param.getConnectionId() + "tables: " + param.getTableNames());
+			}
+			List<String> tableNames = logCollectorNode.getTableNames();
+			if (tableNames == null) {
+				tableNames = new ArrayList<>();
+				logCollectorNode.setTableNames(tableNames);
+			}
+			tableNames.addAll(param.getTableNames());
+			List<String> exclusionTables = logCollectorNode.getExclusionTables();
+			if (exclusionTables != null) {
+				exclusionTables.removeIf(tableNames::contains);
+			}
+		}
+	}
 
 
     private Map<String, LogCollecotrConnConfig> addTables(Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap, List<TableLogCollectorParam> params) {
@@ -1745,39 +1746,25 @@ public class LogCollectorService {
 		return logCollectorConnConfigMap;
 	}
 
-	private Map<String, LogCollecotrConnConfig> processOldData(LogCollectorNode logCollectorNode) {
-		Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap = logCollectorNode.getLogCollectorConnConfigs();
-		if (logCollectorConnConfigMap == null) {
-			logCollectorConnConfigMap = new HashMap<>();
-			//把以前的转移新config中
-			String oldConnectionId = logCollectorNode.getConnectionIds().get(0);
-			List<String> oldTableNames = logCollectorNode.getTableNames();
-			LogCollecotrConnConfig logCollecotrConnConfig = new LogCollecotrConnConfig(oldConnectionId, oldTableNames);
-			logCollectorConnConfigMap.put(logCollecotrConnConfig.getConnectionId(), logCollecotrConnConfig);
-			logCollectorNode.setTableNames(null);
-			logCollectorNode.setConnectionIds(null);
+	private void exclusionTables(LogCollectorNode logCollectorNode, List<TableLogCollectorParam> params) {
+		for (TableLogCollectorParam param : params) {
+			if (!logCollectorNode.getConnectionIds().contains(param.getConnectionId())) {
+				throw new IllegalArgumentException("not support exclusion table for connectionId: " + param.getConnectionId() + "tables: " + param.getTableNames());
+			}
+			List<String> exclusionTables = logCollectorNode.getExclusionTables();
+			if (exclusionTables == null) {
+				exclusionTables = new ArrayList<>();
+				logCollectorNode.setExclusionTables(exclusionTables);
+			}
+			exclusionTables.addAll(param.getTableNames());
+			List<String> tableNames = logCollectorNode.getTableNames();
+			if (tableNames == null) {
+				tableNames = new ArrayList<>();
+				logCollectorNode.setTableNames(tableNames);
+			}
+			tableNames.removeIf(exclusionTables::contains);
 		}
-		return logCollectorConnConfigMap;
 	}
-
-    private void exclusionTables(LogCollectorNode logCollectorNode, List<TableLogCollectorParam> params) {
-        for (TableLogCollectorParam param : params) {
-            if (logCollectorNode.getConnectionIds().contains(param.getConnectionId())) {
-                List<String> exclusionTables = logCollectorNode.getExclusionTables();
-                if (exclusionTables == null) {
-                    exclusionTables = new ArrayList<>();
-                    logCollectorNode.setExclusionTables(exclusionTables);
-                }
-                exclusionTables.addAll(param.getTableNames());
-                List<String> tableNames = logCollectorNode.getTableNames();
-                if (tableNames == null) {
-                    tableNames = new ArrayList<>();
-                    logCollectorNode.setTableNames(tableNames);
-                }
-                tableNames.removeIf(exclusionTables::contains);
-            }
-        }
-    }
 
 	private Map<String, LogCollecotrConnConfig> exclusionTables(Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap, List<TableLogCollectorParam> params) {
 		Map<String, LogCollecotrConnConfig> paramMap = params.stream()
