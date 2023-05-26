@@ -657,16 +657,19 @@ public class ProxyController extends BaseController {
             String responseStr;
             if(error != null) {
                 int code = NetErrors.UNKNOWN_ERROR;
+                Object data = null;
                 if(error instanceof CoreException) {
                     CoreException coreException = (CoreException) error;
                     code = coreException.getCode();
+                    data = coreException.getData();
                 }
                 responseStr =
                         "{\n" +
                         "    \"reqId\": \"" + UUID.randomUUID() + "\",\n" +
                         "    \"ts\": " + System.currentTimeMillis() + ",\n" +
                         "    \"code\": \"" + code + "\",\n" +
-                        "    \"message\": \"" + error.getMessage() + "\"\n" +
+                        "    \"message\": \"" + error.getMessage() + "\"" +
+                        (null != data ? ",\n    \"data\": " + toJson(data, JsonParser.ToJsonFeature.PrettyFormat) + "\n" : "\n") +
                         "}";
             } else {
                 responseStr =
