@@ -97,29 +97,24 @@ public class TryRun implements Command {
         resultDate.put("script", config.script());
         CommandResult commandResult = new CommandResult();
         commandResult.setData(resultDate);
+        //commandResult.setCode(CommandResult.CODE_OK);
         try {
             Object eventObj = commandArgs.get(EVENT_DATA_KEY);
             if (null == eventObj) {
-                logger.warn(TAG, "No third-party push events received");
+                logger.warn("[{}] No third-party push events received", TAG);
                 eventObj = new ArrayList<>();
-
-                //@todo
-                ((List<Object>) eventObj).add(new HashMap<String, Object>() {{
-                    put("key1", 11111);
-                    put("key2", "value");
-                }});
-
-            } else {
-                logger.info(TAG, "third-party push event: {}", toJson(eventObj));
             }
             resultDate.put(EVENT_DATA_KEY, ListUtil.addObjToList(beforeData, eventObj));
-            logger.info("Start executing command [TestRun] ");
+            logger.info("[{}] Start executing command [TestRun] ", TAG);
             testRun(beforeData, afterData, commandInfo, config, logger);
-            logger.info("Command [TestRun] execution complete.");
+            logger.info("[{}] Command [TestRun] execution complete.", TAG);
         } catch (Exception e) {
-            logger.warn(" An exception occurred during the trial run: {}", e.getMessage());
-            commandResult.setCode(CommandResult.CODE_ERROR);
-            commandResult.setMessage(e.getMessage());
+            CoreException coreException = new CoreException(123, e, e.getMessage());
+            coreException.setData(commandResult);
+            logger.warn(e.getMessage());
+            throw coreException;
+//            commandResult.setCode(CommandResult.CODE_ERROR);
+//            commandResult.setMsg(e.getMessage());
         }
         return commandResult;
     }
@@ -130,37 +125,33 @@ public class TryRun implements Command {
             final CommandInfo commandInfo,
             final ConnectionConfig config,
             final CollectLog<? extends Log> logger) {
-        try {
-            String script = config.script();
-            final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
-            scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
-            if (null != scriptEngine) {
-                try {
-                    ScriptEvel scriptEvel = ScriptEvel.create(scriptEngine);
-                    scriptEvel.evalSourceForSelf();
-                    scriptEngine.eval(script);
-                } catch (Exception e) {
-                    logger.warn("Can not get event handle script, please check you connection config. msg: {}", e.getMessage());
-                    throw new CoreException("Can not get event handle script, please check you connection config. msg: " + e.getMessage());
-                }
-                Invocable invocable = (Invocable) scriptEngine;
-                beforeData.stream().filter(Objects::nonNull).forEach(data -> {
-                    try {
-                        ListUtil.addObjToList(afterData, invocable.invokeFunction(ConnectionConfig.EVENT_FUNCTION_NAME, data));
-                    } catch (ScriptException e) {
-                        logger.warn(TAG, "Occur exception When execute script, error message: {}", e.getMessage());
-                    } catch (NoSuchMethodException methodException) {
-                        logger.warn(TAG, "Occur exception When execute script, error message: Can not find function named is '{}' in script.", ConnectionConfig.EVENT_FUNCTION_NAME);
-                    }
-                });
-            } else {
-                logger.warn("Can not get event handle script, please check you connection config.");
-                throw new CoreException("Can not get event handle script, please check you connection config.");
+        String script = config.script();
+        final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
+        scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
+        if (null != scriptEngine) {
+            try {
+                ScriptEvel scriptEvel = ScriptEvel.create(scriptEngine);
+                scriptEvel.evalSourceForSelf();
+                scriptEngine.eval(script);
+            } catch (Exception e) {
+                //logger.warn("[{}] Can not get event handle script, please check you connection config. msg: {}", TAG, e.getMessage());
+                throw new CoreException(e.getMessage());
             }
-
-        } catch (Throwable e) {
-            logger.error("{} execute command error:\n {}", TAG, e.getMessage());
-            //throw new CoreException(e.getMessage(), e);
+            Invocable invocable = (Invocable) scriptEngine;
+            beforeData.stream().filter(Objects::nonNull).forEach(data -> {
+                try {
+                    ListUtil.addObjToList(afterData, invocable.invokeFunction(ConnectionConfig.EVENT_FUNCTION_NAME, data));
+                } catch (ScriptException e) {
+                    logger.warn("[{}] Occur exception When execute script, error message: {}", TAG, e.getMessage());
+                    throw new CoreException(e.getMessage(), e);
+                } catch (NoSuchMethodException methodException) {
+                    logger.warn("[{}] Occur exception When execute script, error message: Can not find function named is '{}' in script.", TAG, ConnectionConfig.EVENT_FUNCTION_NAME);
+                    throw new CoreException(methodException.getMessage(), methodException);
+                }
+            });
+        } else {
+            logger.warn("[{}] Can not get event handle script, please check you connection config.", TAG);
+            throw new CoreException("[{}] Can not get event handle script, please check you connection config.", TAG);
         }
     }
 

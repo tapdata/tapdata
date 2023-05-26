@@ -36,17 +36,13 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import static io.tapdata.entity.simplify.TapSimplify.fromJson;
 import static io.tapdata.entity.simplify.TapSimplify.fromJsonArray;
-import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 /**
  * @author GavinXiao
@@ -239,14 +235,6 @@ public class TestRunOfHttpReceiverService {
     }
 
     public List<Map<String, Object>> testData(final String connectionId, final Integer dataCount) {
-//        return new ArrayList<Map<String, Object>>() {{
-//            add(new HashMap<String, Object>() {{
-//                put("data", "123");
-//                put("version", 12);
-//                put("id", "111112325");
-//            }});
-//        }};
-//
         return (List<Map<String, Object>>) fromJsonArray(json);
     }
 
