@@ -33,6 +33,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -55,48 +56,70 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 	private static final String[] MODULES_INCLUDE_FIELDS = new String[]{"_id", "name", "datasource", "tableName", "basePath", "status", "listtags"};
 	public static final String[] METADATA_INCLUDE_FIELDS = new String[]{"_id", "sourceType"};
 	private final Map<String, DataSourceEntity> dataSourceEntityMap = new ConcurrentHashMap<>();
+	private final Map<String, Set<String>> analyzedTaskIdMap = new ConcurrentHashMap<>();
+	private final Map<String, Map<String, List<TaskEntity>>> foundedTask = new ConcurrentHashMap<>();
 
 	@Override
 	public Graph<Node, Edge> analyzeTable(String connectionId, String table, LineageType lineageType) throws Exception {
-		Graph<Node, Edge> graph = new Graph<>(true, true, false);
-		AnalyzeLayer analyzeLayer = initAnalyzeLayer(connectionId, table, graph);
-		List<TaskEntity> tasks = findTasks(connectionId, table, null);
-		LineageTableNode lineageTableNode = null;
-		if (CollectionUtils.isEmpty(tasks)) {
-			DataSourceEntity dataSource = findDataSource(connectionId);
-			LineageMetadataInstance metadata = getMetadata(connectionId, table);
-			lineageTableNode = new LineageTableNode(table, connectionId, dataSource.getName(), dataSource.getPdkHash(), metadata);
-			setGraphNode(graph, lineageTableNode);
-		} else {
-			for (TaskEntity taskEntity : tasks) {
-				Node node = findNodeInTask(taskEntity, connectionId, table);
-				if (null == node) {
-					return null;
-				}
-				LineageTask lineageTask = wrapLineageTask(taskEntity, node);
-				analyzeLayer.setPreNode(node);
-				analyzeLayer.setPreInvalidNode(node);
+		AnalyzeLayer analyzeLayer;
+		try {
+			Graph<Node, Edge> graph = new Graph<>(true, true, false);
+			analyzeLayer = initAnalyzeLayer(connectionId, table, graph);
+			List<TaskEntity> tasks = findTasks(connectionId, table, null);
+			LineageTableNode lineageTableNode = null;
+			if (CollectionUtils.isEmpty(tasks)) {
 				DataSourceEntity dataSource = findDataSource(connectionId);
-				lineageTableNode = new LineageTableNode(table, dataSource.getId().toHexString(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(connectionId, table))
-						.addTask(lineageTask);
-				setGraphNode(analyzeLayer, lineageTask, node);
-				analyzeLayer.setPreLineageTableNode(lineageTableNode);
-				analyzeLayer.setCurrentTask(lineageTask);
-				analyzeLayer.getNotInTaskIds().add(lineageTask.getId());
-				if (LineageType.ALL_STREAM == lineageType) {
-					analyzeLayer.setLineageType(LineageType.UPSTREAM);
+				LineageMetadataInstance metadata = getMetadata(connectionId, table);
+				lineageTableNode = new LineageTableNode(table, connectionId, dataSource.getName(), dataSource.getPdkHash(), metadata);
+				setGraphNode(graph, lineageTableNode);
+			} else {
+				for (TaskEntity taskEntity : tasks) {
+					if (null == taskEntity.getId()) {
+						continue;
+					}
+					if (checkTaskIsAnalyzed(taskEntity.getId().toHexString())) {
+						continue;
+					}
+					Node node = findNodeInTask(taskEntity, connectionId, table);
+					if (null == node) {
+						continue;
+					}
+					LineageTask lineageTask = wrapLineageTask(taskEntity, node);
+					analyzeLayer.setPreNode(node);
+					analyzeLayer.setPreInvalidNode(node);
+					DataSourceEntity dataSource = findDataSource(connectionId);
+					lineageTableNode = new LineageTableNode(table, dataSource.getId().toHexString(), dataSource.getName(), dataSource.getPdkHash(), getMetadata(connectionId, table))
+							.addTask(lineageTask);
+					setGraphNode(analyzeLayer, lineageTask, node);
+					analyzeLayer.setPreLineageTableNode(lineageTableNode);
+					analyzeLayer.setCurrentTask(lineageTask);
+					analyzeLayer.getNotInTaskIds().add(lineageTask.getId());
+					if (LineageType.ALL_STREAM == lineageType) {
+						analyzeLayer.setLineageType(LineageType.UPSTREAM);
+						recursiveAnalyze(analyzeLayer);
+						analyzeLayer = initAnalyzeLayer(connectionId, table, graph);
+						analyzeLayer.setPreNode(node);
+						analyzeLayer.setPreInvalidNode(node);
+						analyzeLayer.setPreLineageTableNode(lineageTableNode);
+						analyzeLayer.setCurrentTask(lineageTask);
+						analyzeLayer.getNotInTaskIds().add(lineageTask.getId());
+						analyzeLayer.setLineageType(LineageType.DOWNSTREAM);
+					} else {
+						analyzeLayer.setLineageType(lineageType);
+					}
 					recursiveAnalyze(analyzeLayer);
-					initAnalyzeLayer(connectionId, table, graph);
-					analyzeLayer.setLineageType(LineageType.DOWNSTREAM);
-				} else {
-					analyzeLayer.setLineageType(lineageType);
+					if (null != taskEntity.getId()) {
+						addAnalyzedTaskId(taskEntity.getId().toHexString());
+					}
 				}
-				recursiveAnalyze(analyzeLayer);
 			}
-		}
 
-		if (null != lineageTableNode) {
-			analyzeApiserver(analyzeLayer, lineageTableNode);
+			if (null != lineageTableNode) {
+				analyzeApiserver(analyzeLayer, lineageTableNode);
+			}
+		} finally {
+			analyzedTaskIdMap.remove(Thread.currentThread().getName());
+			foundedTask.remove(Thread.currentThread().getName());
 		}
 		return analyzeLayer.getGraph();
 	}
@@ -159,8 +182,13 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 			for (TaskEntity task : tasks) {
 				Node nodeInTask = findNodeInTask(task, analyzeLayer.getConnectionId(), analyzeLayer.getTable());
 				LineageTask lineageTask = wrapLineageTask(task, nodeInTask);
-				analyzeLayer.getNotInTaskIds().add(task.getId().toHexString());
+				if (null != task.getId()) {
+					analyzeLayer.getNotInTaskIds().add(task.getId().toHexString());
+				}
 				analyzeAndSetGraphNodeAndEdge(analyzeLayer, nodeInTask, lineageTask);
+				if (null != task.getId()) {
+					addAnalyzedTaskId(task.getId().toHexString());
+				}
 			}
 		}
 	}
@@ -244,8 +272,9 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		switch (lineageType) {
 			case DOWNSTREAM:
 				tableNameRelation = findTableNameRelation(databaseNode.getSyncObjects());
-				if (tableNameRelation == null) return null;
-				if (StringUtils.isNotBlank(preTable)) {
+				if (tableNameRelation == null) {
+					tableName = preTable;
+				} else {
 					tableName = tableNameRelation.get(preTable);
 				}
 				break;
@@ -280,15 +309,23 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 	}
 
 	private List<TaskEntity> findTasks(String connectionId, String table, Set<String> notInTaskIds) {
+		List<TaskEntity> foundedTasks = findFoundedTasks(connectionId, table);
+		if (null != foundedTasks) {
+			if (CollectionUtils.isNotEmpty(notInTaskIds)) {
+				return foundedTasks.stream().filter(t -> !notInTaskIds.contains(t.getId().toHexString())).collect(Collectors.toList());
+			}
+			return foundedTasks;
+		}
 		Criteria taskCriteria = buildTaskCriteria(connectionId, table);
 		Query query;
 		if (CollectionUtils.isNotEmpty(notInTaskIds)) {
 			List<ObjectId> notInObjIds = notInTaskIds.stream().map(ObjectId::new).collect(Collectors.toList());
-			query = Query.query(Criteria.where("_id").nin(notInObjIds).andOperator(taskCriteria));
-		} else {
-			query = Query.query(taskCriteria);
+			taskCriteria = taskCriteria.and("_id").nin(notInObjIds);
 		}
+		query = Query.query(taskCriteria);
 		taskQueryFields(query);
+		List<TaskEntity> taskEntities = taskRepository.findAll(query);
+		addFoundedTask(connectionId, table, taskEntities);
 		return taskRepository.findAll(query);
 	}
 
@@ -321,17 +358,21 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 				return connectionId.equals(tableNode.getConnectionId()) && table.equals(tableNode.getTableName());
 			} else if (node instanceof DatabaseNode) {
 				DatabaseNode databaseNode = (DatabaseNode) node;
+				if (!connectionId.equals(databaseNode.getConnectionId())) {
+					return false;
+				}
 				List<String> tableNames = databaseNode.getTableNames();
-				if (null == tableNames) {
-					List<SyncObjects> syncObjects = databaseNode.getSyncObjects();
+				if (CollectionUtils.isNotEmpty(tableNames)) {
+					return tableNames.contains(table);
+				}
+				List<SyncObjects> syncObjects = databaseNode.getSyncObjects();
+				if (CollectionUtils.isNotEmpty(syncObjects)) {
 					SyncObjects objects = syncObjects.stream().filter(so -> CollectionUtils.isNotEmpty(so.getObjectNames())).findFirst().orElse(null);
 					if (null != objects) {
-						tableNames = objects.getObjectNames();
+						return objects.getObjectNames().contains(table);
 					}
 				}
-				return connectionId.equals(databaseNode.getConnectionId())
-						&& CollectionUtils.isNotEmpty(tableNames)
-						&& tableNames.contains(table);
+				return false;
 			} else {
 				return false;
 			}
@@ -480,5 +521,42 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		Query query = Query.query(criteria);
 		query.fields().include(MODULES_INCLUDE_FIELDS);
 		return modulesRepository.findAll(query);
+	}
+
+	private void addAnalyzedTaskId(String taskId) {
+		String name = Thread.currentThread().getName();
+		analyzedTaskIdMap.computeIfAbsent(name, k -> new HashSet<String>() {{
+			add(taskId);
+		}});
+		analyzedTaskIdMap.computeIfPresent(name, (k, v) -> {
+			v.add(taskId);
+			return v;
+		});
+	}
+
+	private boolean checkTaskIsAnalyzed(String taskId) {
+		String name = Thread.currentThread().getName();
+		return analyzedTaskIdMap.containsKey(name) && analyzedTaskIdMap.get(name).contains(taskId);
+	}
+
+	private void addFoundedTask(String connectionId, String table, List<TaskEntity> tasks) {
+		String name = Thread.currentThread().getName();
+		String key = String.join("_", connectionId, table);
+		if (null == tasks) {
+			return;
+		}
+		foundedTask.computeIfAbsent(name, k -> new HashMap<String, List<TaskEntity>>() {{
+			put(key, new ArrayList<>(tasks));
+		}});
+	}
+
+	private List<TaskEntity> findFoundedTasks(String connectionId, String table) {
+		String name = Thread.currentThread().getName();
+		String key = String.join("_", connectionId, table);
+		Map<String, List<TaskEntity>> map = foundedTask.get(name);
+		if (null == map) {
+			return null;
+		}
+		return map.get(key);
 	}
 }
