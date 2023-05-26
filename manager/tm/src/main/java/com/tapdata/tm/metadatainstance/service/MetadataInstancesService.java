@@ -1591,20 +1591,22 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                             .collect(Collectors.toMap(MetadataInstancesDto::getOriginalName
                                     , s->s, (m1, m2) -> m1));
                     // todo 下面逻辑可能会出现问题，相当于copy一份原表名的模型，数据上存在"错误"，加入表A改名B 表B改名A
-                    if (node instanceof TableRenameProcessNode) {
-                        LinkedHashSet<TableRenameTableInfo> tableNames = ((TableRenameProcessNode) node).getTableNames();
-                        if (CollectionUtils.isNotEmpty(tableNames)) {
-                            for (TableRenameTableInfo tableName : tableNames) {
-                                MetadataInstancesDto metadataInstancesDto = currentMap.get(tableName.getCurrentTableName());
-                                if (metadataInstancesDto != null) {
-                                    MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
-                                    MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
-                                    BeanUtils.copyProperties(metadataInstancesDto, metadataInstancesDto1);
-                                    BeanUtils.copyProperties(metadataInstancesDto, metadataInstancesDto2);
-                                    metadataInstancesDto1.setOriginalName(tableName.getOriginTableName());
-                                    metadataInstancesDto2.setOriginalName(tableName.getPreviousTableName());
-                                    all.add(metadataInstancesDto1);
-                                    all.add(metadataInstancesDto2);
+                    if (isAgentReq()) {
+                        if (node instanceof TableRenameProcessNode) {
+                            LinkedHashSet<TableRenameTableInfo> tableNames = ((TableRenameProcessNode) node).getTableNames();
+                            if (CollectionUtils.isNotEmpty(tableNames)) {
+                                for (TableRenameTableInfo tableName : tableNames) {
+                                    MetadataInstancesDto metadataInstancesDto = currentMap.get(tableName.getCurrentTableName());
+                                    if (metadataInstancesDto != null) {
+                                        MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+                                        MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
+                                        BeanUtils.copyProperties(metadataInstancesDto, metadataInstancesDto1);
+                                        BeanUtils.copyProperties(metadataInstancesDto, metadataInstancesDto2);
+                                        metadataInstancesDto1.setOriginalName(tableName.getOriginTableName());
+                                        metadataInstancesDto2.setOriginalName(tableName.getPreviousTableName());
+                                        all.add(metadataInstancesDto1);
+                                        all.add(metadataInstancesDto2);
+                                    }
                                 }
                             }
                         }
@@ -1926,11 +1928,11 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             List<Field> fields = item.getFields();
             if (null == fields) continue;
 
-            //fields not support : lastMatchedDataType null
+            //fields not support : dataTypes null
             Map<String, PossibleDataTypes> dataTypes = item.getFindPossibleDataTypes();
             if (Objects.nonNull(dataTypes)) {
                 fields.forEach(field -> {
-                    if (Objects.nonNull(dataTypes.get(field.getFieldName())) && dataTypes.get(field.getFieldName()).getLastMatchedDataType() == null) {
+                    if (Objects.nonNull(dataTypes.get(field.getFieldName())) && CollectionUtils.isEmpty(dataTypes.get(field.getFieldName()).getDataTypes())) {
                         field.setDeleted(true);
                     }
                     TapType tapType = JSON.parseObject(field.getTapType(), TapType.class);

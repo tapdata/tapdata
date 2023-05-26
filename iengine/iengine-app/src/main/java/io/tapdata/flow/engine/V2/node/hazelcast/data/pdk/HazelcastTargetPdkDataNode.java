@@ -456,8 +456,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		).map(updateConditionFields -> {
 			ValueChange<String> nameChange = tapAlterFieldNameEvent.getNameChange();
 			if (null != nameChange) {
-				updateConditionFields.removeIf(s -> nameChange.getBefore().equals(s));
-				updateConditionFields.add(nameChange.getAfter());
+				if(updateConditionFields.contains(nameChange.getBefore())){
+					updateConditionFields.removeIf(s -> nameChange.getBefore().equals(s));
+					updateConditionFields.add(nameChange.getAfter());
+				}
 				Optional.ofNullable(dataProcessorContext.getTaskDto()
 				).map(TaskDto::getDag
 				).map(dag -> dag.getNode(getNode().getId())
@@ -472,8 +474,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					}
 					return null;
 				}).map(fields -> {
-					fields.removeIf(s -> nameChange.getBefore().equals(s));
-					fields.add(nameChange.getAfter());
+					if(fields.contains(nameChange.getBefore())){
+						fields.removeIf(s -> nameChange.getBefore().equals(s));
+						fields.add(nameChange.getAfter());
+					}
 					return null;
 				});
 			}
@@ -630,7 +634,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
 		handleTapTablePrimaryKeys(tapTable);
 		events.forEach(this::addPropertyForMergeEvent);
-		tapRecordEvents.forEach(this::removeNotSupportFields);
+		tapRecordEvents.forEach(t -> removeNotSupportFields(t, tapTable.getId()));
 		WriteRecordFunction writeRecordFunction = getConnectorNode().getConnectorFunctions().getWriteRecordFunction();
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 		if (writeRecordFunction != null) {

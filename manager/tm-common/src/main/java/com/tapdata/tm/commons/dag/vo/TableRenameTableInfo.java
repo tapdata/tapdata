@@ -10,12 +10,19 @@ import java.io.Serializable;
 
 @Getter
 @Setter
-@AllArgsConstructor
-@NoArgsConstructor
 public class TableRenameTableInfo implements Serializable {
     private String originTableName;
     private String previousTableName;
     private String currentTableName;
+
+    public TableRenameTableInfo() {
+    }
+
+    public TableRenameTableInfo(String originTableName, String previousTableName, String currentTableName) {
+        this.originTableName = originTableName;
+        this.previousTableName = previousTableName;
+        this.currentTableName = currentTableName;
+    }
 }
 
 

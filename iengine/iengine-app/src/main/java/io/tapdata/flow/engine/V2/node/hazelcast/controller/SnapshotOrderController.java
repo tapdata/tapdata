@@ -119,15 +119,14 @@ public class SnapshotOrderController implements Serializable {
 			nodeController = new NodeController(node);
 			nodeController.running();
 		}
-		AtomicInteger status = nodeController.getStatus();
 		boolean needRun;
 
-		synchronized (status) {
-			switch (status.get()) {
+		synchronized (nodeController.getStatus()) {
+			switch (nodeController.getStatus().get()) {
 				case NodeController.WAIT_RUN:
 					try {
 						obsLogger.info("Node[{}] is waiting for running", node.getName());
-						status.wait();
+						nodeController.getStatus().wait();
 					} catch (InterruptedException ignored) {
 					}
 					needRun = true;
@@ -139,7 +138,7 @@ public class SnapshotOrderController implements Serializable {
 					needRun = false;
 					break;
 				default:
-					throw new TapCodeException(SnapshotOrderControllerExCode_21.NONSUPPORT_STATUS, "Invalid snapshot status: " + status.get());
+					throw new TapCodeException(SnapshotOrderControllerExCode_21.NONSUPPORT_STATUS, "Invalid snapshot status: " + nodeController.getStatus().get());
 			}
 		}
 

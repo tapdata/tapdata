@@ -281,10 +281,9 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		globalMap().remove(key);
 	}
 
-	protected void removeNotSupportFields(TapEvent tapEvent) {
-		String tableId = TapEventUtil.getTableId(tapEvent);
-		removeNotSupportFields(tableId, TapEventUtil.getAfter(tapEvent));
-		removeNotSupportFields(tableId, TapEventUtil.getBefore(tapEvent));
+	protected void removeNotSupportFields(TapEvent tapEvent, String tableName) {
+		removeNotSupportFields(tableName, TapEventUtil.getAfter(tapEvent));
+		removeNotSupportFields(tableName, TapEventUtil.getBefore(tapEvent));
 	}
 
 	protected void removeNotSupportFields(String tableName, Map<String, Object> data) {
