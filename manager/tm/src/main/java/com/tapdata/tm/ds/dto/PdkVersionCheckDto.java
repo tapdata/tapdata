@@ -10,5 +10,9 @@ public class PdkVersionCheckDto {
     private String pdkHash;
     private String pdkVersion;
     private String gitBuildTime;
+    private String gitBuildUserName;
+    private String gitBranch;
+    private String gitCommitId;
+
     private boolean isLatest;
 }

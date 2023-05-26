@@ -297,9 +297,15 @@ public class PkdSourceService {
                 PdkVersionCheckDto checkDto = PdkVersionCheckDto.builder().pdkId(info.getPdkId()).pdkVersion(info.getPdkAPIVersion()).pdkHash(info.getPdkHash()).build();
 
                  Date buildDate;
-                if (Objects.nonNull(info.getManifest()) && Objects.nonNull(info.getManifest().get("Git-Build-Time"))) {
-                    String buildTime = info.getManifest().get("Git-Build-Time");
+                Map<String, String> manifest = info.getManifest();
+                if (Objects.nonNull(manifest) && Objects.nonNull(manifest.get("Git-Build-Time"))) {
+                    String buildTime = manifest.get("Git-Build-Time");
                     buildDate = DateUtil.parseDate(buildTime);
+
+                    checkDto.setGitBuildUserName(manifest.get("Git-Build-User-Name"));
+                    checkDto.setGitBranch(manifest.get("Git-Branch"));
+                    checkDto.setGitCommitId(manifest.get("Git-Commit-Id"));
+
                 } else {
                     buildDate = info.getLastUpdAt();
                 }
