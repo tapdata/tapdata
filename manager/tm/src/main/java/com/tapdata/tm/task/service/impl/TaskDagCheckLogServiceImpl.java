@@ -150,7 +150,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
 
                     schemaPass = false;
                     break;
-                } else if (nodeList.size() < tableNames.size()) {
+                } else if ((TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) && nodeList.size() < tableNames.size())) {
                     List temp = new ArrayList(tableNames);
                     temp.removeAll(nodeList);
 
