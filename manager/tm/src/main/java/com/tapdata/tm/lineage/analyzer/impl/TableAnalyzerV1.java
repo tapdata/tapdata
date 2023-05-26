@@ -23,6 +23,7 @@ import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.task.entity.TaskEntity;
 import io.github.openlg.graphlib.Graph;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -33,6 +34,8 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -49,6 +52,7 @@ import java.util.stream.Collectors;
  * @create 2023-05-22 14:21
  **/
 @Service("tableAnalyzerV1")
+@Slf4j
 public class TableAnalyzerV1 extends BaseAnalyzer {
 
 	private static final String[] TASK_INCLUDE_FIELDS = new String[]{"_id", "name", "dag", "syncType", "status"};
@@ -62,17 +66,14 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 	@Override
 	public Graph<Node, Edge> analyzeTable(String connectionId, String table, LineageType lineageType) throws Exception {
 		AnalyzeLayer analyzeLayer;
+		LineageTableNode lineageTableNode = null;
+		Graph<Node, Edge> graph = new Graph<>(true, true, false);
+		long startTs = System.currentTimeMillis();
 		try {
-			Graph<Node, Edge> graph = new Graph<>(true, true, false);
 			analyzeLayer = initAnalyzeLayer(connectionId, table, graph);
 			List<TaskEntity> tasks = findTasks(connectionId, table, null);
-			LineageTableNode lineageTableNode = null;
-			if (CollectionUtils.isEmpty(tasks)) {
-				DataSourceEntity dataSource = findDataSource(connectionId);
-				LineageMetadataInstance metadata = getMetadata(connectionId, table);
-				lineageTableNode = new LineageTableNode(table, connectionId, dataSource.getName(), dataSource.getPdkHash(), metadata);
-				setGraphNode(graph, lineageTableNode);
-			} else {
+			if (CollectionUtils.isNotEmpty(tasks)) {
+				log.info("Starting analyze table lineage, table: {}, connection id: {}, lineage mode: {}", table, connectionId, lineageType.name());
 				for (TaskEntity taskEntity : tasks) {
 					if (null == taskEntity.getId()) {
 						continue;
@@ -117,10 +118,20 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 			if (null != lineageTableNode) {
 				analyzeApiserver(analyzeLayer, lineageTableNode);
 			}
+		} catch (Exception e) {
+			throw new Exception(String.format("Analyze table lineage failed, table: %s, connection id: %s, mode: %s", table, connectionId, lineageType.name()), e);
 		} finally {
 			analyzedTaskIdMap.remove(Thread.currentThread().getName());
 			foundedTask.remove(Thread.currentThread().getName());
 		}
+		if (CollectionUtils.isEmpty(analyzeLayer.getGraph().getNodes()) && CollectionUtils.isEmpty(analyzeLayer.getGraph().getEdges())) {
+			DataSourceEntity dataSource = findDataSource(connectionId);
+			LineageMetadataInstance metadata = getMetadata(connectionId, table);
+			lineageTableNode = new LineageTableNode(table, connectionId, dataSource.getName(), dataSource.getPdkHash(), metadata);
+			setGraphNode(graph, lineageTableNode);
+		}
+		long timeConsuming = System.currentTimeMillis() - startTs;
+		log.info("Analyze finished, time consuming: {} second(s)", new BigDecimal(timeConsuming).divide(new BigDecimal(1000L), 2, RoundingMode.UP));
 		return analyzeLayer.getGraph();
 	}
 
