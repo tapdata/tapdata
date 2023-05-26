@@ -43,7 +43,6 @@ import com.tapdata.tm.customNode.service.CustomNodeService;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
-import com.tapdata.tm.ds.entity.DataSourceDefinitionEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.file.service.FileService;
@@ -55,7 +54,6 @@ import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.service.InspectResultService;
 import com.tapdata.tm.inspect.service.InspectService;
-import com.tapdata.tm.lock.annotation.Lock;
 import com.tapdata.tm.lock.service.LockControlService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
@@ -286,6 +284,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //新增任务成功，新增校验任务
         //inspectService.saveInspect(taskDto, user);
         return taskDto;
+    }
+
+    public <T> AggregationResults<T> aggregate(org.springframework.data.mongodb.core.aggregation.Aggregation aggregation, Class<T> outputType) {
+        return repository.aggregate(aggregation, outputType);
     }
 
     private boolean getBoolValue(Boolean v, boolean defaultValue) {

@@ -28,6 +28,7 @@ public class ExternalStorageCacheGetter extends AbstractCacheGetter {
 
 	private final ExternalStorageDto externalStorageDto;
 
+	private final String referenceId;
 	private final ConstructIMap<Map<String, Map<String, Object>>> dataMap;
 
 
@@ -40,7 +41,8 @@ public class ExternalStorageCacheGetter extends AbstractCacheGetter {
 		this.hazelcastInstance = hazelcastInstance;
 		String cacheName = this.cacheConfig.getCacheName();
 		this.externalStorageDto = ExternalStorageUtil.getExternalStorage(cacheConfig.getCacheNode());
-		this.dataMap = new DocumentIMap<>(hazelcastInstance, CacheUtil.CACHE_NAME_PREFIX + cacheName, externalStorageDto);
+		this.referenceId = String.format("%s", getClass().getSimpleName());
+		this.dataMap = new DocumentIMap<>(hazelcastInstance, referenceId, CacheUtil.CACHE_NAME_PREFIX + cacheName, externalStorageDto);
 	}
 
 
@@ -78,5 +80,13 @@ public class ExternalStorageCacheGetter extends AbstractCacheGetter {
 		return dataSourceRowsGetter;
 	}
 
-
+	@Override
+	public void close() {
+		try {
+			dataMap.destroy();
+		} catch (Exception e) {
+			logger.warn("Destroy cache failed: {}", e.getMessage());
+		}
+		super.close();
+	}
 }
