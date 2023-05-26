@@ -36,13 +36,13 @@ import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.externalStorage.vo.ExternalStorageVo;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
+import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
+import com.tapdata.tm.shareCdcTableMetrics.service.ShareCdcTableMetricsService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.param.TableLogCollectorParam;
-import com.tapdata.tm.utils.FunctionUtils;
-import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.UUIDUtil;
+import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import lombok.extern.slf4j.Slf4j;
@@ -55,13 +55,13 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Nullable;
-import java.math.BigDecimal;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -88,6 +88,8 @@ public class LogCollectorService {
     private MonitoringLogsService monitoringLogsService;
     @Autowired
     private ExternalStorageService externalStorageService;
+    @Autowired
+    private ShareCdcTableMetricsService shareCdcTableMetricsService;
 
     public LogCollectorService(TaskService taskService, DataSourceService dataSourceService,
                                WorkerService workerService, SettingsService settingsService) {
@@ -1452,7 +1454,7 @@ public class LogCollectorService {
             LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
             tableNames = logCollecotrConnConfig.getTableNames();
         }
-        return getShareCdcTableInfoPage(connectionId, page, size, user, tableNames);
+        return getShareCdcTableInfoPage(connectionId, page, size, user, tableNames, logCollectorNode.getId(), taskId);
     }
 
 
@@ -1471,11 +1473,12 @@ public class LogCollectorService {
             LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
             tableNames = logCollecotrConnConfig.getExclusionTables();
         }
-        return getShareCdcTableInfoPage(connectionId, page, size, user, tableNames);
+        return getShareCdcTableInfoPage(connectionId, page, size, user, tableNames, logCollectorNode.getId(), taskId);
     }
 
     @NotNull
-    private Page<ShareCdcTableInfo> getShareCdcTableInfoPage(String connectionId, Integer page, Integer size, UserDetail user, List<String> tableNames) {
+    private Page<ShareCdcTableInfo> getShareCdcTableInfoPage(String connectionId, Integer page, Integer size, UserDetail user
+            , List<String> tableNames, String nodeId, String taskId) {
         int limit = (page - 1) * size;
         int tableCount = tableNames == null ? 0 : tableNames.size();
 
@@ -1494,11 +1497,7 @@ public class LogCollectorService {
             shareCdcTableInfo.setName(tableName);
             shareCdcTableInfo.setConnectionName(connectionName);
             shareCdcTableInfo.setConnectionId(connectionId);
-            shareCdcTableInfo.setJoinTime(new Date());
-            shareCdcTableInfo.setFirstLogTime(new Date());
-            shareCdcTableInfo.setLastLogTime(new Date());
-            shareCdcTableInfo.setAllCount(new BigDecimal(100));
-            shareCdcTableInfo.setTodayCount(100L);
+            setShareTableInfo(shareCdcTableInfo, user, taskId, nodeId);
 
             shareCdcTableInfos.add(shareCdcTableInfo);
 
@@ -1508,6 +1507,22 @@ public class LogCollectorService {
         shareCdcTableInfoPage.setTotal(tableCount);
         shareCdcTableInfoPage.setItems(shareCdcTableInfos);
         return shareCdcTableInfoPage;
+    }
+
+
+    private void setShareTableInfo(ShareCdcTableInfo shareCdcTableInfo, UserDetail user, String taskId, String nodeId) {
+        Criteria criteria = Criteria.where("taskId").is(taskId)
+                .and("tableName").is(shareCdcTableInfo.getName())
+                .and("nodeId").is(nodeId)
+                .and("connectionId").is(shareCdcTableInfo.getConnectionId());
+        Query query = new Query(criteria);
+        query.with(Sort.by("createTime").descending());
+        ShareCdcTableMetricsDto metricsDto = shareCdcTableMetricsService.findOne(query, user);
+        shareCdcTableInfo.setFirstLogTime(metricsDto.getFirstEventTime());
+        shareCdcTableInfo.setLastLogTime(metricsDto.getCurrentEventTime());
+        shareCdcTableInfo.setJoinTime(metricsDto.getStartCdcTime());
+        shareCdcTableInfo.setTodayCount(metricsDto.getCount());
+        shareCdcTableInfo.setAllCount(metricsDto.getAllCount());
     }
 
     public void configTables(String taskId, List<TableLogCollectorParam> params, String type, UserDetail user) {
