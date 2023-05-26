@@ -291,14 +291,19 @@ public class MongodbMergeOperate {
 		}
 		switch (operation) {
 			case INSERT:
-				for (String arrayKey : arrayKeys) {
-					if (array && targetPath.split("\\.").length > 1) {
-						for (Map<String, String> joinKey : currentProperty.getJoinKeys()) {
-							mergeResult.getFilter().append(joinKey.get("target"), after.get(joinKey.get("source")));
+				mergeResult.getFilter().append("$or", Optional.of(arrayKeys).map(keys -> {
+					List<Document> orList = new ArrayList<>();
+					for (String arrayKey : keys) {
+						if (array && targetPath.split("\\.").length > 1) {
+							for (Map<String, String> joinKey : currentProperty.getJoinKeys()) {
+								mergeResult.getFilter().append(joinKey.get("target"), after.get(joinKey.get("source")));
+							}
 						}
+						orList.add(new Document(targetPath + "." + arrayKey, new Document("$ne", after.get(arrayKey))));
 					}
-					mergeResult.getFilter().append(targetPath + "." + arrayKey, new Document("$ne", after.get(arrayKey)));
-				}
+					return orList;
+				}));
+
 				if (array) {
 					String[] paths = targetPath.split("\\.");
 					if (paths.length > 1) {
