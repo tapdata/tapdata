@@ -56,18 +56,18 @@ public class ConnHeartbeatUtils {
             return false;
         }
 
-        boolean hasStreamRead = false, hasCreateTable = false, hasWriteRecord = false;
+        boolean hasStreamRead = false/*, hasCreateTable = false*/, hasWriteRecord = false;
         for (Capability capability : sourceConnectionDto.getCapabilities()) {
             if (CapabilityEnum.STREAM_READ_FUNCTION.name().equalsIgnoreCase(capability.getId())) {
                 hasStreamRead = true;
-            } else if (CapabilityEnum.CREATE_TABLE_FUNCTION.name().equalsIgnoreCase(capability.getId())
-                    || CapabilityEnum.CREATE_TABLE_V2_FUNCTION.name().equalsIgnoreCase(capability.getId())) {
-                hasCreateTable = true;
+//            } else if (CapabilityEnum.CREATE_TABLE_FUNCTION.name().equalsIgnoreCase(capability.getId())
+//                    || CapabilityEnum.CREATE_TABLE_V2_FUNCTION.name().equalsIgnoreCase(capability.getId())) {
+//                hasCreateTable = true;
             } else if (CapabilityEnum.WRITE_RECORD_FUNCTION.name().equalsIgnoreCase(capability.getId())) {
                 hasWriteRecord = true;
             }
         }
-        return hasStreamRead && hasCreateTable && hasWriteRecord;
+        return hasStreamRead && /*hasCreateTable &&*/ hasWriteRecord;
     }
 
     /**
