@@ -1,6 +1,7 @@
 package com.tapdata.tm.externalStorage.service;
 
 import com.mongodb.ConnectionString;
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
@@ -10,6 +11,7 @@ import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.utils.UriRootConvertUtils;
 import com.tapdata.tm.externalStorage.entity.ExternalStorageEntity;
 import com.tapdata.tm.externalStorage.repository.ExternalStorageRepository;
 import com.tapdata.tm.task.entity.TaskEntity;
@@ -25,6 +27,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
+import org.springframework.util.Assert;
 
 import java.util.List;
 
@@ -62,6 +65,22 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 
 	}
 
+
+
+	public ExternalStorageDto update(ExternalStorageDto externalStorageDto, UserDetail userDetail) {
+		if (StringUtils.isNotBlank(externalStorageDto.getUri())) {
+			ConnectionString connectionString = new ConnectionString(externalStorageDto.getUri());
+			char[] password = connectionString.getPassword();
+			if (password != null && password.length != 0) {
+				String pwd = new String(password);
+				if (UriRootConvertUtils.mongoHiddenPwd.equals(pwd)) {
+					externalStorageDto.setUri(null);
+				}
+			}
+		}
+		return save(externalStorageDto, userDetail);
+	}
+
 	protected void beforeSave(ExternalStorageDto externalStorage, UserDetail user) {
 		if (StringUtils.isBlank(externalStorage.getName())) {
 			throw new BizException("External.Storage.Name.Blank");
@@ -79,15 +98,18 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 		} catch (Throwable e) {
 			throw new BizException("External.Storage.Type.Invalid", e, externalStorage.getType());
 		}
+		ExternalStorageDto oldDto = findById(externalStorage.getId(), user);
 		switch (externalStorageType) {
 			case mongodb:
-				if (StringUtils.isBlank(externalStorage.getUri())) {
-					throw new BizException("External.Storage.MongoDB.Uri.Blank");
-				}
-				ConnectionString mongoUri = new ConnectionString(externalStorage.getUri());
-				String database = mongoUri.getDatabase();
-				if (StringUtils.isBlank(database)) {
-					throw new BizException("External.Storage.MongoDB.Database.Blank");
+				if (oldDto == null) {
+					if (StringUtils.isBlank(externalStorage.getUri())) {
+						throw new BizException("External.Storage.MongoDB.Uri.Blank");
+					}
+					ConnectionString mongoUri = new ConnectionString(externalStorage.getUri());
+					String database = mongoUri.getDatabase();
+					if (StringUtils.isBlank(database)) {
+						throw new BizException("External.Storage.MongoDB.Database.Blank");
+					}
 				}
 				break;
 			case rocksdb:
@@ -134,8 +156,17 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 			List<ExternalStorageDto> items = externalStorageDtoPage.getItems();
 			for (ExternalStorageEntity initExternalStorage : initExternalStorages) {
 				if (null == items.stream().filter(i -> i.getName().equals(initExternalStorage.getName())).findFirst().orElse(null)) {
+
 					items.add(convertToDto(initExternalStorage, ExternalStorageDto.class));
 					externalStorageDtoPage.setTotal(externalStorageDtoPage.getTotal() + 1);
+				}
+			}
+
+			if (!isAgentReq()) {
+				for (ExternalStorageDto item : items) {
+					if (StringUtils.isNotBlank(item.getUri())) {
+						item.setUri(UriRootConvertUtils.hidePassword(item.getUri()));
+					}
 				}
 			}
 		}
