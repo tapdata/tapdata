@@ -211,21 +211,28 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
 
         Node currentNode = null;
+        Node previousNode = null;
         if(CollectionUtils.isNotEmpty(predecessors)) {
             currentNode = predecessors.get(predecessors.size() - 1);
+            if (predecessors.size() - 2 >= 0) {
+                previousNode = predecessors.get(predecessors.size() - 2);
+            }
         }
 
         Map<String, Map<String, Boolean>> mappingMap = new HashMap<>();
         if (currentNode != null) {
             if (currentNode instanceof MigrateFieldRenameProcessorNode) {
                 LinkedList<TableFieldInfo> fieldsMapping = ((MigrateFieldRenameProcessorNode) currentNode).getFieldsMapping();
-                for (TableFieldInfo tableFieldInfo : fieldsMapping) {
-                    LinkedList<FieldInfo> fields = tableFieldInfo.getFields();
-                    Map<String, Boolean> fieldMap = fields.stream().collect(Collectors.toMap(FieldInfo::getSourceFieldName, FieldInfo::getIsShow));
-                    mappingMap.put(tableFieldInfo.getOriginTableName(), fieldMap);
+                if (fieldsMapping != null) {
+                    for (TableFieldInfo tableFieldInfo : fieldsMapping) {
+                        LinkedList<FieldInfo> fields = tableFieldInfo.getFields();
+                        Map<String, Boolean> fieldMap = fields.stream().collect(Collectors.toMap(FieldInfo::getSourceFieldName, FieldInfo::getIsShow));
+                        mappingMap.put(tableFieldInfo.getOriginTableName(), fieldMap);
+                    }
                 }
             }
         }
+
 
         String metaType = "mongodb".equals(targetDataSource.getDatabase_type()) ? "collection" : "table";
         List<String> qualifiedNames = Lists.newArrayList();
@@ -263,12 +270,18 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
 
         List<MetadataInstancesDto> instances = metadataInstancesService.findByQualifiedNameList(qualifiedNames, taskId);
+        Map<String, String> previousTableNameMap = new HashMap<>();
+        if (previousNode != null) {
+            List<MetadataInstancesDto> lastMetas = metadataInstancesService.findByNodeId(previousNode.getId(), user, taskId, "ancestorsName", "original_name");
+            previousTableNameMap = lastMetas.stream().collect(Collectors.toMap(k -> k.getAncestorsName(), v -> v.getOriginalName(), (k1, k2) -> k1));
+        }
         if (CollectionUtils.isNotEmpty(instances)) {
             List<MetadataTransformerItemDto> data = Lists.newArrayList();
             for (MetadataInstancesDto instance : instances) {
                 MetadataTransformerItemDto item = new MetadataTransformerItemDto();
                 item.setSourceObjectName(instance.getAncestorsName());
-                item.setPreviousTableName(instance.getOriginalName());
+                String previousTableName = previousTableNameMap.get(instance.getAncestorsName());
+                item.setPreviousTableName( previousTableName == null ? instance.getAncestorsName() : previousTableName);
                 item.setSinkObjectName(instance.getName());
                 item.setSinkQulifiedName(targetMetaMap.get(instance.getAncestorsName()));
                 item.setSourceQualifiedName(sourceMetaMap.get(instance.getAncestorsName()));
