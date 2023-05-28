@@ -33,7 +33,9 @@ import io.tapdata.pdk.apis.functions.connection.CommandCallbackFunction;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.api.PDKIntegration;
+import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.timer.MaxFrequencyLimiter;
 import io.tapdata.threadgroup.DisposableThreadGroup;
 import io.tapdata.threadgroup.utils.DisposableType;
@@ -45,6 +47,7 @@ import io.tapdata.wsclient.utils.EventManager;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Bean
@@ -64,12 +67,21 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 
 	@Bean
 	private SkeletonService skeletonService;
+	private long lastSyncTime = 0;
 
 	public ProxySubscriptionManager() {
 //		String nodeId = CommonUtils.getProperty("tapdata_node_id");
 //		if(nodeId == null)
 //			throw new CoreException(NetErrors.CURRENT_NODE_ID_NOT_FOUND, "Current nodeId is not found");
 //		proxySubscription = new ProxySubscription().nodeId(nodeId).service("engine");
+		long autoSyncSubscribeIdsInterval = CommonUtils.getPropertyLong("tapdata_auto_sync_subscribe_ids_interval_seconds", 60);
+		long idleSyncSubscribeIdsInterval = CommonUtils.getPropertyLong("tapdata_idle_sync_subscribe_ids_interval_seconds", 60 * 5);
+		ExecutorsManager.getInstance().getScheduledExecutorService().scheduleWithFixedDelay(() -> {
+			if(System.currentTimeMillis() - lastSyncTime > 1000 * idleSyncSubscribeIdsInterval) {
+				maxFrequencyLimiter.touch();
+				TapLogger.info(TAG, "Start to sync subscribe ids after idle {} seconds", idleSyncSubscribeIdsInterval);
+			}
+		}, autoSyncSubscribeIdsInterval, autoSyncSubscribeIdsInterval, TimeUnit.SECONDS);
 		maxFrequencyLimiter = new MaxFrequencyLimiter(500, this::syncSubscribeIds);
 	}
 	public void startIMClient(List<String> baseURLs, String accessToken) {
@@ -394,6 +406,7 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 			if(userId != null)
 				allKeys.add("userId_" + userId);
 
+			TapLogger.info(TAG, "syncSubscribeIds, allKeys {}", allKeys);
 			IncomingData incomingData = new IncomingData().message(new NodeSubscribeInfo().subscribeIds(allKeys));
 			enterAsyncProcess = true;
 			imClient.sendData(incomingData).whenComplete((result1, throwable) -> {
@@ -403,6 +416,9 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 				} else if(result1 != null && result1.getCode() != 1) {
 					TapLogger.error(TAG, "Send NodeSubscribeInfo failed, code {} message {}", result1.getCode(), result1.getMessage());
 					handleTaskSubscribeInfoChanged();
+				}
+				if(result1 != null && result1.getCode() == 1) {
+					lastSyncTime = System.currentTimeMillis();
 				}
 			});
 		} catch(Throwable throwable) {
