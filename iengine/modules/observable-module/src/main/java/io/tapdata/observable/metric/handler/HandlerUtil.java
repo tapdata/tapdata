@@ -1,5 +1,7 @@
 package io.tapdata.observable.metric.handler;
 
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.Lists;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TapdataHeartbeatEvent;
 import io.tapdata.entity.event.TapBaseEvent;
@@ -10,8 +12,10 @@ import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.ddl.index.*;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Data;
+import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * @author Dexter
@@ -20,6 +24,7 @@ public class HandlerUtil {
     public static EventTypeRecorder countTapdataEvent(List<TapdataEvent> events) {
         long now = System.currentTimeMillis();
 
+        List<Long> referenceTimeList = Lists.newArrayList();
         EventTypeRecorder recorder = new EventTypeRecorder();
         for (TapdataEvent tapdataEvent : events) {
             // skip events like heartbeat
@@ -29,8 +34,8 @@ public class HandlerUtil {
                 }
                 continue;
             }
-            Long referenceTime = countEventTypeAndGetReferenceTime(tapdataEvent.getTapEvent(), recorder);
-            CommonUtils.ignoreAnyError(() -> recorder.incrReplicateLagTotal(now, referenceTime), "HandlerUtil-countTapdataEvent");
+            referenceTimeList.add(countEventTypeAndGetReferenceTime(tapdataEvent.getTapEvent(), recorder));
+            CommonUtils.ignoreAnyError(() -> recorder.calculateMaxReplicateLag(now, referenceTimeList), "HandlerUtil-countTapdataEvent");
         }
 
         return recorder;
@@ -39,14 +44,14 @@ public class HandlerUtil {
     public static EventTypeRecorder countTapEvent(List<? extends TapEvent> events) {
         long now = System.currentTimeMillis();
 
-        Long referenceTime;
+        List<Long> referenceTimeList = Lists.newArrayList();
         EventTypeRecorder recorder = new EventTypeRecorder();
         for (TapEvent tapEvent : events) {
-            referenceTime = countEventTypeAndGetReferenceTime(tapEvent, recorder);
+            referenceTimeList.add(countEventTypeAndGetReferenceTime(tapEvent, recorder));
             recorder.incrProcessTimeTotal(now, tapEvent.getTime());
-            recorder.incrReplicateLagTotal(now, referenceTime);
         }
 
+        CommonUtils.ignoreAnyError(() -> recorder.calculateMaxReplicateLag(now, referenceTimeList), "HandlerUtil-countTapEvent");
         return recorder;
     }
 
@@ -146,6 +151,18 @@ public class HandlerUtil {
                 replicateLagTotal = 0L;
             }
             replicateLagTotal += (now - replicateLag);
+        }
+
+        public void calculateMaxReplicateLag(Long now, List<Long> referenceTimeList) {
+            if (CollectionUtils.isEmpty(referenceTimeList)) return;
+            if (null == replicateLagTotal) {
+                replicateLagTotal = 0L;
+            }
+
+            // remove referenceTimeList null value
+            referenceTimeList.removeIf(Objects::isNull);
+            // get referenceTimeList max value
+            referenceTimeList.stream().max(Long::compareTo).ifPresent(maxReferenceTime -> replicateLagTotal = now - maxReferenceTime);
         }
 
 
