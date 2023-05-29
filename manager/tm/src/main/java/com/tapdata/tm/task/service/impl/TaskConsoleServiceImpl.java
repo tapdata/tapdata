@@ -183,6 +183,8 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
                     .status(task.getStatus())
                     .startTime(Objects.nonNull(task.getStartTime()) ? task.getStartTime().getTime() : null)
                     .type(RelationTaskRequest.type_logCollector)
+                    .taskType(task.getType())
+                    .syncType(task.getSyncType())
                     .build();
 
             result.add(logRelation);
