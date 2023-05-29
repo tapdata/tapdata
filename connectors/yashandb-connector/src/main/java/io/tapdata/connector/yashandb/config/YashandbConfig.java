@@ -14,12 +14,24 @@ import java.io.Serializable;
 @Setter
 @Getter
 public class YashandbConfig extends CommonDbConfig implements Serializable {
-    private String databaseUrlPattern = "jdbc:yashandb://%s:%s/%s";
+    private String databaseUrlPattern = "jdbc:yasdb://%s:%s/yasdb";
+    private Boolean closeNotNull = true;
+
     public String getDatabaseUrl() {
-        return String.format(this.getDatabaseUrlPattern(), this.getHost(), this.getPort(), this.getDatabase());
+        return String.format(this.getDatabaseUrlPattern(), this.getHost(), this.getPort());
     }
+
     public YashandbConfig() {
         setDbType("yashandb");
         setJdbcDriver("com.yashandb.jdbc.Driver");
     }
+
+    public Boolean getCloseNotNull() {
+        return closeNotNull;
+    }
+
+    public void setCloseNotNull(Boolean closeNotNull) {
+        this.closeNotNull = closeNotNull;
+    }
+
 }

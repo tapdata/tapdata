@@ -45,47 +45,54 @@ public class YashandbJdbcContext extends JdbcContext {
         return one;
     }
 
-    @Override
-    public List<DataMap> queryAllTables(List<String> tableNames) {
-        TapLogger.debug(TAG, "Query some tables, schema: " + getConfig().getSchema());
-        List<DataMap> tableList = TapSimplify.list();
-        String tableSql = EmptyKit.isNotEmpty(tableNames) ? StringKit.joinString(tableNames, "'", ","): "";
-        try {
-            query(String.format(YSDB_ALL_TABLE, getConfig().getDatabase(),tableSql),
-                    resultSet -> tableList.addAll(DbKit.getDataFromResultSet(resultSet)));
-        } catch (Throwable e) {
-            TapLogger.error(TAG, "Execute queryAllTables failed, error: " + e.getMessage(), e);
-        }
-        return tableList;
-    }
+//    @Override
+//    public List<DataMap> queryAllTables(List<String> tableNames) {
+//        TapLogger.debug(TAG, "Query some tables, schema: " + getConfig().getSchema());
+//        List<DataMap> tableList = TapSimplify.list();
+//        String tableSql = EmptyKit.isNotEmpty(tableNames) ? StringKit.joinString(tableNames, "'", ","): "";
+//        try {
+//            query(String.format(YSDB_ALL_TABLE, getConfig().getDatabase(),tableSql),
+//                    resultSet -> tableList.addAll(DbKit.getDataFromResultSet(resultSet)));
+//        } catch (Throwable e) {
+//            TapLogger.error(TAG, "Execute queryAllTables failed, error: " + e.getMessage(), e);
+//        }
+//        return tableList;
+//    }
+
+//    @Override
+//    public void queryAllTables(List<String> tableNames, int batchSize, Consumer<List<String>> consumer) {
+//        TapLogger.debug(TAG, "Query some tables, schema: " + getConfig().getSchema());
+//        List<String> tableList = TapSimplify.list();
+//        String tableSql = EmptyKit.isNotEmpty(tableNames) ? StringKit.joinString(tableNames, "'", ","): "";
+//        try {
+//            query(String.format(YSDB_ALL_TABLE, getConfig().getDatabase(), tableSql),
+//                    resultSet -> {
+//                        while (resultSet.next()) {
+//                            String tableName = resultSet.getString("table_name");
+//                            if (StringUtils.isNotBlank(tableName)) {
+//                                tableList.add(tableName);
+//                            }
+//                            if (tableList.size() >= batchSize) {
+//                                consumer.accept(tableList);
+//                                tableList.clear();
+//                            }
+//                        }
+//                    });
+//            if (!tableList.isEmpty()) {
+//                consumer.accept(tableList);
+//                tableList.clear();
+//            }
+//        } catch (Throwable e) {
+//            TapLogger.error(TAG, "Execute queryAllTables failed, error: " + e.getMessage(), e);
+//        }
+//    }
+
 
     @Override
-    public void queryAllTables(List<String> tableNames, int batchSize, Consumer<List<String>> consumer) {
-        TapLogger.debug(TAG, "Query some tables, schema: " + getConfig().getSchema());
-        List<String> tableList = TapSimplify.list();
-        String tableSql = EmptyKit.isNotEmpty(tableNames) ? StringKit.joinString(tableNames, "'", ","): "";
-        try {
-            query(String.format(YSDB_ALL_TABLE, getConfig().getDatabase(), tableSql),
-                    resultSet -> {
-                        while (resultSet.next()) {
-                            String tableName = resultSet.getString("table_name");
-                            if (StringUtils.isNotBlank(tableName)) {
-                                tableList.add(tableName);
-                            }
-                            if (tableList.size() >= batchSize) {
-                                consumer.accept(tableList);
-                                tableList.clear();
-                            }
-                        }
-                    });
-            if (!tableList.isEmpty()) {
-                consumer.accept(tableList);
-                tableList.clear();
-            }
-        } catch (Throwable e) {
-            TapLogger.error(TAG, "Execute queryAllTables failed, error: " + e.getMessage(), e);
-        }
+    protected String queryAllTablesSql(String schema, List<String> tableNames) {
+        String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND table_name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
+        return String.format(YSDB_ALL_TABLE, getConfig().getSchema(), tableSql);
     }
 
-    private final static String YSDB_ALL_TABLE = "SELECT COUNT(*) FROM ALL_TABLES WHERE OWNER = '%s' AND TABLE_NAME = '%s'";
+    private final static String YSDB_ALL_TABLE = "SELECT table_name FROM ALL_TABLES WHERE OWNER = '%s' %s";
 }

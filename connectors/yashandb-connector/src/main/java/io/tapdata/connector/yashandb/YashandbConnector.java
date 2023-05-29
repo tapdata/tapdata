@@ -37,12 +37,16 @@ public class YashandbConnector extends CommonDbConnector {
         yashandbTest = new YashandbTest(yashandbConfig, testItem -> {
         }).initContext();
         yashandbJdbcContext = new YashandbJdbcContext(yashandbConfig);
+        commonSqlMaker = new YashandbSqlMaker().closeNotNull(yashandbConfig.getCloseNotNull());
+        jdbcContext = yashandbJdbcContext;
+        commonDbConfig = yashandbConfig;
     }
 
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
         EmptyKit.closeQuietly(yashandbJdbcContext);
         EmptyKit.closeQuietly(yashandbTest);
+        EmptyKit.closeQuietly(jdbcContext);
     }
 
     @Override
@@ -76,7 +80,7 @@ public class YashandbConnector extends CommonDbConnector {
         });
     }
 
-    protected void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
+    protected void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) throws SQLException {
         yashandbJdbcContext.queryAllTables(TapSimplify.list(), batchSize, listConsumer);
     }
 

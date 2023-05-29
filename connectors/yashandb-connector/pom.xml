@@ -27,6 +27,11 @@
     </properties>
     <dependencies>
         <dependency>
+            <groupId>com.tapdata.yashan</groupId>
+            <artifactId>tapdata-yashan</artifactId>
+            <version>1.2.1</version>
+        </dependency>
+        <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-api</artifactId>
             <version>${tapdata.pdk.api.version}</version>
@@ -48,11 +53,6 @@
             <artifactId>junit-jupiter</artifactId>
 			<version>5.8.1</version>
             <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com-yashandb-tapdata</groupId>
-            <artifactId>yashandb-tap</artifactId>
-            <version>1.2.2</version>
         </dependency>
 <!--        <dependency>-->
 <!--            <groupId>io.tapdata</groupId>-->

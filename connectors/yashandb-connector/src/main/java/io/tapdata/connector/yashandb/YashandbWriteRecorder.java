@@ -38,12 +38,12 @@ public class YashandbWriteRecorder extends WriteRecorder {
             String insertSql = insertHead + insertValue;
             if (EmptyKit.isNotEmpty(uniqueCondition)) {
                 if (hasPk) {
-                    insertSql = "MERGE INTO \"" + schema + "\".\"" + tapTable.getId() + "\" USING dual ON ("
+                    insertSql = "INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" USING dual ON ("
                             + uniqueCondition.stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(" AND "))
                             + ")" + (allColumn.size() == uniqueCondition.size() ? "" : (" WHEN MATCHED THEN UPDATE SET " + allColumn.stream().filter(col -> !uniqueCondition.contains(col))
                             .map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")))) + " WHEN NOT MATCHED THEN INSERT(" + allColumnString + ") " + insertValue;
                 } else {
-                    insertSql = "MERGE INTO \"" + schema + "\".\"" + tapTable.getId() + "\" USING dual ON ("
+                    insertSql = "INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" USING dual ON ("
                             + uniqueCondition.stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ? IS NULL))").collect(Collectors.joining(" AND "))
                             + ")" + (allColumn.size() == uniqueCondition.size() ? "" : (" WHEN MATCHED THEN UPDATE SET " + allColumn.stream().filter(col -> !uniqueCondition.contains(col))
                             .map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")))) + " WHEN NOT MATCHED THEN INSERT(" + allColumnString + ") " + insertValue;

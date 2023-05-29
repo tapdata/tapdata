@@ -9,7 +9,7 @@ public class Jdbcexample {
     //创建数据库连接。
     public static Connection getConnection(String username, String passwd) {
         String driver = "com.yashandb.jdbc.Driver";
-        String sourceURL = "jdbc:yasdb://106.55.5.251:1688/normal";
+        String sourceURL = "jdbc:yasdb://106.55.5.251:1688/yasdb";
         Connection conn = null;
         try {
             //加载数据库驱动。

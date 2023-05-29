@@ -5,7 +5,9 @@
     "id": "yashandb",
     "doc": "${doc}",
     "authentication": "Beta",
-    "tags": ["Database"]
+    "tags": [
+      "Database"
+    ]
   },
   "configOptions": {
     "connection": {
@@ -38,15 +40,6 @@
           "apiServerKey": "database_owner",
           "x-index": 3
         },
-        "database": {
-          "type": "string",
-          "title": "${database}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "database_name",
-          "x-index": 6,
-          "required": true
-        },
         "user": {
           "type": "string",
           "title": "${user}",
@@ -64,124 +57,6 @@
           "apiServerKey": "database_password",
           "x-index": 12,
           "required": true
-        },
-        "timezone": {
-          "type": "string",
-          "title": "${timezone}",
-          "default": "",
-          "x-decorator": "FormItem",
-          "x-component": "Select",
-          "x-index": 13,
-          "enum": [
-            {
-              "label": "Database Timezone",
-              "value": ""
-            },
-            {
-              "label": "UTC -11",
-              "value": "-11:00"
-            },
-            {
-              "label": "UTC -10",
-              "value": "-10:00"
-            },
-            {
-              "label": "UTC -09",
-              "value": "-09:00"
-            },
-            {
-              "label": "UTC -08",
-              "value": "-08:00"
-            },
-            {
-              "label": "UTC -07",
-              "value": "-07:00"
-            },
-            {
-              "label": "UTC -06",
-              "value": "-06:00"
-            },
-            {
-              "label": "UTC -05",
-              "value": "-05:00"
-            },
-            {
-              "label": "UTC -04",
-              "value": "-04:00"
-            },
-            {
-              "label": "UTC -03",
-              "value": "-03:00"
-            },
-            {
-              "label": "UTC -02",
-              "value": "-02:00"
-            },
-            {
-              "label": "UTC -01",
-              "value": "-01:00"
-            },
-            {
-              "label": "UTC",
-              "value": "+00:00"
-            },
-            {
-              "label": "UTC +01",
-              "value": "+01:00"
-            },
-            {
-              "label": "UTC +02",
-              "value": "+02:00"
-            },
-            {
-              "label": "UTC +03",
-              "value": "+03:00"
-            },
-            {
-              "label": "UTC +04",
-              "value": "+04:00"
-            },
-            {
-              "label": "UTC +05",
-              "value": "+05:00"
-            },
-            {
-              "label": "UTC +06",
-              "value": "+06:00"
-            },
-            {
-              "label": "UTC +07",
-              "value": "+07:00"
-            },
-            {
-              "label": "UTC +08",
-              "value": "+08:00"
-            },
-            {
-              "label": "UTC +09",
-              "value": "+09:00"
-            },
-            {
-              "label": "UTC +10",
-              "value": "+10:00"
-            },
-            {
-              "label": "UTC +11",
-              "value": "+11:00"
-            },
-            {
-              "label": "UTC +12",
-              "value": "+12:00"
-            },
-            {
-              "label": "UTC +13",
-              "value": "+13:00"
-            },
-            {
-              "label": "UTC +14",
-              "value": "+14:00"
-            }
-          ]
         }
       }
     }
@@ -304,7 +179,7 @@
         "100000000 00:00:00.000000"
       ],
       "defaultFraction": 0,
-      "pattern": "yyyy-MM-dd HH:mm:ss",
+      "pattern": "yyyy-MM-dd HH:mm:ss.ssssss",
       "priority": 1,
       "to": "TapDateTime"
     },
@@ -314,23 +189,22 @@
         "23:59:59.999999"
       ],
       "defaultFraction": 9,
-      "pattern": "HH:mm:ss:ff",
+      "pattern": "HH:mm:ss.ssssss",
       "priority": 1,
       "to": "TapTime"
     },
-    "TIMESTAMP[($fraction)] WITH TIME ZONE": {
+    "TIMESTAMP[($fraction)]": {
       "range": [
         "0001-01-01 00:00:00.000000",
         "9999-12-31 23:59:59.999999"
       ],
-      "pattern": "yyyy-MM-dd HH:mm:ss:ff",
+      "pattern": "yyyy-MM-dd HH:mm:ss.ssssss",
       "fraction": [
         0,
         9
       ],
       "defaultFraction": 6,
       "priority": 2,
-      "withTimeZone": true,
       "to": "TapDateTime"
     },
     "BIGINT": {
