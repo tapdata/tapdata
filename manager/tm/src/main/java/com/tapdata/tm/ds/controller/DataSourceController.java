@@ -540,14 +540,21 @@ public class DataSourceController extends BaseController {
     public ResponseMessage<Map<String, Object>> findTaskByConnectionId(@PathVariable("id") String connectionId, @PathVariable("limit") int limit) {
         UserDetail loginUser = getLoginUser();
         Long total = dataSourceService.countTaskByConnectionId(connectionId, loginUser);
+        Long logTotal = dataSourceService.countTaskByConnectionId(connectionId,"logCollector",loginUser);
         List<TaskDto> taskList = dataSourceService.findTaskByConnectionId(connectionId, limit, loginUser);
+        List<TaskDto> logTaskList = dataSourceService.findTaskByConnectionId(connectionId, limit,"logCollector", loginUser);
         List<Document> items = taskList.stream()
                 .map(task -> new Document("id", task.getId().toHexString())
                         .append("name", task.getName())
                         .append("syncType", task.getSyncType())).collect(Collectors.toList());
+        List<Document> logItems = logTaskList.stream()
+                .map(task -> new Document("id", task.getId().toHexString())
+                        .append("name", task.getName())
+                        .append("syncType", task.getSyncType())).collect(Collectors.toList());
+        items.addAll(logItems);
         Map<String, Object> result = new HashMap<String, Object>() {{
             put("items", items);
-            put("total", total);
+            put("total", total+logTotal);
         }};
         return success(result);
     }
