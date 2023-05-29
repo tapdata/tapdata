@@ -266,7 +266,7 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
                 logRelation.setCurrentEventTimestamp(taskInfo.getCurrentEventTimestamp());
                 logRelation.setTaskType(taskInfo.getType());
                 logRelation.setCreateDate(taskInfo.getCreateAt());
-                logRelation.setSyncType(taskInfo.getSyncType());
+                logRelation.setSyncType(taskInfo.getShareCache() ? TaskDto.SYNC_TYPE_MEM_CACHE : taskInfo.getSyncType());
 
                 if (Objects.isNull(tableNames)) {
                     logRelation.setTableNum(0);
