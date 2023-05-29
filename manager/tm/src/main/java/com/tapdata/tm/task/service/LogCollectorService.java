@@ -1046,6 +1046,9 @@ public class LogCollectorService {
                 List<String> oldConfigTableNames = logCollecotrConnConfig.getTableNames();
                 tableNames.addAll(oldConfigTableNames);
                 tableNames = tableNames.stream().distinct().collect(Collectors.toList());
+								if (CollectionUtils.isNotEmpty(logCollecotrConnConfig.getExclusionTables())) {
+									logCollecotrConnConfig.getExclusionTables().removeIf(tableNames::contains);
+								}
                 if (tableNames.size() != oldConfigTableNames.size()) {
                     updateConfig =  true;
                     logCollecotrConnConfig.setTableNames(tableNames);
@@ -1144,7 +1147,11 @@ public class LogCollectorService {
             finalTableNames.addAll(oldTableNames);
         }
         List<String> collect = finalTableNames.stream().distinct().collect(Collectors.toList());
-        logCollectorNode.setTableNames(collect);
+				List<String> exclusionTables = logCollectorNode.getExclusionTables();
+				if (CollectionUtils.isNotEmpty(exclusionTables)) {
+					exclusionTables.removeIf(collect::contains);
+				}
+				logCollectorNode.setTableNames(collect);
         taskService.updateById(oldLogCollectorTask, user);
         updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
 
