@@ -62,7 +62,7 @@ public class ExternalStorageController extends BaseController {
 	@Operation(summary = "Patch an existing model instance or insert a new one into the data source")
 	@PatchMapping()
 	public ResponseMessage<ExternalStorageDto> update(@RequestBody ExternalStorageDto externalStorage) {
-		return success(externalStorageService.save(externalStorage, getLoginUser()));
+		return success(externalStorageService.update(externalStorage, getLoginUser()));
 	}
 
 
@@ -125,7 +125,7 @@ public class ExternalStorageController extends BaseController {
 	@PatchMapping("{id}")
 	public ResponseMessage<ExternalStorageDto> updateById(@PathVariable("id") String id, @RequestBody ExternalStorageDto externalStorage) {
 		externalStorage.setId(MongoUtils.toObjectId(id));
-		return success(externalStorageService.save(externalStorage, getLoginUser()));
+		return success(externalStorageService.update(externalStorage, getLoginUser()));
 	}
 
 

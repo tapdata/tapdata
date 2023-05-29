@@ -36,6 +36,7 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkCacheNode.class);
 
 	private final String cacheName;
+	private final String referenceId;
 
 	private DataFlowCacheConfig dataFlowCacheConfig;
 
@@ -49,8 +50,9 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 		} else {
 			throw new IllegalArgumentException("node must be CacheNode");
 		}
+		this.referenceId = referenceId(node);
 		ExternalStorageDto externalStorage = ExternalStorageUtil.getExternalStorage(node);
-		this.dataMap = new DocumentIMap<>(HazelcastUtil.getInstance(), CacheUtil.CACHE_NAME_PREFIX + this.cacheName, externalStorage);
+		this.dataMap = new DocumentIMap<>(HazelcastUtil.getInstance(), referenceId, CacheUtil.CACHE_NAME_PREFIX + this.cacheName, externalStorage);
 	}
 
 	@Override
@@ -118,13 +120,18 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 	public static void clearCache(Node<?> node) {
 		if (!(node instanceof CacheNode)) return;
 		ExternalStorageDto externalStorage = ExternalStorageUtil.getExternalStorage(node);
-		recursiveClearCache(externalStorage, ((CacheNode) node).getCacheName(), HazelcastUtil.getInstance());
+		String referenceId = referenceId(node);
+		recursiveClearCache(externalStorage, referenceId, ((CacheNode) node).getCacheName(), HazelcastUtil.getInstance());
 	}
 
-	private static void recursiveClearCache(ExternalStorageDto externalStorageDto, String cacheName, HazelcastInstance hazelcastInstance) {
+	private static String referenceId(Node<?> node) {
+		return String.format("%s-%s-%S", HazelcastTargetPdkCacheNode.class.getSimpleName(), node.getTaskId(), node.getId());
+	}
+
+	private static void recursiveClearCache(ExternalStorageDto externalStorageDto, String referenceId, String cacheName, HazelcastInstance hazelcastInstance) {
 		if (StringUtils.isEmpty(cacheName)) return;
 		cacheName = CacheUtil.CACHE_NAME_PREFIX + cacheName;
-		ConstructIMap<Document> imap = new ConstructIMap<>(hazelcastInstance, cacheName, externalStorageDto);
+		ConstructIMap<Document> imap = new ConstructIMap<>(hazelcastInstance, referenceId, cacheName, externalStorageDto);
 		try {
 			imap.clear();
 			imap.destroy();

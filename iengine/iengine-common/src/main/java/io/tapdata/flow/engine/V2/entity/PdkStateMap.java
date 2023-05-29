@@ -136,7 +136,7 @@ public class PdkStateMap implements KVMap<Object> {
 		externalStorageDto.setAccessToken(accessCode);
 		externalStorageDto.setConnectTimeoutMs(CONNECT_TIMEOUT_MS);
 		externalStorageDto.setReadTimeoutMs(READ_TIMEOUT_MS);
-		constructIMap = new DocumentIMap<>(hazelcastInstance, name, externalStorageDto);
+		constructIMap = new DocumentIMap<>(hazelcastInstance, PdkStateMap.class.getSimpleName(), name, externalStorageDto);
 	}
 
 	@NotNull

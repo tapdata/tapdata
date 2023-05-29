@@ -51,7 +51,29 @@ public class TaskSaveServiceImpl implements TaskSaveService {
         if (Objects.isNull(dag) || org.apache.commons.collections4.CollectionUtils.isEmpty(dag.getNodes())) {
             return;
         }
+        if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
+            dag.getSourceNode().forEach(sourceNode -> {
+                if (StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
+                    String connectionId = sourceNode.getConnectionId();
+                    List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(connectionId, null, userDetail);
+                    if (CollectionUtils.isNotEmpty(metaList)) {
+                        List<String> collect = metaList.stream()
+                                .map(MetadataInstancesDto::getOriginalName)
+                                .filter(originalName -> {
+                                    if (StringUtils.isEmpty(sourceNode.getTableExpression())) {
+                                        return false;
+                                    } else {
+                                        return Pattern.matches(sourceNode.getTableExpression(), originalName);
+                                    }
+                                })
+                                .collect(Collectors.toList());
+                        sourceNode.setTableNames(collect);
+                    }
+                }
 
+                nodeCheckData(sourceNode.successors(), sourceNode.getTableNames(), null);
+            });
+        }
         List<MetadataInstancesDto> schemaList = metadataInstancesService.findByTaskId(taskDto.getId().toHexString(), userDetail);
         if (CollectionUtils.isEmpty(schemaList)) {
             return;
@@ -109,28 +131,6 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
         //supplier migrate tableSelectType=all tableNames and SyncObjects
         if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
-            dag.getSourceNode().forEach(sourceNode -> {
-                if (StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
-                    String connectionId = sourceNode.getConnectionId();
-                    List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(connectionId, null, userDetail);
-                    if (CollectionUtils.isNotEmpty(metaList)) {
-                        List<String> collect = metaList.stream()
-                                .map(MetadataInstancesDto::getOriginalName)
-                                .filter(originalName -> {
-                                    if (StringUtils.isEmpty(sourceNode.getTableExpression())) {
-                                        return false;
-                                    } else {
-                                        return Pattern.matches(sourceNode.getTableExpression(), originalName);
-                                    }
-                                })
-                                .collect(Collectors.toList());
-                        sourceNode.setTableNames(collect);
-                    }
-                }
-
-                nodeCheckData(sourceNode.successors(), sourceNode.getTableNames(), null);
-            });
-
             if (CollectionUtils.isNotEmpty(dag.getTargets())) {
                 dag.getTargets().stream()
                         .filter(node -> node instanceof DatabaseNode)
@@ -167,6 +167,8 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             Dag temp = new Dag(dag.getEdges(), dag.getNodes());
             DAG.build(temp);
         }
+
+
     }
 
     @Override

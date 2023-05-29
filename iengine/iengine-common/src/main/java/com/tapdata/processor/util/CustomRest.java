@@ -184,6 +184,96 @@ public class CustomRest {
 		return requestData(url, HttpMethod.POST, httpEntity, returnType, connectTimeout, readTimeout);
 	}
 
+	public static Map<String, Object> put(String url) {
+		return put(url, new HashMap<>(), new HashMap<>(), RETURN_TYPE_ARRAY);
+	}
+
+	public static Map<String, Object> put(String url, int connectTimeout, int readTimeout) {
+		return put(url, new HashMap<>(), new HashMap<>(), RETURN_TYPE_ARRAY, connectTimeout, readTimeout);
+	}
+
+	public static Map<String, Object> put(String url, String returnType) {
+		return put(url, new HashMap<>(), new HashMap<>(), returnType);
+	}
+
+	public static Map<String, Object> put(String url, String returnType, int connectTimeout, int readTimeout) {
+		return put(url, new HashMap<>(), new HashMap<>(), returnType, connectTimeout, readTimeout);
+	}
+
+	public static Map<String, Object> put(String url, String paramsStr, String returnType) {
+		Map<String, Object> paramsMap = new HashMap<>();
+		try {
+			Arrays.stream(paramsStr.split("\n")).forEach(line -> paramsMap.put(line.substring(0, line.indexOf("=")), line.substring(line.indexOf("=") + 1)));
+		} catch (Exception e) {
+			throw new IllegalArgumentException("params invalid");
+		}
+		return put(url, paramsMap, new HashMap<>(), returnType);
+	}
+
+	public static Map<String, Object> put(String url, String paramsStr, String returnType, int connectTimeout, int readTimeout) {
+		Map<String, Object> paramsMap = new HashMap<>();
+		try {
+			Arrays.stream(paramsStr.split("\n")).forEach(line -> paramsMap.put(line.substring(0, line.indexOf("=")), line.substring(line.indexOf("=") + 1)));
+		} catch (Exception e) {
+			throw new IllegalArgumentException("params invalid");
+		}
+		return put(url, paramsMap, new HashMap<>(), returnType, connectTimeout, readTimeout);
+	}
+
+	public static Map<String, Object> put(String url, Map<String, Object> paramsMap) {
+		return put(url, paramsMap, new HashMap<>(), RETURN_TYPE_ARRAY);
+	}
+
+	public static Map<String, Object> put(String url, Map<String, Object> paramsMap, int connectTimeout, int readTimeout) {
+		return put(url, paramsMap, new HashMap<>(), RETURN_TYPE_ARRAY, connectTimeout, readTimeout);
+	}
+
+	public static Map<String, Object> put(String url, Map<String, Object> paramsMap, String returnType) {
+		return put(url, paramsMap, new HashMap<>(), returnType);
+	}
+
+	public static Map<String, Object> put(String url, Map<String, Object> paramsMap, String returnType, int connectTimeout, int readTimeout) {
+		return put(url, paramsMap, new HashMap<>(), returnType, connectTimeout, readTimeout);
+	}
+
+	public static Map<String, Object> put(String url, Map<String, Object> paramsMap, Map<String, Object> headersMap, String returnType) {
+		Map<String, Object> headers = new HashMap<>();
+		MapUtil.copyToNewMap(headersMap, headers);
+		Map<String, Object> params = new HashMap<>();
+		MapUtil.copyToNewMap(paramsMap, params);
+		HttpEntity httpEntity = RestUtil.httpEntity(HttpMethod.PUT.name(), mergeHeader(headers), params);
+
+		return requestData(url, HttpMethod.PUT, httpEntity, returnType, CONNECT_TIMEOUT, READ_TIMEOUT);
+	}
+
+	public static Map<String, Object> put(String url, Map<String, Object> paramsMap, Map<String, Object> headersMap, String returnType,
+										  int connectTimeout, int readTimeout) {
+		Map<String, Object> headers = new HashMap<>();
+		MapUtil.copyToNewMap(headersMap, headers);
+		Map<String, Object> params = new HashMap<>();
+		MapUtil.copyToNewMap(paramsMap, params);
+		HttpEntity httpEntity = RestUtil.httpEntity(HttpMethod.PUT.name(), mergeHeader(headers), params);
+
+		return requestData(url, HttpMethod.PUT, httpEntity, returnType, connectTimeout, readTimeout);
+	}
+
+	public static Map<String, Object> put(String url, byte[] params, MultiValueMap<String, String> headersMap, String returnType) {
+		MultiValueMap<String, String> headers = new HttpHeaders();
+		MapUtil.copyToNewMap(headersMap, headers);
+		HttpEntity<byte[]> httpEntity = new HttpEntity<>(params, headers);
+
+		return requestData(url, HttpMethod.PUT, httpEntity, returnType, CONNECT_TIMEOUT, READ_TIMEOUT);
+	}
+
+	public static Map<String, Object> put(String url, byte[] params, MultiValueMap<String, String> headersMap, String returnType,
+										  int connectTimeout, int readTimeout) {
+		MultiValueMap<String, String> headers = new HttpHeaders();
+		MapUtil.copyToNewMap(headersMap, headers);
+		HttpEntity<byte[]> httpEntity = new HttpEntity<>(params, headers);
+
+		return requestData(url, HttpMethod.PUT, httpEntity, returnType, connectTimeout, readTimeout);
+	}
+
 	public static Map<String, Object> patch(String url, Map<String, Object> paramsMap) {
 		return patch(url, paramsMap, new HashMap<>());
 	}

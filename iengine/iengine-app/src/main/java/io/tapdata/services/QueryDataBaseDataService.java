@@ -33,10 +33,7 @@ import org.apache.commons.collections4.MapUtils;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.entity.simplify.TapSimplify.entry;
@@ -80,7 +77,8 @@ public class QueryDataBaseDataService {
 			TapTable tapTable = TapTableUtil.getTapTableByConnectionId(connectionId, tableName);
 			if (tapTable == null) {
 				log.error("Cannot find tableName :{}", tableName);
-				throw new RuntimeException("Cannot find tableName:" + tableName);
+				return new HashMap<>();
+				//throw new RuntimeException("Cannot find tableName:" + tableName);
 			}
 			ConnectorNode connectorNode = createConnectorNode(associateId, (HttpClientMongoOperator) clientMongoOperator, databaseType, connections.getConfig());
 			List<Map<String, Object>> maps;

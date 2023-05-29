@@ -6,6 +6,7 @@ import io.tapdata.pdk.core.executor.ExecutorsManager;
 import java.util.Date;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 public class MaxFrequencyLimiter {
     public final static String TAG = MaxFrequencyLimiter.class.getSimpleName();
@@ -18,6 +19,12 @@ public class MaxFrequencyLimiter {
     private ScheduledFuture scheduledFuture;
     private boolean reschedule = false;
     private boolean hit = false;
+
+    private Consumer<Throwable> errorConsumer;
+    public MaxFrequencyLimiter errorConsumer(Consumer<Throwable> errorConsumer) {
+        this.errorConsumer = errorConsumer;
+        return this;
+    }
 
     public static void main(String... args) {
         MaxFrequencyLimiter maxFrequencyLimiter = new MaxFrequencyLimiter(500, () -> {
@@ -96,6 +103,8 @@ public class MaxFrequencyLimiter {
             } catch(Throwable throwable) {
                 throwable.printStackTrace();
                 TapLogger.error(TAG, "Action failed, " + throwable.getMessage());
+                if(errorConsumer != null)
+                    errorConsumer.accept(throwable);
             }
         }
     }

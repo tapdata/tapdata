@@ -402,8 +402,18 @@ public class InspectResultService extends BaseService<InspectResultDto, InspectR
 					if (maxDifferentialValues == null) {
 						maxDifferentialValues = 0;
 					}
-					if (stats.getRowFailed() != null && stats.getRowFailed() >= maxDifferentialValues) {
-						alarmParams.put("count", stats.getRowFailed());
+					long diff0 = Math.abs(stats.getSourceTotal() - stats.getTargetTotal());
+					long diff1 = Math.abs(stats.getSourceOnly() - stats.getTargetOnly());
+					if (diff0 < diff1) {
+						diff0 = diff1;
+					}
+					long diff2 = stats.getRowFailed();
+					if (diff0 < diff2) {
+						diff0 = diff2;
+					}
+
+					if (diff0 >= maxDifferentialValues) {
+						alarmParams.put("count", diff0);
 						return AlarmInfo.builder().status(AlarmStatusEnum.ING)
 										.level(Level.WARNING)
 										.component(AlarmComponentEnum.FE)

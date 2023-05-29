@@ -42,6 +42,7 @@ public class JSProcessNodeTestRunService {
 
     public static final int ERROR_REPEAT_EXECUTION  = 18000;
     public Object testRun(Map<String, Object> events, final String nodeId, final int logOutputCount) {
+        Map<String, Object> resultMap = null;
         TaskService<TaskDto> taskService = BeanUtil.getBean(HazelcastTaskService.class);
         long startTs = System.currentTimeMillis();
         TaskDto taskDto = JSONUtil.map2POJO(events, TaskDto.class);
@@ -59,15 +60,15 @@ public class JSProcessNodeTestRunService {
         taskDto.taskInfo(JSProcessNodeAppender.JS_NODE_ID_KEY + taskId, nodeId);
 
         ObsLogger logger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
-        taskDto.setType(ParentTaskDto.TYPE_INITIAL_SYNC);
-        if (taskDtoMap.putIfAbsent(taskId, taskDto) != null) {
-            throw new CoreException(ERROR_REPEAT_EXECUTION, "The trial run is currently in progress, please do not repeat it.");
-        }
-        logger.info("{} task start", taskId);
         TaskClient<TaskDto> taskClient = null;
-        AtomicReference<Object> clientResult = new AtomicReference<>();
-        Map<String, Object> resultMap = null;
         try {
+            taskDto.setType(ParentTaskDto.TYPE_INITIAL_SYNC);
+            if (taskDtoMap.putIfAbsent(taskId, taskDto) != null) {
+                throw new CoreException(ERROR_REPEAT_EXECUTION, "The trial run is currently in progress, please do not repeat it.");
+            }
+            logger.info("{} task start", taskId);
+            AtomicReference<Object> clientResult = new AtomicReference<>();
+
             taskClient = taskService.startTestTask(taskDto, clientResult);
             TestRunTaskHandler.registerTaskClient(taskId, taskClient);
             taskClient.join();
@@ -91,7 +92,7 @@ public class JSProcessNodeTestRunService {
         } finally {
             taskDtoMap.remove(taskId);
             ObsLoggerFactory.getInstance().forceRemoveTaskLogger(taskDto);
-            logger.info("test run task {} {}, cost {}ms", taskId, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
+            logger.info("test run task {} {}, cost {}ms", taskId, null == taskClient ? "error" : taskClient.getStatus(), (System.currentTimeMillis() - startTs));
         }
         resultMap.put("logs", Optional.ofNullable(logCollector.get()).orElse(new ArrayList<>()));
         return resultMap;

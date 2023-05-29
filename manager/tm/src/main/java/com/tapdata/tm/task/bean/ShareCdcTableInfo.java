@@ -2,8 +2,6 @@ package com.tapdata.tm.task.bean;
 
 import lombok.Data;
 
-import java.math.BigDecimal;
-import java.util.Date;
 
 @Data
 public class ShareCdcTableInfo {
@@ -14,13 +12,13 @@ public class ShareCdcTableInfo {
 
     private String connectionId;
     /** 加入挖掘时间*/
-    private Date joinTime;
+    private Long joinTime;
     /** 首条日志时间*/
-    private Date firstLogTime;
+    private Long firstLogTime;
     /** 最新日志时间*/
-    private Date lastLogTime;
+    private Long lastLogTime;
     /** 累计挖掘日志条数*/
-    private BigDecimal allCount;
+    private Long allCount;
     /** 进入挖掘日志条数*/
     private Long todayCount;
 }
