@@ -131,6 +131,48 @@
           "x-content": "${try_run}",
           "x-component": "Button",
           "x-index": 60
+        },
+        "isDefaultAddr": {
+          "type": "boolean",
+          "default": true,
+          "title": "${cache_type}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "enum": [
+            {
+              "label": "${is_default_addr}",
+              "value": true
+            },
+            {
+              "label": "${using_custom_methods}",
+              "value": false
+            }
+          ],
+          "x-index": 70,
+          "required": false,
+          "x-display": "hidden"
+        },
+        "cacheAddr": {
+          "title": "${cache_addr}",
+          "type": "string",
+          "required": false,
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 80,
+          "x-reactions": {
+            "dependencies": [
+              "isDefaultAddr"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] ? \"hidden\" : \"visible\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0]? false : true}}"
+              }
+            }
+          },
+          "x-display": "hidden"
         }
       }
     }
@@ -145,6 +187,10 @@
       "hookButton": "Generate Service URL",
       "hookTitle": "Service URL",
       "try_run": "Test Run",
+      "using_custom_methods": "Using custom methods",
+      "is_default_addr": "Use Default Cache",
+      "cache_type": "Cache Type",
+      "cache_addr": "Cache addr",
       "open_script": "Enable data processing scripts",
       "node_script_title": "Data processing script",
       "node_illustrate_title": "JavaScript Writing Instructions",
@@ -163,6 +209,10 @@
       "open_script": "开启数据处理脚本",
       "node_script_title": "数据处理脚本",
       "try_run": "试运行",
+      "is_default_addr": "使用系统默认消息缓存方式",
+      "cache_type": "消息缓存方式",
+      "using_custom_methods": "使用自定义消息缓存地址",
+      "cache_addr": "消息缓存库地址",
       "node_illustrate_title": "JavaScript编写说明",
       "node_return_type": "脚本方法返回值规范：返回结果可以是数组也可以是K-V对象，如果返回值为null，则会忽略此事件",
       "node_event_type": "事件类型是一个枚举值（仅包括i、d、u，默认i），i表示插入、u表示更新、d表示删除",
@@ -180,6 +230,10 @@
       "node_script_title": "數據處理腳本",
       "node_illustrate_title": "JavaScript編寫說明",
       "try_run": "試運行",
+      "is_default_addr": "使用系統默認消息緩存管道",
+      "cache_type": "消息緩存管道",
+      "using_custom_methods": "使用自定义消息缓存地址",
+      "cache_addr": "消息緩存庫地址",
       "node_return_type": "腳本方法返回值規範：返回結果可以是數組也可以是K-V對象，如果返回值為null，則會忽略此事件",
       "node_event_type": "事件類型是一個枚舉值（僅包括i、d、u，默認i），i表示插入、u表示更新、d表示删除",
       "node_event_data": "事件數據體是一個K-V對象，這將會成為這張錶中的一條數據：事件類型為插入時新增此數據；事件類型為修改時，修改此數據，事件類型為删除時，删除此數據",

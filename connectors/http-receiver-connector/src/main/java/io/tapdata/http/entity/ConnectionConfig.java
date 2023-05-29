@@ -24,6 +24,8 @@ public class ConnectionConfig {
     private String originalScript;
     private Boolean handleType;
     private List<Object> testRunData;
+    private boolean isDefaultAddr;
+    private String cacheAddr;
 
     public static ConnectionConfig create(TapConnectionContext context) {
         DataMap config = context.getConnectionConfig();
@@ -32,7 +34,9 @@ public class ConnectionConfig {
                 .hookUrl(config.getString("hookText"))
                 .script(config.getString("eventScript"))
                 .handleType(config.getValue("handleType", false))
-                .testRunData(config.getString("testRunData"));
+                .testRunData(config.getString("testRunData"))
+                .isDefaultAddr(config.getValue("isDefaultAddr", true))
+                .cacheAddr(config.getValue("cacheAddr", ""));
     }
 
     public static ConnectionConfig create(Map<?, ?> connectionConfig) {
@@ -41,19 +45,51 @@ public class ConnectionConfig {
                 .tableName((String) connectionConfig.get("tableName"))
                 .hookUrl((String) connectionConfig.get("hookText"))
                 .script((String) connectionConfig.get("eventScript"))
-                .handleType(null != type && (boolean) type);
+                .handleType(null != type && (boolean) type)
+                .isDefaultAddr(connectionConfig.get("isDefaultAddr"))
+                .cacheAddr(connectionConfig.get("cacheAddr"));
+    }
+
+    public ConnectionConfig isDefaultAddr(Boolean isDefaultAddr) {
+        this.isDefaultAddr = Optional.ofNullable(isDefaultAddr).orElse(true);
+        return this;
+    }
+    public ConnectionConfig isDefaultAddr(Object isDefaultAddr) {
+        try {
+            this.isDefaultAddr = (Boolean) Optional.ofNullable(isDefaultAddr).orElse(true);
+        }catch (Exception e){
+            this.isDefaultAddr = true;
+        }
+        return this;
+    }
+    public boolean isDefaultAddr(){
+        return this.isDefaultAddr;
+    }
+
+    public ConnectionConfig cacheAddr(String cacheAddr) {
+        this.cacheAddr = Optional.ofNullable(cacheAddr).orElse("");
+        return this;
+    }
+    public ConnectionConfig cacheAddr(Object cacheAddr) {
+        try {
+            this.cacheAddr = (String) Optional.ofNullable(cacheAddr).orElse("");
+        }catch (Exception e){
+            this.cacheAddr = "";
+        }
+        return this;
+    }
+    public String cacheAddr(){
+        return this.cacheAddr;
     }
 
     public ConnectionConfig testRunData(List<Object> testRunData) {
         this.testRunData = testRunData;
         return this;
     }
-
     public ConnectionConfig testRunData(Object testRunData) {
         this.testRunData = ListUtil.addObjToList(new ArrayList<>(), testRunData);
         return this;
     }
-
     public List<Object> testRunData() {
         return this.testRunData;
     }
@@ -62,7 +98,6 @@ public class ConnectionConfig {
         this.tableName = tableName;
         return this;
     }
-
     public String tableName() {
         return this.tableName;
     }
@@ -71,7 +106,6 @@ public class ConnectionConfig {
         this.hookUrl = hookUrl;
         return this;
     }
-
     public String hookUrl() {
         return this.hookUrl;
     }
@@ -79,7 +113,6 @@ public class ConnectionConfig {
     public boolean handleType() {
         return null != handleType && handleType;
     }
-
     public ConnectionConfig handleType(Boolean handleType) {
         this.handleType = null != handleType && handleType;
         return this;
@@ -90,11 +123,9 @@ public class ConnectionConfig {
         this.originalScript = script;
         return this;
     }
-
     public String script() {
         return this.script;
     }
-
     public String originalScript() {
         return this.originalScript;
     }
@@ -102,7 +133,6 @@ public class ConnectionConfig {
     public String getTableName() {
         return tableName;
     }
-
     public void setTableName(String tableName) {
         this.tableName = tableName;
     }
@@ -110,7 +140,6 @@ public class ConnectionConfig {
     public String getHookUrl() {
         return hookUrl;
     }
-
     public void setHookUrl(String hookUrl) {
         this.hookUrl = hookUrl;
     }
@@ -118,8 +147,39 @@ public class ConnectionConfig {
     public String getScript() {
         return script;
     }
-
     public void setScript(String script) {
         this.script = script;
+    }
+
+    public String getOriginalScript() {
+        return originalScript;
+    }
+    public void setOriginalScript(String originalScript) {
+        this.originalScript = originalScript;
+    }
+
+    public Boolean getHandleType() {
+        return handleType;
+    }
+    public void setHandleType(Boolean handleType) {
+        this.handleType = handleType;
+    }
+
+    public List<Object> getTestRunData() {
+        return testRunData;
+    }
+    public void setTestRunData(List<Object> testRunData) {
+        this.testRunData = testRunData;
+    }
+
+    public void setDefaultAddr(boolean defaultAddr) {
+        isDefaultAddr = defaultAddr;
+    }
+
+    public String getCacheAddr() {
+        return cacheAddr;
+    }
+    public void setCacheAddr(String cacheAddr) {
+        this.cacheAddr = cacheAddr;
     }
 }
