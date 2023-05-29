@@ -1,15 +1,17 @@
 package io.tapdata.observable.metric.handler;
 
-import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TapdataHeartbeatEvent;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
-import io.tapdata.entity.event.dml.*;
+import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
+import io.tapdata.entity.event.ddl.index.TapDeleteIndexEvent;
 import io.tapdata.entity.event.ddl.table.*;
-import io.tapdata.entity.event.ddl.index.*;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Data;
 import org.apache.commons.collections4.CollectionUtils;
@@ -145,14 +147,6 @@ public class HandlerUtil {
             processTimeTotal += (now - time);
         }
 
-        public void incrReplicateLagTotal(Long now, Long replicateLag) {
-            if (null == replicateLag) return;
-            if (null == replicateLagTotal) {
-                replicateLagTotal = 0L;
-            }
-            replicateLagTotal += (now - replicateLag);
-        }
-
         public void calculateMaxReplicateLag(Long now, List<Long> referenceTimeList) {
             if (CollectionUtils.isEmpty(referenceTimeList)) return;
             if (null == replicateLagTotal) {
@@ -161,11 +155,9 @@ public class HandlerUtil {
 
             // remove referenceTimeList null value
             referenceTimeList.removeIf(Objects::isNull);
-            // get referenceTimeList max value
-            referenceTimeList.stream().max(Long::compareTo).ifPresent(maxReferenceTime -> replicateLagTotal = now - maxReferenceTime);
+            // get referenceTimeList min value
+            referenceTimeList.stream().min(Long::compareTo).ifPresent(minReferenceTime -> replicateLagTotal = now - minReferenceTime);
         }
-
-
 
         public long getTotal() {
             return ddlTotal + insertTotal + updateTotal + deleteTotal + othersTotal;
