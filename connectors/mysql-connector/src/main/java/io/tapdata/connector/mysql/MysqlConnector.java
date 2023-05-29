@@ -45,7 +45,9 @@ import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
+import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -435,25 +437,7 @@ public class MysqlConnector extends ConnectorBase {
             Set<String> dateTypeSet = dateFields(tapTable);
             ResultSetMetaData metaData = resultSet.getMetaData();
             while (isAlive() && resultSet.next()) {
-                Map<String, Object> data = new HashMap<>();
-                for (int i = 0; i < metaData.getColumnCount(); i++) {
-                    String columnName = metaData.getColumnName(i + 1);
-                    try {
-                        Object value;
-                        if ("TIME".equalsIgnoreCase(metaData.getColumnTypeName(i + 1))) {
-                            value = resultSet.getString(i + 1);
-                        } else {
-                            value = resultSet.getObject(i + 1);
-                            if (null == value && dateTypeSet.contains(columnName)) {
-                                value = resultSet.getString(i + 1);
-                            }
-                        }
-                        data.put(columnName, value);
-                    } catch (Exception e) {
-                        throw new RuntimeException("Read column value failed, column name: " + columnName + ", data: " + data + "; Error: " + e.getMessage(), e);
-                    }
-                }
-                tapEvents.add(insertRecordEvent(data, tapTable.getId()));
+                tapEvents.add(insertRecordEvent(filterTimeForMysql(resultSet, metaData, dateTypeSet), tapTable.getId()));
                 if (tapEvents.size() == eventBatchSize) {
                     eventsOffsetConsumer.accept(tapEvents, new HashMap<>());
                     tapEvents = list();
@@ -465,6 +449,28 @@ public class MysqlConnector extends ConnectorBase {
             }
         });
 
+    }
+
+    private Map<String, Object> filterTimeForMysql(ResultSet resultSet, ResultSetMetaData metaData, Set<String> dateTypeSet) throws SQLException {
+        Map<String, Object> data = new HashMap<>();
+        for (int i = 0; i < metaData.getColumnCount(); i++) {
+            String columnName = metaData.getColumnName(i + 1);
+            try {
+                Object value;
+                if ("TIME".equalsIgnoreCase(metaData.getColumnTypeName(i + 1))) {
+                    value = resultSet.getString(i + 1);
+                } else {
+                    value = resultSet.getObject(i + 1);
+                    if (null == value && dateTypeSet.contains(columnName)) {
+                        value = resultSet.getString(i + 1);
+                    }
+                }
+                data.put(columnName, value);
+            } catch (Exception e) {
+                throw new RuntimeException("Read column value failed, column name: " + columnName + ", data: " + data + "; Error: " + e.getMessage(), e);
+            }
+        }
+        return data;
     }
 
     private Set<String> dateFields(TapTable tapTable) {
