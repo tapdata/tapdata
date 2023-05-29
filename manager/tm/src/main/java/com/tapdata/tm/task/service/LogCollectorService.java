@@ -1536,12 +1536,14 @@ public class LogCollectorService {
         Query query = new Query(criteria);
         query.with(Sort.by("createTime").descending());
         ShareCdcTableMetricsDto metricsDto = shareCdcTableMetricsService.findOne(query, user);
-        shareCdcTableInfo.setFirstLogTime(metricsDto.getFirstEventTime());
-        shareCdcTableInfo.setLastLogTime(metricsDto.getCurrentEventTime());
-        shareCdcTableInfo.setJoinTime(metricsDto.getStartCdcTime());
-        shareCdcTableInfo.setTodayCount(metricsDto.getCount());
-        shareCdcTableInfo.setAllCount(metricsDto.getAllCount());
-    }
+				if (metricsDto != null) {
+					shareCdcTableInfo.setFirstLogTime(metricsDto.getFirstEventTime());
+					shareCdcTableInfo.setLastLogTime(metricsDto.getCurrentEventTime());
+					shareCdcTableInfo.setJoinTime(metricsDto.getStartCdcTime());
+					shareCdcTableInfo.setTodayCount(metricsDto.getCount());
+					shareCdcTableInfo.setAllCount(metricsDto.getAllCount());
+				}
+		}
 
     public void configTables(String taskId, List<TableLogCollectorParam> params, String type, UserDetail user) {
 			TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), user);
