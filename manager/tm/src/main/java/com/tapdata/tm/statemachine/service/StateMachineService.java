@@ -134,7 +134,7 @@ public class StateMachineService {
 			FunctionUtils.isTureOrFalse(stateMachineResult.isOk()).trueOrFalseHandle(
 					() -> taskService.updateTaskRecordStatus(dto, stateMachineResult.getAfter(), userDetail),
 					() -> {
-						monitoringLogsService.startTaskErrorLog(dto, userDetail, "concurrent start operations, this operation don‘t effective", Level.INFO);
+						log.warn("concurrent start operations, this operation don‘t effective, task name = {}", dto.getName());
 						taskService.updateTaskRecordStatus(dto, stateMachineResult.getBefore(), userDetail);
 					}
 			);
