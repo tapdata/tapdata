@@ -54,6 +54,7 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.bson.BsonDocument;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
@@ -1610,10 +1611,10 @@ public class LogCollectorService {
 
     public void clear() {
         //1、查找所有正在运行的共享挖掘任务
-        Criteria criteria1 = Criteria.where("is_deleted").is(false)
+        Criteria criteria = Criteria.where("is_deleted").ne(true)
                 .and("syncType").is(TaskDto.SYNC_TYPE_LOG_COLLECTOR)
                 .and("status").is(TaskDto.STATUS_RUNNING);
-        Query query = new Query(criteria1);
+        Query query = new Query(criteria);
         query.fields().include("_id", "dag", "status", "user_id");
         List<TaskDto> taskDtos = taskService.findAll(query);
         if (CollectionUtils.isEmpty(taskDtos)) {
@@ -1621,92 +1622,124 @@ public class LogCollectorService {
         }
 
         for (TaskDto logCollectorTaskDto : taskDtos) {
-            DAG dag = logCollectorTaskDto.getDag();
-            List<Node> sources = dag.getSources();
-            LogCollectorNode logCollectorNode = (LogCollectorNode) sources.get(0);
-            Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
-            Map<String, Set<String>> tableMap = new HashMap<>();
-            if (logCollectorConnConfigs == null) {
-                tableMap.put(logCollectorNode.getConnectionIds().get(0), new HashSet<>(logCollectorNode.getTableNames()));
-            } else {
-                tableMap = logCollectorConnConfigs.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> new HashSet<>(e.getValue().getTableNames())));
-            }
-            if (MapUtils.isEmpty(tableMap)) {
-                continue;
-            }
+					try {
+						DAG dag = logCollectorTaskDto.getDag();
+						List<Node> sources = dag.getSources();
+						LogCollectorNode logCollectorNode = (LogCollectorNode) sources.get(0);
+						Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
+						Map<String, Set<String>> tableMap = new HashMap<>();
+						if (logCollectorConnConfigs == null) {
+								tableMap.put(logCollectorNode.getConnectionIds().get(0), new HashSet<>(logCollectorNode.getTableNames()));
+						} else {
+								tableMap = logCollectorConnConfigs.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> new HashSet<>(e.getValue().getTableNames())));
+						}
+						if (MapUtils.isEmpty(tableMap)) {
+								continue;
+						}
 
-            MatchOperation taskMatchOperation = Aggregation.match(Criteria.where("is_delete").ne(true)
-                    .and("syncType").ne(TaskDto.SYNC_TYPE_LOG_COLLECTOR));
-            List<Criteria> orCriteriaList = new ArrayList<>();
-            tableMap.forEach((connectionId, tableNames) -> {
-                orCriteriaList.add(
-                        new Criteria("dag.nodes")
-                                .elemMatch(
-                                        new Criteria("connectionId")
-                                                .is(connectionId)
-                                                .orOperator(
-                                                        new Criteria("tableName").in(tableNames),
-                                                        new Criteria("tableNames").in(tableNames)
-                                                )
-                                )
-                );
-            });
-            Criteria finalCriteria = new Criteria().orOperator(orCriteriaList);
-            MatchOperation matchOperation = Aggregation.match(finalCriteria);
+						MatchOperation taskMatchOperation = Aggregation.match(Criteria.where("is_delete").ne(true)
+										.and("syncType").ne(TaskDto.SYNC_TYPE_LOG_COLLECTOR));
+						List<Criteria> orCriteriaList = new ArrayList<>();
+						tableMap.forEach((connectionId, tableNames) -> {
+								orCriteriaList.add(
+												new Criteria("dag.nodes")
+																.elemMatch(
+																				new Criteria("connectionId")
+																								.is(connectionId)
+																								.orOperator(
+																												new Criteria("tableName").in(tableNames),
+																												new Criteria("tableNames").in(tableNames)
+																								)
+																)
+								);
+						});
+						Criteria finalCriteria = new Criteria().orOperator(orCriteriaList);
+						MatchOperation matchOperation = Aggregation.match(finalCriteria);
 
-            UnwindOperation unwindOperation = Aggregation.unwind("$dag.nodes");
+						UnwindOperation unwindOperation = Aggregation.unwind("$dag.nodes");
 
-            List<Criteria> nodeOrCriteriaList = new ArrayList<>();
-            tableMap.forEach((connectionId, tableNames) -> nodeOrCriteriaList.add(new Criteria("dag.nodes.connectionId").is(connectionId)
-                    .orOperator(new Criteria("dag.nodes.tableName").in(tableNames), new Criteria("dag.nodes.tableNames").in(tableNames))));
-            Criteria nodeFinalCriteria = new Criteria().orOperator(nodeOrCriteriaList);
-            MatchOperation nodeMatchOperation = Aggregation.match(nodeFinalCriteria);
+						List<Criteria> nodeOrCriteriaList = new ArrayList<>();
+						tableMap.forEach((connectionId, tableNames) -> nodeOrCriteriaList.add(new Criteria("dag.nodes.connectionId").is(connectionId)
+										.orOperator(new Criteria("dag.nodes.tableName").in(tableNames), new Criteria("dag.nodes.tableNames").in(tableNames))));
+						Criteria nodeFinalCriteria = new Criteria().orOperator(nodeOrCriteriaList);
+						MatchOperation nodeMatchOperation = Aggregation.match(nodeFinalCriteria);
 
-            ProjectionOperation project = Aggregation.project()
-                    .andExclude("_id")
-                    .and("dag.nodes.connectionId").as("connectionId")
-                    .and("dag.nodes.tableName").as("tableName")
-                    .and("dag.nodes.tableNames").as("tableNames");
+						ProjectionOperation project = Aggregation.project()
+										.andExclude("_id")
+										.and("dag.nodes.connectionId").as("connectionId")
+										.and("dag.nodes.tableName").as("tableName")
+										.and("dag.nodes.tableNames").as("tableNames");
 
 
-            Aggregation aggregation = Aggregation.newAggregation(taskMatchOperation, matchOperation, unwindOperation, nodeMatchOperation, project);
-            List<Map> mappedResults = taskService.aggregate(aggregation, Map.class).getMappedResults();
+						Aggregation aggregation = Aggregation.newAggregation(taskMatchOperation, matchOperation, unwindOperation, nodeMatchOperation, project);
+						List<Map> mappedResults = taskService.aggregate(aggregation, Map.class).getMappedResults();
 
-            Map<String, Set<String>> useMap = new HashMap<>();
-            if (CollectionUtils.isNotEmpty(mappedResults)) {
-                for (Map<String, Object> mappedResult : mappedResults) {
-                    String connectionId = (String) mappedResult.get("connectionId");
-                    Set<String> tableSet = useMap.computeIfAbsent(connectionId, c -> new HashSet<>());
-                    String tableName = (String) mappedResult.get("tableName");
-                    if (tableName != null) {
-                        tableSet.add(tableName);
-                    }
-                    Collection<String> tableNames = (Collection<String>) mappedResult.get("tableNames");
-                    if (tableNames != null) {
-                        tableSet.addAll(tableNames);
-                    }
-                }
-            }
+						Map<String, Set<String>> useMap = new HashMap<>();
+						if (CollectionUtils.isNotEmpty(mappedResults)) {
+								for (Map<String, Object> mappedResult : mappedResults) {
+										String connectionId = (String) mappedResult.get("connectionId");
+										Set<String> tableSet = useMap.computeIfAbsent(connectionId, c -> new HashSet<>());
+										String tableName = (String) mappedResult.get("tableName");
+										if (tableName != null) {
+												tableSet.add(tableName);
+										}
+										Collection<String> tableNames = (Collection<String>) mappedResult.get("tableNames");
+										if (tableNames != null) {
+												tableSet.addAll(tableNames);
+										}
+								}
+						}
 
-            //tableMap中的tableNames在map中不存在的，需要删除
-            tableMap.forEach((connectionId, tableNames) -> {
-                Set<String> usingTableNames = useMap.get(connectionId);
-                if (CollectionUtils.isEmpty(usingTableNames)) {
-                    return;
-                }
-                usingTableNames.forEach(tableNames::remove);
-            });
-            if (MapUtils.isEmpty(tableMap) || CollectionUtils.isEmpty(tableMap.values().stream().flatMap(Collection::stream).collect(Collectors.toList()))) {
-                continue;
-            }
-            //需要排除
-            List<TableLogCollectorParam> params = tableMap.entrySet().stream()
-                    .map(e -> new TableLogCollectorParam(e.getKey(), e.getValue())).collect(Collectors.toList());
-            log.info("The logCollector table is not being used, will be canceled: {}", params);
-            UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(logCollectorTaskDto.getUserId()));
-            configTables(logCollectorTaskDto.getId().toHexString(), params, "exclusion", userDetail);
-        }
+						//tableMap中的tableNames在map中不存在的，需要删除
+						tableMap.forEach((connectionId, tableNames) -> {
+								Set<String> usingTableNames = useMap.get(connectionId);
+								if (CollectionUtils.isEmpty(usingTableNames)) {
+										return;
+								}
+								usingTableNames.forEach(tableNames::remove);
+						});
+						if (MapUtils.isEmpty(tableMap) || CollectionUtils.isEmpty(tableMap.values().stream().flatMap(Collection::stream).collect(Collectors.toList()))) {
+								continue;
+						}
+						//需要排除
+						List<TableLogCollectorParam> params = tableMap.entrySet().stream()
+										.map(e -> new TableLogCollectorParam(e.getKey(), e.getValue())).collect(Collectors.toList());
+						log.info("The logCollector table is not being used, will be canceled: {}", params);
+						UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(logCollectorTaskDto.getUserId()));
+						configTables(logCollectorTaskDto.getId().toHexString(), params, "exclusion", userDetail);
+					} catch (Exception e) {
+						log.error("Failed to clear logCollector task: {} {}", logCollectorTaskDto.getId(), logCollectorTaskDto.getName(), e);
+					}
+				}
     }
+
+		public void removeTask() {
+			Criteria taskStatusCriteria = Criteria.where("is_deleted").ne(true)
+							.and("syncType").is(TaskDto.SYNC_TYPE_LOG_COLLECTOR)
+							.and("status").ne(TaskDto.STATUS_RUNNING);
+
+			Criteria noTablesCriteria = Criteria.where("dag.nodes").elemMatch(new Criteria().orOperator(
+							new Criteria().andOperator(
+											new Criteria().orOperator(Criteria.where("logCollectorConnConfigs").exists(false), Criteria.where("logCollectorConnConfigs").is(new BsonDocument())),
+											new Criteria().orOperator(Criteria.where("tableNames").exists(false), Criteria.where("tableNames").size(0))),
+							Criteria.where("logCollectorConnConfigs").exists(true).not().elemMatch(Criteria.where("tableNames").exists(true).ne(Collections.emptyList()))
+			));
+
+			Query query = Query.query(new Criteria().andOperator(taskStatusCriteria, noTablesCriteria));
+			query.fields().include("_id", "name","user_id");
+			List<TaskDto> taskDtos = taskService.findAll(query);
+			if (CollectionUtils.isNotEmpty(taskDtos)) {
+				taskDtos.forEach(taskDto -> {
+					try {
+						UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
+						taskService.remove(taskDto.getId(), userDetail);
+						log.info("removed logCollector task: {} {}", taskDto.getId().toHexString(), taskDto.getName());
+					} catch (Exception e) {
+						log.error("Failed to remove logCollector task: {} {}", taskDto.getId().toHexString(), taskDto.getName(), e);
+					}
+				});
+			}
+		}
 
 	private void addTables(LogCollectorNode logCollectorNode, List<TableLogCollectorParam> params) {
 		for (TableLogCollectorParam param : params) {
