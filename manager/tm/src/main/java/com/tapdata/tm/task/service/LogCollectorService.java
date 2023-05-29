@@ -1623,7 +1623,7 @@ public class LogCollectorService {
                 continue;
             }
 
-            MatchOperation taskMatchOperation = Aggregation.match(Criteria.where("is_delete").is(false)
+            MatchOperation taskMatchOperation = Aggregation.match(Criteria.where("is_delete").ne(true)
                     .and("syncType").ne(TaskDto.SYNC_TYPE_LOG_COLLECTOR));
             List<Criteria> orCriteriaList = new ArrayList<>();
             tableMap.forEach((connectionId, tableNames) -> {
