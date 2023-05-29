@@ -42,7 +42,10 @@ import com.tapdata.tm.shareCdcTableMetrics.service.ShareCdcTableMetricsService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.param.TableLogCollectorParam;
 import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.utils.*;
+import com.tapdata.tm.utils.FunctionUtils;
+import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.UUIDUtil;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import lombok.extern.slf4j.Slf4j;
@@ -1043,6 +1046,9 @@ public class LogCollectorService {
                 List<String> oldConfigTableNames = logCollecotrConnConfig.getTableNames();
                 tableNames.addAll(oldConfigTableNames);
                 tableNames = tableNames.stream().distinct().collect(Collectors.toList());
+								if (CollectionUtils.isNotEmpty(logCollecotrConnConfig.getExclusionTables())) {
+									logCollecotrConnConfig.getExclusionTables().removeIf(tableNames::contains);
+								}
                 if (tableNames.size() != oldConfigTableNames.size()) {
                     updateConfig =  true;
                     logCollecotrConnConfig.setTableNames(tableNames);
@@ -1141,7 +1147,11 @@ public class LogCollectorService {
             finalTableNames.addAll(oldTableNames);
         }
         List<String> collect = finalTableNames.stream().distinct().collect(Collectors.toList());
-        logCollectorNode.setTableNames(collect);
+				List<String> exclusionTables = logCollectorNode.getExclusionTables();
+				if (CollectionUtils.isNotEmpty(exclusionTables)) {
+					exclusionTables.removeIf(collect::contains);
+				}
+				logCollectorNode.setTableNames(collect);
         taskService.updateById(oldLogCollectorTask, user);
         updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
 
@@ -1526,12 +1536,14 @@ public class LogCollectorService {
         Query query = new Query(criteria);
         query.with(Sort.by("createTime").descending());
         ShareCdcTableMetricsDto metricsDto = shareCdcTableMetricsService.findOne(query, user);
-        shareCdcTableInfo.setFirstLogTime(metricsDto.getFirstEventTime());
-        shareCdcTableInfo.setLastLogTime(metricsDto.getCurrentEventTime());
-        shareCdcTableInfo.setJoinTime(metricsDto.getStartCdcTime());
-        shareCdcTableInfo.setTodayCount(metricsDto.getCount());
-        shareCdcTableInfo.setAllCount(metricsDto.getAllCount());
-    }
+				if (metricsDto != null) {
+					shareCdcTableInfo.setFirstLogTime(metricsDto.getFirstEventTime());
+					shareCdcTableInfo.setLastLogTime(metricsDto.getCurrentEventTime());
+					shareCdcTableInfo.setJoinTime(metricsDto.getStartCdcTime());
+					shareCdcTableInfo.setTodayCount(metricsDto.getCount());
+					shareCdcTableInfo.setAllCount(metricsDto.getAllCount());
+				}
+		}
 
     public void configTables(String taskId, List<TableLogCollectorParam> params, String type, UserDetail user) {
 			TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), user);
@@ -1623,7 +1635,7 @@ public class LogCollectorService {
                 continue;
             }
 
-            MatchOperation taskMatchOperation = Aggregation.match(Criteria.where("is_delete").is(false)
+            MatchOperation taskMatchOperation = Aggregation.match(Criteria.where("is_delete").ne(true)
                     .and("syncType").ne(TaskDto.SYNC_TYPE_LOG_COLLECTOR));
             List<Criteria> orCriteriaList = new ArrayList<>();
             tableMap.forEach((connectionId, tableNames) -> {
@@ -1704,9 +1716,9 @@ public class LogCollectorService {
 			List<String> tableNames = logCollectorNode.getTableNames();
 			if (tableNames == null) {
 				tableNames = new ArrayList<>();
-				logCollectorNode.setTableNames(tableNames);
 			}
 			tableNames.addAll(param.getTableNames());
+			logCollectorNode.setTableNames(new ArrayList<>(new HashSet<>(tableNames)));
 			List<String> exclusionTables = logCollectorNode.getExclusionTables();
 			if (exclusionTables != null) {
 				exclusionTables.removeIf(tableNames::contains);
@@ -1755,9 +1767,9 @@ public class LogCollectorService {
 			List<String> exclusionTables = logCollectorNode.getExclusionTables();
 			if (exclusionTables == null) {
 				exclusionTables = new ArrayList<>();
-				logCollectorNode.setExclusionTables(exclusionTables);
 			}
 			exclusionTables.addAll(param.getTableNames());
+			logCollectorNode.setExclusionTables(new ArrayList<>(new HashSet<>(exclusionTables)));
 			List<String> tableNames = logCollectorNode.getTableNames();
 			if (tableNames == null) {
 				tableNames = new ArrayList<>();
