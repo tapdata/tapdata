@@ -320,24 +320,21 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 	}
 
 	private List<TaskEntity> findTasks(String connectionId, String table, Set<String> notInTaskIds) {
-		List<TaskEntity> foundedTasks = findFoundedTasks(connectionId, table);
-		if (null != foundedTasks) {
+		long startTs = System.currentTimeMillis();
+		List<TaskEntity> resultTasks = findFoundedTasks(connectionId, table);
+		if (null != resultTasks) {
 			if (CollectionUtils.isNotEmpty(notInTaskIds)) {
-				return foundedTasks.stream().filter(t -> !notInTaskIds.contains(t.getId().toHexString())).collect(Collectors.toList());
+				resultTasks = resultTasks.stream().filter(t -> !notInTaskIds.contains(t.getId().toHexString())).collect(Collectors.toList());
 			}
-			return foundedTasks;
+		} else {
+			Criteria taskCriteria = buildTaskCriteria(connectionId, table);
+			Query query;
+			query = Query.query(taskCriteria);
+			taskQueryFields(query);
+			resultTasks = taskRepository.findAll(query);
+			addFoundedTask(connectionId, table, resultTasks);
 		}
-		Criteria taskCriteria = buildTaskCriteria(connectionId, table);
-		Query query;
-		if (CollectionUtils.isNotEmpty(notInTaskIds)) {
-			List<ObjectId> notInObjIds = notInTaskIds.stream().map(ObjectId::new).collect(Collectors.toList());
-			taskCriteria = taskCriteria.and("_id").nin(notInObjIds);
-		}
-		query = Query.query(taskCriteria);
-		taskQueryFields(query);
-		List<TaskEntity> taskEntities = taskRepository.findAll(query);
-		addFoundedTask(connectionId, table, taskEntities);
-		return taskRepository.findAll(query);
+		return resultTasks;
 	}
 
 	@NotNull
@@ -559,6 +556,12 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		foundedTask.computeIfAbsent(name, k -> new HashMap<String, List<TaskEntity>>() {{
 			put(key, new ArrayList<>(tasks));
 		}});
+		foundedTask.computeIfPresent(name, (k, v) -> {
+			if (!v.containsKey(key)) {
+				v.put(key, new ArrayList<>(tasks));
+			}
+			return v;
+		});
 	}
 
 	private List<TaskEntity> findFoundedTasks(String connectionId, String table) {
