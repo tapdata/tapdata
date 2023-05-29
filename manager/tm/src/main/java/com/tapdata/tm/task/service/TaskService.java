@@ -1772,6 +1772,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setShareCache(true);
         taskDto.setLastUpdAt(new Date());
         taskDto.setName(saveShareCacheParam.getName());
+        taskDto.setShareCdcEnable(true);
 
         DAG dag = taskDto.getDag();
         String sourceId;
