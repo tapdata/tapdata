@@ -302,7 +302,7 @@ public class MongodbMergeOperate {
 						orList.add(new Document(targetPath + "." + arrayKey, new Document("$ne", after.get(arrayKey))));
 					}
 					return orList;
-				}));
+				}).get());
 
 				if (array) {
 					String[] paths = targetPath.split("\\.");
