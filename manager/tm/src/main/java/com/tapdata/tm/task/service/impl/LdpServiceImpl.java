@@ -29,6 +29,7 @@ import com.tapdata.tm.task.constant.LdpDirEnum;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.task.service.TaskSaveService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.utils.ThreadLocalUtils;
@@ -74,6 +75,9 @@ public class LdpServiceImpl implements LdpService {
 
     @Autowired
     private TaskSaveService taskSaveService;
+
+    @Autowired
+    private UserService userService;
 
     @Override
     @Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
@@ -503,13 +507,31 @@ public class LdpServiceImpl implements LdpService {
         Node node = targets.get(0);
         String connectionId = ((DataParentNode) node).getConnectionId();
 
-        Criteria metaCriteria = Criteria.where("taskId").is(task.getId().toHexString()).and("source._id").is(connectionId).and("nodeId").is(node.getId());
+        Criteria metaCriteria = Criteria.where("taskId").is(task.getId().toHexString()).and("source._id").is(connectionId).and("nodeId").is(node.getId())
+                .and("is_deleted").ne(true);
         Query query = new Query(metaCriteria);
         List<MetadataInstancesDto> metaDatas = metadataInstancesService.findAllDto(query, user);
         if (CollectionUtils.isEmpty(metaDatas)) {
             return;
         }
 
+        Map<String, String> qualifiedMap = new HashMap<>();
+        List<String> oldQualifiedNames = new ArrayList<>();
+        for (MetadataInstancesDto metaData : metaDatas) {
+            String oldQualifiedName = getOldQualifiedName(metaData);
+            qualifiedMap.put(metaData.getQualifiedName(), oldQualifiedName);
+            oldQualifiedNames.add(oldQualifiedName);
+        }
+
+        List<MetadataInstancesDto> oldMetaDatas = new ArrayList<>();
+        Map<String, MetadataInstancesDto> oldMetaMap = new HashMap<>();
+        if (CollectionUtils.isNotEmpty(oldQualifiedNames)) {
+            Criteria criteriaOld = Criteria.where("qualified_name").in(oldQualifiedNames).and("is_deleted").ne(true);
+            Query queryOldTask = new Query(criteriaOld);
+            queryOldTask.fields().include("listtags", "qualified_name");
+            oldMetaDatas = metadataInstancesService.findAllDto(queryOldTask, user);
+            oldMetaMap = oldMetaDatas.stream().collect(Collectors.toMap(m -> m.getId().toHexString(), m -> m, (k1, k2) -> k1));
+        }
         if (TaskDto.LDP_TYPE_FDM.equals(task.getLdpType())) {
 
             List<Node> sources = dag.getSources();
@@ -518,30 +540,22 @@ public class LdpServiceImpl implements LdpService {
 
             Criteria criteria = Criteria.where("linkId").is(sourceCon).and("item_type").is(MetadataDefinitionDto.LDP_ITEM_FDM);
             MetadataDefinitionDto tag = metadataDefinitionService.findOne(new Query(criteria), user);
-
+            Tag conTag = new Tag(tag.getId().toHexString(), tag.getValue());
+            List<MetadataInstancesDto> saveMetaDatas = new ArrayList<>();
             for (MetadataInstancesDto metaData : metaDatas) {
-                buildSourceMeta(new Tag(tag.getId().toHexString(), tag.getValue()), metaData);
+                String oldQ = qualifiedMap.get(metaData.getQualifiedName());
+                MetadataInstancesDto oldMeta = null;
+                if (StringUtils.isNotBlank(oldQ)) {
+                    oldMeta = oldMetaMap.get(oldQ);
+                }
+
+                MetadataInstancesDto metadataInstancesDto = buildSourceMeta(conTag, metaData, oldMeta);
+                saveMetaDatas.add(metadataInstancesDto);
             }
             metadataInstancesService.bulkUpsetByWhere(metaDatas, user);
         } else {
-            List<String> qualifiedNames = new ArrayList<>();
-            Map<String, String> qualifiedMap = new HashMap<>();
-            for (MetadataInstancesDto metaData : metaDatas) {
-                String qualifiedName = metaData.getQualifiedName();
-                int i = qualifiedName.lastIndexOf("_");
-                String old = qualifiedName.substring(0, i);
-                qualifiedNames.add(old);
-                qualifiedMap.put(qualifiedName, old);
-            }
 
-            Criteria criteria = Criteria.where("qualified_name").in(qualifiedNames);
-            Query query1 = new Query(criteria);
-            query1.fields().include("listtags", "qualified_name");
-            List<MetadataInstancesDto> oldMetas = metadataInstancesService.findAllDto(query1, user);
-            Map<String, MetadataInstancesDto> oldMap = oldMetas.stream()
-                    .collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, v -> v, (v1, v2) -> v1));
-
-            List<String> tagIds = oldMetas.stream()
+            List<String> tagIds = oldMetaDatas.stream()
                     .flatMap(o -> o.getListtags() == null ? Stream.empty() : o.getListtags().stream())
                     .map(Tag::getId)
                     .collect(Collectors.toList());
@@ -565,7 +579,7 @@ public class LdpServiceImpl implements LdpService {
             for (MetadataInstancesDto metaData : metaDatas) {
                 String old = qualifiedMap.get(metaData.getQualifiedName());
                 if (StringUtils.isNotBlank(old)) {
-                    MetadataInstancesDto metadataInstancesDto = oldMap.get(old);
+                    MetadataInstancesDto metadataInstancesDto = oldMetaMap.get(old);
                     if (metadataInstancesDto != null) {
                         List<Tag> listtags = metadataInstancesDto.getListtags();
                         Update update = new Update();
@@ -588,7 +602,6 @@ public class LdpServiceImpl implements LdpService {
 
                     buildSourceMeta(setTag, metaData);
                     metadataInstancesService.save(metaData, user);
-
                 }
             }
 
@@ -648,15 +661,22 @@ public class LdpServiceImpl implements LdpService {
         return mdmMap;
     }
 
-    private static void buildSourceMeta(Tag tag, MetadataInstancesDto metaData) {
+    private static MetadataInstancesDto buildSourceMeta(Tag tag, MetadataInstancesDto metaData) {
+        return buildSourceMeta(tag, metaData, null);
+    }
+    private static MetadataInstancesDto buildSourceMeta(Tag tag, MetadataInstancesDto metaData, MetadataInstancesDto oldMetaData) {
         metaData.setSourceType(SourceTypeEnum.SOURCE.name());
         metaData.setTaskId(null);
-        String qualifiedName = metaData.getQualifiedName();
-        int i = qualifiedName.lastIndexOf("_");
-        String oldQualifiedName = qualifiedName.substring(0, i);
+        String oldQualifiedName = getOldQualifiedName(metaData);
         metaData.setQualifiedName(oldQualifiedName);
-        metaData.setNodeId(null);
 
+        if (oldMetaData != null) {
+            metaData = oldMetaData;
+        } else {
+            metaData.setId(null);
+        }
+
+        metaData.setNodeId(null);
         SourceDto source = metaData.getSource();
         if (source != null) {
             String id = source.get_id();
@@ -669,7 +689,16 @@ public class LdpServiceImpl implements LdpService {
                 listtags.add(tag);
             }
         }
-        metaData.setId(null);
+
+        return metaData;
+    }
+
+    @NotNull
+    private static String getOldQualifiedName(MetadataInstancesDto metaData) {
+        String qualifiedName = metaData.getQualifiedName();
+        int i = qualifiedName.lastIndexOf("_");
+        String oldQualifiedName = qualifiedName.substring(0, i);
+        return oldQualifiedName;
     }
 
     private void checkMdmTask(TaskDto task, UserDetail user, boolean confirmTable) {
@@ -832,5 +861,105 @@ public class LdpServiceImpl implements LdpService {
         } catch (Exception e) {
             log.warn("init ldp directory failed, userId = {}", user.getUserId());
         }
+    }
+
+    @Override
+    public void generateLdpTaskByOld() {
+        List<UserDetail> userDetails = userService.loadAllUser();
+        for (UserDetail userDetail : userDetails) {
+            try {
+                generateFDMTaskByOld(userDetail);
+            } catch (Exception e) {
+                log.warn("generate fdm task by old failed, user = {}, e = {}", userDetail == null ? null : userDetail.getEmail(), e);
+            }
+
+            try {
+                generateMDMTaskByOld(userDetail);
+            } catch (Exception e) {
+                log.warn("generate mdm task by old failed, user = {}, e = {}", userDetail == null ? null : userDetail.getEmail(), e);
+            }
+        }
+    }
+
+    private void generateFDMTaskByOld(UserDetail user) {
+        LiveDataPlatformDto platformDto = liveDataPlatformService.findOne(new Query(), user);
+        if (platformDto == null) {
+            return;
+        }
+
+        String fdmStorageConnectionId = platformDto.getFdmStorageConnectionId();
+        Query query = new Query(Criteria.where("_id").is(MongoUtils.toObjectId(fdmStorageConnectionId)));
+        query.fields().include("_id");
+        DataSourceConnectionDto connectionDto = dataSourceService.findOne(query, user);
+        if (connectionDto == null) {
+            return;
+        }
+        //查询所有的fdm中间库为目标节点的复制任务。
+        Criteria criteriaTask = Criteria.where("ldpType").exists(false)
+                .and("syncType").is(TaskDto.SYNC_TYPE_MIGRATE)
+                .and("is_deleted").ne(true)
+                .and("dag.nodes.connectionId").is(fdmStorageConnectionId);
+        Query queryTask = new Query(criteriaTask);
+        List<TaskDto> tasks = taskService.findAllDto(queryTask, user);
+        if (CollectionUtils.isEmpty(tasks)) {
+            return;
+        }
+        tasks = tasks.stream().filter(t -> isTargetNode(t.getDag(), fdmStorageConnectionId)).collect(Collectors.toList());
+
+        for (TaskDto task : tasks) {
+            createFdmTags(task, user);
+            createLdpMetaByTask(task, user);
+        }
+    }
+
+
+
+    private void generateMDMTaskByOld(UserDetail user) {
+        LiveDataPlatformDto platformDto = liveDataPlatformService.findOne(new Query(), user);
+        if (platformDto == null) {
+            return;
+        }
+
+        String mdmStorageConnectionId = platformDto.getMdmStorageConnectionId();
+        Query query = new Query(Criteria.where("_id").is(MongoUtils.toObjectId(mdmStorageConnectionId)));
+        query.fields().include("_id");
+        DataSourceConnectionDto connectionDto = dataSourceService.findOne(query, user);
+        if (connectionDto == null) {
+            return;
+        }
+        //查询所有的fdm中间库为目标节点的复制任务。
+        Criteria criteriaTask = Criteria.where("ldpType").exists(false)
+                .and("syncType").is(TaskDto.SYNC_TYPE_SYNC)
+                .and("is_deleted").ne(true)
+                .and("dag.nodes.connectionId").is(mdmStorageConnectionId);
+        Query queryTask = new Query(criteriaTask);
+        List<TaskDto> tasks = taskService.findAllDto(queryTask, user);
+        if (CollectionUtils.isEmpty(tasks)) {
+            return;
+        }
+        tasks = tasks.stream().filter(t -> isTargetNode(t.getDag(), mdmStorageConnectionId)).collect(Collectors.toList());
+
+        for (TaskDto task : tasks) {
+            createLdpMetaByTask(task, user);
+        }
+    }
+
+    private boolean isTargetNode(DAG dag, String fdmStorageConnectionId) {
+        if (dag == null) {
+            return false;
+        }
+        List<Node> targets = dag.getTargets();
+        if (CollectionUtils.isEmpty(targets)) {
+            return false;
+        }
+
+        for (Node target : targets) {
+            if (target instanceof DataParentNode) {
+                if (fdmStorageConnectionId.equals(((DataParentNode<?>) target).getConnectionId())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }
