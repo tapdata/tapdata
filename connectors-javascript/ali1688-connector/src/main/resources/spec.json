@@ -1,0 +1,35 @@
+{
+  "properties": {
+    "name": "Alibaba 1688",
+    "icon": "icon/alibaba.png",
+    "doc" : "${doc}",
+    "id": "ali1688",
+    "authentication": "Alpha",
+    "tags": ["SaaS"]
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "doc/alibaba_en_US.md"
+    },
+    "zh_CN": {
+      "doc": "doc/alibaba_zh_CN.md"
+    },
+    "zh_TW": {
+      "doc": "doc/alibaba_zh_TW.md"
+    }
+  }
+}

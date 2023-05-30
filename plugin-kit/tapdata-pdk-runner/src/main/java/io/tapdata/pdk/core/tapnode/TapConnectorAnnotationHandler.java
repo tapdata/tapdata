@@ -168,6 +168,17 @@ public class TapConnectorAnnotationHandler extends TapBaseAnnotationHandler {
         }
     }
 
+    private boolean isSource(ConnectorFunctions connectorFunctions){
+        return null != connectorFunctions.getBatchReadFunction()
+                || null != connectorFunctions.getStreamReadFunction()
+                || null != connectorFunctions.getRawDataCallbackFilterFunctionV2()
+                || null != connectorFunctions.getRawDataCallbackFilterFunction();
+    }
+
+    private boolean isTarget(ConnectorFunctions connectorFunctions){
+        return null != connectorFunctions.getWriteRecordFunction();
+    }
+
     private String findConnectorType(Class<?> clazz) {
         boolean isSource = false;
         boolean isTarget = false;
@@ -177,13 +188,8 @@ public class TapConnectorAnnotationHandler extends TapBaseAnnotationHandler {
                 ConnectorFunctions connectorFunctions = new ConnectorFunctions();
                 TapCodecsRegistry codecRegistry = new TapCodecsRegistry();
                 connector.registerCapabilities(connectorFunctions, codecRegistry);
-
-                if (connectorFunctions.getBatchReadFunction() != null || connectorFunctions.getStreamReadFunction() != null) {
-                    isSource = true;
-                }
-                if (connectorFunctions.getWriteRecordFunction() != null) {
-                    isTarget = true;
-                }
+                isSource = isSource(connectorFunctions);
+                isTarget = isTarget(connectorFunctions);
             } catch (Throwable e) {
                 TapLogger.error(TAG, "Find connector type failed, {} clazz {} will be ignored", e.getMessage(), clazz);
                 throw new CoreException(TapAPIErrorCodes.ERROR_FIND_CONNECTOR_TYPE_FAILED, "Find connector class {} type failed, {}", clazz, e.getMessage());
