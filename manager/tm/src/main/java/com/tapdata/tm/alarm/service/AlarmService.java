@@ -1,5 +1,6 @@
 package com.tapdata.tm.alarm.service;
 
+import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.alarm.dto.AlarmChannelDto;
 import com.tapdata.tm.alarm.dto.AlarmListInfoVo;
 import com.tapdata.tm.alarm.dto.AlarmListReqDto;
@@ -42,6 +43,8 @@ public interface AlarmService {
     List<AlarmInfo> find(String taskId, String nodeId, AlarmKeyEnum key);
 
     void closeWhenTaskRunning(String taskId);
+
+    MailAccountDto getMailAccount(String userId);
 
     void delAlarm(String taskId);
 
