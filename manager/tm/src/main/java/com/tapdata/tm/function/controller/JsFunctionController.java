@@ -96,6 +96,24 @@ public class JsFunctionController extends BaseController {
         return success(jsFunctionService.find(filter, getLoginUser()));
     }
 
+    @Operation(summary = "Find all instances of the model matched by filter from the data source")
+    @GetMapping("/all")
+    public ResponseMessage<List<JsFunctionDto>> findAll(
+            @Parameter(in = ParameterIn.QUERY,
+                    description = "Filter defining fields, where - must be a JSON-encoded string (`{\"where\":{\"something\":\"value\"},\"fields\":{\"something\":true|false},\"sort\": [\"name desc\"],\"page\":1,\"size\":20}`)."
+            )
+            @RequestParam(value = "filter", required = false) String filterJson) {
+        Filter filter = parseFilter(filterJson);
+        if (filter == null) {
+            filter = new Filter();
+        }
+        Where where = filter.getWhere();
+        if (where == null) {
+            where = new Where();
+        }
+        return success(jsFunctionService.findAll(where));
+    }
+
     /**
      *  Replace an existing model instance or insert a new one into the data source
      * @param jsFunction
