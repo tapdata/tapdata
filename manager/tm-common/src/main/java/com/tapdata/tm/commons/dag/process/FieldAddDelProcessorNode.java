@@ -2,18 +2,15 @@ package com.tapdata.tm.commons.dag.process;
 
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
-import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
-import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -80,6 +77,7 @@ public class FieldAddDelProcessorNode extends FieldProcessorNode {
                     Field field = createField(this.getId(), outputSchema.getOriginalName(), operation);
                     //这种创建的字段不能使用手动，不然修改名称后，后面的节点不会覆盖，应该合并原则都是手动的时候,取原有的
                     field.setSource("job_analyze");
+                    field.setTapType(FieldModTypeProcessorNode.calTapType(field.getDataType()));
                     outputSchema.getFields().add(field);
                 } else if ("REMOVE".equalsIgnoreCase(operand) && !"false".equals(operation.getOperand())) {
                     for (Field field : outputSchema.getFields()) {
