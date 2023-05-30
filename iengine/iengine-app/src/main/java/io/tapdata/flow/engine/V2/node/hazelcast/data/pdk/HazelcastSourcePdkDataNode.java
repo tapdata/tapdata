@@ -491,7 +491,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 //				rawDataCallbackFilterFunction = null;
 //			}
 			StreamReadFunction streamReadFunction = connectorNode.getConnectorFunctions().getStreamReadFunction();
-			if (null != streamReadFuncAspect && (null != rawDataCallbackFilterFunction || null != rawDataCallbackFilterFunctionV2)) {
+			if (null != rawDataCallbackFilterFunction || null != rawDataCallbackFilterFunctionV2) {
 				if (null != rawDataCallbackFilterFunctionV2) {
 					streamReadFunctionName = rawDataCallbackFilterFunctionV2.getClass().getSimpleName();
 				} else {
@@ -500,14 +500,16 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				tables.addAll(tapTableMap.keySet());
 				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 				anyError = () -> {
-					executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_CALLBACK_RAW_DATA).streamReadConsumer(streamReadConsumer));
-					while (isRunning()) {
-						if (!streamReadFuncAspect.waitRawData()) {
-							break;
+					if(null != streamReadFuncAspect) {
+						executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_CALLBACK_RAW_DATA).streamReadConsumer(streamReadConsumer));
+						while (isRunning()) {
+							if (!streamReadFuncAspect.waitRawData()) {
+								break;
+							}
 						}
-					}
-					if (streamReadFuncAspect.getErrorDuringWait() != null) {
-						throw streamReadFuncAspect.getErrorDuringWait();
+						if (streamReadFuncAspect.getErrorDuringWait() != null) {
+							throw streamReadFuncAspect.getErrorDuringWait();
+						}
 					}
 				};
 			} else if (null != streamReadFunction) {
