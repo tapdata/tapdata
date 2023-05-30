@@ -90,22 +90,22 @@
 				"header": [
 					{
 						"key": "x-lt-signature",
-						"value": "fRirPYTNjMTFjZTk1MDk2NTUyZGRmOTA3ZGNjZmUyZmY5NzlmNmJlYTgzYzg0NjAzNTM2YjYxYjNhMWE1M2NkMDIwNw==",
+						"value": "{{x-lt-signature}}",
 						"type": "default"
 					},
 					{
 						"key": "x-lt-timestamp",
-						"value": "1685343563416",
+						"value": "{{x-lt-timestamp}}",
 						"type": "default"
 					},
 					{
 						"key": "x-lt-openKeyId",
-						"value": "3A735604474341A6B8BE3B59CD25FC76",
+						"value": "{{openKeyId}}",
 						"type": "default"
 					}
 				],
 				"url": {
-					"raw": "{{domain}}/open-api/order/purchase-order-infos?type=0,1&pageSize=1000000&pageNumber=1",
+					"raw": "{{domain}}/open-api/order/purchase-order-infos?type=0,1&pageSize=1000000&pageNumber=1&updateTimeStart={{updateTimeStart}}&updateTimeEnd={{updateTimeEnd}}",
 					"host": [
 						"{{domain}}"
 					],
@@ -126,6 +126,14 @@
 						{
 							"key": "pageNumber",
 							"value": "1"
+						},
+						{
+							"key": "updateTimeEnd",
+							"value": ""
+						},
+						{
+							"key": "updateTimeStart",
+							"value": ""
 						}
 					]
 				}

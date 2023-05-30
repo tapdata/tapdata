@@ -11,6 +11,10 @@ var OptionalUtil = {
     }
 }
 
+function isValue(value){
+    return 'undefined' !== value && null != value;
+}
+
 var globalTableConfig = {
     "ShippingOrder": {
         "name": "ShippingOrder",
@@ -154,64 +158,33 @@ var globalTableConfig = {
                 "comment": "状态名称"
             }
         }
-    },
-    "":{
-        "addTime":1639635631000,
-        "addUid":"王九妹",
-        "allocateTime":1639635631000,
-        "category":2,
-        "categoryName":"线下单",
-        "checkTime":1000,
-        "currencyId":156,
-        "currencyName":"人民币元",
-        "firstMark":2,
-        "firstMarkName":"否",
-        "isDeliveryName":"是",
-        "isJitMotherName":"否",
-        "orderExtends":[],
-        "orderMarkId":733,
-        "orderMarkName":"正常备货",
-        "orderNo":"B211216046935-2",
-        "orderSupervisor":"李志超",
-        "prepareTypeId":9,
-        "prepareTypeName":"JIT备货",
-        "receiptTime":1000,
-        "requestDeliveryTime":1639713600000,
-        "reserveTime":1000,
-        "returnTime":1000,
-        "status":2,
-        "statusName":"已下单",
-        "storageId":1,
-        "storageTime":1000,
-        "supplierName":"供应商",
-        "type":2,
-        "typeName":"备货",
-        "updateTime":1639635631000,
-        "urgentTypeName":"普通",
-        "warehouseName":"佛山仓"
     }
 }
 
-function getSignatureRules(openKeyId, secretKey, urlPath){
-    let time = new Date().getTime();
+function getSignatureRules(openKeyId, secretKey, urlPath, time){
     let openKeyIdCodeOfValue = openKeyId + "&" + time + "&" + urlPath;
+    //log.warn("openKeyIdCodeOfValue: {}", openKeyIdCodeOfValue)
 
     let randomStr = randomString(5);
+    //log.warn("randomStr: {}", randomStr)
     let secretKeyCodeOfKey = secretKey + randomStr;
+    //log.warn("secretKeyCodeOfKey: {}", secretKeyCodeOfKey)
 
-    let hmacSha256 = hex(sign(secretKeyCodeOfKey, openKeyIdCodeOfValue));
+    let hmacSha256 = sha256_HMAC(openKeyIdCodeOfValue, secretKeyCodeOfKey);//hex(sign(secretKeyCodeOfKey, openKeyIdCodeOfValue));
 
+    //log.warn("hmacSha256: {}", hmacSha256)
     let base64 = new Base64();
     let result = base64.encode(hmacSha256);
-
+    //log.warn("result: {}", result)
+    log.info("SignatureRule: {}, time: {}", randomStr + result, time)
     return randomStr + result;
 }
 
 
 function randomString(len){
-    var chars = 'ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz2345678';
-    var tempLen = chars.length, tempStr='';
-    for(var i=0; i<len; ++i){
+    let chars = 'ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz2345678';
+    let tempLen = chars.length, tempStr='';
+    for(let i=0 ; i<len; ++i){
         tempStr += chars.charAt(Math.floor(Math.random() * tempLen ));
     }
     return tempStr;
