@@ -10,9 +10,9 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.proxy.dto.*;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
 import com.tapdata.tm.utils.WebUtils;
-import com.tapdata.tm.verison.dto.VersionDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
@@ -26,6 +26,7 @@ import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.message.MessageEntity;
 import io.tapdata.modules.api.net.service.EngineMessageExecutionService;
 import io.tapdata.modules.api.net.service.EventQueueService;
+import io.tapdata.modules.api.net.service.MessageEntityService;
 import io.tapdata.modules.api.net.service.node.connection.NodeConnectionFactory;
 import io.tapdata.modules.api.net.service.node.connection.entity.NodeMessage;
 import io.tapdata.modules.api.proxy.constants.ProxyConstants;
@@ -56,7 +57,7 @@ import java.io.OutputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
@@ -81,6 +82,9 @@ public class ProxyController extends BaseController {
     private static final int wsPort = 8246;
 
     private static final String TOKEN = CommonUtils.getProperty("tapdata_memory_token", "kajkj234kJFjfewljrlkzvnE34jfkladsdjafF");
+
+    @Bean
+    private MessageEntityService messageEntityService;
 
 
     /**
@@ -202,7 +206,7 @@ public class ProxyController extends BaseController {
         }
         Map<String, Object> value = null;
         if(content instanceof Collection) {
-            value = map(entry("array", content));
+            value = map(entry("array", content), entry("proxy_callback_array_content", true));
         } else {
             value = (Map<String, Object>) content;
         }
@@ -640,6 +644,33 @@ public class ProxyController extends BaseController {
         executeServiceCaller(request, response, serviceCaller, userDetail);
     }
 
+
+    @Operation(summary = "External callback url")
+    @GetMapping("call/history")
+    public ResponseMessage<List<Map<String, Object>> > historyMessage(
+            @RequestParam(value = "connectionId")String connectionId,
+            @RequestParam(value = "dataSize", required = false) Integer dataSize) {
+        if(connectionId == null || "".equals(connectionId.trim()))
+            throw new BizException("Missing connection id");
+        if(dataSize == null)
+            dataSize = 1;
+
+        getLoginUser();
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        if (null == messageEntityService) {
+            messageEntityService = InstanceFactory.instance(MessageEntityService.class);
+        }
+        if (null == messageEntityService) {
+            throw new CoreException("Can't get MessageService");
+        }
+        Optional.ofNullable(messageEntityService.getMessageEntityListDesc("engine", connectionId, null, dataSize))
+                .flatMap(entity -> Optional.ofNullable(entity.getMessages())
+                        .flatMap(messages -> Optional.of(messages.stream().filter(Objects::nonNull).map(MessageEntity::getContent).collect(Collectors.toList()))))
+                .ifPresent(result::addAll);
+        return success(result);
+    }
+
     private void executeEngineMessage(EngineMessage engineMessage, HttpServletRequest request, HttpServletResponse response) {
         EngineMessageExecutionService engineMessageExecutionService = getEngineMessageExecutionService();
         registerAsyncJob(engineMessage.getId(), request, response);
@@ -657,16 +688,19 @@ public class ProxyController extends BaseController {
             String responseStr;
             if(error != null) {
                 int code = NetErrors.UNKNOWN_ERROR;
+                Object data = null;
                 if(error instanceof CoreException) {
                     CoreException coreException = (CoreException) error;
                     code = coreException.getCode();
+                    data = coreException.getData();
                 }
                 responseStr =
                         "{\n" +
                         "    \"reqId\": \"" + UUID.randomUUID() + "\",\n" +
                         "    \"ts\": " + System.currentTimeMillis() + ",\n" +
                         "    \"code\": \"" + code + "\",\n" +
-                        "    \"message\": \"" + error.getMessage() + "\"\n" +
+                        "    \"message\": \"" + error.getMessage() + "\"" +
+                        (null != data ? ",\n    \"data\": " + toJson(data, JsonParser.ToJsonFeature.PrettyFormat) + "\n" : "\n") +
                         "}";
             } else {
                 responseStr =

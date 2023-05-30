@@ -9,6 +9,10 @@
   },
   "configOptions": {
     "pdkExpansion": [],
+		"capabilities": [
+			{"id": "master_slave_merge"},
+			{"id": "dynamic_schema"}
+		],
     "connection": {
       "type": "object",
       "properties": {
