@@ -677,6 +677,7 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
         String smsContent = "";
         String title = "";
         String content = "";
+        String weChatContent = "";
 
         if (SourceModuleEnum.AGENT.getValue().equalsIgnoreCase(messageDto.getSourceModule())) {
             if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
@@ -684,11 +685,13 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
                 smsContent = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已上线运行";
                 title = "实例 " + metadataName + "已上线运行";
                 content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已上线运行";
+                weChatContent = "实例:" + metadataName + " 已上线运行";
             } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
                 emailTip = "实例离线";
                 smsContent = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已离线，请及时处理";
                 title = "实例 " + metadataName + "已离线";
                 content = "尊敬的用户，你好，您在 Tapdata Cloud V3.0 上创建的实例:" + metadataName + " 已离线，请及时处理";
+                weChatContent = "实例:" + metadataName + " 已离线，请及时处理";
             }
         } else {
             if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
@@ -696,11 +699,13 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
                 smsContent = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 正在运行";
                 title = "任务:" + metadataName + " 正在运行";
                 content = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 正在运行";
+                weChatContent = "任务:" + metadataName + " 正在运行";
             } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
                 emailTip = "状态已由运行中变为离线，可能会影响您的任务正常运行，请及时处理。";
                 smsContent = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 出错，请及时处理";
                 title = "任务:" + metadataName + " 出错";
                 content = "您在Tapdata Cloud 上创建的任务:" + metadataName + " 出错，请及时处理";
+                weChatContent = "任务:" + metadataName + " 出错，请及时处理";
             } else if (MsgTypeEnum.STOPPED_BY_ERROR.getValue().equals(msgType)) {
 
             }
@@ -738,11 +743,11 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
                 log.error("Current user ({}, {}) can't bind weChat, cancel push message.", userDetail.getUsername(), userDetail.getUserId());
             } else {
                 log.info("Send alarm message ({}, {}) to user ({}, {}).",
-                        title, content, userDetail.getUsername(), userDetail.getUserId());
+                        title, weChatContent, userDetail.getUsername(), userDetail.getUserId());
             }
             log.info("Send weChat message {}", openId);
-            SendStatus status = mpService.sendAlarmMsg(openId, title, content, new Date());
-            eventsService.recordEvents(MAIL_SUBJECT, content, openId, messageDto, status, 0, Type.NOTICE_WECHAT);
+            SendStatus status = mpService.sendAlarmMsg(openId, title, weChatContent, new Date());
+            eventsService.recordEvents(MAIL_SUBJECT, weChatContent, openId, messageDto, status, 0, Type.NOTICE_WECHAT);
         }
     }
 
