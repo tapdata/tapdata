@@ -98,7 +98,11 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 		} catch (Throwable e) {
 			throw new BizException("External.Storage.Type.Invalid", e, externalStorage.getType());
 		}
-		ExternalStorageDto oldDto = findById(externalStorage.getId(), user);
+		ExternalStorageDto oldDto = null;
+		if (externalStorage.getId() != null) {
+			oldDto = findById(externalStorage.getId(), user);
+		}
+
 		switch (externalStorageType) {
 			case mongodb:
 				if (oldDto == null) {
