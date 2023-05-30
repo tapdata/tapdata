@@ -191,3 +191,30 @@ var globalTableConfig = {
         "warehouseName":"佛山仓"
     }
 }
+
+function getSignatureRules(openKeyId, secretKey, urlPath){
+    let time = new Date().getTime();
+    let openKeyIdCodeOfValue = openKeyId + "&" + time + "&" + urlPath;
+
+    let randomStr = randomString(5);
+    let secretKeyCodeOfKey = secretKey + randomStr;
+
+    let hmacSha256 = hex(sign(secretKeyCodeOfKey, openKeyIdCodeOfValue));
+
+    let base64 = new Base64();
+    let result = base64.encode(hmacSha256);
+
+    return randomStr + result;
+}
+
+
+function randomString(len){
+    var chars = 'ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz2345678';
+    var tempLen = chars.length, tempStr='';
+    for(var i=0; i<len; ++i){
+        tempStr += chars.charAt(Math.floor(Math.random() * tempLen ));
+    }
+    return tempStr;
+}
+
+

@@ -58,23 +58,7 @@ function writeRecord(connectionConfig, nodeConfig, eventDataList, writerResultCo
     //writerResultCollector.markSent(eventData(s))
 }
 
-// function insertRecord(connectionConfig, nodeConfig, eventDataMap){
-//
-// }
-
-// function updateRecord(connectionConfig, nodeConfig, eventDataMap){
-//
-// }
-
-// function deleteRecord(connectionConfig, nodeConfig, eventDataMap){
-//
-// }
-
 function updateToken(connectionConfig, nodeConfig, apiResponse) {
-    // if (apiResponse.code === 401) {
-    //     let result = invoker.invokeV2("apiName");
-    //     return {"access_token": result.result.token};
-    // }
-    // return null;
+    return null;
 }
 
