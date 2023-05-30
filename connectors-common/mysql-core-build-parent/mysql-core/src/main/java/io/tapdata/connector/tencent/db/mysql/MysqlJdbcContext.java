@@ -176,7 +176,7 @@ public class MysqlJdbcContext implements AutoCloseable {
 		AtomicReference<String> version = new AtomicReference<>();
 		query(SELECT_MYSQL_VERSION, resultSet -> {
 			if (resultSet.next()) {
-				version.set(resultSet.getString("version"));
+				version.set(resultSet.getString(1));
 			}
 		});
 		return version.get();
