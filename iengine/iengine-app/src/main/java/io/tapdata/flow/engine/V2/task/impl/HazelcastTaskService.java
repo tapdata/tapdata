@@ -42,7 +42,6 @@ import com.tapdata.tm.commons.dag.process.MigrateDateProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
-import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
@@ -52,7 +51,6 @@ import io.tapdata.common.SettingService;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.logger.TapLog;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TaskProcessorExCode_11;
@@ -228,7 +226,10 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		}
 
 		TaskConfig taskConfig = getTaskConfig(taskDtoAtomicReference.get());
-		initSnapshotOrder(taskDtoAtomicReference);
+		if (taskDto.isNormalTask()) {
+			// init snapshot order (only for normal task
+			initSnapshotOrder(taskDtoAtomicReference);
+		}
 
 		final List<Node> nodes = taskDtoAtomicReference.get().getDag().getNodes();
 		final List<Edge> edges = taskDtoAtomicReference.get().getDag().getEdges();
