@@ -824,7 +824,10 @@ public class LdpServiceImpl implements LdpService {
                 if (oldLdpMap != null) {
                     for (MetadataDefinitionDto ldpDirTag : ldpDirTags) {
                         Update update = Update.update("parent_id", ldpDirTag.getId().toHexString());
-                        metadataDefinitionService.update(new Query(Criteria.where("parent_id").is(oldLdpMap.get(ldpDirTag.getValue()))), update, user);
+                        String value = oldLdpMap.get(ldpDirTag.getValue());
+                        if (StringUtils.isNotBlank(value)) {
+                            metadataDefinitionService.update(new Query(Criteria.where("parent_id").is(oldLdpMap.get(ldpDirTag.getValue()))), update, user);
+                        }
                     }
                 }
             }

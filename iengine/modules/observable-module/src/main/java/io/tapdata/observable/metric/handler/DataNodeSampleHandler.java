@@ -27,7 +27,6 @@ import org.apache.commons.lang3.ObjectUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import javax.swing.*;
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -325,11 +324,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		Optional.ofNullable(outputSpeed).ifPresent(speed -> speed.add(total));
 
 		Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(recorder.getNewestEventTimestamp()));
-		Optional.ofNullable(replicateLag).ifPresent(speed -> {
-			if (null != recorder.getReplicateLagTotal()) {
-				speed.setValue(recorder.getReplicateLagTotal());
-			}
-		});
+		Optional.ofNullable(replicateLag).ifPresent(speed -> speed.setValue(recorder.getReplicateLagTotal()));
 
 		Optional.ofNullable(timeCostAverage).ifPresent(average -> {
 			average.add(total, processCompleteAt - streamProcessStartTs);
