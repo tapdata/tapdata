@@ -3,15 +3,14 @@ package io.tapdata.connector.yashandb;
 import io.tapdata.common.CommonDbConfig;
 import io.tapdata.common.JdbcContext;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.simplify.TapSimplify;
-import io.tapdata.entity.utils.DataMap;
-import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
-import org.apache.commons.lang3.StringUtils;
 
+import java.sql.SQLException;
 import java.util.List;
 import java.util.function.Consumer;
+
+import static io.tapdata.entity.simplify.TapSimplify.list;
 
 /**
  * Author:Skeet
@@ -45,6 +44,26 @@ public class YashandbJdbcContext extends JdbcContext {
         return one;
     }
 
+    public void queryAllTables(List<String> tableNames, int batchSize, Consumer<List<String>> consumer) throws SQLException {
+        List<String> temp = list();
+        query(queryAllTablesSql(getConfig().getSchema(), tableNames),
+                resultSet -> {
+                    while (resultSet.next()) {
+                        String tableName = resultSet.getString("TABLE_NAME");
+                        if (EmptyKit.isNotBlank(tableName)) {
+                            temp.add(tableName);
+                        }
+                        if (temp.size() >= batchSize) {
+                            consumer.accept(temp);
+                            temp.clear();
+                        }
+                    }
+                });
+        if (EmptyKit.isNotEmpty(temp)) {
+            consumer.accept(temp);
+            temp.clear();
+        }
+    }
 //    @Override
 //    public List<DataMap> queryAllTables(List<String> tableNames) {
 //        TapLogger.debug(TAG, "Query some tables, schema: " + getConfig().getSchema());

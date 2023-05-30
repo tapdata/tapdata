@@ -36,38 +36,38 @@ public class YashandbWriteRecorder extends WriteRecorder {
             String insertHead = "INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" (" + allColumnString + ") ";
             String insertValue = "VALUES(" + StringKit.copyString("?", allColumn.size(), ",") + ") ";
             String insertSql = insertHead + insertValue;
-            if (EmptyKit.isNotEmpty(uniqueCondition)) {
-                if (hasPk) {
-                    insertSql = "INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" USING dual ON ("
-                            + uniqueCondition.stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(" AND "))
-                            + ")" + (allColumn.size() == uniqueCondition.size() ? "" : (" WHEN MATCHED THEN UPDATE SET " + allColumn.stream().filter(col -> !uniqueCondition.contains(col))
-                            .map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")))) + " WHEN NOT MATCHED THEN INSERT(" + allColumnString + ") " + insertValue;
-                } else {
-                    insertSql = "INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" USING dual ON ("
-                            + uniqueCondition.stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ? IS NULL))").collect(Collectors.joining(" AND "))
-                            + ")" + (allColumn.size() == uniqueCondition.size() ? "" : (" WHEN MATCHED THEN UPDATE SET " + allColumn.stream().filter(col -> !uniqueCondition.contains(col))
-                            .map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")))) + " WHEN NOT MATCHED THEN INSERT(" + allColumnString + ") " + insertValue;
-                }
-            }
+//            if (EmptyKit.isNotEmpty(uniqueCondition)) {
+//                if (hasPk) {
+//                    insertSql = "INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" USING dual ON ("
+//                            + uniqueCondition.stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(" AND "))
+//                            + ")" + (allColumn.size() == uniqueCondition.size() ? "" : (" WHEN MATCHED THEN UPDATE SET " + allColumn.stream().filter(col -> !uniqueCondition.contains(col))
+//                            .map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")))) + " WHEN NOT MATCHED THEN INSERT(" + allColumnString + ") " + insertValue;
+//                } else {
+//                    insertSql = "INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" USING dual ON ("
+//                            + uniqueCondition.stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ? IS NULL))").collect(Collectors.joining(" AND "))
+//                            + ")" + (allColumn.size() == uniqueCondition.size() ? "" : (" WHEN MATCHED THEN UPDATE SET " + allColumn.stream().filter(col -> !uniqueCondition.contains(col))
+//                            .map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")))) + " WHEN NOT MATCHED THEN INSERT(" + allColumnString + ") " + insertValue;
+//                }
+//            }
             preparedStatement = connection.prepareStatement(insertSql);
         }
         preparedStatement.clearParameters();
         int pos = 1;
-        if (EmptyKit.isNotEmpty(uniqueCondition)) {
-            if (hasPk) {
-                for (String key : uniqueCondition) {
-                    preparedStatement.setObject(pos++, after.get(key));
-                }
-            } else {
-                for (String key : uniqueCondition) {
-                    preparedStatement.setObject(pos++, after.get(key));
-                    preparedStatement.setObject(pos++, after.get(key));
-                }
-            }
-            for (String key : allColumn.stream().filter(col -> !uniqueCondition.contains(col)).collect(Collectors.toList())) {
-                preparedStatement.setObject(pos++, after.get(key));
-            }
-        }
+//        if (EmptyKit.isNotEmpty(uniqueCondition)) {
+//            if (hasPk) {
+//                for (String key : uniqueCondition) {
+//                    preparedStatement.setObject(pos++, after.get(key));
+//                }
+//            } else {
+//                for (String key : uniqueCondition) {
+//                    preparedStatement.setObject(pos++, after.get(key));
+//                    preparedStatement.setObject(pos++, after.get(key));
+//                }
+//            }
+//            for (String key : allColumn.stream().filter(col -> !uniqueCondition.contains(col)).collect(Collectors.toList())) {
+//                preparedStatement.setObject(pos++, after.get(key));
+//            }
+//        }
         for (String key : allColumn) {
             preparedStatement.setObject(pos++, after.get(key));
         }

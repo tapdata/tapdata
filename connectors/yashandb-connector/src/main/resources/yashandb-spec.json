@@ -108,26 +108,31 @@
       "preferByte": 3000,
       "to": "TapString"
     },
-    "FLOAT[($precision)]": {
+    "double[($precision,$scale)][unsigned]": {
+      "to": "TapNumber",
       "precision": [
         1,
-        126
+        255
       ],
-      "scale": 125,
-      "preferScale": 8,
-      "fixed": false,
-      "defaultPrecision": 126,
-      "priority": 2,
-      "to": "TapNumber"
+      "scale": [
+        0,
+        30
+      ],
+      "value": [
+        "-1.7976931348623157E+308",
+        "1.7976931348623157E+308"
+      ],
+      "unsigned": "unsigned",
+      "fixed": false
     },
-    "NUMBER[($precision,$scale)]": {
-      "precision": [
-        1,
-        38
-      ],
+    "NUMBER(*,$scale)": {
       "scale": [
         -84,
         127
+      ],
+      "precision": [
+        1,
+        38
       ],
       "fixed": true,
       "preferPrecision": 20,
@@ -142,17 +147,6 @@
       "priority": 1,
       "to": "TapBoolean"
     },
-    "NUMBER($precision)": {
-      "precision": [
-        1,
-        38
-      ],
-      "fixed": true,
-      "preferPrecision": 20,
-      "defaultPrecision": 38,
-      "priority": 1,
-      "to": "TapNumber"
-    },
     "DATE": {
       "range": [
         "0001-01-01 00:00:00",
@@ -161,6 +155,20 @@
       "defaultFraction": 0,
       "pattern": "yyyy-MM-dd HH:mm:ss",
       "priority": 1,
+      "to": "TapDate"
+    },
+    "TIMESTAMP[($fraction)]": {
+      "range": [
+        "0001-01-01 00:00:00",
+        "9999-12-31 23:59:59"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss",
+      "fraction": [
+        0,
+        9
+      ],
+      "defaultFraction": 9,
+      "priority": 3,
       "to": "TapDateTime"
     },
     "INTERVAL YEAR TO MONTH": {
@@ -170,7 +178,8 @@
       ],
       "defaultFraction": 0,
       "pattern": "yyyy-MM",
-      "priority": 1,
+      "priority": 6,
+      "queryOnly": true,
       "to": "TapDateTime"
     },
     "INTERVAL DAY TO SECOND": {
@@ -180,7 +189,8 @@
       ],
       "defaultFraction": 0,
       "pattern": "yyyy-MM-dd HH:mm:ss.ssssss",
-      "priority": 1,
+      "priority": 7,
+      "queryOnly": true,
       "to": "TapDateTime"
     },
     "TIME": {
@@ -188,24 +198,10 @@
         "00:00:00.000000",
         "23:59:59.999999"
       ],
-      "defaultFraction": 9,
-      "pattern": "HH:mm:ss.ssssss",
-      "priority": 1,
-      "to": "TapTime"
-    },
-    "TIMESTAMP[($fraction)]": {
-      "range": [
-        "0001-01-01 00:00:00.000000",
-        "9999-12-31 23:59:59.999999"
-      ],
-      "pattern": "yyyy-MM-dd HH:mm:ss.ssssss",
-      "fraction": [
-        0,
-        9
-      ],
       "defaultFraction": 6,
+      "pattern": "HH:mm:ss.ssssss",
       "priority": 2,
-      "to": "TapDateTime"
+      "to": "TapTime"
     },
     "BIGINT": {
       "bit": 64,
@@ -214,17 +210,6 @@
         -9223372036854775808,
         9223372036854775807
       ],
-      "to": "TapNumber"
-    },
-    "DOUBLE": {
-      "value": [
-        "-1.7976931348623157E+308",
-        "1.7976931348623157E+308"
-      ],
-      "preferPrecision": 20,
-      "preferScale": 8,
-      "scale": 307,
-      "priority": 3,
       "to": "TapNumber"
     },
     "JSON": {
