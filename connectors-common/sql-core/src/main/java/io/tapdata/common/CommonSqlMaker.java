@@ -229,7 +229,7 @@ public class CommonSqlMaker {
         } else if (value instanceof DateTime) {
             builder.append(toTimestampString((DateTime) value));
         } else {
-            builder.append('\'').append(value).append('\'');
+            builder.append('\'').append(String.valueOf(value).replaceAll("'", "''")).append('\'');
         }
         return builder.toString();
     }
