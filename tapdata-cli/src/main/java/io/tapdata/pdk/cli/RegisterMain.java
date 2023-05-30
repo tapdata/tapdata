@@ -77,6 +77,8 @@ public class RegisterMain {
         MRSHIVE3(BASE_PATH + "connectors/dist/mrs-hive3-connector-v1.0-SNAPSHOT.jar", "all", "mrs-hive3"),
         AIChat(BASE_PATH + "connectors/dist/ai-chat-connector-v1.0-SNAPSHOT.jar", "all", "ai-chat"),
         LarkApproval(BASE_PATH + "connectors/dist/lark-approval-connector-v1.0-SNAPSHOT.jar", "all", "lark-approval"),
+        HttpReceiver(BASE_PATH + "connectors/dist/http-receiver-connector-v1.0-SNAPSHOT.jar", "all", "http-receiver"),
+//        Shein(BASE_PATH + "connectors/dist/shein-connector-v1.0-SNAPSHOT.jar", "all", "shein"),
         ;
 
         private final String path;
@@ -114,7 +116,7 @@ public class RegisterMain {
         // -Dserver=http://192.168.1.181:31321
         // -Dbeta=true
 
-        List<String> postList = new ArrayList<>();
+        List<String> postList = new ArrayList<>();//http://139.198.127.204:30564
 //        String server = System.getProperty("server", "https://uat.cloud.tapdata.net:9443/tm");
         String server = System.getProperty("server", "http://localhost:3000");
         //String server = System.getProperty("server", "http://192.168.1.189:30205");

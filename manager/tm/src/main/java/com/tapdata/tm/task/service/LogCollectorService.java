@@ -1718,12 +1718,14 @@ public class LogCollectorService {
 							.and("syncType").is(TaskDto.SYNC_TYPE_LOG_COLLECTOR)
 							.and("status").ne(TaskDto.STATUS_RUNNING);
 
-			Criteria noTablesCriteria = Criteria.where("dag.nodes").elemMatch(new Criteria().orOperator(
-							new Criteria().andOperator(
-											new Criteria().orOperator(Criteria.where("logCollectorConnConfigs").exists(false), Criteria.where("logCollectorConnConfigs").is(new BsonDocument())),
-											new Criteria().orOperator(Criteria.where("tableNames").exists(false), Criteria.where("tableNames").size(0))),
-							Criteria.where("logCollectorConnConfigs").exists(true).not().elemMatch(Criteria.where("tableNames").exists(true).ne(Collections.emptyList()))
-			));
+			Criteria noTablesCriteria = Criteria.where("dag.nodes").elemMatch(new Criteria().andOperator(
+							Criteria.where("type").is("logCollector"),
+							new Criteria().orOperator(
+											new Criteria().andOperator(new Criteria().orOperator(
+															Criteria.where("logCollectorConnConfigs").exists(false), Criteria.where("logCollectorConnConfigs").is(new BsonDocument())),
+															new Criteria().orOperator(Criteria.where("tableNames").exists(false), Criteria.where("tableNames").size(0))),
+											Criteria.where("logCollectorConnConfigs").exists(true).not().elemMatch(Criteria.where("tableNames").exists(true).ne(Collections.emptyList()))
+			)));
 
 			Query query = Query.query(new Criteria().andOperator(taskStatusCriteria, noTablesCriteria));
 			query.fields().include("_id", "name","user_id");

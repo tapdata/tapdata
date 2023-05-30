@@ -450,7 +450,7 @@ public class AlarmServiceImpl implements AlarmService {
                     log.error("Current user ({}, {}) can't bind email, cancel send message {}.", userDetail.getUsername(), userDetail.getUserId(), JSON.toJSONString(info));
                     return true;
                 }
-								mailAccount = getMailAccount(alarmMessageDto.getUserId());
+                mailAccount = getMailAccount(alarmMessageDto.getUserId());
                 Map<String, String> map = getTaskTitleAndContent(info);
                 content = map.get("content");
                 title = map.get("title");
@@ -962,7 +962,8 @@ public class AlarmServiceImpl implements AlarmService {
         mongoTemplate.updateMulti(Query.query(Criteria.where("taskId").is(taskId)), update, AlarmInfo.class);
     }
 
-    private MailAccountDto getMailAccount(String userId) {
+    @Override
+    public MailAccountDto getMailAccount(String userId) {
         List<Settings> all = settingsService.findAll();
         Map<String, Object> collect = all.stream().collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
 
