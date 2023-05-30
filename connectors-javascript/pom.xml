@@ -22,8 +22,8 @@
 		<module>lark-doc-connector</module>
 		<module>ai-chat-connector</module>
 		<module>lark-approval-connector</module>
-		<module>shein-connector</module>
-		<module>ali1688-connector</module>
+<!--		<module>shein-connector</module>-->
+<!--		<module>ali1688-connector</module>-->
 	</modules>
 
 	<properties>

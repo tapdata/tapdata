@@ -78,7 +78,7 @@ public class RegisterMain {
         AIChat(BASE_PATH + "connectors/dist/ai-chat-connector-v1.0-SNAPSHOT.jar", "all", "ai-chat"),
         LarkApproval(BASE_PATH + "connectors/dist/lark-approval-connector-v1.0-SNAPSHOT.jar", "all", "lark-approval"),
         HttpReceiver(BASE_PATH + "connectors/dist/http-receiver-connector-v1.0-SNAPSHOT.jar", "all", "http-receiver"),
-        Shein(BASE_PATH + "connectors/dist/shein-connector-v1.0-SNAPSHOT.jar", "all", "shein"),
+//        Shein(BASE_PATH + "connectors/dist/shein-connector-v1.0-SNAPSHOT.jar", "all", "shein"),
         ;
 
         private final String path;
