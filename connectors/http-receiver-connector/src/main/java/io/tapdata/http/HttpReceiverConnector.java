@@ -4,7 +4,6 @@ import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
@@ -27,12 +26,10 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
@@ -71,11 +68,28 @@ public class HttpReceiverConnector extends ConnectorBase {
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry tapCodecsRegistry) {
         connectorFunctions
                 //.supportBatchRead(this::batchRead)
+                //.supportStreamRead(this::streamRead)
                 .supportTimestampToStreamOffset(this::offset)
                 .supportRawDataCallbackFilterFunctionV2(this::callback)
                 .supportCommandCallbackFunction(this::handleCommand)
         ;
     }
+
+    //final Object waitLock = new Object();
+    //private void streamRead(TapConnectorContext context, List<String> tables, Object offset, int size, StreamReadConsumer consumer) {
+    //    consumer.streamReadStarted();
+    //    try {
+    //        while (isAlive()){
+    //            try {
+    //                waitLock.wait(1000L);
+    //            }catch (Exception ignore){
+    //            }
+    //        }
+    //    }finally {
+    //        waitLock.notifyAll();
+    //    }
+    //    consumer.streamReadEnded();
+    //}
 
     private Object offset(TapConnectorContext context, Long time) {
         if (null != time) {
@@ -84,9 +98,9 @@ public class HttpReceiverConnector extends ConnectorBase {
         return System.currentTimeMillis();
     }
 
-    private void batchRead(TapConnectorContext context, TapTable tapTable, Object offset, int batchSize, BiConsumer<List<TapEvent>, Object> con) {
-        context.getLog().info(TAG, "Http Receiver can not support batch read, and batch read is over now.");
-    }
+    //private void batchRead(TapConnectorContext context, TapTable tapTable, Object offset, int batchSize, BiConsumer<List<TapEvent>, Object> con) {
+    //    context.getLog().info(TAG, "Http Receiver can not support batch read, and batch read is over now.");
+    //}
 
     private List<TapEvent> callback(TapConnectorContext context, List<String> tableName, Map<String, Object> eventMap) {
         if (null == config) {
@@ -94,11 +108,15 @@ public class HttpReceiverConnector extends ConnectorBase {
         }
         String name = config.tableName();
         if (Checker.isEmpty(eventMap)) {
-            TapLogger.debug(TAG, "WebHook of http body is empty, Data callback has been over.");
+            context.getLog().debug(TAG, "WebHook of http body is empty, Data callback has been over.");
             return null;
         }
-        Object data = eventMap.get("data");
-        if (null == data){
+        Object isArrayObj = Optional.ofNullable(eventMap.get("proxy_callback_array_content")).orElse(false);
+        Object data = eventMap;
+        if (isArrayObj instanceof Boolean && ((Boolean)isArrayObj) ) {
+            data = eventMap.get("array");
+        }
+        if (null == data) {
             context.getLog().info(TAG, "Before script filtering, the current record is empty and will be ignored.");
             return null;
         }
