@@ -206,7 +206,7 @@ public class ProxyController extends BaseController {
         }
         Map<String, Object> value = null;
         if(content instanceof Collection) {
-            value = map(entry("array", content));
+            value = map(entry("array", content), entry("proxy_callback_array_content", true));
         } else {
             value = (Map<String, Object>) content;
         }
