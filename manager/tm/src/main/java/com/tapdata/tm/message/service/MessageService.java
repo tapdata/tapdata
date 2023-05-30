@@ -8,11 +8,13 @@ import com.alibaba.fastjson.JSONObject;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
+import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.dto.NotificationDto;
 import com.tapdata.tm.Settings.dto.NotificationSettingDto;
 import com.tapdata.tm.Settings.dto.RunNotificationDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
@@ -29,17 +31,14 @@ import com.tapdata.tm.message.repository.MessageRepository;
 import com.tapdata.tm.message.vo.MessageListVo;
 import com.tapdata.tm.mp.service.MpService;
 import com.tapdata.tm.sms.SmsService;
-import com.tapdata.tm.task.constant.TaskEnum;
-import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.user.entity.Notification;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.MessageUtil;
-import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SendStatus;
 import lombok.NonNull;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -47,6 +46,7 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -67,21 +67,27 @@ import java.util.stream.Collectors;
  */
 @Service
 @Slf4j
-@Setter(onMethod_ = {@Autowired})
 public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectId,MessageRepository> {
 
+    @Autowired
     MessageRepository messageRepository;
+    @Autowired
     UserService userService;
+    @Autowired
     TaskRepository taskRepository;
+    @Autowired
     MailUtils mailUtils;
+    @Autowired
     EventsService eventsService;
+    @Autowired
     SettingsService settingsService;
-
     @Autowired
     private SmsService smsService;
-
     @Autowired
     private MpService mpService;
+    @Autowired
+    @Lazy
+    private AlarmService alarmService;
 
     private final static String MAIL_SUBJECT = "【Tapdata】";
     private final static String MAIL_CONTENT = "尊敬的用户您好，您在Tapdata Cloud上创建的Agent:";
@@ -206,30 +212,6 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
      * 增加迁移任务消息
      *
      * @param serverName
-     */
-    public void addMigration(String serverName, String sourceId, String userId) {
-        TaskEntity taskEntity = taskRepository.findById(sourceId).get();
-        if (null == taskEntity) {
-            log.error("数据有误，找不到  {}  对应的", sourceId);
-            return;
-        }
-//        * 每个子任务包含以下的状态： 调度中，调度失败，带运行，运行中，停止中，已停止，已完成，错误。
-        String status = taskEntity.getStatus();
-
-        Level level = Level.INFO;
-        MsgTypeEnum msgTypeEnum = MsgTypeEnum.CONNECTED;
-        UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(userId));
-        if (TaskEnum.STATUS_SCHEDULE_FAILED.getValue().equals(status) ||
-                TaskEnum.STATUS_ERROR.getValue().equals(status)) {
-            level = Level.ERROR;
-        }
-        addMigration(serverName, sourceId, msgTypeEnum, level, userDetail);
-    }
-
-    /**
-     * 增加迁移任务消息
-     *
-     * @param serverName
      * @param msgTypeEnum
      * @param level
      * @param userDetail
@@ -249,7 +231,15 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
             //用户设置优先
             if (userNotification.getStoppedByError().getEmail()) {
                 log.info("dataflow出错，email 通知");
-                informUserEmail(msgTypeEnum, SystemEnum.MIGRATION, serverName, sourceId, saveMessage.getId().toString(), userDetail);
+                MessageEntity finalSaveMessage = saveMessage;
+                FunctionUtils.isTureOrFalse(settingsService.isCloud()).trueOrFalseHandle(() -> {
+                    informUserEmail(msgTypeEnum, SystemEnum.MIGRATION, serverName, sourceId, finalSaveMessage.getId().toString(), userDetail);
+                }, () -> {
+                    MailAccountDto mailAccount = alarmService.getMailAccount(userDetail.getUserId());
+
+                    String mailTitle = getMailTitle(msgTypeEnum);
+                    MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), mailTitle, serverName + mailTitle);
+                });
             }
             if (userNotification.getStoppedByError().getSms()) {
                 log.info("dataflow出错，sms 通知");
@@ -265,6 +255,25 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
                 eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), saveMessage.getId().toString(), userDetail.getUserId(), sendStatus, 0, Type.NOTICE_MAIL);
             }
         }
+    }
+
+    private String getMailTitle(MsgTypeEnum msgTypeEnum) {
+        String title = "";
+        switch (msgTypeEnum) {
+            case STOPPED_BY_ERROR:
+                title = "任务出错";
+                break;
+            case CONNECTED:
+                title = "任务运行";
+                break;
+            case PAUSED:
+                title = "任务暂停";
+                break;
+            case DELETED:
+                title = "任务删除";
+                break;
+        }
+        return title;
     }
 
     /**
@@ -339,8 +348,14 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
         MessageEntity saveMessage = addMessage(serverName, sourceId, SystemEnum.SYNC, msgTypeEnum, "", level, userDetail, notificationDto.getNotice());
 
         if (notificationDto.getEmail()) {
-            SendStatus sendStatus = mailUtils.sendHtmlMail(userDetail.getEmail(), userDetail.getUsername(), serverName, SystemEnum.SYNC, msgTypeEnum, sourceId);
-            eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), saveMessage.getId().toString(), userDetail.getUserId(), sendStatus, 0, Type.NOTICE_MAIL);
+            FunctionUtils.isTureOrFalse(settingsService.isCloud()).trueOrFalseHandle(() -> {
+                SendStatus sendStatus = mailUtils.sendHtmlMail(userDetail.getEmail(), userDetail.getUsername(), serverName, SystemEnum.SYNC, msgTypeEnum, sourceId);
+                eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), saveMessage.getId().toString(), userDetail.getUserId(), sendStatus, 0, Type.NOTICE_MAIL);
+            }, () -> {
+                MailAccountDto mailAccount = alarmService.getMailAccount(userDetail.getUserId());
+                String mailTitle = getMailTitle(msgTypeEnum);
+                MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), mailTitle, serverName + mailTitle);
+            });
         }
     }
 
@@ -642,6 +657,11 @@ public class MessageService extends BaseService<MessageDto,MessageEntity,ObjectI
      * 根据设置通知用户,短信或者邮件
      */
     private void informUser(MessageDto messageDto) {
+
+        if (!settingsService.isCloud()) {
+            return;
+        }
+
         String msgType = messageDto.getMsg();
         String userId = messageDto.getUserId();
         String system = messageDto.getSystem();
