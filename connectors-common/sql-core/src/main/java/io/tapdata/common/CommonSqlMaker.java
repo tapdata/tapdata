@@ -38,6 +38,10 @@ public class CommonSqlMaker {
         this.escapeChar = escapeChar;
     }
 
+    public char getEscapeChar() {
+        return escapeChar;
+    }
+
     /**
      * combine column definition for creating table
      * e.g.
@@ -75,7 +79,7 @@ public class CommonSqlMaker {
         }
     }
 
-    private void buildDefaultDefinition(StringBuilder builder, TapField tapField) {
+    protected void buildDefaultDefinition(StringBuilder builder, TapField tapField) {
         if (EmptyKit.isNotNull(tapField.getDefaultValue()) && !"".equals(tapField.getDefaultValue())) {
             builder.append("DEFAULT").append(' ');
             if (tapField.getDefaultValue() instanceof Number) {
@@ -86,7 +90,7 @@ public class CommonSqlMaker {
         }
     }
 
-    private void buildCommentDefinition(StringBuilder builder, TapField tapField) {
+    protected void buildCommentDefinition(StringBuilder builder, TapField tapField) {
         if (EmptyKit.isNotBlank(tapField.getComment())) {
             String comment = tapField.getComment();
             comment = comment.replace("'", "\\'");
