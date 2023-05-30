@@ -72,7 +72,7 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 			char[] password = connectionString.getPassword();
 			if (password != null && password.length != 0) {
 				String pwd = new String(password);
-				if (UriRootConvertUtils.mongoHiddenPwd.equals(pwd)) {
+				if (ExternalStorageDto.MASK_PWD.equals(pwd)) {
 					externalStorageDto.setUri(null);
 				}
 			}
