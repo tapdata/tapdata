@@ -28,6 +28,7 @@ public class TaskDto extends ParentTaskDto {
     public static final String SYNC_TYPE_MIGRATE = "migrate";
     public static final String SYNC_TYPE_LOG_COLLECTOR = "logCollector";
     public static final String SYNC_TYPE_CONN_HEARTBEAT = "connHeartbeat";
+    public static final String SYNC_TYPE_MEM_CACHE = "mem_cache";
     /**
      * 试运行
      */

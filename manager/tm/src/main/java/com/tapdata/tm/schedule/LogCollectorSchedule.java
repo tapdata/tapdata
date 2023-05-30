@@ -18,4 +18,10 @@ public class LogCollectorSchedule {
 	public void schedule() {
 		logCollectorService.clear();
 	}
+
+	@Scheduled(cron = "0 0/30 * * * ?")
+	@SchedulerLock(name ="task_log_collector_remove", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+	public void removeTaskSchedule() {
+		logCollectorService.removeTask();
+	}
 }

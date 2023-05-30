@@ -262,7 +262,11 @@ public class LineageController extends BaseController {
             @RequestParam(value = "type", required = false) String type
     ) {
         TableLineageRequestVo tableLineageRequestVo = new TableLineageRequestVo(connectionId, table, type);
-        return success(lineageService.tableLineage(tableLineageRequestVo));
+        try {
+            return success(lineageService.tableLineage(tableLineageRequestVo));
+        } catch (Exception e) {
+            return failed(e);
+        }
     }
 
 }

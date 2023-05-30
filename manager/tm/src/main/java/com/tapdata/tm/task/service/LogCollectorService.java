@@ -37,6 +37,8 @@ import com.tapdata.tm.externalStorage.vo.ExternalStorageVo;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
+import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
+import com.tapdata.tm.shareCdcTableMetrics.service.ShareCdcTableMetricsService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.param.TableLogCollectorParam;
 import com.tapdata.tm.user.service.UserService;
@@ -52,11 +54,13 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.bson.BsonDocument;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.MatchOperation;
 import org.springframework.data.mongodb.core.aggregation.ProjectionOperation;
@@ -67,7 +71,6 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Nullable;
-import java.math.BigDecimal;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -94,6 +97,8 @@ public class LogCollectorService {
     private MonitoringLogsService monitoringLogsService;
     @Autowired
     private ExternalStorageService externalStorageService;
+    @Autowired
+    private ShareCdcTableMetricsService shareCdcTableMetricsService;
     @Autowired
     private UserService userService;
 
@@ -988,6 +993,7 @@ public class LogCollectorService {
             AtomicReference<String> targetName = new AtomicReference<>("Shared Mining Target");
             Optional.ofNullable(externalStorageService.findById(MongoUtils.toObjectId(dataSource.getShareCDCExternalStorageId()))).ifPresent(externalStorageDto -> {
                 hazelCastImdgNode.setExternaltype(externalStorageDto.getType());
+                hazelCastImdgNode.setExternalStorageId(externalStorageDto.getId().toHexString());
                 targetName.set(externalStorageDto.getName());
             });
             hazelCastImdgNode.setName(targetName.get());
@@ -1041,6 +1047,9 @@ public class LogCollectorService {
                 List<String> oldConfigTableNames = logCollecotrConnConfig.getTableNames();
                 tableNames.addAll(oldConfigTableNames);
                 tableNames = tableNames.stream().distinct().collect(Collectors.toList());
+								if (CollectionUtils.isNotEmpty(logCollecotrConnConfig.getExclusionTables())) {
+									logCollecotrConnConfig.getExclusionTables().removeIf(tableNames::contains);
+								}
                 if (tableNames.size() != oldConfigTableNames.size()) {
                     updateConfig =  true;
                     logCollecotrConnConfig.setTableNames(tableNames);
@@ -1139,7 +1148,11 @@ public class LogCollectorService {
             finalTableNames.addAll(oldTableNames);
         }
         List<String> collect = finalTableNames.stream().distinct().collect(Collectors.toList());
-        logCollectorNode.setTableNames(collect);
+				List<String> exclusionTables = logCollectorNode.getExclusionTables();
+				if (CollectionUtils.isNotEmpty(exclusionTables)) {
+					exclusionTables.removeIf(collect::contains);
+				}
+				logCollectorNode.setTableNames(collect);
         taskService.updateById(oldLogCollectorTask, user);
         updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
 
@@ -1460,7 +1473,7 @@ public class LogCollectorService {
             LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
             tableNames = logCollecotrConnConfig.getTableNames();
         }
-        return getShareCdcTableInfoPage(connectionId, page, size, user, tableNames);
+        return getShareCdcTableInfoPage(connectionId, page, size, user, tableNames, logCollectorNode.getId(), taskId);
     }
 
 
@@ -1479,11 +1492,12 @@ public class LogCollectorService {
             LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
             tableNames = logCollecotrConnConfig.getExclusionTables();
         }
-        return getShareCdcTableInfoPage(connectionId, page, size, user, tableNames);
+        return getShareCdcTableInfoPage(connectionId, page, size, user, tableNames, logCollectorNode.getId(), taskId);
     }
 
     @NotNull
-    private Page<ShareCdcTableInfo> getShareCdcTableInfoPage(String connectionId, Integer page, Integer size, UserDetail user, List<String> tableNames) {
+    private Page<ShareCdcTableInfo> getShareCdcTableInfoPage(String connectionId, Integer page, Integer size, UserDetail user
+            , List<String> tableNames, String nodeId, String taskId) {
         int limit = (page - 1) * size;
         int tableCount = tableNames == null ? 0 : tableNames.size();
 
@@ -1502,11 +1516,7 @@ public class LogCollectorService {
             shareCdcTableInfo.setName(tableName);
             shareCdcTableInfo.setConnectionName(connectionName);
             shareCdcTableInfo.setConnectionId(connectionId);
-            shareCdcTableInfo.setJoinTime(new Date());
-            shareCdcTableInfo.setFirstLogTime(new Date());
-            shareCdcTableInfo.setLastLogTime(new Date());
-            shareCdcTableInfo.setAllCount(new BigDecimal(100));
-            shareCdcTableInfo.setTodayCount(100L);
+            setShareTableInfo(shareCdcTableInfo, user, taskId, nodeId);
 
             shareCdcTableInfos.add(shareCdcTableInfo);
 
@@ -1517,6 +1527,24 @@ public class LogCollectorService {
         shareCdcTableInfoPage.setItems(shareCdcTableInfos);
         return shareCdcTableInfoPage;
     }
+
+
+    private void setShareTableInfo(ShareCdcTableInfo shareCdcTableInfo, UserDetail user, String taskId, String nodeId) {
+        Criteria criteria = Criteria.where("taskId").is(taskId)
+                .and("tableName").is(shareCdcTableInfo.getName())
+                .and("nodeId").is(nodeId)
+                .and("connectionId").is(shareCdcTableInfo.getConnectionId());
+        Query query = new Query(criteria);
+        query.with(Sort.by("createTime").descending());
+        ShareCdcTableMetricsDto metricsDto = shareCdcTableMetricsService.findOne(query, user);
+				if (metricsDto != null) {
+					shareCdcTableInfo.setFirstLogTime(metricsDto.getFirstEventTime());
+					shareCdcTableInfo.setLastLogTime(metricsDto.getCurrentEventTime());
+					shareCdcTableInfo.setJoinTime(metricsDto.getStartCdcTime());
+					shareCdcTableInfo.setTodayCount(metricsDto.getCount());
+					shareCdcTableInfo.setAllCount(metricsDto.getAllCount());
+				}
+		}
 
     public void configTables(String taskId, List<TableLogCollectorParam> params, String type, UserDetail user) {
 			TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), user);
@@ -1583,10 +1611,10 @@ public class LogCollectorService {
 
     public void clear() {
         //1、查找所有正在运行的共享挖掘任务
-        Criteria criteria1 = Criteria.where("is_deleted").is(false)
+        Criteria criteria = Criteria.where("is_deleted").ne(true)
                 .and("syncType").is(TaskDto.SYNC_TYPE_LOG_COLLECTOR)
                 .and("status").is(TaskDto.STATUS_RUNNING);
-        Query query = new Query(criteria1);
+        Query query = new Query(criteria);
         query.fields().include("_id", "dag", "status", "user_id");
         List<TaskDto> taskDtos = taskService.findAll(query);
         if (CollectionUtils.isEmpty(taskDtos)) {
@@ -1594,109 +1622,142 @@ public class LogCollectorService {
         }
 
         for (TaskDto logCollectorTaskDto : taskDtos) {
-            DAG dag = logCollectorTaskDto.getDag();
-            List<Node> sources = dag.getSources();
-            LogCollectorNode logCollectorNode = (LogCollectorNode) sources.get(0);
-            Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
-            Map<String, Set<String>> tableMap = new HashMap<>();
-            if (logCollectorConnConfigs == null) {
-                tableMap.put(logCollectorNode.getConnectionIds().get(0), new HashSet<>(logCollectorNode.getTableNames()));
-            } else {
-                tableMap = logCollectorConnConfigs.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> new HashSet<>(e.getValue().getTableNames())));
-            }
-            if (MapUtils.isEmpty(tableMap)) {
-                continue;
-            }
+					try {
+						DAG dag = logCollectorTaskDto.getDag();
+						List<Node> sources = dag.getSources();
+						LogCollectorNode logCollectorNode = (LogCollectorNode) sources.get(0);
+						Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
+						Map<String, Set<String>> tableMap = new HashMap<>();
+						if (logCollectorConnConfigs == null) {
+								tableMap.put(logCollectorNode.getConnectionIds().get(0), new HashSet<>(logCollectorNode.getTableNames()));
+						} else {
+								tableMap = logCollectorConnConfigs.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> new HashSet<>(e.getValue().getTableNames())));
+						}
+						if (MapUtils.isEmpty(tableMap)) {
+								continue;
+						}
 
-            MatchOperation taskMatchOperation = Aggregation.match(Criteria.where("is_delete").is(false)
-                    .and("syncType").ne(TaskDto.SYNC_TYPE_LOG_COLLECTOR));
-            List<Criteria> orCriteriaList = new ArrayList<>();
-            tableMap.forEach((connectionId, tableNames) -> {
-                orCriteriaList.add(
-                        new Criteria("dag.nodes")
-                                .elemMatch(
-                                        new Criteria("connectionId")
-                                                .is(connectionId)
-                                                .orOperator(
-                                                        new Criteria("tableName").in(tableNames),
-                                                        new Criteria("tableNames").in(tableNames)
-                                                )
-                                )
-                );
-            });
-            Criteria finalCriteria = new Criteria().orOperator(orCriteriaList);
-            MatchOperation matchOperation = Aggregation.match(finalCriteria);
+						MatchOperation taskMatchOperation = Aggregation.match(Criteria.where("is_delete").ne(true)
+										.and("syncType").ne(TaskDto.SYNC_TYPE_LOG_COLLECTOR));
+						List<Criteria> orCriteriaList = new ArrayList<>();
+						tableMap.forEach((connectionId, tableNames) -> {
+								orCriteriaList.add(
+												new Criteria("dag.nodes")
+																.elemMatch(
+																				new Criteria("connectionId")
+																								.is(connectionId)
+																								.orOperator(
+																												new Criteria("tableName").in(tableNames),
+																												new Criteria("tableNames").in(tableNames)
+																								)
+																)
+								);
+						});
+						Criteria finalCriteria = new Criteria().orOperator(orCriteriaList);
+						MatchOperation matchOperation = Aggregation.match(finalCriteria);
 
-            UnwindOperation unwindOperation = Aggregation.unwind("$dag.nodes");
+						UnwindOperation unwindOperation = Aggregation.unwind("$dag.nodes");
 
-            List<Criteria> nodeOrCriteriaList = new ArrayList<>();
-            tableMap.forEach((connectionId, tableNames) -> nodeOrCriteriaList.add(new Criteria("dag.nodes.connectionId").is(connectionId)
-                    .orOperator(new Criteria("dag.nodes.tableName").in(tableNames), new Criteria("dag.nodes.tableNames").in(tableNames))));
-            Criteria nodeFinalCriteria = new Criteria().orOperator(nodeOrCriteriaList);
-            MatchOperation nodeMatchOperation = Aggregation.match(nodeFinalCriteria);
+						List<Criteria> nodeOrCriteriaList = new ArrayList<>();
+						tableMap.forEach((connectionId, tableNames) -> nodeOrCriteriaList.add(new Criteria("dag.nodes.connectionId").is(connectionId)
+										.orOperator(new Criteria("dag.nodes.tableName").in(tableNames), new Criteria("dag.nodes.tableNames").in(tableNames))));
+						Criteria nodeFinalCriteria = new Criteria().orOperator(nodeOrCriteriaList);
+						MatchOperation nodeMatchOperation = Aggregation.match(nodeFinalCriteria);
 
-            ProjectionOperation project = Aggregation.project()
-                    .andExclude("_id")
-                    .and("dag.nodes.connectionId").as("connectionId")
-                    .and("dag.nodes.tableName").as("tableName")
-                    .and("dag.nodes.tableNames").as("tableNames");
+						ProjectionOperation project = Aggregation.project()
+										.andExclude("_id")
+										.and("dag.nodes.connectionId").as("connectionId")
+										.and("dag.nodes.tableName").as("tableName")
+										.and("dag.nodes.tableNames").as("tableNames");
 
 
-            Aggregation aggregation = Aggregation.newAggregation(taskMatchOperation, matchOperation, unwindOperation, nodeMatchOperation, project);
-            List<Map> mappedResults = taskService.aggregate(aggregation, Map.class).getMappedResults();
+						Aggregation aggregation = Aggregation.newAggregation(taskMatchOperation, matchOperation, unwindOperation, nodeMatchOperation, project);
+						List<Map> mappedResults = taskService.aggregate(aggregation, Map.class).getMappedResults();
 
-            Map<String, Set<String>> useMap = new HashMap<>();
-            if (CollectionUtils.isNotEmpty(mappedResults)) {
-                for (Map<String, Object> mappedResult : mappedResults) {
-                    String connectionId = (String) mappedResult.get("connectionId");
-                    Set<String> tableSet = useMap.computeIfAbsent(connectionId, c -> new HashSet<>());
-                    String tableName = (String) mappedResult.get("tableName");
-                    if (tableName != null) {
-                        tableSet.add(tableName);
-                    }
-                    Collection<String> tableNames = (Collection<String>) mappedResult.get("tableNames");
-                    if (tableNames != null) {
-                        tableSet.addAll(tableNames);
-                    }
-                }
-            }
+						Map<String, Set<String>> useMap = new HashMap<>();
+						if (CollectionUtils.isNotEmpty(mappedResults)) {
+								for (Map<String, Object> mappedResult : mappedResults) {
+										String connectionId = (String) mappedResult.get("connectionId");
+										Set<String> tableSet = useMap.computeIfAbsent(connectionId, c -> new HashSet<>());
+										String tableName = (String) mappedResult.get("tableName");
+										if (tableName != null) {
+												tableSet.add(tableName);
+										}
+										Collection<String> tableNames = (Collection<String>) mappedResult.get("tableNames");
+										if (tableNames != null) {
+												tableSet.addAll(tableNames);
+										}
+								}
+						}
 
-            //tableMap中的tableNames在map中不存在的，需要删除
-            tableMap.forEach((connectionId, tableNames) -> {
-                Set<String> usingTableNames = useMap.get(connectionId);
-                if (CollectionUtils.isEmpty(usingTableNames)) {
-                    return;
-                }
-                usingTableNames.forEach(tableNames::remove);
-            });
-            if (MapUtils.isEmpty(tableMap) || CollectionUtils.isEmpty(tableMap.values().stream().flatMap(Collection::stream).collect(Collectors.toList()))) {
-                continue;
-            }
-            //需要排除
-            List<TableLogCollectorParam> params = tableMap.entrySet().stream()
-                    .map(e -> new TableLogCollectorParam(e.getKey(), e.getValue())).collect(Collectors.toList());
-            log.info("The logCollector table is not being used, will be canceled: {}", params);
-            UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(logCollectorTaskDto.getUserId()));
-            configTables(logCollectorTaskDto.getId().toHexString(), params, "exclusion", userDetail);
-        }
+						//tableMap中的tableNames在map中不存在的，需要删除
+						tableMap.forEach((connectionId, tableNames) -> {
+								Set<String> usingTableNames = useMap.get(connectionId);
+								if (CollectionUtils.isEmpty(usingTableNames)) {
+										return;
+								}
+								usingTableNames.forEach(tableNames::remove);
+						});
+						if (MapUtils.isEmpty(tableMap) || CollectionUtils.isEmpty(tableMap.values().stream().flatMap(Collection::stream).collect(Collectors.toList()))) {
+								continue;
+						}
+						//需要排除
+						List<TableLogCollectorParam> params = tableMap.entrySet().stream()
+										.map(e -> new TableLogCollectorParam(e.getKey(), e.getValue())).collect(Collectors.toList());
+						log.info("The logCollector table is not being used, will be canceled: {}", params);
+						UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(logCollectorTaskDto.getUserId()));
+						configTables(logCollectorTaskDto.getId().toHexString(), params, "exclusion", userDetail);
+					} catch (Exception e) {
+						log.error("Failed to clear logCollector task: {} {}", logCollectorTaskDto.getId(), logCollectorTaskDto.getName(), e);
+					}
+				}
     }
 
-    private void addTables(LogCollectorNode logCollectorNode, List<TableLogCollectorParam> params) {
-        for (TableLogCollectorParam param : params) {
-            if (logCollectorNode.getConnectionIds().contains(param.getConnectionId())) {
-                List<String> tableNames = logCollectorNode.getTableNames();
-                if (tableNames == null) {
-                    tableNames = new ArrayList<>();
-                    logCollectorNode.setTableNames(tableNames);
-                }
-                tableNames.addAll(param.getTableNames());
-                List<String> exclusionTables = logCollectorNode.getExclusionTables();
-                if (exclusionTables != null) {
-                    exclusionTables.removeIf(tableNames::contains);
-                }
-            }
-        }
-    }
+		public void removeTask() {
+			Criteria taskStatusCriteria = Criteria.where("is_deleted").ne(true)
+							.and("syncType").is(TaskDto.SYNC_TYPE_LOG_COLLECTOR)
+							.and("status").ne(TaskDto.STATUS_RUNNING);
+
+			Criteria noTablesCriteria = Criteria.where("dag.nodes").elemMatch(new Criteria().orOperator(
+							new Criteria().andOperator(
+											new Criteria().orOperator(Criteria.where("logCollectorConnConfigs").exists(false), Criteria.where("logCollectorConnConfigs").is(new BsonDocument())),
+											new Criteria().orOperator(Criteria.where("tableNames").exists(false), Criteria.where("tableNames").size(0))),
+							Criteria.where("logCollectorConnConfigs").exists(true).not().elemMatch(Criteria.where("tableNames").exists(true).ne(Collections.emptyList()))
+			));
+
+			Query query = Query.query(new Criteria().andOperator(taskStatusCriteria, noTablesCriteria));
+			query.fields().include("_id", "name","user_id");
+			List<TaskDto> taskDtos = taskService.findAll(query);
+			if (CollectionUtils.isNotEmpty(taskDtos)) {
+				taskDtos.forEach(taskDto -> {
+					try {
+						UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
+						taskService.remove(taskDto.getId(), userDetail);
+						log.info("removed logCollector task: {} {}", taskDto.getId().toHexString(), taskDto.getName());
+					} catch (Exception e) {
+						log.error("Failed to remove logCollector task: {} {}", taskDto.getId().toHexString(), taskDto.getName(), e);
+					}
+				});
+			}
+		}
+
+	private void addTables(LogCollectorNode logCollectorNode, List<TableLogCollectorParam> params) {
+		for (TableLogCollectorParam param : params) {
+			if (!logCollectorNode.getConnectionIds().contains(param.getConnectionId())) {
+				throw new IllegalArgumentException("not support add table for connectionId: " + param.getConnectionId() + "tables: " + param.getTableNames());
+			}
+			List<String> tableNames = logCollectorNode.getTableNames();
+			if (tableNames == null) {
+				tableNames = new ArrayList<>();
+			}
+			tableNames.addAll(param.getTableNames());
+			logCollectorNode.setTableNames(new ArrayList<>(new HashSet<>(tableNames)));
+			List<String> exclusionTables = logCollectorNode.getExclusionTables();
+			if (exclusionTables != null) {
+				exclusionTables.removeIf(tableNames::contains);
+			}
+		}
+	}
 
 
     private Map<String, LogCollecotrConnConfig> addTables(Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap, List<TableLogCollectorParam> params) {
@@ -1731,39 +1792,25 @@ public class LogCollectorService {
 		return logCollectorConnConfigMap;
 	}
 
-	private Map<String, LogCollecotrConnConfig> processOldData(LogCollectorNode logCollectorNode) {
-		Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap = logCollectorNode.getLogCollectorConnConfigs();
-		if (logCollectorConnConfigMap == null) {
-			logCollectorConnConfigMap = new HashMap<>();
-			//把以前的转移新config中
-			String oldConnectionId = logCollectorNode.getConnectionIds().get(0);
-			List<String> oldTableNames = logCollectorNode.getTableNames();
-			LogCollecotrConnConfig logCollecotrConnConfig = new LogCollecotrConnConfig(oldConnectionId, oldTableNames);
-			logCollectorConnConfigMap.put(logCollecotrConnConfig.getConnectionId(), logCollecotrConnConfig);
-			logCollectorNode.setTableNames(null);
-			logCollectorNode.setConnectionIds(null);
+	private void exclusionTables(LogCollectorNode logCollectorNode, List<TableLogCollectorParam> params) {
+		for (TableLogCollectorParam param : params) {
+			if (!logCollectorNode.getConnectionIds().contains(param.getConnectionId())) {
+				throw new IllegalArgumentException("not support exclusion table for connectionId: " + param.getConnectionId() + "tables: " + param.getTableNames());
+			}
+			List<String> exclusionTables = logCollectorNode.getExclusionTables();
+			if (exclusionTables == null) {
+				exclusionTables = new ArrayList<>();
+			}
+			exclusionTables.addAll(param.getTableNames());
+			logCollectorNode.setExclusionTables(new ArrayList<>(new HashSet<>(exclusionTables)));
+			List<String> tableNames = logCollectorNode.getTableNames();
+			if (tableNames == null) {
+				tableNames = new ArrayList<>();
+				logCollectorNode.setTableNames(tableNames);
+			}
+			tableNames.removeIf(exclusionTables::contains);
 		}
-		return logCollectorConnConfigMap;
 	}
-
-    private void exclusionTables(LogCollectorNode logCollectorNode, List<TableLogCollectorParam> params) {
-        for (TableLogCollectorParam param : params) {
-            if (logCollectorNode.getConnectionIds().contains(param.getConnectionId())) {
-                List<String> exclusionTables = logCollectorNode.getExclusionTables();
-                if (exclusionTables == null) {
-                    exclusionTables = new ArrayList<>();
-                    logCollectorNode.setExclusionTables(exclusionTables);
-                }
-                exclusionTables.addAll(param.getTableNames());
-                List<String> tableNames = logCollectorNode.getTableNames();
-                if (tableNames == null) {
-                    tableNames = new ArrayList<>();
-                    logCollectorNode.setTableNames(tableNames);
-                }
-                tableNames.removeIf(exclusionTables::contains);
-            }
-        }
-    }
 
 	private Map<String, LogCollecotrConnConfig> exclusionTables(Map<String, LogCollecotrConnConfig> logCollectorConnConfigMap, List<TableLogCollectorParam> params) {
 		Map<String, LogCollecotrConnConfig> paramMap = params.stream()

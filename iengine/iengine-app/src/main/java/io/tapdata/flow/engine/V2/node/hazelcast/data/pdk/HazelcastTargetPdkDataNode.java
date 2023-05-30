@@ -854,4 +854,46 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 		super.doClose();
 	}
+	@Override
+	protected void updateNodeConfig(TapdataEvent tapdataEvent) {
+		super.updateNodeConfig(tapdataEvent);
+		final TapEvent tapEvent = tapdataEvent.getTapEvent();
+		if(tapEvent instanceof TapAlterFieldNameEvent){
+			TapAlterFieldNameEvent tapAlterFieldNameEvent = (TapAlterFieldNameEvent) tapEvent;
+			// 修改关联字段配置
+			Optional.ofNullable(updateConditionFieldsMap
+			).map(m -> m.get(tapAlterFieldNameEvent.getTableId())
+			).map(updateConditionFields -> {
+				ValueChange<String> nameChange = tapAlterFieldNameEvent.getNameChange();
+				if (null != nameChange) {
+					if(updateConditionFields.contains(nameChange.getBefore())){
+						updateConditionFields.removeIf(s -> nameChange.getBefore().equals(s));
+						updateConditionFields.add(nameChange.getAfter());
+					}
+					Optional.ofNullable(dataProcessorContext.getTaskDto()
+					).map(TaskDto::getDag
+					).map(dag -> dag.getNode(getNode().getId())
+					).map(node -> {
+						if (node instanceof DatabaseNode) {
+							Map<String, List<String>> updateConditionFieldMap = ((DatabaseNode) node).getUpdateConditionFieldMap();
+							if (null != updateConditionFieldMap) {
+								return updateConditionFieldMap.get(tapAlterFieldNameEvent.getTableId());
+							}
+						} else if (node instanceof TableNode) {
+							return ((TableNode) node).getUpdateConditionFields();
+						}
+						return null;
+					}).map(fields -> {
+						if(fields.contains(nameChange.getBefore())){
+							fields.removeIf(s -> nameChange.getBefore().equals(s));
+							fields.add(nameChange.getAfter());
+						}
+						return null;
+					});
+				}
+				return null;
+			});
+		}
+
+	}
 }

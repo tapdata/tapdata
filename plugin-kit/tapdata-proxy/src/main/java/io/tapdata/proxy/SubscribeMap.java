@@ -2,6 +2,7 @@ package io.tapdata.proxy;
 
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.MainMethod;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.modules.api.net.entity.ProxySubscription;
@@ -24,8 +25,14 @@ public class SubscribeMap implements MemoryFetcher {
 	private MaxFrequencyLimiter maxFrequencyLimiter;
 	@Bean
 	private ProxySubscriptionService proxySubscriptionService;
+	private static final String TAG = SubscribeMap.class.getSimpleName();
+
 	private void start() {
-		maxFrequencyLimiter = new MaxFrequencyLimiter(500, this::syncSubscribeIds);
+		maxFrequencyLimiter = new MaxFrequencyLimiter(500, this::syncSubscribeIds)
+				.errorConsumer(error -> {
+					maxFrequencyLimiter.touch();
+					TapLogger.info(TAG, "syncSubscribeIds error: " + error.getMessage() + " will continue to sync. ");
+				});
 
 		int subscribeMapCleanupPeriod = CommonUtils.getPropertyInt("tapdata_subscribe_map_cleanup_period", 60);
 		ExecutorsManager.getInstance().getScheduledExecutorService().scheduleWithFixedDelay(() -> {

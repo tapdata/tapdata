@@ -1772,6 +1772,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setShareCache(true);
         taskDto.setLastUpdAt(new Date());
         taskDto.setName(saveShareCacheParam.getName());
+        taskDto.setShareCdcEnable(true);
 
         DAG dag = taskDto.getDag();
         String sourceId;
@@ -2382,11 +2383,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (max.isPresent()) {
                     Sample sample = max.get();
                     Map<String, Number> vs = sample.getVs();
-                    value = value.add(parseDataTotal(vs.get("inputInsertTotal")));
-                    value = value.add(parseDataTotal(vs.get("inputOthersTotal")));
-                    value = value.add(parseDataTotal(vs.get("inputDdlTotal")));
-                    value = value.add(parseDataTotal(vs.get("inputUpdateTotal")));
-                    value = value.add(parseDataTotal(vs.get("inputDeleteTotal")));
+                    value = value.add(NumberUtil.parseDataTotal(vs.get("inputInsertTotal")));
+                    value = value.add(NumberUtil.parseDataTotal(vs.get("inputOthersTotal")));
+                    value = value.add(NumberUtil.parseDataTotal(vs.get("inputDdlTotal")));
+                    value = value.add(NumberUtil.parseDataTotal(vs.get("inputUpdateTotal")));
+                    value = value.add(NumberUtil.parseDataTotal(vs.get("inputDeleteTotal")));
                 }
                 LocalDate localDate = k.minusDays(1L);
                 BigInteger lastNum = inputNumMap.get(localDate);
@@ -2894,7 +2895,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
 
 
-        Update set = Update.update("agentId", null).set("agentTags", null).set("scheduleTimes", null)
+        Update set = Update.update("agentTags", null).set("scheduleTimes", null)
                 .set("scheduleTime", null)
                 .unset("milestones").unset("tmCurrentTime").set("messages", null);
 
@@ -3882,17 +3883,17 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (max.isPresent()) {
                     Sample sample = max.get();
                     Map<String, Number> vs = sample.getVs();
-                    BigInteger inputInsertTotal = parseDataTotal(vs.get("inputInsertTotal"));
-                    BigInteger inputOthersTotal = parseDataTotal(vs.get("inputOthersTotal"));
-                    BigInteger inputDdlTotal = parseDataTotal(vs.get("inputDdlTotal"));
-                    BigInteger inputUpdateTotal = parseDataTotal(vs.get("inputUpdateTotal"));
-                    BigInteger inputDeleteTotal = parseDataTotal(vs.get("inputDeleteTotal"));
+                    BigInteger inputInsertTotal = NumberUtil.parseDataTotal(vs.get("inputInsertTotal"));
+                    BigInteger inputOthersTotal = NumberUtil.parseDataTotal(vs.get("inputOthersTotal"));
+                    BigInteger inputDdlTotal = NumberUtil.parseDataTotal(vs.get("inputDdlTotal"));
+                    BigInteger inputUpdateTotal = NumberUtil.parseDataTotal(vs.get("inputUpdateTotal"));
+                    BigInteger inputDeleteTotal = NumberUtil.parseDataTotal(vs.get("inputDeleteTotal"));
 
-                    BigInteger outputInsertTotal = parseDataTotal(vs.get("outputInsertTotal"));
-                    BigInteger outputOthersTotal = parseDataTotal(vs.get("outputOthersTotal"));
-                    BigInteger outputDdlTotal = parseDataTotal(vs.get("outputDdlTotal"));
-                    BigInteger outputUpdateTotal = parseDataTotal(vs.get("outputUpdateTotal"));
-                    BigInteger outputDeleteTotal = parseDataTotal(vs.get("outputDeleteTotal"));
+                    BigInteger outputInsertTotal = NumberUtil.parseDataTotal(vs.get("outputInsertTotal"));
+                    BigInteger outputOthersTotal = NumberUtil.parseDataTotal(vs.get("outputOthersTotal"));
+                    BigInteger outputDdlTotal = NumberUtil.parseDataTotal(vs.get("outputDdlTotal"));
+                    BigInteger outputUpdateTotal = NumberUtil.parseDataTotal(vs.get("outputUpdateTotal"));
+                    BigInteger outputDeleteTotal = NumberUtil.parseDataTotal(vs.get("outputDeleteTotal"));
                     output = output.add(outputInsertTotal);
                     output = output.add(outputOthersTotal);
                     output = output.add(outputDdlTotal);
@@ -3920,24 +3921,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         chart6Map.put("updatedTotal", update);
         chart6Map.put("deletedTotal", delete);
         return chart6Map;
-    }
-
-
-    private BigInteger parseDataTotal(Object param) {
-        if (param == null) {
-            return BigInteger.ZERO;
-        }
-        if ("null".equals(param)) {
-            return BigInteger.ZERO;
-        }
-
-        if (param instanceof Long) {
-            return BigInteger.valueOf(Long.parseLong(String.valueOf(param)));
-        } else if (param instanceof BigInteger) {
-            return new BigInteger(String.valueOf(param));
-        }
-
-        return new BigInteger(String.valueOf(param));
     }
 
     public void stopTaskIfNeedByAgentId(String agentId, UserDetail userDetail) {

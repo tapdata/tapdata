@@ -16,7 +16,7 @@ public class NodeController implements Serializable {
 	public final static int FINISH = 3;
 	private static final long serialVersionUID = -6420234322714249926L;
 
-	private AtomicInteger status = new AtomicInteger(WAIT_RUN);
+	private final AtomicInteger status = new AtomicInteger(WAIT_RUN);
 	private Node<?> node;
 
 	public NodeController(Node<?> node) {

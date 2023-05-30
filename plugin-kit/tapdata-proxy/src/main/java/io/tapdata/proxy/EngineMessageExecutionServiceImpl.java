@@ -190,7 +190,7 @@ public class EngineMessageExecutionServiceImpl implements EngineMessageExecution
 						T response = nodeConnection.send(type, engineMessage, tClass);
 						biConsumer.accept(response, null);
 						return;
-					} catch (IOException ioException) {
+					} catch (Throwable ioException) {
 						TapLogger.info(TAG, "Send to nodeId {} failed {} and will try next, command {}", id, ioException.getMessage(), engineMessage);
 						error = ioException;
 					}

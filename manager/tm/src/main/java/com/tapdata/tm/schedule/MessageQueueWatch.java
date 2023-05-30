@@ -7,6 +7,7 @@ import com.tapdata.tm.commons.websocket.MessageInfoBuilder;
 import com.tapdata.tm.commons.websocket.v1.MessageInfoV1;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.ws.endpoint.WebSocketClusterServer;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.endpoint.WebSocketServer;
@@ -82,8 +83,9 @@ public class MessageQueueWatch {
 
         List<MessageQueueDto> messages = messageQueueService.findAll(query);
         messages.forEach(messageQueueDto -> {
-            if (MessageType.PIPE.getType().equals(messageQueueDto.getType())
-                    && StringUtils.isNotBlank(messageQueueDto.getReceiver())) {
+            List<String> types = Lists.newArrayList(MessageType.PIPE.getType(), MessageType.TEST_RUN.getType());
+
+            if (types.contains(messageQueueDto.getType()) && StringUtils.isNotBlank(messageQueueDto.getReceiver())) {
                 Object dataObject = messageQueueDto.getData();
                 //todo  这个地方需要优化
                 // 这里主要是因为  存到messageQueue里，再查出来的话，id会变成ObjectId ,所以做这样的处理

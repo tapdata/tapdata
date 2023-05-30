@@ -504,6 +504,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 				throw new TapEventException(TaskMergeProcessorExCode_16.DELETE_CACHE_FAILED, String.format("- Construct name: %s\n- Join value key: %s, encode: %s\n- Pk or unique value key: %s, encode: %s\n- Find by join value key result: %s",
 						hazelcastConstruct.getName(), joinValueKey, encodeJoinValueKey, pkOrUniqueValueKey, encodePkOrUniqueValueKey, groupByJoinKeyValues.toJson()), e).addEvent(tapdataEvent.getTapEvent());
 			}
+		} else {
+			hazelcastConstruct.upsert(encodeJoinValueKey, groupByJoinKeyValues);
 		}
 	}
 

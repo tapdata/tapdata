@@ -494,7 +494,7 @@ public class MongodbConnector extends ConnectorBase {
 		connectorFunctions.supportBatchRead(this::batchRead);
 		connectorFunctions.supportBatchCount(this::batchCount);
 		connectorFunctions.supportCreateIndex(this::createIndex);
-//		connectorFunctions.supportCreateTableV2(this::createTableV2);
+		connectorFunctions.supportCreateTableV2(this::createTableV2);
 		connectorFunctions.supportStreamRead(this::streamRead);
 		connectorFunctions.supportTimestampToStreamOffset(this::streamOffset);
 		connectorFunctions.supportErrorHandleFunction(this::errorHandle);
