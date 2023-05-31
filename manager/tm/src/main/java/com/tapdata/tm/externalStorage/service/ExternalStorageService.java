@@ -11,7 +11,6 @@ import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.ds.utils.UriRootConvertUtils;
 import com.tapdata.tm.externalStorage.entity.ExternalStorageEntity;
 import com.tapdata.tm.externalStorage.repository.ExternalStorageRepository;
 import com.tapdata.tm.task.entity.TaskEntity;
@@ -29,6 +28,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -157,6 +157,13 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 				}
 			}
 			externalStorageDtoPage.setItems(maskPasswordIfNeed(externalStorageDtoPage.getItems()));
+			externalStorageDtoPage.getItems().forEach(ets -> {
+				if (null == ets.getCreateAt() && null != ets.getId()) {
+					ObjectId id = ets.getId();
+					int timestamp = id.getTimestamp();
+					ets.setCreateAt(new Date(timestamp * 1000L));
+				}
+			});
 		}
 		return externalStorageDtoPage;
 	}
