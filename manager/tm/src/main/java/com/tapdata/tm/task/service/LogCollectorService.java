@@ -1462,7 +1462,7 @@ public class LogCollectorService {
         }
     }
 
-    public Page<ShareCdcTableInfo> tableInfos(String taskId, String connectionId, Integer page, Integer size, UserDetail user) {
+    public Page<ShareCdcTableInfo> tableInfos(String taskId, String connectionId, String keyword, Integer page, Integer size, UserDetail user) {
         TaskDto shareCdcTask = taskService.findById(MongoUtils.toObjectId(taskId), user);
         DAG dag = shareCdcTask.getDag();
         List<Node> sources = dag.getSources();
@@ -1477,15 +1477,15 @@ public class LogCollectorService {
             LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
             tableNames = logCollecotrConnConfig.getTableNames();
         }
-        return getShareCdcTableInfoPage(connectionId, page, size, user, tableNames, logCollectorNode.getId(), taskId);
+        return getShareCdcTableInfoPage(connectionId, page, size, user, tableNames, keyword, logCollectorNode.getId(), taskId);
     }
 
 
-    public Page<ShareCdcTableInfo> excludeTableInfos(String taskId, String connectionId, Integer page, Integer size, UserDetail user) {
+    public Page<ShareCdcTableInfo> excludeTableInfos(String taskId, String connectionId, String keyword, Integer page, Integer size, UserDetail user) {
         TaskDto shareCdcTask = taskService.findById(MongoUtils.toObjectId(taskId), user);
         DAG dag = shareCdcTask.getDag();
         List<Node> sources = dag.getSources();
-        LogCollectorNode logCollectorNode = (LogCollectorNode)sources.get(0);
+        LogCollectorNode logCollectorNode = (LogCollectorNode) sources.get(0);
         Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
         List<String> tableNames = new ArrayList<>();
         if (logCollectorConnConfigs == null || logCollectorConnConfigs.size() == 0) {
@@ -1496,13 +1496,16 @@ public class LogCollectorService {
             LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
             tableNames = logCollecotrConnConfig.getExclusionTables();
         }
-        return getShareCdcTableInfoPage(connectionId, page, size, user, tableNames, logCollectorNode.getId(), taskId);
+        return getShareCdcTableInfoPage(connectionId, page, size, user, tableNames, keyword, logCollectorNode.getId(), taskId);
     }
 
     @NotNull
     private Page<ShareCdcTableInfo> getShareCdcTableInfoPage(String connectionId, Integer page, Integer size, UserDetail user
-            , List<String> tableNames, String nodeId, String taskId) {
+            , List<String> tableNames, String keyword, String nodeId, String taskId) {
         int limit = (page - 1) * size;
+        if (tableNames != null && StringUtils.isNotEmpty(keyword)) {
+            tableNames = tableNames.stream().filter(tableName -> tableName.contains(keyword)).collect(Collectors.toList());
+        }
         int tableCount = tableNames == null ? 0 : tableNames.size();
 
         Field field = new Field();
