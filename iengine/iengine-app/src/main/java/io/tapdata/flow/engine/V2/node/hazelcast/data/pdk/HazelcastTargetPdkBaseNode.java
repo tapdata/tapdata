@@ -963,7 +963,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				TableNode tableNode = (TableNode) node;
 				String tableName = tableNode.getTableName();
 				List<String> tables = new ArrayList<>();
-				tables.add(tableName);
+				if (exactlyOnceWriteTables.contains(tableName)) {
+					tables.add(tableName);
+				}
 				return tables;
 			} else if (node instanceof DatabaseNode) {
 				// Nonsupport
