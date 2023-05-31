@@ -1,0 +1,25 @@
+[
+  {
+    "insert": "Settings",
+    "documents": [
+      {
+        "category": "System",
+        "hot_reloading": false,
+        "key": "shareAgentCreateUser",
+        "scope": "global",
+        "user_visible": false,
+        "value": "18973231732",
+        "default_value": "18973231732"
+      },
+      {
+        "category": "System",
+        "hot_reloading": false,
+        "key": "shareAgentExprireDays",
+        "scope": "global",
+        "user_visible": false,
+        "value": "14",
+        "default_value": "14"
+      }
+    ]
+  }
+]

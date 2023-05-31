@@ -88,7 +88,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
 
         if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(taskDto.getAccessNodeType())
                 && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
-            int num = taskService.runningTaskNum(taskDto.getAgentId(), user);
+            int num = taskService.runningTaskNum(taskDto.getAgentId());
             WorkerDto workerDto = workerService.findByProcessId(taskDto.getAgentId(), user, "agentTags");
             int limitTaskNum = workerDto.getLimitTaskNum();
             if (limitTaskNum <= num) {

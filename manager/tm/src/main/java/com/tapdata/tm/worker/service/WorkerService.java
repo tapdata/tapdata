@@ -1,5 +1,7 @@
 package com.tapdata.tm.worker.service;
 
+import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.map.MapUtil;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
@@ -29,30 +31,31 @@ import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.scheduleTasks.dto.ScheduleTasksDto;
 import com.tapdata.tm.scheduleTasks.service.ScheduleTasksService;
 import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
+import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.WorkerSingletonLock;
 import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
 import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.entity.WorkerExpire;
 import com.tapdata.tm.worker.repository.WorkerRepository;
 import com.tapdata.tm.worker.vo.ApiWorkerStatusVo;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import io.firedome.MultiTaggedCounter;
 import io.micrometer.core.instrument.Metrics;
 import lombok.NonNull;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.bson.BsonValue;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -60,6 +63,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigInteger;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -69,9 +73,9 @@ import java.util.stream.Collectors;
  */
 @Service
 @Slf4j
-@Setter(onMethod_ = {@Autowired})
 public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, WorkerRepository> {
 
+    @Autowired
     private DataFlowService dataFlowService;
     @Autowired
     private ClusterStateService clusterStateService;
@@ -81,9 +85,10 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
     private SettingsService settingsService;
     @Autowired
     private ScheduleTasksService scheduleTasksService;
-
     @Autowired
     private TaskService taskService;
+    @Autowired
+    private MongoTemplate mongoTemplate;
 
     private final MultiTaggedCounter workerPing;
 
@@ -113,13 +118,27 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         return repository.findAll(query, userDetail);
     }
 
-    public List<Worker> findAllAgent(UserDetail userDetail) {
+    public List<Worker> findAllAgent(UserDetail userDetail, boolean isCloud) {
         if (Objects.isNull(userDetail)) {
             return null;
         }
+        AtomicReference<List<Worker>> workers = new AtomicReference<>();
         Criteria criteria = Criteria.where("worker_type").is("connector")
                 .and("isDeleted").ne(true);
-        return repository.findAll(Query.query(criteria), userDetail);
+        if (isCloud) {
+            // query user have share worker
+            WorkerExpire workerExpire = mongoTemplate.findOne(Query.query(Criteria.where("userId").is(userDetail.getUserId())), WorkerExpire.class);
+            FunctionUtils.isTureOrFalse(Objects.nonNull(workerExpire) && workerExpire.getExpireTime().after(new Date())).trueOrFalseHandle(
+                    () -> {
+                        criteria.orOperator(Criteria.where("user_id").is(userDetail.getUserId()), Criteria.where("createUser").is(workerExpire.getShareUser()));
+                        workers.set(repository.findAll(Query.query(criteria)));
+                    },
+                    () -> {workers.set(repository.findAll(Query.query(criteria), userDetail));}
+            );
+        } else {
+            workers.set(repository.findAll(Query.query(criteria), userDetail));
+        }
+        return workers.get();
     }
 
     @NotNull
@@ -137,11 +156,10 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
     private Criteria getAvailableAgentCriteria() {
         int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
-        Criteria criteria = Criteria.where("worker_type").is("connector")
+        return Criteria.where("worker_type").is("connector")
                 .and("ping_time").gte(System.currentTimeMillis() - (overTime * 1000L))
                 .and("isDeleted").ne(true).and("stopping").ne(true)
                 .and("agentTags").ne("disabledScheduleTask");
-        return criteria;
     }
 
     public List<Worker> findAvailableAgentBySystem(UserDetail user) {
@@ -330,7 +348,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                     .and("process_id").is(agentId);
             WorkerDto worker = findOne(Query.query(where));
 
-            int num = taskService.runningTaskNum(agentId, userDetail);
+            int num = taskService.runningTaskNum(agentId);
             if (Objects.nonNull(worker)) {
                 if (worker.getLimitTaskNum() > num || !type.equals("task")) {
                     calculationEngineVo.setProcessId(agentId);
@@ -379,7 +397,13 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                     .and("isDeleted").ne(true)
                     .and("stopping").ne(true);
             if (isCloud) {
-                where.and("user_id").is(userDetail.getUserId());
+                // query user have share worker
+                WorkerExpire workerExpire = mongoTemplate.findOne(Query.query(Criteria.where("userId").is(userDetail.getUserId())), WorkerExpire.class);
+                if (Objects.nonNull(workerExpire) && workerExpire.getExpireTime().after(new Date())) {
+                    where.orOperator(Criteria.where("user_id").is(userDetail.getUserId()), Criteria.where("createUser").is(workerExpire.getShareUser()));
+                } else {
+                    where.and("user_id").is(userDetail.getUserId());
+                }
             }
 
             if (isCloud && entity.getAgentTags() != null && entity.getAgentTags().size() > 0) {
@@ -407,7 +431,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                 if (worker.getWeight() == null) {
                     worker.setWeight(1);
                 }
-                long num = taskService.runningTaskNum(worker.getProcessId(), userDetail);
+                long num = taskService.runningTaskNum(worker.getProcessId());
                 if (worker.getLimitTaskNum() > num || !type.equals("task")) {
                     workerNum++;
 
@@ -488,8 +512,6 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         update.set("updateStatus", "fail");
         update.set("updateMsg", "time out");
         UpdateResult updateResult = update(query, update);
-
-        BsonValue upsertedId = updateResult.getUpsertedId();
         log.info("clean worker :{}", updateResult.getModifiedCount());
     }
 
@@ -663,5 +685,40 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             query.fields().include(fields);
         }
         return findOne(query, userDetail);
+    }
+
+    public void createShareWorker(WorkerExpireDto workerExpireDto, UserDetail loginUser) {
+        String userId = workerExpireDto.getUserId();
+        if (StringUtils.isBlank(userId)) {
+            return;
+        }
+
+        Object shareAgentDaysValue = settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.SHARE_AGENT_EXPRIRE_DAYS);
+        int shareAgentDays = Integer.parseInt(shareAgentDaysValue.toString());
+
+        Object shareAgentUserValue = settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.SHARE_AGENT_CREATE_USER);
+        if (Objects.isNull(shareAgentUserValue)) {
+            throw new BizException("SHARE_AGENT_CREATE_USER_NOT_FOUND", "未找到共享Agent用户");
+        }
+        String[] shareAgentUser = shareAgentUserValue.toString().split(",");
+
+        // get share agent user by random
+        String shareAgentUserRandom = shareAgentUser[new Random().nextInt(shareAgentUser.length)];
+
+        WorkerExpire workerExpire = new WorkerExpire();
+        workerExpire.setUserId(loginUser.getUserId());
+        workerExpire.setShareUser(shareAgentUserRandom);
+        workerExpire.setExpireTime(DateUtil.offsetDay(new Date(), shareAgentDays));
+
+        mongoTemplate.insert(workerExpire);
+    }
+
+    public WorkerExpireDto getShareWorker(UserDetail userDetail) {
+        WorkerExpire workerExpire = mongoTemplate.findOne(Query.query(Criteria.where("userId").is(userDetail.getUserId())), WorkerExpire.class);
+        if (Objects.nonNull(workerExpire) && workerExpire.getExpireTime().after(new Date())) {
+            return BeanUtil.copyProperties(workerExpire, WorkerExpireDto.class);
+        }
+
+        return null;
     }
 }

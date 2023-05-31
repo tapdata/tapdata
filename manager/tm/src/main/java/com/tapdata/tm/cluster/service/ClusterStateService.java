@@ -333,12 +333,12 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
     public List<AccessNodeInfo> findAccessNodeInfo(UserDetail userDetail) {
         //需要过滤有效的work数据
         List<AccessNodeInfo> result = Lists.newArrayList();
-        List<Worker> workerList = workerService.findAllAgent(userDetail);
+        boolean isCloud = settingsService.isCloud();
+        List<Worker> workerList = workerService.findAllAgent(userDetail, isCloud);
         if (CollectionUtils.isEmpty(workerList)) {
             return result;
         }
 
-        boolean isCloud = settingsService.isCloud();
         int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
         long liveTime = System.currentTimeMillis() - (overTime * 1000L);
 
