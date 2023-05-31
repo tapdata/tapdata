@@ -14,7 +14,6 @@
 
 - Open Key ID：申請開通接入帳號後（由SHEIN後臺錄入，提供給用戶openKeyId），將獲取到的openKeyId填入此輸入框
 - Secret Key：申請開通接入帳號（由SHEIN後臺錄入，提供給用戶secretKey），將獲取到的secretKey填入到此輸入款
-- 環境地址：應SHEIN安全部要求，接入驗收環境的供應商的帳號只能允許最多有7天有效期。 過期後，如需要重新對接，請聯系對應對接人
 
 #### 作為源
 

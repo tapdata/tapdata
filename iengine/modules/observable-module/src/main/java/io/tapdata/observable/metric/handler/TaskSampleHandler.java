@@ -116,13 +116,17 @@ public class TaskSampleHandler extends AbstractHandler {
                 CURR_SNAPSHOT_TABLE_ROW_TOTAL,
                 CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL,
                 OUTPUT_QPS_MAX,
-                OUTPUT_QPS_AVG
+                OUTPUT_QPS_AVG,
+                TABLE_TOTAL
         );
     }
 
     public void doInit(Map<String, Number> values) {
+        Number tableTotal = values.getOrDefault(TABLE_TOTAL, null);
         collector.addSampler(TABLE_TOTAL, () -> {
-            if (CollectionUtils.isNotEmpty(taskTables)) {
+            if (Objects.nonNull(tableTotal)) {
+                return tableTotal.longValue();
+            } else if (CollectionUtils.isNotEmpty(taskTables)) {
                 if (Objects.nonNull(snapshotTableTotal.value())) {
                     return Math.max(snapshotTableTotal.value().longValue(), taskTables.size());
                 } else {
@@ -212,7 +216,7 @@ public class TaskSampleHandler extends AbstractHandler {
                 }
                 return null;
             }
-            return null;
+            return snapshotDoneAt;
         });
 
         collector.addSampler(SNAPSHOT_DONE_COST, () -> {

@@ -105,9 +105,9 @@
 					}
 				],
 				"url": {
-					"raw": "{{domain}}/open-api/order/purchase-order-infos?type=0,1&pageSize=1000000&pageNumber=1&updateTimeStart={{updateTimeStart}}&updateTimeEnd={{updateTimeEnd}}",
+					"raw": "https://openapi.sheincorp.cn/open-api/order/purchase-order-infos?type=1,2&pageSize={{pageSize}}&pageNumber={{pageNumber}}&updateTimeStart={{updateTimeStart}}&updateTimeEnd={{updateTimeEnd}}",
 					"host": [
-						"{{domain}}"
+						"https://openapi.sheincorp.cn"
 					],
 					"path": [
 						"open-api",
@@ -145,7 +145,7 @@
 	"variable": [
 		{
 			"key": "domain",
-			"value": "https://openapi-sit01.dotfashion.cn",
+			"value": "https://openapi.sheincorp.cn",
 			"type": "default"
 		}
 	]
