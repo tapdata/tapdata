@@ -30,6 +30,7 @@ import java.util.function.BiPredicate;
  **/
 public class RetryUtils extends CommonUtils {
 	private static final AutoRetryPolicy autoRetryPolicy = AutoRetryPolicy.ALWAYS;
+	public static final String LOG_PREFIX = "[Auto Retry] ";
 	private static List<Class<? extends Throwable>> defaultRetryIncludeList;
 	private static BiPredicate<Throwable, Class<? extends Throwable>> matchFilter;
 
@@ -56,6 +57,7 @@ public class RetryUtils extends CommonUtils {
 		String message = invoker.getMessage();
 		String logTag = invoker.getLogTag();
 		boolean async = invoker.isAsync();
+		boolean doRetry = false;
 		long retryPeriodSeconds = invoker.getRetryPeriodSeconds();
 		if (retryPeriodSeconds <= 0) {
 			throw new IllegalArgumentException("PeriodSeconds can not be zero or less than zero");
@@ -63,6 +65,10 @@ public class RetryUtils extends CommonUtils {
 		while (invoker.getRetryTimes() >= 0) {
 			try {
 				runnable.run();
+				if (doRetry) {
+					Optional.ofNullable(invoker.getLogListener())
+							.ifPresent(log -> log.info(LOG_PREFIX + String.format("Method (%s) retry succeed", method.name().toLowerCase())));
+				}
 				break;
 			} catch (Throwable errThrowable) {
 				if (invoker.isEnableSkipErrorEvent()) {
@@ -101,7 +107,8 @@ public class RetryUtils extends CommonUtils {
 						throwIfNeed(invoker, retryOptions, message, errThrowable);
 					}
 					Optional.ofNullable(invoker.getLogListener())
-							.ifPresent(log -> log.warn(String.format("AutoRetry info: retry times (%s) | periodSeconds (%s s) | error [%s] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds, errThrowable.getMessage())));
+							.ifPresent(log -> log.warn(String.format(LOG_PREFIX + "Method (%s) encountered an error, triggering auto retry.\n - Error message: %s\n - Remaining retry %s time(s)\n - Period %s second(s)",
+									method.name().toLowerCase(), errThrowable.getMessage(), invoker.getRetryTimes(), retryPeriodSeconds)));
 					invoker.setRetryTimes(retryTimes - 1);
 					if (async) {
 						ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> autoRetry(node, method, invoker), retryPeriodSeconds, TimeUnit.SECONDS);
@@ -119,6 +126,7 @@ public class RetryUtils extends CommonUtils {
 					if (null != invoker.getStartRetry()) {
 						invoker.getStartRetry().run();
 					}
+					doRetry = true;
 				} else {
 					wrapAndThrowError(errThrowable);
 				}
@@ -136,7 +144,7 @@ public class RetryUtils extends CommonUtils {
 
 	private static Throwable getLastCause(Throwable e) {
 		Throwable last = e;
-		while(null != last.getCause()) {
+		while (null != last.getCause()) {
 			last = last.getCause();
 		}
 		return last;
@@ -147,7 +155,8 @@ public class RetryUtils extends CommonUtils {
 			String code = ((TapCodeException) errThrowable).getCode();
 			ErrorCodeEntity errorCode = ErrorCodeConfig.getInstance().getErrorCode(code);
 			if (null != errorCode && !errorCode.isRecoverable()) {
-				return RetryOptions.create().beforeRetryMethod(() -> {}).needRetry(false);
+				return RetryOptions.create().beforeRetryMethod(() -> {
+				}).needRetry(false);
 			}
 		}
 
