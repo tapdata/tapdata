@@ -1,6 +1,6 @@
 package io.tapdata.connector.tidb.config;
 
-import io.tapdata.common.CommonDbConfig;
+import io.tapdata.connector.mysql.config.MysqlConfig;
 
 import java.io.Serializable;
 import java.util.Map;
@@ -8,7 +8,7 @@ import java.util.Map;
 /**
  * @author lemon
  */
-public class TidbConfig extends CommonDbConfig implements Serializable {
+public class TidbConfig extends MysqlConfig implements Serializable {
 
     private String pdServer;
     private boolean enableIncrement;
@@ -17,7 +17,6 @@ public class TidbConfig extends CommonDbConfig implements Serializable {
     private String mqUsername;
     private String mqPassword;
     private String ticdcUrl;
-    private String timezone;
 
     public String getTicdcUrl() {
         return ticdcUrl;
@@ -73,14 +72,6 @@ public class TidbConfig extends CommonDbConfig implements Serializable {
 
     public void setPdServer(String pdServer) {
         this.pdServer = pdServer;
-    }
-
-    public String getTimezone() {
-        return timezone;
-    }
-
-    public void setTimezone(String timezone) {
-        this.timezone = timezone;
     }
 
     public TidbConfig() {
