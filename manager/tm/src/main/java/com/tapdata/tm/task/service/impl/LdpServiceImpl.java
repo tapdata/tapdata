@@ -910,8 +910,10 @@ public class LdpServiceImpl implements LdpService {
         tasks = tasks.stream().filter(t -> isTargetNode(t.getDag(), fdmStorageConnectionId)).collect(Collectors.toList());
 
         for (TaskDto task : tasks) {
+            task.setLdpType(TaskDto.LDP_TYPE_FDM);
             createFdmTags(task, user);
             createLdpMetaByTask(task, user);
+            taskService.updateById(task.getId(), Update.update("ldpType", TaskDto.LDP_TYPE_FDM), user);
         }
     }
 
@@ -943,7 +945,9 @@ public class LdpServiceImpl implements LdpService {
         tasks = tasks.stream().filter(t -> isTargetNode(t.getDag(), mdmStorageConnectionId)).collect(Collectors.toList());
 
         for (TaskDto task : tasks) {
+            task.setLdpType(TaskDto.LDP_TYPE_MDM);
             createLdpMetaByTask(task, user);
+            taskService.updateById(task.getId(), Update.update("ldpType", TaskDto.LDP_TYPE_MDM), user);
         }
     }
 
