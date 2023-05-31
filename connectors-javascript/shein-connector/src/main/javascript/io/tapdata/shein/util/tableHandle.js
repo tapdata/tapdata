@@ -56,7 +56,6 @@ class ShippingOrder extends DefaultTable {
         if (!isValue(offset)){
             offset = {};
         }
-        log.warn("data now: {}", new Date().getTime() , dateUtils.timeStamp2Date(BigInt(new Date().getTime()), "yyyy-MM-dd HH:mm:ss"))
         if (!isValue(offset.ShippingOrder)){
             offset.ShippingOrder = {
                     'hasNext' : true,
@@ -109,7 +108,6 @@ class ShippingOrder extends DefaultTable {
         while(isAlive() && offset.ShippingOrder.hasNext){
             let timeStamp = new Date().getTime();
             let signatureRule = getSignatureRules(openKeyId, secretKey,"/open-api/order/purchase-order-infos", timeStamp);
-            //log.warn("index: {}" , offset.ShippingOrder.pageIndex)
             let goods = invoker.invoke("Shopping", {
                 "pageNumber": offset.ShippingOrder.pageIndex,
                 "pageSize": 200,
@@ -204,7 +202,6 @@ class ShippingOrder extends DefaultTable {
                        continue;
                    }
                 }
-                //log.warn("addTime: {}, updateTime: {}", addTime, updateTime);
 
                 let cacheKey = orderNo + "_C" + addTime + "_U" + updateTime;
                 if (updateTime === this.time){
