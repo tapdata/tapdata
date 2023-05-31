@@ -31,6 +31,7 @@ import java.util.function.BiPredicate;
 public class RetryUtils extends CommonUtils {
 	private static final AutoRetryPolicy autoRetryPolicy = AutoRetryPolicy.ALWAYS;
 	public static final String LOG_PREFIX = "[Auto Retry] ";
+	public static final long DEFAULT_RETRY_PERIOD_SECONDS = 60L;
 	private static List<Class<? extends Throwable>> defaultRetryIncludeList;
 	private static BiPredicate<Throwable, Class<? extends Throwable>> matchFilter;
 
@@ -58,10 +59,7 @@ public class RetryUtils extends CommonUtils {
 		String logTag = invoker.getLogTag();
 		boolean async = invoker.isAsync();
 		boolean doRetry = false;
-		long retryPeriodSeconds = invoker.getRetryPeriodSeconds();
-		if (retryPeriodSeconds <= 0) {
-			throw new IllegalArgumentException("PeriodSeconds can not be zero or less than zero");
-		}
+		long retryPeriodSeconds = invoker.getRetryPeriodSeconds() <= 0 ? DEFAULT_RETRY_PERIOD_SECONDS : invoker.getRetryPeriodSeconds();
 		while (invoker.getRetryTimes() >= 0) {
 			try {
 				runnable.run();
