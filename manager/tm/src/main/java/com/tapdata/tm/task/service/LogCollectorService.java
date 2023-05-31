@@ -1094,8 +1094,12 @@ public class LogCollectorService {
     }
 
     private void pause(TaskDto oldLogCollectorTask, UserDetail user) {
+        pause(oldLogCollectorTask, true, user);
+    }
+
+    private void pause(TaskDto oldLogCollectorTask, boolean restart, UserDetail user) {
         if (TaskDto.STATUS_RUNNING.equals(oldLogCollectorTask.getStatus())) {
-            taskService.pause(oldLogCollectorTask.getId(), user, false, true);
+            taskService.pause(oldLogCollectorTask.getId(), user, false, restart);
             return;
         }
 
@@ -1582,7 +1586,7 @@ public class LogCollectorService {
       }
 
 			taskService.update(Query.query(Criteria.where("_id").is(taskDto.getId())), taskDto);
-      taskService.pause(taskDto.getId(), user, false, !deleteTask);
+      pause(taskDto, !deleteTask, user);
       if (deleteTask) {
           log.info("No tables need to collect logs, the task [{}-{}] will be deleted. ", taskDto.getId(), taskDto.getName());
           taskService.remove(taskDto.getId(), user);
