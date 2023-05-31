@@ -116,7 +116,7 @@ public class RegisterMain {
         // -Dserver=http://192.168.1.181:31321
         // -Dbeta=true
 
-        List<String> postList = new ArrayList<>();//http://139.198.127.204:30564
+        List<String> postList = new ArrayList<>();
 //        String server = System.getProperty("server", "https://uat.cloud.tapdata.net:9443/tm");
         String server = System.getProperty("server", "http://localhost:3000");
         //String server = System.getProperty("server", "http://192.168.1.189:30205");

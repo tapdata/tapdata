@@ -108,7 +108,7 @@ class ShippingOrder extends DefaultTable {
         while(isAlive() && offset.ShippingOrder.hasNext){
             let timeStamp = new Date().getTime();
             let signatureRule = getSignatureRules(openKeyId, secretKey,"/open-api/order/purchase-order-infos", timeStamp);
-            log.warn("index: {}" , offset.ShippingOrder.pageIndex)
+            //log.warn("index: {}" , offset.ShippingOrder.pageIndex)
             let goods = invoker.invoke("Shopping", {
                 "pageNumber": offset.ShippingOrder.pageIndex,
                 "pageSize": 200,
@@ -165,9 +165,9 @@ class ShippingOrder extends DefaultTable {
             let pageList = pageInfo.list;
             try{
                 offset.ShippingOrder.pageIndex = !isNaN(pageNo) ? (pageNo + 1) : (parseInt(pageNo) + 1);
-                log.warn("index: {}" , offset.ShippingOrder.pageIndex)
+                //log.warn("index: {}" , offset.ShippingOrder.pageIndex)
                 offset.ShippingOrder.hasNext = (((pageNo - 1) * pageSize + pageList.length) < count);
-                log.warn("Has next: {}" , offset.ShippingOrder.hasNext)
+                //log.warn("Has next: {}" , offset.ShippingOrder.hasNext)
             }catch (e){
                 log.warn(exceptionUtil.eMessage(e));
                 return null;
