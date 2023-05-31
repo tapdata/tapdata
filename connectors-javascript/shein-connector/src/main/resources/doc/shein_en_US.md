@@ -14,7 +14,6 @@ The connection properties that need to be configured to create a connection incl
 
 - Open Key ID: After applying to open an access account (entered by the SHEIN backend and provided to the user with openKeyId), fill the obtained openKeyId in this input box
 - Secret Key: Apply to open an access account (entered by the SHEIN backend and provided to the user's secretKey), and fill the obtained secretKey into this input account
-- Environmental address: According to the requirements of SHEIN Security Department, the accounts of suppliers accessing the acceptance environment can only have a maximum validity period of 7 days. After expiration, if you need to reconnect, please contact the corresponding person
 
 #### As a source
 

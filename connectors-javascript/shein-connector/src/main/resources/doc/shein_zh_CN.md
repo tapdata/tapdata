@@ -14,7 +14,6 @@
 
 - Open Key ID：申请开通接入账号后（由 SHEIN 后台录入，提供给用户 openKeyId），将获取到的openKeyId填入此输入框
 - Secret Key：申请开通接入账号（由 SHEIN 后台录入，提供给用户 secretKey），将获取到的secretKey填入到此输入款
-- 环境地址：应SHEIN安全部要求，接入验收环境的供应商的账号只能允许最多有 7 天有效期。过期后，如需要重新对接，请联系对应对接人。
 
 #### 作为源
 
