@@ -483,7 +483,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     }
 
 	private void handleTapdataCompleteTableSnapshotEvent(TapdataCompleteTableSnapshotEvent tapdataEvent) {
-		String sourceTableName = tapdataEvent.getSourceTableName();
 		List<String> nodeIds = tapdataEvent.getNodeIds();
 		if (CollectionUtils.isEmpty(nodeIds) && nodeIds.size() >= 1) {
 			return;
@@ -496,6 +495,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		SnapshotOrderController snapshotOrderController = SnapshotOrderService.getInstance().getController(dataProcessorContext.getTaskDto().getId().toHexString());
 		if (null != snapshotOrderController) {
 			snapshotOrderController.finish(srcNode);
+			snapshotOrderController.flush();
 		}
 	}
 
