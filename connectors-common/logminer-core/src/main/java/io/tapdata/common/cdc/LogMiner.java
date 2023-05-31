@@ -16,6 +16,7 @@ import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -114,7 +115,7 @@ public abstract class LogMiner implements ILogMiner {
     }
 
     protected void processOrBuffRedoLogContent(RedoLogContent redoLogContent,
-                                               Consumer<Map<String, LogTransaction>> redoLogContentConsumer) {
+                                               Consumer<Map<String, LogTransaction>> redoLogContentConsumer) throws IOException {
         long scn = redoLogContent.getScn();
         String rsId = redoLogContent.getRsId();
         String xid = redoLogContent.getXid();
@@ -157,17 +158,13 @@ public abstract class LogMiner implements ILogMiner {
                 } else {
                     LogTransaction logTransaction = transactionBucket.get(xid);
                     Map<String, List> redoLogContents = logTransaction.getRedoLogContents();
-                    try {
-                        if (!needToAborted(operation, redoLogContent, redoLogContents)) {
-                            logTransaction.addRedoLogContent(redoLogContent);
-                            logTransaction.incrementSize(1);
-                            long txLogContentsSize = logTransaction.getSize();
-                            if (txLogContentsSize % logTransaction.getLargeTransactionUpperLimit() == 0) {
-                                tapLogger.info(TapLog.CON_LOG_0008.getMsg(), xid, txLogContentsSize);
-                            }
+                    if (!needToAborted(operation, redoLogContent, redoLogContents)) {
+                        logTransaction.addRedoLogContent(redoLogContent);
+                        logTransaction.incrementSize(1);
+                        long txLogContentsSize = logTransaction.getSize();
+                        if (txLogContentsSize % logTransaction.getLargeTransactionUpperLimit() == 0) {
+                            tapLogger.info(TapLog.CON_LOG_0008.getMsg(), xid, txLogContentsSize);
                         }
-                    } catch (Exception e) {
-                        tapLogger.warn(e.getMessage());
                     }
                 }
                 break;
