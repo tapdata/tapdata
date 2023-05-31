@@ -1,3 +1,6 @@
+
+config.setStreamReadIntervalSeconds(2*60);
+
 function discoverSchema(connectionConfig) {
     return Object.values(globalTableConfig);
 }

@@ -61,13 +61,13 @@ class ShippingOrder extends DefaultTable {
                     'hasNext' : true,
                     'pageIndex' : 1,
                     'updateTimeStart': '1970-01-01 00:00:00',
-                    'updateTimeEnd': dateUtils.timeStamp2Date(new Date().getTime() + "", "yyyy-MM-dd hh:mm:ss")
+                    'updateTimeEnd': dateUtils.timeStamp2Date(BigInt(new Date().getTime()), "yyyy-MM-dd hh:mm:ss")
                  }
         }
         if (!isValue(offset.ShippingOrder.hasNext) || !(typeof (offset.ShippingOrder.hasNext) === 'boolean')) offset.ShippingOrder.hasNext = true;
         if (!isValue(offset.ShippingOrder.pageIndex) || !(typeof (offset.ShippingOrder.pageIndex) === 'number')) offset.ShippingOrder.pageIndex = 1;
         if (!isValue(offset.ShippingOrder.updateTimeStart)) offset.ShippingOrder.updateTimeStart = '1970-01-01 00:00:00';
-        if (!isValue(offset.ShippingOrder.updateTimeEnd)) offset.ShippingOrder.updateTimeEnd = dateUtils.timeStamp2Date(new Date().getTime() + "", "yyyy-MM-dd hh:mm:ss");
+        if (!isValue(offset.ShippingOrder.updateTimeEnd)) offset.ShippingOrder.updateTimeEnd = dateUtils.timeStamp2Date(BigInt(new Date().getTime()), "yyyy-MM-dd hh:mm:ss");
         return offset;
     }
 
@@ -83,13 +83,13 @@ class ShippingOrder extends DefaultTable {
             offset.ShippingOrder = {
                 'hasNext' : true,
                 'pageIndex' : 1,
-                'updateTimeStart': 0 !== timeStream ? timeStream : dateUtils.timeStamp2Date(new Date().getTime() + "", "yyyy-MM-dd hh:mm:ss"),
+                'updateTimeStart': dateUtils.timeStamp2Date(BigInt(0 !== timeStream ? timeStream : (new Date().getTime())), "yyyy-MM-dd hh:mm:ss"),
                 'updateTimeEnd': '2999-12-31 23:59:59'
             }
         }
         if (!isValue(offset.ShippingOrder.hasNext) || !(typeof (offset.ShippingOrder.hasNext) === 'boolean')) offset.ShippingOrder.hasNext = true;
         if (!isValue(offset.ShippingOrder.pageIndex) || !(typeof (offset.ShippingOrder.pageIndex) === 'number')) offset.ShippingOrder.pageIndex = 1;
-        if (!isValue(offset.ShippingOrder.updateTimeStart)) offset.ShippingOrder.updateTimeStart = 0 !== timeStream ? timeStream : dateUtils.timeStamp2Date(new Date().getTime() + "", "yyyy-MM-dd hh:mm:ss");
+        if (!isValue(offset.ShippingOrder.updateTimeStart)) offset.ShippingOrder.updateTimeStart = dateUtils.timeStamp2Date(BigInt(0 !== timeStream ? timeStream : (new Date().getTime())), "yyyy-MM-dd hh:mm:ss");
         if (!isValue(offset.ShippingOrder.updateTimeEnd)) offset.ShippingOrder.updateTimeEnd = '2999-12-31 23:59:59';
         return offset;
     }
@@ -108,8 +108,10 @@ class ShippingOrder extends DefaultTable {
         while(isAlive() && offset.ShippingOrder.hasNext){
             let timeStamp = new Date().getTime();
             let signatureRule = getSignatureRules(openKeyId, secretKey,"/open-api/order/purchase-order-infos", timeStamp);
+            log.warn("index: {}" , offset.ShippingOrder.pageIndex)
             let goods = invoker.invoke("Shopping", {
                 "pageNumber": offset.ShippingOrder.pageIndex,
+                "pageSize": 200,
                 "x-lt-signature": signatureRule,
                 "x-lt-timestamp": BigInt(timeStamp),
                 "updateTimeStart": offset.ShippingOrder.updateTimeStart,
@@ -144,26 +146,28 @@ class ShippingOrder extends DefaultTable {
                 );
                 return null;
             }
-            let pageNo = result.pageNo;
+            let pageNo = pageInfo.pageNo;
 
             let count = 0;
             try {
-                count = !isNaN(result.count) ? result.count : parseInt(result.count);
+                count = !isNaN(pageInfo.count) ? pageInfo.count : parseInt(pageInfo.count);
             }catch (e){
                 log.warn(exceptionUtil.eMessage(e));
                 return null;
             }
             let pageSize = 0;
             try {
-                pageSize = !isNaN(result.pageSize) ? result.pageSize : parseInt(result.pageSize);
+                pageSize = !isNaN(pageInfo.pageSize) ? pageInfo.pageSize : parseInt(pageInfo.pageSize);
             }catch (e) {
                 log.warn(exceptionUtil.eMessage(e));
                 return null;
             }
-            let pageList = result.list;
+            let pageList = pageInfo.list;
             try{
-                offset.ShippingOrder.pageIndex = !isNaN(pageNo) ? (pageNo + 1) : parseInt(pageNo) + 1;
-                offset.ShippingOrder.hasNext = ((pageNo - 1) * pageSize + pageList.length < count);
+                offset.ShippingOrder.pageIndex = !isNaN(pageNo) ? (pageNo + 1) : (parseInt(pageNo) + 1);
+                log.warn("index: {}" , offset.ShippingOrder.pageIndex)
+                offset.ShippingOrder.hasNext = (((pageNo - 1) * pageSize + pageList.length) < count);
+                log.warn("Has next: {}" , offset.ShippingOrder.hasNext)
             }catch (e){
                 log.warn(exceptionUtil.eMessage(e));
                 return null;
@@ -202,7 +206,7 @@ class ShippingOrder extends DefaultTable {
                 let cacheKey = orderNo + "_C" + addTime + "_U" + updateTime;
                 if (updateTime === this.time){
                     if (this.shippingOrderNoHistory.includes(cacheKey)){
-                        log.info("The current data has been processed and is about to be ignored. Please be informed: {}", cacheKey);
+                        log.info("The current data has been processed and is about to be ignored. Please be informed: OrderNo{}", cacheKey);
                         continue;
                     }
                     this.shippingOrderNoHistory.push(cacheKey);
