@@ -30,7 +30,7 @@ public class NodeDeserialize extends JsonDeserializer<List<Node>> {
 			if (map != null && StringUtils.isNotBlank((CharSequence) map.get("type"))) {
 				String type = (String) map.get("type");
 				Class<? extends Node> clazz = DAG.getClassByType(type);
-				String json = JsonUtil.toJsonUseJackson(map);
+				String json = JsonUtil.toJson(map);
 				nodes.add(JsonUtil.parseJsonUseJackson(json, clazz));
 			}
 		}

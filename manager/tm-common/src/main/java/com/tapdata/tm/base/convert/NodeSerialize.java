@@ -20,7 +20,7 @@ public class NodeSerialize extends JsonSerializer<List<Node>> {
 	@Override
 	public void serialize(List<Node> value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
 		if (value != null) {
-			String json = JsonUtil.toJsonUseJackson(value);
+			String json = JsonUtil.toJson(value);
 			List<Map<String, Object>> objectMap = JsonUtil.parseJsonUseJackson(json, new TypeReference<List<Map<String, Object>>>() {
 			});
 			gen.writeObject(objectMap);
