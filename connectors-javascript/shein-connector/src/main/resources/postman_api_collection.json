@@ -105,7 +105,7 @@
 					}
 				],
 				"url": {
-					"raw": "https://openapi.sheincorp.cn/open-api/order/purchase-order-infos?type=0,1&pageSize={{pageSize}}&pageNumber={{pageNumber}}&updateTimeStart={{updateTimeStart}}&updateTimeEnd={{updateTimeEnd}}",
+					"raw": "https://openapi.sheincorp.cn/open-api/order/purchase-order-infos?type=1,2&pageSize={{pageSize}}&pageNumber={{pageNumber}}&updateTimeStart={{updateTimeStart}}&updateTimeEnd={{updateTimeEnd}}",
 					"host": [
 						"https://openapi.sheincorp.cn"
 					],
