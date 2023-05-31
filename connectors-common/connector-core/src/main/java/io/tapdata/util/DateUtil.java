@@ -357,7 +357,11 @@ public class DateUtil {
             return dateString;
         }
         DateTimeFormatter DT_FORMATTER = DateTimeFormatter.ofPattern(dateFormat);
-        return LocalDateTime.parse(dateString, DT_FORMATTER).atZone(TimeZone.getDefault().toZoneId()).toInstant();
+        if (dateFormat.contains("H")) {
+            return LocalDateTime.parse(dateString, DT_FORMATTER).atZone(TimeZone.getDefault().toZoneId()).toInstant();
+        } else {
+            return LocalDate.parse(dateString, DT_FORMATTER).atStartOfDay(TimeZone.getDefault().toZoneId()).toInstant();
+        }
     }
 
     /**
