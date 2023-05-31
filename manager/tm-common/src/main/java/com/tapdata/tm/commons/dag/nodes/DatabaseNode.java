@@ -213,7 +213,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             return;
         }
 
-        List<String> tables = getSourceNodeTableNames();
+        List<String> tables = sourceNodeTableNames();
 
         if (CollectionUtils.isNotEmpty(tables)) {
             tableNames.removeIf(String::isEmpty);
@@ -230,7 +230,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
         }
     }
 
-    public List<String> getSourceNodeTableNames() {
+    public List<String> sourceNodeTableNames() {
         AtomicReference<List<String>> tableNames = new AtomicReference<>();
 
         this.getDag().getSourceNode().stream()

@@ -790,7 +790,7 @@ public class LogCollectorService {
 
                 } else if (node instanceof DatabaseNode) {
                     if (connectionIds.contains(((DatabaseNode) node).getConnectionId())) {
-                        nodeTableNames = ((DatabaseNode) node).getSourceNodeTableNames();
+                        nodeTableNames = ((DatabaseNode) node).sourceNodeTableNames();
                     }
                 }
             }
@@ -911,7 +911,7 @@ public class LogCollectorService {
                     if (node instanceof TableNode) {
                         tableNames.add(((TableNode) node).getTableName());
                     } else if (node instanceof DatabaseNode) {
-                        tableNames = ((DatabaseNode) node).getSourceNodeTableNames();
+                        tableNames = ((DatabaseNode) node).sourceNodeTableNames();
                     }
                 }
             }
