@@ -16,18 +16,19 @@ function streamRead(connectionConfig, nodeConfig, offset, tableNameList, pageSiz
     let tableHandles = [];
     for (let index = 0; index < tableNameList.length; index++) {
         let handle = tableHandle.handle(tableNameList[index]);
-        if (handle instanceof DefaultTable){
+        if (null == handle){
             log.warn("Table can not be support stream read, and will ignore table which name is {}", tableNameList[index]);
+            continue;
         }
         tableHandles.push(handle);
     }
-    while (isAlive()){
-        for (let index = 0; index < tableHandles.length; index++) {
-            if (!isAlive()) break;
-            let tableHandel = tableHandles[index];
-            tableHandel.streamReadV(connectionConfig, nodeConfig, offset, pageSize, streamReadSender);
-        }
+    //while (isAlive()){
+    for (let index = 0; index < tableHandles.length; index++) {
+        if (!isAlive()) break;
+        let tableHandel = tableHandles[index];
+        tableHandel.streamReadV(connectionConfig, nodeConfig, offset, pageSize, streamReadSender);
     }
+    //}
 }
 
 function connectionTest(connectionConfig) {

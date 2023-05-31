@@ -176,7 +176,7 @@ function getSignatureRules(openKeyId, secretKey, urlPath, time){
     let base64 = new Base64();
     let result = base64.encode(hmacSha256);
     //log.warn("result: {}", result)
-    log.info("SignatureRule: {}, time: {}", randomStr + result, time)
+    //log.info("SignatureRule: {}, time: {}", randomStr + result, time)
     return randomStr + result;
 }
 

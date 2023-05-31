@@ -1,9 +1,10 @@
 var tableHandle = {
     handle: function (tableName) {
-        if ('undefined' === tableName || tableName == null || '' === tableName) return new DefaultTable();
+        if ('undefined' === tableName || tableName == null || '' === tableName) return null;
         switch (tableName) {
             case 'ShippingOrder': return new ShippingOrder();
         }
+        return null;
     }
 }
 
@@ -44,6 +45,7 @@ class ShippingOrder extends DefaultTable {
     streamReadV(connectionConfig, nodeConfig, offset, pageSize, streamReadSender) {
         offset = this.defaultStreamReadOffset(offset);
         this.read(connectionConfig, offset, pageSize, streamReadSender, (updateTime, addTime, orderInfo, offset1) => {
+            offset1.ShippingOrder.updateTimeStart = updateTime;
             streamReadSender.send({
                 "afterData": orderInfo,
                 "eventType": !isValue(updateTime) || updateTime === addTime ? "i" : "u",
@@ -72,10 +74,7 @@ class ShippingOrder extends DefaultTable {
     }
 
     defaultStreamReadOffset(offset){
-        let timeStream = 0;
-        if (!isNaN(offset)){
-            timeStream = BigInt(offset);
-        }
+        let timeStream = !isNaN(offset) ? offset : 0;
         if (!isValue(offset) || !(offset instanceof Map) || typeof (offset) !== 'object'){
             offset = {};
         }
@@ -121,18 +120,6 @@ class ShippingOrder extends DefaultTable {
                 return null;
             }
             let result = goods.result;
-            /**
-             * {
-                    "code":"0",
-                    "info":{
-                        "pageNo":1,
-                        "count":1,
-                        "pageSize":20,
-                        "list":[]
-                    },
-                    "msg":""
-                }
-             * */
             if (!isParam(result) || null == result){
                 log.warn("Can not get any order in response body.");
                 return null;
