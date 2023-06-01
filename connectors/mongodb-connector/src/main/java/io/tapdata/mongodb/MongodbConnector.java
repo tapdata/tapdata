@@ -106,8 +106,10 @@ import org.bson.types.Symbol;
 import java.io.Closeable;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -511,6 +513,20 @@ public class MongodbConnector extends ConnectorBase {
 		// TODO: 为 分片集群建表, schema 约束建表预留位置
 		CreateTableOptions createTableOptions = new CreateTableOptions();
 		createTableOptions.setTableExists(false);
+
+		TapTable table = tapCreateTableEvent.getTable();
+		Collection<String> pks = table.primaryKeys();
+		if (CollectionUtils.isNotEmpty(pks) && (pks.size() > 1 || !"_id".equals(pks.iterator().next()))) {
+			List<TapIndex> tapIndices = new ArrayList<>();
+			Iterator<String> iterator = pks.iterator();
+			while (iterator.hasNext()) {
+				String pk = iterator.next();
+				TapIndex tapIndex = new TapIndex().indexField(new TapIndexField().name(pk).fieldAsc(true));
+				tapIndices.add(tapIndex);
+			}
+			TapCreateIndexEvent tapCreateIndexEvent = new TapCreateIndexEvent().indexList(tapIndices);
+			createIndex(tapConnectorContext, table, tapCreateIndexEvent);
+		}
 		return createTableOptions;
 	}
 
