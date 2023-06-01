@@ -225,7 +225,7 @@ public class MysqlJdbcContextV2 extends JdbcContext {
                     "\tINDEX_NAME,\n" +
                     "\tSEQ_IN_INDEX";
 
-    private final static String MYSQL_VERSION = "SELECT @@VERSION";
+    private final static String MYSQL_VERSION = "SELECT VERSION()";
 
     private final static String MYSQL_TIMEZONE = "SHOW VARIABLES LIKE 'time_zone'";
 

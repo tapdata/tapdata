@@ -60,7 +60,7 @@ public class MysqlConnector extends CommonDbConnector {
     private static final String TAG = MysqlConnector.class.getSimpleName();
 
     private MysqlJdbcContextV2 mysqlJdbcContext;
-    private MysqlConfig mysqlConfig;
+    protected MysqlConfig mysqlConfig;
     private MysqlReader mysqlReader;
     private MysqlWriter mysqlWriter;
     private String version;

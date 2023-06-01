@@ -56,6 +56,7 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ParagraphFormatter;
+import io.tapdata.exception.TapPdkTerminateByServerEx;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.mongodb.entity.MongodbConfig;
 import io.tapdata.mongodb.reader.MongodbStreamReader;
@@ -787,25 +788,32 @@ public class MongodbConnector extends ConnectorBase {
 	 * @param writeListResultConsumer
 	 */
 	private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
-		if (mongodbWriter == null) {
-			synchronized (this) {
-				if (mongodbWriter == null) {
-					mongodbWriter = new MongodbWriter(connectorContext.getGlobalStateMap(), mongoConfig, mongoClient);
-					ConnectorCapabilities connectorCapabilities = connectorContext.getConnectorCapabilities();
-					if (null != connectorCapabilities) {
-						mongoConfig.setInsertDmlPolicy(null == connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY) ?
-								ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS : connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY));
-						mongoConfig.setUpdateDmlPolicy(null == connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY) ?
-								ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS : connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY));
-					} else {
-						mongoConfig.setInsertDmlPolicy(ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS);
-						mongoConfig.setUpdateDmlPolicy(ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS);
+		try {
+			if (mongodbWriter == null) {
+				synchronized (this) {
+					if (mongodbWriter == null) {
+						mongodbWriter = new MongodbWriter(connectorContext.getGlobalStateMap(), mongoConfig, mongoClient);
+						ConnectorCapabilities connectorCapabilities = connectorContext.getConnectorCapabilities();
+						if (null != connectorCapabilities) {
+							mongoConfig.setInsertDmlPolicy(null == connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY) ?
+									ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS : connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY));
+							mongoConfig.setUpdateDmlPolicy(null == connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY) ?
+									ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS : connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY));
+						} else {
+							mongoConfig.setInsertDmlPolicy(ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS);
+							mongoConfig.setUpdateDmlPolicy(ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS);
+						}
 					}
 				}
 			}
-		}
 
-		mongodbWriter.writeRecord(tapRecordEvents, table, writeListResultConsumer);
+			mongodbWriter.writeRecord(tapRecordEvents, table, writeListResultConsumer);
+		} catch (Throwable e) {
+			if (e instanceof MongoTimeoutException) {
+				throw new TapPdkTerminateByServerEx(connectorContext.getId(), e);
+			}
+			throw e;
+		}
 	}
 
 	private void queryByAdvanceFilter(TapConnectorContext connectorContext, TapAdvanceFilter tapAdvanceFilter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {

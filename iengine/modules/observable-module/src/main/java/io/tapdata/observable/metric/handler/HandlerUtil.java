@@ -33,12 +33,13 @@ public class HandlerUtil {
             if (null == tapdataEvent.getTapEvent()) {
                 if (tapdataEvent instanceof TapdataHeartbeatEvent) {
                     setEventTimestamp(recorder, tapdataEvent.getSourceTime());
+                    referenceTimeList.add(tapdataEvent.getSourceTime());
                 }
                 continue;
             }
             referenceTimeList.add(countEventTypeAndGetReferenceTime(tapdataEvent.getTapEvent(), recorder));
-            CommonUtils.ignoreAnyError(() -> recorder.calculateMaxReplicateLag(now, referenceTimeList), "HandlerUtil-countTapdataEvent");
         }
+        recorder.calculateMaxReplicateLag(now, referenceTimeList);
 
         return recorder;
     }
