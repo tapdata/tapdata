@@ -5,7 +5,6 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
-import io.tapdata.pdk.core.workflow.engine.DataFlowWorker;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.core.base.TestNode;
@@ -32,7 +31,6 @@ public class WriteRecordTest extends PDKTestBase {
     private static final String TAG = WriteRecordTest.class.getSimpleName();
     protected ConnectorNode tddTargetNode;
     protected ConnectorNode sourceNode;
-    protected DataFlowWorker dataFlowWorker;
     protected String targetNodeId = "t2";
     protected String testSourceNodeId = "ts1";
     protected String originToSourceId;
