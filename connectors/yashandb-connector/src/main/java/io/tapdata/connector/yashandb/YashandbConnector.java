@@ -2,10 +2,13 @@ package io.tapdata.connector.yashandb;
 
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonDbConnector;
+import io.tapdata.common.JdbcContext;
 import io.tapdata.connector.yashandb.config.YashandbConfig;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
@@ -17,10 +20,10 @@ import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import com.google.common.collect.Lists;
 
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -59,8 +62,9 @@ public class YashandbConnector extends CommonDbConnector {
         connectorFunctions.supportCreateTableV2(this::createTableV2);
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
-        connectorFunctions.supportCreateIndex(this::createIndex);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
+        connectorFunctions.supportBatchCount(this::batchCount);
+        connectorFunctions.supportQueryByFilter(this::queryByFilter);
 
 
         codecRegistry.registerFromTapValue(TapBooleanValue.class, "INTEGER", tapValue -> {
@@ -88,7 +92,7 @@ public class YashandbConnector extends CommonDbConnector {
             return "null";
         });
 
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, "TIMESTAMP(9)", tapValue -> {
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, "TIMESTAMP", tapValue -> {
             if (tapValue != null && tapValue.getValue() != null) {
                 return formatTapDateTime(tapValue.getValue(), "YYYY-MM-DD HH:MM:SS.ssssss");
             }
@@ -98,52 +102,46 @@ public class YashandbConnector extends CommonDbConnector {
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
         codecRegistry.registerFromTapValue(TapYearValue.class, "CHAR(4)", tapYearValue -> formatTapDateTime(tapYearValue.getValue(), "yyyy"));
         codecRegistry.registerFromTapValue(TapDateValue.class, "DATE", tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
-
-
     }
 
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws SQLException {
         List<DataMap> tableList = jdbcContext.queryAllTables(tables);
         List<String> list = new ArrayList<>();
-        if (tables == null || tables.isEmpty()) {
-            accept(tables.stream().map(ConnectorBase::table).collect(Collectors.toList()), tableSize, consumer);
-            return;
-        }
+        List<List<DataMap>> tableLists = Lists.partition(tableList, tableSize);
+        tableLists.forEach(subList -> {
+            List<TapTable> tapTableList = TapSimplify.list();
+            List<String> subTableNames = subList.stream()
+                    .map(v -> v.getString("TABLE_NAME"))
+                    .filter(table -> tables == null || tables.isEmpty() || tables.contains(table))
+                    .collect(Collectors.toList());
+            Map<String, List<DataMap>> columnList = yashandbJdbcContext.queryAllColumnsByTableName(subTableNames);
 
-        List<TapTable> tapTableList = TapSimplify.list();
-        if (tables.size() > 0) {
-            for (String s : tables) {
-                if (!list.contains(s) && tables.contains(s))
-                    list.add(s);
-            }
-            for (String k : list) {
-                tapTableList.add(table(k));
-            }
-        }
-        accept(tapTableList, tableSize, consumer);
-    }
-
-    public void accept(List<TapTable> tables, int size, Consumer<List<TapTable>> consumer) {
-        if (size > 0) {
-            List<TapTable> group = new ArrayList<>();
-            for (int index = 0; index < tables.size(); index++) {
-                if (group.size() % size == 0 && !group.isEmpty()) {
-                    consumer.accept(tables);
-                    group = new ArrayList<>();
-                }
-                group.add(tables.get(index));
-            }
-            if (!group.isEmpty()) {
-                consumer.accept(tables);
-            }
-            return;
-        }
-        consumer.accept(tables);
+            subList.forEach(subTable -> {
+                String table = subTable.getString("TABLE_NAME");
+                TapTable tapTable = table(table);
+                LinkedHashMap<String, TapField> fieldMap = new LinkedHashMap<>();
+                List<DataMap> columnFields = columnList.get(table);
+                columnFields.stream().filter(Objects::nonNull).forEach(col -> {
+                    TapField tapField = YashandbColumn.create(col).getTapField();
+                    fieldMap.put(tapField.getName(), tapField);
+                });
+                tapTable.setNameFieldMap(fieldMap);
+                tapTableList.add(tapTable);
+            });
+            consumer.accept(tapTableList);
+        });
     }
 
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws SQLException {
-        new YashandbRecordWriter(yashandbJdbcContext, table).write(events, writeListResultConsumer);
+        YashandbRecordWriter writer = new YashandbRecordWriter(yashandbJdbcContext, table);
+        writer.setUpdatePolicy(EmptyKit.isEmpty(tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY)) ?
+                ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS :
+                tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY));
+        writer.setInsertPolicy(EmptyKit.isEmpty(tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY)) ?
+                ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS :
+                tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY));
+        writer.write(events, writeListResultConsumer);
     }
 
     @Override

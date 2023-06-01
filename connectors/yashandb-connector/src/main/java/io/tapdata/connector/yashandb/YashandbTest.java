@@ -51,6 +51,8 @@ public class YashandbTest extends CommonDbTest {
             consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY, TEST_WRITE_SUCCESS));
         } catch (Exception e) {
             consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_FAILED, e.getMessage()));
+        } finally {
+            EmptyKit.closeQuietly(jdbcContext);
         }
         return true;
     }

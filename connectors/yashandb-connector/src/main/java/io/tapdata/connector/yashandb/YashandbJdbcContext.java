@@ -3,12 +3,19 @@ package io.tapdata.connector.yashandb;
 import io.tapdata.common.CommonDbConfig;
 import io.tapdata.common.JdbcContext;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.entity.utils.DataMap;
+import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
 
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.StringJoiner;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.list;
 
@@ -64,6 +71,21 @@ public class YashandbJdbcContext extends JdbcContext {
             temp.clear();
         }
     }
+
+    public Map<String, List<DataMap>> queryAllColumnsByTableName(List<String> tableNames) {
+        StringJoiner joiner = new StringJoiner(",");
+        tableNames.stream().filter(Objects::nonNull).forEach(tab -> joiner.add("'" + tab + "'"));
+        TapLogger.debug(TAG, "Query columns of some tables, schema: " + getConfig().getSchema());
+        List<DataMap> columnList = TapSimplify.list();
+        //String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND table_name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
+        try {
+            query(String.format(YSDB_ALL_COLUMN, getConfig().getSchema(), joiner.toString()),
+                    resultSet -> columnList.addAll(DbKit.getDataFromResultSet(resultSet)));
+        } catch (Throwable e) {
+            TapLogger.error(TAG, "Execute queryAllColumns failed, error: " + e.getMessage(), e);
+        }
+        return columnList.stream().filter(Objects::nonNull).collect(Collectors.groupingBy(field -> String.valueOf(field.get("TABLE_NAME"))));
+    }
 //    @Override
 //    public List<DataMap> queryAllTables(List<String> tableNames) {
 //        TapLogger.debug(TAG, "Query some tables, schema: " + getConfig().getSchema());
@@ -114,4 +136,9 @@ public class YashandbJdbcContext extends JdbcContext {
     }
 
     private final static String YSDB_ALL_TABLE = "SELECT table_name FROM ALL_TABLES WHERE OWNER = '%s' %s";
+    private final static String YSDB_ALL_COLUMN =
+            "SELECT * " +
+            "FROM all_tab_columns " +
+            "WHERE owner = '%s' AND table_name IN (%s)\n" +
+            "ORDER BY owner, table_name";
 }

@@ -75,6 +75,12 @@
             <version>1.18.20</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>com.databend</groupId>
+            <artifactId>databend-jdbc</artifactId>
+            <version>0.0.7</version>
+            <scope>compile</scope>
+        </dependency>
     </dependencies>
     <build>
         <plugins>

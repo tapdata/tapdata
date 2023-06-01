@@ -10,6 +10,25 @@
     ]
   },
   "configOptions": {
+    "capabilities": [
+      {
+        "id": "dml_insert_policy",
+        "alternatives": [
+          "update_on_exists",
+          "ignore_on_exists"
+        ]
+      },
+      {
+        "id": "dml_update_policy",
+        "alternatives": [
+          "ignore_on_nonexists",
+          "insert_on_nonexists"
+        ]
+      },
+      {
+        "id": "api_server_supported"
+      }
+    ],
     "connection": {
       "type": "object",
       "properties": {
@@ -108,24 +127,36 @@
       "preferByte": 3000,
       "to": "TapString"
     },
-    "double[($precision,$scale)][unsigned]": {
+    "double[($precision)]": {
       "to": "TapNumber",
       "precision": [
         1,
-        255
-      ],
-      "scale": [
-        0,
-        30
+        8
       ],
       "value": [
         "-1.7976931348623157E+308",
         "1.7976931348623157E+308"
       ],
-      "unsigned": "unsigned",
       "fixed": false
     },
-    "NUMBER(*,$scale)": {
+    "float[($precision)]": {
+      "to": "TapNumber",
+      "name": "float",
+      "precision": [
+        1,
+        6
+      ],
+      "scale": [
+        0,
+        20
+      ],
+      "value": [
+        "-3.402823E38",
+        "3.402823E38"
+      ],
+      "fixed": false
+    },
+    "NUMBER($precision,$scale)": {
       "scale": [
         -84,
         127
@@ -134,11 +165,6 @@
         1,
         38
       ],
-      "fixed": true,
-      "preferPrecision": 20,
-      "defaultPrecision": 38,
-      "preferScale": 8,
-      "defaultScale": 0,
       "priority": 1,
       "to": "TapNumber"
     },
@@ -157,17 +183,12 @@
       "priority": 1,
       "to": "TapDate"
     },
-    "TIMESTAMP[($fraction)]": {
+    "TIMESTAMP": {
       "range": [
         "0001-01-01 00:00:00",
         "9999-12-31 23:59:59"
       ],
       "pattern": "yyyy-MM-dd HH:mm:ss",
-      "fraction": [
-        0,
-        9
-      ],
-      "defaultFraction": 9,
       "priority": 3,
       "to": "TapDateTime"
     },
@@ -224,9 +245,9 @@
       "to": "TapBinary",
       "byte": "64k"
     },
-    "RAW": {
+    "RAW[($byte)]": {
       "to": "TapBinary",
-      "byte": "64k"
+      "byte": 8000
     }
   }
 }
