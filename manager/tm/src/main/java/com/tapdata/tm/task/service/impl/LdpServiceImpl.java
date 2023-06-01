@@ -600,8 +600,8 @@ public class LdpServiceImpl implements LdpService {
 
                     }
 
-                    buildSourceMeta(setTag, metaData);
-                    metadataInstancesService.save(metaData, user);
+                    metaData = buildSourceMeta(setTag, metaData);
+                    metadataInstancesService.upsert(new Query(Criteria.where("qualified_name").is(metaData.getQualifiedName())), metaData, user);
                 }
             }
 
