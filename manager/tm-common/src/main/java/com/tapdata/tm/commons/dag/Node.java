@@ -56,13 +56,13 @@ public abstract class Node<S> extends Element{
      * 当前节点的原始模型，每次推演时，都会在此基础上合并输入模型、应用字段处理器
      */
     @JsonIgnore
-    private transient S schema;
+    private S schema;
 
     /**
      * 当前节点输出的模型，每次推演结束后生成的模型，会直接存储到模型库，可以依据类型映射进一步处理得到目标库创建数据结构的语句
      */
     @JsonIgnore
-    private transient S outputSchema;
+    private S outputSchema;
 
 
     //本次已经推演过
