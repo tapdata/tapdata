@@ -469,7 +469,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         // supplement migrate_field_rename_processor fieldMapping data
-        supplementMigrateFieldMapping(taskDto, user);
+        //supplementMigrateFieldMapping(taskDto, user);
         taskSaveService.syncTaskSetting(taskDto, user);
 
         //校验dag
@@ -537,12 +537,16 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     List<String> tableNames = fieldsMapping.stream()
                             .map(TableFieldInfo::getOriginTableName)
                             .collect(Collectors.toList());
-                    DatabaseNode sourceNode = dag.getSourceNode().getFirst();
+                    LinkedList<Node<?>> preNodes = node.getDag().getPreNodes(node.getId());
+                    if (CollectionUtils.isEmpty(preNodes)) {
+                        return;
+                    }
+                    Node previousNode = preNodes.getLast();
 
-                    List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(),
-                            tableNames, userDetail, taskDto.getId().toHexString());
+                    List<MetadataInstancesDto> metaList = metadataInstancesService.findByNodeId(previousNode.getId(),
+                            userDetail, taskDto.getId().toHexString(), "qualified_name", "fields");
                     Map<String, List<com.tapdata.tm.commons.schema.Field>> fieldMap = metaList.stream()
-                            .collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, MetadataInstancesDto::getFields));
+                            .collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, MetadataInstancesDto::getFields));
                     fieldsMapping.forEach(table -> {
                         Operation operation = table.getOperation();
                         LinkedList<FieldInfo> fields = table.getFields();
@@ -556,7 +560,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                                 .map(FieldInfo::getSourceFieldName)
                                 .collect(Collectors.toList());
 
-                        List<com.tapdata.tm.commons.schema.Field> tableFields = fieldMap.get(table.getQualifiedName());
+                        List<com.tapdata.tm.commons.schema.Field> tableFields = fieldMap.get(table.getOriginTableName());
                         if (CollectionUtils.isNotEmpty(tableFields)) {
                             for (com.tapdata.tm.commons.schema.Field field : tableFields) {
                                 String targetFieldName = field.getFieldName();

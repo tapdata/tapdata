@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.dag;
 
 import com.alibaba.fastjson.JSON;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -1254,5 +1255,15 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
     public DataSourceDefinitionDto getDefinitionByType(String databaseType) {
         return definitionDtoMap.get(databaseType);
+    }
+
+    @Override
+    public List<MetadataInstancesDto> findByNodeId(String nodeId) {
+        Collection<MetadataInstancesDto> values = metadataMap.values();
+        if (CollectionUtils.isEmpty(values)) {
+            return Lists.newArrayList();
+        }
+
+        return metadataMap.values().stream().filter(m -> nodeId.equals(m.getNodeId())).distinct().collect(Collectors.toList());
     }
 }
