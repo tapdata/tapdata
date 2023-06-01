@@ -105,6 +105,7 @@ public class TestNotImplementFunErr extends PDKTestBase {
                     .withPdkId(spec.getId())
                     .withGlobalStateMap(stateMap)
                     .withStateMap(stateMap)
+                    .withLog(new TapLog())
                     .withTable(testTableId)
                     .build();
 
