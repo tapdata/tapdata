@@ -16,7 +16,6 @@ import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -115,7 +114,7 @@ public abstract class LogMiner implements ILogMiner {
     }
 
     protected void processOrBuffRedoLogContent(RedoLogContent redoLogContent,
-                                               Consumer<Map<String, LogTransaction>> redoLogContentConsumer) throws IOException {
+                                               Consumer<Map<String, LogTransaction>> redoLogContentConsumer) {
         long scn = redoLogContent.getScn();
         String rsId = redoLogContent.getRsId();
         String xid = redoLogContent.getXid();
@@ -158,13 +157,19 @@ public abstract class LogMiner implements ILogMiner {
                 } else {
                     LogTransaction logTransaction = transactionBucket.get(xid);
                     Map<String, List> redoLogContents = logTransaction.getRedoLogContents();
-                    if (!needToAborted(operation, redoLogContent, redoLogContents)) {
-                        logTransaction.addRedoLogContent(redoLogContent);
-                        logTransaction.incrementSize(1);
-                        long txLogContentsSize = logTransaction.getSize();
-                        if (txLogContentsSize % logTransaction.getLargeTransactionUpperLimit() == 0) {
-                            tapLogger.info(TapLog.CON_LOG_0008.getMsg(), xid, txLogContentsSize);
+                    try {
+                        if (!needToAborted(operation, redoLogContent, redoLogContents)) {
+                            logTransaction.addRedoLogContent(redoLogContent);
+                            logTransaction.incrementSize(1);
+                            long txLogContentsSize = logTransaction.getSize();
+                            if (txLogContentsSize % logTransaction.getLargeTransactionUpperLimit() == 0) {
+                                tapLogger.info(TapLog.CON_LOG_0008.getMsg(), xid, txLogContentsSize);
+                            }
                         }
+                    } catch (Exception e) {
+                        tapLogger.error("Error redoLogContent:{}", redoLogContent.toString());
+                        tapLogger.error(e.getMessage());
+                        throw new RuntimeException(e);
                     }
                 }
                 break;
