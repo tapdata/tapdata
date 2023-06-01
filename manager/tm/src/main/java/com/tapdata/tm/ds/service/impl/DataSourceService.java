@@ -53,6 +53,7 @@ import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.proxy.dto.SubscribeDto;
 import com.tapdata.tm.proxy.dto.SubscribeResponseDto;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
+import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.LogCollectorService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.typemappings.service.TypeMappingsService;
@@ -1882,6 +1883,40 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	public DataSourceConnectionDto importEntity(DataSourceConnectionDto dto, UserDetail userDetail) {
 		DataSourceEntity dataSourceEntity = repository.importEntity(convertToEntity(DataSourceEntity.class, dto), userDetail);
 		return convertToDto(dataSourceEntity, DataSourceConnectionDto.class);
+	}
+
+	public List<TaskDto> findUsingTaskByConnectionId(String connectionId,UserDetail user) {
+		if (StringUtils.isBlank(connectionId)) {
+			return null;
+		}
+		List<TaskEntity> tasks = taskService.findAll(getUsingTaskQuery(connectionId,TaskDto.SYNC_TYPE_SYNC),user);
+		List<TaskEntity> task1 = taskService.findAll(getUsingTaskQuery(connectionId,TaskDto.SYNC_TYPE_LOG_COLLECTOR),user);
+		tasks.addAll(task1);
+		return CollectionUtils.isNotEmpty(tasks) ? taskService.convertToDto(tasks, TaskDto.class) : null;
+	}
+
+	public Long countUsingTaskByConnectionId(String connectionId,UserDetail user){
+		if (StringUtils.isBlank(connectionId)) {
+			return null;
+		}
+		return taskService.count(getUsingTaskQuery(connectionId,TaskDto.SYNC_TYPE_SYNC),user)
+				+ taskService.count(getUsingTaskQuery(connectionId,TaskDto.SYNC_TYPE_LOG_COLLECTOR),user);
+	}
+
+	private Query getUsingTaskQuery(String connectionId,String syncType){
+		//查询所有的开启挖掘的任务跟，挖掘任务，是否都停止并且重置
+		Criteria criteria = Criteria.where("is_deleted").ne(true)
+				.and("status").nin(TaskDto.STATUS_EDIT, TaskDto.STATUS_WAIT_START);
+		if(StringUtils.equals(syncType, TaskDto.SYNC_TYPE_LOG_COLLECTOR)){
+			criteria = criteria.and("dag.nodes").elemMatch(Criteria.where("type").is("logCollector"))
+					.and("dag.nodes.connectionIds").is(connectionId);
+		}else{
+			criteria = criteria.and("shareCdcEnable").is(true)
+					.and("dag.nodes.connectionId").is(connectionId);
+		}
+		Query query = new Query(criteria);
+		query.fields().include("_id", "name", "status", "syncType");
+		return query;
 	}
 
 }
