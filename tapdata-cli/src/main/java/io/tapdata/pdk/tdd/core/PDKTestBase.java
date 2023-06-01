@@ -789,7 +789,7 @@ public class PDKTestBase {
             capabilityAlternativeMap = new HashMap<>();
             connectorCapabilities.setCapabilityAlternativeMap(capabilityAlternativeMap);
         }
-        capabilityAlternativeMap.put(policy, policy);
+        capabilityAlternativeMap.put(policyName, policy);
     }
 
     protected final String INSERT_POLICY = "dml_insert_policy";
