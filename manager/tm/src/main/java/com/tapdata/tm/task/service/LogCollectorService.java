@@ -1504,7 +1504,7 @@ public class LogCollectorService {
             , List<String> tableNames, String keyword, String nodeId, String taskId) {
         int limit = (page - 1) * size;
         if (tableNames != null && StringUtils.isNotEmpty(keyword)) {
-            tableNames = tableNames.stream().filter(tableName -> tableName.contains(keyword)).collect(Collectors.toList());
+            tableNames = tableNames.stream().filter(tableName -> StringUtils.containsAnyIgnoreCase(tableName, keyword)).collect(Collectors.toList());
         }
         int tableCount = tableNames == null ? 0 : tableNames.size();
 
