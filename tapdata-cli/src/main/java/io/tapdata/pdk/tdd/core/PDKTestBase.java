@@ -949,6 +949,7 @@ public class PDKTestBase {
                 .withPdkId(spec.getId())
                 .withGlobalStateMap(stateMap)
                 .withStateMap(stateMap)
+                .withLog(new TapLog())
                 .withTable(this.testTableId)
                 .build();
         RecordEventExecute recordEventExecute = RecordEventExecute.create(connectorNode, this)
