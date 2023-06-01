@@ -47,9 +47,6 @@ import io.tapdata.pdk.core.error.QuiteException;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import io.tapdata.pdk.core.workflow.engine.DataFlowEngine;
-import io.tapdata.pdk.core.workflow.engine.DataFlowWorker;
-import io.tapdata.pdk.core.workflow.engine.TapDAG;
 import io.tapdata.pdk.tdd.core.base.TestNode;
 import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.tdd.tests.support.connector.TableNameSupport;
@@ -114,8 +111,6 @@ public class PDKTestBase {
     private final AtomicBoolean completed = new AtomicBoolean(false);
     private boolean finishSuccessfully = false;
     private Throwable lastThrowable;
-
-    protected TapDAG dag;
 
     protected String lang;
 
@@ -435,7 +430,6 @@ public class PDKTestBase {
 
     @BeforeAll
     public static void setupAll() {
-        DataFlowEngine.getInstance().start();
     }
 
     @BeforeEach
@@ -462,11 +456,7 @@ public class PDKTestBase {
 
     @AfterEach
     public void tearDown() {
-        Optional.ofNullable(this.dag).ifPresent(d -> {
-            if (DataFlowEngine.getInstance().stopDataFlow(this.dag.getId())) {
-                TapLogger.info(TAG, "************************{} tearDown************************", this.getClass().getSimpleName());
-            }
-        });
+
     }
 
     public DataMap getTestOptions() {
@@ -687,53 +677,6 @@ public class PDKTestBase {
         }
     }
 
-
-    public void sendInsertRecordEvent(DataFlowEngine dataFlowEngine, TapDAG dag, String sourceTable, DataMap after) {
-        sendInsertRecordEvent(dataFlowEngine, dag, sourceTable, after, null);
-    }
-
-    public void sendInsertRecordEvent(DataFlowEngine dataFlowEngine, TapDAG dag, String sourceTable, DataMap after, PatrolEvent patrolEvent) {
-        //TapInsertRecordEvent tapInsertRecordEvent = new TapInsertRecordEvent();
-        //tapInsertRecordEvent.setAfter(after);
-        dataFlowEngine.sendExternalTapEvent(dag.getId(), insertRecordEvent(after, sourceTable));
-        if (patrolEvent != null)
-            dataFlowEngine.sendExternalTapEvent(dag.getId(), patrolEvent);
-    }
-
-    public void sendPatrolEvent(DataFlowEngine dataFlowEngine, TapDAG dag, PatrolEvent patrolEvent) {
-        dataFlowEngine.sendExternalTapEvent(dag.getId(), patrolEvent);
-    }
-
-    public void sendUpdateRecordEvent(DataFlowEngine dataFlowEngine, TapDAG dag, String sourceTableId, DataMap before, DataMap after, PatrolEvent patrolEvent) {
-        //TapUpdateRecordEvent tapUpdateRecordEvent = new TapUpdateRecordEvent();
-        //tapUpdateRecordEvent.setAfter(after);
-        //tapUpdateRecordEvent.setBefore(before);
-        dataFlowEngine.sendExternalTapEvent(dag.getId(), updateDMLEvent(before, after, sourceTableId));
-        dataFlowEngine.sendExternalTapEvent(dag.getId(), patrolEvent);
-    }
-
-    public void sendDeleteRecordEvent(DataFlowEngine dataFlowEngine, TapDAG dag, String sourceTableId, DataMap before, PatrolEvent patrolEvent) {
-        TapDeleteRecordEvent tapDeleteRecordEvent = new TapDeleteRecordEvent();
-        tapDeleteRecordEvent.setBefore(before);
-        dataFlowEngine.sendExternalTapEvent(dag.getId(), deleteDMLEvent(before, sourceTableId));
-        dataFlowEngine.sendExternalTapEvent(dag.getId(), patrolEvent);
-    }
-
-    public void sendCreateTableEvent(DataFlowEngine dataFlowEngine, TapDAG dag, TapTable table, PatrolEvent patrolEvent) {
-        TapCreateTableEvent createTableEvent = new TapCreateTableEvent();
-        createTableEvent.setTable(table);
-        createTableEvent.setTableId(table.getId());
-        dataFlowEngine.sendExternalTapEvent(dag.getId(), createTableEvent);
-        dataFlowEngine.sendExternalTapEvent(dag.getId(), patrolEvent);
-    }
-
-    public void sendDropTableEvent(DataFlowEngine dataFlowEngine, TapDAG dag, String tableId, PatrolEvent patrolEvent) {
-        TapDropTableEvent tapDropTableEvent = new TapDropTableEvent();
-        tapDropTableEvent.setTableId(tableId);
-        dataFlowEngine.sendExternalTapEvent(dag.getId(), tapDropTableEvent);
-        dataFlowEngine.sendExternalTapEvent(dag.getId(), patrolEvent);
-    }
-
     protected void verifyUpdateOneRecord(ConnectorNode targetNode, DataMap before, DataMap verifyRecord, LinkedHashMap<String,TapField> nameFieldMap) {
         TapFilter filter = new TapFilter();
         filter.setMatch(before);
@@ -873,12 +816,6 @@ public class PDKTestBase {
         setInsertPolicy(context, UPDATE_POLICY, INSERT_ON_NOT_EXISTS);
     }
 
-
-    protected ConnectorNode tddTargetNode;
-    protected ConnectorNode sourceNode;
-    protected DataFlowWorker dataFlowWorker;
-    protected String targetNodeId = "t2";
-    protected String testSourceNodeId = "ts1";
     protected String originToSourceId;
     protected TapNodeInfo tapNodeInfo;
     protected String testTableId;
@@ -954,11 +891,6 @@ public class PDKTestBase {
         RecordEventExecute recordEventExecute = RecordEventExecute.create(connectorNode, this)
                 .tddConfig(this.tddConfig);
         return new TestNode(nodeInfo, connectorNode, recordEventExecute);
-    }
-
-    protected void initConnectorFunctions() {
-        this.tddTargetNode = this.dataFlowWorker.getTargetNodeDriver(this.targetNodeId).getTargetNode();
-        this.sourceNode = this.dataFlowWorker.getSourceNodeDriver(this.testSourceNodeId).getSourceNode();
     }
 
     protected boolean createTable(TestNode prepare) {
