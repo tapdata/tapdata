@@ -499,54 +499,41 @@ public class ScriptUtil {
 			ScriptConnection target,
 			ICacheGetter memoryCacheGetter,
 			Log logger,
-			boolean standard
-	) {
+			boolean standard ) {
 		if (StringUtils.isBlank(script)) {
 			script = "function process(record){\n\treturn record;\n}";
 		}
-		ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
+		final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
+		final ClassLoader[] externalClassLoader = new ClassLoader[1];
+		String buildInMethod = initStandardizationBuildInMethod(javaScriptFunctions, clientMongoOperator, urlClassLoader -> externalClassLoader[0] = urlClassLoader, standard);
+		ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(jsEngineName).classLoader(externalClassLoader[0]));
+		String scripts = script + System.lineSeparator() + buildInMethod;
+
+		e.put("tapUtil", new JsUtil());
+		e.put("tapLog", logger);
 		try {
-			final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
-			final ClassLoader[] externalClassLoader = new ClassLoader[1];
-			String buildInMethod = initStandardizationBuildInMethod(javaScriptFunctions, clientMongoOperator, urlClassLoader -> externalClassLoader[0] = urlClassLoader, standard);
-			if (null != externalClassLoader[0]) {
-				Thread.currentThread().setContextClassLoader(externalClassLoader[0]);
-			}
-			//Optional.ofNullable(externalClassLoader[0]).ifPresent(s -> Thread.currentThread().setContextClassLoader(s));
-			if (Thread.currentThread().getContextClassLoader() == null) {
-				Thread.currentThread().setContextClassLoader(Engine.class.getClassLoader());
-			}
-			ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(jsEngineName));
-			String scripts = script + System.lineSeparator() + buildInMethod;
-
-			e.put("tapUtil", new JsUtil());
-			e.put("tapLog", logger);
-			try {
-				e.eval("tapLog.info('Init standardized JS engine...');");
-			}catch (Exception es){
-				throw new RuntimeException(String.format("Can not init standardized JS engine, %s", es.getMessage()), es);
-			}
-			evalJs(e, "js/csvUtils.js");
-			evalJs(e, "js/arrayUtils.js");
-			evalJs(e, "js/dateUtils.js");
-			evalJs(e, "js/exceptionUtils.js");
-			evalJs(e, "js/stringUtils.js");
-			evalJs(e, "js/mapUtils.js");
-			evalJs(e, "js/log.js");
-
-			try {
-				e.eval(scripts);
-			} catch (Throwable ex) {
-				throw new CoreException(String.format("Incorrect JS code, syntax error found: %s, please check your javascript code", ex.getMessage()));
-			}
-			Optional.ofNullable(source).ifPresent(s -> e.put("source", s));
-			Optional.ofNullable(target).ifPresent(s -> e.put("target", s));
-			Optional.ofNullable(memoryCacheGetter).ifPresent(s -> e.put("CacheService", s));
-			Optional.ofNullable(logger).ifPresent(s -> e.put("log", s));
-			return (Invocable) e;
-		} finally {
-			Thread.currentThread().setContextClassLoader(contextClassLoader);
+			e.eval("tapLog.info('Init standardized JS engine...');");
+		}catch (Exception es){
+			throw new RuntimeException(String.format("Can not init standardized JS engine, %s", es.getMessage()), es);
 		}
+		evalJs(e, "js/csvUtils.js");
+		evalJs(e, "js/arrayUtils.js");
+		evalJs(e, "js/dateUtils.js");
+		evalJs(e, "js/exceptionUtils.js");
+		evalJs(e, "js/stringUtils.js");
+		evalJs(e, "js/mapUtils.js");
+		evalJs(e, "js/log.js");
+
+		try {
+			e.eval(scripts);
+		} catch (Throwable ex) {
+			throw new CoreException(String.format("Incorrect JS code, syntax error found: %s, please check your javascript code", ex.getMessage()));
+		}
+		Optional.ofNullable(source).ifPresent(s -> e.put("source", s));
+		Optional.ofNullable(target).ifPresent(s -> e.put("target", s));
+		Optional.ofNullable(memoryCacheGetter).ifPresent(s -> e.put("CacheService", s));
+		Optional.ofNullable(logger).ifPresent(s -> e.put("log", s));
+		return (Invocable) e;
 	}
 
 	public static String initStandardizationBuildInMethod(List<JavaScriptFunctions> javaScriptFunctions, ClientMongoOperator clientMongoOperator, Consumer<URLClassLoader> consumer, boolean standard) {
@@ -625,7 +612,7 @@ public class ScriptUtil {
 			}
 			if (CollectionUtils.isNotEmpty(urlList)) {
 				logger.debug("urlClassLoader will load: {}", urlList);
-				final URLClassLoader urlClassLoader = new URLClassLoader(urlList.toArray(new URL[0]), Engine.class.getClassLoader());
+				final URLClassLoader urlClassLoader = new URLClassLoader(urlList.toArray(new URL[0]), Thread.currentThread().getContextClassLoader());
 				if (consumer != null) {
 					consumer.accept(urlClassLoader);
 				}
