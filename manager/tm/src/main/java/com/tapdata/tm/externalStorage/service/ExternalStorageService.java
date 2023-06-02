@@ -67,16 +67,21 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 
 
 	public ExternalStorageDto update(ExternalStorageDto externalStorageDto, UserDetail userDetail) {
-		if (StringUtils.isNotBlank(externalStorageDto.getUri())) {
-			ConnectionString connectionString = new ConnectionString(externalStorageDto.getUri());
-			char[] password = connectionString.getPassword();
-			if (password != null && password.length != 0) {
-				String pwd = new String(password);
-				if (ExternalStorageDto.MASK_PWD.equals(pwd)) {
-					externalStorageDto.setUri(null);
+		String type = externalStorageDto.getType();
+		ExternalStorageType externalStorageType = ExternalStorageType.valueOf(type);
+		if (externalStorageType == ExternalStorageType.mongodb) {
+			if (StringUtils.isNotBlank(externalStorageDto.getUri())) {
+				ConnectionString connectionString = new ConnectionString(externalStorageDto.getUri());
+				char[] password = connectionString.getPassword();
+				if (password != null && password.length != 0) {
+					String pwd = new String(password);
+					if (ExternalStorageDto.MASK_PWD.equals(pwd)) {
+						externalStorageDto.setUri(null);
+					}
 				}
 			}
 		}
+
 		return save(externalStorageDto, userDetail);
 	}
 
@@ -214,7 +219,7 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 		if (null == externalStorageEntity) {
 			return true;
 		}
-		if (!externalStorageEntity.isCanDelete()) {
+		if (!externalStorageEntity.getCanDelete()) {
 			return true;
 		}
 		boolean delete = super.deleteById(objectId, userDetail);
