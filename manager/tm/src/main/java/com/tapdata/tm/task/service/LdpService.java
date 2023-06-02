@@ -24,4 +24,6 @@ public interface LdpService {
 
     void addLdpDirectory(UserDetail user);
     void addLdpDirectory(UserDetail user, Map<String, String> oldLdpMap);
+
+    void generateLdpTaskByOld();
 }

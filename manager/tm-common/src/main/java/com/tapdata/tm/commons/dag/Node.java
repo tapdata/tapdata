@@ -132,6 +132,7 @@ public abstract class Node<S> extends Element{
         return getDag().nodeMap().get(nodeId);
     }
 
+    @JsonIgnore
     public List<DatabaseNode> getSourceNode() {
         return getDag().getSourceNode();
     }
@@ -344,6 +345,7 @@ public abstract class Node<S> extends Element{
     /**
      * 获取输入模型
      */
+    @JsonIgnore
     public List<S> getInputSchema() {
 
         Graph<? extends Element, ? extends Element> graph = getGraph();
@@ -388,11 +390,11 @@ public abstract class Node<S> extends Element{
             return SourceType.source_and_target;
         }
 
-        if (source) {
-            return SourceType.source;
+        if (target) {
+            return SourceType.target;
         }
 
-        return SourceType.target;
+        return SourceType.source;
     }
 
 

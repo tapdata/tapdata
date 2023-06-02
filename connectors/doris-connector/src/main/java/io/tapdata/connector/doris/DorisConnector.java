@@ -1,7 +1,6 @@
 package io.tapdata.connector.doris;
 
 import io.tapdata.common.CommonDbConnector;
-import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.connector.doris.bean.DorisConfig;
 import io.tapdata.connector.doris.streamload.DorisStreamLoader;
@@ -60,7 +59,7 @@ public class DorisConnector extends CommonDbConnector {
         dorisJdbcContext = new DorisJdbcContext(dorisConfig);
         commonDbConfig = dorisConfig;
         jdbcContext = dorisJdbcContext;
-        commonSqlMaker = new CommonSqlMaker('`');
+        commonSqlMaker = new DorisSqlMaker();
     }
 
 
@@ -186,7 +185,7 @@ public class DorisConnector extends CommonDbConnector {
                         "\")";
             } else {
                 sql = "CREATE TABLE IF NOT EXISTS " + getSchemaAndTable(tapTable.getId()) +
-                        "(" + commonSqlMaker.buildColumnDefinition(tapTable, true) + ") " +
+                        "(" + ((DorisSqlMaker) commonSqlMaker).buildColumnDefinitionByOrder(tapTable, dorisConfig.getDuplicateKey()) + ") " +
                         "DUPLICATE KEY (`" + String.join("`,`", dorisConfig.getDuplicateKey()) + "`) " +
                         "DISTRIBUTED BY HASH(`" + String.join("`,`", dorisConfig.getDistributedKey()) + "`) BUCKETS 16 " +
                         "PROPERTIES(\"replication_num\" = \"" +
@@ -195,7 +194,7 @@ public class DorisConnector extends CommonDbConnector {
             }
         } else {
             sql = "CREATE TABLE IF NOT EXISTS " + getSchemaAndTable(tapTable.getId()) +
-                    "(" + commonSqlMaker.buildColumnDefinition(tapTable, true) + ") " +
+                    "(" + ((DorisSqlMaker) commonSqlMaker).buildColumnDefinitionByOrder(tapTable, primaryKeys) + ") " +
                     "UNIQUE KEY (`" + String.join("`,`", primaryKeys) + "`) " +
                     "DISTRIBUTED BY HASH(`" + String.join("`,`", primaryKeys) + "`) BUCKETS 16 " +
                     "PROPERTIES(\"replication_num\" = \"" +

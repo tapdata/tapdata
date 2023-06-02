@@ -17,6 +17,7 @@ import com.tapdata.entity.TapdataHeartbeatEvent;
 import com.tapdata.entity.TapdataShareLogEvent;
 import com.tapdata.entity.TapdataTaskErrorEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
+import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.cdcdelay.CdcDelay;
 import com.tapdata.tm.commons.cdcdelay.CdcDelayDisable;
@@ -27,6 +28,9 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.UnionProcessorNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.Message;
@@ -100,6 +104,7 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
@@ -138,7 +143,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected CopyOnWriteArrayList<String> removeTables;
 	protected AtomicBoolean sourceRunnerFirstTime;
 	private DAGDataServiceImpl dagDataService;
-
 	protected Future<?> sourceRunnerFuture;
 	// on cdc step if TableMap not exists heartbeat table, add heartbeat table to cdc whitelist and filter heartbeat records
 	protected ICdcDelay cdcDelayCalculation;
@@ -496,13 +500,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 			if (sourceRunnerFuture != null && sourceRunnerFuture.isDone() && sourceRunnerFirstTime.get()
 					&& null == pendingEvent && eventQueue.isEmpty()) {
-				if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())) {
-					Object residueSnapshot = getGlobalMap(getCompletedInitialKey());
-					if (residueSnapshot instanceof Integer) {
-						int residueSnapshotInt = (int) residueSnapshot;
-						if (residueSnapshotInt <= 0) {
-							this.running.set(false);
-						}
+				Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(taskDto.getId().toHexString());
+				Object obj = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);
+				if (obj instanceof AtomicInteger) {
+					if (((AtomicInteger) obj).get() <= 0) {
+						this.running.set(false);
 					}
 				} else {
 					this.running.set(false);
@@ -1001,7 +1003,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	@Override
 	public void doClose() throws Exception {
 		try {
-			//threadPoolExecutorEx.submitSync(() ->{
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(waitObj).ifPresent(w -> {
 				synchronized (this.waitObj) {
 					this.waitObj.notify();
@@ -1009,9 +1010,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(tableMonitorResultHandler).ifPresent(ExecutorService::shutdownNow), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(sourceRunner).ifPresent(ExecutorService::shutdownNow), TAG);
-			//});
 		} finally {
-			//threadPoolExecutorEx.close();
 			super.doClose();
 		}
 	}
@@ -1070,5 +1069,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	public SyncProgress getSyncProgress() {
 		return syncProgress;
+	}
+
+	protected boolean hasMergeNode() {
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
+		List<Node> nodes = taskDto.getDag().getNodes();
+		return null != nodes.stream().filter(n -> n instanceof MergeTableNode
+				|| n instanceof JoinProcessorNode
+				|| n instanceof UnionProcessorNode).findFirst().orElse(null);
 	}
 }

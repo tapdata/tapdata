@@ -15,8 +15,8 @@ import org.bson.Document;
 public class BytesIMap<T> extends ConstructIMap<T> {
 	private static final String DATA_KEY = BytesIMap.class.getSimpleName() + "-DATA";
 
-	public BytesIMap(HazelcastInstance hazelcastInstance, String name, ExternalStorageDto externalStorageDto) {
-		super(hazelcastInstance, name, externalStorageDto);
+	public BytesIMap(HazelcastInstance hazelcastInstance, String referenceId, String name, ExternalStorageDto externalStorageDto) {
+		super(hazelcastInstance, referenceId, name, externalStorageDto);
 	}
 
 	private byte[] serialized(T data) {

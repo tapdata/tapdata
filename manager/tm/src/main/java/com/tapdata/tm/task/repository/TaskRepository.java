@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.repository;
 
+import com.fasterxml.jackson.databind.ser.std.ObjectArraySerializer;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.annotation.SetOnInsert;
 import com.tapdata.manager.common.utils.ReflectionUtils;
@@ -7,6 +8,8 @@ import com.tapdata.tm.base.reporitory.BaseRepository;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.utils.Lists;
+import org.apache.commons.lang3.ObjectUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
@@ -111,6 +114,26 @@ public class TaskRepository extends BaseRepository<TaskEntity, ObjectId> {
         applyUserDetail(query, userDetail);
         update.set("lastUpdAt", new Date());
         update.set("lastUpdBy", userDetail.getUserId());
+
+        update.getUpdateObject().forEach((k,v) -> {
+            if ("$unset".equals(k) && v instanceof Document) {
+                Document setUpdate = (Document) v;
+                if (setUpdate.containsKey("agentId") && ObjectUtils.isEmpty(setUpdate.get("agentId"))) {
+                    setUpdate.remove("agentId");
+                }
+                if (setUpdate.isEmpty()) {
+                    setUpdate.put("agentIdTemp", 1);
+                }
+            } else if ("$set".equals(k) && v instanceof Document) {
+                Document setUpdate = (Document) v;
+                if (setUpdate.containsKey("agentId") && ObjectUtils.isEmpty(setUpdate.get("agentId"))) {
+                    setUpdate.remove("agentId");
+                }
+                if (setUpdate.isEmpty()) {
+                    setUpdate.put("agentIdTemp", 1);
+                }
+            }
+        });
 
         return mongoOperations.updateFirst(query, update, TaskEntity.class);
     }

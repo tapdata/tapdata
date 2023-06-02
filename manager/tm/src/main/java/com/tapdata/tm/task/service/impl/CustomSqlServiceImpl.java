@@ -40,10 +40,9 @@ public class CustomSqlServiceImpl implements CustomSqlService {
     public void checkCustomSqlTask(TaskDto taskDto, UserDetail user) {
         //判断如果不是自定义sql，直接返回
         DAG dag = taskDto.getDag();
-        if (dag == null) {
+        if (dag == null || dag.getEdges().isEmpty()) {
             return;
         }
-
         boolean isCustomCommand = false;
         List<Node> sources = dag.getSources();
         if (CollectionUtils.isEmpty(sources)) {

@@ -540,14 +540,21 @@ public class DataSourceController extends BaseController {
     public ResponseMessage<Map<String, Object>> findTaskByConnectionId(@PathVariable("id") String connectionId, @PathVariable("limit") int limit) {
         UserDetail loginUser = getLoginUser();
         Long total = dataSourceService.countTaskByConnectionId(connectionId, loginUser);
+        Long logTotal = dataSourceService.countTaskByConnectionId(connectionId,"logCollector",loginUser);
         List<TaskDto> taskList = dataSourceService.findTaskByConnectionId(connectionId, limit, loginUser);
+        List<TaskDto> logTaskList = dataSourceService.findTaskByConnectionId(connectionId, limit,"logCollector", loginUser);
         List<Document> items = taskList.stream()
                 .map(task -> new Document("id", task.getId().toHexString())
                         .append("name", task.getName())
                         .append("syncType", task.getSyncType())).collect(Collectors.toList());
+        List<Document> logItems = logTaskList.stream()
+                .map(task -> new Document("id", task.getId().toHexString())
+                        .append("name", task.getName())
+                        .append("syncType", task.getSyncType())).collect(Collectors.toList());
+        items.addAll(logItems);
         Map<String, Object> result = new HashMap<String, Object>() {{
             put("items", items);
-            put("total", total);
+            put("total", total+logTotal);
         }};
         return success(result);
     }
@@ -597,6 +604,19 @@ public class DataSourceController extends BaseController {
             }
         }
         return success(taskIds);
+    }
+
+    @Operation(summary = "根据连接ID查找数据源正在使用外存的任务")
+    @GetMapping("{id}/usingDigginTaskByConnectionId")
+    public ResponseMessage<Map<String, Object>>getUsingDigginTaskByConnectionId(@PathVariable("id") String id) {
+        UserDetail userDetail = getLoginUser();
+        List<TaskDto> tasks = dataSourceService.findUsingDigginTaskByConnectionId(id,userDetail);
+        Long total = dataSourceService.countUsingDigginTaskByConnectionId(id,userDetail);
+        Map<String, Object> result = new HashMap<String, Object>() {{
+            put("items", tasks);
+            put("total", total);
+        }};
+        return success(result);
     }
 
 }

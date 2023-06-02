@@ -1,13 +1,9 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
-import com.mongodb.client.gridfs.GridFSBucket;
-import com.mongodb.client.gridfs.GridFSDownloadStream;
 import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
-import com.tapdata.cache.ICacheGetter;
 import com.tapdata.cache.scripts.ScriptCacheService;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MapUtil;
-import com.tapdata.entity.AppType;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.JavaScriptFunctions;
 import com.tapdata.entity.OperationType;
@@ -15,9 +11,6 @@ import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
-import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.mongo.HttpClientMongoOperator;
-import com.tapdata.processor.ScriptConnection;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.processor.context.ProcessContext;
@@ -36,7 +29,6 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
@@ -50,12 +42,10 @@ import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.SneakyThrows;
-import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Query;
@@ -63,16 +53,8 @@ import org.springframework.data.mongodb.core.query.Query;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,7 +63,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -140,7 +121,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 		ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
 		this.engine = finalJs ?
-			getScriptEngine(
+				ScriptUtil.getScriptStandardizationEngine(
 					JSEngineEnum.GRAALVM_JS.getEngineName(),
 					script,
 					javaScriptFunctions,
@@ -160,76 +141,19 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				scriptCacheService,
 				new ObsScriptLogger(obsLogger, logger),
 				this.standard);
-
 		this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
-	}
-
-	public Invocable getScriptEngine(
-		String jsEngineName,
-		String script,
-		List<JavaScriptFunctions> javaScriptFunctions,
-		ClientMongoOperator clientMongoOperator,
-		ScriptConnection source,
-		ScriptConnection target,
-		ICacheGetter memoryCacheGetter,
-		Log logger,
-		boolean standard
-	) throws ScriptException {
-		if (StringUtils.isBlank(script)) {
-			script = "function process(record){\n\treturn record;\n}";
-		}
-		ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
-		try {
-			final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
-			ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(jsEngineName));
-			final ClassLoader[] externalClassLoader = new ClassLoader[1];
-			String buildInMethod = initBuildInMethod(javaScriptFunctions, clientMongoOperator, urlClassLoader -> externalClassLoader[0] = urlClassLoader, standard);
-			Optional.ofNullable(externalClassLoader[0]).ifPresent(s -> Thread.currentThread().setContextClassLoader(s));
-			if (Thread.currentThread().getContextClassLoader() == null) {
-				Thread.currentThread().setContextClassLoader(ScriptUtil.class.getClassLoader());
-			}
-			String scripts = script + System.lineSeparator() + buildInMethod;
-			try {
-				e.eval(scripts);
-			} catch (Throwable ex) {
-				throw new RuntimeException(String.format("script eval error: %s, %s, %s, %s", jsEngineName, e, scripts, contextClassLoader), ex);
-			}
-
-			try {
-				e.put("tapUtil", new JsUtil());
-				e.put("tapLog", logger);
-				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/csvUtils.js"));
-				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/arrayUtils.js"));
-				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/dateUtils.js"));
-				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/exceptionUtils.js"));
-				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/stringUtils.js"));
-				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/mapUtils.js"));
-				e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/log.js"));
-			}catch (Throwable ex){
-				throw new RuntimeException(String.format("script eval js util error: %s, %s, %s, %s", jsEngineName, e, scripts, contextClassLoader), ex);
-			}
-
-			Optional.ofNullable(source).ifPresent(s -> e.put("source", s));
-			Optional.ofNullable(target).ifPresent(s -> e.put("target", s));
-			Optional.ofNullable(memoryCacheGetter).ifPresent(s -> e.put("CacheService", s));
-			Optional.ofNullable(logger).ifPresent(s -> e.put("log", s));
-			return (Invocable) e;
-		} finally {
-			Thread.currentThread().setContextClassLoader(contextClassLoader);
-		}
 	}
 
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
-		Node node = getNode();
+		Node<?> node = getNode();
 		if (!this.standard) {
 			this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(obsLogger), clientMongoOperator, jetContext.hazelcastInstance(),
 					node.getTaskId(), node.getId(),
 					StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
 							TaskDto.SYNC_TYPE_TEST_RUN, TaskDto.SYNC_TYPE_DEDUCE_SCHEMA));
 			((ScriptEngine) this.engine).put("ScriptExecutorsManager", scriptExecutorsManager);
-
 			List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
 			List<Node<?>> successors = GraphUtil.successors(node, Node::isDataNode);
 
@@ -238,14 +162,13 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			((ScriptEngine) this.engine).put("source", source);
 			((ScriptEngine) this.engine).put("target", target);
 		}
-
 	}
 
 	private ScriptExecutorsManager.ScriptExecutor getDefaultScriptExecutor(List<Node<?>> nodes, String flag) {
 		if (nodes != null && nodes.size() > 0) {
 			Node<?> node = nodes.get(0);
 			if (node instanceof DataParentNode) {
-				String connectionId = ((DataParentNode) node).getConnectionId();
+				String connectionId = ((DataParentNode<?>) node).getConnectionId();
 				Connections connections = clientMongoOperator.findOne(new Query(where("_id").is(connectionId)),
 						ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
 				if (connections != null) {
@@ -325,7 +248,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			thread.start();
 			boolean threadFinished = countDownLatch.await(10L, TimeUnit.SECONDS);
 			if (!threadFinished) {
-				thread.stop();
+				thread.interrupt();
 			}
 			if (errorAtomicRef.get() != null) {
 				throw new TapCodeException(TaskProcessorExCode_11.JAVA_SCRIPT_PROCESS_FAILED, errorAtomicRef.get());
@@ -414,103 +337,18 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		}
 	}
 
-	public String initBuildInMethod(List<JavaScriptFunctions> javaScriptFunctions, ClientMongoOperator clientMongoOperator, Consumer<URLClassLoader> consumer, boolean standard) {
-		StringBuilder buildInMethod = new StringBuilder();
-
-		//Expired, will be ignored in the near future
-		buildInMethod.append("var DateUtil = Java.type(\"com.tapdata.constant.DateUtil\");\n");
-		buildInMethod.append("var UUIDGenerator = Java.type(\"com.tapdata.constant.UUIDGenerator\");\n");
-		buildInMethod.append("var idGen = Java.type(\"com.tapdata.constant.UUIDGenerator\");\n");
-		buildInMethod.append("var HashMap = Java.type(\"java.util.HashMap\");\n");
-		buildInMethod.append("var ArrayList = Java.type(\"java.util.ArrayList\");\n");
-		buildInMethod.append("var uuid = UUIDGenerator.uuid;\n");
-		buildInMethod.append("var JSONUtil = Java.type('com.tapdata.constant.JSONUtil');\n");
-		buildInMethod.append("var HanLPUtil = Java.type(\"com.tapdata.constant.HanLPUtil\");\n");
-		buildInMethod.append("var split_chinese = HanLPUtil.hanLPParticiple;\n");
-		buildInMethod.append("var util = Java.type(\"com.tapdata.processor.util.Util\");\n");
-		buildInMethod.append("var MD5Util = Java.type(\"com.tapdata.constant.MD5Util\");\n");
-		buildInMethod.append("var MD5 = function(str){return MD5Util.crypt(str, true);};\n");
-		buildInMethod.append("var Collections = Java.type(\"java.util.Collections\");\n");
-		buildInMethod.append("var MapUtils = Java.type(\"com.tapdata.constant.MapUtil\");\n");
-
-
-		buildInMethod.append("var sleep = function(ms){\n" +
-				"var Thread = Java.type(\"java.lang.Thread\");\n" +
-				"Thread.sleep(ms);\n" +
-				"}\n");
-		if (standard) {
-			return buildInMethod.toString();
-		}
-		buildInMethod.append("var networkUtil = Java.type(\"com.tapdata.constant.NetworkUtil\");\n");
-		buildInMethod.append("var rest = Java.type(\"com.tapdata.processor.util.CustomRest\");\n");
-		buildInMethod.append("var httpUtil = Java.type(\"cn.hutool.http.HttpUtil\");\n");
-		buildInMethod.append("var tcp = Java.type(\"com.tapdata.processor.util.CustomTcp\");\n");
-		buildInMethod.append("var mongo = Java.type(\"com.tapdata.processor.util.CustomMongodb\");\n");
-
-		if (CollectionUtils.isNotEmpty(javaScriptFunctions)) {
-			List<URL> urlList = new ArrayList<>();
-			for (JavaScriptFunctions javaScriptFunction : javaScriptFunctions) {
-				if (javaScriptFunction.isSystem()) {
-					continue;
-				}
-				String jsFunction = javaScriptFunction.getJSFunction();
-				if (StringUtils.isNotBlank(jsFunction)) {
-					buildInMethod.append(jsFunction).append("\n");
-					if (javaScriptFunction.isJar() && AppType.init().isDaas()) {
-						//定义类加载器
-						String fileId = javaScriptFunction.getFileId();
-						final Path filePath = Paths.get(System.getenv("TAPDATA_WORK_DIR"), "lib", fileId);
-						if (Files.notExists(filePath)) {
-							if (clientMongoOperator instanceof HttpClientMongoOperator) {
-								File file = ((HttpClientMongoOperator) clientMongoOperator).downloadFile(null, "file/" + fileId, filePath.toString(), true);
-								if (null == file) {
-									throw new RuntimeException("not found");
-								}
-							} else {
-								GridFSBucket gridFSBucket = clientMongoOperator.getGridFSBucket();
-								try (GridFSDownloadStream gridFSDownloadStream = gridFSBucket.openDownloadStream(new ObjectId(javaScriptFunction.getFileId()))) {
-									if (Files.notExists(filePath.getParent())) {
-										Files.createDirectories(filePath.getParent());
-									}
-									Files.createFile(filePath);
-									Files.copy(gridFSDownloadStream, filePath, StandardCopyOption.REPLACE_EXISTING);
-								} catch (Exception e) {
-									throw new RuntimeException(String.format("create function jar file '%s' error: %s", filePath, e.getMessage()), e);
-								}
-							}
-						}
-						try {
-							URL url = filePath.toUri().toURL();
-							urlList.add(url);
-						} catch (Exception e) {
-							throw new RuntimeException(String.format("create function jar file '%s' error: %s", filePath, e.getMessage()), e);
-						}
-					}
-				}
-			}
-			if (CollectionUtils.isNotEmpty(urlList)) {
-				logger.debug("urlClassLoader will load: {}", urlList);
-				final URLClassLoader urlClassLoader = new ScriptUtil.CustomerClassLoader(urlList.toArray(new URL[0]), ScriptUtil.class.getClassLoader());
-				if (consumer != null) {
-					consumer.accept(urlClassLoader);
-				}
-			}
-		}
-		return buildInMethod.toString();
-	}
-
 	public static void main(String[] args)throws FileNotFoundException, ScriptException {
 		final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
 		ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(JSEngineEnum.GRAALVM_JS.getEngineName()));
 		e.put("tapUtil", new JsUtil());
 		e.put("tapLog", new TapLog());
-		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/csvUtils.js"));
-		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/arrayUtils.js"));
-		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/dateUtils.js"));
-		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/exceptionUtils.js"));
-		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/stringUtils.js"));
-		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/mapUtils.js"));
-		e.eval(new FileReader("connectors-javascript/js-core/src/main/javascript/log.js"));
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/csvUtils.js"));
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/arrayUtils.js"));
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/dateUtils.js"));
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/exceptionUtils.js"));
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/stringUtils.js"));
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/mapUtils.js"));
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/log.js"));
 
 		Object invoker = e.eval("dateUtils.timeStamp2Date(new Date().getTime(), \"yyyy-MM-dd'T'HH:mm:ssXXX\");");
 		System.out.println(invoker + " ---- " + new JsUtil().timeStamp2Date(System.currentTimeMillis(), "yyyy-MM-dd'T'HH:mm:ssXXX"));

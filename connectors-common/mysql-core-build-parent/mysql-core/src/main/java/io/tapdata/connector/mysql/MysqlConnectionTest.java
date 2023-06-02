@@ -28,7 +28,6 @@ import static io.tapdata.base.ConnectorBase.testItem;
  **/
 public class MysqlConnectionTest extends CommonDbTest {
     protected static final String TAG = MysqlConnectionTest.class.getSimpleName();
-    protected static final String CHECK_DATABASE_PRIVILEGES_SQL = "SHOW GRANTS FOR CURRENT_USER";
     protected static final String CHECK_DATABASE_BINLOG_STATUS_SQL = "SHOW GLOBAL VARIABLES where variable_name = 'log_bin' OR variable_name = 'binlog_format'";
     protected static final String CHECK_DATABASE_BINLOG_ROW_IMAGE_SQL = "SHOW VARIABLES LIKE 'binlog_row_image%'";
     protected static final String CHECK_CREATE_TABLE_PRIVILEGES_SQL = "SELECT count(1)\n" +
@@ -51,12 +50,16 @@ public class MysqlConnectionTest extends CommonDbTest {
         }
     }
 
+    protected String getGrantsSql() {
+        return "SHOW GRANTS FOR CURRENT_USER";
+    }
+
     @Override
     public Boolean testWritePrivilege() {
         return WriteOrReadPrivilege("write");
     }
 
-    private boolean WriteOrReadPrivilege(String mark) {
+    protected boolean WriteOrReadPrivilege(String mark) {
         List<String> tableList = new ArrayList<>();
         AtomicReference<Boolean> globalWrite = new AtomicReference<>();
         AtomicReference<TestItem> testItem = new AtomicReference<>();
@@ -66,7 +69,7 @@ public class MysqlConnectionTest extends CommonDbTest {
         }
         try {
             String finalItemMark = itemMark;
-            jdbcContext.normalQuery(CHECK_DATABASE_PRIVILEGES_SQL, resultSet -> {
+            jdbcContext.normalQuery(getGrantsSql(), resultSet -> {
                 while (resultSet.next()) {
                     String grantSql = resultSet.getString(1);
                     if (testWriteOrReadPrivilege(grantSql, tableList, commonDbConfig.getDatabase(), mark)) {
@@ -144,7 +147,7 @@ public class MysqlConnectionTest extends CommonDbTest {
         try {
             StringBuilder missPri = new StringBuilder();
             List<CdcPrivilege> cdcPrivileges = new ArrayList<>(Arrays.asList(CdcPrivilege.values()));
-            jdbcContext.normalQuery(CHECK_DATABASE_PRIVILEGES_SQL, resultSet -> {
+            jdbcContext.normalQuery(getGrantsSql(), resultSet -> {
                 while (resultSet.next()) {
                     String grantSql = resultSet.getString(1);
                     Iterator<CdcPrivilege> iterator = cdcPrivileges.iterator();

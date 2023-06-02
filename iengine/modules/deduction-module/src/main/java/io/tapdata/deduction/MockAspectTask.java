@@ -55,7 +55,7 @@ public class MockAspectTask extends AbstractAspectTask {
 					}
 
           TapTable tapTable = processorBaseContext.getTapTableMap().get(tableId);
-          SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
+//          SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
           break;
       }
     }

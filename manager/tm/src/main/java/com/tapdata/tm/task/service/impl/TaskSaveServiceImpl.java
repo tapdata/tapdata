@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.service.impl;
 
 import cn.hutool.extra.cglib.CglibUtil;
+import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
@@ -25,6 +26,7 @@ import com.tapdata.tm.task.service.TaskSaveService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import io.tapdata.entity.conversion.PossibleDataTypes;
+import io.tapdata.entity.schema.type.TapType;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -49,55 +51,6 @@ public class TaskSaveServiceImpl implements TaskSaveService {
         if (Objects.isNull(dag) || org.apache.commons.collections4.CollectionUtils.isEmpty(dag.getNodes())) {
             return;
         }
-
-        List<MetadataInstancesDto> schemaList = metadataInstancesService.findByTaskId(taskDto.getId().toHexString(), userDetail);
-        if (CollectionUtils.isEmpty(schemaList)) {
-            return;
-        }
-
-        Map<String, List<MetadataInstancesDto>> schemaMap = schemaList.stream().collect(Collectors.groupingBy(MetadataInstancesDto::getNodeId));
-
-        boolean needBuildDag = false;
-        for (Node node : dag.getNodes()) {
-            Map<String, List<String>> notSupportFieldMap = Maps.newHashMap();
-            List<MetadataInstancesDto> metadataInstancesDtos = schemaMap.get(node.getId());
-            if (CollectionUtils.isEmpty(metadataInstancesDtos)) {
-                continue;
-            }
-
-            for (MetadataInstancesDto instancesDto : metadataInstancesDtos) {
-                Map<String, PossibleDataTypes> findPossibleDataTypes = instancesDto.getFindPossibleDataTypes();
-                if (Objects.isNull(findPossibleDataTypes)) {
-                    continue;
-                }
-
-                List<String> notSupportFields = Lists.newArrayList();
-                findPossibleDataTypes.forEach((k, v) -> {
-                    if (v.getLastMatchedDataType() == null) {
-                        notSupportFields.add(k);
-                    }
-                });
-
-                if (CollectionUtils.isNotEmpty(notSupportFields)) {
-                    notSupportFieldMap.put(instancesDto.getOriginalName(), notSupportFields);
-                }
-            }
-
-            if (!notSupportFieldMap.isEmpty()) {
-                node.setNotSupportFieldMap(notSupportFieldMap);
-                needBuildDag = true;
-            }
-        }
-
-        if (!TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
-            if (needBuildDag) {
-                Dag temp = new Dag(dag.getEdges(), dag.getNodes());
-                DAG.build(temp);
-            }
-            return;
-        }
-
-        //supplier migrate tableSelectType=all tableNames and SyncObjects
         if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
             dag.getSourceNode().forEach(sourceNode -> {
                 if (StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
@@ -120,7 +73,64 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
                 nodeCheckData(sourceNode.successors(), sourceNode.getTableNames(), null);
             });
+        }
+        List<MetadataInstancesDto> schemaList = metadataInstancesService.findByTaskId(taskDto.getId().toHexString(), userDetail);
+        if (CollectionUtils.isEmpty(schemaList)) {
+            return;
+        }
 
+        Map<String, List<MetadataInstancesDto>> schemaMap = schemaList.stream().collect(Collectors.groupingBy(MetadataInstancesDto::getNodeId));
+
+        boolean needBuildDag = false;
+        for (Node node : dag.getNodes()) {
+            Map<String, List<String>> notSupportFieldMap = Maps.newHashMap();
+            List<MetadataInstancesDto> metadataInstancesDtos = schemaMap.get(node.getId());
+            if (CollectionUtils.isEmpty(metadataInstancesDtos)) {
+                continue;
+            }
+
+            for (MetadataInstancesDto instancesDto : metadataInstancesDtos) {
+                List<String> notSupportFields = Lists.newArrayList();
+                if (Node.SourceType.target == node.sourceType()) {
+                    Map<String, PossibleDataTypes> findPossibleDataTypes = instancesDto.getFindPossibleDataTypes();
+                    if (Objects.isNull(findPossibleDataTypes)) {
+                        continue;
+                    }
+
+                    findPossibleDataTypes.forEach((k, v) -> {
+                        if (CollectionUtils.isEmpty(v.getDataTypes())) {
+                            notSupportFields.add(k);
+                        }
+                    });
+                }
+
+                if (CollectionUtils.isNotEmpty(notSupportFields)) {
+                    instancesDto.getFields().forEach(field -> {
+                        if (field.getDataTypeTemp()!=null && !Objects.equals(field.getDataType(), field.getDataTypeTemp())) {
+                            notSupportFields.remove(field.getFieldName());
+                        }
+                    });
+
+                    notSupportFieldMap.put(instancesDto.getOriginalName(), notSupportFields);
+                }
+            }
+
+            if (!notSupportFieldMap.isEmpty()) {
+                node.setNotSupportFieldMap(notSupportFieldMap);
+                needBuildDag = true;
+            }
+        }
+
+        if (!TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+            if (needBuildDag) {
+                Dag temp = new Dag(dag.getEdges(), dag.getNodes());
+                DAG.build(temp);
+            }
+            return;
+        }
+
+        //supplier migrate tableSelectType=all tableNames and SyncObjects
+        if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
             if (CollectionUtils.isNotEmpty(dag.getTargets())) {
                 dag.getTargets().stream()
                         .filter(node -> node instanceof DatabaseNode)
@@ -157,6 +167,8 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             Dag temp = new Dag(dag.getEdges(), dag.getNodes());
             DAG.build(temp);
         }
+
+
     }
 
     @Override

@@ -7,7 +7,6 @@ import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import io.tapdata.pdk.core.workflow.engine.DataFlowEngine;
 
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -269,7 +268,6 @@ public class SingleThreadBlockingQueue<T> implements Runnable, MemoryFetcher {
 //        }
 //        if(true)
 //            return;
-        DataFlowEngine.getInstance().start();
         ExecutorService executorService = Executors.newFixedThreadPool(1);
 //        Logger logger = LoggerFactory.getLogger("aaa");
         AtomicLong now = new AtomicLong(System.currentTimeMillis());

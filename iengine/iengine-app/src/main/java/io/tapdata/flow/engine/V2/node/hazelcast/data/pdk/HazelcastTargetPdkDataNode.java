@@ -12,29 +12,13 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.AlterFieldAttributesFuncAspect;
-import io.tapdata.aspect.AlterFieldNameFuncAspect;
-import io.tapdata.aspect.ClearTableFuncAspect;
-import io.tapdata.aspect.CreateIndexFuncAspect;
-import io.tapdata.aspect.CreateTableFuncAspect;
-import io.tapdata.aspect.DropFieldFuncAspect;
-import io.tapdata.aspect.DropTableFuncAspect;
-import io.tapdata.aspect.NewFieldFuncAspect;
-import io.tapdata.aspect.SkipErrorDataAspect;
-import io.tapdata.aspect.TableInitFuncAspect;
-import io.tapdata.aspect.WriteRecordFuncAspect;
+import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
-import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
-import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
-import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
-import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
-import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
+import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
@@ -48,7 +32,6 @@ import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
-import io.tapdata.flow.engine.V2.exactlyonce.write.CheckExactlyOnceWriteEnableResult;
 import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleaner;
 import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleanerEntity;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
@@ -59,21 +42,7 @@ import io.tapdata.pdk.apis.entity.merge.MergeInfo;
 import io.tapdata.pdk.apis.entity.merge.MergeTableProperties;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.target.AlterFieldAttributesFunction;
-import io.tapdata.pdk.apis.functions.connector.target.AlterFieldNameFunction;
-import io.tapdata.pdk.apis.functions.connector.target.ClearTableFunction;
-import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
-import io.tapdata.pdk.apis.functions.connector.target.DropFieldFunction;
-import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
-import io.tapdata.pdk.apis.functions.connector.target.NewFieldFunction;
-import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
-import io.tapdata.pdk.apis.functions.connector.target.TransactionBeginFunction;
-import io.tapdata.pdk.apis.functions.connector.target.TransactionCommitFunction;
-import io.tapdata.pdk.apis.functions.connector.target.TransactionRollbackFunction;
-import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
+import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -88,25 +57,13 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static io.tapdata.entity.simplify.TapSimplify.clearTableEvent;
-import static io.tapdata.entity.simplify.TapSimplify.createIndexEvent;
-import static io.tapdata.entity.simplify.TapSimplify.createTableEvent;
-import static io.tapdata.entity.simplify.TapSimplify.dropTableEvent;
+import static io.tapdata.entity.simplify.TapSimplify.*;
 
 /**
  * @author jackin
@@ -499,8 +456,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		).map(updateConditionFields -> {
 			ValueChange<String> nameChange = tapAlterFieldNameEvent.getNameChange();
 			if (null != nameChange) {
-				updateConditionFields.removeIf(s -> nameChange.getBefore().equals(s));
-				updateConditionFields.add(nameChange.getAfter());
+				if(updateConditionFields.contains(nameChange.getBefore())){
+					updateConditionFields.removeIf(s -> nameChange.getBefore().equals(s));
+					updateConditionFields.add(nameChange.getAfter());
+				}
 				Optional.ofNullable(dataProcessorContext.getTaskDto()
 				).map(TaskDto::getDag
 				).map(dag -> dag.getNode(getNode().getId())
@@ -515,8 +474,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					}
 					return null;
 				}).map(fields -> {
-					fields.removeIf(s -> nameChange.getBefore().equals(s));
-					fields.add(nameChange.getAfter());
+					if(fields.contains(nameChange.getBefore())){
+						fields.removeIf(s -> nameChange.getBefore().equals(s));
+						fields.add(nameChange.getAfter());
+					}
 					return null;
 				});
 			}
@@ -673,6 +634,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
 		handleTapTablePrimaryKeys(tapTable);
 		events.forEach(this::addPropertyForMergeEvent);
+		tapRecordEvents.forEach(t -> removeNotSupportFields(t, tapTable.getId()));
 		WriteRecordFunction writeRecordFunction = getConnectorNode().getConnectorFunctions().getWriteRecordFunction();
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 		if (writeRecordFunction != null) {
@@ -891,5 +853,47 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			}, TAG);
 		}
 		super.doClose();
+	}
+	@Override
+	protected void updateNodeConfig(TapdataEvent tapdataEvent) {
+		super.updateNodeConfig(tapdataEvent);
+		final TapEvent tapEvent = tapdataEvent.getTapEvent();
+		if(tapEvent instanceof TapAlterFieldNameEvent){
+			TapAlterFieldNameEvent tapAlterFieldNameEvent = (TapAlterFieldNameEvent) tapEvent;
+			// 修改关联字段配置
+			Optional.ofNullable(updateConditionFieldsMap
+			).map(m -> m.get(tapAlterFieldNameEvent.getTableId())
+			).map(updateConditionFields -> {
+				ValueChange<String> nameChange = tapAlterFieldNameEvent.getNameChange();
+				if (null != nameChange) {
+					if(updateConditionFields.contains(nameChange.getBefore())){
+						updateConditionFields.removeIf(s -> nameChange.getBefore().equals(s));
+						updateConditionFields.add(nameChange.getAfter());
+					}
+					Optional.ofNullable(dataProcessorContext.getTaskDto()
+					).map(TaskDto::getDag
+					).map(dag -> dag.getNode(getNode().getId())
+					).map(node -> {
+						if (node instanceof DatabaseNode) {
+							Map<String, List<String>> updateConditionFieldMap = ((DatabaseNode) node).getUpdateConditionFieldMap();
+							if (null != updateConditionFieldMap) {
+								return updateConditionFieldMap.get(tapAlterFieldNameEvent.getTableId());
+							}
+						} else if (node instanceof TableNode) {
+							return ((TableNode) node).getUpdateConditionFields();
+						}
+						return null;
+					}).map(fields -> {
+						if(fields.contains(nameChange.getBefore())){
+							fields.removeIf(s -> nameChange.getBefore().equals(s));
+							fields.add(nameChange.getAfter());
+						}
+						return null;
+					});
+				}
+				return null;
+			});
+		}
+
 	}
 }

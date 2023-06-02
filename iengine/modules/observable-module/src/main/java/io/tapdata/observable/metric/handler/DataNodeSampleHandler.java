@@ -153,8 +153,6 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 			}
 			return currentSnapshotTableInsertRowTotal;
 		});
-
-		collector.addSampler(Constants.CURR_EVENT_TS, () -> currentEventTimestamp.value());
 	}
 
 	public void addTable(String... tables) {
@@ -326,11 +324,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		Optional.ofNullable(outputSpeed).ifPresent(speed -> speed.add(total));
 
 		Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(recorder.getNewestEventTimestamp()));
-		Optional.ofNullable(replicateLag).ifPresent(speed -> {
-			if (null != recorder.getReplicateLagTotal()) {
-				speed.setValue(recorder.getReplicateLagTotal());
-			}
-		});
+		Optional.ofNullable(replicateLag).ifPresent(speed -> speed.setValue(recorder.getReplicateLagTotal()));
 
 		Optional.ofNullable(timeCostAverage).ifPresent(average -> {
 			average.add(total, processCompleteAt - streamProcessStartTs);
@@ -355,7 +349,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	public void handleCDCHeartbeatWriteAspect(List<TapdataEvent> tapdataEvents) {
 		TapBaseEvent tapBaseEvent;
 		AtomicLong counts = new AtomicLong(0);
-		AtomicLong timesTotals = new AtomicLong(0);
+		List<Long> replicateLagList = new ArrayList<>();
 		AtomicLong lastTime = new AtomicLong(0);
 		for (TapdataEvent tapdataEvent : tapdataEvents) {
 			if (tapdataEvent.getTapEvent() instanceof TapBaseEvent) {
@@ -363,13 +357,13 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 				Optional.ofNullable(tapBaseEvent.getReferenceTime()).ifPresent(t -> {
 					if (t > lastTime.get()) lastTime.set(t);
 					counts.addAndGet(1);
-					timesTotals.addAndGet(System.currentTimeMillis() - t);
+					replicateLagList.add(System.currentTimeMillis() - t);
 				});
 			} else {
 				Optional.ofNullable(tapdataEvent.getSourceTime()).ifPresent(t -> {
 					if (t > lastTime.get()) lastTime.set(t);
 					counts.addAndGet(1);
-					timesTotals.addAndGet(System.currentTimeMillis() - t);
+					replicateLagList.add(System.currentTimeMillis() - t);
 				});
 			}
 		}
@@ -377,7 +371,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(lastTime.get()));
 		Optional.ofNullable(replicateLag).ifPresent(speed -> {
 			if (counts.get() > 0) {
-				speed.setValue(timesTotals.get());
+				replicateLagList.stream().max(Long::compareTo).ifPresent(speed::setValue);
 			}
 		});
 	}

@@ -1,17 +1,23 @@
 package io.tapdata.observable.metric.handler;
 
+import com.google.common.collect.Lists;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TapdataHeartbeatEvent;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
-import io.tapdata.entity.event.dml.*;
+import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
+import io.tapdata.entity.event.ddl.index.TapDeleteIndexEvent;
 import io.tapdata.entity.event.ddl.table.*;
-import io.tapdata.entity.event.ddl.index.*;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Data;
+import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * @author Dexter
@@ -20,18 +26,20 @@ public class HandlerUtil {
     public static EventTypeRecorder countTapdataEvent(List<TapdataEvent> events) {
         long now = System.currentTimeMillis();
 
+        List<Long> referenceTimeList = Lists.newArrayList();
         EventTypeRecorder recorder = new EventTypeRecorder();
         for (TapdataEvent tapdataEvent : events) {
             // skip events like heartbeat
             if (null == tapdataEvent.getTapEvent()) {
                 if (tapdataEvent instanceof TapdataHeartbeatEvent) {
                     setEventTimestamp(recorder, tapdataEvent.getSourceTime());
+                    referenceTimeList.add(tapdataEvent.getSourceTime());
                 }
                 continue;
             }
-            Long referenceTime = countEventTypeAndGetReferenceTime(tapdataEvent.getTapEvent(), recorder);
-            CommonUtils.ignoreAnyError(() -> recorder.incrReplicateLagTotal(now, referenceTime), "HandlerUtil-countTapdataEvent");
+            referenceTimeList.add(countEventTypeAndGetReferenceTime(tapdataEvent.getTapEvent(), recorder));
         }
+        recorder.calculateMaxReplicateLag(now, referenceTimeList);
 
         return recorder;
     }
@@ -39,14 +47,14 @@ public class HandlerUtil {
     public static EventTypeRecorder countTapEvent(List<? extends TapEvent> events) {
         long now = System.currentTimeMillis();
 
-        Long referenceTime;
+        List<Long> referenceTimeList = Lists.newArrayList();
         EventTypeRecorder recorder = new EventTypeRecorder();
         for (TapEvent tapEvent : events) {
-            referenceTime = countEventTypeAndGetReferenceTime(tapEvent, recorder);
+            referenceTimeList.add(countEventTypeAndGetReferenceTime(tapEvent, recorder));
             recorder.incrProcessTimeTotal(now, tapEvent.getTime());
-            recorder.incrReplicateLagTotal(now, referenceTime);
         }
 
+        CommonUtils.ignoreAnyError(() -> recorder.calculateMaxReplicateLag(now, referenceTimeList), "HandlerUtil-countTapEvent");
         return recorder;
     }
 
@@ -140,15 +148,17 @@ public class HandlerUtil {
             processTimeTotal += (now - time);
         }
 
-        public void incrReplicateLagTotal(Long now, Long replicateLag) {
-            if (null == replicateLag) return;
+        public void calculateMaxReplicateLag(Long now, List<Long> referenceTimeList) {
+            if (CollectionUtils.isEmpty(referenceTimeList)) return;
             if (null == replicateLagTotal) {
                 replicateLagTotal = 0L;
             }
-            replicateLagTotal += (now - replicateLag);
+
+            // remove referenceTimeList null value
+            referenceTimeList.removeIf(Objects::isNull);
+            // get referenceTimeList min value
+            referenceTimeList.stream().min(Long::compareTo).ifPresent(minReferenceTime -> replicateLagTotal = now - minReferenceTime);
         }
-
-
 
         public long getTotal() {
             return ddlTotal + insertTotal + updateTotal + deleteTotal + othersTotal;

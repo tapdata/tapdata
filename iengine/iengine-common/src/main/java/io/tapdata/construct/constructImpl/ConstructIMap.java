@@ -24,9 +24,14 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 		this.iMap = hazelcastInstance.getMap(name);
 	}
 
-	public ConstructIMap(HazelcastInstance hazelcastInstance, String name, ExternalStorageDto externalStorageDto) {
-		super(name, externalStorageDto);
-		ExternalStorageUtil.initHZMapStorage(externalStorageDto, name, hazelcastInstance.getConfig());
+	public ConstructIMap(HazelcastInstance hazelcastInstance, String referenceId, String name) {
+		super(referenceId, name);
+		this.iMap = hazelcastInstance.getMap(name);
+	}
+
+	public ConstructIMap(HazelcastInstance hazelcastInstance, String referenceId, String name, ExternalStorageDto externalStorageDto) {
+		super(referenceId, name , externalStorageDto);
+		ExternalStorageUtil.initHZMapStorage(externalStorageDto, referenceId, name, hazelcastInstance.getConfig());
 		this.iMap = hazelcastInstance.getMap(name);
 		Integer ttlDay = externalStorageDto.getTtlDay();
 		if (ttlDay != null && ttlDay > 0) {
@@ -110,8 +115,7 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 
 	@Override
 	public void destroy() throws Exception {
-		PersistenceStorage.getInstance().destroy(ConstructType.IMAP, name);
-		if (null != iMap) {
+		if (PersistenceStorage.getInstance().destroy(referenceId, ConstructType.IMAP, name) && null != iMap) {
 			iMap.destroy();
 		}
 	}

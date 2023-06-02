@@ -450,7 +450,7 @@ public class AlarmServiceImpl implements AlarmService {
                     log.error("Current user ({}, {}) can't bind email, cancel send message {}.", userDetail.getUsername(), userDetail.getUserId(), JSON.toJSONString(info));
                     return true;
                 }
-								mailAccount = getMailAccount(alarmMessageDto.getUserId());
+                mailAccount = getMailAccount(alarmMessageDto.getUserId());
                 Map<String, String> map = getTaskTitleAndContent(info);
                 content = map.get("content");
                 title = map.get("title");
@@ -542,14 +542,29 @@ public class AlarmServiceImpl implements AlarmService {
                 SmsEvent = "当前任务运行超过阈值";
                 break;
 					case INSPECT_TASK_ERROR:
+						title = MessageFormat.format(AlarmMailTemplate.INSPECT_TASK_ERROR_TITLE, info.getParam().get("inspectName"));
+						content = MessageFormat.format(AlarmMailTemplate.INSPECT_TASK_ERROR_CONTENT,
+										info.getParam().get("inspectName"), info.getParam().get("alarmDate"));
+						SmsEvent ="校验任务异常";
+						break;
 					case INSPECT_COUNT_ERROR:
+						title = MessageFormat.format(AlarmMailTemplate.INSPECT_COUNT_ERROR_TITLE, info.getParam().get("inspectName"));
+						content = MessageFormat.format(AlarmMailTemplate.INSPECT_COUNT_ERROR_CONTENT,
+										info.getParam().get("inspectName"), info.getParam().get("count"));
+						SmsEvent ="快速count校验不一致告警";
+						break;
 					case INSPECT_VALUE_ERROR:
-						title=info.getName()+"发生异常";
-						ExpressionParser parser = new SpelExpressionParser();
-						TemplateParserContext parserContext = new TemplateParserContext();
-						String template = MessageUtil.getAlarmMsg(Locale.US, info.getSummary());
-						content = parser.parseExpression(template, parserContext).getValue(info.getParam(), String.class);
-						SmsEvent ="异常";
+						if ("INSPECT_VALUE_JOIN_ERROR".equals(info.getSummary())) {
+							title = MessageFormat.format(AlarmMailTemplate.INSPECT_VALUE_ERROR_JOIN_TITLE, info.getParam().get("inspectName"));
+							content = MessageFormat.format(AlarmMailTemplate.INSPECT_VALUE_ERROR_JOIN_CONTENT,
+											info.getParam().get("inspectName"), info.getParam().get("count"));
+							SmsEvent ="关联字段值校验结果不一致告警";
+						} else {
+							title = MessageFormat.format(AlarmMailTemplate.INSPECT_VALUE_ERROR_ALL_TITLE, info.getParam().get("inspectName"));
+							content = MessageFormat.format(AlarmMailTemplate.INSPECT_VALUE_ERROR_ALL_CONTENT,
+											info.getParam().get("inspectName"), info.getParam().get("count"));
+							SmsEvent ="表全字段值校验结果不一致告警";
+						}
 						break;
             default:
                 title=info.getName()+"发生异常";
@@ -947,7 +962,8 @@ public class AlarmServiceImpl implements AlarmService {
         mongoTemplate.updateMulti(Query.query(Criteria.where("taskId").is(taskId)), update, AlarmInfo.class);
     }
 
-    private MailAccountDto getMailAccount(String userId) {
+    @Override
+    public MailAccountDto getMailAccount(String userId) {
         List<Settings> all = settingsService.findAll();
         Map<String, Object> collect = all.stream().collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
 

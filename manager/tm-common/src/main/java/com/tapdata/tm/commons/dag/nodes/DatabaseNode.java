@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.dag.nodes;
 
+import com.google.common.collect.Lists;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeType;
@@ -207,13 +208,13 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     @SneakyThrows
     public void transformSchema(DAG.Options options) {
 
-        if (CollectionUtils.isEmpty(getGraph().successors(this.getId()))) {
+        if (CollectionUtils.isNotEmpty(getGraph().predecessors(this.getId()))) {
             this.setSchema(null);
             super.transformSchema(options);
             return;
         }
 
-        List<String> tables = getSourceNodeTableNames();
+        List<String> tables = getSourceNodeTableNames(Lists.newArrayList(this));
 
         if (CollectionUtils.isNotEmpty(tables)) {
             tableNames.removeIf(String::isEmpty);
@@ -231,9 +232,17 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     }
 
     public List<String> getSourceNodeTableNames() {
+        return getSourceNodeTableNames(null);
+    }
+
+
+    public List<String> getSourceNodeTableNames(List<DatabaseNode> nodes) {
         AtomicReference<List<String>> tableNames = new AtomicReference<>();
 
-        this.getDag().getSourceNode().stream()
+        if (CollectionUtils.isEmpty(nodes)) {
+            nodes = this.getDag().getSourceNode();
+        }
+        nodes.stream()
                 .findAny()
                 .ifPresent(t -> tableNames.set(t.getTableNames()));
 

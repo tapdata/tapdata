@@ -1,6 +1,7 @@
 package com.tapdata.tm.externalStorage.service;
 
 import com.mongodb.ConnectionString;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
@@ -26,6 +27,8 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -62,6 +65,21 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 
 	}
 
+
+	public ExternalStorageDto update(ExternalStorageDto externalStorageDto, UserDetail userDetail) {
+		if (StringUtils.isNotBlank(externalStorageDto.getUri())) {
+			ConnectionString connectionString = new ConnectionString(externalStorageDto.getUri());
+			char[] password = connectionString.getPassword();
+			if (password != null && password.length != 0) {
+				String pwd = new String(password);
+				if (ExternalStorageDto.MASK_PWD.equals(pwd)) {
+					externalStorageDto.setUri(null);
+				}
+			}
+		}
+		return save(externalStorageDto, userDetail);
+	}
+
 	protected void beforeSave(ExternalStorageDto externalStorage, UserDetail user) {
 		if (StringUtils.isBlank(externalStorage.getName())) {
 			throw new BizException("External.Storage.Name.Blank");
@@ -79,15 +97,21 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 		} catch (Throwable e) {
 			throw new BizException("External.Storage.Type.Invalid", e, externalStorage.getType());
 		}
+		ExternalStorageDto oldDto = null;
+		if (null != externalStorage.getId()) {
+			oldDto = findById(externalStorage.getId(), user);
+		}
 		switch (externalStorageType) {
 			case mongodb:
-				if (StringUtils.isBlank(externalStorage.getUri())) {
-					throw new BizException("External.Storage.MongoDB.Uri.Blank");
-				}
-				ConnectionString mongoUri = new ConnectionString(externalStorage.getUri());
-				String database = mongoUri.getDatabase();
-				if (StringUtils.isBlank(database)) {
-					throw new BizException("External.Storage.MongoDB.Database.Blank");
+				if (oldDto == null) {
+					if (StringUtils.isBlank(externalStorage.getUri())) {
+						throw new BizException("External.Storage.MongoDB.Uri.Blank");
+					}
+					ConnectionString mongoUri = new ConnectionString(externalStorage.getUri());
+					String database = mongoUri.getDatabase();
+					if (StringUtils.isBlank(database)) {
+						throw new BizException("External.Storage.MongoDB.Database.Blank");
+					}
 				}
 				break;
 			case rocksdb:
@@ -109,17 +133,10 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 		if (StringUtils.isBlank(id)) {
 			return null;
 		}
-		Criteria esIdOrCriteria = new Criteria().orOperator(
-				Criteria.where("dag.nodes.externalStorageId").is(id),
-				Criteria.where("shareCDCExternalStorageId").is(id)
-		);
+		Criteria esIdOrCriteria = new Criteria().orOperator(Criteria.where("dag.nodes.externalStorageId").is(id), Criteria.where("shareCDCExternalStorageId").is(id));
 		Criteria taskStatusCriteria = new Criteria().and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED);
 		Criteria taskIsDeletedCriteria = new Criteria("is_deleted").is(false);
-		Criteria criteria = new Criteria().andOperator(
-				taskStatusCriteria,
-				taskIsDeletedCriteria,
-				esIdOrCriteria
-		);
+		Criteria criteria = new Criteria().andOperator(taskStatusCriteria, taskIsDeletedCriteria, esIdOrCriteria);
 		Query query = new Query(criteria);
 		query.fields().include("_id", "name", "status", "syncType");
 		List<TaskEntity> tasks = taskRepository.findAll(query);
@@ -134,12 +151,61 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 			List<ExternalStorageDto> items = externalStorageDtoPage.getItems();
 			for (ExternalStorageEntity initExternalStorage : initExternalStorages) {
 				if (null == items.stream().filter(i -> i.getName().equals(initExternalStorage.getName())).findFirst().orElse(null)) {
+
 					items.add(convertToDto(initExternalStorage, ExternalStorageDto.class));
 					externalStorageDtoPage.setTotal(externalStorageDtoPage.getTotal() + 1);
 				}
 			}
+			externalStorageDtoPage.setItems(maskPasswordIfNeed(externalStorageDtoPage.getItems()));
+			externalStorageDtoPage.getItems().forEach(ets -> {
+				if (null == ets.getCreateAt() && null != ets.getId()) {
+					ObjectId id = ets.getId();
+					int timestamp = id.getTimestamp();
+					ets.setCreateAt(new Date(timestamp * 1000L));
+				}
+			});
 		}
 		return externalStorageDtoPage;
+	}
+
+	@Override
+	public ExternalStorageDto findById(ObjectId objectId) {
+		return maskPasswordIfNeed(super.findById(objectId));
+	}
+
+	@Override
+	public ExternalStorageDto findById(ObjectId objectId, Field field, UserDetail userDetail) {
+		return maskPasswordIfNeed(super.findById(objectId, field, userDetail));
+	}
+
+	@Override
+	public ExternalStorageDto findById(ObjectId objectId, UserDetail userDetail) {
+		return maskPasswordIfNeed(super.findById(objectId, userDetail));
+	}
+
+	@Override
+	public ExternalStorageDto findById(ObjectId objectId, Field field) {
+		return maskPasswordIfNeed(super.findById(objectId, field));
+	}
+
+	@Override
+	public ExternalStorageDto findOne(Query query, UserDetail userDetail) {
+		return maskPasswordIfNeed(super.findOne(query, userDetail));
+	}
+
+	@Override
+	public ExternalStorageDto findOne(Query query) {
+		return maskPasswordIfNeed(super.findOne(query));
+	}
+
+	@Override
+	public ExternalStorageDto findOne(Query query, String excludeField) {
+		return maskPasswordIfNeed(super.findOne(query, excludeField));
+	}
+
+	@Override
+	public ExternalStorageDto findOne(Filter filter, UserDetail userDetail) {
+		return maskPasswordIfNeed(super.findOne(filter, userDetail));
 	}
 
 	@Override
@@ -165,5 +231,26 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 			}
 		}
 		return delete;
+	}
+
+	private List<ExternalStorageDto> maskPasswordIfNeed(List<ExternalStorageDto> externalStorageDtoList) {
+		if (null == externalStorageDtoList) {
+			return null;
+		}
+		List<ExternalStorageDto> newList = new ArrayList<>();
+		for (ExternalStorageDto externalStorageDto : externalStorageDtoList) {
+			newList.add(maskPasswordIfNeed(externalStorageDto));
+		}
+		return newList;
+	}
+
+	private ExternalStorageDto maskPasswordIfNeed(ExternalStorageDto externalStorageDto) {
+		if (null == externalStorageDto) {
+			return null;
+		}
+		if (!isAgentReq()) {
+			externalStorageDto.setUri(externalStorageDto.maskUriPassword());
+		}
+		return externalStorageDto;
 	}
 }
