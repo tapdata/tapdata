@@ -8,4 +8,8 @@ function cloneObj(obj) {
     return JSON.parse(JSON.stringify(obj));
 }
 
+function sha256_HMAC(value, key){
+    return tapUtil.sha256_HMAC(value, key);
+}
+
 
