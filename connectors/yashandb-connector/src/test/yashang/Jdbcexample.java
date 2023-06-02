@@ -1,4 +1,4 @@
-package io.tapdata.connector.yashandb.config;
+package yashang;
 
 //Jdbcexample.java
 //演示基于JDBC开发的主要步骤，涉及创建数据库、创建表、插入数据等。
@@ -9,7 +9,7 @@ public class Jdbcexample {
     //创建数据库连接。
     public static Connection getConnection(String username, String passwd) {
         String driver = "com.yashandb.jdbc.Driver";
-        String sourceURL = "jdbc:yasdb://106.55.5.251:1688/yasdb";
+        String sourceURL = "jdbc:yasdb://110.00.00.000:0000/yasdb";
         Connection conn = null;
         try {
             //加载数据库驱动。
@@ -185,12 +185,12 @@ public class Jdbcexample {
             stmt = conn.createStatement();
 
             //执行普通SQL语句。
-            rs = stmt.executeQuery("SELECT TABLE_NAME FROM ALL_TABLES WHERE OWNER = 'TAPDATA'");
-            System.out.println("clear table customer succeed!");
+            rs = stmt.executeQuery("SELECT \"date_field\" FROM \"TAPDATA\".\"sk_amy\" WHERE \"_id\"  = '643e8833d8d65654a5cc0ba2'");
+            System.out.println("select table customer succeed!");
 
             // 处理查询结果
             while (rs.next()) {
-                String tableName = rs.getString("TABLE_NAME");
+                String tableName = rs.getString("date_field");
                 System.out.println("Table Name: " + tableName);
             }
 
@@ -279,7 +279,8 @@ public class Jdbcexample {
 
     public static int execJdbcexample(String ctrls) {
         //创建数据库连接。
-        Connection conn = getConnection("tapdata", "tapdata");
+        //输入用户名 密码
+        Connection conn = getConnection("******", "******");
 
         //创建表。
 //        createTable(conn);
