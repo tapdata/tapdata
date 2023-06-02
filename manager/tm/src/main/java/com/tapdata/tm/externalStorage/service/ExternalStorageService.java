@@ -76,7 +76,22 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 				if (password != null && password.length != 0) {
 					String pwd = new String(password);
 					if (ExternalStorageDto.MASK_PWD.equals(pwd)) {
-						externalStorageDto.setUri(null);
+						if (null == externalStorageDto.getId()) {
+							throw new BizException("External.Storage.ID.NULL");
+						}
+						ExternalStorageEntity oldExternalStorage = repository.findById(externalStorageDto.getId().toHexString()).orElse(null);
+						if (null == oldExternalStorage) {
+							return externalStorageDto;
+						}
+						String oldUri = oldExternalStorage.getUri();
+						ConnectionString oldConnectionString = new ConnectionString(oldUri);
+						char[] oldPassword = oldConnectionString.getPassword();
+						if (null == oldPassword || oldPassword.length == 0) {
+							throw new BizException("External.Storage.MongoDB.Old.Pwd.NULL", oldUri);
+						}
+						String oldPasswordStr = new String(oldPassword);
+						String uri = StringUtils.replaceOnce(externalStorageDto.getUri(), ExternalStorageDto.MASK_PWD, oldPasswordStr);
+						externalStorageDto.setUri(uri);
 					}
 				}
 			}
