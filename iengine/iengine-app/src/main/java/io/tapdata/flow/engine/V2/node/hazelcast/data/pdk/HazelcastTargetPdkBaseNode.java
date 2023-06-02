@@ -34,11 +34,7 @@ import io.tapdata.aspect.CreateTableFuncAspect;
 import io.tapdata.aspect.NewFieldFuncAspect;
 import io.tapdata.aspect.TaskMilestoneFuncAspect;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
-import io.tapdata.aspect.taskmilestones.CDCHeartbeatWriteAspect;
-import io.tapdata.aspect.taskmilestones.CDCWriteBeginAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotWriteBeginAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotWriteEndAspect;
-import io.tapdata.aspect.taskmilestones.WriteErrorAspect;
+import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
@@ -588,6 +584,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			snapshotOrderController.finish(srcNode);
 			snapshotOrderController.flush();
 		}
+		executeAspect(new SnapshotWriteTableCompleteAspect().sourceNodeId(srcNodeId).sourceTableName(tapdataEvent.getSourceTableName()).dataProcessorContext(dataProcessorContext));
 	}
 
 	private void flushOffsetByTapdataEventForNoConcurrent(AtomicReference<TapdataEvent> lastTapdataEvent) {
