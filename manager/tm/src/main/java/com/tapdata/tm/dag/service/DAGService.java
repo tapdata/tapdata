@@ -1,6 +1,7 @@
 package com.tapdata.tm.dag.service;
 
 import cn.hutool.core.date.DateUtil;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
@@ -1192,5 +1193,10 @@ public class DAGService implements DAGDataService {
 
     public ObjectId getTaskId() {
         return null;
+    }
+
+    @Override
+    public List<MetadataInstancesDto> findByNodeId(String id) {
+        return Lists.newArrayList();
     }
 }

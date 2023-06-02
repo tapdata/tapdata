@@ -2,6 +2,10 @@ package io.tapdata.flow.engine.V2.util;
 
 import com.google.common.collect.Lists;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.UnionProcessorNode;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import org.apache.commons.collections.CollectionUtils;
 
 import java.util.ArrayList;
@@ -9,6 +13,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * @author samuel
@@ -71,5 +76,12 @@ public class GraphUtil {
 			}
 		}
 		return result;
+	}
+
+	public static List<Node> findMergeNode(TaskDto taskDto) {
+		List<Node> nodes = taskDto.getDag().getNodes();
+		return nodes.stream().filter(n -> n instanceof MergeTableNode
+				|| n instanceof JoinProcessorNode
+				|| n instanceof UnionProcessorNode).collect(Collectors.toList());
 	}
 }

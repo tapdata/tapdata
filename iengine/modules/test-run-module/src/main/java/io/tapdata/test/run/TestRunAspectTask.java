@@ -17,6 +17,7 @@ import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
@@ -109,7 +110,12 @@ public class TestRunAspectTask extends AspectTask {
     paramMap.put("taskId", task.getId().toHexString());
     paramMap.put("version", task.getVersion());
     paramMap.put("ts", new Date().getTime());
+
     paramMap.put("before", Optional.ofNullable(resultMap.get("before")).orElse(new ArrayList<>()));
+    if (((paramMap.get("before")) instanceof Collection) && ((Collection<?>)paramMap.get("before")).isEmpty()){
+      stopAspect.setError(new CoreException("Can not get data from source,  Please ensure if source connection is valid"));
+      paramMap.put("after", Optional.ofNullable(resultMap.get("after")).orElse(new ArrayList<>()));
+    }
     if (stopAspect.getError() != null) {
       //run task error
       paramMap.put("code", "error");

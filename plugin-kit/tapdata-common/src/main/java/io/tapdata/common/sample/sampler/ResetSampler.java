@@ -22,7 +22,7 @@ public class ResetSampler implements Sampler {
     @Override
     public Number value() {
         if (Objects.nonNull(value.get())) {
-            return Math.abs(value.get());
+            return value.get();
         } else {
             return null;
         }

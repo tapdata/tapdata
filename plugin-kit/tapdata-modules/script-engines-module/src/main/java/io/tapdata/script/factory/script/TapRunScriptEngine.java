@@ -1,7 +1,6 @@
 package io.tapdata.script.factory.script;
 
 import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.pdk.apis.exception.NotSupportedException;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -10,38 +9,43 @@ import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 
-import javax.script.*;
+import javax.script.Bindings;
+import javax.script.Invocable;
+import javax.script.ScriptContext;
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineFactory;
+import javax.script.ScriptEngineManager;
+import javax.script.ScriptException;
+import javax.script.SimpleScriptContext;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.Reader;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.util.Arrays;
-import java.util.Enumeration;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 
 public class TapRunScriptEngine implements ScriptEngine, Invocable, Closeable {
-    private final ScriptEngine scriptEngine;
+    private ScriptEngine scriptEngine;
     private final Invocable invocable;
     private final String buildInScript;
+    private ClassLoader classLoader;
 
     public Invocable invocable() {
         return this.invocable;
     }
 
     public TapRunScriptEngine(ScriptOptions scriptOptions) {
+        classLoader = scriptOptions.getClassLoader();
         this.buildInScript = "";
         this.scriptEngine = initScriptEngine(scriptOptions.getEngineName());
         this.invocable = (Invocable) this.scriptEngine;
     }
-
     private ScriptEngine initScriptEngine(String jsEngineName) {
         EngineType jsEngineEnum = EngineType.getByEngineName(jsEngineName);
         ScriptEngine scriptEngine;
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         try {
-            Thread.currentThread().setContextClassLoader(Engine.class.getClassLoader());
+            Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
             if (jsEngineEnum == EngineType.GRAALVM_JS) {
                 scriptEngine = GraalJSScriptEngine
                         .create(Engine.newBuilder()
@@ -67,16 +71,12 @@ public class TapRunScriptEngine implements ScriptEngine, Invocable, Closeable {
         } finally {
             Thread.currentThread().setContextClassLoader(classLoader);
         }
-//        TapLogger.warn("TAG", "current context class loader {}", Thread.currentThread().getContextClassLoader());
-
         return scriptEngine;
     }
+
     public Object applyClassLoaderContext(Callable<?> callable) {
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        ClassLoader theClassLoader = null;
-        if (theClassLoader == null)
-            theClassLoader = Engine.class.getClassLoader();
-        Thread.currentThread().setContextClassLoader(theClassLoader);
+        Thread.currentThread().setContextClassLoader(Optional.ofNullable(this.classLoader).orElse(Thread.currentThread().getContextClassLoader()));
         try {
             return callable.call();
         } catch (Exception e) {
@@ -85,6 +85,7 @@ public class TapRunScriptEngine implements ScriptEngine, Invocable, Closeable {
             Thread.currentThread().setContextClassLoader(classLoader);
         }
     }
+
     private String combineFunctions(String script) {
         return buildInScript + "\n" + script;
     }

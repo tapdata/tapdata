@@ -25,12 +25,12 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 	}
 
 	public ConstructIMap(HazelcastInstance hazelcastInstance, String referenceId, String name) {
-		super(name);
+		super(referenceId, name);
 		this.iMap = hazelcastInstance.getMap(name);
 	}
 
 	public ConstructIMap(HazelcastInstance hazelcastInstance, String referenceId, String name, ExternalStorageDto externalStorageDto) {
-		super(name, referenceId, externalStorageDto);
+		super(referenceId, name , externalStorageDto);
 		ExternalStorageUtil.initHZMapStorage(externalStorageDto, referenceId, name, hazelcastInstance.getConfig());
 		this.iMap = hazelcastInstance.getMap(name);
 		Integer ttlDay = externalStorageDto.getTtlDay();

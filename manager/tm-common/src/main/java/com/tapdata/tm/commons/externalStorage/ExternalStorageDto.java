@@ -22,8 +22,8 @@ public class ExternalStorageDto extends BaseDto {
 	@Deprecated
 	private String table;
 	private Integer ttlDay;
-	private boolean canEdit = false;
-	private boolean canDelete = true;
+	private Boolean canEdit = true;
+	private Boolean canDelete;
 	private boolean defaultStorage = false;
 	private List<String> baseURLs;
 	private String accessToken;

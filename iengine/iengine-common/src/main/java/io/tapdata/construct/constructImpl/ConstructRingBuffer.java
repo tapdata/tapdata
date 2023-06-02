@@ -43,7 +43,7 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> {
 	}
 
 	public ConstructRingBuffer(HazelcastInstance hazelcastInstance, String referenceId, String name, ExternalStorageDto externalStorageDto) {
-		super(name, referenceId, externalStorageDto);
+		super(referenceId, name, externalStorageDto);
 		ExternalStorageUtil.initHZRingBufferStorage(externalStorageDto, referenceId, name, hazelcastInstance.getConfig());
 		this.ringbuffer = hazelcastInstance.getRingbuffer(name);
 		Integer ttlDay = externalStorageDto.getTtlDay();

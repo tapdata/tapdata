@@ -61,15 +61,14 @@ public class JSProcessNodeTestRunService {
 
         ObsLogger logger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
         TaskClient<TaskDto> taskClient = null;
+        taskDto.setType(ParentTaskDto.TYPE_INITIAL_SYNC);
+        if (taskDtoMap.putIfAbsent(taskId, taskDto) != null) {
+            throw new CoreException(ERROR_REPEAT_EXECUTION, "The trial run is currently in progress, please do not repeat it.");
+        }
+        AtomicReference<Object> clientResult = new AtomicReference<>();
         try {
-            taskDto.setType(ParentTaskDto.TYPE_INITIAL_SYNC);
-            if (taskDtoMap.putIfAbsent(taskId, taskDto) != null) {
-                throw new CoreException(ERROR_REPEAT_EXECUTION, "The trial run is currently in progress, please do not repeat it.");
-            }
-            logger.info("{} task start", taskId);
-            AtomicReference<Object> clientResult = new AtomicReference<>();
-
             taskClient = taskService.startTestTask(taskDto, clientResult);
+            logger.info("{} task start", taskId);
             TestRunTaskHandler.registerTaskClient(taskId, taskClient);
             taskClient.join();
             AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()).error(taskClient.getError()));

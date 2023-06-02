@@ -5,6 +5,7 @@ import com.hazelcast.jet.Job;
 import com.hazelcast.jet.core.JobStatus;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.Log4jUtil;
+import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
@@ -170,6 +171,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 					},
 					error -> obsLogger.warn("Remove snapshot order controller failed, error: %s\n %s", error.getMessage(), Log4jUtil.getStackString(error))
 			);
+			CommonUtils.ignoreAnyError(() -> TaskGlobalVariable.INSTANCE.removeTask(taskDto.getId().toHexString()), TAG);
 		}
 		return job.getStatus().isTerminal();
 	}

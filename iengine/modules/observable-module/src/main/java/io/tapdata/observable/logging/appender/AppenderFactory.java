@@ -1,6 +1,7 @@
 package io.tapdata.observable.logging.appender;
 
 import com.alibaba.fastjson.JSON;
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import lombok.SneakyThrows;
 import net.openhft.chronicle.core.threads.InterruptedRuntimeException;
@@ -150,6 +151,8 @@ public class AppenderFactory implements Serializable {
 				}
 			});
 		} catch (InterruptedRuntimeException ignored) {
+		} catch (Exception e) {
+			logger.warn("Append log in cache queue failed, error: {}\n Stack: {}", e.getMessage(), Log4jUtil.getStackString(e));
 		}
 		if (emptyWaiting.availablePermits() < 1) {
 			emptyWaiting.release(1);

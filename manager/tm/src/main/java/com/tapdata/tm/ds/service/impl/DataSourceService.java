@@ -1885,22 +1885,19 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		return convertToDto(dataSourceEntity, DataSourceConnectionDto.class);
 	}
 
-	public List<TaskDto> findUsingTaskByConnectionId(String connectionId,UserDetail user) {
+	public List<TaskDto> findUsingDigginTaskByConnectionId(String connectionId,UserDetail user) {
 		if (StringUtils.isBlank(connectionId)) {
 			return null;
 		}
-		List<TaskEntity> tasks = taskService.findAll(getUsingTaskQuery(connectionId,TaskDto.SYNC_TYPE_SYNC),user);
-		List<TaskEntity> task1 = taskService.findAll(getUsingTaskQuery(connectionId,TaskDto.SYNC_TYPE_LOG_COLLECTOR),user);
-		tasks.addAll(task1);
+		List<TaskEntity> tasks = taskService.findAll(getUsingTaskQuery(connectionId,TaskDto.SYNC_TYPE_LOG_COLLECTOR),user);
 		return CollectionUtils.isNotEmpty(tasks) ? taskService.convertToDto(tasks, TaskDto.class) : null;
 	}
 
-	public Long countUsingTaskByConnectionId(String connectionId,UserDetail user){
+	public Long countUsingDigginTaskByConnectionId(String connectionId,UserDetail user){
 		if (StringUtils.isBlank(connectionId)) {
 			return null;
 		}
-		return taskService.count(getUsingTaskQuery(connectionId,TaskDto.SYNC_TYPE_SYNC),user)
-				+ taskService.count(getUsingTaskQuery(connectionId,TaskDto.SYNC_TYPE_LOG_COLLECTOR),user);
+		return taskService.count(getUsingTaskQuery(connectionId,TaskDto.SYNC_TYPE_LOG_COLLECTOR),user);
 	}
 
 	private Query getUsingTaskQuery(String connectionId,String syncType){

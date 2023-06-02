@@ -67,16 +67,36 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 
 
 	public ExternalStorageDto update(ExternalStorageDto externalStorageDto, UserDetail userDetail) {
-		if (StringUtils.isNotBlank(externalStorageDto.getUri())) {
-			ConnectionString connectionString = new ConnectionString(externalStorageDto.getUri());
-			char[] password = connectionString.getPassword();
-			if (password != null && password.length != 0) {
-				String pwd = new String(password);
-				if (ExternalStorageDto.MASK_PWD.equals(pwd)) {
-					externalStorageDto.setUri(null);
+		String type = externalStorageDto.getType();
+		ExternalStorageType externalStorageType = ExternalStorageType.valueOf(type);
+		if (externalStorageType == ExternalStorageType.mongodb) {
+			if (StringUtils.isNotBlank(externalStorageDto.getUri())) {
+				ConnectionString connectionString = new ConnectionString(externalStorageDto.getUri());
+				char[] password = connectionString.getPassword();
+				if (password != null && password.length != 0) {
+					String pwd = new String(password);
+					if (ExternalStorageDto.MASK_PWD.equals(pwd)) {
+						if (null == externalStorageDto.getId()) {
+							throw new BizException("External.Storage.ID.NULL");
+						}
+						ExternalStorageEntity oldExternalStorage = repository.findById(externalStorageDto.getId().toHexString()).orElse(null);
+						if (null == oldExternalStorage) {
+							return externalStorageDto;
+						}
+						String oldUri = oldExternalStorage.getUri();
+						ConnectionString oldConnectionString = new ConnectionString(oldUri);
+						char[] oldPassword = oldConnectionString.getPassword();
+						if (null == oldPassword || oldPassword.length == 0) {
+							throw new BizException("External.Storage.MongoDB.Old.Pwd.NULL", oldUri);
+						}
+						String oldPasswordStr = new String(oldPassword);
+						String uri = StringUtils.replaceOnce(externalStorageDto.getUri(), ExternalStorageDto.MASK_PWD, oldPasswordStr);
+						externalStorageDto.setUri(uri);
+					}
 				}
 			}
 		}
+
 		return save(externalStorageDto, userDetail);
 	}
 
@@ -138,7 +158,7 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 		Criteria taskIsDeletedCriteria = new Criteria("is_deleted").is(false);
 		Criteria criteria = new Criteria().andOperator(taskStatusCriteria, taskIsDeletedCriteria, esIdOrCriteria);
 		Query query = new Query(criteria);
-		query.fields().include("_id", "name", "status", "syncType");
+		query.fields().include("_id", "name", "status", "syncType", "shareCache");
 		List<TaskEntity> tasks = taskRepository.findAll(query);
 		return CollectionUtils.isNotEmpty(tasks) ? taskService.convertToDto(tasks, TaskDto.class) : null;
 	}
@@ -214,7 +234,7 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 		if (null == externalStorageEntity) {
 			return true;
 		}
-		if (!externalStorageEntity.isCanDelete()) {
+		if (!externalStorageEntity.getCanDelete()) {
 			return true;
 		}
 		boolean delete = super.deleteById(objectId, userDetail);
