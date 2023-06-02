@@ -1,0 +1,253 @@
+{
+  "properties": {
+    "name": "YashanDB",
+    "icon": "icons/yashandb.png",
+    "id": "yashandb",
+    "doc": "${doc}",
+    "authentication": "Beta",
+    "tags": [
+      "Database"
+    ]
+  },
+  "configOptions": {
+    "capabilities": [
+      {
+        "id": "dml_insert_policy",
+        "alternatives": [
+          "update_on_exists",
+          "ignore_on_exists"
+        ]
+      },
+      {
+        "id": "dml_update_policy",
+        "alternatives": [
+          "ignore_on_nonexists",
+          "insert_on_nonexists"
+        ]
+      },
+      {
+        "id": "api_server_supported"
+      }
+    ],
+    "connection": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string",
+          "title": "${host}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 1,
+          "required": true
+        },
+        "port": {
+          "type": "string",
+          "title": "${port}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "database_port",
+          "x-index": 2,
+          "required": true
+        },
+        "schema": {
+          "required": true,
+          "type": "string",
+          "title": "${schema}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_owner",
+          "x-index": 3
+        },
+        "user": {
+          "type": "string",
+          "title": "${user}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_username",
+          "x-index": 9,
+          "required": true
+        },
+        "password": {
+          "type": "string",
+          "title": "${password}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "database_password",
+          "x-index": 12,
+          "required": true
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "host": "Host",
+      "port": "Port",
+      "database": "database",
+      "user": "username",
+      "password": "password",
+      "schema": "schema",
+      "timezone": "timezone",
+      "doc": "docs/yashandb_en_US.md"
+    },
+    "zh_CN": {
+      "host": "地址",
+      "port": "端口",
+      "database": "数据库",
+      "user": "用户名",
+      "password": "密码",
+      "schema": "模式",
+      "timezone": "时区",
+      "doc": "docs/yashandb_zh_CN.md"
+    },
+    "zh_TW": {
+      "host": "地址",
+      "port": "端口",
+      "database": "數據庫",
+      "username": "賬號",
+      "password": "密碼",
+      "schema": "模式",
+      "timezone": "時區",
+      "doc": "docs/yashandb_zh_TW.md"
+    }
+  },
+  "dataTypes": {
+    "CHAR[($byte)]": {
+      "byte": 8000,
+      "priority": 1,
+      "defaultByte": 1,
+      "fixed": true,
+      "to": "TapString"
+    },
+    "VARCHAR[($byte)]": {
+      "byte": 8000,
+      "priority": 1,
+      "preferByte": 3000,
+      "to": "TapString"
+    },
+    "double[($precision)]": {
+      "to": "TapNumber",
+      "precision": [
+        1,
+        8
+      ],
+      "value": [
+        "-1.7976931348623157E+308",
+        "1.7976931348623157E+308"
+      ],
+      "fixed": false
+    },
+    "float[($precision)]": {
+      "to": "TapNumber",
+      "name": "float",
+      "precision": [
+        1,
+        6
+      ],
+      "scale": [
+        0,
+        20
+      ],
+      "value": [
+        "-3.402823E38",
+        "3.402823E38"
+      ],
+      "fixed": false
+    },
+    "NUMBER($precision,$scale)": {
+      "scale": [
+        -84,
+        127
+      ],
+      "precision": [
+        1,
+        38
+      ],
+      "priority": 1,
+      "to": "TapNumber"
+    },
+    "BOOLEAN": {
+      "bit": 1,
+      "priority": 1,
+      "to": "TapBoolean"
+    },
+    "DATE": {
+      "range": [
+        "0001-01-01 00:00:00",
+        "9999-12-31 23:59:59"
+      ],
+      "defaultFraction": 0,
+      "pattern": "yyyy-MM-dd HH:mm:ss",
+      "priority": 1,
+      "to": "TapDate"
+    },
+    "TIMESTAMP": {
+      "range": [
+        "0001-01-01 00:00:00",
+        "9999-12-31 23:59:59"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss",
+      "priority": 3,
+      "to": "TapDateTime"
+    },
+    "INTERVAL YEAR TO MONTH": {
+      "range": [
+        "-178000000-00",
+        "178000000-00"
+      ],
+      "defaultFraction": 0,
+      "pattern": "yyyy-MM",
+      "priority": 6,
+      "queryOnly": true,
+      "to": "TapDateTime"
+    },
+    "INTERVAL DAY TO SECOND": {
+      "range": [
+        "-100000000 00:00:00.000000",
+        "100000000 00:00:00.000000"
+      ],
+      "defaultFraction": 0,
+      "pattern": "yyyy-MM-dd HH:mm:ss.ssssss",
+      "priority": 7,
+      "queryOnly": true,
+      "to": "TapDateTime"
+    },
+    "TIME": {
+      "range": [
+        "00:00:00.000000",
+        "23:59:59.999999"
+      ],
+      "defaultFraction": 6,
+      "pattern": "HH:mm:ss.ssssss",
+      "priority": 2,
+      "to": "TapTime"
+    },
+    "BIGINT": {
+      "bit": 64,
+      "priority": 3,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ],
+      "to": "TapNumber"
+    },
+    "JSON": {
+      "to": "TapString",
+      "queryOnly": true
+    },
+    "BLOB": {
+      "to": "TapBinary",
+      "byte": "64k"
+    },
+    "CLOB": {
+      "to": "TapBinary",
+      "byte": "64k"
+    },
+    "RAW[($byte)]": {
+      "to": "TapBinary",
+      "byte": 8000
+    }
+  }
+}

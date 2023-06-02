@@ -107,8 +107,10 @@ import org.bson.types.Symbol;
 import java.io.Closeable;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -512,6 +514,20 @@ public class MongodbConnector extends ConnectorBase {
 		// TODO: 为 分片集群建表, schema 约束建表预留位置
 		CreateTableOptions createTableOptions = new CreateTableOptions();
 		createTableOptions.setTableExists(false);
+
+		TapTable table = tapCreateTableEvent.getTable();
+		Collection<String> pks = table.primaryKeys();
+		if (CollectionUtils.isNotEmpty(pks) && (pks.size() > 1 || !"_id".equals(pks.iterator().next()))) {
+			List<TapIndex> tapIndices = new ArrayList<>();
+			Iterator<String> iterator = pks.iterator();
+			while (iterator.hasNext()) {
+				String pk = iterator.next();
+				TapIndex tapIndex = new TapIndex().indexField(new TapIndexField().name(pk).fieldAsc(true));
+				tapIndices.add(tapIndex);
+			}
+			TapCreateIndexEvent tapCreateIndexEvent = new TapCreateIndexEvent().indexList(tapIndices);
+			createIndex(tapConnectorContext, table, tapCreateIndexEvent);
+		}
 		return createTableOptions;
 	}
 
@@ -824,6 +840,9 @@ public class MongodbConnector extends ConnectorBase {
 		if (match != null) {
 			for (Map.Entry<String, Object> entry : match.entrySet()) {
 				TapField tapField = map.get(entry.getKey());
+				if (null == tapField) {
+					throw new RuntimeException(String.format("The field '%s'.'%s' does not exist with set match", table.getName(), entry.getKey()));
+				}
 				entry.setValue(formatValue(tapField, entry.getKey(), entry.getValue()));
 				bsonList.add(eq(entry.getKey(), entry.getValue()));
 			}
@@ -833,6 +852,9 @@ public class MongodbConnector extends ConnectorBase {
 		if (ops != null) {
 			for (QueryOperator op : ops) {
 				TapField tapField = map.get(op.getKey());
+				if (null == tapField) {
+					throw new RuntimeException(String.format("The field '%s'.'%s' does not exist with set query operator", table.getName(), op.getKey()));
+				}
 				op.setValue(formatValue(tapField, op.getKey(), op.getValue()));
 				switch (op.getOperator()) {
 					case QueryOperator.GT:
