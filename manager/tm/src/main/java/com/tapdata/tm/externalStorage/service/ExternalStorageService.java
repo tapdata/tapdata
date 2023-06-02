@@ -158,7 +158,7 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 		Criteria taskIsDeletedCriteria = new Criteria("is_deleted").is(false);
 		Criteria criteria = new Criteria().andOperator(taskStatusCriteria, taskIsDeletedCriteria, esIdOrCriteria);
 		Query query = new Query(criteria);
-		query.fields().include("_id", "name", "status", "syncType");
+		query.fields().include("_id", "name", "status", "syncType", "shareCache");
 		List<TaskEntity> tasks = taskRepository.findAll(query);
 		return CollectionUtils.isNotEmpty(tasks) ? taskService.convertToDto(tasks, TaskDto.class) : null;
 	}
