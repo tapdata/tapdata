@@ -981,9 +981,17 @@ public class TaskController extends BaseController {
     @PostMapping("migrate-js/test-run-rpc")
     @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
     public ResponseMessage<Map<String, Object>> testRunRPC(@RequestBody TestRunDto dto, @RequestParam("access_token") String accessToken) {
-        Map<String, Object> data = taskNodeService.testRunJsNodeRPC(dto, getLoginUser(), accessToken);
-        Map<String, Object> result = (Map<String, Object>)Optional.ofNullable(data.get("data")).orElse(data);
+        Map<String, Object> data = null;
         ResponseMessage<Map<String, Object>> responseMessage = new ResponseMessage<>();
+        try {
+            data = taskNodeService.testRunJsNodeRPC(dto, getLoginUser(), accessToken);
+        }catch (Exception e){
+            responseMessage.setCode("error");
+            responseMessage.setMessage(e.getMessage());
+            responseMessage.setTs(System.currentTimeMillis());
+            return responseMessage;
+        }
+        Map<String, Object> result = (Map<String, Object>)Optional.ofNullable(data.get("data")).orElse(data);
         responseMessage.setCode((String) Optional.ofNullable(result.get("code")).orElse("ok"));
         responseMessage.setData(result);
         responseMessage.setMessage((String) Optional.ofNullable(result.get("message")).orElse("ok"));
