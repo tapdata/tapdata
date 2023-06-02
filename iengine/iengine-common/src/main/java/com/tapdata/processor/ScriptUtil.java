@@ -7,11 +7,7 @@ import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import com.tapdata.cache.ICacheGetter;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.constant.PkgAnnoUtil;
-import com.tapdata.entity.AppType;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.JavaScriptFunctions;
-import com.tapdata.entity.Job;
-import com.tapdata.entity.MessageEntity;
+import com.tapdata.entity.*;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.processor.constant.JSEngineEnum;
@@ -39,16 +35,11 @@ import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
-import org.graalvm.polyglot.impl.AbstractPolyglotImpl;
 import org.graalvm.polyglot.proxy.ProxyObject;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.core.io.ClassPathResource;
 
-import javax.script.Invocable;
-import javax.script.ScriptEngine;
-import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
-import javax.script.SimpleScriptContext;
+import javax.script.*;
 import java.io.File;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -60,15 +51,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.ServiceLoader;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 
 /**
@@ -86,14 +69,6 @@ public class ScriptUtil {
 		return getScriptEngine(jsEngineName,
 				new LoggingOutputStream(new Log4jScriptLogger(logger), Level.INFO),
 				new LoggingOutputStream(new Log4jScriptLogger(logger), Level.ERROR));
-	}
-
-	static {
-		ServiceLoader<AbstractPolyglotImpl> polyglotServiceLoader = ServiceLoader.load(AbstractPolyglotImpl.class);
-
-		for (AbstractPolyglotImpl polyglot : polyglotServiceLoader) {
-			logger.info("load Polyglot class info: {}, {}", polyglot.getClass(), polyglot.getClass().getClassLoader());
-		}
 	}
 
 	/**
