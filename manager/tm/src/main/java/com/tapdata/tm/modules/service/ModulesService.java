@@ -1340,6 +1340,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			ModulesDto one = findOne(query, user);
 
 			modulesDto.setIsDeleted(false);
+      modulesDto.setStatus(ModuleStatusEnum.PENDING.getValue());
 
 			if (one == null) {
 				ModulesDto one1 = findOne(new Query(Criteria.where("_id").is(modulesDto.getId()).and("is_deleted").ne(true)));
