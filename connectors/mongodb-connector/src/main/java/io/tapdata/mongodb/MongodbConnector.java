@@ -840,6 +840,9 @@ public class MongodbConnector extends ConnectorBase {
 		if (match != null) {
 			for (Map.Entry<String, Object> entry : match.entrySet()) {
 				TapField tapField = map.get(entry.getKey());
+				if (null == tapField) {
+					throw new RuntimeException(String.format("The field '%s'.'%s' does not exist with set match", table.getName(), entry.getKey()));
+				}
 				entry.setValue(formatValue(tapField, entry.getKey(), entry.getValue()));
 				bsonList.add(eq(entry.getKey(), entry.getValue()));
 			}
@@ -849,6 +852,9 @@ public class MongodbConnector extends ConnectorBase {
 		if (ops != null) {
 			for (QueryOperator op : ops) {
 				TapField tapField = map.get(op.getKey());
+				if (null == tapField) {
+					throw new RuntimeException(String.format("The field '%s'.'%s' does not exist with set query operator", table.getName(), op.getKey()));
+				}
 				op.setValue(formatValue(tapField, op.getKey(), op.getValue()));
 				switch (op.getOperator()) {
 					case QueryOperator.GT:
