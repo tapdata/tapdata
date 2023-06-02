@@ -174,8 +174,14 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
         }
 
         Criteria criteria = Criteria.where("is_deleted").is(false).and("syncType").is("logCollector")
-                .and("dag.nodes.type").is(NodeEnum.logCollector.name())
-                .and("dag.nodes.connectionIds").in(connectionIds);
+                .and("dag.nodes.type").is(NodeEnum.logCollector.name());
+
+        List<Criteria> orCriteriaList = new ArrayList<>();
+        orCriteriaList.add(Criteria.where("dag.nodes.connectionIds").in(connectionIds));
+        for (String connectionId : connectionIds) {
+            orCriteriaList.add(Criteria.where("dag.nodes.logCollectorConnConfigs." + connectionId).exists(true));
+        }
+        criteria = new Criteria().andOperator(criteria, new Criteria().orOperator(orCriteriaList));
 
         List<TaskDto> logTasks = getFilterCriteria(request, criteria);
         logTasks.forEach(task -> {

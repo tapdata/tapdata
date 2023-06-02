@@ -11,7 +11,7 @@ public enum ExternalStorageType {
 	rocksdb("RocksDB"),
 	httptm("HttpTM"),
 	;
-	private String mode;
+	private final String mode;
 
 	ExternalStorageType(String mode) {
 		this.mode = mode;

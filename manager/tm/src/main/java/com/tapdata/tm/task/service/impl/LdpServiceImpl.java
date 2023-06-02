@@ -834,7 +834,7 @@ public class LdpServiceImpl implements LdpService {
 
             Map<String, String> kvMap = Arrays.stream(LdpDirEnum.values()).collect(Collectors.toMap(LdpDirEnum::getValue, LdpDirEnum::getItemType));
 
-            List<String> values = Arrays.stream(LdpDirEnum.values()).map(LdpDirEnum::getValue).collect(Collectors.toList());
+            List<String> values = Arrays.stream(LdpDirEnum.values()).filter(e -> !e.equals(LdpDirEnum.LDP_DIR_API)).map(LdpDirEnum::getValue).collect(Collectors.toList());
 
             values.removeAll(existValues);
 

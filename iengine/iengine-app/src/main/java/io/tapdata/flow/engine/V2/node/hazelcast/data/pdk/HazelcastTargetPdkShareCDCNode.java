@@ -131,7 +131,9 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 				if (null == tapValue) {
 					return null;
 				}
-				if (tapValue.getOriginType().equals("OBJECT_ID") && tapValue.getOriginValue().getClass().getName().equals(ObjectId.class.getName())) {
+				Object originValue = tapValue.getOriginValue();
+				if ("OBJECT_ID".equals(tapValue.getOriginType())
+					&& null != originValue && ObjectId.class.getName().equals(originValue.getClass().getName())) {
 					return new ObjectId(tapValue.getValue());
 				}
 				return tapValue.getValue();
