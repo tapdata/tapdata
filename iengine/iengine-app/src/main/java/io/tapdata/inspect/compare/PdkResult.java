@@ -6,7 +6,6 @@ import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.entity.Projection;
-import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.SortOn;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -25,6 +24,7 @@ import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author samuel
@@ -35,8 +35,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 	private static final int BATCH_SIZE = 1000;
 	private static final String TAG = PdkResult.class.getSimpleName();
 	private final ConnectorNode connectorNode;
-	private final LinkedBlockingQueue<Map<String, Object>> queue = new LinkedBlockingQueue<>();
-	private DataMap offset;
+	private final LinkedBlockingQueue<Map<String, Object>> queue = new LinkedBlockingQueue<>(100);
 	private final List<SortOn> sortOnList = new LinkedList<>();
 	private final QueryByAdvanceFilterFunction queryByAdvanceFilterFunction;
 	private final TapTable tapTable;
@@ -49,6 +48,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 	private int diffKeyIndex;
 	private final List<String> dataKeys;
 	private final List<List<Object>> diffKeyValues;
+	private final AtomicReference<Thread> queryThreadAR = new AtomicReference<>();
 
 	public PdkResult(List<String> sortColumns, Connections connections, String tableName, Set<String> columns, ConnectorNode connectorNode, boolean fullMatch, List<String> dataKeys, List<List<Object>> diffKeyValues) {
 		super(sortColumns, connections, tableName);
@@ -119,7 +119,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 	public boolean hasNext() {
 		if (null != throwable) throw new RuntimeException(throwable);
 		offerInQueue();
-		return hasNext.get();
+		return null != queryThreadAR.get() || queue.size() > 0;
 	}
 
 	@Override
@@ -147,61 +147,65 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 	}
 
 	private boolean needQuery() {
-		return hasNext.get() && queue.size() == 0;
+		return hasNext.get() && null == queryThreadAR.get();
 	}
 
 	private void queryNextBatch() {
-		TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create();
-		if (null == offset) {
-			offset = new DataMap();
-		} else {
-			List<QueryOperator> operators = new LinkedList<>();
-			offset.forEach((k, v) -> operators.add(QueryOperator.gt(k, v)));
-			tapAdvanceFilter.setOperators(operators);
-		}
+		synchronized (queryThreadAR) {
+			if (null == queryThreadAR.get()) {
+				queryThreadAR.set(new Thread(() -> {
+					Thread.currentThread().setName(String.format("INSPECT-QUERY-%s.%s", connections.getId(), tableName));
+					try {
+						TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create();
 
-		// query one difference data, because pdk api not support 'or' conditions.
-		if (null != diffKeyValues && diffKeyIndex < diffKeyValues.size()) {
-			List<Object> objects = diffKeyValues.get(diffKeyIndex);
-			if (objects.size() != dataKeys.size()) {
-				throw new RuntimeException("The data key size not equals data value size: " + tapTable.getId());
-			}
-			for (int i = 0; i < dataKeys.size(); i++) {
-				tapAdvanceFilter.match(DataMap.create().kv(dataKeys.get(i), objects.get(i)));
-			}
-			diffKeyIndex++;
-		}
+						// query one difference data, because pdk api not support 'or' conditions.
+						if (null != diffKeyValues && diffKeyIndex < diffKeyValues.size()) {
+							List<Object> objects = diffKeyValues.get(diffKeyIndex);
+							if (objects.size() != dataKeys.size()) {
+								throw new RuntimeException("The data key size not equals data value size: " + tapTable.getId());
+							}
+							for (int i = 0; i < dataKeys.size(); i++) {
+								tapAdvanceFilter.match(DataMap.create().kv(dataKeys.get(i), objects.get(i)));
+							}
+							diffKeyIndex++;
+						}
 
-		tapAdvanceFilter.setLimit(BATCH_SIZE);
-		tapAdvanceFilter.setSortOnList(sortOnList);
-		tapAdvanceFilter.setProjection(projection);
-		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
-				() -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
-					Throwable error = filterResults.getError();
-					if (null != error) throwable = error;
-					List<Map<String, Object>> results = filterResults.getResults();
-					if (CollectionUtils.isEmpty(results)) {
+//						tapAdvanceFilter.setLimit(BATCH_SIZE); // can not add limit because queryByAdvanceFilterFunction not support 'or' conditions
+						tapAdvanceFilter.setSortOnList(sortOnList);
+						tapAdvanceFilter.setProjection(projection);
+						PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
+							() -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
+								Throwable error = filterResults.getError();
+								if (null != error) throwable = error;
+
+								List<Map<String, Object>> results = filterResults.getResults();
+								if (CollectionUtils.isEmpty(results)) return;
+								for (Map<String, Object> result : results) {
+									if (!isRunning()) break;
+									while (isRunning()) {
+										try {
+											if (queue.offer(result, 100L, TimeUnit.MILLISECONDS)) {
+												break;
+											}
+										} catch (InterruptedException e) {
+											return;
+										}
+									}
+								}
+							}), TAG);
 						if (null == diffKeyValues || diffKeyIndex + 1 >= diffKeyValues.size()) {
 							hasNext.set(false);
 						}
-						return;
-					}
-					for (Map<String, Object> result : results) {
-						if (!isRunning()) break;
-						while (isRunning()) {
-							try {
-								if (queue.offer(result, 100L, TimeUnit.MILLISECONDS)) {
-									sortColumns.forEach(sortColumn -> offset.put(sortColumn, result.get(sortColumn)));
-									break;
-								}
-							} catch (InterruptedException e) {
-								return;
-							}
+					} catch (Exception e) {
+						throwable = e;
+					} finally {
+						synchronized (queryThreadAR) {
+							queryThreadAR.set(null);
 						}
 					}
-				}), TAG);
-		if (queue.size() == 0 && (null == diffKeyValues || diffKeyIndex + 1 >= diffKeyValues.size())) {
-			hasNext.set(false);
+				}));
+				queryThreadAR.get().start();
+			}
 		}
 	}
 

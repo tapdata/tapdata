@@ -144,4 +144,8 @@ public class JsUtil {
         }
         return hs.toString().toLowerCase();
     }
+
+    public static void main(String[] args) {
+        System.out.println(new JsUtil().sha256_HMAC("I'm Gavin in Tapdata", "gavin"));
+    }
 }

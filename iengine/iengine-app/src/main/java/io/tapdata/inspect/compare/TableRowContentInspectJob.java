@@ -125,8 +125,6 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 
 		List<String> sourceKeys = getSortColumns(inspectTask.getSource().getSortColumn());
 		List<String> targetKeys = getSortColumns(inspectTask.getTarget().getSortColumn());
-		sourceKeys = sourceKeys.stream().map(String::toLowerCase).collect(Collectors.toList());
-		targetKeys = targetKeys.stream().map(String::toLowerCase).collect(Collectors.toList());
 		try (DiffDetailCursor diffDetailCursor = new DiffDetailCursor(inspectResultParentId, clientMongoOperator, sourceKeys, targetKeys)) {
 			List<InspectDetail> inspectDetails = new ArrayList<>();
 			long sourceTotal = 0;

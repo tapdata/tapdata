@@ -7,14 +7,18 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
+import com.tapdata.tm.commons.dag.vo.Operation;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
+import com.tapdata.tm.commons.util.CapitalizedEnum;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 
 import java.util.*;
@@ -41,6 +45,8 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 
     @Override
     public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas, DAG.Options options) {
+
+        supplementFieldMapping();
         if (CollectionUtils.isEmpty(inputSchemas)) {
             return Lists.newArrayList();
         }
@@ -66,11 +72,12 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 
                 for (Field field : fields) {
                     String originalFieldName = field.getOriginalFieldName();
+                    String fieldName = field.getFieldName();
                     Boolean show = showMap.get(originalFieldName);
                     if (Objects.nonNull(show) && !show) {
                         field.setDeleted(true);
-                    } else if (fieldMap.containsKey(originalFieldName)) {
-                        field.setFieldName(fieldMap.get(originalFieldName));
+                    } else if (fieldMap.containsKey(fieldName)) {
+                        field.setFieldName(fieldMap.get(fieldName));
                     }
 
                 }
@@ -110,4 +117,60 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
         getSourceNode().stream().findFirst().ifPresent(node -> connectionId.set(node.getConnectionId()));
         return connectionId.get();
     }
+
+
+    private void supplementFieldMapping() {
+            if (CollectionUtils.isNotEmpty(fieldsMapping)) {
+                LinkedList<Node<?>> preNodes = getDag().getPreNodes(this.getId());
+                if (CollectionUtils.isEmpty(preNodes)) {
+                    return;
+                }
+                Node previousNode = preNodes.getLast();
+
+                List<MetadataInstancesDto> metaList = service.findByNodeId(previousNode.getId());
+                Map<String, List<com.tapdata.tm.commons.schema.Field>> fieldMap = metaList.stream()
+                        .collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, MetadataInstancesDto::getFields));
+                fieldsMapping.forEach(table -> {
+                    Operation operation = table.getOperation();
+                    LinkedList<FieldInfo> fields = table.getFields();
+
+                    List<String> fieldNames = Lists.newArrayList();
+                    if (CollectionUtils.isNotEmpty(fields)) {
+                        fieldNames = fields.stream().map(FieldInfo::getSourceFieldName).collect(Collectors.toList());
+                    }
+
+                    List<String> hiddenFields = table.getFields().stream().filter(t -> !t.getIsShow())
+                            .map(FieldInfo::getSourceFieldName)
+                            .collect(Collectors.toList());
+
+                    List<com.tapdata.tm.commons.schema.Field> tableFields = fieldMap.get(table.getOriginTableName());
+                    if (CollectionUtils.isNotEmpty(tableFields)) {
+                        for (com.tapdata.tm.commons.schema.Field field : tableFields) {
+                            String targetFieldName = field.getFieldName();
+                            if (!fieldNames.contains(targetFieldName)) {
+                                if (CollectionUtils.isNotEmpty(hiddenFields) && hiddenFields.contains(targetFieldName)) {
+                                    continue;
+                                }
+
+                                if (StringUtils.isNotBlank(operation.getPrefix())) {
+                                    targetFieldName = operation.getPrefix().concat(targetFieldName);
+                                }
+                                if (StringUtils.isNotBlank(operation.getSuffix())) {
+                                    targetFieldName = targetFieldName.concat(operation.getSuffix());
+                                }
+                                if (StringUtils.isNotBlank(operation.getCapitalized())) {
+                                    if (CapitalizedEnum.fromValue(operation.getCapitalized()) == CapitalizedEnum.UPPER) {
+                                        targetFieldName = StringUtils.upperCase(targetFieldName);
+                                    } else {
+                                        targetFieldName = StringUtils.lowerCase(targetFieldName);
+                                    }
+                                }
+                                FieldInfo fieldInfo = new FieldInfo(field.getFieldName(), targetFieldName, true, "system");
+                                fields.add(fieldInfo);
+                            }
+                        }
+                    }
+                });
+            }
+        }
 }

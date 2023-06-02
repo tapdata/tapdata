@@ -607,11 +607,11 @@ public class DataSourceController extends BaseController {
     }
 
     @Operation(summary = "根据连接ID查找数据源正在使用外存的任务")
-    @GetMapping("{id}/usingTaskByConnectionId")
-    public ResponseMessage<Map<String, Object>>getUsingTaskByConnectionId(@PathVariable("id") String id) {
+    @GetMapping("{id}/usingDigginTaskByConnectionId")
+    public ResponseMessage<Map<String, Object>>getUsingDigginTaskByConnectionId(@PathVariable("id") String id) {
         UserDetail userDetail = getLoginUser();
-        List<TaskDto> tasks = dataSourceService.findUsingTaskByConnectionId(id,userDetail);
-        Long total = dataSourceService.countUsingTaskByConnectionId(id,userDetail);
+        List<TaskDto> tasks = dataSourceService.findUsingDigginTaskByConnectionId(id,userDetail);
+        Long total = dataSourceService.countUsingDigginTaskByConnectionId(id,userDetail);
         Map<String, Object> result = new HashMap<String, Object>() {{
             put("items", tasks);
             put("total", total);
