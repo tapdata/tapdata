@@ -14,13 +14,11 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.schema.SampleMockUtil;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -107,7 +105,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 											}
 										})).logTag(TAG)
 						);
-//						sampleDataCacheMap.put(sampleDataId, tapEventList);
+						sampleDataCacheMap.put(sampleDataId, tapEventList);
 					} catch (Exception e) {
 						logger.warn("Error getting sample data, will try to simulate: {}", e.getMessage());
 					}
