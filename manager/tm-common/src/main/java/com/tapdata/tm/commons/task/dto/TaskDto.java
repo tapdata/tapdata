@@ -187,6 +187,10 @@ public class TaskDto extends ParentTaskDto {
         return StringUtils.equalsAnyIgnoreCase(getSyncType(), SYNC_TYPE_TEST_RUN, SYNC_TYPE_DEDUCE_SCHEMA);
     }
 
+    public boolean isDeduceSchemaTask() {
+        return StringUtils.equalsAnyIgnoreCase(getSyncType(), SYNC_TYPE_DEDUCE_SCHEMA);
+    }
+
     public boolean isNormalTask() {
 			return !isTestTask();
 		}

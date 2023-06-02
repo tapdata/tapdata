@@ -9,6 +9,7 @@ import io.tapdata.aspect.*;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.aspect.taskmilestones.CDCHeartbeatWriteAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotWriteTableCompleteAspect;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
@@ -45,6 +46,7 @@ public class ObservableAspectTask extends AspectTask {
 		// target data node aspects
 		observerClassHandlers.register(CDCHeartbeatWriteAspect.class, this::handleCDCHeartbeatWriteAspect);
 		observerClassHandlers.register(WriteRecordFuncAspect.class, this::handleWriteRecordFunc);
+		observerClassHandlers.register(SnapshotWriteTableCompleteAspect.class, this::handleSnapshotWriteTableCompleteFunc);
 		observerClassHandlers.register(NewFieldFuncAspect.class, this::handleNewFieldFun);
 		observerClassHandlers.register(AlterFieldNameFuncAspect.class, this::handleAlterFieldNameFunc);
 		observerClassHandlers.register(AlterFieldAttributesFuncAspect.class, this::handleAlterFieldAttributesFunc);
@@ -210,11 +212,6 @@ public class ObservableAspectTask extends AspectTask {
 				));
 				break;
 			case BatchReadFuncAspect.STATE_END:
-				if (!aspect.getDataProcessorContext().getTaskDto().isSnapShotInterrupt()) {
-					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler -> handler.handleBatchReadFuncEnd(System.currentTimeMillis()));
-					taskSampleHandler.handleBatchReadFuncEnd();
-					break;
-				}
 				break;
 		}
 
@@ -472,6 +469,15 @@ public class ObservableAspectTask extends AspectTask {
 				break;
 		}
 
+		return null;
+	}
+
+	public Void handleSnapshotWriteTableCompleteFunc(SnapshotWriteTableCompleteAspect aspect) {
+		String nodeId = aspect.getSourceNodeId();
+		Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
+			handler -> handler.handleBatchReadFuncEnd(System.currentTimeMillis())
+		);
+		taskSampleHandler.handleBatchReadFuncEnd();
 		return null;
 	}
 

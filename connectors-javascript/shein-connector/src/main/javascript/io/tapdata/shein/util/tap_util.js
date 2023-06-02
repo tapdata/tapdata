@@ -165,7 +165,7 @@ function getSignatureRules(openKeyId, secretKey, urlPath, time){
     let openKeyIdCodeOfValue = openKeyId + "&" + time + "&" + urlPath;
     //log.warn("openKeyIdCodeOfValue: {}", openKeyIdCodeOfValue)
 
-    let randomStr = randomString(5);
+    let randomStr = stringUtils.randomString(5);
     //log.warn("randomStr: {}", randomStr)
     let secretKeyCodeOfKey = secretKey + randomStr;
     //log.warn("secretKeyCodeOfKey: {}", secretKeyCodeOfKey)
@@ -180,14 +180,5 @@ function getSignatureRules(openKeyId, secretKey, urlPath, time){
     return randomStr + result;
 }
 
-
-function randomString(len){
-    let chars = 'ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz2345678';
-    let tempLen = chars.length, tempStr='';
-    for(let i=0 ; i<len; ++i){
-        tempStr += chars.charAt(Math.floor(Math.random() * tempLen ));
-    }
-    return tempStr;
-}
 
 

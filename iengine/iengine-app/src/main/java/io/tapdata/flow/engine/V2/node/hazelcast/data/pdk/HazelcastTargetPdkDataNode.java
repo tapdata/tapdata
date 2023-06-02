@@ -75,7 +75,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	public static final int MAX_RECORD_OBS_WARN = 3;
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkDataNode.class);
 	private ClassHandlers ddlEventHandlers;
-	private final List<ExactlyOnceWriteCleanerEntity> exactlyOnceWriteCleanerEntities = new ArrayList<>();
 
 	public HazelcastTargetPdkDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -106,52 +105,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			}
 		}
 		initDDLHandler();
-		initExactlyOnceWriteIfNeed();
 	}
 
-	private void initExactlyOnceWriteIfNeed() {
-		checkExactlyOnceWriteEnableResult = enableExactlyOnceWrite();
-		if (!checkExactlyOnceWriteEnableResult.getEnable()) {
-			if (StringUtils.isNotBlank(checkExactlyOnceWriteEnableResult.getMessage())) {
-				obsLogger.info("Node({}) exactly once write is disabled, reason: {}", getNode().getName(), checkExactlyOnceWriteEnableResult.getMessage());
-			}
-			return;
-		}
-		ConnectorNode connectorNode = getConnectorNode();
-		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
-
-		TapTable exactlyOnceTable = ExactlyOnceUtil.generateExactlyOnceTable(getConnectorNode());
-		if (null != dataProcessorContext.getTapTableMap()) {
-			dataProcessorContext.getTapTableMap().putNew(exactlyOnceTable.getId(), exactlyOnceTable, exactlyOnceTable.getId());
-		}
-		boolean create = createTable(exactlyOnceTable);
-		if (create) {
-			obsLogger.info("Create exactly once write cache table: {}", exactlyOnceTable);
-			CreateIndexFunction createIndexFunction = connectorFunctions.getCreateIndexFunction();
-			TapCreateIndexEvent indexEvent = createIndexEvent(exactlyOnceTable.getId(), exactlyOnceTable.getIndexList());
-			PDKInvocationMonitor.invoke(
-					getConnectorNode(), PDKMethod.TARGET_CREATE_INDEX,
-					() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), exactlyOnceTable, indexEvent), TAG);
-		}
-		Node node = getNode();
-		if (node instanceof TableNode) {
-			TableNode tableNode = (TableNode) node;
-			String tableName = tableNode.getTableName();
-			exactlyOnceWriteTables.add(tableName);
-			ExactlyOnceWriteCleanerEntity exactlyOnceWriteCleanerEntity = new ExactlyOnceWriteCleanerEntity(
-					tableNode.getId(),
-					tableName,
-					tableNode.getIncrementExactlyOnceEnableTimeWindowDay(),
-					tableNode.getConnectionId()
-			);
-			ExactlyOnceWriteCleaner.getInstance().registerCleaner(exactlyOnceWriteCleanerEntity);
-			exactlyOnceWriteCleanerEntities.add(exactlyOnceWriteCleanerEntity);
-			obsLogger.info("Registered exactly once write cleaner: {}", exactlyOnceWriteCleanerEntity);
-		} else if (node instanceof DatabaseNode) {
-			// Nonsupport
-		}
-		obsLogger.info("Exactly once write has been enabled, and the effective table is: {}", StringUtil.subLongString(Arrays.toString(exactlyOnceWriteTables.toArray()), 100, "..."));
-	}
 
 	private void initDDLHandler() {
 		ddlEventHandlers = new ClassHandlers();
@@ -284,48 +239,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			throw new TapEventException(TaskTargetProcessorExCode_15.CLEAR_TABLE_FAILED, "Table name: " + tableId, throwable)
 					.addEvent(tapClearTableEvent.get());
 		}
-	}
-
-	private boolean createTable(TapTable tapTable) {
-		AtomicReference<TapCreateTableEvent> tapCreateTableEvent = new AtomicReference<>();
-		boolean createdTable;
-		try {
-			CreateTableFunction createTableFunction = getConnectorNode().getConnectorFunctions().getCreateTableFunction();
-			CreateTableV2Function createTableV2Function = getConnectorNode().getConnectorFunctions().getCreateTableV2Function();
-			createdTable = createTableV2Function != null || createTableFunction != null;
-			if (createdTable) {
-				handleTapTablePrimaryKeys(tapTable);
-				tapCreateTableEvent.set(createTableEvent(tapTable));
-				executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
-						.createTableEvent(tapCreateTableEvent.get())
-						.connectorContext(getConnectorNode().getConnectorContext())
-						.dataProcessorContext(dataProcessorContext)
-						.start(), (createTableFuncAspect ->
-						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CREATE_TABLE, () -> {
-							if (createTableV2Function != null) {
-								CreateTableOptions createTableOptions = createTableV2Function.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
-								if (createTableFuncAspect != null)
-									createTableFuncAspect.createTableOptions(createTableOptions);
-							} else {
-								createTableFunction.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
-							}
-						}, TAG)));
-			} else {
-				// only execute start function aspect so that it would be cheated as input
-				AspectUtils.executeAspect(new CreateTableFuncAspect()
-						.createTableEvent(tapCreateTableEvent.get())
-						.connectorContext(getConnectorNode().getConnectorContext())
-						.dataProcessorContext(dataProcessorContext).state(NewFieldFuncAspect.STATE_START));
-			}
-			//
-//			String s = JSONUtil.obj2Json(Collections.singletonList(tapTable));
-			clientMongoOperator.insertOne(Collections.singletonList(tapTable),
-					ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
-		} catch (Throwable throwable) {
-			throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_TABLE_FAILED, "Table model: " + tapTable, throwable)
-					.addEvent(tapCreateTableEvent.get());
-		}
-		return createdTable;
 	}
 
 	private void dropTable(ExistsDataProcessEnum existsDataProcessEnum, String tableId) {
@@ -846,12 +759,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	@Override
 	public void doClose() throws Exception {
-		if (CollectionUtils.isNotEmpty(exactlyOnceWriteCleanerEntities)) {
-			CommonUtils.ignoreAnyError(() -> {
-				ExactlyOnceWriteCleaner exactlyOnceWriteCleaner = ExactlyOnceWriteCleaner.getInstance();
-				exactlyOnceWriteCleanerEntities.forEach(exactlyOnceWriteCleaner::unregisterCleaner);
-			}, TAG);
-		}
 		super.doClose();
 	}
 	@Override

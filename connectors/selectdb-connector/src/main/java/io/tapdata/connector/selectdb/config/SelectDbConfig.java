@@ -22,6 +22,7 @@ public class SelectDbConfig extends CommonDbConfig implements Serializable {
     private String logPluginName = "selectdboutput";
     private int insertBatchSize = 1000;
     private String selectDbHttp;
+    private Boolean closeNotNull = true;
 
     public SelectDbConfig selectDbHttp(String selectDbHttp) {
         this.selectDbHttp = selectDbHttp;
@@ -49,5 +50,9 @@ public class SelectDbConfig extends CommonDbConfig implements Serializable {
 
     public String getDatabaseUrl() {
         return String.format(this.getDatabaseUrlPattern(), this.getHost(), this.getPort(), this.getDatabase());
+    }
+
+    public Boolean getCloseNotNull() {
+        return closeNotNull;
     }
 }

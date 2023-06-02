@@ -100,14 +100,18 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 												events.forEach(tapEvent -> {
 													tapRecordToTapValue(tapEvent, codecsFilterManager);
 													//Simulate null data
-//													SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
+													if (processorBaseContext.getTaskDto().isDeduceSchemaTask()) {
+														SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
+													}
 												});
 
 												tapEventList.addAll(events);
 											}
 										})).logTag(TAG)
 						);
-//						sampleDataCacheMap.put(sampleDataId, tapEventList);
+						if (processorBaseContext.getTaskDto().isDeduceSchemaTask()) {
+							sampleDataCacheMap.put(sampleDataId, tapEventList);
+						}
 					} catch (Exception e) {
 						logger.warn("Error getting sample data, will try to simulate: {}", e.getMessage());
 					}
@@ -130,7 +134,9 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 				List<TapdataEvent> tapdataEvents = wrapTapdataEvent(cloneList);
 				if (CollectionUtils.isEmpty(tapdataEvents)) {
 					//mock
-//					tapdataEvents = SampleMockUtil.mock(tapTable, rows);
+					if (processorBaseContext.getTaskDto().isDeduceSchemaTask()) {
+						tapdataEvents = SampleMockUtil.mock(tapTable, rows);
+					}
 				}
 				for (TapdataEvent tapdataEvent : tapdataEvents) {
 					while (true) {
