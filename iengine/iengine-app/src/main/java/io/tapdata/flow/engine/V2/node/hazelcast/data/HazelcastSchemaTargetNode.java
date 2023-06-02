@@ -252,7 +252,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 				if (oldNameFieldMap != null) {
 					TapField oldTapField = oldNameFieldMap.get(fieldName);
 					if (oldTapField != null && oldTapField.getTapType() != null
-							&& oldTapField.getTapType().getType() == tapType.getType()) {
+							&& (oldTapField.getTapType().getType() == tapType.getType() || tapType.getType() == TapType.TYPE_RAW)) {
 						tapField = oldTapField;
 					}
 				}
