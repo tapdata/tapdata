@@ -983,7 +983,9 @@ public class LogCollectorService {
             logCollectorNode.setDatabaseType(v.get(0).getDatabase_type());
             logCollectorNode.setName(v.get(0).getName());
             logCollectorNode.setSelectType(LogCollectorNode.SELECT_TYPE_RESERVATION);
-            logCollectorNode.setTableNames(new ArrayList<>(finalTableNames));
+            if (logCollectorNode.getLogCollectorConnConfigs() == null || logCollectorNode.getLogCollectorConnConfigs().size() != 0) {
+                logCollectorNode.setTableNames(new ArrayList<>(finalTableNames));
+            }
             Map<String, Object> attr = Maps.newHashMap();
             attr.put("pdkHash", dataSource.getPdkHash());
             logCollectorNode.setAttrs(attr);
@@ -1079,6 +1081,9 @@ public class LogCollectorService {
         }
 
         logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
+        if (logCollectorNode.getLogCollectorConnConfigs() == null || logCollectorNode.getLogCollectorConnConfigs().size() != 0) {
+            logCollectorNode.setTableNames(new ArrayList<>(finalTableNames));
+        }
         taskService.updateById(oldLogCollectorTask, user);
         updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
 
