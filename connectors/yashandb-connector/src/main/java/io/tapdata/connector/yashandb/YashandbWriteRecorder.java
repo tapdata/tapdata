@@ -5,7 +5,6 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
-import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.sql.Connection;
@@ -55,11 +54,61 @@ public class YashandbWriteRecorder extends WriteRecorder {
             return;
         }
         if (updatePolicy.equals(DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS)) {
-            justInsert(after);
+            justInsertUpdate(after,getBeforeForUpdate(after, before, listResult), listResult);
         } else {
             justUpdate(after, getBeforeForUpdate(after, before, listResult));
         }
+    }
+
+    public void justInsertUpdate(Map<String, Object> after,Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
+        //after is empty will be skipped
+        if (EmptyKit.isEmpty(after)) {
+            return;
+        }
+        //insert into all columns, make preparedStatement
+        if (EmptyKit.isNull(preparedStatement)) {
+            String allColumnString = allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(","));
+            String insertHead = "INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" (" + allColumnString + ") ";
+            String insertValue = "VALUES(" + StringKit.copyString("?", allColumn.size(), ",") + ") ";
+            String insertSql = insertHead + insertValue;
+            if (EmptyKit.isNotEmpty(uniqueCondition)) {
+                if (hasPk) {
+                    insertSql = "MERGE INTO \"" + schema + "\".\"" + tapTable.getId() + "\" USING dual ON ("
+                            + uniqueCondition.stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(" AND "))
+                            + ")" + (allColumn.size() == uniqueCondition.size() ? "" : (" WHEN MATCHED THEN UPDATE SET " + allColumn.stream().filter(col -> !uniqueCondition.contains(col))
+                            .map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")))) + " WHEN NOT MATCHED THEN INSERT(" + allColumnString + ") " + insertValue;
+                } else {
+                    insertSql = "MERGE INTO \"" + schema + "\".\"" + tapTable.getId() + "\" USING dual ON ("
+                            + uniqueCondition.stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ? IS NULL))").collect(Collectors.joining(" AND "))
+                            + ")" + (allColumn.size() == uniqueCondition.size() ? "" : (" WHEN MATCHED THEN UPDATE SET " + allColumn.stream().filter(col -> !uniqueCondition.contains(col))
+                            .map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")))) + " WHEN NOT MATCHED THEN INSERT(" + allColumnString + ") " + insertValue;
+                }
+            }
+            preparedStatement = connection.prepareStatement(insertSql);
+        }
+        preparedStatement.clearParameters();
+        //make params
+        int pos = 1;
+        if (EmptyKit.isNotEmpty(uniqueCondition)) {
+            if (hasPk) {
+                for (String key : uniqueCondition) {
+                    preparedStatement.setObject(pos++, after.get(key));
+                }
+            } else {
+                for (String key : uniqueCondition) {
+                    preparedStatement.setObject(pos++, after.get(key));
+                    preparedStatement.setObject(pos++, after.get(key));
+                }
+            }
+            for (String key : allColumn.stream().filter(col -> !uniqueCondition.contains(col)).collect(Collectors.toList())) {
+                preparedStatement.setObject(pos++, after.get(key));
+            }
+        }
+        for (String key : allColumn) {
+            preparedStatement.setObject(pos++, after.get(key));
+        }
         preparedStatement.addBatch();
+        executeBatch(listResult);
     }
 
     protected void justUpdate(Map<String, Object> after, Map<String, Object> before) throws SQLException {
@@ -81,6 +130,7 @@ public class YashandbWriteRecorder extends WriteRecorder {
             preparedStatement.setObject(pos++, after.get(key));
         }
         dealNullBefore(before, pos);
+        preparedStatement.addBatch();
     }
 
 

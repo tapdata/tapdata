@@ -135,7 +135,9 @@ public class YashandbConnector extends CommonDbConnector {
 
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> events, TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws SQLException {
         YashandbRecordWriter writer = new YashandbRecordWriter(yashandbJdbcContext, table);
-        writer.setUpdatePolicy(EmptyKit.isEmpty(tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY)) ?
+        writer.setUpdatePolicy(EmptyKit.isEmpty(
+                tapConnectorContext.getConnectorCapabilities()
+                        .getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY)) ?
                 ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS :
                 tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY));
         writer.setInsertPolicy(EmptyKit.isEmpty(tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY)) ?

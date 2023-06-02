@@ -81,6 +81,11 @@
             <version>0.0.7</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-pdk-runner</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
     <build>
         <plugins>
