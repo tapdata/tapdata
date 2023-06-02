@@ -38,6 +38,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.tapdata.entity.error.CoreException;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -983,15 +984,19 @@ public class TaskController extends BaseController {
     public ResponseMessage<Map<String, Object>> testRunRPC(@RequestBody TestRunDto dto, @RequestParam("access_token") String accessToken) {
         Map<String, Object> data = null;
         ResponseMessage<Map<String, Object>> responseMessage = new ResponseMessage<>();
+        Map<String, Object> result = null;
         try {
             data = taskNodeService.testRunJsNodeRPC(dto, getLoginUser(), accessToken);
+            result = (Map<String, Object>)Optional.ofNullable(data.get("data")).orElse(data);
+            if (null == result || result.isEmpty()) {
+                throw new CoreException("Can not get data from source,  Please ensure if source connection is valid");
+            }
         }catch (Exception e){
             responseMessage.setCode("error");
             responseMessage.setMessage(e.getMessage());
             responseMessage.setTs(System.currentTimeMillis());
             return responseMessage;
         }
-        Map<String, Object> result = (Map<String, Object>)Optional.ofNullable(data.get("data")).orElse(data);
         responseMessage.setCode((String) Optional.ofNullable(result.get("code")).orElse("ok"));
         responseMessage.setData(result);
         responseMessage.setMessage((String) Optional.ofNullable(result.get("message")).orElse("ok"));
