@@ -1463,16 +1463,26 @@ public class LogCollectorService {
         List<Node> sources = dag.getSources();
         LogCollectorNode logCollectorNode = (LogCollectorNode)sources.get(0);
         Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
-        List<String> tableNames = new ArrayList<>();
+        List<String> tableNames;
+        Map<String, String> tableNameConnectionIdMap = new HashMap<>();
         if (logCollectorConnConfigs == null || logCollectorConnConfigs.size() == 0) {
             //old version shareCdc task
             tableNames = logCollectorNode.getTableNames();
+            tableNames.forEach(tableName -> tableNameConnectionIdMap.put(tableName, logCollectorNode.getConnectionIds().get(0)));
         } else {
             //new version shareCdc task
-            LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
-            tableNames = logCollecotrConnConfig.getTableNames();
+            if (StringUtils.isNotEmpty(connectionId)) {
+                LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
+                tableNames = logCollecotrConnConfig.getTableNames();
+                tableNames.forEach(tableName -> tableNameConnectionIdMap.put(tableName, connectionId));
+            } else {
+                tableNames = logCollectorConnConfigs.values().stream().flatMap(logCollecotrConnConfig -> logCollecotrConnConfig.getTableNames().stream()).collect(Collectors.toList());
+                logCollectorConnConfigs.forEach((connId, logCollecotrConnConfig) ->
+                        logCollecotrConnConfig.getTableNames().forEach(tableName -> tableNameConnectionIdMap.put(tableName, connId)));
+            }
+
         }
-        return getShareCdcTableInfoPage(connectionId, page, size, user, tableNames, keyword, logCollectorNode.getId(), taskId);
+        return getShareCdcTableInfoPage(tableNameConnectionIdMap, page, size, user, keyword, logCollectorNode.getId(), taskId);
     }
 
 
@@ -1482,38 +1492,49 @@ public class LogCollectorService {
         List<Node> sources = dag.getSources();
         LogCollectorNode logCollectorNode = (LogCollectorNode) sources.get(0);
         Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
-        List<String> tableNames = new ArrayList<>();
+        List<String> tableNames;
+        Map<String, String> tableNameConnectionIdMap = new HashMap<>();
         if (logCollectorConnConfigs == null || logCollectorConnConfigs.size() == 0) {
             //old version shareCdc task
             tableNames = logCollectorNode.getExclusionTables();
+            tableNames.forEach(tableName -> tableNameConnectionIdMap.put(tableName, logCollectorNode.getConnectionIds().get(0)));
         } else {
             //new version shareCdc task
-            LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
-            tableNames = logCollecotrConnConfig.getExclusionTables();
+            if (StringUtils.isNotEmpty(connectionId)) {
+                LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
+                tableNames = logCollecotrConnConfig.getExclusionTables();
+                tableNames.forEach(tableName -> tableNameConnectionIdMap.put(tableName, connectionId));
+            } else {
+                tableNames = logCollectorConnConfigs.values().stream().flatMap(logCollecotrConnConfig -> logCollecotrConnConfig.getExclusionTables().stream()).collect(Collectors.toList());
+                logCollectorConnConfigs.forEach((connId, logCollecotrConnConfig) ->
+                        logCollecotrConnConfig.getExclusionTables().forEach(tableName -> tableNameConnectionIdMap.put(tableName, connId)));
+            }
+
         }
-        return getShareCdcTableInfoPage(connectionId, page, size, user, tableNames, keyword, logCollectorNode.getId(), taskId);
+        return getShareCdcTableInfoPage(tableNameConnectionIdMap, page, size, user, keyword, logCollectorNode.getId(), taskId);
     }
 
     @NotNull
-    private Page<ShareCdcTableInfo> getShareCdcTableInfoPage(String connectionId, Integer page, Integer size, UserDetail user
-            , List<String> tableNames, String keyword, String nodeId, String taskId) {
+    private Page<ShareCdcTableInfo> getShareCdcTableInfoPage(Map<String, String> tableNameConnectionIdMap, Integer page, Integer size, UserDetail user, String keyword, String nodeId, String taskId) {
         int limit = (page - 1) * size;
-        if (tableNames != null && StringUtils.isNotEmpty(keyword)) {
+        List<String> tableNames = new ArrayList<>(tableNameConnectionIdMap.keySet());
+        if (StringUtils.isNotEmpty(keyword)) {
             tableNames = tableNames.stream().filter(tableName -> StringUtils.containsAnyIgnoreCase(tableName, keyword)).collect(Collectors.toList());
         }
-        int tableCount = tableNames == null ? 0 : tableNames.size();
+        int tableCount = tableNames.size();
 
         Field field = new Field();
         field.put("_id", true);
         field.put("name", true);
-        DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId), field, user);
-        String connectionName = connectionDto.getName();
         List<ShareCdcTableInfo> shareCdcTableInfos = new ArrayList<>();
         for (int i = limit; i< size; i++) {
-            if (tableCount <= i || tableNames == null) {
+            if (tableCount <= i) {
                 break;
             }
             String tableName = tableNames.get(i);
+            String connectionId = tableNameConnectionIdMap.get(tableName);
+            DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId), field, user);
+            String connectionName = connectionDto.getName();
             ShareCdcTableInfo shareCdcTableInfo = new ShareCdcTableInfo();
             shareCdcTableInfo.setName(tableName);
             shareCdcTableInfo.setConnectionName(connectionName);
