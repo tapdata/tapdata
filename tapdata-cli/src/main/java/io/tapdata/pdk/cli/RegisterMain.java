@@ -79,6 +79,7 @@ public class RegisterMain {
         LarkApproval(BASE_PATH + "connectors/dist/lark-approval-connector-v1.0-SNAPSHOT.jar", "all", "lark-approval"),
         HttpReceiver(BASE_PATH + "connectors/dist/http-receiver-connector-v1.0-SNAPSHOT.jar", "all", "http-receiver"),
         Shein(BASE_PATH + "connectors/dist/shein-connector-v1.0-SNAPSHOT.jar", "all", "shein"),
+        YashanDB(BASE_PATH + "connectors/dist/yashandb-connector-v1.0-SNAPSHOT.jar", "all", "yashandb", "basic", "jdbc"),
         ;
 
         private final String path;
