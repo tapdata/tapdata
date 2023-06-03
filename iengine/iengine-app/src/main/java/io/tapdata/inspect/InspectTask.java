@@ -234,8 +234,8 @@ public abstract class InspectTask implements Runnable {
 					logger.error("Not found target Connections by connectionId " + task.getTarget().getConnectionId());
 					return;
 				}
-				ConnectorNode sourceNode = finalConnectorNodeMap.get(task.getSource().getConnectionId()),
-						targetNode = finalConnectorNodeMap.get(task.getTarget().getConnectionId());
+				ConnectorNode sourceNode = finalConnectorNodeMap.get(task.getSource().getNodeId()),
+						targetNode = finalConnectorNodeMap.get(task.getTarget().getNodeId());
 
 				AtomicLong atomicLong = new AtomicLong(System.currentTimeMillis());
 				// submit verification task
@@ -353,7 +353,7 @@ public abstract class InspectTask implements Runnable {
 			}
 			inspectService.updateStatus(inspect.getId(), InspectStatus.ERROR, "Execute data verification error: " + e.getMessage());
 		} finally {
-			releaseConnectionNodes(connectorNodeMap);
+			releaseConectorNodes(connectorNodeMap);
 			inspectService.stopInspect(inspect);
 		}
 	}
@@ -361,13 +361,15 @@ public abstract class InspectTask implements Runnable {
 	private Map<String, ConnectorNode> initConnectorNodeMap(Map<String, Connections> connectionsMap) {
 		Map<String, ConnectorNode> connectorNodeMap = new HashMap<>();
 		for (com.tapdata.entity.inspect.InspectTask task : inspect.getTasks()) {
+			String sourceKey = task.getSource().getNodeId();
 			Connections sourceConn = connectionsMap.get(task.getSource().getConnectionId());
-			Connections targetConn = connectionsMap.get(task.getTarget().getConnectionId());
-			if (!connectorNodeMap.containsKey(task.getSource().getConnectionId())) {
-				connectorNodeMap.put(sourceConn.getId(), initConnectorNode(task.getSource().getNodeId(), sourceConn));
+			if (!connectorNodeMap.containsKey(sourceKey)) {
+				connectorNodeMap.put(sourceKey, initConnectorNode(sourceKey, sourceConn));
 			}
-			if (!connectorNodeMap.containsKey(task.getTarget().getConnectionId())) {
-				connectorNodeMap.put(targetConn.getId(), initConnectorNode(task.getTarget().getNodeId(), targetConn));
+			String targetKey = task.getTarget().getNodeId();
+			Connections targetConn = connectionsMap.get(task.getTarget().getConnectionId());
+			if (!connectorNodeMap.containsKey(targetKey)) {
+				connectorNodeMap.put(targetKey, initConnectorNode(targetKey, targetConn));
 			}
 		}
 		return connectorNodeMap;
@@ -398,7 +400,7 @@ public abstract class InspectTask implements Runnable {
 		);
 	}
 
-	private void releaseConnectionNodes(Map<String, ConnectorNode> connectorNodeMap) {
+	private void releaseConectorNodes(Map<String, ConnectorNode> connectorNodeMap) {
 		if (MapUtils.isEmpty(connectorNodeMap)) return;
 		for (ConnectorNode connectorNode : connectorNodeMap.values()) {
 			if (null == connectorNode || StringUtils.isBlank(connectorNode.getAssociateId()))
