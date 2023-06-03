@@ -113,7 +113,7 @@ public class CacheTaskController extends BaseController {
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
     public ResponseMessage<Void> delete(@PathVariable("id") String id) {
-        taskService.deleteShareCache(MongoUtils.toObjectId(id), getLoginUser());
+        taskService.remove(MongoUtils.toObjectId(id), getLoginUser());
         return success();
     }
 
