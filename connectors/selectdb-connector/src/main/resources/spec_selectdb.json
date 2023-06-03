@@ -88,12 +88,12 @@
     "default": "en_US",
     "en_US": {
       "doc": "docs/selectdb_en_US.md",
-      "host": "Repo IP",
+      "host": "Warehouse Public IP",
       "port": "MySQL Port",
       "selectDbHttp": "HTTP Port",
-      "database": "database",
-      "user": "user",
-      "password": "password"
+      "database": "Database",
+      "user": "Username",
+      "password": "Password"
     },
     "zh_CN": {
       "doc": "docs/selectdb_zh_CN.md",
