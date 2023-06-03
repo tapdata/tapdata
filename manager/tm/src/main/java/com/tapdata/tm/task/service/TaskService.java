@@ -1067,7 +1067,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public void renew(ObjectId id, UserDetail user) {
         TaskDto taskDto = checkExistById(id, user);
-        boolean needCreateRecord = !TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
+        boolean needCreateRecord = !Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_RENEW_FAILED, TaskDto.STATUS_WAIT_START).contains(taskDto.getStatus());
+        //boolean needCreateRecord = !TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
         TaskEntity taskSnapshot = null;
         if (needCreateRecord) {
             taskSnapshot = new TaskEntity();
