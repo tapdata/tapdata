@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.service.impl;
 
 import com.google.common.collect.Lists;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Element;
@@ -78,6 +79,9 @@ public class LdpServiceImpl implements LdpService {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private SettingsService settingsService;
 
     @Override
     @Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
@@ -868,6 +872,12 @@ public class LdpServiceImpl implements LdpService {
 
     @Override
     public void generateLdpTaskByOld() {
+        //云版不做处理
+        boolean cloud = settingsService.isCloud();
+        if (cloud) {
+            return;
+        }
+
         List<UserDetail> userDetails = userService.loadAllUser();
         for (UserDetail userDetail : userDetails) {
             try {
