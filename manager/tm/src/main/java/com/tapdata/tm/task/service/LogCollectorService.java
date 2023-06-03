@@ -938,7 +938,11 @@ public class LogCollectorService {
                 ids = cache.stream().filter(c -> dataSource.getMultiConnectionInstanceId().equals(c.getMultiConnectionInstanceId())).map(d -> d.getId().toHexString()).collect(Collectors.toList());
             }
 
-            Criteria criteria1 = Criteria.where("is_deleted").is(false).and("dag.nodes").elemMatch(Criteria.where("type").is("logCollector").and("connectionIds").elemMatch(Criteria.where("$in").is(ids)));
+            Criteria criteria1 = Criteria.where("is_deleted").is(false)
+                    .and("dag.nodes")
+                    .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
+                    .elemMatch(Criteria.where("type").is("logCollector")
+                            .and("connectionIds").elemMatch(Criteria.where("$in").is(ids)));
             Query query1 = new Query(criteria1);
             query1.fields().include("dag", "status", "name", "currentEventTimestamp");
             List<String> connectionIds = v.stream().map(d -> d.getId().toHexString()).collect(Collectors.toList());
