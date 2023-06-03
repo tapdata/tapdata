@@ -245,6 +245,7 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
                 .flatMap(t -> ((LogCollectorNode) t).getConnectionIds().stream()).collect(Collectors.toList());
 
         Criteria criteria = Criteria.where("is_deleted").is(false).and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                .and("status").nin(TaskDto.STATUS_DELETE_FAILED)
                 .and("shareCdcEnable").is(true)
                 .and("dag.nodes.connectionId").in(connectionIds);
 
