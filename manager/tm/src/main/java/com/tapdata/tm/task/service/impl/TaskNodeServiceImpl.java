@@ -646,11 +646,12 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             DatabaseNode first = dtoDag.getSourceNode().getFirst();
             first.setTableNames(Lists.of(tableName));
             first.setRows(rows);
-
             Dag build = dtoDag.toDag();
             build = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(build), Dag.class);
             List<Node<?>> nodes = dtoDag.nodeMap().get(nodeId);
             MigrateJsProcessorNode jsNode = (MigrateJsProcessorNode) dtoDag.getNode(nodeId);
+            jsType = Optional.ofNullable(jsNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
+
             if (StringUtils.isNotBlank(script)) {
                 jsNode.setScript(script);
             }

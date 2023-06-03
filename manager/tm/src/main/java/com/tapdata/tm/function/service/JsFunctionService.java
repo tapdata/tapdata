@@ -108,6 +108,9 @@ public class JsFunctionService extends BaseService<JsFunctionDto, JsFunctionEnti
 				}
 
 				for (JsFunctionDto jsFunctionDto : jsFunctionDtos) {
+					if (check(jsFunctionDto)) {
+						log.info("Check passed");
+					}
 					Query query = new Query(Criteria.where("_id").is(jsFunctionDto.getId()).and("is_deleted").ne(true));
 					query.fields().include("_id", "user_id");
 					JsFunctionDto one = findOne(query, user);
@@ -139,9 +142,23 @@ public class JsFunctionService extends BaseService<JsFunctionDto, JsFunctionEnti
 			} catch (Exception e) {
 				//e.printStackTrace();
 				//不支持其他的格式文件
-				throw new BizException("JsFunction.ImportFormatError");
+				if (e instanceof BizException) {
+					throw (BizException) e;
+				} else {
+					throw new BizException("JsFunction.ImportFormatError");
+				}
 			}
     }
+
+	private boolean check(JsFunctionDto jsFunctionDto) {
+		if (StringUtils.isEmpty(jsFunctionDto.getFunction_name())) {
+			throw new BizException("JsFunction.ImportFormatError.function.name.empty");
+		}
+		if (StringUtils.isEmpty(jsFunctionDto.getFunction_body())) {
+			throw new BizException("JsFunction.ImportFormatError.function.body.empty");
+		}
+		return true;
+	}
 
 	public List<JsFunctionDto> findAllJsFunctionsByIds(List<String> list) {
 		List<ObjectId> ids = list.stream().map(ObjectId::new).collect(Collectors.toList());
