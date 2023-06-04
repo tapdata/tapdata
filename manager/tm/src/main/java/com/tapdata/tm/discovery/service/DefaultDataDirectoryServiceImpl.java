@@ -15,6 +15,7 @@ import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +31,7 @@ import java.util.stream.Collectors;
 
 @Service
 @Setter(onMethod_ = {@Autowired})
+@Slf4j
 public class DefaultDataDirectoryServiceImpl implements DefaultDataDirectoryService {
     private DataSourceService dataSourceService;
     private DataSourceDefinitionService definitionService;
@@ -264,39 +266,43 @@ public class DefaultDataDirectoryServiceImpl implements DefaultDataDirectoryServ
 
     @Override
     public void init() {
-        Query query = new Query();
-        query.fields().include("user_id");
-        List<DataSourceConnectionDto> all = dataSourceService.findAll(query);
-        List<String> userIdList = all.stream().map(BaseDto::getUserId).distinct().collect(Collectors.toList());
-        if (CollectionUtils.isEmpty(userIdList)) {
-            return;
-        }
+        try {
+            Query query = new Query();
+            query.fields().include("user_id");
+            List<DataSourceConnectionDto> all = dataSourceService.findAll(query);
+            List<String> userIdList = all.stream().map(BaseDto::getUserId).distinct().collect(Collectors.toList());
+            if (CollectionUtils.isEmpty(userIdList)) {
+                return;
+            }
 
-        List<UserDetail> userList = userService.getUserByIdList(userIdList);
+            List<UserDetail> userList = userService.getUserByIdList(userIdList);
 
 
-        UserDetail admin = null;
-        for (UserDetail userDetail : userList) {
-            if ("admin@admin.com".equals(userDetail.getEmail())) {
-                admin = userDetail;
+            UserDetail admin = null;
+            for (UserDetail userDetail : userList) {
+                if ("admin@admin.com".equals(userDetail.getEmail())) {
+                    admin = userDetail;
+                    deleteDefault(userDetail);
+                    addPdkIds(userDetail);
+                    addConnections(userDetail);
+                    addJobs(userDetail);
+                    addApi(userDetail);
+                }
+            }
+
+            if (admin != null) {
+                userList.remove(admin);
+            }
+
+            for (UserDetail userDetail : userList) {
                 deleteDefault(userDetail);
                 addPdkIds(userDetail);
                 addConnections(userDetail);
                 addJobs(userDetail);
                 addApi(userDetail);
             }
-        }
+        } catch (Exception e) {
 
-        if (admin != null) {
-            userList.remove(admin);
-        }
-
-        for (UserDetail userDetail : userList) {
-            deleteDefault(userDetail);
-            addPdkIds(userDetail);
-            addConnections(userDetail);
-            addJobs(userDetail);
-            addApi(userDetail);
         }
     }
 
@@ -419,7 +425,7 @@ public class DefaultDataDirectoryServiceImpl implements DefaultDataDirectoryServ
 
             return ipAndPort.toString();
         } catch (Exception e) {
-
+            log.warn("Default data directory generate failed!");
         }
         return name;
     }

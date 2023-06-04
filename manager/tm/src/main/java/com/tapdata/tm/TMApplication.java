@@ -3,6 +3,7 @@ package com.tapdata.tm;
 import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
 import com.tapdata.tm.ds.service.impl.RepairCreateTimeComponent;
 import com.tapdata.tm.listener.StartupListener;
+import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.SpringContextHelper;
@@ -122,6 +123,9 @@ public class TMApplication {
 		new Thread(() -> {
 			DefaultDataDirectoryService bean = applicationContext.getBean(DefaultDataDirectoryService.class);
 			bean.init();
+			LdpService ldpService = applicationContext.getBean(LdpService.class);
+			ldpService.generateLdpTaskByOld();
+
 		}).start();
 
 	}
