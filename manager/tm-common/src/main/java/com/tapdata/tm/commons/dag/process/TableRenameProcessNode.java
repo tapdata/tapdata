@@ -44,6 +44,12 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
      */
     private LinkedHashSet<TableRenameTableInfo> tableNames;
 
+
+    public void setTableNames(LinkedHashSet<TableRenameTableInfo> tableNames) {
+        this.tableNames = tableNames;
+    }
+
+
     private String prefix;
     private String suffix;
     private String replaceBefore;

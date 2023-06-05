@@ -207,28 +207,30 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
 
     @SneakyThrows
     public void transformSchema(DAG.Options options) {
-
-        if (CollectionUtils.isNotEmpty(getGraph().predecessors(this.getId()))) {
-            this.setSchema(null);
-            super.transformSchema(options);
-            return;
-        }
-
-        List<String> tables = getSourceNodeTableNames(Lists.newArrayList(this));
-
-        if (CollectionUtils.isNotEmpty(tables)) {
-            tableNames.removeIf(String::isEmpty);
-
-            List<String> includes = new ArrayList<>();
-            options.setIncludes(includes);
-            List<List<String>> partition = ListUtils.partition(tables, options.getBatchNum());
-            partition.forEach(list -> {
-                includes.clear();
-                includes.addAll(list);
-                this.setSchema(null);
-                super.transformSchema(options);
-            });
-        }
+        this.setSchema(null);
+        super.transformSchema(options);
+        return;
+//        if (CollectionUtils.isNotEmpty(getGraph().predecessors(this.getId()))) {
+//            this.setSchema(null);
+//            super.transformSchema(options);
+//            return;
+//        }
+//
+//        List<String> tables = getSourceNodeTableNames(Lists.newArrayList(this));
+//
+//        if (CollectionUtils.isNotEmpty(tables)) {
+//            tableNames.removeIf(String::isEmpty);
+//
+//            List<String> includes = new ArrayList<>();
+//            options.setIncludes(includes);
+//            List<List<String>> partition = ListUtils.partition(tables, options.getBatchNum());
+//            partition.forEach(list -> {
+//                includes.clear();
+//                includes.addAll(list);
+//                this.setSchema(null);
+//                super.transformSchema(options);
+//            });
+//        }
     }
 
     public List<String> getSourceNodeTableNames() {
@@ -296,9 +298,9 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
                     s.setSourceNodeDatabaseType(getDatabaseType());
                 }).collect(Collectors.toList());
 
-        if (CollectionUtils.isNotEmpty(schemaList)) {
-            tableNames = schemaList.stream().map(Schema::getOriginalName).collect(Collectors.toList());
-        }
+//        if (CollectionUtils.isNotEmpty(schemaList)) {
+//            tableNames = schemaList.stream().map(Schema::getOriginalName).collect(Collectors.toList());
+//        }
 
         return schemaList;
     }

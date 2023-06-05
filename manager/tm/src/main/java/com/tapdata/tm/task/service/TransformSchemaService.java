@@ -103,7 +103,15 @@ public class TransformSchemaService {
     public TransformerWsMessageDto getTransformParam(TaskDto taskDto, UserDetail user) {
         return getTransformParam(taskDto, user, false);
     }
+
+    public TransformerWsMessageDto getTransformParam(TaskDto taskDto, List<String> includes, UserDetail user) {
+        return getTransformParam(taskDto, user, includes, false);
+    }
+
     public TransformerWsMessageDto getTransformParam(TaskDto taskDto, UserDetail user, boolean allParam) {
+        return getTransformParam(taskDto, user, null, false);
+    }
+    public TransformerWsMessageDto getTransformParam(TaskDto taskDto, UserDetail user, List<String> includes, boolean allParam) {
         log.debug("start transform schema, task = {}, user = {}", taskDto, user);
         taskDto.setUserId(user.getUserId());
         DAG dag = taskDto.getDag();
@@ -168,6 +176,9 @@ public class TransformSchemaService {
             //考虑到先后问题，采用毫秒级时间戳更好一点
             options.setUuid(String.valueOf(System.currentTimeMillis()));
         }
+        if (CollectionUtils.isNotEmpty(includes)) {
+            options.setIncludes(includes);
+        }
         // update metaTransformer version
         dag.getTargets().forEach(target -> metadataTransformerService.updateVersion(taskDto.getId().toHexString(), target.getId(), options.getUuid()));
 
@@ -228,7 +239,7 @@ public class TransformSchemaService {
                     DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(connectionId);
                     DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
 
-                    List<String> metas = metadataInstancesService.findDatabaseNodeQualifiedName(node.getId(), user, taskDto, dataSourceConnectionDto, dataSourceDefinitionDto);
+                    List<String> metas = metadataInstancesService.findDatabaseNodeQualifiedName(node.getId(), user, taskDto, dataSourceConnectionDto, dataSourceDefinitionDto, includes);
                     if (fileSource.contains(dataSourceDefinitionDto.getPdkId())) {
                         metas = metas.stream().map(q -> {
                             int i = q.lastIndexOf("_");
@@ -291,8 +302,53 @@ public class TransformSchemaService {
      */
     public void transformSchema(TaskDto taskDto, UserDetail user, boolean checkJs) {
         log.debug("start transform schema, task = {}, user = {}", taskDto, user);
-        TransformerWsMessageDto transformParam = getTransformParam(taskDto, user);
 
+        String transformUuid = null;
+        if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+            DAG dag = taskDto.getDag();
+            if (dag != null) {
+                List<Node> sources = dag.getSources();
+                if (CollectionUtils.isNotEmpty(sources)) {
+                    Node node = sources.get(0);
+                    if (node instanceof DatabaseNode) {
+                        List<String> tableNames = ((DatabaseNode) node).getTableNames();
+                        if (CollectionUtils.isNotEmpty(tableNames)) {
+                            List<String> includes = new ArrayList<>();
+                            for (String tableName : tableNames) {
+                                includes.add(tableName);
+                                if (includes.size() >= transformBatchNum) {
+                                    TransformerWsMessageDto transformParam = getTransformParam(taskDto, includes, user);
+                                    if (transformUuid == null) {
+                                        transformUuid = transformParam.getOptions().getUuid();
+                                    } else {
+                                        transformParam.getOptions().setUuid(transformUuid);
+                                    }
+                                    transformSchema(taskDto, transformParam, checkJs, user);
+                                    includes.clear();
+                                }
+                            }
+                            if (includes.size() != 0) {
+                                TransformerWsMessageDto transformParam = getTransformParam(taskDto, includes, user);
+                                if (transformUuid != null) {
+                                    transformParam.getOptions().setUuid(transformUuid);
+                                }
+                                transformSchema(taskDto, transformParam, checkJs, user);
+                                includes.clear();
+                            }
+                            return;
+                        }
+                    }
+
+                }
+            }
+
+        }
+
+        TransformerWsMessageDto transformParam = getTransformParam(taskDto, user);
+        transformSchema(taskDto, transformParam, checkJs, user);
+    }
+
+    private void transformSchema(TaskDto taskDto, TransformerWsMessageDto transformParam, boolean checkJs, UserDetail user) {
         taskService.updateById(taskDto.getId(), Update.update("transformUuid", transformParam.getOptions().getUuid()).set("transformed", false), user);
 
         boolean taskContainJs = checkTaskContainJs(taskDto);
