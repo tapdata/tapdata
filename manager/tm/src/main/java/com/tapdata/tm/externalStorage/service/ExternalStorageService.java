@@ -60,6 +60,8 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 			return findOne(query);
 		} else {
 			externalStorage.setId(null);
+			externalStorage.setCanDelete(true);
+			externalStorage.setCanEdit(true);
 			return super.save(externalStorage, userDetail);
 		}
 

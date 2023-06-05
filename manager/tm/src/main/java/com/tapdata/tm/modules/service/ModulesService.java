@@ -1300,7 +1300,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 					if ("MetadataInstances".equals(modulesUpAndLoadDto.getCollectionName())) {
 						metadataInstancess.add(JsonUtil.parseJsonUseJackson(dtoJson, MetadataInstancesDto.class));
 					} else if ("Modules".equals(modulesUpAndLoadDto.getCollectionName())) {
-						modulesDtos.add(JsonUtil.parseJsonUseJackson(dtoJson, ModulesDto.class));
+              ModulesDto modulesDto = JsonUtil.parseJsonUseJackson(dtoJson, ModulesDto.class);
+              checkoutInputParamIsValid(modulesDto);
+              modulesDto.setConnection(MongoUtils.toObjectId(modulesDto.getConnectionId()));
+              modulesDtos.add(modulesDto);
 					} else if ("Connections".equals(modulesUpAndLoadDto.getCollectionName())) {
 						connections.add(JsonUtil.parseJsonUseJackson(dtoJson, DataSourceConnectionDto.class));
 					}

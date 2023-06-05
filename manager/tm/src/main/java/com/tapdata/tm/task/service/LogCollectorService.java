@@ -1472,17 +1472,24 @@ public class LogCollectorService {
         if (logCollectorConnConfigs == null || logCollectorConnConfigs.size() == 0) {
             //old version shareCdc task
             tableNames = logCollectorNode.getTableNames();
-            tableNames.forEach(tableName -> tableNameConnectionIdMap.put(tableName, logCollectorNode.getConnectionIds().get(0)));
+            if (CollectionUtils.isNotEmpty(tableNames)) {
+                tableNames.forEach(tableName -> tableNameConnectionIdMap.put(tableName, logCollectorNode.getConnectionIds().get(0)));
+            }
         } else {
             //new version shareCdc task
             if (StringUtils.isNotEmpty(connectionId)) {
                 LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
                 tableNames = logCollecotrConnConfig.getTableNames();
-                tableNames.forEach(tableName -> tableNameConnectionIdMap.put(tableName, connectionId));
+                if (CollectionUtils.isNotEmpty(tableNames)) {
+                    tableNames.forEach(tableName -> tableNameConnectionIdMap.put(tableName, connectionId));
+                }
             } else {
-                tableNames = logCollectorConnConfigs.values().stream().flatMap(logCollecotrConnConfig -> logCollecotrConnConfig.getTableNames().stream()).collect(Collectors.toList());
-                logCollectorConnConfigs.forEach((connId, logCollecotrConnConfig) ->
-                        logCollecotrConnConfig.getTableNames().forEach(tableName -> tableNameConnectionIdMap.put(tableName, connId)));
+                logCollectorConnConfigs.forEach((connId, logCollecotrConnConfig) -> {
+                    List<String> tableNames1 = logCollecotrConnConfig.getTableNames();
+                    if (CollectionUtils.isNotEmpty(tableNames1)) {
+                        tableNames1.forEach(tableName -> tableNameConnectionIdMap.put(tableName, connId));
+                    }
+                });
             }
 
         }
@@ -1501,17 +1508,24 @@ public class LogCollectorService {
         if (logCollectorConnConfigs == null || logCollectorConnConfigs.size() == 0) {
             //old version shareCdc task
             tableNames = logCollectorNode.getExclusionTables();
-            tableNames.forEach(tableName -> tableNameConnectionIdMap.put(tableName, logCollectorNode.getConnectionIds().get(0)));
+            if (CollectionUtils.isNotEmpty(tableNames)) {
+                tableNames.forEach(tableName -> tableNameConnectionIdMap.put(tableName, logCollectorNode.getConnectionIds().get(0)));
+            }
         } else {
             //new version shareCdc task
             if (StringUtils.isNotEmpty(connectionId)) {
                 LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
                 tableNames = logCollecotrConnConfig.getExclusionTables();
-                tableNames.forEach(tableName -> tableNameConnectionIdMap.put(tableName, connectionId));
+                if (CollectionUtils.isNotEmpty(tableNames)) {
+                    tableNames.forEach(tableName -> tableNameConnectionIdMap.put(tableName, connectionId));
+                }
             } else {
-                tableNames = logCollectorConnConfigs.values().stream().flatMap(logCollecotrConnConfig -> logCollecotrConnConfig.getExclusionTables().stream()).collect(Collectors.toList());
-                logCollectorConnConfigs.forEach((connId, logCollecotrConnConfig) ->
-                        logCollecotrConnConfig.getExclusionTables().forEach(tableName -> tableNameConnectionIdMap.put(tableName, connId)));
+                logCollectorConnConfigs.forEach((connId, logCollecotrConnConfig) -> {
+                    List<String> exclusionTables = logCollecotrConnConfig.getExclusionTables();
+                    if (CollectionUtils.isNotEmpty(exclusionTables)) {
+                        exclusionTables.forEach(tableName -> tableNameConnectionIdMap.put(tableName, connId));
+                    }
+                });
             }
 
         }
