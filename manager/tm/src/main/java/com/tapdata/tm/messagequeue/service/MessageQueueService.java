@@ -88,9 +88,9 @@ public class MessageQueueService extends BaseService<MessageQueueDto, MessageQue
 		if (messageDto == null){
 			throw new BizException("MessageQueue is null");
 		}
+		log.info("WebSocket handle message, messageQueue: {}", JsonUtil.toJson(messageDto));
 		if(WebSocketManager.containsSession(messageDto.getReceiver())){
 			try {
-
 				WebSocketManager.sendMessage(messageDto.getReceiver(), JsonUtil.toJsonUseJackson(messageDto));
 			} catch (Exception e) {
 				log.error("WebSocket handle message failed,message: {}", e.getMessage(), e);
@@ -101,13 +101,13 @@ public class MessageQueueService extends BaseService<MessageQueueDto, MessageQue
 				}
 				throw new BizException(e);
 			}
-		}else if (StringUtils.isNotBlank(messageDto.getReceiver())){
+		} else if (StringUtils.isNotBlank(messageDto.getReceiver())){
 			log.info("SessionId not found, save message data to db, messageQueue: {}", JsonUtil.toJson(messageDto));
 			save(messageDto);
-		} /*else if (messageDto.getData() != null && MessageType.EDIT_FLUSH.getType().equals(messageDto.getData().get("type"))) {
-			log.info("SessionId, receiver not found, type is edit flush,  save message data to db, messageQueue: {}", JsonUtil.toJson(messageDto));
+		} else {
+			log.warn("SessionId, receiver not found,  save message data to db, messageQueue: {}", JsonUtil.toJson(messageDto));
 			save(messageDto);
-		}*/
+		}
 	}
 
 	public void sendPipeMessage(Map<String, Object> map, String sender, String receiver) {
