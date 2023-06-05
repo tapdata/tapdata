@@ -4,6 +4,5 @@ public enum AlarmSettingTypeEnum {
     TASK,
     DATANODE,
     PROCESSNODE,
-    SYSTEM,
-    INSPECT
+    SYSTEM
 }
