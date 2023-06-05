@@ -236,7 +236,7 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public void notifyAlarm() {
-        Criteria criteria = Criteria.where("status").ne(AlarmStatusEnum.CLOESE)
+        Criteria criteria = Criteria.where("status").is(AlarmStatusEnum.ING)
                 .and("lastNotifyTime").lt(DateUtil.date()).gt(DateUtil.offsetSecond(DateUtil.date(), -30)
                 );
         Query needNotifyQuery = new Query(criteria);

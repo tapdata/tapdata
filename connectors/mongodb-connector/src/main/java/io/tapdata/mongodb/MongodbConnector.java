@@ -18,6 +18,7 @@ import com.mongodb.MongoSocketReadTimeoutException;
 import com.mongodb.MongoSocketWriteException;
 import com.mongodb.MongoTimeoutException;
 import com.mongodb.MongoWriteConcernException;
+import com.mongodb.MongoCursorNotFoundException;
 import com.mongodb.MongoWriteException;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
@@ -706,6 +707,7 @@ public class MongodbConnector extends ConnectorBase {
 				|| null != matchThrowable(throwable, MongoNodeIsRecoveringException.class)
 				|| null != matchThrowable(throwable, MongoNotPrimaryException.class)
 				|| null != matchThrowable(throwable, MongoServerUnavailableException.class)
+				|| null != matchThrowable(throwable, MongoCursorNotFoundException.class)
 				|| null != matchThrowable(throwable, MongoQueryException.class)
 				|| null != matchThrowable(throwable, MongoCommandException.class)
 				|| null != matchThrowable(throwable, MongoInterruptedException.class)) {
