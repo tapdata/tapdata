@@ -1,11 +1,9 @@
 package io.tapdata.connector.adb.write;
 
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.util.Collection;
 import java.util.Map;
@@ -26,7 +24,7 @@ public interface WriteStage {
     }
 
     //不相同则需要拆成删除和插入或者报错提示
-    public void splitToInsertAndDeleteFromUpdate(TapConnectorContext context, TapUpdateRecordEvent event, TapTable table, WriteListResult<TapRecordEvent> result) throws Throwable;
+    public int splitToInsertAndDeleteFromUpdate(TapConnectorContext context, TapUpdateRecordEvent event, TapTable table) throws Throwable;
 
 
     //判断before和after是否有主键的变化
@@ -49,7 +47,7 @@ public interface WriteStage {
                 if (Objects.isNull(key) || "".equals(key.trim())) continue;
                 Object valueAfter = after.get(key);
                 Object valueBefore = before.get(key);
-                if ((null != valueAfter && !valueAfter.equals(before))
+                if ((null != valueAfter && !valueAfter.equals(valueBefore))
                         || (null != valueBefore && !valueBefore.equals(valueAfter))){
                     return false;
                 }

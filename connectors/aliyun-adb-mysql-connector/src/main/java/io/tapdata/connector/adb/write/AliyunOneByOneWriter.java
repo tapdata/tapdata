@@ -3,27 +3,29 @@ package io.tapdata.connector.adb.write;
 import io.tapdata.connector.mysql.writer.MysqlJdbcOneByOneWriter;
 import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
-import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.logger.Log;
+import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 
 import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 import static io.tapdata.base.ConnectorBase.deleteDMLEvent;
 import static io.tapdata.base.ConnectorBase.insertRecordEvent;
-import static io.tapdata.base.ConnectorBase.toJson;
 
 /**
  * @author GavinXiao
@@ -38,59 +40,6 @@ public class AliyunOneByOneWriter extends MysqlJdbcOneByOneWriter implements Wri
         super(mysqlJdbcContext, jdbcCacheMap);
     }
 
-    @Override
-    public WriteListResult<TapRecordEvent> write(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) throws Throwable {
-        WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>(0L, 0L, 0L, new HashMap<>());
-        TapRecordEvent errorRecord = null;
-        try {
-            for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
-                if (!isAlive()) break;
-                try {
-                    if (tapRecordEvent instanceof TapInsertRecordEvent) {
-                        int insertRow = doInsertOne(tapConnectorContext, tapTable, tapRecordEvent);
-                        writeListResult.incrementInserted(insertRow);
-                    } else if (tapRecordEvent instanceof TapUpdateRecordEvent) {
-                        if (hasEqualsValueOfPrimaryKey(tapConnectorContext, (TapUpdateRecordEvent) tapRecordEvent, tapTable)) {
-                            try {
-                                int updateRow = doUpdateOne(tapConnectorContext, tapTable, tapRecordEvent);
-                                writeListResult.incrementModified(updateRow);
-                            } catch (Exception e) {
-                                tapConnectorContext.getLog().error("A record fail to update event, message: %s, %s", e.getMessage(), toJson(tapRecordEvent));
-                            }
-                        } else {
-                                splitToInsertAndDeleteFromUpdate(tapConnectorContext, (TapUpdateRecordEvent) tapRecordEvent, tapTable, writeListResult);
-                        }
-                    } else if (tapRecordEvent instanceof TapDeleteRecordEvent) {
-                        int deleteRow = doDeleteOne(tapConnectorContext, tapTable, tapRecordEvent);
-                        writeListResult.incrementRemove(deleteRow);
-                    } else {
-                        writeListResult.addError(tapRecordEvent, new Exception("Event type \"" + tapRecordEvent.getClass().getSimpleName() + "\" not support: " + tapRecordEvent));
-                    }
-                } catch (Throwable e) {
-                    if (!isAlive()) {
-                        break;
-                    }
-                    errorRecord = tapRecordEvent;
-                    throw e;
-                }
-            }
-        } catch (Throwable e) {
-            writeListResult.setInsertedCount(0);
-            writeListResult.setModifiedCount(0);
-            writeListResult.setRemovedCount(0);
-            if (null != errorRecord) writeListResult.addError(errorRecord, e);
-            throw e;
-        }
-        return writeListResult;
-    }
-
-    @Override
-    protected int doUpdateOne(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
-        removePrimaryKeys(tapTable, (TapUpdateRecordEvent) tapRecordEvent);
-        return super.doUpdateOne(tapConnectorContext, tapTable, tapRecordEvent);
-    }
-
-    @Override
     public void splitToInsertAndDeleteFromUpdate(TapConnectorContext context, TapUpdateRecordEvent event, TapTable table, WriteListResult<TapRecordEvent> result) throws Throwable {
         if (null == event){
             return;
@@ -111,7 +60,112 @@ public class AliyunOneByOneWriter extends MysqlJdbcOneByOneWriter implements Wri
         int deleteCount = doDeleteOne(context, table, deleteDMLEvent(before, tableId).referenceTime(referenceTime));
         result.incrementRemove(deleteCount);
 
-        int addCount = doInsertOne(context, table, insertRecordEvent(after, tableId).referenceTime(referenceTime));
+        int addCount = doInsert(context, table, insertRecordEvent(after, tableId).referenceTime(referenceTime));
         result.incrementInserted(addCount);
+    }
+
+    @Override
+    public int splitToInsertAndDeleteFromUpdate(TapConnectorContext context, TapUpdateRecordEvent event, TapTable table) throws Throwable {
+        if (null == event){
+            return 0;
+        }
+        Map<String, Object> before = event.getBefore();
+        Map<String, Object> after = event.getAfter();
+        if (null == before || before.isEmpty() || null == after || after.isEmpty()){
+            super.doUpdateOne(context, table, event);
+            //result.incrementModified(updateRow);
+            return 1;
+        }
+        if (Objects.isNull(table)){
+            throw new CoreException("TapTable can not be empty, update event will be cancel");
+        }
+        String tableId = table.getId();
+        Long referenceTime = event.getReferenceTime();
+
+        doDeleteOne(context, table, deleteDMLEvent(before, tableId).referenceTime(referenceTime));
+        //result.incrementRemove(deleteCount);
+        doInsert(context, table, insertRecordEvent(after, tableId).referenceTime(referenceTime));
+        //result.incrementInserted(addCount);
+        return 1;
+    }
+
+    @Override
+    protected int doUpdate(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
+        if (hasEqualsValueOfPrimaryKey(tapConnectorContext, (TapUpdateRecordEvent) tapRecordEvent, tapTable)) {
+            return super.doUpdate(tapConnectorContext, tapTable, tapRecordEvent);
+        } else {
+            return splitToInsertAndDeleteFromUpdate(tapConnectorContext, (TapUpdateRecordEvent) tapRecordEvent, tapTable);
+        }
+    }
+
+    @Override
+    protected PreparedStatement getUpdatePreparedStatement(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
+        JdbcCache jdbcCache = getJdbcCache();
+        Map<String, PreparedStatement> updateMap = jdbcCache.getUpdateMap();
+        String key = getKey(tapTable, tapRecordEvent);
+        PreparedStatement preparedStatement = null;//updateMap.get(key);
+        DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
+        String database = connectionConfig.getString("database");
+        String name = connectionConfig.getString("name");
+        String tableId = tapTable.getId();
+        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+        if (MapUtils.isEmpty(nameFieldMap)) {
+            throw new Exception("Create update prepared statement error, table \"" + tableId + "\"'s fields is empty, retry after reload connection \"" + name + "\"'s schema");
+        }
+        List<String> setList = new ArrayList<>();
+        Collection<String> keys = tapTable.primaryKeys(false);
+        nameFieldMap.forEach((fieldName, field) -> {
+            if (!needAddIntoPreparedStatementValues(field, tapRecordEvent)) {
+                return;
+            }
+            if (null != keys && !keys.isEmpty() && !keys.contains(fieldName)) {
+                setList.add("`" + fieldName + "`=?");
+            }
+        });
+        List<String> whereList = new ArrayList<>();
+        Collection<String> uniqueKeys = getUniqueKeys(tapTable);
+        for (String uniqueKey : uniqueKeys) {
+            whereList.add("`" + uniqueKey + "`<=>?");
+        }
+        String sql = String.format(UPDATE_SQL_TEMPLATE, database, tableId, String.join(",", setList), String.join(" AND ", whereList));
+        try {
+            preparedStatement = jdbcCache.getConnection().prepareStatement(sql);
+        } catch (SQLException e) {
+            throw new Exception("Create update prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
+        } catch (Exception e) {
+            throw new Exception("Create update prepared statement error, sql: " + sql + ", message: " + e.getMessage(), e);
+        }
+        updateMap.put(key, preparedStatement);
+        return preparedStatement;
+    }
+
+    @Override
+    protected int setPreparedStatementValues(TapTable tapTable, TapRecordEvent tapRecordEvent, PreparedStatement preparedStatement) throws Throwable {
+        if (tapRecordEvent instanceof TapUpdateRecordEvent){
+            LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+            int parameterIndex = 1;
+            Map<String, Object> after = getAfter(tapRecordEvent);
+            if (MapUtils.isEmpty(after)) {
+                throw new Exception("Set prepared statement values failed, after is empty: " + tapRecordEvent);
+            }
+            List<String> afterKeys = new ArrayList<>(after.keySet());
+            Collection<String> keys = tapTable.primaryKeys(false);
+            for (String fieldName : nameFieldMap.keySet()) {
+                TapField tapField = nameFieldMap.get(fieldName);
+                if (!needAddIntoPreparedStatementValues(tapField, tapRecordEvent) || (null != keys && !keys.isEmpty() && keys.contains(fieldName))) {
+                    continue;
+                }
+                preparedStatement.setObject(parameterIndex++, after.get(fieldName));
+                afterKeys.remove(fieldName);
+            }
+            if (CollectionUtils.isNotEmpty(afterKeys)) {
+                Map<String, Object> missingAfter = new HashMap<>();
+                afterKeys.forEach(k -> missingAfter.put(k, after.get(k)));
+                TapLogger.warn(TAG, "Found fields in after data not exists in schema fields, will skip it: " + missingAfter);
+            }
+            return parameterIndex;
+        } else {
+            return super.setPreparedStatementValues(tapTable, tapRecordEvent, preparedStatement);
+        }
     }
 }

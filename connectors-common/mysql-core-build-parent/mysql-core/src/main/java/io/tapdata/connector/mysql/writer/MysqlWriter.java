@@ -114,6 +114,8 @@ public abstract class MysqlWriter {
             after = ((TapInsertRecordEvent) tapRecordEvent).getAfter();
         } else if (tapRecordEvent instanceof TapUpdateRecordEvent) {
             after = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
+        } else {
+            after = new HashMap<>();
         }
         return after;
     }

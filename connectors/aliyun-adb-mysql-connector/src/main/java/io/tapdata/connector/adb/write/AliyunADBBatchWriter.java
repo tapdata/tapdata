@@ -53,7 +53,7 @@ public class AliyunADBBatchWriter extends MysqlSqlBatchWriter implements WriteSt
 //                            batch = true;
 //                            writeListResult.get().incrementModified(doUpdate(tapConnectorContext, tapTable, consumeEvents));
 //                        } else {
-                        doOneByOne(tapConnectorContext, tapTable, writeListResult, consumeEvents);
+                            doOneByOne(tapConnectorContext, tapTable, writeListResult, consumeEvents);
 //                        }
                     } else if (consumeEvents.get(0) instanceof TapDeleteRecordEvent) {
                         batch = true;
@@ -108,7 +108,7 @@ public class AliyunADBBatchWriter extends MysqlSqlBatchWriter implements WriteSt
     }
 
     @Override
-    public void splitToInsertAndDeleteFromUpdate(TapConnectorContext context, TapUpdateRecordEvent event, TapTable table, WriteListResult<TapRecordEvent> result) throws Throwable {
+    public int splitToInsertAndDeleteFromUpdate(TapConnectorContext context, TapUpdateRecordEvent event, TapTable table) throws Throwable {
 //        if (null == event){
 //            return;
 //        }
@@ -143,5 +143,6 @@ public class AliyunADBBatchWriter extends MysqlSqlBatchWriter implements WriteSt
 //        writeListResult.get().incrementRemove(doDelete(tapConnectorContext, tapTable, consumeEvents));
 //        int addCount = doInsertOne(context, table, insertRecordEvent(after, tableId).referenceTime(referenceTime));
 //        result.incrementInserted(addCount);
+        return 1;
     }
 }
