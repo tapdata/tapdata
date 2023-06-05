@@ -136,7 +136,7 @@ public class TapEventBuilder {
             return Timestamp.from(Instant.now());
         } else {
             String ftype = field.getDataType();
-            if (ftype.startsWith("runmber")) {
+            if (ftype.startsWith("rnumber")) {
                 if (ftype.endsWith(")")) {
                     try {
                         return Math.random() * Long.parseLong(ftype.substring(8, ftype.length() - 1));
