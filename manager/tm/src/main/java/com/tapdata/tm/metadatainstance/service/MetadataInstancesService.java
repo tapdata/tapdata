@@ -709,15 +709,21 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return findOne(Query.query(criteria), userDetail);
     }
 
-    public List<MetadataInstancesDto> findSourceSchemaBySourceId(String sourceId, List<String> tableNames, UserDetail userDetail) {
+    public List<MetadataInstancesDto> findSourceSchemaBySourceId(String sourceId, List<String> tableNames, UserDetail userDetail, String... fields) {
         Criteria criteria = Criteria
                 .where("meta_type").in(Lists.of("table", "collection", "view"))
                 .and("is_deleted").ne(true)
                 .and("source._id").is(sourceId)
                 .and("sourceType").is(SourceTypeEnum.SOURCE.name())
-                .and("original_name").in(tableNames)
                 .and("taskId").exists(false);
+        if (CollectionUtils.isNotEmpty(tableNames)) {
+            criteria.and("original_name").in(tableNames);
+        }
 
+        Query query = new Query(criteria);
+        if (fields != null && fields.length > 0) {
+            query.fields().include(fields);
+        }
         return findAllDto(Query.query(criteria), userDetail);
     }
 
@@ -1463,7 +1469,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return null;
     }
 
-    public List<String> findDatabaseNodeQualifiedName(String nodeId, UserDetail user, TaskDto taskDto, DataSourceConnectionDto dataSource, DataSourceDefinitionDto definitionDto) {
+    public List<String> findDatabaseNodeQualifiedName(String nodeId, UserDetail user, TaskDto taskDto, DataSourceConnectionDto dataSource, DataSourceDefinitionDto definitionDto, List<String> includes) {
         if (taskDto == null || taskDto.getDag() == null) {
             Criteria criteria = Criteria.where("dag.nodes.id").is(nodeId);
             Query query = new Query(criteria);
@@ -1496,8 +1502,12 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     metaType = "collection";
                 }
 
+                List<String> tableNames;
+                if (CollectionUtils.isNotEmpty(includes)) {
+                    tableNames = includes;
+                } else {
+
                     DatabaseNode tableNode = (DatabaseNode) node;
-                    List<String> tableNames;
                     if (dag.getSources().contains(tableNode)) {
                         tableNames = tableNode.getTableNames();
                     } else if (dag.getTargets().contains(tableNode)) {
@@ -1505,13 +1515,14 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     } else {
                         throw new BizException("table node is error nodeId:" + tableNode.getId());
                     }
+                }
 
-                    if(CollectionUtils.isNotEmpty(tableNames)) {
-                        for (String tableName : tableNames) {
-                            String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, dataSource, tableName, taskId);
-                            qualifiedNames.add(qualifiedName);
-                        }
+                if(CollectionUtils.isNotEmpty(tableNames)) {
+                    for (String tableName : tableNames) {
+                        String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, dataSource, tableName, taskId);
+                        qualifiedNames.add(qualifiedName);
                     }
+                }
             }
 
         }
@@ -1896,6 +1907,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 if (connectionDto != null) {
                     SourceDto sourceDto = new SourceDto();
                     BeanUtils.copyProperties(connectionDto, sourceDto);
+                    sourceDto.set_id(connectionDto.getId().toHexString());
                     metadataInstancesDto.setSource(sourceDto);
                 }
             }

@@ -45,7 +45,7 @@ public class ModelProcessStrategyImpl implements DagLogStrategy {
             }
             DatabaseNode sourceNode = databaseNodes.getFirst();
             if ("expression".equals(sourceNode.getMigrateTableSelectType())) {
-                List<MetadataInstancesDto> metaInstances = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(), null, userDetail, taskId);
+                List<MetadataInstancesDto> metaInstances = metadataInstancesService.findSourceSchemaBySourceId(sourceNode.getConnectionId(), null, userDetail, "original_name");
                 if (CollectionUtils.isNotEmpty(metaInstances)) {
                     total = metaInstances.stream()
                             .map(MetadataInstancesDto::getOriginalName)
