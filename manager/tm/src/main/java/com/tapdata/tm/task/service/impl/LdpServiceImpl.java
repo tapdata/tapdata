@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.service.impl;
 
 import com.google.common.collect.Lists;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Element;
@@ -78,6 +79,9 @@ public class LdpServiceImpl implements LdpService {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private SettingsService settingsService;
 
     @Override
     @Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
@@ -834,7 +838,7 @@ public class LdpServiceImpl implements LdpService {
 
             Map<String, String> kvMap = Arrays.stream(LdpDirEnum.values()).collect(Collectors.toMap(LdpDirEnum::getValue, LdpDirEnum::getItemType));
 
-            List<String> values = Arrays.stream(LdpDirEnum.values()).map(LdpDirEnum::getValue).collect(Collectors.toList());
+            List<String> values = Arrays.stream(LdpDirEnum.values()).filter(e -> !e.equals(LdpDirEnum.LDP_DIR_API)).map(LdpDirEnum::getValue).collect(Collectors.toList());
 
             values.removeAll(existValues);
 
@@ -868,8 +872,20 @@ public class LdpServiceImpl implements LdpService {
 
     @Override
     public void generateLdpTaskByOld() {
+        //云版不做处理
+        boolean cloud = settingsService.isCloud();
+        if (cloud) {
+            return;
+        }
+
         List<UserDetail> userDetails = userService.loadAllUser();
         for (UserDetail userDetail : userDetails) {
+            try {
+                supplementaryLdpTaskByOld(userDetail);
+            } catch (Exception e) {
+                log.warn("supplementary ldp task failed, user = {}, e = {}", userDetail == null ? null : userDetail.getEmail(), e);
+            }
+
             try {
                 generateFDMTaskByOld(userDetail);
             } catch (Exception e) {
@@ -884,6 +900,24 @@ public class LdpServiceImpl implements LdpService {
         }
     }
 
+    private void supplementaryLdpTaskByOld(UserDetail user) {
+        Criteria criteria = Criteria.where("ldpType").in(TaskDto.LDP_TYPE_FDM, TaskDto.LDP_TYPE_MDM)
+                .and("is_deleted").ne(true);
+
+        Query query = new Query(criteria);
+        List<TaskDto> tasks = taskService.findAllDto(query, user);
+
+        for (TaskDto task : tasks) {
+            try {
+                if (TaskDto.LDP_TYPE_FDM.equals(task.getLdpType())) {
+                    createFdmTags(task, user);
+                }
+                createLdpMetaByTask(task, user);
+            } catch (Exception e) {
+                log.info("Supplementary ldp task exception");
+            }
+        }
+    }
     private void generateFDMTaskByOld(UserDetail user) {
         LiveDataPlatformDto platformDto = liveDataPlatformService.findOne(new Query(), user);
         if (platformDto == null) {

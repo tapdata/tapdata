@@ -1,7 +1,7 @@
 package io.tapdata.connector.selectdb;
 
 import com.google.common.collect.Lists;
-import io.tapdata.base.ConnectorBase;
+import io.tapdata.common.CommonDbConnector;
 import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.connector.selectdb.bean.SelectDbColumn;
 import io.tapdata.connector.selectdb.config.SelectDbConfig;
@@ -49,7 +49,7 @@ import static io.tapdata.entity.simplify.TapSimplify.indexField;
  **/
 
 @TapConnectorClass("spec_selectdb.json")
-public class SelectDbConnector extends ConnectorBase {
+public class SelectDbConnector extends CommonDbConnector {
     public static final String TAG = SelectDbConnector.class.getSimpleName();
 
     private SelectDbConfig selectDbConfig;
@@ -71,13 +71,15 @@ public class SelectDbConnector extends ConnectorBase {
         this.copyIntoUtils = new CopyIntoUtils(connectorContext);
         this.selectDbContext = new SelectDbContext(connectorContext);
         this.selectDbConfig = new SelectDbConfig().load(connectorContext.getConnectionConfig());
+        this.commonDbConfig = this.selectDbConfig;
         this.selectDbTest = new SelectDbTest(selectDbConfig, testItem -> {
         }).initContext();
         selectDbJdbcContext = new SelectDbJdbcContext(selectDbConfig);
+        this.jdbcContext = this.selectDbJdbcContext;
         this.selectDbVersion = selectDbJdbcContext.queryVersion();
         this.selectDbStreamLoader = new SelectDbStreamLoader(new HttpUtil().getHttpClient(), selectDbConfig)
                 .selectDbJdbcContext(selectDbJdbcContext);
-
+        commonSqlMaker = new SelectDbSqlMaker('`').closeNotNull(selectDbConfig.getCloseNotNull());
         ddlSqlMaker = new SelectDbDDLSqlMaker();
         fieldDDLHandlers = new BiClassHandlers<>();
         fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
@@ -114,6 +116,8 @@ public class SelectDbConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportErrorHandleFunction(this::errorHandle);
+        connectorFunctions.supportBatchCount(this::batchCount);
+        connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilterWithOffset);
 
         codecRegistry.registerFromTapValue(TapRawValue.class, "text", tapRawValue -> {
             if (tapRawValue != null && tapRawValue.getValue() != null)
@@ -144,13 +148,13 @@ public class SelectDbConnector extends ConnectorBase {
                 return toJson(tapValue.getValue());
             return "null";
         });
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, "datetime", tapValue -> {
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> {
             if (tapValue != null && tapValue.getValue() != null) {
                 return tapValue.getValue();
             }
             return "null";
         });
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, "datetimev2", tapValue -> {
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> {
             if (tapValue != null && tapValue.getValue() != null) {
                 return formatTapDateTime(tapValue.getValue(), "YYYY-MM-DD HH:MM:SS.ssssss");
             }
@@ -180,7 +184,7 @@ public class SelectDbConnector extends ConnectorBase {
         return retryOptions.needRetry(true);
     }
 
-    private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
+    protected void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
         List<String> sqls = fieldDDLHandlers.handle(tapFieldBaseEvent, tapConnectorContext);
         if (null == sqls) {
             return;
@@ -195,7 +199,7 @@ public class SelectDbConnector extends ConnectorBase {
         }
     }
 
-    private List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+    protected List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (Objects.isNull(tapFieldBaseEvent) && Objects.isNull(tapFieldBaseEvent.getTableId())) {
             throw new CoreException("TapFieldBaseEvent and tapConnectorContext can not be empty.");
         }
@@ -213,7 +217,7 @@ public class SelectDbConnector extends ConnectorBase {
         return ddlSqlMaker.addColumn(tapConnectorContext, tapNewFieldEvent);
     }
 
-    private List<String> alterFieldAttr(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+    protected List<String> alterFieldAttr(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (Objects.isNull(tapFieldBaseEvent) && Objects.isNull(tapFieldBaseEvent.getTableId())) {
             throw new CoreException("TapFieldBaseEvent and tapConnectorContext can not be empty.");
         }
@@ -231,7 +235,7 @@ public class SelectDbConnector extends ConnectorBase {
         return ddlSqlMaker.alterColumnAttr(tapConnectorContext, tapAlterFieldAttributesEvent);
     }
 
-    private List<String> alterFieldName(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+    protected List<String> alterFieldName(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (Objects.isNull(tapFieldBaseEvent) && Objects.isNull(tapFieldBaseEvent.getTableId())) {
             throw new CoreException("TapFieldBaseEvent and tapConnectorContext can not be empty.");
         }
@@ -249,7 +253,7 @@ public class SelectDbConnector extends ConnectorBase {
         return ddlSqlMaker.alterColumnName(tapConnectorContext, tapAlterFieldNameEvent);
     }
 
-    private List<String> dropField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+    protected List<String> dropField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
         if (Objects.isNull(tapFieldBaseEvent) && Objects.isNull(tapFieldBaseEvent.getTableId())) {
             throw new CoreException("TapFieldBaseEvent and tapConnectorContext can not be empty.");
         }
@@ -271,7 +275,7 @@ public class SelectDbConnector extends ConnectorBase {
         return RetryOptions.create().needRetry(true);
     }
 
-    private void queryByFilter(TapConnectorContext tapConnectorContext, List<TapFilter> filters, TapTable tapTable, Consumer<List<FilterResult>> listConsumer) {
+    protected void queryByFilter(TapConnectorContext tapConnectorContext, List<TapFilter> filters, TapTable tapTable, Consumer<List<FilterResult>> listConsumer) {
         Set<String> columnNames = tapTable.getNameFieldMap().keySet();
         List<FilterResult> filterResults = new LinkedList<>();
         for (TapFilter filter : filters) {
@@ -303,6 +307,16 @@ public class SelectDbConnector extends ConnectorBase {
             builder.delete(builder.length() - splitSymbol.length() - 1, builder.length());
         }
         return builder.toString();
+    }
+
+    @Override
+    protected String getSchemaAndTable(String tableId) {
+        StringBuilder sb = new StringBuilder();
+        if (EmptyKit.isNotBlank(commonDbConfig.getDatabase())) {
+            sb.append("`").append(commonDbConfig.getDatabase()).append("`").append('.');
+        }
+        sb.append("`").append(tableId).append("`");
+        return sb.toString();
     }
 
     //    private final Object lock = new int[0];
@@ -338,7 +352,7 @@ public class SelectDbConnector extends ConnectorBase {
     }
 
     @Override
-    public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
+    public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) {
         //get table info
         List<DataMap> tableList = selectDbJdbcContext.queryAllTables(tables);
         //paginate by tableSize
@@ -403,7 +417,7 @@ public class SelectDbConnector extends ConnectorBase {
     }
 
     @Override
-    public int tableCount(TapConnectionContext connectionContext) throws Throwable {
+    public int tableCount(TapConnectionContext connectionContext) throws SQLException {
         DataMap connectionConfig = connectionContext.getConnectionConfig();
         String database = connectionConfig.getString("database");
         AtomicInteger count = new AtomicInteger(0);
@@ -415,7 +429,7 @@ public class SelectDbConnector extends ConnectorBase {
         return count.get();
     }
 
-    private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
+    protected CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
         TapTable tapTable = tapCreateTableEvent.getTable();
         String database = selectDbContext.getSelectDbConfig().getDatabase();
         CreateTableOptions createTableOptions = new CreateTableOptions();
@@ -452,7 +466,7 @@ public class SelectDbConnector extends ConnectorBase {
         return createTableOptions;
     }
 
-    private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
+    protected void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
         try {
             if (selectDbJdbcContext.queryAllTables(Collections.singletonList(tapClearTableEvent.getTableId())).size() == 1) {
                 selectDbJdbcContext.execute("TRUNCATE TABLE `" + selectDbConfig.getDatabase() + "`.`" + tapClearTableEvent.getTableId() + "`");
@@ -463,7 +477,7 @@ public class SelectDbConnector extends ConnectorBase {
         }
     }
 
-    private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
+    protected void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
         try {
             selectDbJdbcContext.execute("DROP TABLE IF EXISTS `" + selectDbConfig.getDatabase() + "`.`" + tapDropTableEvent.getTableId() + "`");
         } catch (Throwable e) {
@@ -472,7 +486,7 @@ public class SelectDbConnector extends ConnectorBase {
         }
     }
 
-    private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
+    protected void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
         selectDbJdbcContext.queryAllTables(TapSimplify.list(), batchSize, listConsumer);
     }
 }

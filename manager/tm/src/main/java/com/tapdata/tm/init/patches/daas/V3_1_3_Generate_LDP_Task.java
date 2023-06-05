@@ -11,7 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 
-@PatchAnnotation(appType = AppType.DAAS, version = "3.1-3")
+//@PatchAnnotation(appType = AppType.DAAS, version = "3.1-3")
 public class V3_1_3_Generate_LDP_Task extends AbsPatch {
     private static final Logger logger = LogManager.getLogger(V3_1_3_Generate_LDP_Task.class);
 

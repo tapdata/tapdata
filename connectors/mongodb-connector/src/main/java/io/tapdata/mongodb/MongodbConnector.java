@@ -840,6 +840,9 @@ public class MongodbConnector extends ConnectorBase {
 		if (match != null) {
 			for (Map.Entry<String, Object> entry : match.entrySet()) {
 				TapField tapField = map.get(entry.getKey());
+				if (null == tapField) {
+					throw new RuntimeException(String.format("The field '%s'.'%s' does not exist with set match", table.getName(), entry.getKey()));
+				}
 				entry.setValue(formatValue(tapField, entry.getKey(), entry.getValue()));
 				bsonList.add(eq(entry.getKey(), entry.getValue()));
 			}
@@ -849,6 +852,9 @@ public class MongodbConnector extends ConnectorBase {
 		if (ops != null) {
 			for (QueryOperator op : ops) {
 				TapField tapField = map.get(op.getKey());
+				if (null == tapField) {
+					throw new RuntimeException(String.format("The field '%s'.'%s' does not exist with set query operator", table.getName(), op.getKey()));
+				}
 				op.setValue(formatValue(tapField, op.getKey(), op.getValue()));
 				switch (op.getOperator()) {
 					case QueryOperator.GT:
@@ -1019,48 +1025,55 @@ public class MongodbConnector extends ConnectorBase {
 	 * @param tapReadOffsetConsumer
 	 */
 	private void batchRead(TapConnectorContext connectorContext, TapTable table, Object offset, int eventBatchSize, BiConsumer<List<TapEvent>, Object> tapReadOffsetConsumer) throws Throwable {
-		List<TapEvent> tapEvents = list();
-		MongoCursor<Document> mongoCursor;
-		MongoCollection<Document> collection = getMongoCollection(table.getId());
-		final int batchSize = eventBatchSize > 0 ? eventBatchSize : 5000;
-		if (offset == null) {
-			mongoCursor = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize).iterator();
-		} else {
-			MongoBatchOffset mongoOffset = (MongoBatchOffset) offset;//fromJson(offset, MongoOffset.class);
-			Object offsetValue = mongoOffset.value();
-			if (offsetValue != null) {
-				mongoCursor = collection.find(queryCondition(COLLECTION_ID_FIELD, offsetValue)).sort(Sorts.ascending(COLLECTION_ID_FIELD))
-						.batchSize(batchSize).iterator();
-			} else {
-				mongoCursor = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize).iterator();
-				TapLogger.warn(TAG, "Offset format is illegal {}, no offset value has been found. Final offset will be null to do the batchRead", offset);
-			}
-		}
-
-		Document lastDocument;
-
 		try {
-			while (mongoCursor.hasNext()) {
-				if (!isAlive()) return;
-				lastDocument = mongoCursor.next();
-				tapEvents.add(insertRecordEvent(lastDocument, table.getId()));
-
-				if (tapEvents.size() == eventBatchSize) {
-					Object value = lastDocument.get(COLLECTION_ID_FIELD);
-					batchOffset = new MongoBatchOffset(COLLECTION_ID_FIELD, value);
-					tapReadOffsetConsumer.accept(tapEvents, batchOffset);
-					tapEvents = list();
+			List<TapEvent> tapEvents = list();
+			MongoCursor<Document> mongoCursor;
+			MongoCollection<Document> collection = getMongoCollection(table.getId());
+			final int batchSize = eventBatchSize > 0 ? eventBatchSize : 5000;
+			if (offset == null) {
+				mongoCursor = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize).iterator();
+			} else {
+				MongoBatchOffset mongoOffset = (MongoBatchOffset) offset;//fromJson(offset, MongoOffset.class);
+				Object offsetValue = mongoOffset.value();
+				if (offsetValue != null) {
+					mongoCursor = collection.find(queryCondition(COLLECTION_ID_FIELD, offsetValue)).sort(Sorts.ascending(COLLECTION_ID_FIELD))
+							.batchSize(batchSize).iterator();
+				} else {
+					mongoCursor = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize).iterator();
+					TapLogger.warn(TAG, "Offset format is illegal {}, no offset value has been found. Final offset will be null to do the batchRead", offset);
 				}
 			}
-			if (!tapEvents.isEmpty()) {
-				tapReadOffsetConsumer.accept(tapEvents, null);
+
+			Document lastDocument;
+
+			try {
+				while (mongoCursor.hasNext()) {
+					if (!isAlive()) return;
+					lastDocument = mongoCursor.next();
+					tapEvents.add(insertRecordEvent(lastDocument, table.getId()));
+
+					if (tapEvents.size() == eventBatchSize) {
+						Object value = lastDocument.get(COLLECTION_ID_FIELD);
+						batchOffset = new MongoBatchOffset(COLLECTION_ID_FIELD, value);
+						tapReadOffsetConsumer.accept(tapEvents, batchOffset);
+						tapEvents = list();
+					}
+				}
+				if (!tapEvents.isEmpty()) {
+					tapReadOffsetConsumer.accept(tapEvents, null);
+				}
+			} catch (Exception e) {
+				if (!isAlive() && e instanceof MongoInterruptedException) {
+					// ignored
+				} else {
+					throw e;
+				}
 			}
 		} catch (Exception e) {
-			if (!isAlive() && e instanceof MongoInterruptedException) {
-				// ignored
-			} else {
-				throw e;
+			if (e instanceof MongoTimeoutException) {
+				throw new TapPdkTerminateByServerEx(connectorContext.getId(), e);
 			}
+			throw new RuntimeException(e);
 		}
 	}
 
@@ -1099,6 +1112,9 @@ public class MongodbConnector extends ConnectorBase {
 			} catch (Exception ignored) {
 			}
 			mongodbStreamReader = null;
+			if (e instanceof MongoTimeoutException) {
+				throw new TapPdkTerminateByServerEx(connectorContext.getId(), e);
+			}
 			throw new RuntimeException(e);
 		}
 

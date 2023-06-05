@@ -399,6 +399,15 @@ public class VikaConnector extends ConnectorBase {
                             querys.add(key + "=\"" + value.toString() + "\"");
                         }
 
+                        /*
+                        TODO Gavin 通过主键查询, 但是主键不一定是唯一的, 有可能是联合主键, 所以这里需要查询出来, 然后再进行更新
+                        Collection<String> fields = tapTable.primaryKeys(true);
+                        Map<String, Object> match = collect.get(0).getFilter(fields);
+                        Map.Entry<String, Object> entry = match.entrySet().stream().findFirst().get();
+
+                        vikaApiClient.getRecordApi().getRecords(datasheetId, ApiQueryParam.newInstance().withFilter("{订单编号} = 'B230528135433'"));
+
+                         */
                         int first = 1;
                         ApiQueryParam queryParam = new ApiQueryParam(first, 1000);
                         queryParam.withFilter(StringUtils.join(querys, "&&"));

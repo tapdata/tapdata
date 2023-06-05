@@ -88,12 +88,12 @@
     "default": "en_US",
     "en_US": {
       "doc": "docs/selectdb_en_US.md",
-      "host": "Repo IP",
+      "host": "Warehouse Public IP",
       "port": "MySQL Port",
       "selectDbHttp": "HTTP Port",
-      "database": "database",
-      "user": "user",
-      "password": "password"
+      "database": "Database",
+      "user": "Username",
+      "password": "Password"
     },
     "zh_CN": {
       "doc": "docs/selectdb_zh_CN.md",
@@ -118,14 +118,20 @@
     "ARRAY": {
       "to": "TapArray"
     },
-    "datetimev2": {
+    "datetimev2[($fraction)]": {
       "to": "TapDateTime",
       "range": [
         "0000-01-01 00:00:00",
         "9999-12-31 23:59:59"
       ],
+      "fraction": [
+        0,
+        6
+      ],
+      "defaultFraction": 0,
       "pattern": "YYYY-MM-DD HH:MM:SS",
       "fraction": 6,
+      "priority": 1,
       "withTimeZone": false
     },
     "datev2": {

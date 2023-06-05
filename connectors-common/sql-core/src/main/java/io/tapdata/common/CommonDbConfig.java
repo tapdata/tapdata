@@ -80,6 +80,13 @@ public class CommonDbConfig implements Serializable {
         return beanUtils.mapToBean(map, this);
     }
 
+    public CommonDbConfig copy() throws Exception {
+        assert beanUtils != null;
+        CommonDbConfig newConfig = this.getClass().newInstance();
+        beanUtils.copyProperties(this, newConfig);
+        return newConfig;
+    }
+
     public String get__connectionType() {
         return __connectionType;
     }
