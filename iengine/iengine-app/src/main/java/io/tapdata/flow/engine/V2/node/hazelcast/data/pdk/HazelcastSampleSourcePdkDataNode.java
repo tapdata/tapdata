@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -89,6 +90,9 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 						connectorNodeInit(dataProcessorContext);
 						TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
 						QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
+						if (null == queryByAdvanceFilterFunction){
+							throw new CoreException("Can not get test data from source, QueryByAdvanceFilterFunction is not supported.");
+						}
 						TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create().limit(rows);
 						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
 								createPdkMethodInvoker().runnable(

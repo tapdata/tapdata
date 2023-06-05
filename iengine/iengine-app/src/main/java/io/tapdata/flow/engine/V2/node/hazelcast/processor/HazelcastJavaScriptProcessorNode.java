@@ -109,6 +109,10 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			JsProcessorNode processorNode = (JsProcessorNode) node;
 			int jsType = Optional.ofNullable(processorNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
 			finalJs = !standard && ProcessorNodeType.Standard_JS.contrast(jsType);
+		} else if (node instanceof MigrateJsProcessorNode){
+			MigrateJsProcessorNode processorNode = (MigrateJsProcessorNode)node;
+			int jsType = Optional.ofNullable(processorNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
+			finalJs = !standard && ProcessorNodeType.Standard_JS.contrast(jsType);
 		}
 
 		List<JavaScriptFunctions> javaScriptFunctions;

@@ -939,8 +939,8 @@ public class LogCollectorService {
             }
 
             Criteria criteria1 = Criteria.where("is_deleted").is(false)
-                    .and("dag.nodes")
                     .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
+                    .and("dag.nodes")
                     .elemMatch(Criteria.where("type").is("logCollector")
                             .and("connectionIds").elemMatch(Criteria.where("$in").is(ids)));
             Query query1 = new Query(criteria1);
