@@ -259,14 +259,18 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         return new ObjectId().toHexString() + '-' + BigInteger.valueOf(new Date().getTime()).toString(32);
     }
 
-    public Map<String, WorkerProcessInfoDto> getProcessInfo(List<String> ids) {
+    public Map<String, WorkerProcessInfoDto> getProcessInfo(List<String> ids, UserDetail userDetail) {
 
         Map<String, WorkerProcessInfoDto> result = new HashMap<>();
         List<WorkerDto> workers = findAll(Query.query(Criteria.where("workerType").is("connector").and("process_id").in(ids)));
 
         workers.forEach(worker -> {
 
-            Query query = Query.query(Criteria.where("agentId").is(worker.getProcessId()).and("status").is(TaskDto.STATUS_RUNNING));
+            // query task : 1.status is running 2.crontabExpressionFlag is true
+            Criteria criteria = Criteria.where("agentId").is(worker.getProcessId())
+                    .and("user_id").is(userDetail.getUserId())
+                    .orOperator(Criteria.where("status").is(TaskDto.STATUS_RUNNING), Criteria.where("crontabExpressionFlag").is(true));
+            Query query = Query.query(criteria);
             query.fields().include("id", "name", "syncType");
             //List<DataFlowDto> dataFlows = dataFlowService.findAll(query);
             List<TaskDto> tasks = taskService.findAll(query);

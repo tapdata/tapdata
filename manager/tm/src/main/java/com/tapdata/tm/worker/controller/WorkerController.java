@@ -421,7 +421,7 @@ public class WorkerController extends BaseController {
             return success();
         }
         List<String> ids = JsonUtil.parseJson(processId, new TypeToken<List<String>>(){}.getType());
-        return success(workerService.getProcessInfo(ids));
+        return success(workerService.getProcessInfo(ids, getLoginUser()));
     }
 
 
