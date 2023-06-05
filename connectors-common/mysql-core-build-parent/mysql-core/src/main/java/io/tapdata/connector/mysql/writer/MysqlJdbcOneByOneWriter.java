@@ -91,7 +91,7 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 		}
 	}
 
-	private int doInsertOne(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
+	protected int doInsertOne(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
 		String insertDmlPolicy = getDmlInsertPolicy(tapConnectorContext);
 		if (
 				CollectionUtils.isEmpty(tapTable.primaryKeys())
@@ -127,7 +127,7 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 		return row;
 	}
 
-	private int doInsert(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
+	protected int doInsert(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
 		PreparedStatement insertPreparedStatement = getInsertPreparedStatement(tapConnectorContext, tapTable, tapRecordEvent);
 		setPreparedStatementValues(tapTable, tapRecordEvent, insertPreparedStatement);
 		try {
@@ -137,7 +137,7 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 		}
 	}
 
-	private int doUpdateOne(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
+	protected int doUpdateOne(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
 		String updateDmlPolicy = getDmlUpdatePolicy(tapConnectorContext);
 		PreparedStatement updatePreparedStatement = getUpdatePreparedStatement(tapConnectorContext, tapTable, tapRecordEvent);
 		int parameterIndex = setPreparedStatementValues(tapTable, tapRecordEvent, updatePreparedStatement);
@@ -149,7 +149,7 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 		return row;
 	}
 
-	private int doUpdate(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
+	protected int doUpdate(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
 		PreparedStatement updatePreparedStatement = getUpdatePreparedStatement(tapConnectorContext, tapTable, tapRecordEvent);
 		int parameterIndex = setPreparedStatementValues(tapTable, tapRecordEvent, updatePreparedStatement);
 		setPreparedStatementWhere(tapTable, tapRecordEvent, updatePreparedStatement, parameterIndex);
@@ -160,7 +160,7 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 		}
 	}
 
-	private int doDeleteOne(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
+	protected int doDeleteOne(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
 		PreparedStatement deletePreparedStatement = getDeletePreparedStatement(tapConnectorContext, tapTable, tapRecordEvent);
 		setPreparedStatementWhere(tapTable, tapRecordEvent, deletePreparedStatement, 1);
 		int row;
@@ -172,7 +172,7 @@ public class MysqlJdbcOneByOneWriter extends MysqlJdbcWriter {
 		return row;
 	}
 
-	private boolean rowExists(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
+	protected boolean rowExists(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
 		if (CollectionUtils.isEmpty(tapTable.primaryKeys(true))) {
 			// not have any logic primary key(s)
 			return false;
