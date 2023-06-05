@@ -452,9 +452,9 @@ public class WorkerController extends BaseController {
     }
 
     @PostMapping("/share/create")
-    public ResponseMessage<Boolean> createShareWorker(@RequestBody WorkerExpireDto workerExpireDto) {
+    public ResponseMessage<Void> createShareWorker(@RequestBody WorkerExpireDto workerExpireDto) {
         workerService.createShareWorker(workerExpireDto, getLoginUser());
-        return success(true);
+        return success();
     }
 
     @GetMapping("/share/get")

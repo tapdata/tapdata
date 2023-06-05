@@ -30,6 +30,7 @@ import com.tapdata.tm.dataflow.service.DataFlowService;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.scheduleTasks.dto.ScheduleTasksDto;
 import com.tapdata.tm.scheduleTasks.service.ScheduleTasksService;
+import com.tapdata.tm.task.service.TaskExtendService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
@@ -87,6 +88,8 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
     private ScheduleTasksService scheduleTasksService;
     @Autowired
     private TaskService taskService;
+    @Autowired
+    private TaskExtendService taskExtendService;
     @Autowired
     private MongoTemplate mongoTemplate;
 
@@ -690,7 +693,13 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
     public void createShareWorker(WorkerExpireDto workerExpireDto, UserDetail loginUser) {
         String userId = workerExpireDto.getUserId();
         if (StringUtils.isBlank(userId)) {
-            return;
+            throw new BizException("SHARE_AGENT_USER_ID_IS_NULL", "userId is null");
+        }
+
+        // check user is existed
+        WorkerExpire one = mongoTemplate.findOne(Query.query(Criteria.where("userId").is(userId)), WorkerExpire.class);
+        if (Objects.nonNull(one)) {
+            throw new BizException("SHARE_AGENT_USER_EXISTED", "have applied for a public agent");
         }
 
         Object shareAgentDaysValue = settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.SHARE_AGENT_EXPRIRE_DAYS);
@@ -720,5 +729,21 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         }
 
         return null;
+    }
+
+    public void checkWorkerExpire() {
+        Date date = new Date();
+        Criteria expireTime = Criteria.where("expireTime").lt(date).gt(DateUtil.offsetHour(date, -1));
+        List<WorkerExpire> workerExpires = mongoTemplate.find(Query.query(expireTime), WorkerExpire.class);
+        if (CollectionUtils.isNotEmpty(workerExpires)) {
+            workerExpires.forEach(workerExpire -> {
+                // query worker by shareUser
+                List<WorkerDto> shareWorkers = findAll(Query.query(Criteria.where("createUser").is(workerExpire.getShareUser())));
+                shareWorkers.forEach(workerDto -> {
+                    String processId = workerDto.getProcessId();
+                    taskExtendService.stopTaskByAgentIdAndUserId(processId, workerExpire.getUserId());
+                });
+            });
+        }
     }
 }
