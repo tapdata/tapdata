@@ -304,45 +304,45 @@ public class TransformSchemaService {
         log.debug("start transform schema, task = {}, user = {}", taskDto, user);
 
         String transformUuid = null;
-        if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
-            DAG dag = taskDto.getDag();
-            if (dag != null) {
-                List<Node> sources = dag.getSources();
-                if (CollectionUtils.isNotEmpty(sources)) {
-                    Node node = sources.get(0);
-                    if (node instanceof DatabaseNode) {
-                        List<String> tableNames = ((DatabaseNode) node).getTableNames();
-                        if (CollectionUtils.isNotEmpty(tableNames)) {
-                            List<String> includes = new ArrayList<>();
-                            for (String tableName : tableNames) {
-                                includes.add(tableName);
-                                if (includes.size() >= transformBatchNum) {
-                                    TransformerWsMessageDto transformParam = getTransformParam(taskDto, includes, user);
-                                    if (transformUuid == null) {
-                                        transformUuid = transformParam.getOptions().getUuid();
-                                    } else {
-                                        transformParam.getOptions().setUuid(transformUuid);
-                                    }
-                                    transformSchema(taskDto, transformParam, checkJs, user);
-                                    includes.clear();
-                                }
-                            }
-                            if (includes.size() != 0) {
-                                TransformerWsMessageDto transformParam = getTransformParam(taskDto, includes, user);
-                                if (transformUuid != null) {
-                                    transformParam.getOptions().setUuid(transformUuid);
-                                }
-                                transformSchema(taskDto, transformParam, checkJs, user);
-                                includes.clear();
-                            }
-                            return;
-                        }
-                    }
-
-                }
-            }
-
-        }
+//        if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+//            DAG dag = taskDto.getDag();
+//            if (dag != null) {
+//                List<Node> sources = dag.getSources();
+//                if (CollectionUtils.isNotEmpty(sources)) {
+//                    Node node = sources.get(0);
+//                    if (node instanceof DatabaseNode) {
+//                        List<String> tableNames = ((DatabaseNode) node).getTableNames();
+//                        if (CollectionUtils.isNotEmpty(tableNames)) {
+//                            List<String> includes = new ArrayList<>();
+//                            for (String tableName : tableNames) {
+//                                includes.add(tableName);
+//                                if (includes.size() >= transformBatchNum) {
+//                                    TransformerWsMessageDto transformParam = getTransformParam(taskDto, includes, user);
+//                                    if (transformUuid == null) {
+//                                        transformUuid = transformParam.getOptions().getUuid();
+//                                    } else {
+//                                        transformParam.getOptions().setUuid(transformUuid);
+//                                    }
+//                                    transformSchema(taskDto, transformParam, checkJs, user);
+//                                    includes.clear();
+//                                }
+//                            }
+//                            if (includes.size() != 0) {
+//                                TransformerWsMessageDto transformParam = getTransformParam(taskDto, includes, user);
+//                                if (transformUuid != null) {
+//                                    transformParam.getOptions().setUuid(transformUuid);
+//                                }
+//                                transformSchema(taskDto, transformParam, checkJs, user);
+//                                includes.clear();
+//                            }
+//                            return;
+//                        }
+//                    }
+//
+//                }
+//            }
+//
+//        }
 
         TransformerWsMessageDto transformParam = getTransformParam(taskDto, user);
         transformSchema(taskDto, transformParam, checkJs, user);
