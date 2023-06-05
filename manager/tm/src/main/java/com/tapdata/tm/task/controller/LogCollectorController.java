@@ -56,6 +56,10 @@ public class LogCollectorController extends BaseController {
             filter = new Filter();
         }
         Where where = filter.getWhere();
+        if (where == null) {
+            where = new Where();
+            filter.setWhere(where);
+        }
         String taskName = (String) where.get("taskName");
         String connectionName = (String) where.get("connectionName");
 
@@ -66,8 +70,15 @@ public class LogCollectorController extends BaseController {
             where.put("status", statusCondition);
         }
 
+        if (where.get("is_deleted") == null) {
+            Document deleteCondition = new Document();
+            deleteCondition.put("$ne", true);
+            where.put("is_deleted", deleteCondition);
+        }
+        where.put("syncType", "logCollector");
+
         if (StringUtils.isBlank(connectionName)) {
-            return success(logCollectorService.find(taskName, getLoginUser(), filter.getSkip(), filter.getLimit(), filter.getSort()));
+            return success(logCollectorService.find(filter, getLoginUser()));
         } else {
             return success(logCollectorService.findByConnectionName(taskName, connectionName, getLoginUser(), filter.getSkip(), filter.getLimit(), filter.getSort()));
         }

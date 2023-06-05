@@ -6,6 +6,7 @@ import com.mongodb.ConnectionString;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Field;
+import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
@@ -113,25 +114,25 @@ public class LogCollectorService {
 
     private List<String> syncTimePoints = Lists.newArrayList("current", "localTZ", "connTZ");;
 
-    public Page<LogCollectorVo> find(String name, UserDetail user, int skip, int limit, List<String> sort) {
+    public Page<LogCollectorVo> find(Filter filter, UserDetail user) {
 
-        Criteria criteria = Criteria.where("is_deleted").is(false).and("syncType").is("logCollector");
-        if (StringUtils.isNotBlank(name)) {
-            criteria.and("name").regex(name);
+
+        if (filter.getFields() != null && filter.getFields().size() == 0) {
+            filter.getFields().put("status", 1);
+            filter.getFields().put("name", 1);
+            filter.getFields().put("createTime", 1);
+            filter.getFields().put("dag", 1);
+            filter.getFields().put("attrs", 1);
+            filter.getFields().put("syncPoints", 1);
         }
 
-        Query query = new Query(criteria);
-        query.skip(skip);
-        query.limit(limit);
-        MongoUtils.applySort(query, sort);
-        query.fields().include("status", "name", "createTime", "dag", "statuses", "attrs", "syncPoints");
+        Page<TaskDto> taskDtoPage = taskService.superFind(filter, user);
 
-        List<TaskDto> allDto = taskService.findAllDto(query, user);
-        long count = taskService.count(new Query(criteria), user);
-        List<LogCollectorVo> logCollectorVos = convertTask(allDto);
+
+        List<LogCollectorVo> logCollectorVos = convertTask(taskDtoPage.getItems());
         Page<LogCollectorVo> logCollectorVoPage = new Page<>();
         logCollectorVoPage.setItems(logCollectorVos);
-        logCollectorVoPage.setTotal(count);
+        logCollectorVoPage.setTotal(taskDtoPage.getTotal());
         return logCollectorVoPage;
     }
 
@@ -532,9 +533,12 @@ public class LogCollectorService {
     }
 
 
-    private List<LogCollectorVo> convertTask(List<TaskDto> TaskDtos) {
+    private List<LogCollectorVo> convertTask(List<TaskDto> taskDtos) {
         List<LogCollectorVo> logCollectorVos = new ArrayList<>();
-        for (TaskDto taskDto : TaskDtos) {
+        if (CollectionUtils.isEmpty(taskDtos)) {
+            return logCollectorVos;
+        }
+        for (TaskDto taskDto : taskDtos) {
             logCollectorVos.add(convert(taskDto));
         }
         return logCollectorVos;
