@@ -1,3 +1,4 @@
+
 function Base64() {
 
     // private property
