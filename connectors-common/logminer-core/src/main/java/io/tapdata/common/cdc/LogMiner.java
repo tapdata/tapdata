@@ -77,27 +77,27 @@ public abstract class LogMiner implements ILogMiner {
         this.withSchema = true;
         this.tableMap = tableMap;
         this.schemaTableMap = new HashMap<>();
-		for (ConnectionConfigWithTables withTables : connectionConfigWithTables) {
-			if (null == withTables.getConnectionConfig())
-				throw new RuntimeException("Not found connection config");
-			if (null == withTables.getConnectionConfig().get("schema"))
-				throw new RuntimeException("Not found connection schema");
-			if (null == withTables.getTables())
-				throw new RuntimeException("Not found connection tables");
+        for (ConnectionConfigWithTables withTables : connectionConfigWithTables) {
+            if (null == withTables.getConnectionConfig())
+                throw new RuntimeException("Not found connection config");
+            if (null == withTables.getConnectionConfig().get("schema"))
+                throw new RuntimeException("Not found connection schema");
+            if (null == withTables.getTables())
+                throw new RuntimeException("Not found connection tables");
 
-			schemaTableMap.compute(String.valueOf(withTables.getConnectionConfig().get("schema")), (schema, tableList) -> {
-				if (null == tableList) {
-					tableList = new ArrayList<>();
-				}
+            schemaTableMap.compute(String.valueOf(withTables.getConnectionConfig().get("schema")), (schema, tableList) -> {
+                if (null == tableList) {
+                    tableList = new ArrayList<>();
+                }
 
-				for (String tableName : withTables.getTables()) {
-					if (!tableList.contains(tableName)) {
-						tableList.add(tableName);
-					}
-				}
-				return tableList;
-			});
-		}
+                for (String tableName : withTables.getTables()) {
+                    if (!tableList.contains(tableName)) {
+                        tableList.add(tableName);
+                    }
+                }
+                return tableList;
+            });
+        }
         this.recordSize = recordSize;
         this.consumer = consumer;
         DDL_WRAPPER_CONFIG.withSchema(true);
@@ -413,7 +413,7 @@ public abstract class LogMiner implements ILogMiner {
         } else if (SqlConstant.REDO_LOG_OPERATION_UPDATE.equals(operation)) {
             try {
                 String currentBetweenSetAndWhere = StringKit.subStringBetweenTwoString(redoLogContent.getSqlRedo(), "set", "where");
-                if (EmptyKit.isBlank(currentBetweenSetAndWhere) && EmptyKit.isEmpty(redoLogContent.getRedoRecord())) {
+                if (EmptyKit.isBlank(currentBetweenSetAndWhere)) {
                     return true;
                 }
                 Iterator<String> keyIter = redoLogContents.keySet().iterator();
