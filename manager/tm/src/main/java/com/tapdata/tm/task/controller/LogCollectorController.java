@@ -5,17 +5,20 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.param.TableLogCollectorParam;
 import com.tapdata.tm.task.service.LogCollectorExtendService;
 import com.tapdata.tm.task.service.LogCollectorService;
 import com.tapdata.tm.task.vo.LogCollectorRelateTaskVo;
+import com.tapdata.tm.utils.Lists;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -53,11 +56,29 @@ public class LogCollectorController extends BaseController {
             filter = new Filter();
         }
         Where where = filter.getWhere();
+        if (where == null) {
+            where = new Where();
+            filter.setWhere(where);
+        }
         String taskName = (String) where.get("taskName");
         String connectionName = (String) where.get("connectionName");
 
+
+        if (where.get("status") == null) {
+            Document statusCondition = new Document();
+            statusCondition.put("$nin", Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING));
+            where.put("status", statusCondition);
+        }
+
+        if (where.get("is_deleted") == null) {
+            Document deleteCondition = new Document();
+            deleteCondition.put("$ne", true);
+            where.put("is_deleted", deleteCondition);
+        }
+        where.put("syncType", "logCollector");
+
         if (StringUtils.isBlank(connectionName)) {
-            return success(logCollectorService.find(taskName, getLoginUser(), filter.getSkip(), filter.getLimit(), filter.getSort()));
+            return success(logCollectorService.find(filter, getLoginUser()));
         } else {
             return success(logCollectorService.findByConnectionName(taskName, connectionName, getLoginUser(), filter.getSkip(), filter.getLimit(), filter.getSort()));
         }

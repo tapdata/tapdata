@@ -207,7 +207,9 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
 
     @SneakyThrows
     public void transformSchema(DAG.Options options) {
-
+//        this.setSchema(null);
+//        super.transformSchema(options);
+//        return;
         if (CollectionUtils.isNotEmpty(getGraph().predecessors(this.getId()))) {
             this.setSchema(null);
             super.transformSchema(options);
@@ -296,9 +298,9 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
                     s.setSourceNodeDatabaseType(getDatabaseType());
                 }).collect(Collectors.toList());
 
-        if (CollectionUtils.isNotEmpty(schemaList)) {
-            tableNames = schemaList.stream().map(Schema::getOriginalName).collect(Collectors.toList());
-        }
+//        if (CollectionUtils.isNotEmpty(schemaList)) {
+//            tableNames = schemaList.stream().map(Schema::getOriginalName).collect(Collectors.toList());
+//        }
 
         return schemaList;
     }

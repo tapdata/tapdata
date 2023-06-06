@@ -18,11 +18,7 @@ import io.tapdata.observable.logging.with.FixedSizeBlockingDeque;
 import io.tapdata.service.skeleton.annotation.RemoteService;
 import io.tapdata.websocket.handler.TestRunTaskHandler;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -90,7 +86,6 @@ public class JSProcessNodeTestRunService {
             resultMap.put("message", throwable.getMessage());
         } finally {
             taskDtoMap.remove(taskId);
-            ObsLoggerFactory.getInstance().forceRemoveTaskLogger(taskDto);
             logger.info("test run task {} {}, cost {}ms", taskId, null == taskClient ? "error" : taskClient.getStatus(), (System.currentTimeMillis() - startTs));
         }
         resultMap.put("logs", Optional.ofNullable(logCollector.get()).orElse(new ArrayList<>()));
