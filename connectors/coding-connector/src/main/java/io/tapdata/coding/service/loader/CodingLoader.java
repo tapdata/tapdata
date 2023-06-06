@@ -83,11 +83,15 @@ public interface CodingLoader<T extends Param> {
 
     public default CodingEvent getRowDataCallBackEvent(Map<String, Object> eventData) {
         if (Checker.isEmpty(eventData)) {
-            throw new CoreException("Row data call back event data is empty.");
+//            throw new CoreException("Row data call back event data is empty.");
+            TapLogger.warn(TAG, "Row data call back event data is empty. will be ignored. " + eventData);
+            return null;
         }
         Object event = eventData.get("event");
         if (Checker.isEmpty(event)) {
-            throw new CoreException("Row data call back event type is empty.");
+//            throw new CoreException("Row data call back event type is empty.");
+            TapLogger.warn(TAG, "Row data call back event type is empty. will be ignored. " + eventData);
+            return null;
         }
         String webHookEventType = String.valueOf(event);
         return CodingEvent.event(webHookEventType);
