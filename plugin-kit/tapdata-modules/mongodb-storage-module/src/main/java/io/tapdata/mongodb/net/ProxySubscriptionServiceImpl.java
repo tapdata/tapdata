@@ -1,6 +1,5 @@
 package io.tapdata.mongodb.net;
 
-import com.mongodb.client.result.DeleteResult;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.modules.api.net.entity.ProxySubscription;
@@ -9,10 +8,9 @@ import io.tapdata.mongodb.entity.ProxySubscriptionEntity;
 import io.tapdata.mongodb.net.dao.ProxySubscriptionV2DAO;
 import org.bson.Document;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
+import static io.tapdata.entity.simplify.TapSimplify.list;
 import static io.tapdata.mongodb.entity.ToDocument.FIELD_ID;
 
 @Implementation(ProxySubscriptionService.class)
@@ -26,13 +24,30 @@ public class ProxySubscriptionServiceImpl implements ProxySubscriptionService {
 	}
 
 	@Override
-	public List<String> subscribedNodeIds(String service, String subscribeId) {
+	public List<String> subscribedNodeIdsByAll(String service, String subscribeId) {
 		return getSubscribedNodeIds(service, new Document().append(ProxySubscriptionEntity.FIELD_SUBSCRIPTION + ".subscribeIds", subscribeId));
 	}
 
 	@Override
-	public List<String> subscribedNodeIds(String service, Collection<String> subscribeIds) {
-		return getSubscribedNodeIds(service, new Document().append(ProxySubscriptionEntity.FIELD_SUBSCRIPTION + ".subscribeIds", new Document("$all", subscribeIds)));
+	public List<String> subscribedNodeIdsByAll(String service, Set<String> subscribeIds) {
+		return subscribedNodeIdsByAll(service, subscribeIds, null);
+	}
+	@Override
+	public List<String> subscribedNodeIdsByAnyOne(String service, Collection<String> subscribeIds) {
+		return getSubscribedNodeIds(service, new Document().append(ProxySubscriptionEntity.FIELD_SUBSCRIPTION + ".subscribeIds", new Document("$in", subscribeIds)));
+	}
+	@Override
+	public List<String> subscribedNodeIdsByAll(String service, Set<String> subscribeIds, List<Set<String>> orSubscribeIdList) {
+		List<Document> list = list();
+		if(subscribeIds != null && !subscribeIds.isEmpty())
+			list.add(new Document().append(ProxySubscriptionEntity.FIELD_SUBSCRIPTION + ".subscribeIds", new Document("$all", subscribeIds)));
+		if(orSubscribeIdList != null) {
+			for(Collection<String> orSubscribeIds : orSubscribeIdList) {
+				if(orSubscribeIds != null && !orSubscribeIds.isEmpty())
+					list.add(new Document().append(ProxySubscriptionEntity.FIELD_SUBSCRIPTION + ".subscribeIds", new Document("$all", orSubscribeIds)));
+			}
+		}
+		return getSubscribedNodeIds(service, new Document("$or", list));
 	}
 
 	private List<String> getSubscribedNodeIds(String service, Document filter) {

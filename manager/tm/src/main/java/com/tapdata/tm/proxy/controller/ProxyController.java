@@ -9,6 +9,7 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.proxy.dto.*;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
+import com.tapdata.tm.sdk.available.TmStatusService;
 import com.tapdata.tm.utils.WebUtils;
 import com.tapdata.tm.verison.dto.VersionDto;
 import io.swagger.v3.oas.annotations.Operation;
@@ -248,11 +249,17 @@ public class ProxyController extends BaseController {
         if(commandInfo == null)
             throw new BizException("commandInfo is illegal");
         UserDetail userDetail = getLoginUser();
-        commandInfo.subscribeIds("userId_" + userDetail.getUserId());
+
         Locale locale = WebUtils.getLocale(request);
         commandInfo.setId(UUID.randomUUID().toString().replace("-", ""));
         if(locale != null)
             commandInfo.setLocale(locale.toString());
+        boolean isCloud = false;
+        if (productList != null && productList.contains("dfs")) { //is cloud env
+            isCloud = true;
+        }
+        if(isCloud)
+            commandInfo.subscribeIds("userId_" + userDetail.getUserId());
 //        configContext(commandInfo, userDetail);
         executeEngineMessage(commandInfo, request, response);
 
@@ -636,7 +643,12 @@ public class ProxyController extends BaseController {
             throw new BizException("Missing method");
 
         UserDetail userDetail = getLoginUser();
-        serviceCaller.subscribeIds("userId_" + userDetail.getUserId());
+        boolean isCloud = false;
+        if (productList != null && productList.contains("dfs")) { //is cloud env
+            isCloud = true;
+        }
+        if(isCloud)
+            serviceCaller.subscribeIds("userId_" + userDetail.getUserId());
 //        Locale locale = WebUtils.getLocale(request);
         executeServiceCaller(request, response, serviceCaller, userDetail);
     }
