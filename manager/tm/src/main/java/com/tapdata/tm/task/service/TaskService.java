@@ -1446,6 +1446,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return taskDtoPage;
     }
 
+    public Page<TaskDto> superFind(Filter filter, UserDetail userDetail) {
+        return super.find(filter, userDetail);
+    }
+
 
     public void deleteNotifyEnumData(List<TaskDto> taskDtoList) {
 //        log.info("deleteNotifyEnumData");

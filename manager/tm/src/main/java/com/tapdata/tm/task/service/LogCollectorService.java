@@ -6,6 +6,7 @@ import com.mongodb.ConnectionString;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Field;
+import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
@@ -113,25 +114,25 @@ public class LogCollectorService {
 
     private List<String> syncTimePoints = Lists.newArrayList("current", "localTZ", "connTZ");;
 
-    public Page<LogCollectorVo> find(String name, UserDetail user, int skip, int limit, List<String> sort) {
+    public Page<LogCollectorVo> find(Filter filter, UserDetail user) {
 
-        Criteria criteria = Criteria.where("is_deleted").is(false).and("syncType").is("logCollector");
-        if (StringUtils.isNotBlank(name)) {
-            criteria.and("name").regex(name);
+
+        if (filter.getFields() != null && filter.getFields().size() == 0) {
+            filter.getFields().put("status", 1);
+            filter.getFields().put("name", 1);
+            filter.getFields().put("createTime", 1);
+            filter.getFields().put("dag", 1);
+            filter.getFields().put("attrs", 1);
+            filter.getFields().put("syncPoints", 1);
         }
 
-        Query query = new Query(criteria);
-        query.skip(skip);
-        query.limit(limit);
-        MongoUtils.applySort(query, sort);
-        query.fields().include("status", "name", "createTime", "dag", "statuses", "attrs", "syncPoints");
+        Page<TaskDto> taskDtoPage = taskService.superFind(filter, user);
 
-        List<TaskDto> allDto = taskService.findAllDto(query, user);
-        long count = taskService.count(new Query(criteria), user);
-        List<LogCollectorVo> logCollectorVos = convertTask(allDto);
+
+        List<LogCollectorVo> logCollectorVos = convertTask(taskDtoPage.getItems());
         Page<LogCollectorVo> logCollectorVoPage = new Page<>();
         logCollectorVoPage.setItems(logCollectorVos);
-        logCollectorVoPage.setTotal(count);
+        logCollectorVoPage.setTotal(taskDtoPage.getTotal());
         return logCollectorVoPage;
     }
 
@@ -532,9 +533,12 @@ public class LogCollectorService {
     }
 
 
-    private List<LogCollectorVo> convertTask(List<TaskDto> TaskDtos) {
+    private List<LogCollectorVo> convertTask(List<TaskDto> taskDtos) {
         List<LogCollectorVo> logCollectorVos = new ArrayList<>();
-        for (TaskDto taskDto : TaskDtos) {
+        if (CollectionUtils.isEmpty(taskDtos)) {
+            return logCollectorVos;
+        }
+        for (TaskDto taskDto : taskDtos) {
             logCollectorVos.add(convert(taskDto));
         }
         return logCollectorVos;
@@ -1472,17 +1476,24 @@ public class LogCollectorService {
         if (logCollectorConnConfigs == null || logCollectorConnConfigs.size() == 0) {
             //old version shareCdc task
             tableNames = logCollectorNode.getTableNames();
-            tableNames.forEach(tableName -> tableNameConnectionIdMap.put(tableName, logCollectorNode.getConnectionIds().get(0)));
+            if (CollectionUtils.isNotEmpty(tableNames)) {
+                tableNames.forEach(tableName -> tableNameConnectionIdMap.put(tableName, logCollectorNode.getConnectionIds().get(0)));
+            }
         } else {
             //new version shareCdc task
             if (StringUtils.isNotEmpty(connectionId)) {
                 LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
                 tableNames = logCollecotrConnConfig.getTableNames();
-                tableNames.forEach(tableName -> tableNameConnectionIdMap.put(tableName, connectionId));
+                if (CollectionUtils.isNotEmpty(tableNames)) {
+                    tableNames.forEach(tableName -> tableNameConnectionIdMap.put(tableName, connectionId));
+                }
             } else {
-                tableNames = logCollectorConnConfigs.values().stream().flatMap(logCollecotrConnConfig -> logCollecotrConnConfig.getTableNames().stream()).collect(Collectors.toList());
-                logCollectorConnConfigs.forEach((connId, logCollecotrConnConfig) ->
-                        logCollecotrConnConfig.getTableNames().forEach(tableName -> tableNameConnectionIdMap.put(tableName, connId)));
+                logCollectorConnConfigs.forEach((connId, logCollecotrConnConfig) -> {
+                    List<String> tableNames1 = logCollecotrConnConfig.getTableNames();
+                    if (CollectionUtils.isNotEmpty(tableNames1)) {
+                        tableNames1.forEach(tableName -> tableNameConnectionIdMap.put(tableName, connId));
+                    }
+                });
             }
 
         }
@@ -1501,17 +1512,24 @@ public class LogCollectorService {
         if (logCollectorConnConfigs == null || logCollectorConnConfigs.size() == 0) {
             //old version shareCdc task
             tableNames = logCollectorNode.getExclusionTables();
-            tableNames.forEach(tableName -> tableNameConnectionIdMap.put(tableName, logCollectorNode.getConnectionIds().get(0)));
+            if (CollectionUtils.isNotEmpty(tableNames)) {
+                tableNames.forEach(tableName -> tableNameConnectionIdMap.put(tableName, logCollectorNode.getConnectionIds().get(0)));
+            }
         } else {
             //new version shareCdc task
             if (StringUtils.isNotEmpty(connectionId)) {
                 LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(connectionId);
                 tableNames = logCollecotrConnConfig.getExclusionTables();
-                tableNames.forEach(tableName -> tableNameConnectionIdMap.put(tableName, connectionId));
+                if (CollectionUtils.isNotEmpty(tableNames)) {
+                    tableNames.forEach(tableName -> tableNameConnectionIdMap.put(tableName, connectionId));
+                }
             } else {
-                tableNames = logCollectorConnConfigs.values().stream().flatMap(logCollecotrConnConfig -> logCollecotrConnConfig.getExclusionTables().stream()).collect(Collectors.toList());
-                logCollectorConnConfigs.forEach((connId, logCollecotrConnConfig) ->
-                        logCollecotrConnConfig.getExclusionTables().forEach(tableName -> tableNameConnectionIdMap.put(tableName, connId)));
+                logCollectorConnConfigs.forEach((connId, logCollecotrConnConfig) -> {
+                    List<String> exclusionTables = logCollecotrConnConfig.getExclusionTables();
+                    if (CollectionUtils.isNotEmpty(exclusionTables)) {
+                        exclusionTables.forEach(tableName -> tableNameConnectionIdMap.put(tableName, connId));
+                    }
+                });
             }
 
         }

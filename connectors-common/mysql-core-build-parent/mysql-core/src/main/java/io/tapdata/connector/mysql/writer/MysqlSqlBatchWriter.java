@@ -30,7 +30,7 @@ import static io.tapdata.entity.simplify.TapSimplify.toJson;
 public class MysqlSqlBatchWriter extends MysqlJdbcWriter {
     private final static String TAG = MysqlSqlBatchWriter.class.getSimpleName();
     private static final String DELETE_FROM_SQL_TEMPLATE = "DELETE FROM `%s`.`%s` WHERE %s";
-    private final MysqlJdbcOneByOneWriter mysqlJdbcOneByOneWriter;
+    protected MysqlJdbcOneByOneWriter mysqlJdbcOneByOneWriter;
 
     public MysqlSqlBatchWriter(MysqlJdbcContextV2 mysqlJdbcContext) throws Throwable {
         super(mysqlJdbcContext);
@@ -103,7 +103,7 @@ public class MysqlSqlBatchWriter extends MysqlJdbcWriter {
         return writeListResult.get();
     }
 
-    private void doOneByOne(TapConnectorContext tapConnectorContext, TapTable tapTable, AtomicReference<WriteListResult<TapRecordEvent>> writeListResult, List<TapRecordEvent> tapRecordEvents) throws Throwable {
+    protected void doOneByOne(TapConnectorContext tapConnectorContext, TapTable tapTable, AtomicReference<WriteListResult<TapRecordEvent>> writeListResult, List<TapRecordEvent> tapRecordEvents) throws Throwable {
         WriteListResult<TapRecordEvent> oneByOneInsertResult = mysqlJdbcOneByOneWriter.write(tapConnectorContext, tapTable, tapRecordEvents);
         writeListResult.get().incrementInserted(oneByOneInsertResult.getInsertedCount());
         writeListResult.get().incrementModified(oneByOneInsertResult.getModifiedCount());
@@ -111,7 +111,7 @@ public class MysqlSqlBatchWriter extends MysqlJdbcWriter {
         writeListResult.get().addErrors(oneByOneInsertResult.getErrorMap());
     }
 
-    private boolean canLargeInsertSql(TapTable tapTable) {
+    protected boolean canLargeInsertSql(TapTable tapTable) {
         Collection<String> pkOrUniqueIndex = tapTable.primaryKeys();
         return !CollectionUtils.isEmpty(pkOrUniqueIndex);
     }
@@ -124,7 +124,7 @@ public class MysqlSqlBatchWriter extends MysqlJdbcWriter {
         return !ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS.equals(updatePolicy);
     }
 
-    private int doInsert(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) throws Throwable {
+    protected int doInsert(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) throws Throwable {
         if (CollectionUtils.isEmpty(tapRecordEvents)) {
             return 0;
         }
@@ -184,7 +184,7 @@ public class MysqlSqlBatchWriter extends MysqlJdbcWriter {
         return result;
     }
 
-    private int doDelete(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) throws Throwable {
+    protected int doDelete(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) throws Throwable {
         if (CollectionUtils.isEmpty(tapRecordEvents)) {
             return 0;
         }

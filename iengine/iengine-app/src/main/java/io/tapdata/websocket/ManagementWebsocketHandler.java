@@ -157,7 +157,12 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 		this.fileDetectorDefinition = PkgAnnoUtil.getBeanSetWithAnno(Collections.singletonList("io.tapdata.websocket"),
 				Collections.singletonList(EventHandlerAnnotation.class));
 		healthThreadPool = new ScheduledThreadPoolExecutor(1);
-		this.websocketHandleMessageThreadPoolExecutor = new ThreadPoolExecutor(1, 32, 1L, TimeUnit.SECONDS,
+		int corePoolSize = Runtime.getRuntime().availableProcessors() * 2;
+		int maximumPoolSize = 32;
+		if (maximumPoolSize < corePoolSize) {
+			maximumPoolSize = corePoolSize;
+		}
+		this.websocketHandleMessageThreadPoolExecutor = new ThreadPoolExecutor(corePoolSize, maximumPoolSize, 1L, TimeUnit.SECONDS,
 				new LinkedBlockingDeque<>(100),
 				new ThreadFactory("Thread-websocket-handle-message-"),
 				(runnable, executor) -> {

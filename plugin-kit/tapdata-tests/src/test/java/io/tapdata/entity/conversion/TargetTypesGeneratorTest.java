@@ -19,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -1771,5 +1772,422 @@ class TargetTypesGeneratorTest {
         assertEquals("char(30)", varchar10.getDataType());
         TapField varchar100 = nameFieldMap.get("varchar100");
         assertEquals("varchar(300)", varchar100.getDataType());
+    }
+
+    @Test
+    public void mysqlToKafkaTest() {
+        String sourceTypeExpression = "{\n" +
+                "    \"char[($byte)]\": {\n" +
+                "      \"to\": \"TapString\",\n" +
+                "      \"byte\": 255,\n" +
+                "      \"defaultByte\": 1,\n" +
+                "      \"byteRatio\": 3,\n" +
+                "      \"fixed\": true\n" +
+                "    },\n" +
+                "    \"varchar($byte)\": {\n" +
+                "      \"name\": \"varchar\",\n" +
+                "      \"to\": \"TapString\",\n" +
+                "      \"byte\": 16358,\n" +
+                "      \"defaultByte\": 1,\n" +
+                "      \"byteRatio\": 3\n" +
+                "    },\n" +
+                "    \"tinytext\": {\n" +
+                "      \"to\": \"TapString\",\n" +
+                "      \"byte\": 255,\n" +
+                "      \"pkEnablement\": false\n" +
+                "    },\n" +
+                "    \"text\": {\n" +
+                "      \"to\": \"TapString\",\n" +
+                "      \"byte\": \"64k\",\n" +
+                "      \"pkEnablement\": false\n" +
+                "    },\n" +
+                "    \"mediumtext\": {\n" +
+                "      \"to\": \"TapString\",\n" +
+                "      \"byte\": \"16m\",\n" +
+                "      \"pkEnablement\": false\n" +
+                "    },\n" +
+                "    \"longtext\": {\n" +
+                "      \"to\": \"TapString\",\n" +
+                "      \"byte\": \"4g\",\n" +
+                "      \"pkEnablement\": false\n" +
+                "    },\n" +
+                "    \"json\": {\n" +
+                "      \"to\": \"TapMap\",\n" +
+                "      \"byte\": \"4g\",\n" +
+                "      \"pkEnablement\": false\n" +
+                "    },\n" +
+                "    \"binary[($byte)]\": {\n" +
+                "      \"to\": \"TapBinary\",\n" +
+                "      \"byte\": 255,\n" +
+                "      \"defaultByte\": 1,\n" +
+                "      \"fixed\": true\n" +
+                "    },\n" +
+                "    \"varbinary[($byte)]\": {\n" +
+                "      \"to\": \"TapBinary\",\n" +
+                "      \"byte\": 65532,\n" +
+                "      \"defaultByte\": 1\n" +
+                "    },\n" +
+                "    \"tinyblob\": {\n" +
+                "      \"to\": \"TapBinary\",\n" +
+                "      \"byte\": 255\n" +
+                "    },\n" +
+                "    \"blob\": {\n" +
+                "      \"to\": \"TapBinary\",\n" +
+                "      \"byte\": \"64k\"\n" +
+                "    },\n" +
+                "    \"mediumblob\": {\n" +
+                "      \"to\": \"TapBinary\",\n" +
+                "      \"byte\": \"16m\"\n" +
+                "    },\n" +
+                "    \"longblob\": {\n" +
+                "      \"to\": \"TapBinary\",\n" +
+                "      \"byte\": \"4g\"\n" +
+                "    },\n" +
+                "    \"bit[($bit)]\": {\n" +
+                "      \"to\": \"TapNumber\",\n" +
+                "      \"bit\": 64,\n" +
+                "      \"queryOnly\": true\n" +
+                "    },\n" +
+                "    \"tinyint[($zerofill)]\": {\n" +
+                "      \"to\": \"TapNumber\",\n" +
+                "      \"bit\": 8,\n" +
+                "      \"precision\": 3,\n" +
+                "      \"value\": [\n" +
+                "        -128,\n" +
+                "        127\n" +
+                "      ]\n" +
+                "    },\n" +
+                "    \"tinyint[($zerofill)] unsigned\": {\n" +
+                "      \"to\": \"TapNumber\",\n" +
+                "      \"bit\": 8,\n" +
+                "      \"precision\": 3,\n" +
+                "      \"value\": [\n" +
+                "        0,\n" +
+                "        255\n" +
+                "      ],\n" +
+                "      \"unsigned\": \"unsigned\"\n" +
+                "    },\n" +
+                "    \"smallint[($zerofill)]\": {\n" +
+                "      \"to\": \"TapNumber\",\n" +
+                "      \"bit\": 16,\n" +
+                "      \"value\": [\n" +
+                "        -32768,\n" +
+                "        32767\n" +
+                "      ],\n" +
+                "      \"precision\": 5\n" +
+                "    },\n" +
+                "    \"smallint[($zerofill)] unsigned\": {\n" +
+                "      \"to\": \"TapNumber\",\n" +
+                "      \"bit\": 16,\n" +
+                "      \"precision\": 5,\n" +
+                "      \"value\": [\n" +
+                "        0,\n" +
+                "        65535\n" +
+                "      ],\n" +
+                "      \"unsigned\": \"unsigned\"\n" +
+                "    },\n" +
+                "    \"mediumint[($zerofill)]\": {\n" +
+                "      \"to\": \"TapNumber\",\n" +
+                "      \"bit\": 24,\n" +
+                "      \"precision\": 7,\n" +
+                "      \"value\": [\n" +
+                "        -8388608,\n" +
+                "        8388607\n" +
+                "      ]\n" +
+                "    },\n" +
+                "    \"mediumint[($zerofill)] unsigned\": {\n" +
+                "      \"to\": \"TapNumber\",\n" +
+                "      \"bit\": 24,\n" +
+                "      \"precision\": 8,\n" +
+                "      \"value\": [\n" +
+                "        0,\n" +
+                "        16777215\n" +
+                "      ],\n" +
+                "      \"unsigned\": \"unsigned\"\n" +
+                "    },\n" +
+                "    \"int[($zerofill)]\": {\n" +
+                "      \"to\": \"TapNumber\",\n" +
+                "      \"bit\": 32,\n" +
+                "      \"precision\": 10,\n" +
+                "      \"value\": [\n" +
+                "        -2147483648,\n" +
+                "        2147483647\n" +
+                "      ]\n" +
+                "    },\n" +
+                "    \"int[($zerofill)] unsigned\": {\n" +
+                "      \"to\": \"TapNumber\",\n" +
+                "      \"bit\": 32,\n" +
+                "      \"precision\": 10,\n" +
+                "      \"value\": [\n" +
+                "        0,\n" +
+                "        4294967295\n" +
+                "      ]\n" +
+                "    },\n" +
+                "    \"bigint[($zerofill)]\": {\n" +
+                "      \"to\": \"TapNumber\",\n" +
+                "      \"bit\": 64,\n" +
+                "      \"precision\": 19,\n" +
+                "      \"value\": [\n" +
+                "        -9223372036854775808,\n" +
+                "        9223372036854775807\n" +
+                "      ]\n" +
+                "    },\n" +
+                "    \"bigint[($zerofill)] unsigned\": {\n" +
+                "      \"to\": \"TapNumber\",\n" +
+                "      \"bit\": 64,\n" +
+                "      \"precision\": 20,\n" +
+                "      \"value\": [\n" +
+                "        0,\n" +
+                "        18446744073709551615\n" +
+                "      ]\n" +
+                "    },\n" +
+                "    \"decimal[($precision,$scale)][unsigned]\": {\n" +
+                "      \"to\": \"TapNumber\",\n" +
+                "      \"precision\": [\n" +
+                "        1,\n" +
+                "        65\n" +
+                "      ],\n" +
+                "      \"scale\": [\n" +
+                "        0,\n" +
+                "        30\n" +
+                "      ],\n" +
+                "      \"defaultPrecision\": 10,\n" +
+                "      \"defaultScale\": 0,\n" +
+                "      \"unsigned\": \"unsigned\",\n" +
+                "      \"fixed\": true\n" +
+                "    },\n" +
+                "    \"float($precision,$scale)[unsigned]\": {\n" +
+                "      \"to\": \"TapNumber\",\n" +
+                "      \"name\": \"float\",\n" +
+                "      \"precision\": [\n" +
+                "        1,\n" +
+                "        30\n" +
+                "      ],\n" +
+                "      \"scale\": [\n" +
+                "        0,\n" +
+                "        30\n" +
+                "      ],\n" +
+                "      \"value\": [\n" +
+                "        \"-3.402823466E+38\",\n" +
+                "        \"3.402823466E+38\"\n" +
+                "      ],\n" +
+                "      \"unsigned\": \"unsigned\",\n" +
+                "      \"fixed\": false\n" +
+                "    },\n" +
+                "    \"float\": {\n" +
+                "      \"to\": \"TapNumber\",\n" +
+                "      \"precision\": [\n" +
+                "        1,\n" +
+                "        6\n" +
+                "      ],\n" +
+                "      \"scale\": [\n" +
+                "        0,\n" +
+                "        6\n" +
+                "      ],\n" +
+                "      \"fixed\": false\n" +
+                "    },\n" +
+                "    \"double\": {\n" +
+                "      \"to\": \"TapNumber\",\n" +
+                "      \"precision\": [\n" +
+                "        1,\n" +
+                "        17\n" +
+                "      ],\n" +
+                "      \"preferPrecision\": 11,\n" +
+                "      \"preferScale\": 4,\n" +
+                "      \"scale\": [\n" +
+                "        0,\n" +
+                "        17\n" +
+                "      ],\n" +
+                "      \"fixed\": false\n" +
+                "    },\n" +
+                "    \"double[($precision,$scale)][unsigned]\": {\n" +
+                "      \"to\": \"TapNumber\",\n" +
+                "      \"precision\": [\n" +
+                "        1,\n" +
+                "        255\n" +
+                "      ],\n" +
+                "      \"scale\": [\n" +
+                "        0,\n" +
+                "        30\n" +
+                "      ],\n" +
+                "      \"value\": [\n" +
+                "        \"-1.7976931348623157E+308\",\n" +
+                "        \"1.7976931348623157E+308\"\n" +
+                "      ],\n" +
+                "      \"unsigned\": \"unsigned\",\n" +
+                "      \"fixed\": false\n" +
+                "    },\n" +
+                "    \"date\": {\n" +
+                "      \"to\": \"TapDate\",\n" +
+                "      \"range\": [\n" +
+                "        \"1000-01-01\",\n" +
+                "        \"9999-12-31\"\n" +
+                "      ],\n" +
+                "      \"pattern\": \"yyyy-MM-dd\"\n" +
+                "    },\n" +
+                "    \"time[($fraction)]\": {\n" +
+                "      \"to\": \"TapTime\",\n" +
+                "      \"fraction\": [\n" +
+                "        0,\n" +
+                "        6\n" +
+                "      ],\n" +
+                "      \"defaultFraction\": 0,\n" +
+                "      \"range\": [\n" +
+                "        \"-838:59:59\",\n" +
+                "        \"838:59:59\"\n" +
+                "      ],\n" +
+                "      \"pattern\": \"HH:mm:ss\"\n" +
+                "    },\n" +
+                "    \"datetime[($fraction)]\": {\n" +
+                "      \"to\": \"TapDateTime\",\n" +
+                "      \"range\": [\n" +
+                "        \"1000-01-01 00:00:00\",\n" +
+                "        \"9999-12-31 23:59:59\"\n" +
+                "      ],\n" +
+                "      \"pattern\": \"yyyy-MM-dd HH:mm:ss\",\n" +
+                "      \"fraction\": [\n" +
+                "        0,\n" +
+                "        6\n" +
+                "      ],\n" +
+                "      \"defaultFraction\": 0\n" +
+                "    },\n" +
+                "    \"timestamp[($fraction)]\": {\n" +
+                "      \"to\": \"TapDateTime\",\n" +
+                "      \"range\": [\n" +
+                "        \"1970-01-01 00:00:01\",\n" +
+                "        \"2038-01-19 03:14:07\"\n" +
+                "      ],\n" +
+                "      \"pattern\": \"yyyy-MM-dd HH:mm:ss\",\n" +
+                "      \"fraction\": [\n" +
+                "        0,\n" +
+                "        6\n" +
+                "      ],\n" +
+                "      \"defaultFraction\": 0,\n" +
+                "      \"withTimeZone\": true\n" +
+                "    },\n" +
+                "    \"year[($fraction)]\": {\n" +
+                "      \"to\": \"TapYear\",\n" +
+                "      \"range\": [\n" +
+                "        \"1901\",\n" +
+                "        \"2155\"\n" +
+                "      ],\n" +
+                "      \"fraction\": [\n" +
+                "        0,\n" +
+                "        4\n" +
+                "      ],\n" +
+                "      \"defaultFraction\": 4,\n" +
+                "      \"pattern\": \"yyyy\"\n" +
+                "    },\n" +
+                "    \"enum($enums)\": {\n" +
+                "      \"name\": \"enum\",\n" +
+                "      \"to\": \"TapString\",\n" +
+                "      \"queryOnly\": true,\n" +
+                "      \"byte\": 16383\n" +
+                "    },\n" +
+                "    \"set($sets)\": {\n" +
+                "      \"name\": \"set\",\n" +
+                "      \"to\": \"TapString\",\n" +
+                "      \"queryOnly\": true,\n" +
+                "      \"byte\": 16383\n" +
+                "    },\n" +
+                "    \"point\": {\n" +
+                "      \"to\": \"TapBinary\",\n" +
+                "      \"queryOnly\": true\n" +
+                "    },\n" +
+                "    \"linestring\": {\n" +
+                "      \"to\": \"TapBinary\",\n" +
+                "      \"queryOnly\": true\n" +
+                "    },\n" +
+                "    \"polygon\": {\n" +
+                "      \"to\": \"TapBinary\",\n" +
+                "      \"queryOnly\": true\n" +
+                "    },\n" +
+                "    \"geometry\": {\n" +
+                "      \"to\": \"TapBinary\",\n" +
+                "      \"queryOnly\": true\n" +
+                "    },\n" +
+                "    \"multipoint\": {\n" +
+                "      \"to\": \"TapBinary\",\n" +
+                "      \"queryOnly\": true\n" +
+                "    },\n" +
+                "    \"multilinestring\": {\n" +
+                "      \"to\": \"TapBinary\",\n" +
+                "      \"queryOnly\": true\n" +
+                "    },\n" +
+                "    \"multipolygon\": {\n" +
+                "      \"to\": \"TapBinary\",\n" +
+                "      \"queryOnly\": true\n" +
+                "    },\n" +
+                "    \"geomcollection\": {\n" +
+                "      \"to\": \"TapBinary\",\n" +
+                "      \"queryOnly\": true\n" +
+                "    }\n" +
+                "  }";
+
+        String targetTypeExpression = "{\n" +
+                "        \"OBJECT\": {\n" +
+                "        \"to\": \"TapMap\"\n" +
+                "    },\n" +
+                "        \"ARRAY\": {\n" +
+                "        \"to\": \"TapArray\"\n" +
+                "    },\n" +
+                "        \"NUMBER\": {\n" +
+                "        \"precision\": [\n" +
+                "        1,\n" +
+                "                1000\n" +
+                "      ],\n" +
+                "        \"scale\": [\n" +
+                "        0,\n" +
+                "                1000\n" +
+                "      ],\n" +
+                "        \"fixed\": true,\n" +
+                "                \"preferPrecision\": 20,\n" +
+                "                \"preferScale\": 8,\n" +
+                "                \"priority\": 1,\n" +
+                "                \"to\": \"TapNumber\"\n" +
+                "    },\n" +
+                "        \"INTEGER\": {\n" +
+                "        \"bit\": 32,\n" +
+                "                \"priority\": 1,\n" +
+                "                \"value\": [\n" +
+                "        -2147483648,\n" +
+                "                2147483647\n" +
+                "      ],\n" +
+                "        \"to\": \"TapNumber\"\n" +
+                "    },\n" +
+                "        \"BOOLEAN\": {\n" +
+                "        \"to\": \"TapBoolean\"\n" +
+                "    },\n" +
+                "        \"STRING\": {\n" +
+                "        \"byte\": 200,\n" +
+                "                \"priority\": 1,\n" +
+                "                \"defaultByte\": 200,\n" +
+                "                \"preferByte\": 200,\n" +
+                "                \"to\": \"TapString\"\n" +
+                "    },\n" +
+                "        \"TEXT\": {\n" +
+                "        \"to\": \"TapString\"\n" +
+                "    }\n" +
+                "    }";
+
+        TapTable sourceTable = table("test");
+        sourceTable
+                .add(field("char10", "char(10)"))
+                .add(field("date", "date"))
+                .add(field("datetime", "datetime"))
+                .add(field("datetime(6)", "datetime(6)"));
+
+        tableFieldTypesGenerator.autoFill(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(sourceTypeExpression));
+
+        TapCodecsRegistry targetRegistry = TapCodecsRegistry.create();
+        TapCodecsFilterManager targetCodecFilterManager = TapCodecsFilterManager.create(targetRegistry);
+
+        Map<String, PossibleDataTypes> findPossibleDataTypes = new LinkedHashMap<>();
+        TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager, findPossibleDataTypes);
+
+        LinkedHashMap<String, TapField> nameFieldMap = tapResult.getData();
+
+        assertEquals(4, findPossibleDataTypes.size());
+
     }
 }
