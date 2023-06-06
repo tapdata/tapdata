@@ -99,8 +99,6 @@ public class MaxFrequencyLimiter {
                 throwable.printStackTrace();
                 TapUtils tapUtils = InstanceFactory.instance(TapUtils.class);
                 TapLogger.error(TAG, "Action failed, " + (tapUtils != null ? tapUtils.getStackTrace(throwable) : throwable.getMessage()));
-                if(errorConsumer != null)
-                    errorConsumer.accept(throwable);
             }
         }
     }
