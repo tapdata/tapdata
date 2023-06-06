@@ -32,6 +32,7 @@ import com.tapdata.tm.scheduleTasks.dto.ScheduleTasksDto;
 import com.tapdata.tm.scheduleTasks.service.ScheduleTasksService;
 import com.tapdata.tm.task.service.TaskExtendService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
@@ -90,6 +91,8 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
     private TaskService taskService;
     @Autowired
     private TaskExtendService taskExtendService;
+    @Autowired
+    private UserService userService;
     @Autowired
     private MongoTemplate mongoTemplate;
 
@@ -711,7 +714,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
         Object shareAgentUserValue = settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.SHARE_AGENT_CREATE_USER);
         if (Objects.isNull(shareAgentUserValue)) {
-            throw new BizException("SHARE_AGENT_CREATE_USER_NOT_FOUND", "未找到共享Agent用户");
+            throw new BizException("SHARE_AGENT_CREATE_USER_NOT_FOUND", "Shared Agent user not found");
         }
         String[] shareAgentUser = shareAgentUserValue.toString().split(",");
 
@@ -721,6 +724,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         WorkerExpire workerExpire = new WorkerExpire();
         workerExpire.setUserId(loginUser.getUserId());
         workerExpire.setShareUser(shareAgentUserRandom);
+        workerExpire.setShareUserId(userService.loadUserByUsername(shareAgentUserRandom).getUserId());
         workerExpire.setExpireTime(DateUtil.offsetDay(new Date(), shareAgentDays));
 
         mongoTemplate.insert(workerExpire);
@@ -728,7 +732,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
     public WorkerExpireDto getShareWorker(UserDetail userDetail) {
         WorkerExpire workerExpire = mongoTemplate.findOne(Query.query(Criteria.where("userId").is(userDetail.getUserId())), WorkerExpire.class);
-        if (Objects.nonNull(workerExpire) && workerExpire.getExpireTime().after(new Date())) {
+        if (Objects.nonNull(workerExpire)) {
             return BeanUtil.copyProperties(workerExpire, WorkerExpireDto.class);
         }
 

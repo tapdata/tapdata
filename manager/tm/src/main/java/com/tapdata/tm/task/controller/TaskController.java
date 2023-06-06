@@ -1,7 +1,6 @@
 package com.tapdata.tm.task.controller;
 
 import com.alibaba.fastjson.JSON;
-import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.dag.DAG;
@@ -29,7 +28,6 @@ import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.service.*;
 import com.tapdata.tm.task.vo.*;
-import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -81,11 +79,6 @@ public class TaskController extends BaseController {
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private TaskRecordService taskRecordService;
     private WorkerService workerService;
-    private AlarmService alarmService;
-
-    private TaskResetLogService taskResetLogService;
-
-    private UserService userService;
 
     /**
      * Create a new instance of the model and persist it into the data source
