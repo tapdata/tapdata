@@ -38,6 +38,7 @@ import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.FilterResults;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
@@ -58,6 +59,7 @@ import io.tapdata.pdk.apis.partition.splitter.TypeSplitterMap;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -89,7 +91,7 @@ public class MysqlConnector extends CommonDbConnector {
 	private String version;
 	private TimeZone timezone;
 
-	private finalAtomicBoolean started = new AtomicBoolean(false);
+	private final AtomicBoolean started = new AtomicBoolean(false);
 
 
 	@Override
@@ -388,29 +390,6 @@ public class MysqlConnector extends CommonDbConnector {
 				consumer.accept(filterResults);
 			}
 		});
-	}
-
-	@Override
-	protected void queryByFilter(TapConnectorContext connectorContext, List<TapFilter> filters, TapTable tapTable, Consumer<List<FilterResult>> listConsumer) {
-		List<FilterResult> filterResults = new LinkedList<>();
-		for (TapFilter filter : filters) {
-			String sql = "select * from " + getSchemaAndTable(tapTable.getId()) + " where " + commonSqlMaker.buildKeyAndValue(filter.getMatch(), "and", "=");
-			FilterResult filterResult = new FilterResult();
-			try {
-				jdbcContext.query(sql, resultSet -> {
-					Set<String> dateTypeSet = dateFields(tapTable);
-					ResultSetMetaData metaData = resultSet.getMetaData();
-					if (resultSet.next()) {
-						filterResult.setResult(filterTimeForMysql(resultSet, metaData, dateTypeSet));
-					}
-				});
-			} catch (Throwable e) {
-				filterResult.setError(e);
-			} finally {
-				filterResults.add(filterResult);
-			}
-		}
-		listConsumer.accept(filterResults);
 	}
 
 	private Set<String> dateFields(TapTable tapTable) {
