@@ -385,7 +385,7 @@ public abstract class LogMiner implements ILogMiner {
 
     private boolean needToAborted(String operation, RedoLogContent redoLogContent, Map<String, List> redoLogContents) {
         boolean needToAborted = false;
-        if (EmptyKit.isNotBlank(redoLogContent.getSqlUndo()) || EmptyKit.isNotEmpty(redoLogContent.getRedoRecord())) {
+        if (EmptyKit.isNotBlank(redoLogContent.getSqlUndo())) {
             return false;
         }
         String rowId = redoLogContent.getRowId();
