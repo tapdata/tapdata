@@ -38,6 +38,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.tapdata.entity.error.CoreException;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -972,10 +973,35 @@ public class TaskController extends BaseController {
     }
 
     @PostMapping("migrate-js/test-run")
-    @Operation(description = "js节点试运行")
-    public ResponseMessage<Void> testRun(@RequestBody TestRunDto dto) {
-        taskNodeService.testRunJsNode(dto, getLoginUser());
+    @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
+    public ResponseMessage<Void> testRun(@RequestBody TestRunDto dto, @RequestParam("access_token") String accessToken) {
+        taskNodeService.testRunJsNode(dto, getLoginUser(), accessToken);
         return success();
+    }
+
+    @PostMapping("migrate-js/test-run-rpc")
+    @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
+    public ResponseMessage<Map<String, Object>> testRunRPC(@RequestBody TestRunDto dto, @RequestParam("access_token") String accessToken) {
+        Map<String, Object> data = null;
+        ResponseMessage<Map<String, Object>> responseMessage = new ResponseMessage<>();
+        Map<String, Object> result = null;
+        try {
+            data = taskNodeService.testRunJsNodeRPC(dto, getLoginUser(), accessToken);
+            result = (Map<String, Object>)Optional.ofNullable(data.get("data")).orElse(data);
+            if (null == result || result.isEmpty()) {
+                throw new CoreException("Can not get data from source,  Please ensure if source connection is valid");
+            }
+        }catch (Exception e){
+            responseMessage.setCode("error");
+            responseMessage.setMessage(e.getMessage());
+            responseMessage.setTs(System.currentTimeMillis());
+            return responseMessage;
+        }
+        responseMessage.setCode((String) Optional.ofNullable(result.get("code")).orElse("ok"));
+        responseMessage.setData(result);
+        responseMessage.setMessage((String) Optional.ofNullable(result.get("message")).orElse("ok"));
+        responseMessage.setTs((Long) Optional.ofNullable(result.get("ts")).orElse(System.currentTimeMillis()));
+        return responseMessage;
     }
 
     @PostMapping("migrate-js/save-result")
@@ -986,7 +1012,7 @@ public class TaskController extends BaseController {
     }
 
     @GetMapping("migrate-js/get-result")
-    @Operation(description = "js节点试运行结果获取")
+    @Operation(description = "js节点试运行结果获取, 执行试运行后即可获取到试运行结果和试运行日志，无需使用此获取结果，不久的将来会移除这个function", deprecated = true)
     public ResponseMessage<JsResultVo> getRun(@RequestParam String taskId,
                                          @RequestParam String jsNodeId, @RequestParam Long version) {
         return taskNodeService.getRun(taskId, jsNodeId, version);

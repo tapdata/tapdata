@@ -54,6 +54,8 @@ import com.tapdata.tm.proxy.dto.SubscribeDto;
 import com.tapdata.tm.proxy.dto.SubscribeResponseDto;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
 import com.tapdata.tm.task.service.LogCollectorService;
+import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.task.service.LogCollectorService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.typemappings.service.TypeMappingsService;
 import com.tapdata.tm.utils.*;
@@ -1757,25 +1759,47 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			update.set("timeZone", options.getTimeZone());
 		}
 
+		if (null != options.getInstanceUniqueId()) {
+			update.set("multiConnectionInstanceId", options.getInstanceUniqueId());
+			update.set("namespace", options.getNamespaces());
+		}
+
 		updateByIdNotChangeLast(id, update, user);
 
 	}
 
 	public Long countTaskByConnectionId(String connectionId, UserDetail userDetail) {
-		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId)
-				.and("syncType").ne(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
-				.andOperator(Criteria.where("is_deleted").is(false),Criteria.where("status").ne("delete_failed")));
-		query.fields().include("_id", "name", "syncType");
-		return taskService.count(query, userDetail);
+		return countTaskByConnectionId(connectionId, null, userDetail);
 	}
+
+	public Long countTaskByConnectionId(String connectionId, String syncType, UserDetail userDetail) {
+		return taskService.count(getTaskQuery(connectionId, syncType), userDetail);
+	}
+
 	public List<TaskDto> findTaskByConnectionId(String connectionId, int limit, UserDetail userDetail) {
-		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId)
-				.and("syncType").ne(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
-				.andOperator(Criteria.where("is_deleted").is(false),Criteria.where("status").ne("delete_failed")));
-		query.fields().include("_id", "name", "syncType");
+		return findTaskByConnectionId(connectionId, limit, null, userDetail);
+	}
+	public List<TaskDto> findTaskByConnectionId(String connectionId, int limit, String syncType, UserDetail userDetail) {
+		Query query = getTaskQuery(connectionId, syncType);
 		query.limit(limit);
 		query.with(Sort.by(Sort.Direction.ASC, "_id"));
 		return taskService.findAllDto(query, userDetail);
+	}
+
+	private Query getTaskQuery(String connectionId, String syncType) {
+		Criteria criteria = new Criteria()
+				.andOperator(Criteria.where("is_deleted").is(false), Criteria.where("status").ne("delete_failed"));
+
+		if (StringUtils.equals(syncType, TaskDto.SYNC_TYPE_LOG_COLLECTOR)) {
+			criteria.and("dag.nodes.connectionIds").in(connectionId).and("syncType").is(syncType);
+		} else if (StringUtils.isEmpty(syncType)){
+			criteria.and("dag.nodes.connectionId").is(connectionId).and("syncType").ne(TaskDto.SYNC_TYPE_CONN_HEARTBEAT);
+		} else {
+			criteria.and("dag.nodes.connectionId").is(connectionId).and("syncType").is(syncType);
+		}
+		Query query = new Query(criteria);
+		query.fields().include("_id", "name", "syncType");
+		return query;
 	}
 
 	public ConnectionStats stats(UserDetail userDetail) {
@@ -1860,6 +1884,37 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	public DataSourceConnectionDto importEntity(DataSourceConnectionDto dto, UserDetail userDetail) {
 		DataSourceEntity dataSourceEntity = repository.importEntity(convertToEntity(DataSourceEntity.class, dto), userDetail);
 		return convertToDto(dataSourceEntity, DataSourceConnectionDto.class);
+	}
+
+	public List<TaskDto> findUsingDigginTaskByConnectionId(String connectionId,UserDetail user) {
+		if (StringUtils.isBlank(connectionId)) {
+			return null;
+		}
+		List<TaskEntity> tasks = taskService.findAll(getUsingTaskQuery(connectionId,TaskDto.SYNC_TYPE_LOG_COLLECTOR),user);
+		return CollectionUtils.isNotEmpty(tasks) ? taskService.convertToDto(tasks, TaskDto.class) : null;
+	}
+
+	public Long countUsingDigginTaskByConnectionId(String connectionId,UserDetail user){
+		if (StringUtils.isBlank(connectionId)) {
+			return null;
+		}
+		return taskService.count(getUsingTaskQuery(connectionId,TaskDto.SYNC_TYPE_LOG_COLLECTOR),user);
+	}
+
+	private Query getUsingTaskQuery(String connectionId,String syncType){
+		//查询所有的开启挖掘的任务跟，挖掘任务，是否都停止并且重置
+		Criteria criteria = Criteria.where("is_deleted").ne(true)
+				.and("status").nin(TaskDto.STATUS_EDIT, TaskDto.STATUS_WAIT_START);
+		if(StringUtils.equals(syncType, TaskDto.SYNC_TYPE_LOG_COLLECTOR)){
+			criteria = criteria.and("dag.nodes").elemMatch(Criteria.where("type").is("logCollector"))
+					.and("dag.nodes.connectionIds").is(connectionId);
+		}else{
+			criteria = criteria.and("shareCdcEnable").is(true)
+					.and("dag.nodes.connectionId").is(connectionId);
+		}
+		Query query = new Query(criteria);
+		query.fields().include("_id", "name", "status", "syncType");
+		return query;
 	}
 
 

@@ -43,7 +43,6 @@ import com.tapdata.tm.customNode.service.CustomNodeService;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
-import com.tapdata.tm.ds.entity.DataSourceDefinitionEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.file.service.FileService;
@@ -55,7 +54,6 @@ import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.service.InspectResultService;
 import com.tapdata.tm.inspect.service.InspectService;
-import com.tapdata.tm.lock.annotation.Lock;
 import com.tapdata.tm.lock.service.LockControlService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
@@ -288,6 +286,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return taskDto;
     }
 
+    public <T> AggregationResults<T> aggregate(org.springframework.data.mongodb.core.aggregation.Aggregation aggregation, Class<T> outputType) {
+        return repository.aggregate(aggregation, outputType);
+    }
+
     private boolean getBoolValue(Boolean v, boolean defaultValue) {
         if (v == null) {
             return defaultValue;
@@ -469,7 +471,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         // supplement migrate_field_rename_processor fieldMapping data
-        supplementMigrateFieldMapping(taskDto, user);
+        //supplementMigrateFieldMapping(taskDto, user);
         taskSaveService.syncTaskSetting(taskDto, user);
 
         //校验dag
@@ -537,12 +539,16 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     List<String> tableNames = fieldsMapping.stream()
                             .map(TableFieldInfo::getOriginTableName)
                             .collect(Collectors.toList());
-                    DatabaseNode sourceNode = dag.getSourceNode().getFirst();
+                    LinkedList<Node<?>> preNodes = node.getDag().getPreNodes(node.getId());
+                    if (CollectionUtils.isEmpty(preNodes)) {
+                        return;
+                    }
+                    Node previousNode = preNodes.getLast();
 
-                    List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(),
-                            tableNames, userDetail, taskDto.getId().toHexString());
+                    List<MetadataInstancesDto> metaList = metadataInstancesService.findByNodeId(previousNode.getId(),
+                            userDetail, taskDto.getId().toHexString(), "qualified_name", "fields");
                     Map<String, List<com.tapdata.tm.commons.schema.Field>> fieldMap = metaList.stream()
-                            .collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, MetadataInstancesDto::getFields));
+                            .collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, MetadataInstancesDto::getFields));
                     fieldsMapping.forEach(table -> {
                         Operation operation = table.getOperation();
                         LinkedList<FieldInfo> fields = table.getFields();
@@ -556,7 +562,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                                 .map(FieldInfo::getSourceFieldName)
                                 .collect(Collectors.toList());
 
-                        List<com.tapdata.tm.commons.schema.Field> tableFields = fieldMap.get(table.getQualifiedName());
+                        List<com.tapdata.tm.commons.schema.Field> tableFields = fieldMap.get(table.getOriginTableName());
                         if (CollectionUtils.isNotEmpty(tableFields)) {
                             for (com.tapdata.tm.commons.schema.Field field : tableFields) {
                                 String targetFieldName = field.getFieldName();
@@ -606,6 +612,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     public void checkTaskName(String newName, UserDetail user, ObjectId id) {
+        if (StringUtils.isBlank(newName)) {
+            throw new BizException("Task.NameIsNull");
+        }
         if (checkTaskNameNotError(newName, user, id)) {
             throw new BizException("Task.RepeatName");
         }
@@ -1058,7 +1067,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public void renew(ObjectId id, UserDetail user) {
         TaskDto taskDto = checkExistById(id, user);
-        boolean needCreateRecord = !TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
+        boolean needCreateRecord = !Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_RENEW_FAILED, TaskDto.STATUS_WAIT_START).contains(taskDto.getStatus());
+        //boolean needCreateRecord = !TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
         TaskEntity taskSnapshot = null;
         if (needCreateRecord) {
             taskSnapshot = new TaskEntity();
@@ -1436,6 +1446,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return taskDtoPage;
     }
 
+    public Page<TaskDto> superFind(Filter filter, UserDetail userDetail) {
+        return super.find(filter, userDetail);
+    }
+
 
     public void deleteNotifyEnumData(List<TaskDto> taskDtoList) {
 //        log.info("deleteNotifyEnumData");
@@ -1767,6 +1781,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setShareCache(true);
         taskDto.setLastUpdAt(new Date());
         taskDto.setName(saveShareCacheParam.getName());
+        taskDto.setShareCdcEnable(true);
 
         DAG dag = taskDto.getDag();
         String sourceId;
@@ -2377,11 +2392,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (max.isPresent()) {
                     Sample sample = max.get();
                     Map<String, Number> vs = sample.getVs();
-                    value = value.add(parseDataTotal(vs.get("inputInsertTotal")));
-                    value = value.add(parseDataTotal(vs.get("inputOthersTotal")));
-                    value = value.add(parseDataTotal(vs.get("inputDdlTotal")));
-                    value = value.add(parseDataTotal(vs.get("inputUpdateTotal")));
-                    value = value.add(parseDataTotal(vs.get("inputDeleteTotal")));
+                    value = value.add(NumberUtil.parseDataTotal(vs.get("inputInsertTotal")));
+                    value = value.add(NumberUtil.parseDataTotal(vs.get("inputOthersTotal")));
+                    value = value.add(NumberUtil.parseDataTotal(vs.get("inputDdlTotal")));
+                    value = value.add(NumberUtil.parseDataTotal(vs.get("inputUpdateTotal")));
+                    value = value.add(NumberUtil.parseDataTotal(vs.get("inputDeleteTotal")));
                 }
                 LocalDate localDate = k.minusDays(1L);
                 BigInteger lastNum = inputNumMap.get(localDate);
@@ -3489,9 +3504,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
 
         //对于需要重启的任务，直接拉起来。
-        if (taskDto.getResetFlag() != null && taskDto.getResetFlag()) {
-            start(id, user);
-        }
+        FunctionUtils.ignoreAnyError(() -> {
+            if (taskDto.getResetFlag() != null && taskDto.getResetFlag()) {
+                start(id, user);
+            }
+        });
         return id.toHexString();
     }
 
@@ -3875,17 +3892,17 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 if (max.isPresent()) {
                     Sample sample = max.get();
                     Map<String, Number> vs = sample.getVs();
-                    BigInteger inputInsertTotal = parseDataTotal(vs.get("inputInsertTotal"));
-                    BigInteger inputOthersTotal = parseDataTotal(vs.get("inputOthersTotal"));
-                    BigInteger inputDdlTotal = parseDataTotal(vs.get("inputDdlTotal"));
-                    BigInteger inputUpdateTotal = parseDataTotal(vs.get("inputUpdateTotal"));
-                    BigInteger inputDeleteTotal = parseDataTotal(vs.get("inputDeleteTotal"));
+                    BigInteger inputInsertTotal = NumberUtil.parseDataTotal(vs.get("inputInsertTotal"));
+                    BigInteger inputOthersTotal = NumberUtil.parseDataTotal(vs.get("inputOthersTotal"));
+                    BigInteger inputDdlTotal = NumberUtil.parseDataTotal(vs.get("inputDdlTotal"));
+                    BigInteger inputUpdateTotal = NumberUtil.parseDataTotal(vs.get("inputUpdateTotal"));
+                    BigInteger inputDeleteTotal = NumberUtil.parseDataTotal(vs.get("inputDeleteTotal"));
 
-                    BigInteger outputInsertTotal = parseDataTotal(vs.get("outputInsertTotal"));
-                    BigInteger outputOthersTotal = parseDataTotal(vs.get("outputOthersTotal"));
-                    BigInteger outputDdlTotal = parseDataTotal(vs.get("outputDdlTotal"));
-                    BigInteger outputUpdateTotal = parseDataTotal(vs.get("outputUpdateTotal"));
-                    BigInteger outputDeleteTotal = parseDataTotal(vs.get("outputDeleteTotal"));
+                    BigInteger outputInsertTotal = NumberUtil.parseDataTotal(vs.get("outputInsertTotal"));
+                    BigInteger outputOthersTotal = NumberUtil.parseDataTotal(vs.get("outputOthersTotal"));
+                    BigInteger outputDdlTotal = NumberUtil.parseDataTotal(vs.get("outputDdlTotal"));
+                    BigInteger outputUpdateTotal = NumberUtil.parseDataTotal(vs.get("outputUpdateTotal"));
+                    BigInteger outputDeleteTotal = NumberUtil.parseDataTotal(vs.get("outputDeleteTotal"));
                     output = output.add(outputInsertTotal);
                     output = output.add(outputOthersTotal);
                     output = output.add(outputDdlTotal);
@@ -3913,24 +3930,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         chart6Map.put("updatedTotal", update);
         chart6Map.put("deletedTotal", delete);
         return chart6Map;
-    }
-
-
-    private BigInteger parseDataTotal(Object param) {
-        if (param == null) {
-            return BigInteger.ZERO;
-        }
-        if ("null".equals(param)) {
-            return BigInteger.ZERO;
-        }
-
-        if (param instanceof Long) {
-            return BigInteger.valueOf(Long.parseLong(String.valueOf(param)));
-        } else if (param instanceof BigInteger) {
-            return new BigInteger(String.valueOf(param));
-        }
-
-        return new BigInteger(String.valueOf(param));
     }
 
     public void stopTaskIfNeedByAgentId(String agentId, UserDetail userDetail) {

@@ -17,6 +17,7 @@ import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
@@ -29,6 +30,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 @AspectTaskSession(includeTypes = TaskDto.SYNC_TYPE_TEST_RUN, order = Integer.MAX_VALUE)
@@ -46,6 +48,11 @@ public class TestRunAspectTask extends AspectTask {
 
   private boolean multipleTables;
 
+  private AtomicReference<Object> jsResult;
+
+  //标记是否标准化JS，默认不是，当jsResult不为空则是
+  private boolean isNewVersionJSType = false;
+
   public TestRunAspectTask() {
     observerClassHandlers.register(ProcessorNodeProcessAspect.class, this::processorNodeProcessAspect);
     TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
@@ -58,7 +65,8 @@ public class TestRunAspectTask extends AspectTask {
     Optional<Node> optional = task.getDag().getNodes().stream().filter(n -> n.getType().equals("virtualTarget")).findFirst();
     optional.ifPresent(node -> this.nodeIds = task.getDag().predecessors(node.getId()).stream()
             .map(Element::getId).collect(Collectors.toSet()));
-
+    jsResult = (AtomicReference<Object>)startAspect.info("JSRunResult");
+    isNewVersionJSType = null != jsResult;
     this.multipleTables = CollectionUtils.isNotEmpty(task.getDag().getSourceNode());
 
   }
@@ -76,13 +84,13 @@ public class TestRunAspectTask extends AspectTask {
           resultMap.computeIfAbsent("before", key -> new ArrayList<>()).add(transformFromTapValue(inputEvent));
           processAspect.consumer(outputEvent -> {
             //mock
-//            TapEvent tapEvent = outputEvent.getTapEvent();
-//            String tableId = TapEventUtil.getTableId(tapEvent);
-//            if (!multipleTables) {
-//              tableId = nodeId;
-//            }
-//            TapTable tapTable = processorBaseContext.getTapTableMap().get(tableId);
-//            SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
+            //TapEvent tapEvent = outputEvent.getTapEvent();
+            //String tableId = TapEventUtil.getTableId(tapEvent);
+            //if (!multipleTables) {
+            //  tableId = nodeId;
+            //}
+            //TapTable tapTable = processorBaseContext.getTapTableMap().get(tableId);
+            //SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
             Map<String, Object> afterMap = transformFromTapValue(outputEvent);
             resultMap.computeIfAbsent("after", key -> new ArrayList<>()).add(afterMap);
           });
@@ -102,17 +110,27 @@ public class TestRunAspectTask extends AspectTask {
     paramMap.put("taskId", task.getId().toHexString());
     paramMap.put("version", task.getVersion());
     paramMap.put("ts", new Date().getTime());
+
+    paramMap.put("before", Optional.ofNullable(resultMap.get("before")).orElse(new ArrayList<>()));
+    if (((paramMap.get("before")) instanceof Collection) && ((Collection<?>)paramMap.get("before")).isEmpty()){
+      stopAspect.setError(new CoreException("Can not get data from source,  Please ensure if source connection is valid"));
+      paramMap.put("after", Optional.ofNullable(resultMap.get("after")).orElse(new ArrayList<>()));
+    }
     if (stopAspect.getError() != null) {
       //run task error
       paramMap.put("code", "error");
       paramMap.put("message", ExceptionUtil.getMessage(stopAspect.getError()));
     } else {
       paramMap.put("code", "ok");
-      paramMap.put("before", resultMap.get("before"));
-      paramMap.put("after", resultMap.get("after"));
+      paramMap.put("after", Optional.ofNullable(resultMap.get("after")).orElse(new ArrayList<>()));
     }
-    ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
-    clientMongoOperator.insertOne(paramMap, "/task/migrate-js/save-result");
+
+    if (isNewVersionJSType) {
+      jsResult.set(paramMap);
+    } else {
+      ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
+      clientMongoOperator.insertOne(paramMap, "/task/migrate-js/save-result");
+    }
 
     logger.info("return to tm {}", paramMap);
   }

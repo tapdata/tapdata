@@ -23,13 +23,19 @@ import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.StandardJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.StandardMigrateJsProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.ProcessorNodeType;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.logger.TapLog;
+import io.tapdata.entity.script.ScriptFactory;
+import io.tapdata.entity.script.ScriptOptions;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.util.JsUtil;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.script.ScriptExecutorsManager;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
@@ -46,6 +52,9 @@ import org.springframework.data.mongodb.core.query.Query;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
+import javax.script.ScriptException;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,15 +84,18 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	 */
 	private boolean standard;
 
+	private boolean finalJs = false;
+
 	@SneakyThrows
 	public HazelcastJavaScriptProcessorNode(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
-		Node node = getNode();
+		Node<?> node = getNode();
 		String script;
 		if (node instanceof JsProcessorNode) {
 			script = ((JsProcessorNode) node).getScript();
 		} else if (node instanceof MigrateJsProcessorNode) {
-			script = ((MigrateJsProcessorNode) node).getScript();
+			MigrateJsProcessorNode processorNode = (MigrateJsProcessorNode) node;
+			script = processorNode.getScript();
 		} else if (node instanceof CacheLookupProcessorNode) {
 			script = ((CacheLookupProcessorNode) node).getScript();
 		} else {
@@ -92,6 +104,15 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 		if (node instanceof StandardJsProcessorNode || node instanceof StandardMigrateJsProcessorNode) {
 			this.standard = true;
+		}
+		if (node instanceof JsProcessorNode){
+			JsProcessorNode processorNode = (JsProcessorNode) node;
+			int jsType = Optional.ofNullable(processorNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
+			finalJs = !standard && ProcessorNodeType.Standard_JS.contrast(jsType);
+		} else if (node instanceof MigrateJsProcessorNode){
+			MigrateJsProcessorNode processorNode = (MigrateJsProcessorNode)node;
+			int jsType = Optional.ofNullable(processorNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
+			finalJs = !standard && ProcessorNodeType.Standard_JS.contrast(jsType);
 		}
 
 		List<JavaScriptFunctions> javaScriptFunctions;
@@ -103,32 +124,40 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		}
 
 		ScriptCacheService scriptCacheService = new ScriptCacheService(clientMongoOperator, (DataProcessorContext) processorBaseContext);
-
-		this.engine = ScriptUtil.getScriptEngine(
+		this.engine = finalJs ?
+				ScriptUtil.getScriptStandardizationEngine(
+					JSEngineEnum.GRAALVM_JS.getEngineName(),
+					script,
+					javaScriptFunctions,
+					clientMongoOperator,
+					null,
+					null,
+					scriptCacheService,
+					new ObsScriptLogger(obsLogger, logger),
+					this.standard)
+			: ScriptUtil.getScriptEngine(
 				JSEngineEnum.GRAALVM_JS.getEngineName(),
-				script, javaScriptFunctions,
+				script,
+				javaScriptFunctions,
 				clientMongoOperator,
 				null,
 				null,
 				scriptCacheService,
 				new ObsScriptLogger(obsLogger, logger),
-				this.standard
-		);
-
+				this.standard);
 		this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
 	}
 
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
-		Node node = getNode();
+		Node<?> node = getNode();
 		if (!this.standard) {
 			this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(obsLogger), clientMongoOperator, jetContext.hazelcastInstance(),
 					node.getTaskId(), node.getId(),
 					StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
 							TaskDto.SYNC_TYPE_TEST_RUN, TaskDto.SYNC_TYPE_DEDUCE_SCHEMA));
 			((ScriptEngine) this.engine).put("ScriptExecutorsManager", scriptExecutorsManager);
-
 			List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
 			List<Node<?>> successors = GraphUtil.successors(node, Node::isDataNode);
 
@@ -137,14 +166,13 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			((ScriptEngine) this.engine).put("source", source);
 			((ScriptEngine) this.engine).put("target", target);
 		}
-
 	}
 
 	private ScriptExecutorsManager.ScriptExecutor getDefaultScriptExecutor(List<Node<?>> nodes, String flag) {
 		if (nodes != null && nodes.size() > 0) {
 			Node<?> node = nodes.get(0);
 			if (node instanceof DataParentNode) {
-				String connectionId = ((DataParentNode) node).getConnectionId();
+				String connectionId = ((DataParentNode<?>) node).getConnectionId();
 				Connections connections = clientMongoOperator.findOne(new Query(where("_id").is(connectionId)),
 						ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
 				if (connections != null) {
@@ -224,7 +252,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			thread.start();
 			boolean threadFinished = countDownLatch.await(10L, TimeUnit.SECONDS);
 			if (!threadFinished) {
-				thread.stop();
+				thread.interrupt();
 			}
 			if (errorAtomicRef.get() != null) {
 				throw new TapCodeException(TaskProcessorExCode_11.JAVA_SCRIPT_PROCESS_FAILED, errorAtomicRef.get());
@@ -311,5 +339,23 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		} finally {
 			super.doClose();
 		}
+	}
+
+	public static void main(String[] args)throws FileNotFoundException, ScriptException {
+		final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
+		ScriptEngine e = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName(JSEngineEnum.GRAALVM_JS.getEngineName()));
+		e.put("tapUtil", new JsUtil());
+		e.put("tapLog", new TapLog());
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/csvUtils.js"));
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/arrayUtils.js"));
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/dateUtils.js"));
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/exceptionUtils.js"));
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/stringUtils.js"));
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/mapUtils.js"));
+		e.eval(new FileReader("iengine/iengine-app/src/main/resources/js/log.js"));
+
+		Object invoker = e.eval("dateUtils.timeStamp2Date(new Date().getTime(), \"yyyy-MM-dd'T'HH:mm:ssXXX\");");
+		System.out.println(invoker + " ---- " + new JsUtil().timeStamp2Date(System.currentTimeMillis(), "yyyy-MM-dd'T'HH:mm:ssXXX"));
+		e.eval("log.warn(\"Hello Log, i'm %s\", 'Gavin');");
 	}
 }

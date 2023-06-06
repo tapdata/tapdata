@@ -4,12 +4,10 @@ import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
-import io.tapdata.observable.logging.appender.Appender;
-import io.tapdata.observable.logging.appender.AppenderFactory;
-import io.tapdata.observable.logging.appender.BaseTaskAppender;
-import io.tapdata.observable.logging.appender.FileAppender;
-import io.tapdata.observable.logging.appender.ObsHttpTMAppender;
+import io.tapdata.observable.logging.appender.*;
+import io.tapdata.observable.logging.with.WithAppender;
 import lombok.Getter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.Level;
@@ -20,7 +18,9 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 /**
@@ -44,26 +44,54 @@ class TaskLogger extends ObsLogger {
 	private Long recordCeiling;
 	private Long intervalCeiling;
 
-	private TaskLogger(String taskId, String taskName, String taskRecordId, BiConsumer<String, LogLevel> consumer) {
+	private TaskLogger(TaskDto taskDto, BiConsumer<String, LogLevel> consumer) {
+		String taskId = taskDto.getId().toHexString();
 		this.taskId = taskId;
-		this.taskName = taskName;
-		this.taskRecordId = taskRecordId;
+		this.taskName = taskDto.getName();
+		this.taskRecordId = taskDto.getTaskRecordId();
 		this.logAppendFactory = AppenderFactory.getInstance();
 
-		// add file appender
-		String workDir = GlobalConstant.getInstance().getConfigurationCenter().getConfig(ConfigurationCenter.WORK_DIR).toString();
-		BaseTaskAppender<MonitoringLogsDto> fileAppender = FileAppender.create(workDir, taskId);
-		tapObsAppenders.add(fileAppender);
-		this.logAppendFactory.addTaskAppender(fileAppender);
+		AtomicReference<Object> taskInfo = (AtomicReference<Object>) taskDto.taskInfo(JSProcessNodeAppender.LOG_LIST_KEY + taskId);
+		if (taskDto.isTestTask() && null != taskInfo){
+			//js处理器试运行收集日志，不入库不额外操作，仅返回给前端
+			this.witAppender(
+							(WithAppender<MonitoringLogsDto>)(() ->
+											(BaseTaskAppender<MonitoringLogsDto>) JSProcessNodeAppender.create(
+																			taskId, taskInfo, Optional.ofNullable((Integer) taskDto.taskInfo(JSProcessNodeAppender.MAX_LOG_LENGTH_KEY + taskId)).orElse(100))
+															.nodeID((String)taskDto.taskInfo(JSProcessNodeAppender.JS_NODE_ID_KEY + taskId))
+							)
+			);
 
-		// add tm appender
-		ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
-		BaseTaskAppender<MonitoringLogsDto> obsHttpTMAppender = ObsHttpTMAppender.create(clientMongoOperator, taskId);
-		tapObsAppenders.add(obsHttpTMAppender);
-		this.logAppendFactory.addTaskAppender(obsHttpTMAppender);
+		} else {
+			this.witAppender(this.fileAppender(taskId))
+							.witAppender(this.obsHttpTMAppender(taskId));
+		}
 
 		// add close debug consumer
 		this.closeDebugConsumer = consumer;
+	}
+
+	private WithAppender<MonitoringLogsDto> fileAppender(String taskId){
+		return () -> {
+			// add file appender
+			String workDir = GlobalConstant.getInstance().getConfigurationCenter().getConfig(ConfigurationCenter.WORK_DIR).toString();
+			return (BaseTaskAppender<MonitoringLogsDto>) FileAppender.create(workDir, taskId);
+		};
+	}
+
+	private WithAppender<MonitoringLogsDto> obsHttpTMAppender(String taskId){
+		return () -> {
+			// add tm appender
+			ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
+			return (BaseTaskAppender<MonitoringLogsDto>) ObsHttpTMAppender.create(clientMongoOperator, taskId);
+		};
+	}
+
+	public TaskLogger witAppender(WithAppender<?> appender){
+		Appender<?> append = appender.append();
+		tapObsAppenders.add(append);
+		this.logAppendFactory.addTaskAppender((BaseTaskAppender<MonitoringLogsDto>)append);
+		return this;
 	}
 
 	TaskLogger withTask(String taskId, String taskName, String taskRecordId) {
@@ -74,8 +102,8 @@ class TaskLogger extends ObsLogger {
 		return this;
 	}
 
-	static TaskLogger create(String taskId, String taskName, String taskRecordId, BiConsumer<String, LogLevel> consumer) {
-		return new TaskLogger(taskId, taskName, taskRecordId, consumer);
+	static TaskLogger create(TaskDto taskDto, BiConsumer<String, LogLevel> consumer) {
+		return new TaskLogger(taskDto, consumer);
 	}
 
 	TaskLogger withTaskLogSetting(String level, Long recordCeiling, Long intervalCeiling) {

@@ -44,4 +44,25 @@ public class AlarmMailTemplate {
             "    Current: {2}ms\n" +
             "    Threshold: {3}ms\n" +
             "    Occurred Time: {4}";
+
+    public static final String INSPECT_TASK_ERROR_TITLE = "【Tapdata Notification:Data verification task error】{0}";
+    public static final String INSPECT_TASK_ERROR_CONTENT = "Hello There,\n" +
+            "    Your verification task [{0}] has encountered an error and stopped at {1}. Please pay attention.\n" +
+            "        This mail was sent by Tapdata.";
+
+    public static final String INSPECT_COUNT_ERROR_TITLE = "Tapdata Notification:The verification results are inconsistent】{0}";
+    public static final String INSPECT_COUNT_ERROR_CONTENT = "Hello There,\n" +
+            "    The quick count verification result of your verification task [{0}] is inconsistent. The current number of differing rows is: {1}. Please pay attention.\n" +
+            "\n" +
+            "    This mail was sent by Tapdata.";
+
+    public static final String INSPECT_VALUE_ERROR_ALL_TITLE = "【Tapdata Notification:The verification results are inconsistent】{0}";
+    public static final String INSPECT_VALUE_ERROR_ALL_CONTENT = "Hello There,\n" +
+            "    The full field value verification result of your verification task [{0}] is inconsistent. The current difference in table data is: {1}. Please pay attention.\n" +
+            "    This mail was sent by Tapdata.";
+
+    public static final String INSPECT_VALUE_ERROR_JOIN_TITLE = "【Tapdata Notification:The verification results are inconsistent】{0}";
+    public static final String INSPECT_VALUE_ERROR_JOIN_CONTENT = "Hello There,\n" +
+            "    The associated field value verification result of your verification task [{0}] is inconsistent. The current difference in table data is: {1}. Please pay attention.\n" +
+            "    This mail was sent by Tapdata.";;
 }

@@ -164,7 +164,7 @@ public class MergeTableNode extends ProcessorNode {
         field.setFieldName(name);
         field.setSource("job_analyze");
         field.setDataType("Map");
-        field.setId(new ObjectId().toHexString());
+        field.setId(MetaDataBuilderUtils.generateFieldId(this.getId(), tableName, name));
         field.setTableName(tableName);
         field.setOriginalFieldName(name);
         TapMap tapMap = new TapMap();

@@ -35,171 +35,173 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ApiAppServiceImpl implements ApiAppService {
 
-    @Autowired
-    private MetadataDefinitionService metadataDefinitionService;
+	@Autowired
+	private MetadataDefinitionService metadataDefinitionService;
 
 
+	@Autowired
+	private ModulesService modulesService;
 
-    @Autowired
-    private ModulesService modulesService;
+	@Override
+	public MetadataDefinitionDto save(MetadataDefinitionDto metadataDefinition, UserDetail user) {
+		List<String> itemType = metadataDefinition.getItemType();
+		if (itemType == null) {
+			itemType = new ArrayList<>();
+			itemType.add(MetadataDefinitionDto.ITEM_TYPE_APP);
+			metadataDefinition.setItemType(itemType);
+		} else {
+			if (!itemType.contains(MetadataDefinitionDto.ITEM_TYPE_APP)) {
+				itemType.add(MetadataDefinitionDto.ITEM_TYPE_APP);
+			}
+		}
+		return metadataDefinitionService.save(metadataDefinition, user);
+	}
 
-    @Override
-    public MetadataDefinitionDto save(MetadataDefinitionDto metadataDefinition, UserDetail user) {
-        List<String> itemType = metadataDefinition.getItemType();
-        if (itemType == null) {
-            itemType = new ArrayList<>();
-            itemType.add(MetadataDefinitionDto.ITEM_TYPE_APP);
-            metadataDefinition.setItemType(itemType);
-        } else {
-            if (!itemType.contains(MetadataDefinitionDto.ITEM_TYPE_APP)) {
-                itemType.add(MetadataDefinitionDto.ITEM_TYPE_APP);
-            }
-        }
-        return metadataDefinitionService.save(metadataDefinition, user);
-    }
+	@Override
+	public Page<ApiAppDetail> findAndModel(Filter filter, UserDetail user) {
+		Page<MetadataDefinitionDto> page = metadataDefinitionService.find(filter, user);
+		Page<ApiAppDetail> returnPage = new Page<>();
+		returnPage.setTotal(page.getTotal());
 
-    @Override
-    public Page<ApiAppDetail> findAndModel(Filter filter, UserDetail user) {
-        Page<MetadataDefinitionDto> page = metadataDefinitionService.find(filter, user);
-        Page<ApiAppDetail> returnPage = new Page<>();
-        returnPage.setTotal(page.getTotal());
+		//添加api总数，跟已发布的api数量。
+		if (CollectionUtils.isNotEmpty(page.getItems())) {
+			List<ApiAppDetail> appDetails = page.getItems().stream().map(s -> {
+				ApiAppDetail apiAppDetail = new ApiAppDetail();
+				BeanUtils.copyProperties(s, apiAppDetail);
+				return apiAppDetail;
+			}).collect(Collectors.toList());
+			returnPage.setItems(appDetails);
+			addApiCount(appDetails, user, true);
+		}
+		return returnPage;
+	}
 
-        //添加api总数，跟已发布的api数量。
-        if (CollectionUtils.isNotEmpty(page.getItems())) {
-            List<ApiAppDetail> appDetails = page.getItems().stream().map(s -> {
-                ApiAppDetail apiAppDetail = new ApiAppDetail();
-                BeanUtils.copyProperties(s, apiAppDetail);
-                return apiAppDetail;
-            }).collect(Collectors.toList());
-            returnPage.setItems(appDetails);
-            addApiCount(appDetails, user, true);
-        }
-        return returnPage;
-    }
+	@Override
+	public Page<MetadataDefinitionDto> find(Filter filter, UserDetail user) {
+		Page<MetadataDefinitionDto> page = metadataDefinitionService.find(filter, user);
+		//添加api总数，跟已发布的api数量。
+		addApiCount(page.getItems(), user);
+		return page;
+	}
 
-    @Override
-    public Page<MetadataDefinitionDto> find(Filter filter, UserDetail user) {
-        Page<MetadataDefinitionDto> page = metadataDefinitionService.find(filter, user);
-        //添加api总数，跟已发布的api数量。
-        addApiCount(page.getItems(), user);
-        return page;
-    }
-    public Page<MetadataDefinitionDto> findPage(Filter filter, UserDetail user) {
+	public Page<MetadataDefinitionDto> findPage(Filter filter, UserDetail user) {
 
-        boolean addModel = false;
-        if (filter != null) {
-            if (filter.getWhere() != null) {
-                Object addMode = filter.getWhere().get("addModel");
-                if (addMode != null) {
-                    addModel = (boolean) addMode;
-                }
-                filter.getWhere().remove("addModel");
-            }
-        }
-        Page<MetadataDefinitionDto> page = metadataDefinitionService.find(filter, user);
+		boolean addModel = false;
+		if (filter != null) {
+			if (filter.getWhere() != null) {
+				Object addMode = filter.getWhere().get("addModel");
+				if (addMode != null) {
+					addModel = (boolean) addMode;
+				}
+				filter.getWhere().remove("addModel");
+			}
+		}
+		Page<MetadataDefinitionDto> page = metadataDefinitionService.find(filter, user);
 
 
-        return page;
-    }
+		return page;
+	}
 
-    @Override
-    public MetadataDefinitionDto updateById(ObjectId id, MetadataDefinitionDto metadataDefinition, UserDetail user) {
-        MetadataDefinitionDto metadataDefinitionDto = metadataDefinitionService.save(metadataDefinition, user);
-        addApiCount(Lists.of(metadataDefinitionDto), user);
-        return metadataDefinitionDto;
-    }
+	@Override
+	public MetadataDefinitionDto updateById(ObjectId id, MetadataDefinitionDto metadataDefinition, UserDetail user) {
+		MetadataDefinitionDto metadataDefinitionDto = metadataDefinitionService.save(metadataDefinition, user);
+		addApiCount(Lists.of(metadataDefinitionDto), user);
+		return metadataDefinitionDto;
+	}
 
-    @Override
-    public MetadataDefinitionDto findById(ObjectId id, Field field, UserDetail user) {
-        MetadataDefinitionDto metadataDefinitionDto = metadataDefinitionService.findById(id, field, user);
-        addApiCount(Lists.of(metadataDefinitionDto), user);
-        return metadataDefinitionDto;
-    }
+	@Override
+	public MetadataDefinitionDto findById(ObjectId id, Field field, UserDetail user) {
+		MetadataDefinitionDto metadataDefinitionDto = metadataDefinitionService.findById(id, field, user);
+		addApiCount(Lists.of(metadataDefinitionDto), user);
+		return metadataDefinitionDto;
+	}
 
-    @Override
-    public void move(String oldId, String newId, UserDetail user) {
+	@Override
+	public void move(String oldId, String newId, UserDetail user) {
 
-        Criteria criteriaNew = Criteria.where("_id").is(MongoUtils.toObjectId(newId));
-        MetadataDefinitionDto newTag = metadataDefinitionService.findOne(new Query(criteriaNew), user);
-        if (newTag == null) {
-            throw new BizException("ApiApp.NewTagNotFound");
-        }
+		Criteria criteriaNew = Criteria.where("_id").is(MongoUtils.toObjectId(newId));
+		MetadataDefinitionDto newTag = metadataDefinitionService.findOne(new Query(criteriaNew), user);
+		if (newTag == null) {
+			throw new BizException("ApiApp.NewTagNotFound");
+		}
 
-        Criteria criteria = Criteria.where("listtags")
-                .elemMatch(Criteria.where("id").is(oldId)).and("is_deleted").ne(true);
-        Update update = Update.update("listtags.$.id", newTag.getId().toHexString()).set("listtags.$.value", newTag.getValue());
-        modulesService.update(new Query(criteria), update, user);
-    }
+		Criteria criteria = Criteria.where("listtags")
+				.elemMatch(Criteria.where("id").is(oldId)).and("is_deleted").ne(true);
+		Update update = Update.update("listtags.$.id", newTag.getId().toHexString()).set("listtags.$.value", newTag.getValue());
+		modulesService.update(new Query(criteria), update, user);
+	}
 
-    @Override
-    public ApiAppDetail detail(ObjectId toObjectId, UserDetail user) {
-        MetadataDefinitionDto tag = metadataDefinitionService.findById(toObjectId, user);
-        Criteria criteria = Criteria.where("listtags.id").is(toObjectId.toHexString());
-        Query query = new Query(criteria);
-        List<ModulesDto> modulesDtos = modulesService.findAllDto(query, user);
-        if (CollectionUtils.isNotEmpty(modulesDtos)) {
-            tag.setApiCount(modulesDtos.size());
-            int publishedApiCount = (int) modulesDtos.stream().map(s -> ModuleStatusEnum.ACTIVE.getValue().equals(s.getStatus())).count();
-            tag.setPublishedApiCount(publishedApiCount);
-        }
+	@Override
+	public ApiAppDetail detail(ObjectId toObjectId, UserDetail user) {
+		MetadataDefinitionDto tag = metadataDefinitionService.findById(toObjectId, user);
+		Criteria criteria = Criteria.where("listtags.id").is(toObjectId.toHexString());
+		Query query = new Query(criteria);
+		List<ModulesDto> modulesDtos = modulesService.findAllDto(query, user);
+		if (CollectionUtils.isNotEmpty(modulesDtos)) {
+			tag.setApiCount(modulesDtos.size());
+			int publishedApiCount = (int) modulesDtos.stream().map(s -> ModuleStatusEnum.ACTIVE.getValue().equals(s.getStatus())).count();
+			tag.setPublishedApiCount(publishedApiCount);
+		}
 
-        ApiAppDetail apiAppDetail = new ApiAppDetail();
-        BeanUtils.copyProperties(tag, apiAppDetail);
-        apiAppDetail.setApis(modulesDtos);
-        return apiAppDetail;
-    }
+		ApiAppDetail apiAppDetail = new ApiAppDetail();
+		BeanUtils.copyProperties(tag, apiAppDetail);
+		apiAppDetail.setApis(modulesDtos);
+		return apiAppDetail;
+	}
 
-    private void addApiCount(List<MetadataDefinitionDto> metadatas, UserDetail user) {
-        addApiCount(metadatas, user, false);
-    }
+	private void addApiCount(List<MetadataDefinitionDto> metadatas, UserDetail user) {
+		addApiCount(metadatas, user, false);
+	}
 
-    private void addApiCount(List metadatas, UserDetail user, boolean addModel) {
-        if (CollectionUtils.isEmpty(metadatas)) {
-            return;
-        }
+	private void addApiCount(List metadatas, UserDetail user, boolean addModel) {
+		if (CollectionUtils.isEmpty(metadatas)) {
+			return;
+		}
 
-        List<String> tagIds = new ArrayList<>();
-        for (Object metadata : metadatas) {
-            String tagId = ((MetadataDefinitionDto) metadata).getId().toHexString();
-            tagIds.add(tagId);
-        }
-        Criteria criteria = Criteria.where("listtags.id").in(tagIds).and("is_deleted").ne(true);
+		List<String> tagIds = new ArrayList<>();
+		for (Object metadata : metadatas) {
+			if (metadata instanceof MetadataDefinitionDto) {
+				tagIds.add(((MetadataDefinitionDto) metadata).getId().toHexString());
+			}
+		}
 
-        Query query = new Query(criteria);
-        if (!addModel) {
-            String[] fields = {"listtags", "status"};
-            query.fields().include(fields);
-        }
-        List<ModulesDto> modulesDtos = modulesService.findAllDto(query, user);
+		Criteria criteria = Criteria.where("listtags.id").in(tagIds).and("is_deleted").ne(true);
 
-        Map<String, List<ModulesDto>> map = new HashMap<>();
-        for (ModulesDto modulesDto : modulesDtos) {
-            List<Tag> listtags = modulesDto.getListtags();
-            for (Tag tag : listtags) {
-                if (tagIds.contains(tag.getId())) {
-                    List<ModulesDto> list = map.computeIfAbsent(tag.getId(), k -> new ArrayList<>());
-                    list.add(modulesDto);
-                    break;
-                }
-            }
-        }
+		Query query = new Query(criteria);
+		if (!addModel) {
+			String[] fields = {"listtags", "status"};
+			query.fields().include(fields);
+		}
+		List<ModulesDto> modulesDtos = modulesService.findAllDto(query, user);
 
-        for (Object m : metadatas) {
-            if (m instanceof MetadataDefinitionDto) {
-                MetadataDefinitionDto metadata = (MetadataDefinitionDto)m;
-                List<ModulesDto> modulesDtos1 = map.get(metadata.getId().toHexString());
-                if (CollectionUtils.isNotEmpty(modulesDtos1) && addModel) {
-                    if (metadata instanceof ApiAppDetail) {
-                        ((ApiAppDetail) metadata).setApis(modulesDtos1);
-                    }
-                }
-                boolean empty = CollectionUtils.isEmpty(modulesDtos1);
-                int apiCount = empty ? 0 : modulesDtos1.size();
-                int publishedApiCount = empty ? 0 : (int) modulesDtos1.stream().filter(s -> ModuleStatusEnum.ACTIVE.getValue().equals(s.getStatus())).count();
-                metadata.setApiCount(apiCount);
-                metadata.setPublishedApiCount(publishedApiCount);
-            }
-        }
+		Map<String, List<ModulesDto>> map = new HashMap<>();
+		for (ModulesDto modulesDto : modulesDtos) {
+			List<Tag> listtags = modulesDto.getListtags();
+			for (Tag tag : listtags) {
+				if (tagIds.contains(tag.getId())) {
+					List<ModulesDto> list = map.computeIfAbsent(tag.getId(), k -> new ArrayList<>());
+					list.add(modulesDto);
+					break;
+				}
+			}
+		}
 
-    }
+		for (Object obj : metadatas) {
+			if (obj instanceof MetadataDefinitionDto) {
+				MetadataDefinitionDto metadata = (MetadataDefinitionDto) obj;
+				List<ModulesDto> modulesDtos1 = map.get(metadata.getId().toHexString());
+				if (CollectionUtils.isNotEmpty(modulesDtos1) && addModel) {
+					if (metadata instanceof ApiAppDetail) {
+						((ApiAppDetail) metadata).setApis(modulesDtos1);
+					}
+				}
+				boolean empty = CollectionUtils.isEmpty(modulesDtos1);
+				int apiCount = empty ? 0 : modulesDtos1.size();
+				int publishedApiCount = empty ? 0 : (int) modulesDtos1.stream().filter(s -> ModuleStatusEnum.ACTIVE.getValue().equals(s.getStatus())).count();
+				metadata.setApiCount(apiCount);
+				metadata.setPublishedApiCount(publishedApiCount);
+			}
+		}
+
+	}
 }

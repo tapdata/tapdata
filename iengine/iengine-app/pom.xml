@@ -294,6 +294,13 @@
                 </includes>
                 <targetPath>./${parent.artifactId}/${project.artifactId}/src/main/java/</targetPath>
             </resource>
+            <resource>
+                <directory>src/main/javascript</directory>
+                <includes>
+                    <include>**/*.js</include>
+                </includes>
+                <targetPath>./${project.parent.artifactId}/${project.artifactId}/src/main/javascript/</targetPath>
+            </resource>
         </resources>
         <plugins>
 

@@ -16,7 +16,7 @@ import java.util.Set;
 /**
  * @author lemon
  */
-public class RedisContext {
+public class RedisContext implements AutoCloseable {
 
     private static final String TAG = RedisContext.class.getSimpleName();
     private static final int MAX_TOTAL = 100;

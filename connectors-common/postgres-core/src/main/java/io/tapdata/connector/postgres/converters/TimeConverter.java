@@ -28,12 +28,12 @@ public class TimeConverter implements CustomConverter<SchemaBuilder, RelationalC
                 }
                 //for pg<=9.4
                 if (x instanceof String) {
-                    long second = 0;
+                    double microsecond = 0;
                     String[] hourToSecond = ((String) x).split(":");
                     for (String s : hourToSecond) {
-                        second = Integer.parseInt(s) + second * 60;
+                        microsecond = Double.parseDouble(s) + microsecond * 60;
                     }
-                    return second * 1000000;
+                    return (long) (microsecond * 1000000);
                 }
                 //for pg>=9.5
                 Duration duration = (Duration) x;

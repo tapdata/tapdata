@@ -247,7 +247,7 @@ public class CustomRest {
 	}
 
 	public static Map<String, Object> put(String url, Map<String, Object> paramsMap, Map<String, Object> headersMap, String returnType,
-										   int connectTimeout, int readTimeout) {
+										  int connectTimeout, int readTimeout) {
 		Map<String, Object> headers = new HashMap<>();
 		MapUtil.copyToNewMap(headersMap, headers);
 		Map<String, Object> params = new HashMap<>();
@@ -266,7 +266,7 @@ public class CustomRest {
 	}
 
 	public static Map<String, Object> put(String url, byte[] params, MultiValueMap<String, String> headersMap, String returnType,
-										   int connectTimeout, int readTimeout) {
+										  int connectTimeout, int readTimeout) {
 		MultiValueMap<String, String> headers = new HttpHeaders();
 		MapUtil.copyToNewMap(headersMap, headers);
 		HttpEntity<byte[]> httpEntity = new HttpEntity<>(params, headers);

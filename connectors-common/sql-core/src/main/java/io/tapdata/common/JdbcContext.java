@@ -44,7 +44,12 @@ public abstract class JdbcContext implements AutoCloseable {
      * @throws SQLException SQLException
      */
     public Connection getConnection() throws SQLException {
-        return hikariDataSource.getConnection();
+        try {
+            return hikariDataSource.getConnection();
+        } catch (SQLException e) {
+            exceptionCollector.collectUserPwdInvalid(getConfig().getUser(), e);
+            throw e;
+        }
     }
 
     /**
@@ -90,6 +95,18 @@ public abstract class JdbcContext implements AutoCloseable {
                 if (EmptyKit.isNotNull(resultSet)) {
                     resultSetConsumer.accept(resultSet);
                 }
+            }
+        }
+    }
+
+    public void normalQuery(String sql, ResultSetConsumer resultSetConsumer) throws SQLException {
+        try (
+                Connection connection = getConnection();
+                Statement statement = connection.createStatement();
+                ResultSet resultSet = statement.executeQuery(sql)
+        ) {
+            if (EmptyKit.isNotNull(resultSet)) {
+                resultSetConsumer.accept(resultSet);
             }
         }
     }

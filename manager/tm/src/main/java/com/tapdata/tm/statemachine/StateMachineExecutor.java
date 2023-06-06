@@ -43,7 +43,7 @@ public class StateMachineExecutor<S, E> {
 			if (transitionMap.containsKey(context.getEvent())){
 				Transition<S, E> transition = transitionMap.get(context.getEvent());
 				context.setTarget(transition.getTarget());
-				log.info("The status changes from {} to {} start,context: {}", context.getSource(), context.getTarget(), JsonUtil.toJson(context));
+				log.info("The status changes from {} to {} start", context.getSource(), context.getTarget());
 				List<Function<StateContext<S, E>, Boolean>> guards = transition.getGuards();
 				if (CollectionUtils.isNotEmpty(guards)){
 					boolean guard = guard(guards, context);
@@ -59,12 +59,12 @@ public class StateMachineExecutor<S, E> {
 					result.setAfter(((TaskState)transition.getTarget()).getName());
 				}
 				if (context.getNeedPostProcessor() != null && context.getNeedPostProcessor()){
-					log.info("The status changes from {} to {} successfully,context: {}", context.getSource(), context.getTarget(), JsonUtil.toJson(context));
+					log.info("The status changes from {} to {} successfully", context.getSource(), context.getTarget());
 					afterAction(transition.getAfterActions(), context);
 				}
-				log.info("The status changes from {} to {} end,context: {}", context.getSource(), context.getTarget(), JsonUtil.toJson(context));
+				log.info("The status changes from {} to {} end", context.getSource(), context.getTarget());
 				return result == null ? StateMachineResult.ok() : result;
-			}else {
+			} else {
 				log.warn("Failed to change status from {},This event is not supported in the state and the state cannot be changed,context: {}", context.getSource(), JsonUtil.toJson(context));
 //				throw new StateException(context, "This event is not supported in the state");
 				throw new BizException("Transition.Not.Supported");

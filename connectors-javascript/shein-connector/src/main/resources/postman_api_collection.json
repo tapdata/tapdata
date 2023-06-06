@@ -1,0 +1,152 @@
+{
+	"info": {
+		"_postman_id": "846b0351-e7b0-42b2-86dd-9ea89a909898",
+		"name": "Shien API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "商品列表",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"pageNum\": 1,\r\n    \"pageSize\": 100\r\n}"
+				},
+				"url": {
+					"raw": "{{domain}}/open-api/openapi-business-backend/product/query",
+					"host": [
+						"{{domain}}"
+					],
+					"path": [
+						"open-api",
+						"openapi-business-backend",
+						"product",
+						"query"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "商品详情",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json;charset=UTF-8",
+						"type": "default"
+					},
+					{
+						"key": "x-lt-openKeyId",
+						"value": "",
+						"description": "访问用户隐私数据时的唯一权限标识 openKeyId",
+						"type": "default"
+					},
+					{
+						"key": "x-lt-timestamp",
+						"value": "",
+						"description": "请求时间戳，格式为时间转换为毫秒的值，也就是从1970年1月1日起至今的时间转换为毫秒，如：1583398764000",
+						"type": "default"
+					},
+					{
+						"key": "x-lt-signature",
+						"value": "",
+						"description": "接口签名",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"skuCodes\": [\"\"],\r\n    \"language\": \"zh-cn\"\r\n}"
+				},
+				"url": {
+					"raw": "{{domain}}/open-api/openapi-business-backend/product/full-detail",
+					"host": [
+						"{{domain}}"
+					],
+					"path": [
+						"open-api",
+						"openapi-business-backend",
+						"product",
+						"full-detail"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Shopping",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "x-lt-signature",
+						"value": "{{x-lt-signature}}",
+						"type": "default"
+					},
+					{
+						"key": "x-lt-timestamp",
+						"value": "{{x-lt-timestamp}}",
+						"type": "default"
+					},
+					{
+						"key": "x-lt-openKeyId",
+						"value": "{{openKeyId}}",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://openapi.sheincorp.cn/open-api/order/purchase-order-infos?type=1,2&pageSize={{pageSize}}&pageNumber={{pageNumber}}&updateTimeStart={{updateTimeStart}}&updateTimeEnd={{updateTimeEnd}}",
+					"host": [
+						"https://openapi.sheincorp.cn"
+					],
+					"path": [
+						"open-api",
+						"order",
+						"purchase-order-infos"
+					],
+					"query": [
+						{
+							"key": "type",
+							"value": "0,1"
+						},
+						{
+							"key": "pageSize",
+							"value": "200"
+						},
+						{
+							"key": "pageNumber",
+							"value": "1"
+						},
+						{
+							"key": "updateTimeEnd",
+							"value": ""
+						},
+						{
+							"key": "updateTimeStart",
+							"value": ""
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [],
+	"variable": [
+		{
+			"key": "domain",
+			"value": "https://openapi.sheincorp.cn",
+			"type": "default"
+		}
+	]
+}

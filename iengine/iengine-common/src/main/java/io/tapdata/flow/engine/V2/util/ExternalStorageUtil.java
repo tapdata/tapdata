@@ -52,20 +52,20 @@ public class ExternalStorageUtil {
 	private static final Logger logger = LogManager.getLogger(ExternalStorageUtil.class);
 	public static final int DEFAULT_IN_MEM_SIZE = 100;
 
-	public synchronized static void initHZMapStorage(ExternalStorageDto externalStorageDto, String name, Config config) {
+	public synchronized static void initHZMapStorage(ExternalStorageDto externalStorageDto, String referenceId, String name, Config config) {
 		addConfig(externalStorageDto, ConstructType.IMAP, name);
 		try {
-			PersistenceStorage.getInstance().initMapStoreConfig(config, name);
+			PersistenceStorage.getInstance().initMapStoreConfig(referenceId, config, name);
 			logger.info("Init IMap store config succeed, name: " + name);
 		} catch (Exception e) {
 			throw new RuntimeException(LOG_PREFIX + "Init hazelcast IMap persistence failed. " + e.getMessage(), e);
 		}
 	}
 
-	public synchronized static void initHZRingBufferStorage(ExternalStorageDto externalStorageDto, String name, Config config) {
+	public synchronized static void initHZRingBufferStorage(ExternalStorageDto externalStorageDto, String referenceId, String name, Config config) {
 		addConfig(externalStorageDto, ConstructType.RINGBUFFER, name);
 		try {
-			PersistenceStorage.getInstance().initRingBufferConfig(config, name);
+			PersistenceStorage.getInstance().initRingBufferConfig(referenceId, config, name);
 			logger.info("Init RingBuffer store config succeed, name: " + name);
 		} catch (Exception e) {
 			throw new RuntimeException(LOG_PREFIX + "Init hazelcast RingBuffer persistence failed. " + e.getMessage(), e);
@@ -132,13 +132,19 @@ public class ExternalStorageUtil {
 			throw new IllegalArgumentException(LOG_PREFIX + "Init hazelcast persistence failed" + e.getMessage());
 		}
 		String table = externalStorageDto.getTable();
+		boolean exclusiveCollection = false;
+		if (StringUtils.isBlank(table)) {
+			table = "ExternalStorage_" + constructName;
+			exclusiveCollection = true;
+		}
 		if (StringUtils.isBlank(table)) {
 			throw new IllegalArgumentException(LOG_PREFIX + "Init hazelcast persistence failed. Collection name cannot be empty");
 		}
 		PersistenceMongoDBConfig mongoDBConfig = PersistenceMongoDBConfig.create(constructType, constructName)
 				.uri(uri)
 				.database(mongoClientURI.getDatabase())
-				.collection(table);
+				.collection(table)
+				.exclusiveCollection(exclusiveCollection);
 		mongoDBConfig.setInMemSize(DEFAULT_IN_MEM_SIZE);
 		return mongoDBConfig;
 	}

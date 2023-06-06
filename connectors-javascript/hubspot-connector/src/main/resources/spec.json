@@ -3,7 +3,9 @@
     "name": "HubSpot",
     "icon": "icon/hubspot.png",
     "doc" : "${doc}",
-    "id": "hubspot"
+    "id": "hubspot",
+    "authentication": "Alpha",
+    "tags": ["SaaS"]
   },
   "configOptions": {
     "pdkExpansion": [],

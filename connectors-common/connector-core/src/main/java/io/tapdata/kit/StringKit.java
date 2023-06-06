@@ -1,5 +1,7 @@
 package io.tapdata.kit;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
@@ -270,6 +272,30 @@ public class StringKit {
             return str.substring(0, str.length() - 1);
         } else {
             return str;
+        }
+    }
+
+    public static String md5(String str) {
+        if (str == null || str.isEmpty()) return null;
+
+        MessageDigest md;
+        try {
+            md = MessageDigest.getInstance("MD5");
+            md.update(str.getBytes());
+            byte[] hash = md.digest();
+
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                if ((255 & b) < 16) {
+                    hexString.append("0").append(Integer.toHexString(255 & b));
+                } else {
+                    hexString.append(Integer.toHexString(255 & b));
+                }
+            }
+
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException var6) {
+            return null;
         }
     }
 }

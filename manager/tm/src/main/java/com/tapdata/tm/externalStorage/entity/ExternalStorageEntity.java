@@ -16,10 +16,11 @@ public class ExternalStorageEntity extends BaseEntity {
 	private String name;
 	private String type;
 	private String uri;
+	@Deprecated
 	private String table;
 	private Integer ttlDay;
-	private boolean canEdit = false;
-	private boolean canDelete = true;
+	private Boolean canEdit = true;
+	private Boolean canDelete;
     private boolean defaultStorage = false;
-	private boolean init = false;
+	private Boolean init;
 }

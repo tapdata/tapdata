@@ -217,91 +217,115 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 					});
 			return;
 		}
-		CommandInfo commandInfo = commandReceived.getCommandInfo();
+		String associateId = UUID.randomUUID().toString();
+		CommandInfo commandInfo;
+		PDKUtils pdkUtils;
+		PDKUtils.PDKInfo pdkInfo;
 		try {
-			PDKUtils pdkUtils = InstanceFactory.instance(PDKUtils.class);
+			commandInfo = commandReceived.getCommandInfo();
+			pdkUtils = InstanceFactory.instance(PDKUtils.class);
 			if(pdkUtils == null)
 				throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "pdkUtils is null");
 			if(commandInfo == null)
 				throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "commandInfo is null");
-			if(commandInfo.getType() == null || commandInfo.getCommand() == null || commandInfo.getPdkHash() == null)
-				throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "some parameter are null, type {}, command {}, pdkHash {}", commandInfo.getType(), commandInfo.getCommand(), commandInfo.getPdkHash());
-
-			String associateId = UUID.randomUUID().toString();
-			PDKUtils.PDKInfo pdkInfo = pdkUtils.downloadPdkFileIfNeed(commandInfo.getPdkHash());
-			ConnectionNode connectionNode = PDKIntegration.createConnectionConnectorBuilder()
-//					.withConnectionConfig(DataMap.create(commandInfo.getConnectionConfig()))
-					.withGroup(pdkInfo.getGroup())
-					.withPdkId(pdkInfo.getPdkId())
-					.withAssociateId(associateId)
-					.withVersion(pdkInfo.getVersion())
-					.withLog(new TapLog())
-					.build();
-
-			try {
-				if(commandInfo.getType().equals(CommandInfo.TYPE_NODE) && commandInfo.getConnectionConfig() == null && commandInfo.getConnectionId() != null) {
-					commandInfo.setConnectionConfig(pdkUtils.getConnectionConfig(commandInfo.getConnectionId()));
-				}
-				CommandCallbackFunction commandCallbackFunction = connectionNode.getConnectionFunctions().getCommandCallbackFunction();
-				if(commandCallbackFunction == null) {
-					EngineMessageResultEntity engineMessageResultEntity = new EngineMessageResultEntity()
-							.id(commandInfo.getId())
-							.code(NetErrors.PDK_NOT_SUPPORT_COMMAND_CALLBACK)
-							.message("pdkId " + pdkInfo.getPdkId() + " doesn't support CommandCallbackFunction");
-					imClient.sendData(new IncomingData().message(engineMessageResultEntity))
-							.exceptionally(throwable -> {
-								TapLogger.error(TAG, "Send CommandResultEntity(PDK_NOT_SUPPORT_COMMAND_CALLBACK) failed, {} CommandResultEntity {}", throwable.getMessage(), engineMessageResultEntity);
-								return null;
-							});
-					return;
-//			return new Result().code(NetErrors.PDK_NOT_SUPPORT_COMMAND_CALLBACK).description("pdkId " + commandInfo.getPdkId() + " doesn't support CommandCallbackFunction");
-				}
-				String threadName = String.format("COMMAND_CALLBACK_%s_%s_%s", pdkInfo.getPdkId(), commandInfo.getCommand(),associateId);
-				DisposableThreadGroup threadGroup = new DisposableThreadGroup(DisposableType.COMMAND, threadName);
-				DisposableThreadGroupBase entity = new CommandEntity()
-						.command(commandInfo.getCommand())
-						.time(System.nanoTime())
-						.associateId(associateId)
-						.connectionName(commandInfo.getConnectionId())
-						.type(commandInfo.getType())
-						.databaseType(pdkInfo.getPdkId())
-						.pdkHash(commandInfo.getPdkHash())
-						;
-				new Thread(threadGroup, AspectRunnableUtil.aspectRunnable(new DisposableThreadGroupAspect<>(associateId,threadGroup,entity), () -> {
-					AtomicReference<EngineMessageResultEntity> mapAtomicReference = new AtomicReference<>();
-					PDKInvocationMonitor.invoke(connectionNode, PDKMethod.COMMAND_CALLBACK,
-							() -> {
-								CommandResult commandResult = commandCallbackFunction.filter(connectionNode.getConnectionContext(), commandInfo);
-								mapAtomicReference.set(new EngineMessageResultEntity()
-										.content(commandResult != null ? (commandResult.getData() != null ? commandResult.getData() : commandResult.getResult()) : null)
-										.code(Data.CODE_SUCCESS)
-										.id(commandInfo.getId()));
-							}, TAG);
-					imClient.sendData(new IncomingData().message(mapAtomicReference.get())).exceptionally(throwable -> {
-						TapLogger.error(TAG, "Send CommandResultEntity failed, {} CommandResultEntity {}", throwable.getMessage(), mapAtomicReference.get());
-						return null;
-					});
-				}), threadName).start();
-
-			} finally {
-				connectionNode.unregisterMemoryFetcher();
-				PDKIntegration.releaseAssociateId(associateId);
-			}
-		} catch(Throwable throwable) {
-			int code = NetErrors.COMMAND_EXECUTE_FAILED;
-			if(throwable instanceof CoreException) {
-				code = ((CoreException) throwable).getCode();
-			}
+			pdkInfo = pdkUtils.downloadPdkFileIfNeed(commandInfo.getPdkHash());
+		} catch (Throwable t) {
 			EngineMessageResultEntity engineMessageResultEntity = new EngineMessageResultEntity()
-					.id(commandInfo != null ? commandInfo.getId() : null)
-					.code(code)
-					.message(throwable.getMessage());
+					.code(NetErrors.MISSING_DOWNLOAD_PDK_FAILED)
+					.message("Download pdk failed");
 			imClient.sendData(new IncomingData().message(engineMessageResultEntity))
-					.exceptionally(throwable1 -> {
-						TapLogger.error(TAG, "Send CommandResultEntity(COMMAND_EXECUTE_FAILED) failed, {} CommandResultEntity {}", throwable1.getMessage(), engineMessageResultEntity);
+					.exceptionally(throwable -> {
+						TapLogger.error(TAG, "Send EngineMessageResultEntity(DOWNLOAD_PDK_FAILED) failed, {} engineMessageResultEntity {}", throwable.getMessage(), engineMessageResultEntity);
 						return null;
 					});
+			return;
 		}
+
+		String threadName = String.format("COMMAND_CALLBACK_%s_%s_%s", pdkInfo.getPdkId(), commandInfo.getCommand(),associateId);
+		DisposableThreadGroup threadGroup = new DisposableThreadGroup(DisposableType.COMMAND, threadName);
+		DisposableThreadGroupBase entity = new CommandEntity()
+				.command(commandInfo.getCommand())
+				.time(System.nanoTime())
+				.associateId(associateId)
+				.connectionName(commandInfo.getConnectionId())
+				.type(commandInfo.getType())
+				.databaseType(pdkInfo.getPdkId())
+				.pdkHash(commandInfo.getPdkHash())
+				;
+		new Thread(threadGroup, AspectRunnableUtil.aspectRunnable(new DisposableThreadGroupAspect<>(associateId,threadGroup,entity), () -> {
+			try {
+				if(commandInfo.getType() == null || commandInfo.getCommand() == null || commandInfo.getPdkHash() == null)
+					throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "some parameter are null, type {}, command {}, pdkHash {}", commandInfo.getType(), commandInfo.getCommand(), commandInfo.getPdkHash());
+
+				ConnectionNode connectionNode = PDKIntegration.createConnectionConnectorBuilder()
+	//					.withConnectionConfig(DataMap.create(commandInfo.getConnectionConfig()))
+						.withGroup(pdkInfo.getGroup())
+						.withPdkId(pdkInfo.getPdkId())
+						.withAssociateId(associateId)
+						.withVersion(pdkInfo.getVersion())
+						.withLog(new TapLog())
+						.build();
+
+				try {
+					if(commandInfo.getType().equals(CommandInfo.TYPE_NODE) && commandInfo.getConnectionConfig() == null && commandInfo.getConnectionId() != null) {
+						commandInfo.setConnectionConfig(pdkUtils.getConnectionConfig(commandInfo.getConnectionId()));
+					}
+					CommandCallbackFunction commandCallbackFunction = connectionNode.getConnectionFunctions().getCommandCallbackFunction();
+					if(commandCallbackFunction == null) {
+						EngineMessageResultEntity engineMessageResultEntity = new EngineMessageResultEntity()
+								.id(commandInfo.getId())
+								.code(NetErrors.PDK_NOT_SUPPORT_COMMAND_CALLBACK)
+								.message("pdkId " + pdkInfo.getPdkId() + " doesn't support CommandCallbackFunction");
+						imClient.sendData(new IncomingData().message(engineMessageResultEntity))
+								.exceptionally(throwable -> {
+									TapLogger.error(TAG, "Send CommandResultEntity(PDK_NOT_SUPPORT_COMMAND_CALLBACK) failed, {} CommandResultEntity {}", throwable.getMessage(), engineMessageResultEntity);
+									return null;
+								});
+						return;
+	//			return new Result().code(NetErrors.PDK_NOT_SUPPORT_COMMAND_CALLBACK).description("pdkId " + commandInfo.getPdkId() + " doesn't support CommandCallbackFunction");
+					}
+
+						AtomicReference<EngineMessageResultEntity> mapAtomicReference = new AtomicReference<>();
+						PDKInvocationMonitor.invoke(connectionNode, PDKMethod.COMMAND_CALLBACK,
+								() -> {
+									CommandResult commandResult = commandCallbackFunction.filter(connectionNode.getConnectionContext(), commandInfo);
+									mapAtomicReference.set(new EngineMessageResultEntity()
+											.content(commandResult != null ? (commandResult.getData() != null ? commandResult.getData() : commandResult.getResult()) : null)
+											.code(Data.CODE_SUCCESS)
+											.id(commandInfo.getId()));
+								}, TAG);
+						imClient.sendData(new IncomingData().message(mapAtomicReference.get())).exceptionally(throwable -> {
+							TapLogger.error(TAG, "Send CommandResultEntity failed, {} CommandResultEntity {}", throwable.getMessage(), mapAtomicReference.get());
+							return null;
+						});
+
+
+				} finally {
+					connectionNode.unregisterMemoryFetcher();
+					PDKIntegration.releaseAssociateId(associateId);
+				}
+			} catch(Throwable throwable) {
+				int code = NetErrors.COMMAND_EXECUTE_FAILED;
+				Object data = null;
+				if(throwable instanceof CoreException) {
+					code = ((CoreException) throwable).getCode();
+					data = ((CoreException) throwable).getData();
+					if (data instanceof CommandResult){
+						data = ((CommandResult)data).getData();
+					}
+				}
+				EngineMessageResultEntity engineMessageResultEntity = new EngineMessageResultEntity()
+						.id(commandInfo != null ? commandInfo.getId() : null)
+						.code(code)
+						.content(data)
+						.message(throwable.getMessage());
+				imClient.sendData(new IncomingData().message(engineMessageResultEntity))
+						.exceptionally(throwable1 -> {
+							TapLogger.error(TAG, "Send CommandResultEntity(COMMAND_EXECUTE_FAILED) failed, {} CommandResultEntity {}", throwable1.getMessage(), engineMessageResultEntity);
+							return null;
+						});
+			}
+		}), threadName).start();
 	}
 
 	private void handleStatus(String contentType, ChannelStatus channelStatus) {

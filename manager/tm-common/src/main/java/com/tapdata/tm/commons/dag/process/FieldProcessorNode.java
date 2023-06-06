@@ -66,7 +66,7 @@ public class FieldProcessorNode extends ProcessorNode {
                 }
                 String operand = operation.getOp();
                 if ("CREATE".equalsIgnoreCase(operand)) {
-                    outputSchema.getFields().add(createField(operation));
+                    outputSchema.getFields().add(createField(this.getId(), schema.getOriginalName(), operation));
                 } else if ("REMOVE".equalsIgnoreCase(operand)) {
                     outputSchema.getFields().removeIf(field ->
                             operation.getId().equals(field.getId()));

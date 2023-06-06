@@ -5,6 +5,7 @@ import io.tapdata.modules.api.net.message.MessageEntity;
 import io.tapdata.modules.api.proxy.data.FetchNewDataResult;
 
 import java.util.List;
+import java.util.Map;
 
 public interface MessageEntityService {
 	void save(MessageEntity message);
@@ -13,6 +14,10 @@ public interface MessageEntityService {
 	String getOffsetByTimestamp(Long startTime);
 
 	FetchNewDataResult getMessageEntityList(String service, String subscribeId, String offset, Integer limit);
+
+	FetchNewDataResult getMessageEntityListDesc(String service, String subscribeId, String offset, Integer limit);
+
+	FetchNewDataResult getMessageEntityList(String service, String subscribeId, String offset, Integer limit, Map<String, Object> sortMap);
 
 	void remove(String service, String subscribeId);
 

@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.TableIndex;
+import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
@@ -142,7 +143,7 @@ public class JoinProcessorNode extends ProcessorNode {
             embeddedField.setJavaType(embeddedDataType);
             embeddedField.setDataType(embeddedDataType);
             embeddedField.setTableName(baseSchema.getOriginalName());
-            embeddedField.setId(new ObjectId().toHexString());
+            embeddedField.setId(MetaDataBuilderUtils.generateFieldId(this.getId(), baseSchema.getOriginalName(), embeddedPath));
             embeddedField.setSource("job_analyze");
 
             final List<Field> baseFields = baseSchema.getFields();

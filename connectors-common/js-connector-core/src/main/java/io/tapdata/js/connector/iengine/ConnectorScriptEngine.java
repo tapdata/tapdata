@@ -1,7 +1,6 @@
 package io.tapdata.js.connector.iengine;
 
 import io.tapdata.entity.script.ScriptOptions;
-import io.tapdata.pdk.apis.error.NotSupportedException;
 
 import javax.script.*;
 import java.io.Reader;
@@ -58,7 +57,7 @@ public class ConnectorScriptEngine implements ScriptEngine, Invocable {
 
     @Override
     public Object eval(Reader reader, ScriptContext context) throws ScriptException {
-        throw new NotSupportedException();
+        throw new RuntimeException("Not supported");
     }
 
     @Override
@@ -68,7 +67,7 @@ public class ConnectorScriptEngine implements ScriptEngine, Invocable {
 
     @Override
     public Object eval(Reader reader) throws ScriptException {
-        throw new NotSupportedException();
+        throw new RuntimeException("Not supported");
     }
 
     @Override
@@ -78,7 +77,7 @@ public class ConnectorScriptEngine implements ScriptEngine, Invocable {
 
     @Override
     public Object eval(Reader reader, Bindings n) throws ScriptException {
-        throw new NotSupportedException();
+        throw new RuntimeException("Not supported");
     }
 
     @Override

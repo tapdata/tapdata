@@ -18,6 +18,7 @@ import com.mongodb.MongoSocketReadTimeoutException;
 import com.mongodb.MongoSocketWriteException;
 import com.mongodb.MongoTimeoutException;
 import com.mongodb.MongoWriteConcernException;
+import com.mongodb.MongoCursorNotFoundException;
 import com.mongodb.MongoWriteException;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
@@ -56,6 +57,7 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ParagraphFormatter;
+import io.tapdata.exception.TapPdkTerminateByServerEx;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.mongodb.entity.MongodbConfig;
 import io.tapdata.mongodb.reader.MongodbStreamReader;
@@ -106,8 +108,10 @@ import org.bson.types.Symbol;
 import java.io.Closeable;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -494,7 +498,7 @@ public class MongodbConnector extends ConnectorBase {
 		connectorFunctions.supportBatchRead(this::batchRead);
 		connectorFunctions.supportBatchCount(this::batchCount);
 		connectorFunctions.supportCreateIndex(this::createIndex);
-//		connectorFunctions.supportCreateTableV2(this::createTableV2);
+		connectorFunctions.supportCreateTableV2(this::createTableV2);
 		connectorFunctions.supportStreamRead(this::streamRead);
 		connectorFunctions.supportTimestampToStreamOffset(this::streamOffset);
 		connectorFunctions.supportErrorHandleFunction(this::errorHandle);
@@ -511,6 +515,20 @@ public class MongodbConnector extends ConnectorBase {
 		// TODO: 为 分片集群建表, schema 约束建表预留位置
 		CreateTableOptions createTableOptions = new CreateTableOptions();
 		createTableOptions.setTableExists(false);
+
+		TapTable table = tapCreateTableEvent.getTable();
+		Collection<String> pks = table.primaryKeys();
+		if (CollectionUtils.isNotEmpty(pks) && (pks.size() > 1 || !"_id".equals(pks.iterator().next()))) {
+			List<TapIndex> tapIndices = new ArrayList<>();
+			Iterator<String> iterator = pks.iterator();
+			while (iterator.hasNext()) {
+				String pk = iterator.next();
+				TapIndex tapIndex = new TapIndex().indexField(new TapIndexField().name(pk).fieldAsc(true));
+				tapIndices.add(tapIndex);
+			}
+			TapCreateIndexEvent tapCreateIndexEvent = new TapCreateIndexEvent().indexList(tapIndices);
+			createIndex(tapConnectorContext, table, tapCreateIndexEvent);
+		}
 		return createTableOptions;
 	}
 
@@ -689,6 +707,7 @@ public class MongodbConnector extends ConnectorBase {
 				|| null != matchThrowable(throwable, MongoNodeIsRecoveringException.class)
 				|| null != matchThrowable(throwable, MongoNotPrimaryException.class)
 				|| null != matchThrowable(throwable, MongoServerUnavailableException.class)
+				|| null != matchThrowable(throwable, MongoCursorNotFoundException.class)
 				|| null != matchThrowable(throwable, MongoQueryException.class)
 				|| null != matchThrowable(throwable, MongoCommandException.class)
 				|| null != matchThrowable(throwable, MongoInterruptedException.class)) {
@@ -787,25 +806,32 @@ public class MongodbConnector extends ConnectorBase {
 	 * @param writeListResultConsumer
 	 */
 	private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
-		if (mongodbWriter == null) {
-			synchronized (this) {
-				if (mongodbWriter == null) {
-					mongodbWriter = new MongodbWriter(connectorContext.getGlobalStateMap(), mongoConfig, mongoClient);
-					ConnectorCapabilities connectorCapabilities = connectorContext.getConnectorCapabilities();
-					if (null != connectorCapabilities) {
-						mongoConfig.setInsertDmlPolicy(null == connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY) ?
-								ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS : connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY));
-						mongoConfig.setUpdateDmlPolicy(null == connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY) ?
-								ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS : connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY));
-					} else {
-						mongoConfig.setInsertDmlPolicy(ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS);
-						mongoConfig.setUpdateDmlPolicy(ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS);
+		try {
+			if (mongodbWriter == null) {
+				synchronized (this) {
+					if (mongodbWriter == null) {
+						mongodbWriter = new MongodbWriter(connectorContext.getGlobalStateMap(), mongoConfig, mongoClient);
+						ConnectorCapabilities connectorCapabilities = connectorContext.getConnectorCapabilities();
+						if (null != connectorCapabilities) {
+							mongoConfig.setInsertDmlPolicy(null == connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY) ?
+									ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS : connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY));
+							mongoConfig.setUpdateDmlPolicy(null == connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY) ?
+									ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS : connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY));
+						} else {
+							mongoConfig.setInsertDmlPolicy(ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS);
+							mongoConfig.setUpdateDmlPolicy(ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS);
+						}
 					}
 				}
 			}
-		}
 
-		mongodbWriter.writeRecord(tapRecordEvents, table, writeListResultConsumer);
+			mongodbWriter.writeRecord(tapRecordEvents, table, writeListResultConsumer);
+		} catch (Throwable e) {
+			if (e instanceof MongoTimeoutException) {
+				throw new TapPdkTerminateByServerEx(connectorContext.getId(), e);
+			}
+			throw e;
+		}
 	}
 
 	private void queryByAdvanceFilter(TapConnectorContext connectorContext, TapAdvanceFilter tapAdvanceFilter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
@@ -816,6 +842,9 @@ public class MongodbConnector extends ConnectorBase {
 		if (match != null) {
 			for (Map.Entry<String, Object> entry : match.entrySet()) {
 				TapField tapField = map.get(entry.getKey());
+				if (null == tapField) {
+					throw new RuntimeException(String.format("The field '%s'.'%s' does not exist with set match", table.getName(), entry.getKey()));
+				}
 				entry.setValue(formatValue(tapField, entry.getKey(), entry.getValue()));
 				bsonList.add(eq(entry.getKey(), entry.getValue()));
 			}
@@ -825,6 +854,9 @@ public class MongodbConnector extends ConnectorBase {
 		if (ops != null) {
 			for (QueryOperator op : ops) {
 				TapField tapField = map.get(op.getKey());
+				if (null == tapField) {
+					throw new RuntimeException(String.format("The field '%s'.'%s' does not exist with set query operator", table.getName(), op.getKey()));
+				}
 				op.setValue(formatValue(tapField, op.getKey(), op.getValue()));
 				switch (op.getOperator()) {
 					case QueryOperator.GT:
@@ -995,48 +1027,55 @@ public class MongodbConnector extends ConnectorBase {
 	 * @param tapReadOffsetConsumer
 	 */
 	private void batchRead(TapConnectorContext connectorContext, TapTable table, Object offset, int eventBatchSize, BiConsumer<List<TapEvent>, Object> tapReadOffsetConsumer) throws Throwable {
-		List<TapEvent> tapEvents = list();
-		MongoCursor<Document> mongoCursor;
-		MongoCollection<Document> collection = getMongoCollection(table.getId());
-		final int batchSize = eventBatchSize > 0 ? eventBatchSize : 5000;
-		if (offset == null) {
-			mongoCursor = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize).iterator();
-		} else {
-			MongoBatchOffset mongoOffset = (MongoBatchOffset) offset;//fromJson(offset, MongoOffset.class);
-			Object offsetValue = mongoOffset.value();
-			if (offsetValue != null) {
-				mongoCursor = collection.find(queryCondition(COLLECTION_ID_FIELD, offsetValue)).sort(Sorts.ascending(COLLECTION_ID_FIELD))
-						.batchSize(batchSize).iterator();
-			} else {
-				mongoCursor = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize).iterator();
-				TapLogger.warn(TAG, "Offset format is illegal {}, no offset value has been found. Final offset will be null to do the batchRead", offset);
-			}
-		}
-
-		Document lastDocument;
-
 		try {
-			while (mongoCursor.hasNext()) {
-				if (!isAlive()) return;
-				lastDocument = mongoCursor.next();
-				tapEvents.add(insertRecordEvent(lastDocument, table.getId()));
-
-				if (tapEvents.size() == eventBatchSize) {
-					Object value = lastDocument.get(COLLECTION_ID_FIELD);
-					batchOffset = new MongoBatchOffset(COLLECTION_ID_FIELD, value);
-					tapReadOffsetConsumer.accept(tapEvents, batchOffset);
-					tapEvents = list();
+			List<TapEvent> tapEvents = list();
+			MongoCursor<Document> mongoCursor;
+			MongoCollection<Document> collection = getMongoCollection(table.getId());
+			final int batchSize = eventBatchSize > 0 ? eventBatchSize : 5000;
+			if (offset == null) {
+				mongoCursor = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize).iterator();
+			} else {
+				MongoBatchOffset mongoOffset = (MongoBatchOffset) offset;//fromJson(offset, MongoOffset.class);
+				Object offsetValue = mongoOffset.value();
+				if (offsetValue != null) {
+					mongoCursor = collection.find(queryCondition(COLLECTION_ID_FIELD, offsetValue)).sort(Sorts.ascending(COLLECTION_ID_FIELD))
+							.batchSize(batchSize).iterator();
+				} else {
+					mongoCursor = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize).iterator();
+					TapLogger.warn(TAG, "Offset format is illegal {}, no offset value has been found. Final offset will be null to do the batchRead", offset);
 				}
 			}
-			if (!tapEvents.isEmpty()) {
-				tapReadOffsetConsumer.accept(tapEvents, null);
+
+			Document lastDocument;
+
+			try {
+				while (mongoCursor.hasNext()) {
+					if (!isAlive()) return;
+					lastDocument = mongoCursor.next();
+					tapEvents.add(insertRecordEvent(lastDocument, table.getId()));
+
+					if (tapEvents.size() == eventBatchSize) {
+						Object value = lastDocument.get(COLLECTION_ID_FIELD);
+						batchOffset = new MongoBatchOffset(COLLECTION_ID_FIELD, value);
+						tapReadOffsetConsumer.accept(tapEvents, batchOffset);
+						tapEvents = list();
+					}
+				}
+				if (!tapEvents.isEmpty()) {
+					tapReadOffsetConsumer.accept(tapEvents, null);
+				}
+			} catch (Exception e) {
+				if (!isAlive() && e instanceof MongoInterruptedException) {
+					// ignored
+				} else {
+					throw e;
+				}
 			}
 		} catch (Exception e) {
-			if (!isAlive() && e instanceof MongoInterruptedException) {
-				// ignored
-			} else {
-				throw e;
+			if (e instanceof MongoTimeoutException) {
+				throw new TapPdkTerminateByServerEx(connectorContext.getId(), e);
 			}
+			throw new RuntimeException(e);
 		}
 	}
 
@@ -1075,6 +1114,9 @@ public class MongodbConnector extends ConnectorBase {
 			} catch (Exception ignored) {
 			}
 			mongodbStreamReader = null;
+			if (e instanceof MongoTimeoutException) {
+				throw new TapPdkTerminateByServerEx(connectorContext.getId(), e);
+			}
 			throw new RuntimeException(e);
 		}
 

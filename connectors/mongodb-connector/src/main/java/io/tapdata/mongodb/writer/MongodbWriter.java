@@ -294,10 +294,10 @@ public class MongodbWriter {
 	private Document getPkFilter(Collection<String> pks, Map<String, Object> record) {
 		Document filter = new Document();
 		for (String pk : pks) {
-			Optional.ofNullable(record.get(pk)).map(v -> {
-				filter.append(pk, v);
-				return null;
-			});
+			if (!record.containsKey(pk)) {
+				throw new RuntimeException("Set filter clause failed, unique key \"" + pk + "\" not exists in data: " + record);
+			}
+			filter.append(pk, record.get(pk));
 		}
 
 		return filter;

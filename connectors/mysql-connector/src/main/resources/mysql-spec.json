@@ -57,9 +57,9 @@
           "x-index": 3,
           "required": true
         },
-        "username": {
+        "user": {
           "type": "string",
-          "title": "${username}",
+          "title": "${user}",
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_username",
@@ -74,12 +74,12 @@
           "apiServerKey": "database_password",
           "x-index": 5
         },
-        "addtionalString": {
+        "extParams": {
           "type": "string",
-          "title": "${addtionalString}",
+          "title": "${extParams}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "apiServerKey": "additionalString",
+          "apiServerKey": "extParams",
           "x-index": 6
         },
         "timezone": {
@@ -209,9 +209,9 @@
       "host": "Host",
       "port": "Port",
       "database": "database",
-      "username": "username",
+      "user": "user",
       "password": "password",
-      "addtionalString": "Connection Parameter String",
+      "extParams": "Connection Parameter String",
       "timezone": "timezone",
       "doc": "docs/mysql_en_US.md"
     },
@@ -219,9 +219,9 @@
       "host": "地址",
       "port": "端口",
       "database": "数据库",
-      "username": "账号",
+      "user": "账号",
       "password": "密码",
-      "addtionalString": "连接参数",
+      "extParams": "连接参数",
       "timezone": "时区",
       "doc": "docs/mysql_zh_CN.md"
     },
@@ -229,9 +229,9 @@
       "host": "地址",
       "port": "端口",
       "database": "數據庫",
-      "username": "賬號",
+      "user": "賬號",
       "password": "密碼",
-      "addtionalString": "連接參數",
+      "extParams": "連接參數",
       "timezone": "時區",
       "doc": "docs/mysql_zh_TW.md"
     }
@@ -484,19 +484,6 @@
         "9999-12-31"
       ],
       "pattern": "yyyy-MM-dd"
-    },
-    "year[($fraction)]": {
-      "to": "TapYear",
-      "range": [
-        "1901",
-        "2155"
-      ],
-      "fraction": [
-        0,
-        4
-      ],
-      "defaultFraction": 4,
-      "pattern": "yyyy"
     },
     "time[($fraction)]": {
       "to": "TapTime",

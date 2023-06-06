@@ -127,7 +127,15 @@ public class MetaDataBuilderUtils {
         return qualifiedName;
     }
 
-    @Data
+	public static String generateFieldId(SourceDto source, String originalName, String fieldName) {
+		return generateFieldId(source == null ? "" : source.get_id(), originalName, fieldName);
+	}
+
+	public static String generateFieldId(String connectionOrNodeId, String tableName, String fieldName) {
+		return connectionOrNodeId + QUALIFIED_NAME_SEPARATOR + tableName + QUALIFIED_NAME_SEPARATOR + fieldName;
+	}
+
+	@Data
     public static class MetaTypeProperty {
         private String prefix;
         private boolean model;
@@ -229,7 +237,7 @@ public class MetaDataBuilderUtils {
                 metadataObj.setCreateSource(createSource);
                 if (newModel != null && CollectionUtils.isNotEmpty(newModel.getFields())) {
                     for (Field field : newModel.getFields()) {
-                        field.setId(StringUtils.isBlank(field.getId()) ? ObjectId.get().toString() : field.getId());
+                        field.setId(StringUtils.isBlank(field.getId()) ? MetaDataBuilderUtils.generateFieldId(newModel.getSource(), tableName, field.getFieldName()) : field.getId());
                             /*field.setIsAutoAllowed(createSource.equals("auto"));
                             field.setSource(createSource);*/
                         field.setIsAutoAllowed(createSource.equals("auto") || createSource.equals("job_analyze"));

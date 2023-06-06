@@ -10,6 +10,7 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.modules.api.net.data.*;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.utils.TapEngineUtils;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.wsclient.modules.imclient.impls.MonitorThread;
 import io.tapdata.wsclient.modules.imclient.impls.PushChannel;
 import io.tapdata.wsclient.utils.EventManager;
@@ -72,12 +73,12 @@ public class WebsocketPushChannel extends PushChannel {
     public void stop() {
         TapLogger.info(TAG, "stopped");
         if(pingFuture != null) {
-            pingFuture.cancel(true);
+            CommonUtils.ignoreAnyError(() -> pingFuture.cancel(true), TAG);
         }
         if(channel != null)
-            channel.disconnect();
+            CommonUtils.ignoreAnyError(() -> channel.disconnect(), TAG);
         if(group != null)
-            group.shutdownGracefully();
+            CommonUtils.ignoreAnyError(() -> group.shutdownGracefully(), TAG);
     }
 
 //    class IOErrorHandler implements ErrorHandler {

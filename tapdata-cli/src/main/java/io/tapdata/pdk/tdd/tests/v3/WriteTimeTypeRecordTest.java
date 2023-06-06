@@ -62,10 +62,10 @@ public class WriteTimeTypeRecordTest extends PDKTestBaseV2 {
     {
         targetTable = table(testTableId)
                 .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-                .add(field("TYPE_DATE", JAVA_Date).tapType(tapDate()))
-                .add(field("TYPE_DATETIME", "Date_Time").tapType(tapDateTime().fraction(3)))
-                .add(field("TYPE_TIME", "Time").tapType(tapTime().withTimeZone(false)))
-                .add(field("TYPE_YEAR", "Year").tapType(tapYear()));
+                .add(field("Type_DATE", JAVA_Date).tapType(tapDate()))
+                .add(field("Type_DATETIME", "Date_Time").tapType(tapDateTime().fraction(3)))
+                .add(field("Type_TIME", "Time").tapType(tapTime().withTimeZone(false)))
+                .add(field("Type_YEAR", "Year").tapType(tapYear()));
     }
 
     private static final int recordCount = 1;

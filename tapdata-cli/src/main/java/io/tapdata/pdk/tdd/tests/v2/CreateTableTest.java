@@ -135,22 +135,22 @@ public class CreateTableTest extends PDKTestBase {
     TapTable getTableForAllTapType() {
         return table(tableNameCreator.tableName())
                 .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-                .add(field("TYPE_ARRAY", JAVA_Array).tapType(tapArray()))
-                .add(field("TYPE_BINARY", JAVA_Binary).tapType(tapBinary().bytes(100L)))
-                .add(field("TYPE_BOOLEAN", JAVA_Boolean).tapType(tapBoolean()))
-                .add(field("TYPE_DATE", JAVA_Date).tapType(tapDate()))
-                .add(field("TYPE_DATETIME", "Date_Time").tapType(tapDateTime().fraction(3)))
-                .add(field("TYPE_MAP", JAVA_Map).tapType(tapMap()))
-                .add(field("TYPE_NUMBER_Long", JAVA_Long).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-                .add(field("TYPE_NUMBER_INTEGER", JAVA_Integer).tapType(tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))))
-                .add(field("TYPE_NUMBER_BigDecimal", JAVA_BigDecimal).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(10000).scale(1000).fixed(true)))
-                .add(field("TYPE_NUMBER_Float", JAVA_Float).tapType(tapNumber().maxValue(BigDecimal.valueOf(Float.MAX_VALUE)).minValue(BigDecimal.valueOf(-Float.MAX_VALUE)).fixed(false).scale(8).precision(38)))
-                .add(field("TYPE_NUMBER_Double", JAVA_Double).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).scale(17).precision(309).fixed(false)))
-                .add(field("TYPE_STRING_1", JAVA_String).tapType(tapString().bytes(20L)))
-                .add(field("TYPE_STRING_2", JAVA_String).tapType(tapString().bytes(20L)))
-                .add(field("TYPE_INT64", "INT64").tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-                .add(field("TYPE_TIME", "Time").tapType(tapTime()))
-                .add(field("TYPE_YEAR", "Year").tapType(tapYear()));
+                .add(field("Type_ARRAY", JAVA_Array).tapType(tapArray()))
+                .add(field("Type_BINARY", JAVA_Binary).tapType(tapBinary().bytes(100L)))
+                .add(field("Type_BOOLEAN", JAVA_Boolean).tapType(tapBoolean()))
+                .add(field("Type_DATE", JAVA_Date).tapType(tapDate()))
+                .add(field("Type_DATETIME", "Date_Time").tapType(tapDateTime().fraction(3)))
+                .add(field("Type_MAP", JAVA_Map).tapType(tapMap()))
+                .add(field("Type_NUMBER_Long", JAVA_Long).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+                .add(field("Type_NUMBER_INTEGER", JAVA_Integer).tapType(tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))))
+                .add(field("Type_NUMBER_BigDecimal", JAVA_BigDecimal).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(10000).scale(1000).fixed(true)))
+                .add(field("Type_NUMBER_Float", JAVA_Float).tapType(tapNumber().maxValue(BigDecimal.valueOf(Float.MAX_VALUE)).minValue(BigDecimal.valueOf(-Float.MAX_VALUE)).fixed(false).scale(8).precision(38)))
+                .add(field("Type_NUMBER_Double", JAVA_Double).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).scale(17).precision(309).fixed(false)))
+                .add(field("Type_STRING_1", JAVA_String).tapType(tapString().bytes(20L)))
+                .add(field("Type_STRING_2", JAVA_String).tapType(tapString().bytes(20L)))
+                .add(field("Type_INT64", "INT64").tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+                .add(field("Type_TIME", "Time").tapType(tapTime()))
+                .add(field("Type_YEAR", "Year").tapType(tapYear()));
     }
 
 
@@ -222,22 +222,22 @@ public class CreateTableTest extends PDKTestBase {
     TapTable getTable() {
         return table(UUID.randomUUID().toString())
                 .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-                .add(field("TYPE_ARRAY", JAVA_Array).tapType(tapArray()))
-                .add(field("TYPE_BINARY", JAVA_Binary).tapType(tapBinary().bytes(100L)))
-                .add(field("TYPE_BOOLEAN", JAVA_Boolean).tapType(tapBoolean()))
-                .add(field("TYPE_DATE", JAVA_Date).tapType(tapDate()))
-                .add(field("TYPE_DATETIME", "Date_Time").tapType(tapDateTime().fraction(3)))
-                .add(field("TYPE_MAP", JAVA_Map).tapType(tapMap()))
-                .add(field("TYPE_NUMBER_Long", JAVA_Long).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-                .add(field("TYPE_NUMBER_INTEGER", JAVA_Integer).tapType(tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))))
-                .add(field("TYPE_NUMBER_BigDecimal", JAVA_BigDecimal).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(10000).scale(100).fixed(true)))
-                .add(field("TYPE_NUMBER_Float", JAVA_Float).tapType(tapNumber().maxValue(BigDecimal.valueOf(Float.MAX_VALUE)).minValue(BigDecimal.valueOf(-Float.MAX_VALUE)).fixed(false).scale(8).precision(38)))
-                .add(field("TYPE_NUMBER_Double", JAVA_Double).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).scale(17).precision(309).fixed(false)))
-                .add(field("TYPE_STRING_1", "STRING(100)").tapType(tapString().bytes(100L)))
-                .add(field("TYPE_STRING_2", "STRING(100)").tapType(tapString().bytes(100L)))
-                .add(field("TYPE_INT64", "INT64").tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-                .add(field("TYPE_TIME", "Time").tapType(tapTime()))
-                .add(field("TYPE_YEAR", "Year").tapType(tapYear()));
+                .add(field("Type_ARRAY", JAVA_Array).tapType(tapArray()))
+                .add(field("Type_BINARY", JAVA_Binary).tapType(tapBinary().bytes(100L)))
+                .add(field("Type_BOOLEAN", JAVA_Boolean).tapType(tapBoolean()))
+                .add(field("Type_DATE", JAVA_Date).tapType(tapDate()))
+                .add(field("Type_DATETIME", "Date_Time").tapType(tapDateTime().fraction(3)))
+                .add(field("Type_MAP", JAVA_Map).tapType(tapMap()))
+                .add(field("Type_NUMBER_Long", JAVA_Long).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+                .add(field("Type_NUMBER_INTEGER", JAVA_Integer).tapType(tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))))
+                .add(field("Type_NUMBER_BigDecimal", JAVA_BigDecimal).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(10000).scale(100).fixed(true)))
+                .add(field("Type_NUMBER_Float", JAVA_Float).tapType(tapNumber().maxValue(BigDecimal.valueOf(Float.MAX_VALUE)).minValue(BigDecimal.valueOf(-Float.MAX_VALUE)).fixed(false).scale(8).precision(38)))
+                .add(field("Type_NUMBER_Double", JAVA_Double).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).scale(17).precision(309).fixed(false)))
+                .add(field("Type_STRING_1", "STRING(100)").tapType(tapString().bytes(100L)))
+                .add(field("Type_STRING_2", "STRING(100)").tapType(tapString().bytes(100L)))
+                .add(field("Type_INT64", "INT64").tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+                .add(field("Type_TIME", "Time").tapType(tapTime()))
+                .add(field("Type_YEAR", "Year").tapType(tapYear()));
     }
 
     @DisplayName("addIndex")//用例3， 建表时增加索引信息进行测试
@@ -276,20 +276,20 @@ public class CreateTableTest extends PDKTestBase {
                     TapAssert.asserts(() -> Assertions.fail(LangUtil.format("createIndex.notFieldMap", tableId))).error(testCase);
                     return;
                 }
-                TapField string1 = fieldMap.get("TYPE_STRING_1");
+                TapField string1 = fieldMap.get("Type_STRING_1");
                 if (null == string1) {
-                    TapAssert.asserts(() -> Assertions.fail(LangUtil.format("createIndex.notSuchField", tableId, "TYPE_STRING_1"))).error(testCase);
+                    TapAssert.asserts(() -> Assertions.fail(LangUtil.format("createIndex.notSuchField", tableId, "Type_STRING_1"))).error(testCase);
                     return;
                 }
-                TapField string2 = fieldMap.get("TYPE_STRING_2");
+                TapField string2 = fieldMap.get("Type_STRING_2");
                 if (null == string2) {
-                    TapAssert.asserts(() -> Assertions.fail(LangUtil.format("createIndex.notSuchField", tableId, "TYPE_STRING_2"))).error(testCase);
+                    TapAssert.asserts(() -> Assertions.fail(LangUtil.format("createIndex.notSuchField", tableId, "Type_STRING_2"))).error(testCase);
                     return;
                 }
 
-                TapField int64 = fieldMap.get("TYPE_INT64");
+                TapField int64 = fieldMap.get("Type_INT64");
                 if (null == int64) {
-                    TapAssert.asserts(() -> Assertions.fail(LangUtil.format("createIndex.notSuchField", tableId, "TYPE_INT64"))).error(testCase);
+                    TapAssert.asserts(() -> Assertions.fail(LangUtil.format("createIndex.notSuchField", tableId, "Type_INT64"))).error(testCase);
                     return;
                 }
 

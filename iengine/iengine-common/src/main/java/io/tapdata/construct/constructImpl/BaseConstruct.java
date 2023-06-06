@@ -1,5 +1,6 @@
 package io.tapdata.construct.constructImpl;
 
+import com.hazelcast.persistence.store.MultiReferenceMap;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.construct.HazelcastConstruct;
 
@@ -10,16 +11,22 @@ import io.tapdata.construct.HazelcastConstruct;
  **/
 public class BaseConstruct<T> implements HazelcastConstruct<T> {
 
+	protected final String referenceId;
 	protected String name;
 	protected Integer ttlSecond;
 	protected ExternalStorageDto externalStorageDto;
 
 	protected BaseConstruct(String name) {
+		this(MultiReferenceMap.DEFAULT_REFERENCE_ID, name);
+	}
+
+	protected BaseConstruct(String referenceId, String name) {
+		this.referenceId = referenceId;
 		this.name = name;
 	}
 
-	protected BaseConstruct(String name, ExternalStorageDto externalStorageDto) {
-		this.name = name;
+	protected BaseConstruct(String referenceId, String name, ExternalStorageDto externalStorageDto) {
+		this(referenceId, name);
 		this.externalStorageDto = externalStorageDto;
 	}
 

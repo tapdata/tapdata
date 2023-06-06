@@ -5,19 +5,20 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
-import com.tapdata.tm.task.bean.LogCollectorDetailVo;
-import com.tapdata.tm.task.bean.LogCollectorEditVo;
-import com.tapdata.tm.task.bean.LogCollectorVo;
-import com.tapdata.tm.task.bean.LogSystemConfigDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.task.bean.*;
+import com.tapdata.tm.task.param.TableLogCollectorParam;
 import com.tapdata.tm.task.service.LogCollectorExtendService;
 import com.tapdata.tm.task.service.LogCollectorService;
 import com.tapdata.tm.task.vo.LogCollectorRelateTaskVo;
+import com.tapdata.tm.utils.Lists;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -55,11 +56,29 @@ public class LogCollectorController extends BaseController {
             filter = new Filter();
         }
         Where where = filter.getWhere();
+        if (where == null) {
+            where = new Where();
+            filter.setWhere(where);
+        }
         String taskName = (String) where.get("taskName");
         String connectionName = (String) where.get("connectionName");
 
+
+        if (where.get("status") == null) {
+            Document statusCondition = new Document();
+            statusCondition.put("$nin", Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING));
+            where.put("status", statusCondition);
+        }
+
+        if (where.get("is_deleted") == null) {
+            Document deleteCondition = new Document();
+            deleteCondition.put("$ne", true);
+            where.put("is_deleted", deleteCondition);
+        }
+        where.put("syncType", "logCollector");
+
         if (StringUtils.isBlank(connectionName)) {
-            return success(logCollectorService.find(taskName, getLoginUser(), filter.getSkip(), filter.getLimit(), filter.getSort()));
+            return success(logCollectorService.find(filter, getLoginUser()));
         } else {
             return success(logCollectorService.findByConnectionName(taskName, connectionName, getLoginUser(), filter.getSkip(), filter.getLimit(), filter.getSort()));
         }
@@ -136,6 +155,60 @@ public class LogCollectorController extends BaseController {
                                                                           @RequestParam(defaultValue = "1") Integer page,
                                                                           @RequestParam(defaultValue = "20") Integer size) {
         return success(logCollectorExtendService.getRelationTask(taskId, type, page, size));
+    }
+
+
+
+    @GetMapping("tableInfos")
+    @Operation(summary = "正在挖掘的表")
+    public ResponseMessage<Page<ShareCdcTableInfo>> tableInfos(@RequestParam("taskId") String taskId, @RequestParam(value = "connectionId", required = false) String connectionId,
+                                                                  @RequestParam(value = "keyword", required = false) String keyword,
+                                                                  @RequestParam(value = "page", defaultValue = "1") Integer page,
+                                                                  @RequestParam(value = "size", defaultValue = "20") Integer size) {
+        Page<ShareCdcTableInfo> connectionInfos = logCollectorService.tableInfos(taskId, connectionId, keyword, page, size, getLoginUser());
+        return success(connectionInfos);
+    }
+
+
+    @GetMapping("excludeTableInfos")
+    @Operation(summary = "已停止挖掘的表")
+    public ResponseMessage<Page<ShareCdcTableInfo>> excludeTableInfos(@RequestParam("taskId") String taskId, @RequestParam(value = "connectionId", required = false) String connectionId,
+                                                                      @RequestParam(value = "keyword", required = false) String keyword,
+                                                                   @RequestParam(value = "page", defaultValue = "1") Integer page,
+                                                                   @RequestParam(value = "size", defaultValue = "20") Integer size) {
+        Page<ShareCdcTableInfo> connectionInfos = logCollectorService.excludeTableInfos(taskId, connectionId, keyword, page, size, getLoginUser());
+        return success(connectionInfos);
+    }
+
+
+    @PostMapping("cancel/merge")
+    @Operation(summary = "取消当前连接的合并")
+    public ResponseMessage<Void> cancelMerge(@RequestParam("taskId") String taskId, @RequestParam("connectionId") String connectionId) {
+
+        logCollectorService.cancelMerge(taskId, connectionId, getLoginUser());
+
+        return success();
+    }
+
+    @PostMapping("exclusionTables/{taskId}")
+    @Operation(summary = "排除表挖掘")
+    public ResponseMessage<Void> exclusionTables(@PathVariable("taskId") String taskId, @RequestBody List<TableLogCollectorParam> params) {
+        logCollectorService.configTables(taskId, params, "exclusion",  getLoginUser());
+        return success();
+    }
+
+	@PostMapping("addTables/{taskId}")
+	@Operation(summary = "增加表挖掘")
+	public ResponseMessage<Void> addTables(@PathVariable("taskId") String taskId, @RequestBody List<TableLogCollectorParam> params) {
+		logCollectorService.configTables(taskId, params, "add", getLoginUser());
+		return success();
+	}
+
+    @GetMapping("connectionIds/{taskId}")
+    @Operation(summary = "查询挖掘任务涉及到的连接信息")
+    public ResponseMessage<List<ShareCdcConnectionInfo>> connections(@PathVariable("taskId") String taskId) {
+        List<ShareCdcConnectionInfo> connectionInfos = logCollectorService.getConnectionIds(taskId, getLoginUser());
+        return success(connectionInfos);
     }
 
 

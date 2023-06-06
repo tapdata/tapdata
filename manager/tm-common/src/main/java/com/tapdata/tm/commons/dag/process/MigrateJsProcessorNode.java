@@ -43,6 +43,9 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
     @EqField
     private String declareScript;
 
+    @EqField/* default value is 0, it's sepresents default JS ; if value is 1, */
+    private Integer jsType;
+
     @Override
     protected List<Schema> loadSchema(List<String> includes) {
         Map<String, List<Schema>> schemaMap = new HashMap<>();
@@ -217,7 +220,7 @@ public class MigrateJsProcessorNode extends MigrateProcessorNode {
                             originField.setPrimaryKey(field.getPrimaryKey());
                             BeanUtil.copyProperties(originField, field);
 
-                            field.setId(new ObjectId().toHexString());
+//                            field.setId(new ObjectId().toHexString());
                             field.setDataTypeTemp(originField.getDataType());
                             field.setOriginalDataType(originField.getDataType());
                             field.setOriginalFieldName(originField.getOriginalFieldName());

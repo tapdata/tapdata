@@ -29,6 +29,7 @@ import org.springframework.stereotype.Component;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Component("targetSettingStrategy")
@@ -93,7 +94,8 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                     if (CollectionUtils.isEmpty(updateConditionFields)) {
                         TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_NAME_UPDATE_ERROR"), name);
                         result.add(log);
-                    } else {
+                    }/* else {
+                    //根据#139501 缺陷转需求，去掉模型中是否包含更新字段的校验。
                         List<MetadataInstancesDto> nodeSchemas = metadataInstancesService.findByNodeId(nodeId, userDetail);
                         Optional.ofNullable(nodeSchemas).flatMap(list -> list.stream().filter(i -> tableNode.getTableName().equals(i.getName())).findFirst()).ifPresent(schema -> {
                             List<String> fields = schema.getFields().stream().map(Field::getFieldName).collect(Collectors.toList());
@@ -103,7 +105,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                                 result.add(log);
                             }
                         });
-                    }
+                    }*/
                 }
             }
 
@@ -171,9 +173,11 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
                     }
                     // check source schema field not support
                     Map<String, PossibleDataTypes> findPossibleDataTypes = metadata.getFindPossibleDataTypes();
+                    Map<String, Field> fieldMap = metadata.getFields().stream().collect(Collectors.toMap(Field::getFieldName, Function.identity()));
                     if (Objects.nonNull(findPossibleDataTypes)) {
                         findPossibleDataTypes.forEach((k, v) -> {
-                            if (Objects.isNull(v.getLastMatchedDataType())) {
+                            Field field = fieldMap.get(k);
+                            if (CollectionUtils.isEmpty(v.getDataTypes()) && field.getDataTypeTemp()!= null && Objects.equals(field.getDataType(), field.getDataTypeTemp())) {
                                 TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "TARGET_SETTING_CHECK_FIELD"), node.getName(), metadata.getName(), k);
                                 result.add(log);
                             }

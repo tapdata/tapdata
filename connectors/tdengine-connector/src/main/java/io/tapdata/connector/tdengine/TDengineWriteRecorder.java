@@ -53,7 +53,7 @@ public class TDengineWriteRecorder extends WriteRecorder {
     }
 
     @Override
-    public void addUpdateBatch(Map<String, Object> after, Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
+    public void addUpdateBatch(Map<String, Object> after, Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) {
 
     }
 
