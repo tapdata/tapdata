@@ -244,114 +244,73 @@
 			"response": []
 		},
 		{
-			"name": "使用Code获取访问令牌",
+			"name": "getAccessTokenByCode",
 			"request": {
 				"method": "POST",
 				"header": [],
 				"url": {
 					"raw": "https://gw.open.1688.com/openapi/http/1/system.oauth2/getToken/:app_key?grant_type=authorization_code&need_refresh_token=true&client_id={{client_id}}&client_secret={{client_secret}}&redirect_uri={{redirect_uri}}&code={{code}}",
 					"protocol": "https",
-					"host": [
-						"gw",
-						"open",
-						"1688",
-						"com"
-					],
-					"path": [
-						"openapi",
-						"http",
-						"1",
-						"system.oauth2",
-						"getToken",
-						":app_key"
-					],
-					"query": [
-						{
-							"key": "grant_type",
-							"value": "authorization_code"
-						},
-						{
-							"key": "need_refresh_token",
-							"value": "true"
-						},
-						{
-							"key": "client_id",
-							"value": "{{client_id}}"
-						},
-						{
-							"key": "client_secret",
-							"value": "{{client_secret}}"
-						},
-						{
-							"key": "redirect_uri",
-							"value": "{{redirect_uri}}"
-						},
-						{
-							"key": "code",
-							"value": "{{code}}"
-						}
-					],
-					"variable": [
-						{
-							"key": "app_key",
-							"value": ""
-						}
-					]
+					"host": ["gw", "open", "1688", "com"],
+					"path": ["openapi", "http", "1", "system.oauth2", "getToken", ":app_key"],
+					"query": [{"key": "grant_type", "value": "authorization_code"}, {"key": "need_refresh_token", "value": "true"}, {"key": "client_id", "value": "{{client_id}}"}, {"key": "client_secret", "value": "{{client_secret}}"}, {"key": "redirect_uri", "value": "{{redirect_uri}}"}, {"key": "code", "value": "{{code}}"}],
+					"variable": [{"key": "app_key", "value": ""}]
 				}
 			},
 			"response": []
 		},
 		{
-			"name": "OrderListOfBuyer",
+			"name": "OrderListOfBuyer-batch",
 			"request": {
 				"method": "POST",
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\"createEndTime\": {{createEndTime}},\"createStartTime\": {{createStartTime}},\"isHis\":true,\"modifyEndTime\":{{modifyEndTime}},\"modifyStartTime\":{{modifyStartTime}}, \"page\": {{page}},\"pageSize\": {{pageSize}},\"needMemoInfo\": true,\"needBuyerAddressAndPhone\": true, \"bizTypes\": [\"yp\",\"cn\",\"ws\",\"yf\",\"fs\",\"cz\",\"ag\",\"hp\",\"gc\",\"supply\",\"nyg\",\"factory\",\"quick\",\"xiangpin\",\"nest\",\"f2f\",\"cyfw\",\"sp\",\"wg\",\"factorysamp\",\"factorybig\"]}",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
-					}
+					"raw": "{}",
+					"options": {"raw": {"language": "json"}}
 				},
 				"url": {
-					"raw": "https://gw.open.1688.com/param2/1/cn.alibaba.open/com.alibaba.trade/alibaba.trade.fastCreateOrder-1/:apiKey?_aop_timestamp={{_aop_timestamp}}&access_token={{access_token}}&_aop_signature={{_aop_signature}}",
+					"raw": "http://gw.open.1688.com:80/openapi/param2/1/com.alibaba.trade/alibaba.trade.getBuyerOrderList/:appKey?_aop_timestamp={{_aop_timestamp}}&access_token={{access_token}}&_aop_signature={{_aop_signature}}&page={{page}}&pageSize={{pageSize}}&needBuyerAddressAndPhone=true&needMemoInfo=true&createStartTime={{createStartTime}}&createEndTime={{createEndTime}}",
 					"protocol": "https",
-					"host": [
-						"gw",
-						"open",
-						"1688",
-						"com"
-					],
-					"path": [
-						"param2",
-						"1",
-						"cn.alibaba.open",
-						"com.alibaba.trade",
-						"alibaba.trade.fastCreateOrder-1",
-						":apiKey"
-					],
-					"query": [
-						{
+					"host": ["gw", "open", "1688", "com"],
+					"path": ["param2", "1", "cn.alibaba.open", "com.alibaba.trade", "alibaba.trade.fastCreateOrder-1", ":appKey"],
+					"query": [{
 							"key": "_aop_timestamp",
-							"value": "{{_aop_timestamp}}"
-						},
-						{
+							"value": "{{_aop_timestamp}}"}, {
 							"key": "access_token",
-							"value": "{{access_token}}"
-						},
-						{
+							"value": "{{access_token}}"}, {
 							"key": "_aop_signature",
-							"value": "{{_aop_signature}}"
-						}
+							"value": "{{_aop_signature}}"}
 					],
-					"variable": [
-						{
-							"key": "apiKey",
-							"value": ""
-						}
-					]
+					"variable": [{"key": "appKey", "value": ""}]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "OrderListOfBuyer-stream",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{}",
+					"options": {"raw": {"language": "json"}}
+				},
+				"url": {
+					"raw": "http://gw.open.1688.com:80/openapi/param2/1/com.alibaba.trade/alibaba.trade.getBuyerOrderList/:appKey?_aop_timestamp={{_aop_timestamp}}&access_token={{access_token}}&_aop_signature={{_aop_signature}}&page={{page}}&pageSize={{pageSize}}&needBuyerAddressAndPhone=true&needMemoInfo=true&modifyStartTime={{modifyStartTime}}&modifyEndTime={{modifyEndTime}}",
+					"protocol": "https",
+					"host": ["gw", "open", "1688", "com"],
+					"path": ["param2", "1", "cn.alibaba.open", "com.alibaba.trade", "alibaba.trade.fastCreateOrder-1", ":appKey"],
+					"query": [{
+							"key": "_aop_timestamp",
+							"value": "{{_aop_timestamp}}"}, {
+							"key": "access_token",
+							"value": "{{access_token}}"}, {
+							"key": "_aop_signature",
+							"value": "{{_aop_signature}}"}
+					],
+					"variable": [{"key": "appKey", "value": ""}]
 				}
 			},
 			"response": []

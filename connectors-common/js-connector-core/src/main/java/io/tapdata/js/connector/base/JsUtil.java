@@ -1,10 +1,10 @@
 package io.tapdata.js.connector.base;
 
 import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.js.connector.base.ali.SecurityUtil;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.function.Function;
@@ -192,10 +192,19 @@ public class JsUtil {
         return bytes;
     }
 
+
+    public String ali1688HmacSha1ToHexStr(String data, String key){
+        return SecurityUtil.hmacSha1ToHexStr(data, key);
+    }
+
     public static void main(String[] args) {
         JsUtil util = new JsUtil();
-        String hmac = util.sha256_HMAC("param2/1/system/currentTime/1000000a1b2", "test123");
+        String data = "param2/1/com.alibaba.trade/alibaba.trade.getBuyerOrderList/8668585_aop_timestamp1686034577415access_tokendb1e0dba-0ccb-4203-bcbf-27fc2e2fa0e1";
+        String hmac = util.sha256_HMAC(data, "**J8uHFtF3MHy");
         //String hexAsStr = util.encodeHexAsStr(hmac.getBytes());
         System.out.println(hmac.toUpperCase());
+        //27B46835E05251D2B0EAE628BB99C8DA9BE73DB8
+
+        System.out.println(SecurityUtil.hmacSha1ToHexStr(data, "**J8uHFtF3MHy"));
     }
 }

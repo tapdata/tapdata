@@ -54,7 +54,7 @@ class ShippingOrder extends DefaultTable {
             }
 
             batchReadSender.send({
-                "afterData": orderInfo,
+                "afterData": handleRecord(orderInfo),
                 "eventType": "i",
                 "tableName": this.tableName
             }, this.tableName, offset1);
@@ -85,7 +85,7 @@ class ShippingOrder extends DefaultTable {
 
             offset1[this.tableName].updateTimeStart = updateTime;
             streamReadSender.send({
-                "afterData": orderInfo,
+                "afterData": handleRecord(orderInfo),
                 "eventType": !isValue(updateTime) || updateTime === addTime ? "i" : "u",
                 "tableName": this.tableName,
             }, this.tableName, offset1);
@@ -150,16 +150,26 @@ class ShippingOrder extends DefaultTable {
         while(isAlive() && offset[this.tableName].hasNext){
             let timeStamp = new Date().getTime();
             let accessToken = getConfig("access_token");
-            let signatureRule = getSignatureRules(secretKey,"param2/1/cn.alibaba.open/com.alibaba.trade/alibaba.trade.fastCreateOrder-1/" + apiKey, {
-                "_aop_timestamp": timeStamp,
-                "access_token": accessToken
-            });
             let apiConfig = {
-                "page": offset[this.tableName].pageIndex,
+                "page": offset[this.tableName].page,
                 "pageSize": 200,
-                "_aop_signature": signatureRule,
-                "_aop_timestamp": BigInt(timeStamp)
+                "_aop_signature": "",
+                "_aop_timestamp": BigInt(timeStamp),
+                "needBuyerAddressAndPhone": true,
+                "needMemoInfo": true
             };
+            //{"createEndTime": {{createEndTime}},"createStartTime": {{createStartTime}},"isHis":true,"modifyEndTime":{{modifyEndTime}},"modifyStartTime":{{modifyStartTime}}, "page": {{page}},"pageSize": {{pageSize}},"needMemoInfo": true,"needBuyerAddressAndPhone": true, "bizTypes": ["yp","cn","ws","yf","fs","cz","ag","hp","gc","supply","nyg","factory","quick","xiangpin","nest","f2f","cyfw","sp","wg","factorysamp","factorybig"]}
+            //page={{page}}&pageSize={{pageSize}}&needBuyerAddressAndPhone=true&needMemoInfo=true&isHis=true
+            let singMap = {
+                "access_token": accessToken,
+                "_aop_timestamp": BigInt(timeStamp),
+
+                "page": offset[this.tableName].page,
+                "pageSize": 200,
+                "needBuyerAddressAndPhone": true,
+                "needMemoInfo": true
+                //"bizTypes": "[\"yp\",\"cn\",\"ws\",\"yf\",\"fs\",\"cz\",\"ag\",\"hp\",\"gc\",\"supply\",\"nyg\",\"factory\",\"quick\",\"xiangpin\",\"nest\",\"f2f\",\"cyfw\",\"sp\",\"wg\",\"factorysamp\",\"factorybig\"]"
+            }
             if (isStreamRead){
                 apiConfig.modifyStartTime = offset[this.tableName].modifyStartTime;
                 apiConfig.modifyEndTime = offset[this.tableName].modifyEndTime;
@@ -167,6 +177,14 @@ class ShippingOrder extends DefaultTable {
                     delete apiConfig.createStartTime;
                 if (apiConfig.createEndTime)
                     delete apiConfig.createEndTime;
+
+                singMap.modifyStartTime = apiConfig.modifyStartTime;
+                singMap.modifyEndTime = apiConfig.modifyEndTime;
+                if (singMap.createStartTime)
+                    delete singMap.createStartTime;
+                if (singMap.createEndTime)
+                    delete singMap.createEndTime;
+                //modifyStartTime={{modifyStartTime}}&modifyEndTime={{modifyEndTime}}
             }else {
                 apiConfig.createStartTime = offset[this.tableName].createStartTime;
                 apiConfig.createEndTime = offset[this.tableName].createEndTime;
@@ -174,9 +192,26 @@ class ShippingOrder extends DefaultTable {
                     delete apiConfig.modifyStartTime;
                 if (apiConfig.modifyEndTime)
                     delete apiConfig.modifyEndTime;
+
+                singMap.createStartTime = apiConfig.createStartTime
+                singMap.createEndTime = apiConfig.createEndTime
+                if (singMap.modifyStartTime)
+                    delete singMap.modifyStartTime;
+                if (singMap.modifyEndTime)
+                    delete singMap.modifyEndTime;
+                //&createStartTime={{createStartTime}}&createEndTime={{createEndTime}}
             }
 
-            let orders = invoker.invoke("OrderListOfBuyer", apiConfig);
+            apiConfig._aop_signature = getSignatureRules(secretKey, "param2/1/com.alibaba.trade/alibaba.trade.getBuyerOrderList/" + apiKey, singMap);
+
+            if (isStreamRead){
+                apiConfig.modifyStartTime = offset[this.tableName].modifyStartTime.replace("+","%2B");
+                apiConfig.modifyEndTime = offset[this.tableName].modifyEndTime.replace("+","%2B");
+            }else {
+                apiConfig.createStartTime = offset[this.tableName].createStartTime.replace("+","%2B");
+                apiConfig.createEndTime = offset[this.tableName].createEndTime.replace("+","%2B");
+            }
+            let orders = invoker.invoke("OrderListOfBuyer-" + (!isStreamRead ?  "batch" : "stream"), apiConfig);
 
             if (!isParam(orders) || null == orders){
                 log.warn("Can not get any order with http response.");
@@ -188,7 +223,7 @@ class ShippingOrder extends DefaultTable {
                 return null;
             }
             let pageList = httpRes.result;
-
+            //log.warn("{}", JSON.stringify(orders.result));
             if (!isValue(pageList)){
                 log.warn("Can not get order list, http code {}{}{}{}",
                     orders.httpCode,
@@ -209,7 +244,7 @@ class ShippingOrder extends DefaultTable {
             let pageSize = offset[this.tableName].pageSize;
 
             try{
-                offset[this.tableName].pageIndex = !isNaN(pageNo) ? (pageNo + 1) : (parseInt(pageNo) + 1);
+                offset[this.tableName].page = !isNaN(pageNo) ? (pageNo + 1) : (parseInt(pageNo) + 1);
                 //log.warn("index: {}, size: {}" , offset[this.tableName].pageIndex, pageList.length)
                 offset[this.tableName].hasNext = (((pageNo - 1) * pageSize + pageList.length) < count);
                 //log.warn("Has next: {}" , offset[this.tableName].hasNext)

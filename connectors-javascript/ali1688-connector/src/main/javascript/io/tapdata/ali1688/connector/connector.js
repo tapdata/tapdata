@@ -48,11 +48,11 @@ function connectionTest(connectionConfig) {
 
     let timeStamp = new Date().getTime();
     let accessToken = getConfig("access_token");
-    let signatureRule = getSignatureRules(secretKey,"param2/1/cn.alibaba.open/com.alibaba.trade/alibaba.trade.fastCreateOrder-1/" + apiKey, {
+    let signatureRule = getSignatureRules(secretKey,"param2/1/com.alibaba.trade/alibaba.trade.getBuyerOrderList/" + appKey, {
         "_aop_timestamp": timeStamp,
         "access_token": accessToken
     });
-    let goods = invoker.invoke("Shopping", {
+    let goods = invoker.invoke("OrderListOfBuyer", {
         "page": 1,
         "pageSize": 1,
         "_aop_signature": signatureRule,
@@ -68,6 +68,8 @@ function connectionTest(connectionConfig) {
 
     let result = goods.result;
     let pageInfo = result.result;
+    //@todo
+    log.warn("orders: {}", JSON.stringify(result))
     isCheck = !isValue(pageInfo);
     checkItems.push({"test":"Debugging the Order API and Check API result",
         "code": isCheck ? -1 : 1,
@@ -89,17 +91,17 @@ function updateToken(connectionConfig, nodeConfig, apiResponse) {
     }
 
     let appKey = connectionConfig.appKey;
-    if (!isParam(apiKey) || null == apiKey || "" === apiKey.trim()){
+    if (!isParam(appKey) || null == appKey || "" === appKey.trim()){
         log.error("The App Key has expired. Please contact technical support personnel");
         return null;
     }
     let token = connectionConfig.refresh_token;
-    if (!isParam(secretKey) || null == secretKey || "" === secretKey.trim()){
+    if (!isParam(token) || null == token || "" === token.trim()){
         log.error("The refresh token has expired. Please re authorize your connection source ");
         return null;
     }
     let appSecret = connectionConfig.secretKey;
-    if (!isParam(secretKey) || null == secretKey || "" === secretKey.trim()){
+    if (!isParam(appSecret) || null == appSecret || "" === appSecret.trim()){
         log.error("The App Secret has expired. Please contact technical support personnel");
         return null;
     }
@@ -127,3 +129,45 @@ function updateToken(connectionConfig, nodeConfig, apiResponse) {
 
 //2：使用J8uHFtF3MHy对签名因子加密，io.tapdata.js.connector.base.JsUtil
 //186DE0E262390646944ADBDB671EE2346759E18E53423B34E834932A9EAAB224
+
+function commandCallback(connectionConfig, nodeConfig, commandInfo) {
+    if (!isValue(commandInfo)){
+        log.info("Not any command info, can not exec command")
+        return ;
+    }
+    let command = commandInfo.command;
+    if (!isValue(command)){
+        log.info("Command type is empty, unable to execute command");
+        return ;
+    }
+    switch (command){
+        case 'OAuth':
+            let config = connectionConfig.get("__TAPDATA_CONFIG");
+            log.warn("Value: appKey- {} , secretKey- {}, code- {}", config.get("appKey"), config.get("secretKey"), config.get("code"));
+            let clientInfo = {
+                "app_key": config.get("appKey"),
+                "client_id": config.get("appKey"),
+                "client_secret": config.get("secretKey"),
+                "redirect_uri": "https://redirect.tapdata.io/oauth/complete/ali1688",
+                "code": connectionConfig.get("code")
+            };
+            let getToken = invoker.invokeWithoutIntercept("getAccessTokenByCode", clientInfo);
+            if (getToken.result) {
+                connectionConfig.refresh_token = getToken.result.refresh_token;
+                connectionConfig.access_token = getToken.result.access_token;
+            } else {
+              throw (isValue(getToken.error) ? getToken.error : "OAuth error") +
+                  (isValue(getToken.error_description)?(", errorMessage:" + getToken.error_description) : "")
+            }
+            log.warn("code: {}", JSON.stringify(getToken.result))
+            return connectionConfig;
+    }
+}
+
+function getFromMap(map, key){
+    if (map.get) {
+        return map.get(key);
+    }else {
+        return map[key];
+    }
+}
