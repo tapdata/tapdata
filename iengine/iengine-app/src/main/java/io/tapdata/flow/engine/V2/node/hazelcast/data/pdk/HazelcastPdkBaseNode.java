@@ -46,7 +46,11 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -62,7 +66,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	protected SyncProgress syncProgress;
 	protected String associateId;
 	protected TapLogger.LogListener logListener;
-	private final List<PDKMethodInvoker> pdkMethodInvokerList = new ArrayList<>();
+	private final List<PDKMethodInvoker> pdkMethodInvokerList = new CopyOnWriteArrayList<>();
 
 	protected Integer readBatchSize;
 
