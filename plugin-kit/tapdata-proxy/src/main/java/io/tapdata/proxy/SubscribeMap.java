@@ -137,7 +137,25 @@ public class SubscribeMap implements MemoryFetcher {
 		return subscribeIdSessionMap;
 	}
 
-	public Map<EngineSessionHandler, List<String>> getSessionSubscribeIdsMap(Set<String> cachingChangedSubscribeIds) {
+	public Map<EngineSessionHandler, List<String>> getSessionSubscribeIdsMapByAnyOne(Set<String> cachingChangedSubscribeIds) {
+		Map<EngineSessionHandler, List<String>> sessionSubscribeIdsMap = new HashMap<>();
+		for(String subscribeId : cachingChangedSubscribeIds) {
+			List<EngineSessionHandler> engineSessionHandlers = subscribeIdSessionMap.get(subscribeId);
+			if(engineSessionHandlers != null) {
+				for(EngineSessionHandler engineSessionHandler : engineSessionHandlers) {
+					List<String> list = sessionSubscribeIdsMap.get(engineSessionHandler);
+					if(list == null)
+						list = sessionSubscribeIdsMap.computeIfAbsent(engineSessionHandler, engineSessionHandler1 -> new ArrayList<>());
+					if(!list.contains(subscribeId)) {
+						list.add(subscribeId);
+					}
+				}
+			}
+		}
+		return sessionSubscribeIdsMap;
+	}
+
+	public Map<EngineSessionHandler, List<String>> getSessionSubscribeIdsMapByAll(Set<String> cachingChangedSubscribeIds) {
 		Map<EngineSessionHandler, List<String>> sessionSubscribeIdsMap = null;
 		for(String subscribeId : cachingChangedSubscribeIds) {
 			List<EngineSessionHandler> engineSessionHandlers = subscribeIdSessionMap.get(subscribeId);
