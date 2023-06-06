@@ -363,7 +363,7 @@ public abstract class LogMiner implements ILogMiner {
         } else if (SqlConstant.REDO_LOG_OPERATION_UPDATE.equals(operation)) {
             try {
                 String currentBetweenSetAndWhere = StringKit.subStringBetweenTwoString(redoLogContent.getSqlRedo(), "set", "where");
-                if (EmptyKit.isBlank(currentBetweenSetAndWhere) && EmptyKit.isEmpty(redoLogContent.getRedoRecord())) {
+                if (EmptyKit.isBlank(currentBetweenSetAndWhere)) {
                     return true;
                 }
                 Iterator<String> keyIter = redoLogContents.keySet().iterator();
