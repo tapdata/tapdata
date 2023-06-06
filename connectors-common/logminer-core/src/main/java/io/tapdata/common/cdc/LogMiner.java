@@ -335,7 +335,7 @@ public abstract class LogMiner implements ILogMiner {
 
     private boolean needToAborted(String operation, RedoLogContent redoLogContent, Map<String, List> redoLogContents) {
         boolean needToAborted = false;
-        if (EmptyKit.isNotBlank(redoLogContent.getSqlUndo()) || EmptyKit.isNotEmpty(redoLogContent.getRedoRecord())) {
+        if (EmptyKit.isNotBlank(redoLogContent.getSqlUndo())) {
             return false;
         }
         String rowId = redoLogContent.getRowId();
@@ -363,7 +363,7 @@ public abstract class LogMiner implements ILogMiner {
         } else if (SqlConstant.REDO_LOG_OPERATION_UPDATE.equals(operation)) {
             try {
                 String currentBetweenSetAndWhere = StringKit.subStringBetweenTwoString(redoLogContent.getSqlRedo(), "set", "where");
-                if (EmptyKit.isBlank(currentBetweenSetAndWhere) && EmptyKit.isEmpty(redoLogContent.getRedoRecord())) {
+                if (EmptyKit.isBlank(currentBetweenSetAndWhere)) {
                     return true;
                 }
                 Iterator<String> keyIter = redoLogContents.keySet().iterator();
