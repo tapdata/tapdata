@@ -101,14 +101,14 @@ class ShippingOrder extends DefaultTable {
                     "hasNext":true,
                     "page": 1,
                     "pageSize": 50,
-                    "createEndTime": dateUtils.timeStamp2Date(BigInt(new Date().getTime() + 3600000*8), "yyyyMMddHHmmsssss") + "+0800",
+                    "createEndTime": dateUtils.timeStamp2Date(BigInt(new Date().getTime()), "yyyyMMddHHmmsssss") + "+0800",
                     "createStartTime":"19700101000000000+0800"
                 };
         }
         if (!isValue(offset[this.tableName].hasNext) || !(typeof (offset[this.tableName].hasNext) === 'boolean')) offset[this.tableName].hasNext = true;
         if (!isValue(offset[this.tableName].page) || !(typeof (offset[this.tableName].page) === 'number')) offset[this.tableName].page = 1;
         if (!isValue(offset[this.tableName].pageSize) || !(typeof (offset[this.tableName].pageSize) === 'number')) offset[this.tableName].pageSize = 200;
-        if (!isValue(offset[this.tableName].createEndTime)) offset[this.tableName].createEndTime = dateUtils.timeStamp2Date(BigInt(new Date().getTime() + 3600000*8), "yyyyMMddHHmmsssss") + "+0800";
+        if (!isValue(offset[this.tableName].createEndTime)) offset[this.tableName].createEndTime = dateUtils.timeStamp2Date(BigInt(new Date().getTime()), "yyyyMMddHHmmsssss") + "+0800";
         if (!isValue(offset[this.tableName].createStartTime)) offset[this.tableName].createStartTime = '19700101000000000+0800';
         return offset;
     }
@@ -124,13 +124,13 @@ class ShippingOrder extends DefaultTable {
                 "page": 1,
                 "pageSize": 50,
                 "modifyEndTime": "29991231235959000+0800",
-                "modifyStartTime": dateUtils.timeStamp2Date(BigInt(0 !== timeStream ? (timeStream + 3600000*8) : (new Date().getTime() + 3600000*8)), "yyyyMMddHHmmsssss") + '+0800',
+                "modifyStartTime": dateUtils.timeStamp2Date(BigInt(0 !== timeStream ? timeStream : new Date().getTime()), "yyyyMMddHHmmsssss") + '+0800',
             }
         }
         if (!isValue(offset[this.tableName].hasNext) || !(typeof (offset[this.tableName].hasNext) === 'boolean')) offset[this.tableName].hasNext = true;
         if (!isValue(offset[this.tableName].page) || !(typeof (offset[this.tableName].page) === 'number')) offset[this.tableName].page = 1;
         if (!isValue(offset[this.tableName].pageSize) || !(typeof (offset[this.tableName].pageSize) === 'number')) offset[this.tableName].pageSize = 200;
-        if (!isValue(offset[this.tableName].modifyStartTime)) offset[this.tableName].modifyStartTime = dateUtils.timeStamp2Date(BigInt(0 !== timeStream ? (timeStream + 3600000*8) : (new Date().getTime() + 3600000*8)), "yyyyMMddHHmmsssss") + '+0800';
+        if (!isValue(offset[this.tableName].modifyStartTime)) offset[this.tableName].modifyStartTime = dateUtils.timeStamp2Date(BigInt(0 !== timeStream ? timeStream : new Date().getTime()), "yyyyMMddHHmmsssss") + '+0800';
         if (!isValue(offset[this.tableName].modifyEndTime)) offset[this.tableName].modifyEndTime = '29991231235959000+0800';
         return offset;
     }

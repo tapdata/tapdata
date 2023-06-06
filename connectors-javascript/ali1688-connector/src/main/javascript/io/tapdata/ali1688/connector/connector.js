@@ -49,14 +49,25 @@ function connectionTest(connectionConfig) {
     let timeStamp = new Date().getTime();
     let accessToken = getConfig("access_token");
     let signatureRule = getSignatureRules(secretKey,"param2/1/com.alibaba.trade/alibaba.trade.getBuyerOrderList/" + appKey, {
-        "_aop_timestamp": timeStamp,
-        "access_token": accessToken
+        "page": 1,
+        "pageSize": 1,
+        "_aop_timestamp": BigInt(timeStamp),
+        "access_token": accessToken,
+        "needBuyerAddressAndPhone": true,
+        "needMemoInfo": true,
+        "createStartTime":"19700101000000000+0800",
+        "createEndTime":"29991231235959000+0800"
     });
-    let goods = invoker.invoke("OrderListOfBuyer", {
+    let goods = invoker.invoke("OrderListOfBuyer-batch", {
         "page": 1,
         "pageSize": 1,
         "_aop_signature": signatureRule,
-        "_aop_timestamp": BigInt(timeStamp)
+        "_aop_timestamp": BigInt(timeStamp),
+        "access_token": accessToken,
+        "needBuyerAddressAndPhone": true,
+        "needMemoInfo": true,
+        "createStartTime":"19700101000000000%2B0800",
+        "createEndTime":"29991231235959000%2B0800"
     });
 
     isCheck = !isParam(goods) || null == goods || !isParam(goods.result) || null == goods.result;
