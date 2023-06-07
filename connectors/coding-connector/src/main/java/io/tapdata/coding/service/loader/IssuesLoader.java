@@ -376,6 +376,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                     .builder("Action", "DescribeIssueListWithPage")
                     .builder("ProjectName", connectionConfig.getString("projectName"))
                     .builder("PageSize", 1)
+                    .builder("ShowSubIssues", true)
                     .builder("PageNumber", 1);
             try {
                 DataMap nodeConfigMap = this.tapConnectionContext.getNodeConfig();
@@ -551,6 +552,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 .builder("SortKey", this.sortKey(isStreamRead))
                 .builder("PageSize", readSize)
                 .builder("SortValue", "ASC")
+                .builder("ShowSubIssues", true)
                 .builder("IssueType",
                         Checker.isNotEmpty(codingConfig) && Checker.isNotEmpty(codingConfig.getIssueType()) ?
                                 IssueType.verifyType(codingConfig.getIssueType().getName())
@@ -578,6 +580,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 .builder("PageSize", readSize)
                 .builder("PageNumber", 1)
                 .builder("SortValue", "ASC")
+                .builder("ShowSubIssues", true)
                 .builder("IssueType",
                         Checker.isNotEmpty(codingConfig) && Checker.isNotEmpty(codingConfig.getIssueType()) ?
                                 IssueType.verifyType(codingConfig.getIssueType().getName())
@@ -708,6 +711,8 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                     lastTimeSplitIssueCode = new HashSet<>();
                 }
                 lastTimeSplitIssueCode.add(issueDetailHash);
+            }else {
+                tapConnectionContext.getLog().warn("{} will be ignore.", issueDetailHash);
             }
             offset.getTableUpdateTimeMap().put(TABLE_NAME, referenceTime);
             if (events.size() != readSize) continue;
@@ -750,6 +755,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 .builder("ProjectName", projectName)
                 .builder("SortKey", "UPDATED_AT")
                 .builder("PageSize", readSize)
+                .builder("ShowSubIssues", true)
                 .builder("SortValue", "ASC");
         if (Checker.isNotEmpty(this.codingConfig) && Checker.isNotEmpty(this.codingConfig.getIssueType())) {
             pageBody.builder("IssueType", IssueType.verifyType(this.codingConfig.getIssueType().getName()));
