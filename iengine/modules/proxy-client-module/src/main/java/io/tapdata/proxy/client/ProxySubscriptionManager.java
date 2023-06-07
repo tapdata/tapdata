@@ -2,6 +2,7 @@ package io.tapdata.proxy.client;
 
 import cn.hutool.core.collection.ConcurrentHashSet;
 import com.tapdata.constant.ConfigurationCenter;
+import com.tapdata.tm.sdk.available.TmStatusService;
 import io.tapdata.aspect.supervisor.AspectRunnableUtil;
 import io.tapdata.aspect.supervisor.DisposableThreadGroupAspect;
 import io.tapdata.aspect.supervisor.entity.CommandEntity;
@@ -427,7 +428,7 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 			HashSet<String> allKeys = new HashSet<>(keys);
 			if(processId != null)
 				allKeys.add("processId_" + processId);
-			if(userId != null)
+			if(TmStatusService.isEnable() /* isCloud */ && userId != null)
 				allKeys.add("userId_" + userId);
 
 			TapLogger.info(TAG, "syncSubscribeIds, allKeys {}", allKeys);
