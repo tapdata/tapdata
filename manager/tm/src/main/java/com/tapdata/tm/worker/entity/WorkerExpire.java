@@ -16,6 +16,7 @@ public class WorkerExpire extends BaseEntity {
     @Indexed(unique = true)
     private String userId;
     private String shareUser;
-    private String shareUserId;
+    private String shareTmUserId;
+    private String shareTcmUserId;
     private Date expireTime;
 }

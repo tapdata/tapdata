@@ -2,6 +2,7 @@ package com.tapdata.tm.worker.service;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
+import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
@@ -724,7 +725,10 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         WorkerExpire workerExpire = new WorkerExpire();
         workerExpire.setUserId(loginUser.getUserId());
         workerExpire.setShareUser(shareAgentUserRandom);
-        workerExpire.setShareUserId(userService.loadUserByUsername(shareAgentUserRandom).getUserId());
+        UserDetail userDetail = userService.loadUserByUsername(shareAgentUserRandom);
+        Assert.notNull(userDetail, "userDetail is null");
+        workerExpire.setShareTmUserId(userDetail.getUserId());
+        workerExpire.setShareTcmUserId(userDetail.getTcmUserId());
         workerExpire.setExpireTime(DateUtil.offsetDay(new Date(), shareAgentDays));
 
         mongoTemplate.insert(workerExpire);
