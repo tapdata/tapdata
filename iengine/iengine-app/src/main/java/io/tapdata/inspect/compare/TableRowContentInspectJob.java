@@ -125,8 +125,6 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 
 		List<String> sourceKeys = getSortColumns(inspectTask.getSource().getSortColumn());
 		List<String> targetKeys = getSortColumns(inspectTask.getTarget().getSortColumn());
-		sourceKeys = sourceKeys.stream().map(String::toLowerCase).collect(Collectors.toList());
-		targetKeys = targetKeys.stream().map(String::toLowerCase).collect(Collectors.toList());
 		try (DiffDetailCursor diffDetailCursor = new DiffDetailCursor(inspectResultParentId, clientMongoOperator, sourceKeys, targetKeys)) {
 			List<InspectDetail> inspectDetails = new ArrayList<>();
 			long sourceTotal = 0;
@@ -159,10 +157,30 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 					while (moveSource || moveTarget) {
 
 						if (moveSource) {
-							sourceHasNext = sourceCursor.hasNext();
+							if (sourceCursor.hasNext()) {
+								sourceRecord = sourceCursor.next();
+							} else {
+								sourceRecord = null;
+							}
+							if (null == sourceRecord) {
+								sourceHasNext = false;
+								sourceRecord = Collections.emptyMap();
+							} else {
+								sourceHasNext = true;
+							}
 						}
 						if (moveTarget) {
-							targetHasNext = targetCursor.hasNext();
+							if (targetCursor.hasNext()) {
+								targetRecord = targetCursor.next();
+							} else {
+								targetRecord = null;
+							}
+							if (null == targetRecord) {
+								targetHasNext = false;
+								targetRecord = Collections.emptyMap();
+							} else {
+								targetHasNext = true;
+							}
 						}
 
 						if (!sourceHasNext && !targetHasNext) {
@@ -189,21 +207,6 @@ public class TableRowContentInspectJob extends InspectTableRowJob {
 							stats.setSpeed(current / (System.currentTimeMillis() / 1000 - startTime + 1));
 
 							compareProgress.update(stats, null);
-						}
-
-						if (moveSource) {
-							if (sourceHasNext) {
-								sourceRecord = sourceCursor.next();
-							} else {
-								sourceRecord = Collections.emptyMap();
-							}
-						}
-						if (moveTarget) {
-							if (targetHasNext) {
-								targetRecord = targetCursor.next();
-							} else {
-								targetRecord = Collections.emptyMap();
-							}
 						}
 
 						String sourceVal = sourceCursor.getSortValue(sourceRecord);
