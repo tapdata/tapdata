@@ -2,7 +2,6 @@ package com.tapdata.tm.proxy.controller;
 
 import cn.hutool.crypto.digest.MD5;
 import com.google.common.collect.Sets;
-import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.async.AsyncContextManager;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
@@ -10,9 +9,9 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.proxy.dto.*;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
-import com.tapdata.tm.sdk.available.TmStatusService;
 import com.tapdata.tm.utils.WebUtils;
-import com.tapdata.tm.verison.dto.VersionDto;
+import com.tapdata.tm.worker.dto.WorkerExpireDto;
+import com.tapdata.tm.worker.service.WorkerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.tapdata.entity.error.CoreException;
@@ -51,17 +50,14 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
-import static io.tapdata.entity.simplify.TapSimplify.toJson;
 import static org.apache.http.HttpStatus.*;
 
 
@@ -78,7 +74,7 @@ public class ProxyController extends BaseController {
     @Value("#{'${spring.profiles.include:idaas}'.split(',')}")
     private List<String> productList;
     @Autowired
-    private SettingsService settingsService;
+    private WorkerService workerService;
 
     private static final int wsPort = 8246;
 
@@ -261,9 +257,11 @@ public class ProxyController extends BaseController {
         }
         if(isCloud) {
             commandInfo.subscribeIds("userId_" + userDetail.getUserId());
-//            String sharedUserId = null;//TODO Jiaxin
-//            if(sharedUserId != null)
-//                commandInfo.orSubscribeIdSets(Sets.newHashSet("userId_" + sharedUserId));
+
+            WorkerExpireDto shareWorker = workerService.getShareWorker(userDetail);
+            if (shareWorker != null) {
+                commandInfo.orSubscribeIdSets(Sets.newHashSet("userId_" + shareWorker.getShareTmUserId()));
+            }
         }
 //        configContext(commandInfo, userDetail);
         executeEngineMessage(commandInfo, request, response);
@@ -654,9 +652,10 @@ public class ProxyController extends BaseController {
         }
         if(isCloud) {
             serviceCaller.subscribeIds("userId_" + userDetail.getUserId());
-//            String sharedUserId = null;//TODO Jiaxin
-//            if(sharedUserId != null)
-//                serviceCaller.orSubscribeIdSets(Sets.newHashSet("userId_" + sharedUserId));
+            WorkerExpireDto shareWorker = workerService.getShareWorker(userDetail);
+            if (shareWorker != null) {
+                serviceCaller.orSubscribeIdSets(Sets.newHashSet("userId_" + shareWorker.getShareTmUserId()));
+            }
         }
 //        Locale locale = WebUtils.getLocale(request);
         executeServiceCaller(request, response, serviceCaller, userDetail);

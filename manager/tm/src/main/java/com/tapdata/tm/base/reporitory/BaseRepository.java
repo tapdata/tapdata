@@ -18,6 +18,7 @@ import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MapUtils;
+import com.tapdata.tm.worker.entity.WorkerExpire;
 import org.bson.BsonDocument;
 import org.bson.BsonValue;
 import org.bson.Document;
@@ -42,6 +43,7 @@ import org.springframework.data.mongodb.repository.support.MongoRepositoryFactor
 import org.springframework.data.util.StreamUtils;
 import org.springframework.data.util.Streamable;
 import org.springframework.util.Assert;
+import org.springframework.util.CollectionUtils;
 
 import java.lang.reflect.Field;
 import java.util.*;
@@ -170,6 +172,16 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
     public Query applyUserDetail(Query query, UserDetail userDetail) {
         Assert.notNull(query, "Entity must not be null!");
         Assert.notNull(userDetail, "UserDetail must not be null!");
+
+        // if user is shareAgent, no need to set customId
+        List<WorkerExpire> workerExpireList = mongoOperations.find(Query.query(where("shareTmUserId").is(userDetail.getUserId())
+                .and("expireTime").gt(new Date())), WorkerExpire.class);
+        if (!CollectionUtils.isEmpty(workerExpireList)) {
+            List<String> collect = workerExpireList.stream().map(WorkerExpire::getUserId).collect(Collectors.toList());
+            collect.add(userDetail.getUserId());
+
+            return query.addCriteria(Criteria.where("user_id").in(collect));
+        }
 
         boolean hasAdminRole = userDetail.getAuthorities().contains(new SimpleGrantedAuthority("ADMIN"));
         if (hasAdminRole) {

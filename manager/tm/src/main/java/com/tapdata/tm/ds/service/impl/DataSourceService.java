@@ -12,7 +12,6 @@ import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
-import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
@@ -55,7 +54,7 @@ import com.tapdata.tm.proxy.dto.SubscribeResponseDto;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
 import com.tapdata.tm.task.service.LogCollectorService;
 import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.typemappings.service.TypeMappingsService;
+import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -138,9 +137,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	@Autowired
 	private DefaultDataDirectoryService defaultDataDirectoryService;
 	@Autowired
-	private AlarmService alarmService;
-	@Autowired
-	private TypeMappingsService typeMappingsService;
+	private UserService userService;
 
 	@Autowired
 	@Lazy
@@ -1304,6 +1301,8 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			Criteria criteria = Criteria.where("_id").is(new ObjectId((String) where.get("_id")));
 			//todo 删除user
 			DataSourceConnectionDto oldConnectionDto = findOne(new Query(criteria), user);
+
+			user = userService.loadUserById(MongoUtils.toObjectId(oldConnectionDto.getUserId()));
 
 			DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(oldConnectionDto.getDatabase_type(), user);
 

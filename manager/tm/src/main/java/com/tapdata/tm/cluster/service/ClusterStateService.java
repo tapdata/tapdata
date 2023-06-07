@@ -334,7 +334,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         //需要过滤有效的work数据
         List<AccessNodeInfo> result = Lists.newArrayList();
         boolean isCloud = settingsService.isCloud();
-        List<Worker> workerList = workerService.findAllAgent(userDetail, isCloud);
+        List<Worker> workerList = workerService.findAllAgent(userDetail);
         if (CollectionUtils.isEmpty(workerList)) {
             return result;
         }
