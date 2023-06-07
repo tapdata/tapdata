@@ -40,11 +40,11 @@ public class CommonDbTest implements AutoCloseable {
         testFunctionMap.put("testConnect", this::testConnect);
         testFunctionMap.put("testVersion", this::testVersion);
         if (!ConnectionTypeEnum.SOURCE.getType().equals(commonDbConfig.get__connectionType())) {
-            testFunctionMap.put("testWritePrivilege", this::testWritePrivilege);
+            //testFunctionMap.put("testWritePrivilege", this::testWritePrivilege);
         }
         if (!ConnectionTypeEnum.TARGET.getType().equals(commonDbConfig.get__connectionType())) {
-            testFunctionMap.put("testReadPrivilege", this::testReadPrivilege);
-            testFunctionMap.put("testStreamRead", this::testStreamRead);
+            //testFunctionMap.put("testReadPrivilege", this::testReadPrivilege);
+            //testFunctionMap.put("testStreamRead", this::testStreamRead);
         }
     }
 

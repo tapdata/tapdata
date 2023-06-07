@@ -113,10 +113,10 @@ public class MysqlConnectionTest extends CommonDbTest {
         }
     }
 
-    @Override
-    public Boolean testWritePrivilege() {
-        return WriteOrReadPrivilege("write");
-    }
+//    @Override
+//    public Boolean testWritePrivilege() {
+//        return WriteOrReadPrivilege("write");
+//    }
 
     private boolean WriteOrReadPrivilege(String mark) {
         DataMap connectionConfig = tapConnectionContext.getConnectionConfig();

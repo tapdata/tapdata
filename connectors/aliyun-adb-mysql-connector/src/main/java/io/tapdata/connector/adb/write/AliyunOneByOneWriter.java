@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static io.tapdata.base.ConnectorBase.deleteDMLEvent;
 import static io.tapdata.base.ConnectorBase.insertRecordEvent;
@@ -62,6 +63,41 @@ public class AliyunOneByOneWriter extends MysqlJdbcOneByOneWriter implements Wri
 
         int addCount = doInsert(context, table, insertRecordEvent(after, tableId).referenceTime(referenceTime));
         result.incrementInserted(addCount);
+    }
+
+    protected PreparedStatement getInsertPreparedStatement(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
+        JdbcCache jdbcCache = getJdbcCache();
+        Map<String, PreparedStatement> insertMap = jdbcCache.getInsertMap();
+        String key = getKey(tapTable, tapRecordEvent);
+        PreparedStatement preparedStatement = insertMap.get(key);
+//        if (null == preparedStatement) {
+        DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
+        String database = connectionConfig.getString("database");
+        String name = connectionConfig.getString("name");
+        String tableId = tapTable.getId();
+        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+        if (MapUtils.isEmpty(nameFieldMap)) {
+            throw new Exception("Create insert prepared statement error, table \"" + tableId + "\"'s fields is empty, retry after reload connection \"" + name + "\"'s schema");
+        }
+        List<String> fields = new ArrayList<>();
+        nameFieldMap.forEach((fieldName, field) -> {
+            if (!needAddIntoPreparedStatementValues(field, tapRecordEvent)) {
+                return;
+            }
+            fields.add("`" + fieldName + "`");
+        });
+        List<String> questionMarks = fields.stream().map(f -> "?").collect(Collectors.toList());
+        String sql = String.format(INSERT_SQL_TEMPLATE, database, tableId, String.join(",", fields), String.join(",", questionMarks));
+        try {
+            preparedStatement = jdbcCache.getConnection().prepareStatement(sql);
+        } catch (SQLException e) {
+            throw new Exception("Create insert prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
+        } catch (Exception e) {
+            throw new Exception("Create insert prepared statement error, sql: " + sql + ", message: " + e.getMessage(), e);
+        }
+        insertMap.put(key, preparedStatement);
+//        }
+        return preparedStatement;
     }
 
     @Override
@@ -138,6 +174,72 @@ public class AliyunOneByOneWriter extends MysqlJdbcOneByOneWriter implements Wri
         updateMap.put(key, preparedStatement);
         return preparedStatement;
     }
+
+
+    protected PreparedStatement getDeletePreparedStatement(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
+        JdbcCache jdbcCache = getJdbcCache();
+        Map<String, PreparedStatement> deleteMap = jdbcCache.getDeleteMap();
+        String key = getKey(tapTable, tapRecordEvent);
+        PreparedStatement preparedStatement = deleteMap.get(key);
+//        if (null == preparedStatement) {
+        DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
+        String database = connectionConfig.getString("database");
+        String name = connectionConfig.getString("name");
+        String tableId = tapTable.getId();
+        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+        if (MapUtils.isEmpty(nameFieldMap)) {
+            throw new Exception("Create delete prepared statement error, table \"" + tableId + "\"'s fields is empty, retry after reload connection \"" + name + "\"'s schema");
+        }
+        List<String> whereList = new ArrayList<>();
+        Collection<String> uniqueKeys = getUniqueKeys(tapTable);
+        for (String uniqueKey : uniqueKeys) {
+            whereList.add("`" + uniqueKey + "`<=>?");
+        }
+        String sql = String.format(DELETE_SQL_TEMPLATE, database, tableId, String.join(" AND ", whereList));
+        try {
+            preparedStatement = jdbcCache.getConnection().prepareStatement(sql);
+        } catch (SQLException e) {
+            throw new Exception("Create delete prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
+        } catch (Exception e) {
+            throw new Exception("Create delete prepared statement error, sql: " + sql + ", message: " + e.getMessage(), e);
+        }
+        deleteMap.put(key, preparedStatement);
+//        }
+        return preparedStatement;
+    }
+
+    protected PreparedStatement getCheckRowExistsPreparedStatement(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
+        JdbcCache jdbcCache = getJdbcCache();
+        Map<String, PreparedStatement> checkExistsMap = jdbcCache.getCheckExistsMap();
+        String key = getKey(tapTable, tapRecordEvent);
+        PreparedStatement preparedStatement = checkExistsMap.get(key);
+//        if (null == preparedStatement) {
+        DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
+        String database = connectionConfig.getString("database");
+        String name = connectionConfig.getString("name");
+        String tableId = tapTable.getId();
+        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+        if (MapUtils.isEmpty(nameFieldMap)) {
+            throw new Exception("Create check row exists prepared statement error, table \"" + tableId + "\"'s fields is empty, retry after reload connection \"" + name + "\"'s schema");
+        }
+        List<String> whereList = new ArrayList<>();
+        Collection<String> uniqueKeys = getUniqueKeys(tapTable);
+        for (String uniqueKey : uniqueKeys) {
+            whereList.add("`" + uniqueKey + "`<=>?");
+        }
+        String sql = String.format(CHECK_ROW_EXISTS_TEMPLATE, database, tableId, String.join(" AND ", whereList));
+        try {
+            preparedStatement = jdbcCache.getConnection().prepareStatement(sql);
+        } catch (SQLException e) {
+            throw new Exception("Create check row exists prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
+        } catch (Exception e) {
+            throw new Exception("Create check row exists prepared statement error, sql: " + sql + ", message: " + e.getMessage(), e);
+        }
+        checkExistsMap.put(key, preparedStatement);
+//        }
+        return preparedStatement;
+    }
+
 
     @Override
     protected int setPreparedStatementValues(TapTable tapTable, TapRecordEvent tapRecordEvent, PreparedStatement preparedStatement) throws Throwable {
