@@ -1,6 +1,8 @@
 package io.tapdata.pdk.core.utils.timer;
 
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 
 import java.util.Date;
@@ -95,7 +97,8 @@ public class MaxFrequencyLimiter {
                 actionListener.action();
             } catch(Throwable throwable) {
                 throwable.printStackTrace();
-                TapLogger.error(TAG, "Action failed, " + throwable.getMessage());
+                TapUtils tapUtils = InstanceFactory.instance(TapUtils.class);
+                TapLogger.error(TAG, "Action failed, " + (tapUtils != null ? tapUtils.getStackTrace(throwable) : throwable.getMessage()));
             }
         }
     }
