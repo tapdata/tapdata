@@ -8,6 +8,7 @@ import java.util.Date;
 public class WorkerExpireDto {
     private String userId;
     private String shareUser;
-    private String shareUserId;
+    private String shareTmUserId;
+    private String shareTcmUserId;
     private Date expireTime;
 }
