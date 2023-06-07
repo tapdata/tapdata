@@ -144,7 +144,13 @@ public class ExternalStorageUtil {
 				.uri(uri)
 				.database(mongoClientURI.getDatabase())
 				.collection(table)
-				.exclusiveCollection(exclusiveCollection);
+				.exclusiveCollection(exclusiveCollection)
+				.ssl(externalStorageDto.isSsl())
+				.sslCA(externalStorageDto.getSslCA())
+				.sslKey(externalStorageDto.getSslKey())
+				.sslPass(externalStorageDto.getSslPass())
+				.sslValidate(externalStorageDto.isSslValidate())
+				.checkServerIdentity(externalStorageDto.isCheckServerIdentity());
 		mongoDBConfig.setInMemSize(DEFAULT_IN_MEM_SIZE);
 		return mongoDBConfig;
 	}
