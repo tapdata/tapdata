@@ -1,6 +1,7 @@
 package com.tapdata.tm.proxy.controller;
 
 import cn.hutool.crypto.digest.MD5;
+import com.google.common.collect.Sets;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.async.AsyncContextManager;
 import com.tapdata.tm.base.controller.BaseController;
@@ -258,8 +259,12 @@ public class ProxyController extends BaseController {
         if (productList != null && productList.contains("dfs")) { //is cloud env
             isCloud = true;
         }
-        if(isCloud)
+        if(isCloud) {
             commandInfo.subscribeIds("userId_" + userDetail.getUserId());
+//            String sharedUserId = null;//TODO Jiaxin
+//            if(sharedUserId != null)
+//                commandInfo.orSubscribeIdSets(Sets.newHashSet("userId_" + sharedUserId));
+        }
 //        configContext(commandInfo, userDetail);
         executeEngineMessage(commandInfo, request, response);
 
@@ -647,8 +652,12 @@ public class ProxyController extends BaseController {
         if (productList != null && productList.contains("dfs")) { //is cloud env
             isCloud = true;
         }
-        if(isCloud)
+        if(isCloud) {
             serviceCaller.subscribeIds("userId_" + userDetail.getUserId());
+//            String sharedUserId = null;//TODO Jiaxin
+//            if(sharedUserId != null)
+//                serviceCaller.orSubscribeIdSets(Sets.newHashSet("userId_" + sharedUserId));
+        }
 //        Locale locale = WebUtils.getLocale(request);
         executeServiceCaller(request, response, serviceCaller, userDetail);
     }
