@@ -555,7 +555,11 @@ public class ProxyController extends BaseController {
                     .className("MemoryService")
                     .method("memory")
                     .args(new Object[]{keys, null, method});
-            serviceCaller.subscribeIds("processId_" + processId, "userId_" + userDetail.getUserId());
+            if(productList != null && productList.contains("dfs")) {
+                serviceCaller.subscribeIds("processId_" + processId, "userId_" + userDetail.getUserId());
+            } else {
+                serviceCaller.subscribeIds("processId_" + processId);
+            }
             executeServiceCaller(request, response, serviceCaller, null);
         } else {
             response.setContentType("application/json");
