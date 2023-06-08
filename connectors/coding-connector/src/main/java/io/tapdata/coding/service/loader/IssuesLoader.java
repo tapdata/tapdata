@@ -552,7 +552,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 .builder("SortKey", this.sortKey(isStreamRead))
                 .builder("PageSize", readSize)
                 .builder("SortValue", "ASC")
-//                .builder("ShowSubIssues", true)
+                .builder("ShowSubIssues", true)
                 .builder("IssueType",
                         Checker.isNotEmpty(codingConfig) && Checker.isNotEmpty(codingConfig.getIssueType()) ?
                                 IssueType.verifyType(codingConfig.getIssueType().getName())
@@ -580,7 +580,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 .builder("PageSize", readSize)
                 .builder("PageNumber", 1)
                 .builder("SortValue", "ASC")
-//                .builder("ShowSubIssues", true)
+                .builder("ShowSubIssues", true)
                 .builder("IssueType",
                         Checker.isNotEmpty(codingConfig) && Checker.isNotEmpty(codingConfig.getIssueType()) ?
                                 IssueType.verifyType(codingConfig.getIssueType().getName())
@@ -755,7 +755,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 .builder("ProjectName", projectName)
                 .builder("SortKey", "UPDATED_AT")
                 .builder("PageSize", readSize)
-//                .builder("ShowSubIssues", true)
+                .builder("ShowSubIssues", true)
                 .builder("SortValue", "ASC");
         if (Checker.isNotEmpty(this.codingConfig) && Checker.isNotEmpty(this.codingConfig.getIssueType())) {
             pageBody.builder("IssueType", IssueType.verifyType(this.codingConfig.getIssueType().getName()));
