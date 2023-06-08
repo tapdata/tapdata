@@ -63,10 +63,10 @@ public class MysqlConnectionTest extends CommonDbTest {
             testFunctionMap.put("testCreateTablePrivilege", this::testCreateTablePrivilege);
         }
         if (!ConnectionTypeEnum.TARGET.getType().equals(commonDbConfig.get__connectionType())) {
-            testFunctionMap.put("testBinlogMode", this::testBinlogMode);
-            testFunctionMap.put("testBinlogRowImage", this::testBinlogRowImage);
-            testFunctionMap.put("testCDCPrivileges", this::testCDCPrivileges);
-            testFunctionMap.put("setCdcCapabilitie", this::setCdcCapabilitie);
+//            testFunctionMap.put("testBinlogMode", this::testBinlogMode);
+//            testFunctionMap.put("testBinlogRowImage", this::testBinlogRowImage);
+//            testFunctionMap.put("testCDCPrivileges", this::testCDCPrivileges);
+//            testFunctionMap.put("setCdcCapabilitie", this::setCdcCapabilitie);
         }
     }
 

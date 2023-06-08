@@ -4,6 +4,7 @@ import io.tapdata.common.CommonDbConfig;
 import io.tapdata.connector.adb.write.AliyunADBBatchWriter;
 import io.tapdata.connector.mysql.MysqlConnectionTest;
 import io.tapdata.connector.mysql.MysqlConnector;
+import io.tapdata.connector.mysql.MysqlSchemaLoader;
 import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
 import io.tapdata.connector.mysql.writer.MysqlWriter;
 import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
@@ -65,6 +66,8 @@ public class AliyunADBMySQLConnector extends MysqlConnector {
 	public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
 		super.registerCapabilities(connectorFunctions, codecRegistry);
 		connectorFunctions.supportWriteRecord(this::writeRecord);
+		connectorFunctions.supportStreamRead(null);
+		connectorFunctions.supportTimestampToStreamOffset(null);
 	}
 
 	@Override
@@ -85,5 +88,11 @@ public class AliyunADBMySQLConnector extends MysqlConnector {
 	private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
 		WriteListResult<TapRecordEvent> writeListResult = this.mysqlWriter.write(tapConnectorContext, tapTable, tapRecordEvents);
 		consumer.accept(writeListResult);
+	}
+
+	@Override
+	public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
+		MysqlSchemaLoader mysqlSchemaLoader = new AliAdbDiscoverSchema(aliyunADBJdbcContext);
+		mysqlSchemaLoader.discoverSchema(tables, consumer, tableSize);
 	}
 }
