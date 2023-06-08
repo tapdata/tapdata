@@ -80,7 +80,7 @@ public class RegisterMain {
         HttpReceiver(BASE_PATH + "connectors/dist/http-receiver-connector-v1.0-SNAPSHOT.jar", "all", "http-receiver"),
         Shein(BASE_PATH + "connectors/dist/shein-connector-v1.0-SNAPSHOT.jar", "all", "shein"),
         YashanDB(BASE_PATH + "connectors/dist/yashandb-connector-v1.0-SNAPSHOT.jar", "all", "yashandb", "basic", "jdbc"),
-        Ali1688(BASE_PATH + "connectors/dist/ali1688-connector-v1.0-SNAPSHOT.jar", "all", "ali1688")
+        Ali1688(BASE_PATH + "connectors/dist/ali1688-connector-v1.0-SNAPSHOT.jar", "all", "ali1688"),
         Temu(BASE_PATH + "connectors/dist/temu-connector-v1.0-SNAPSHOT.jar", "all", "temu")
         ;
 
