@@ -3,6 +3,7 @@ package io.tapdata.inspect.compare;
 import com.tapdata.entity.Connections;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.entity.Projection;
@@ -15,12 +16,12 @@ import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFuncti
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.lang.reflect.Constructor;
+import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -32,6 +33,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * @create 2022-06-06 17:39
  **/
 public class PdkResult extends BaseResult<Map<String, Object>> {
+	private final static Logger logger = LogManager.getLogger(PdkResult.class);
+
 	private static final int BATCH_SIZE = 1000;
 	private static final String TAG = PdkResult.class.getSimpleName();
 	private final ConnectorNode connectorNode;
@@ -82,6 +85,40 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 		}
 		this.dataKeys = dataKeys;
 		this.diffKeyValues = diffKeyValues;
+
+		if (null != diffKeyValues && !diffKeyValues.isEmpty()) {
+			Map<String, Object> keyMap;
+			for (List<Object> keyValues : diffKeyValues) {
+				if (dataKeys.size() != keyValues.size()) {
+					throw new RuntimeException(String.format("The key name size and value size not equals, keys: %s, values: %s", dataKeys, keyValues));
+				}
+
+				int i = 0;
+				keyMap = new LinkedHashMap<>();
+				for (String s : dataKeys) {
+					keyMap.put(s, keyValues.get(i++));
+
+					TapField tapField = tapTable.getNameFieldMap().get(s);
+					if (null != tapField.getDataType()) {
+						switch (tapField.getDataType()) {
+							case "OBJECT_ID":
+								try {
+									Class<?> clz = connectorNode.getConnectorClassLoader().loadClass("org.bson.types.ObjectId");
+									Constructor<?> constructor = clz.getConstructor(String.class);
+									keyMap.put(s, constructor.newInstance(keyMap.get(s)));
+								} catch (Exception e) {
+									logger.warn("Convert filed '{}' value '{}' failed: {}", s, keyMap.get(s), e.getMessage());
+								}
+								break;
+							default:
+								break;
+						}
+					}
+				}
+				keyValues.clear();
+				keyValues.addAll(keyMap.values());
+			}
+		}
 		initTotal();
 	}
 
@@ -193,7 +230,7 @@ public class PdkResult extends BaseResult<Map<String, Object>> {
 									}
 								}
 							}), TAG);
-						if (null == diffKeyValues || diffKeyIndex + 1 >= diffKeyValues.size()) {
+						if (null == diffKeyValues || diffKeyIndex >= diffKeyValues.size()) {
 							hasNext.set(false);
 						}
 					} catch (Exception e) {
