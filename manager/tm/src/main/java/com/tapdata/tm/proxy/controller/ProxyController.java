@@ -537,8 +537,8 @@ public class ProxyController extends BaseController {
         if (null != associateIds && !"".equals(associateIds.trim())){
             fileName = processId + "_supervisor_details_" + UUID.randomUUID().toString() + ".json";
         }
-        UserDetail userDetail = getLoginUser();
-        String ip = request.getServerName();
+//        UserDetail userDetail = getLoginUser();
+//        String ip = request.getServerName();
         String doMain = String.format(
                 "%s?access_token=%s&pid=%s&associateIds=",
                 request.getRequestURL(),
@@ -555,7 +555,7 @@ public class ProxyController extends BaseController {
                     .className("MemoryService")
                     .method("memory")
                     .args(new Object[]{keys, null, method});
-            serviceCaller.subscribeIds("processId_" + processId, "userId_" + userDetail.getUserId());
+            serviceCaller.subscribeIds("processId_" + processId);
             executeServiceCaller(request, response, serviceCaller, null);
         } else {
             response.setContentType("application/json");
