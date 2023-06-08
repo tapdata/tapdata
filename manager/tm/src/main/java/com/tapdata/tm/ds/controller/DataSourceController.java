@@ -1,5 +1,6 @@
 package com.tapdata.tm.ds.controller;
 
+import cn.hutool.core.lang.Assert;
 import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.manager.common.utils.StringUtils;
@@ -24,6 +25,7 @@ import com.tapdata.tm.ds.vo.ValidateTableVo;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -61,6 +63,7 @@ public class DataSourceController extends BaseController {
 
     private DataSourceService dataSourceService;
     private TaskService taskService;
+    private UserService userService;
 
     private MetadataDefinitionService metadataDefinitionService;
 
@@ -143,9 +146,17 @@ public class DataSourceController extends BaseController {
             }
         }
 
+        UserDetail userDetail;
+        if (filter.getWhere().containsKey("_id")) {
+            DataSourceConnectionDto connectionDto = dataSourceService.findById(toObjectId(filter.getWhere().get("_id").toString()));
+            Assert.notNull(connectionDto, "connection is null");
+            userDetail = userService.loadUserById(MongoUtils.toObjectId(connectionDto.getUserId()));
+        } else {
+            userDetail = getLoginUser();
+        }
 
         //隐藏密码
-        Page<DataSourceConnectionDto> dataSourceConnectionDtoPage = dataSourceService.list(filter, noSchema, getLoginUser());
+        Page<DataSourceConnectionDto> dataSourceConnectionDtoPage = dataSourceService.list(filter, noSchema, userDetail);
 
         return success(dataSourceConnectionDtoPage);
     }
@@ -564,7 +575,13 @@ public class DataSourceController extends BaseController {
     @PostMapping("load/part/tables/{connectionId}")
     public ResponseMessage<Void> loadPartTables(@PathVariable("connectionId") String connectionId, @RequestBody String param) {
         List<TapTable> tables = InstanceFactory.instance(JsonParser.class).fromJson(param, new TypeHolder<List<TapTable>>() {});
-        dataSourceService.loadPartTables(connectionId, tables, getLoginUser());
+
+        DataSourceConnectionDto connectionDto = dataSourceService.findById(new ObjectId(connectionId));
+        Assert.notNull(connectionDto, "connection is empty");
+
+        UserDetail userDetail = userService.loadUserById(new ObjectId(connectionDto.getUserId()));
+
+        dataSourceService.loadPartTables(connectionId, tables, userDetail);
         return success();
 
     }

@@ -214,7 +214,7 @@ public class MetadataInstancesController extends BaseController {
     public ResponseMessage<Map<String, String>> findTableMapByNodeId(@RequestParam(value = "filter", required = false) String filterJson) {
         Filter filter = parseFilter(filterJson);
         log.info("query table map, filter = {}", filter);
-        Map<String, String> tableMap = metadataInstancesService.findTableMapByNodeId(filter, getLoginUser());
+        Map<String, String> tableMap = metadataInstancesService.findTableMapByNodeId(filter);
         log.info("the end of query table map, filter = {}, result = {}", filter, tableMap);
         return success(tableMap);
     }

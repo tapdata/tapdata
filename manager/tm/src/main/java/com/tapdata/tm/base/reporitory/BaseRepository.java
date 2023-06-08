@@ -172,17 +172,6 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
     public Query applyUserDetail(Query query, UserDetail userDetail) {
         Assert.notNull(query, "Entity must not be null!");
         Assert.notNull(userDetail, "UserDetail must not be null!");
-
-        // if user is shareAgent, no need to set customId
-        List<WorkerExpire> workerExpireList = mongoOperations.find(Query.query(where("shareTmUserId").is(userDetail.getUserId())
-                .and("expireTime").gt(new Date())), WorkerExpire.class);
-        if (!CollectionUtils.isEmpty(workerExpireList)) {
-            List<String> collect = workerExpireList.stream().map(WorkerExpire::getUserId).collect(Collectors.toList());
-            collect.add(userDetail.getUserId());
-
-            return query.addCriteria(Criteria.where("user_id").in(collect));
-        }
-
         boolean hasAdminRole = userDetail.getAuthorities().contains(new SimpleGrantedAuthority("ADMIN"));
         if (hasAdminRole) {
             removeFilter("customId", query);

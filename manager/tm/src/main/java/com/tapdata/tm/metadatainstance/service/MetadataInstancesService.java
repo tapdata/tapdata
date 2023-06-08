@@ -177,7 +177,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
             Query query = new Query(criteria);
 
-            long count = count(query, user);
+            long count = count(query);
 
             if (filter.getLimit() > 0) {
                 query.limit(filter.getLimit());
@@ -188,16 +188,16 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
             applyField(query, filter.getFields());
             applySort(query, filter.getSort());
-            List<MetadataInstancesDto> allDto = findAllDto(query, user);
+            List<MetadataInstancesDto> allDto = findAll(query);
             page = new Page<>();
             page.setTotal(count);
             page.setItems(allDto);
         } else {
-            page = find(filter, user);
+            page = find(filter);
         }
         List<MetadataInstancesDto> metadataInstancesDtoList = page.getItems();
 
-        afterFindAll(metadataInstancesDtoList, user);
+        afterFindAll(metadataInstancesDtoList);
         afterFind(metadataInstancesDtoList);
         return page;
     }
@@ -465,7 +465,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         }
     }
 
-    public void afterFindAll(List<MetadataInstancesDto> results, UserDetail user) {
+    public void afterFindAll(List<MetadataInstancesDto> results) {
         Set<String> userIds = new HashSet<>();
         Set<ObjectId> databaseIds = new HashSet<>();
         for (MetadataInstancesDto result : results) {
@@ -488,7 +488,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         Criteria criteria = Criteria.where("_id").in(databaseIds).and("meta_type").in(inMetaTypes).and("is_delete").is(false);
         Query query = new Query(criteria);
         query.fields().include("id", "original_name");
-        List<MetadataInstancesDto> collections = findAllDto(query, user);
+        List<MetadataInstancesDto> collections = findAll(query);
         Map<String, String> databaseNameMap = collections.stream().collect(Collectors.toMap(d -> d.getId().toHexString(), MetadataInstancesDto::getOriginalName));
 
         for (MetadataInstancesDto result : results) {
@@ -791,7 +791,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         Criteria criteria = Criteria.where("qualified_name").is(qualifiedName).and("is_deleted").ne(true);
 
         Query query = new Query(criteria);
-        return findOne(query, user);
+        return findOne(query);
     }
 
     public List<MetadataInstancesDto> findByQualifiedNameList(List<String> qualifiedNames, String taskId) {
@@ -1317,13 +1317,13 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return new ArrayList<>();
     }
 
-    public Map<String, String> findTableMapByNodeId(Filter filter, UserDetail user) {
+    public Map<String, String> findTableMapByNodeId(Filter filter) {
         Where where = filter.getWhere();
         if (where == null) {
             return null;
         }
         String nodeId = (String) where.get("nodeId");
-        return findKVByNode(nodeId, user);
+        return findKVByNode(nodeId);
     }
 
     private Table getOldSchema(MetadataInstancesDto metadata) {
@@ -1338,17 +1338,18 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     }
 
 
-    public Map<String, String> findKVByNode(String nodeId, UserDetail user) {
+    public Map<String, String> findKVByNode(String nodeId) {
         Criteria criteria = Criteria.where("dag.nodes.id").is(nodeId);
         Query query = new Query(criteria);
-        query.fields().include("dag");
-        TaskDto taskDto = taskService.findOne(query, user);
+        TaskDto taskDto = taskService.findOne(query);
+
+        UserDetail userDetail = userService.loadUserById(new ObjectId(taskDto.getUserId()));
 
         Map<String, String> kv = new HashMap<>();
         if (taskDto != null && taskDto.getDag() != null) {
             DAG dag = taskDto.getDag();
             Node node = dag.getNode(nodeId);
-            kv = getNodeMapping(user, taskDto, kv, node);
+            kv = getNodeMapping(userDetail, taskDto, kv, node);
         }
         return kv;
     }

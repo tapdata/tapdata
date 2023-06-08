@@ -1299,8 +1299,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			}
 
 			Criteria criteria = Criteria.where("_id").is(new ObjectId((String) where.get("_id")));
-			//todo 删除user
-			DataSourceConnectionDto oldConnectionDto = findOne(new Query(criteria), user);
+			DataSourceConnectionDto oldConnectionDto = findOne(new Query(criteria));
 
 			user = userService.loadUserById(MongoUtils.toObjectId(oldConnectionDto.getUserId()));
 
