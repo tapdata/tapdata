@@ -80,7 +80,12 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 				TapTable tapTable = tapTableMap.get(tableName);
 				String sampleDataId = ((DataParentNode) node).getConnectionId() + "_" + tableName;
 
-				List<TapEvent> tapEventList = sampleDataCacheMap.getOrDefault(sampleDataId, new ArrayList<>());
+				List<TapEvent> tapEventList;
+				if (processorBaseContext.getTaskDto().isDeduceSchemaTask()) {
+					tapEventList = sampleDataCacheMap.getOrDefault(sampleDataId, new ArrayList<>());
+				} else {
+					tapEventList = new ArrayList<>();
+				}
 				boolean isCache = true;
 				if (CollectionUtils.isEmpty(tapEventList) || tapEventList.size() < rows) {
 					tapEventList.clear();
@@ -150,8 +155,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 						//try again
 					}
 				}
-				if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+				if (processorBaseContext.getTaskDto().isDeduceSchemaTask()) {
 					logger.info("get data from the following table {} to deduce schema, already obtained from table {}, " +
 							"skip other tables", tables, tableName);
 					break;
