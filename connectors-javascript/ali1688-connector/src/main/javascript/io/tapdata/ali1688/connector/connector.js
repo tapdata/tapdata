@@ -154,7 +154,7 @@ function commandCallback(connectionConfig, nodeConfig, commandInfo) {
     switch (command){
         case 'OAuth':
             let config = connectionConfig.get("__TAPDATA_CONFIG");
-            log.warn("Value: appKey- {} , secretKey- {}, code- {}", config.get("appKey"), config.get("secretKey"), config.get("code"));
+            //log.warn("Value: appKey- {} , secretKey- {}, code- {}", config.get("appKey"), config.get("secretKey"), config.get("code"));
             let clientInfo = {
                 "app_key": config.get("appKey"),
                 "client_id": config.get("appKey"),
@@ -170,7 +170,7 @@ function commandCallback(connectionConfig, nodeConfig, commandInfo) {
               throw (isValue(getToken.error) ? getToken.error : "OAuth error") +
                   (isValue(getToken.error_description)?(", errorMessage:" + getToken.error_description) : "")
             }
-            log.warn("code: {}", JSON.stringify(getToken.result))
+           // log.warn("code: {}", JSON.stringify(getToken.result))
             return connectionConfig;
     }
 }
