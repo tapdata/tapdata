@@ -58,11 +58,14 @@ public class DDLFactory {
             return;
         }
         String formatDDL = StringKit.removeLastReturn(ddl.trim());
-        DDLType ddlType = DDLFilter.testAndGetType(ddlParserType, formatDDL);
+        Class<? extends DDLFilter> filterClz = ddlParserType.getFilterClass();
+        DDLFilter filter = InstanceFactory.bean(filterClz);
+        DDLType ddlType = filter.testAndGetType(ddlParserType, formatDDL);
         if (null == ddlType) {
             TapLogger.warn("DDLFactory", "DDLParser not supported: [{}]", formatDDL);
             return;
         }
+        formatDDL = filter.filterDDL(ddlType, formatDDL);
         Class<? extends DDLParser<E>> parserClz = (Class<? extends DDLParser<E>>) ddlParserType.getParserClz();
         DDLParser<E> ddlParser = InstanceFactory.bean(parserClz);
         E parseResult = ddlParser.parse(formatDDL);

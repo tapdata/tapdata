@@ -1,0 +1,245 @@
+{
+  "properties": {
+    "name": "Http Receiver",
+    "icon": "icons/http.png",
+    "doc": "${doc}",
+    "id": "http-receiver",
+    "authentication": "Beta",
+    "tags": [
+      "SaaS"
+    ]
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+        "tableName": {
+          "type": "string",
+          "required": true,
+          "title": "${table_name}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 10,
+          "x-reactions": [
+            "{{useAsyncDataSourceByConfig({service: getToken, withoutField: true}, {name:'hookText'}, $values, $form)}}"
+          ]
+        },
+        "hookText": {
+          "type": "string",
+          "title": "${hookTitle}",
+          "x-decorator": "FormItem",
+          "x-component-props": {
+            "readOnly": true
+          },
+          "x-component": "Input",
+          "x-index": 20,
+          "actionOnCopy": "NEW_WEB_HOOK_URL"
+        },
+        "hookButton": {
+          "type": "void",
+          "title": " ",
+          "x-decorator": "FormItem",
+          "x-component-props": {
+            "onClick": "{{useAsyncDataSourceByConfig({service: getToken, withoutField: true}, {name:'hookText'}, $values, $form)}}"
+          },
+          "x-content": "${hookButton}",
+          "x-component": "Button",
+          "x-display": "hidden",
+          "x-index": 30
+        },
+        "handleType": {
+          "type": "boolean",
+          "title": "${open_script}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "required": true,
+          "default": false,
+          "show": false,
+          "x-decorator-props": {
+            "colon": false
+          },
+          "x-reactions": [
+            {
+              "target": "eventScript",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value===true}}"
+                }
+              }
+            }
+          ],
+          "x-index": 40
+        },
+        "eventScript": {
+          "title": "${node_script_title}",
+          "type": "string",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "gridSpan": 2,
+            "colon": false,
+            "tooltip": "${node_tip_script}"
+          },
+          "default": "\n\n\t//${node_return_type}\n\t//return {\n\t//\t\"eventType\": \"i\", ${node_event_type}\n\t//\t\"data\": { }, ${node_event_data}\n\t//}\n\treturn {\n\t\t\"opType\": \"i\", \n\t\t\"after\": eventData\n\t};",
+          "x-component": "JsEditor",
+          "x-component-props": {
+            "height": 300,
+            "before": "function handleEvent(eventData) {",
+            "after": "}",
+            "beforeRegexp": "^[^]*function\\s+handleEvent\\s*\\(eventData\\)\\s+\\{",
+            "afterRegexp": "}[^}]*$"
+          },
+          "x-reactions": {
+            "dependencies": [
+              "handleType"
+            ],
+            "fulfill": {
+              "schema": {
+                "required": "{{$deps[0]}}"
+              }
+            }
+          },
+          "x-index": 50
+        },
+        "tryRun": {
+          "type": "void",
+          "title": " ",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "colon": false
+          },
+          "x-component-props": {
+            "onClick": "{{ () => handleJsDebug(['eventScript']) }}"
+          },
+          "x-reactions": [
+            {
+              "dependencies": [
+                "handleType"
+              ],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0] ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ],
+          "x-content": "${try_run}",
+          "x-component": "Button",
+          "x-index": 60
+        },
+        "isDefaultAddr": {
+          "type": "boolean",
+          "default": true,
+          "title": "${cache_type}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "enum": [
+            {
+              "label": "${is_default_addr}",
+              "value": true
+            },
+            {
+              "label": "${using_custom_methods}",
+              "value": false
+            }
+          ],
+          "x-index": 70,
+          "required": false,
+          "x-display": "hidden"
+        },
+        "cacheAddr": {
+          "title": "${cache_addr}",
+          "type": "string",
+          "required": false,
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 80,
+          "x-reactions": {
+            "dependencies": [
+              "isDefaultAddr"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] ? \"hidden\" : \"visible\"}}"
+              },
+              "schema": {
+                "required": "{{$deps[0]? false : true}}"
+              }
+            }
+          },
+          "x-display": "hidden"
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "docs/http_en_US.md",
+
+      "table_name": "Table Name",
+      "webHook": "Service URL",
+      "hookButton": "Generate Service URL",
+      "hookTitle": "Service URL",
+      "try_run": "Test Run",
+      "using_custom_methods": "Using custom methods",
+      "is_default_addr": "Use Default Cache",
+      "cache_type": "Cache Type",
+      "cache_addr": "Cache addr",
+      "open_script": "Enable data processing scripts",
+      "node_script_title": "Data processing script",
+      "node_illustrate_title": "JavaScript Writing Instructions",
+      "node_return_type": "Script Method Return Value Specification: data is an array or k-v object, but if return null, this event will be ignore",
+      "node_event_type": "type is an enum value (range are i or u or d, default is i), and i is insert, u is update, d is delete",
+      "node_event_data": "The event data body is a K-V object, which will become a piece of data in this table: add this data when the event type is insert; When the event type is modified, modify this data; when the event type is deleted, delete this data",
+      "node_tip_script": "You can preprocess the data received by the receiver from third-party platforms through this script, and return the type (eventType) and final data body of this data according to the specified structure (data)."
+    },
+    "zh_CN": {
+      "doc": "docs/http_zh_CN.md",
+
+      "table_name": "表名称",
+      "webHook": "Service Hook",
+      "hookButton": "生成服务 URL",
+      "hookTitle": "服务 URL",
+      "open_script": "开启数据处理脚本",
+      "node_script_title": "数据处理脚本",
+      "try_run": "试运行",
+      "is_default_addr": "使用系统默认消息缓存方式",
+      "cache_type": "消息缓存方式",
+      "using_custom_methods": "使用自定义消息缓存地址",
+      "cache_addr": "消息缓存库地址",
+      "node_illustrate_title": "JavaScript编写说明",
+      "node_return_type": "脚本方法返回值规范：返回结果可以是数组也可以是K-V对象，如果返回值为null，则会忽略此事件",
+      "node_event_type": "事件类型是一个枚举值（仅包括i、d、u，默认i），i表示插入、u表示更新、d表示删除",
+      "node_event_data": "事件数据体是一个K-V对象，这将会成为这张表中的一条数据：事件类型为插入时新增此数据；事件类型为修改时，修改此数据，事件类型为删除时，删除此数据",
+      "node_tip_script": "您可以通过此脚本预处理接收器收到的第三方平台推送过来的数据，并按指定结构返回这个数据的类型（eventType）以及最终数据体（data）。"
+    },
+    "zh_TW": {
+      "doc": "docs/http_zh_TW.md",
+
+      "table_name": "錶名稱",
+      "webHook": "Service Hook",
+      "hookButton": "生成服務URL",
+      "hookTitle": "服務URL",
+      "open_script": "開啟數據處理腳本",
+      "node_script_title": "數據處理腳本",
+      "node_illustrate_title": "JavaScript編寫說明",
+      "try_run": "試運行",
+      "is_default_addr": "使用系統默認消息緩存管道",
+      "cache_type": "消息緩存管道",
+      "using_custom_methods": "使用自定义消息缓存地址",
+      "cache_addr": "消息緩存庫地址",
+      "node_return_type": "腳本方法返回值規範：返回結果可以是數組也可以是K-V對象，如果返回值為null，則會忽略此事件",
+      "node_event_type": "事件類型是一個枚舉值（僅包括i、d、u，默認i），i表示插入、u表示更新、d表示删除",
+      "node_event_data": "事件數據體是一個K-V對象，這將會成為這張錶中的一條數據：事件類型為插入時新增此數據；事件類型為修改時，修改此數據，事件類型為删除時，删除此數據",
+      "node_tip_script": "您可以通過此腳本預處理接收器收到的協力廠商平臺推送過來的數據，並按指定結構返回這個數據的類型（eventType）以及最終數據體（data）。"
+    }
+  },
+  "dataTypes": {
+  }
+}

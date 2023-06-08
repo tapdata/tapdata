@@ -10,9 +10,10 @@ public enum PDKExceptionEnum {
     READ_PRIVILEGES("readPrivileges", TapPdkReadMissingPrivilegesEx.class),
     WRITE_PRIVILEGES("writePrivileges", TapPdkWriteMissingPrivilegesEx.class),
     WRITE_TYPE("writeType", TapPdkWriteTypeEx.class),
-    WRITE_LENGTH("writeLength",TapPdkWriteLengthEx.class),
+    WRITE_LENGTH("writeLength", TapPdkWriteLengthEx.class),
     VIOLATE_UNIQUE("violateUnique", TapPdkViolateUniqueEx.class),
-    VIOLATE_NULL("violateNull", TapPdkViolateNullableEx.class);
+    VIOLATE_NULL("violateNull", TapPdkViolateNullableEx.class),
+    CDC_CONFIG_INVALID("cdcConfigInvalid", TapPdkViolateNullableEx.class);
 
     private final String type;
     private final Class<?> clazz;

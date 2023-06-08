@@ -9,13 +9,17 @@ import io.tapdata.construct.constructImpl.ConstructIMap;
 import io.tapdata.construct.constructImpl.DocumentIMap;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import org.apache.commons.collections4.MapUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class ExternalStorageCacheStore implements ICacheStore {
+	protected final Logger logger = LogManager.getLogger(ExternalStorageCacheStore.class);
 
+	private final String referenceId;
 	private final ConstructIMap<Map<String, Map<String, Object>>> dataMap;
 	private final DataFlowCacheConfig cacheConfig;
 
@@ -23,7 +27,8 @@ public class ExternalStorageCacheStore implements ICacheStore {
 	public ExternalStorageCacheStore(DataFlowCacheConfig config, HazelcastInstance hazelcastInstance) {
 		this.cacheConfig = config;
 		ExternalStorageDto externalStorage = ExternalStorageUtil.getExternalStorage(config.getCacheNode());
-		this.dataMap = new DocumentIMap<>(hazelcastInstance, CacheUtil.CACHE_NAME_PREFIX + config.getCacheName(), externalStorage);
+		this.referenceId = String.format("%s", getClass().getSimpleName());
+		this.dataMap = new DocumentIMap<>(hazelcastInstance, referenceId, CacheUtil.CACHE_NAME_PREFIX + config.getCacheName(), externalStorage);
 	}
 
 	@Override
@@ -50,6 +55,11 @@ public class ExternalStorageCacheStore implements ICacheStore {
 
 	@Override
 	public void destroy() {
+		try {
+			dataMap.destroy();
+		} catch (Exception e) {
+			logger.warn("Destroy cache failed: {}", e.getMessage());
+		}
 		ICacheStore.super.destroy();
 	}
 }

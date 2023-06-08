@@ -802,6 +802,12 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 if (Checker.isNotEmptyCollection(issueDetail)) {
                     Long referenceTime = (Long) issueDetail.get("UpdatedAt");
                     Long createdAt = (Long) issueDetail.get("CreatedAt");
+
+                    //过滤增量时间点前的数据
+                    if (referenceTime < readStartTime && createdAt < readStartTime ){
+                        continue;
+                    }
+
                     Long currentTimePoint = referenceTime - referenceTime % (24 * 60 * 60 * 1000);//时间片段
                     String issueDetailHash = this.key(issueDetail, createdAt, referenceTime);
                     //issueDetailHash的更新时间字段值是否属于当前时间片段，并且issueDetailHash的hashcode是否在上一次批量读取同一时间段内

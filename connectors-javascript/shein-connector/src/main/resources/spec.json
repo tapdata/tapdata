@@ -1,0 +1,94 @@
+{
+  "properties": {
+    "name": "Shein",
+    "icon": "icon/shein.png",
+    "doc" : "${doc}",
+    "id": "shein",
+    "authentication": "Alpha",
+    "tags": ["SaaS"]
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "node": {
+      "type": "object",
+      "properties": {
+      }
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+        "openKeyId": {
+          "type": "String",
+          "title": "${con_open_key_id}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 10,
+          "required": true,
+          "x-decorator-props": {
+            "tooltip": "${tip_user_tags_openId}"
+          }
+        },
+        "secretKey": {
+          "type": "String",
+          "title": "${con_secret_key}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 20,
+          "required": true,
+          "x-decorator-props": {
+            "tooltip": "${tip_user_tags_key}"
+          }
+        },
+        "doMain": {
+          "type": "String",
+          "title": "${con_do_main}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 30,
+          "default": "https://openapi.sheincorp.cn",
+          "x-decorator-props": {
+            "tooltip": "${tip_user_tags_url}"
+          },
+          "x-display": "hidden",
+          "required": true
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "doc/shein_en_US.md",
+
+      "con_open_key_id": "Open Key ID",
+      "con_secret_key": "Secret Key",
+      "con_do_main": "Environmental address",
+
+      "tip_user_tags_openId": "You need to contact the corresponding SHEIN specific system contact person to obtain Open Key ID",
+      "tip_user_tags_key": "You need to contact the corresponding SHEIN specific system contact person to obtain Secret Key",
+      "tip_user_tags_url": "Need to contact SHIEN's corresponding contact person to obtain Environmental address"
+    },
+    "zh_CN": {
+      "doc": "doc/shein_zh_CN.md",
+
+      "con_open_key_id": "Open Key ID",
+      "con_secret_key": "Secret Key",
+      "con_do_main": "环境地址",
+
+      "tip_user_tags_openId": "需要联系对应SHEIN具体系统对接人获取Open Key ID",
+      "tip_user_tags_key": "需要联系对应SHEIN具体系统对接人获取Secret Key",
+      "tip_user_tags_url": "需要联系SHIEN相应的对接人获取环境地址"
+    },
+    "zh_TW": {
+      "doc": "doc/shein_zh_TW.md",
+
+      "con_open_key_id": "Open Key ID",
+      "con_secret_key": "Secret Key",
+      "con_do_main": "環境地址",
+
+      "tip_user_tags_openId": "需要聯系對應SHEIN具體系統對接人獲取Open Key ID",
+      "tip_user_tags_key": "需要联系对应SHEIN具体系统对接人获取Secret Key",
+      "tip_user_tags_url": "需要聯系SHIEN相應的對接人獲取環境地址"
+    }
+  }
+}

@@ -15,9 +15,44 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static io.tapdata.entity.simplify.TapSimplify.field;
+import static io.tapdata.entity.simplify.TapSimplify.table;
+import static io.tapdata.entity.simplify.TapSimplify.tapArray;
+import static io.tapdata.entity.simplify.TapSimplify.tapBinary;
+import static io.tapdata.entity.simplify.TapSimplify.tapBoolean;
+import static io.tapdata.entity.simplify.TapSimplify.tapDate;
+import static io.tapdata.entity.simplify.TapSimplify.tapDateTime;
+import static io.tapdata.entity.simplify.TapSimplify.tapMap;
+import static io.tapdata.entity.simplify.TapSimplify.tapNumber;
+import static io.tapdata.entity.simplify.TapSimplify.tapString;
+import static io.tapdata.entity.simplify.TapSimplify.tapTime;
+import static io.tapdata.entity.simplify.TapSimplify.tapYear;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 
 public class Record extends HashMap<String, Object> {
+    public static TapTable testTable(String testTableId){
+        return table(testTableId)
+                .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+                .add(field("Type_ARRAY", JAVA_Array).tapType(tapArray()))
+                .add(field("Type_BINARY", JAVA_Binary).tapType(tapBinary().bytes(100L)))
+                .add(field("Type_BOOLEAN", JAVA_Boolean).tapType(tapBoolean()))
+                .add(field("Type_DATE", JAVA_Date).tapType(tapDate()))
+                .add(field("Type_DATETIME", "Date_Time").tapType(tapDateTime().fraction(3)))
+                .add(field("Type_DATETIME_WITH_TIME_ZONE", "Date_Time").tapType(tapDateTime().fraction(3).withTimeZone(true)))
+                .add(field("Type_MAP", JAVA_Map).tapType(tapMap()))
+                .add(field("Type_NUMBER_Long", JAVA_Long).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+                .add(field("Type_NUMBER_INTEGER", JAVA_Integer).tapType(tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))))
+                .add(field("Type_NUMBER_BigDecimal", JAVA_BigDecimal).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(200).scale(4).fixed(true)))
+                .add(field("Type_NUMBER_Float", JAVA_Float).tapType(tapNumber().maxValue(BigDecimal.valueOf(Float.MAX_VALUE)).minValue(BigDecimal.valueOf(-Float.MAX_VALUE)).precision(200).scale(4).fixed(false)))
+                .add(field("Type_NUMBER_Double", JAVA_Double).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(200).scale(4).fixed(false)))
+                .add(field("Type_STRING_1", JAVA_String).tapType(tapString().bytes(50L)))
+                .add(field("Type_STRING_2", JAVA_String).tapType(tapString().bytes(50L)))
+                .add(field("Type_INT64", "INT64").tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+                .add(field("Type_TIME", "Time").tapType(tapTime().withTimeZone(false)))
+                .add(field("Type_TIME_WITH_TIME_ZONE", "Time").tapType(tapTime().withTimeZone(true)))
+                .add(field("Type_YEAR", "Year").tapType(tapYear()));
+    }
+
     public static Record create() {
         return new Record();
     }

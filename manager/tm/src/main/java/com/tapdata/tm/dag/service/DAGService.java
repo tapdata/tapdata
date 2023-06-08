@@ -1,6 +1,7 @@
 package com.tapdata.tm.dag.service;
 
 import cn.hutool.core.date.DateUtil;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
@@ -236,7 +237,7 @@ public class DAGService implements DAGDataService {
                         field.setOldIdList(new ArrayList<>());
                     }
                     field.getOldIdList().add(field.getId());
-                    field.setId(new ObjectId().toHexString());
+//                    field.setId(new ObjectId().toHexString());
                 }
                 set.add(field.getId());
             }
@@ -369,7 +370,7 @@ public class DAGService implements DAGDataService {
                         field.setId(existsField.getId());
                     }
                     if (StringUtils.isBlank(field.getId())) {
-                        field.setId(new ObjectId().toHexString());
+                        field.setId(MetaDataBuilderUtils.generateFieldId(metadataInstancesDto.getSource(), metadataInstancesDto.getOriginalName(), field.getFieldName()));
                     }
                 });
             }
@@ -519,7 +520,7 @@ public class DAGService implements DAGDataService {
                     field.setId(existsField.getId());
                 }
                 if (StringUtils.isBlank(field.getId())) {
-                    field.setId(new ObjectId().toHexString());
+                    field.setId(MetaDataBuilderUtils.generateFieldId(metadataInstancesDto.getSource(), metadataInstancesDto.getOriginalName(), field.getFieldName()));
                 }
             });
             metadataInstancesDto.setDatabaseId(dataSourceMetadataInstance.getId().toHexString());
@@ -748,9 +749,9 @@ public class DAGService implements DAGDataService {
 
 
         metadataInstancesDto.getFields().forEach(field -> {
-            if (field.getId() == null) {
-                field.setId(new ObjectId().toHexString());
-            }
+//            if (field.getId() == null) {
+//                field.setId(new ObjectId().toHexString());
+//            }
 
             if (field.isDeleted()) {
                 return;
@@ -1192,5 +1193,10 @@ public class DAGService implements DAGDataService {
 
     public ObjectId getTaskId() {
         return null;
+    }
+
+    @Override
+    public List<MetadataInstancesDto> findByNodeId(String id) {
+        return Lists.newArrayList();
     }
 }

@@ -1,8 +1,8 @@
 package io.tapdata.connector.mysql.writer;
 
+import io.tapdata.connector.mysql.MysqlJdbcContextV2;
 import io.tapdata.connector.mysql.util.JdbcUtil;
 import io.tapdata.connector.mysql.util.MysqlUtil;
-import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
@@ -49,12 +49,12 @@ public abstract class MysqlJdbcWriter extends MysqlWriter {
 	private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS");
 	protected final Map<String, JdbcCache> jdbcCacheMap;
 
-	public MysqlJdbcWriter(MysqlJdbcContext mysqlJdbcContext) throws Throwable {
+	public MysqlJdbcWriter(MysqlJdbcContextV2 mysqlJdbcContext) throws Throwable {
 		super(mysqlJdbcContext);
 		this.jdbcCacheMap = new ConcurrentHashMap<>();
 	}
 
-	public MysqlJdbcWriter(MysqlJdbcContext mysqlJdbcContext, Map<String, JdbcCache> jdbcCacheMap) throws Throwable {
+	public MysqlJdbcWriter(MysqlJdbcContextV2 mysqlJdbcContext, Map<String, JdbcCache> jdbcCacheMap) throws Throwable {
 		super(mysqlJdbcContext);
 		this.jdbcCacheMap = jdbcCacheMap;
 	}

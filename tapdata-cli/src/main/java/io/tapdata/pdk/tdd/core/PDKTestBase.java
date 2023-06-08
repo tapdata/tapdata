@@ -47,9 +47,6 @@ import io.tapdata.pdk.core.error.QuiteException;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import io.tapdata.pdk.core.workflow.engine.DataFlowEngine;
-import io.tapdata.pdk.core.workflow.engine.DataFlowWorker;
-import io.tapdata.pdk.core.workflow.engine.TapDAG;
 import io.tapdata.pdk.tdd.core.base.TestNode;
 import io.tapdata.pdk.tdd.tests.support.*;
 import io.tapdata.pdk.tdd.tests.support.connector.TableNameSupport;
@@ -114,8 +111,6 @@ public class PDKTestBase {
     private final AtomicBoolean completed = new AtomicBoolean(false);
     private boolean finishSuccessfully = false;
     private Throwable lastThrowable;
-
-    protected TapDAG dag;
 
     protected String lang;
 
@@ -435,7 +430,6 @@ public class PDKTestBase {
 
     @BeforeAll
     public static void setupAll() {
-        DataFlowEngine.getInstance().start();
     }
 
     @BeforeEach
@@ -462,16 +456,13 @@ public class PDKTestBase {
 
     @AfterEach
     public void tearDown() {
-        Optional.ofNullable(this.dag).ifPresent(d -> {
-            if (DataFlowEngine.getInstance().stopDataFlow(this.dag.getId())) {
-                TapLogger.info(TAG, "************************{} tearDown************************", this.getClass().getSimpleName());
-            }
-        });
+
     }
 
     public DataMap getTestOptions() {
         return this.testOptions;
     }
+
 
     protected boolean mapEquals(Map<String, Object> firstRecord, Map<String, Object> result, StringBuilder builder, LinkedHashMap<String, TapField> nameFieldMap) {
         MapDifference<String, Object> difference = Maps.difference(firstRecord, result);
@@ -485,7 +476,9 @@ public class PDKTestBase {
             boolean equalResult = objectIsEqual(leftValue, rightValue, nameFieldMap.get(entry.getKey()));
             Object leftValueObj = this.value(diff.leftValue());
             Object rightValueObj = this.value(diff.rightValue());
-            if (!equalResult && null != leftValueObj && !leftValueObj.toString().equals(rightValueObj.toString())) {
+            if (!equalResult && null != leftValueObj &&( ((!(leftValueObj instanceof String) && !(rightValueObj instanceof String)) && !leftValueObj.toString().equals(rightValueObj.toString()))
+                      || (leftValueObj instanceof String && rightValueObj instanceof String && !TDDUtils.replaceSpace((String) leftValueObj).equals(TDDUtils.replaceSpace((String) rightValueObj)))
+                    )) {
                 different = true;
                 builder.append("\t\t\t\t").append("Key ").append(entry.getKey()).append("\n");
                 Object valueObj = diff.leftValue();
@@ -524,26 +517,27 @@ public class PDKTestBase {
         if (leftValue instanceof DateTime) {
             long time = ((DateTime) leftValue).toDate().getTime();
             left = new SimpleDateFormat(format).format(time);
-        }else if (leftValue instanceof Date) {
+        } else if (leftValue instanceof Date) {
             left = new SimpleDateFormat(format).format(((Date) leftValue).getTime());
-        }else if (leftValue instanceof Number) {
+        } else if (leftValue instanceof Number) {
             left = new SimpleDateFormat(format).format(((Number) leftValue).longValue());
-        }else {
+        } else {
             left = String.valueOf(leftValue);
         }
 
         if (rightValue instanceof DateTime) {
             long time = ((DateTime) rightValue).toDate().getTime();
             right = new SimpleDateFormat(format).format(time);
-        }else if (rightValue instanceof Date) {
+        } else if (rightValue instanceof Date) {
             right = new SimpleDateFormat(format).format(((Date) rightValue).getTime());
-        }else if (rightValue instanceof Number) {
+        } else if (rightValue instanceof Number) {
             right = new SimpleDateFormat(format).format(((Number) rightValue).longValue());
-        }else {
+        } else {
             right = String.valueOf(rightValue);
         }
         return left.equals(right);
     }
+
     public boolean objectIsEqual(Object leftValue, Object rightValue, TapField tapField) {
         boolean equalResult = false;
         //if ((leftValue instanceof List) && (rightValue instanceof List)) {
@@ -673,83 +667,14 @@ public class PDKTestBase {
                             DateUtil.DATE_TIME_GMT_FORMAT,
                             new SimpleTimeZone(8,"GMT")
                     ).replace("1970-01-01 ","");
+        } else if (value instanceof String){
+            if (TDDUtils.isJsonString((String) value)){
+                return TDDUtils.replaceSpace((String) value);
+            }
+            return value;
         } else {
             return value;
         }
-    }
-
-    public DataMap buildInsertRecord() {
-        DataMap insertRecord = new DataMap();
-        insertRecord.put("id", "id_2");
-        insertRecord.put("tap_string", "1234");
-        insertRecord.put("tap_string10", "0987654321");
-        insertRecord.put("tap_int", 123123);
-        insertRecord.put("tap_boolean", true);
-        insertRecord.put("tap_number", 123.0);
-        insertRecord.put("tap_number52", 343.22);
-        insertRecord.put("tap_binary", new byte[]{123, 21, 3, 2});
-        return insertRecord;
-    }
-
-    public DataMap buildFilterMap() {
-        DataMap filterMap = new DataMap();
-        filterMap.put("id", "id_2");
-        filterMap.put("tap_string", "1234");
-        return filterMap;
-    }
-
-    public DataMap buildUpdateMap() {
-        DataMap updateMap = new DataMap();
-        updateMap.put("id", "id_2");
-        updateMap.put("tap_string", "1234");
-        updateMap.put("tap_int", 5555);
-        return updateMap;
-    }
-
-    public void sendInsertRecordEvent(DataFlowEngine dataFlowEngine, TapDAG dag, String sourceTable, DataMap after) {
-        sendInsertRecordEvent(dataFlowEngine, dag, sourceTable, after, null);
-    }
-
-    public void sendInsertRecordEvent(DataFlowEngine dataFlowEngine, TapDAG dag, String sourceTable, DataMap after, PatrolEvent patrolEvent) {
-        //TapInsertRecordEvent tapInsertRecordEvent = new TapInsertRecordEvent();
-        //tapInsertRecordEvent.setAfter(after);
-        dataFlowEngine.sendExternalTapEvent(dag.getId(), insertRecordEvent(after, sourceTable));
-        if (patrolEvent != null)
-            dataFlowEngine.sendExternalTapEvent(dag.getId(), patrolEvent);
-    }
-
-    public void sendPatrolEvent(DataFlowEngine dataFlowEngine, TapDAG dag, PatrolEvent patrolEvent) {
-        dataFlowEngine.sendExternalTapEvent(dag.getId(), patrolEvent);
-    }
-
-    public void sendUpdateRecordEvent(DataFlowEngine dataFlowEngine, TapDAG dag, String sourceTableId, DataMap before, DataMap after, PatrolEvent patrolEvent) {
-        //TapUpdateRecordEvent tapUpdateRecordEvent = new TapUpdateRecordEvent();
-        //tapUpdateRecordEvent.setAfter(after);
-        //tapUpdateRecordEvent.setBefore(before);
-        dataFlowEngine.sendExternalTapEvent(dag.getId(), updateDMLEvent(before, after, sourceTableId));
-        dataFlowEngine.sendExternalTapEvent(dag.getId(), patrolEvent);
-    }
-
-    public void sendDeleteRecordEvent(DataFlowEngine dataFlowEngine, TapDAG dag, String sourceTableId, DataMap before, PatrolEvent patrolEvent) {
-        TapDeleteRecordEvent tapDeleteRecordEvent = new TapDeleteRecordEvent();
-        tapDeleteRecordEvent.setBefore(before);
-        dataFlowEngine.sendExternalTapEvent(dag.getId(), deleteDMLEvent(before, sourceTableId));
-        dataFlowEngine.sendExternalTapEvent(dag.getId(), patrolEvent);
-    }
-
-    public void sendCreateTableEvent(DataFlowEngine dataFlowEngine, TapDAG dag, TapTable table, PatrolEvent patrolEvent) {
-        TapCreateTableEvent createTableEvent = new TapCreateTableEvent();
-        createTableEvent.setTable(table);
-        createTableEvent.setTableId(table.getId());
-        dataFlowEngine.sendExternalTapEvent(dag.getId(), createTableEvent);
-        dataFlowEngine.sendExternalTapEvent(dag.getId(), patrolEvent);
-    }
-
-    public void sendDropTableEvent(DataFlowEngine dataFlowEngine, TapDAG dag, String tableId, PatrolEvent patrolEvent) {
-        TapDropTableEvent tapDropTableEvent = new TapDropTableEvent();
-        tapDropTableEvent.setTableId(tableId);
-        dataFlowEngine.sendExternalTapEvent(dag.getId(), tapDropTableEvent);
-        dataFlowEngine.sendExternalTapEvent(dag.getId(), patrolEvent);
     }
 
     protected void verifyUpdateOneRecord(ConnectorNode targetNode, DataMap before, DataMap verifyRecord, LinkedHashMap<String,TapField> nameFieldMap) {
@@ -824,26 +749,6 @@ public class PDKTestBase {
         }
     }
 
-    protected void verifyBatchRecordExists(ConnectorNode sourceNode, ConnectorNode targetNode, DataMap filterMap) {
-        TapFilter filter = new TapFilter();
-        filter.setMatch(filterMap);
-        TapTable sourceTable = sourceNode.getConnectorContext().getTableMap().get(sourceNode.getTable());
-        TapTable targetTable = targetNode.getConnectorContext().getTableMap().get(targetNode.getTable());
-
-        FilterResult filterResult = filterResults(targetNode, filter, targetTable);
-        $(() -> assertNotNull(filterResult, "The filter " + InstanceFactory.instance(JsonParser.class).toJson(filterMap) + " can not get any result. Please make sure writeRecord method update record correctly and queryByFilter/queryByAdvanceFilter can query it out for verification. "));
-
-        $(() -> Assertions.assertNull(filterResult.getError(), "Error occurred while queryByFilter " + InstanceFactory.instance(JsonParser.class).toJson(filterMap) + " error " + filterResult.getError()));
-        $(() -> assertNotNull(filterResult.getResult(), "Result should not be null, as the record has been inserted"));
-        Map<String, Object> result = filterResult.getResult();
-
-        targetNode.getCodecsFilterManager().transformToTapValueMap(result, sourceTable.getNameFieldMap());
-        targetNode.getCodecsFilterManager().transformFromTapValueMap(result);
-
-        StringBuilder builder = new StringBuilder();
-        $(() -> assertTrue(mapEquals(buildInsertRecord(), result, builder, targetTable.getNameFieldMap()), builder.toString()));
-    }
-
     public TapConnector getTestConnector() {
         return testConnector;
     }
@@ -884,7 +789,7 @@ public class PDKTestBase {
             capabilityAlternativeMap = new HashMap<>();
             connectorCapabilities.setCapabilityAlternativeMap(capabilityAlternativeMap);
         }
-        capabilityAlternativeMap.put(policy, policy);
+        capabilityAlternativeMap.put(policyName, policy);
     }
 
     protected final String INSERT_POLICY = "dml_insert_policy";
@@ -911,35 +816,10 @@ public class PDKTestBase {
         setInsertPolicy(context, UPDATE_POLICY, INSERT_ON_NOT_EXISTS);
     }
 
-
-    protected ConnectorNode tddTargetNode;
-    protected ConnectorNode sourceNode;
-    protected DataFlowWorker dataFlowWorker;
-    protected String targetNodeId = "t2";
-    protected String testSourceNodeId = "ts1";
     protected String originToSourceId;
     protected TapNodeInfo tapNodeInfo;
     protected String testTableId;
-    protected TapTable targetTable = table(testTableId)
-            .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-            .add(field("TYPE_ARRAY", JAVA_Array).tapType(tapArray()))
-            .add(field("TYPE_BINARY", JAVA_Binary).tapType(tapBinary().bytes(100L)))
-            .add(field("TYPE_BOOLEAN", JAVA_Boolean).tapType(tapBoolean()))
-            .add(field("TYPE_DATE", JAVA_Date).tapType(tapDate()))
-            .add(field("TYPE_DATETIME", "Date_Time").tapType(tapDateTime().fraction(3)))
-            .add(field("TYPE_DATETIME_WITH_TIME_ZONE", "Date_Time").tapType(tapDateTime().fraction(3).withTimeZone(true)))
-            .add(field("TYPE_MAP", JAVA_Map).tapType(tapMap()))
-            .add(field("TYPE_NUMBER_Long", JAVA_Long).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-            .add(field("TYPE_NUMBER_INTEGER", JAVA_Integer).tapType(tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))))
-            .add(field("TYPE_NUMBER_BigDecimal", JAVA_BigDecimal).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(200).scale(4).fixed(true)))
-            .add(field("TYPE_NUMBER_Float", JAVA_Float).tapType(tapNumber().maxValue(BigDecimal.valueOf(Float.MAX_VALUE)).minValue(BigDecimal.valueOf(-Float.MAX_VALUE)).precision(200).scale(4).fixed(false)))
-            .add(field("TYPE_NUMBER_Double", JAVA_Double).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(200).scale(4).fixed(false)))
-            .add(field("TYPE_STRING_1", JAVA_String).tapType(tapString().bytes(50L)))
-            .add(field("TYPE_STRING_2", JAVA_String).tapType(tapString().bytes(50L)))
-            .add(field("TYPE_INT64", "INT64").tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
-            .add(field("TYPE_TIME", "Time").tapType(tapTime().withTimeZone(false)))
-            .add(field("TYPE_TIME_WITH_TIME_ZONE", "Time").tapType(tapTime().withTimeZone(true)))
-            .add(field("TYPE_YEAR", "Year").tapType(tapYear()));
+    protected TapTable targetTable = Record.testTable(testTableId);
 
     protected Map<String,Object> transform(TestNode prepare, TapTable tapTable, Map<String ,Object> data){
         return transform(prepare.connectorNode(),tapTable,data);
@@ -948,7 +828,9 @@ public class PDKTestBase {
     private TapCodecsFilterManager codecs = new TapCodecsFilterManager(TapCodecsRegistry.create());
     protected Map<String,Object> transform(ConnectorNode prepare, TapTable tapTable, Map<String ,Object> data){
         prepare.getCodecsFilterManager().transformToTapValueMap(data, tapTable.getNameFieldMap());
-        codecs.transformFromTapValueMap(data);
+        TapCodecsFilterManager.create(TapCodecsRegistry.create()).transformFromTapValueMap(data);
+//        prepare.getCodecsFilterManager().transformToTapValueMap(data, tapTable.getNameFieldMap());
+//        codecs.transformFromTapValueMap(data);
         return data;
     }
 
@@ -1004,16 +886,12 @@ public class PDKTestBase {
                 .withPdkId(spec.getId())
                 .withGlobalStateMap(stateMap)
                 .withStateMap(stateMap)
+                .withLog(new TapLog())
                 .withTable(this.testTableId)
                 .build();
         RecordEventExecute recordEventExecute = RecordEventExecute.create(connectorNode, this)
                 .tddConfig(this.tddConfig);
         return new TestNode(nodeInfo, connectorNode, recordEventExecute);
-    }
-
-    protected void initConnectorFunctions() {
-        this.tddTargetNode = this.dataFlowWorker.getTargetNodeDriver(this.targetNodeId).getTargetNode();
-        this.sourceNode = this.dataFlowWorker.getSourceNodeDriver(this.testSourceNodeId).getSourceNode();
     }
 
     protected boolean createTable(TestNode prepare) {

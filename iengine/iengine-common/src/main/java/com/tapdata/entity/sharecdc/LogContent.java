@@ -9,7 +9,9 @@ import org.bson.Document;
 
 import java.io.Serializable;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * @author samuel
@@ -21,6 +23,7 @@ public class LogContent implements Serializable {
 	@Ignore
 	private static final long serialVersionUID = 5548333569381422473L;
 	private String fromTable;
+	private List<String> tableNamespaces;
 	@Deprecated
 	private Map<String, Object> data;
 	@Deprecated
@@ -91,6 +94,14 @@ public class LogContent implements Serializable {
 
 	public void setFromTable(String fromTable) {
 		this.fromTable = fromTable;
+	}
+
+	public List<String> getTableNamespaces() {
+		return tableNamespaces;
+	}
+
+	public void setTableNamespaces(List<String> tableNamespaces) {
+		this.tableNamespaces = tableNamespaces;
 	}
 
 	@Deprecated
@@ -197,6 +208,12 @@ public class LogContent implements Serializable {
 	public static LogContent valueOf(Document document) {
 		LogContent logContent = new LogContent();
 		logContent.setFromTable(document.getOrDefault("fromTable", "").toString());
+		Optional.ofNullable(document.getOrDefault("tableNamespaces", null)).map(tableNamespaces -> {
+			if (tableNamespaces instanceof List) {
+				logContent.setTableNamespaces((List<String>) tableNamespaces);
+			}
+			return null;
+		});
 		Object beforeObject = document.getOrDefault("before", null);
 		if (beforeObject instanceof Map) {
 			logContent.setBefore((Map<String, Object>) beforeObject);
@@ -235,8 +252,9 @@ public class LogContent implements Serializable {
 			} catch (Exception ignored) {
 			}
 		}
-		return "LogContent{\n" +
-				"  fromTable='" + fromTable +
+		return "LogContent{" +
+				"\n  fromTable='" + fromTable + '\'' +
+				"\n  tableNamespaces='" + tableNamespaces + '\'' +
 				"\n  timestamp=" + new Date(timestamp).toInstant() +
 				"\n  op=" + op +
 				"\n  before=" + before +

@@ -136,20 +136,20 @@ public class WebSocketServer extends TextWebSocketHandler {
 		if (webSocketInfo != null){
 			userId = webSocketInfo.getUserId();
 		}
-		log.info("WebSocket receive. message, userId {},id {}", userId, id);
+		log.debug("WebSocket receive. message, userId {},id {}", userId, id);
 
 		if (msg.startsWith(MessageInfoV1.VERSION)) {
 			MessageInfoV1 messageInfo = MessageInfoV1.parse(msg);
 			if (messageInfo != null) {
 				String remoteIp = webSocketInfo != null ? webSocketInfo.getIp() : "";
 				Thread.currentThread().setName(remoteIp + "-" + Thread.currentThread().getId() + "-" + messageInfo.getReqId());
-				log.info("WebSocket receive. userId: {}, id: {}, message: {}", userId, id, msg);
+				log.debug("WebSocket receive. userId: {}, id: {}, message: {}", userId, id, msg);
 				dispatchMessage(messageInfo, id, webSocketInfo);
 			} else {
 				log.error("Unsupported protocol for message: {}", msg);
 			}
 		} else if(StringUtils.isNotBlank(msg)){
-			log.info("WebSocket receive. userId: {}, id: {}, message: {}", userId, id, msg);
+			log.debug("WebSocket receive. userId: {}, id: {}, message: {}", userId, id, msg);
 			try {
 				MessageInfo messageInfo = JsonUtil.parseJsonUseJackson(msg, MessageInfo.class);
 

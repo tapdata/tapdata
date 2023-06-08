@@ -15,13 +15,15 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class ExternalStorageDto extends BaseDto {
+	public static final String MASK_PWD = "******";
 	private String name;
 	private String type;
 	private String uri;
+	@Deprecated
 	private String table;
 	private Integer ttlDay;
-	private boolean canEdit = false;
-	private boolean canDelete = true;
+	private Boolean canEdit = true;
+	private Boolean canDelete;
 	private boolean defaultStorage = false;
 	private List<String> baseURLs;
 	private String accessToken;
@@ -39,7 +41,7 @@ public class ExternalStorageDto extends BaseDto {
 				}
 				String username = connectionString.getUsername();
 				if (StringUtils.isNotBlank(username) && StringUtils.isNotBlank(password)) {
-					return uri.replace(username + ":" + password, username + ":******");
+					return uri.replace(username + ":" + password, username + ":" + MASK_PWD);
 				}
 			}
 		}

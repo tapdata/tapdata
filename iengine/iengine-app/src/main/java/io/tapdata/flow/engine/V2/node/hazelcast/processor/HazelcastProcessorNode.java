@@ -105,17 +105,18 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	@Override
 	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
+		if (!(tapEvent instanceof TapRecordEvent)) {
+			return;
+		}
+		TapRecordEvent tapRecordEvent = (TapRecordEvent) tapEvent;
 		MessageEntity messageEntity = tapEvent2Message((TapRecordEvent) tapEvent);
 		messageEntity.setOffset(tapdataEvent.getOffset());
 		final List<MessageEntity> processedMessages = dataFlowProcessor.process(Collections.singletonList(messageEntity));
 		if (CollectionUtils.isNotEmpty(processedMessages)) {
 			for (MessageEntity processedMessage : processedMessages) {
-				TapdataEvent processedEvent = (TapdataEvent) tapdataEvent.clone();
-				TapRecordEvent tapRecordEvent = message2TapEvent(processedMessage);
-				if (tapRecordEvent != null) {
-					processedEvent.setTapEvent(tapRecordEvent);
-					consumer.accept(processedEvent, getProcessResult(processedMessage.getTableName()));
-				}
+				TapEventUtil.setBefore(tapRecordEvent, processedMessage.getBefore());
+				TapEventUtil.setAfter(tapRecordEvent, processedMessage.getAfter());
+				consumer.accept(tapdataEvent, getProcessResult(processedMessage.getTableName()));
 			}
 		}
 	}

@@ -12,7 +12,9 @@ import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapDateTime;
 import io.tapdata.entity.schema.type.TapMap;
+import io.tapdata.entity.schema.type.TapTime;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -21,32 +23,245 @@ import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Array;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_BigDecimal;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Binary;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Boolean;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Date;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Double;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Float;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Integer;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Long;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_Map;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.JAVA_String;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class TapCodecsFilterManagerTest {
+
+    public List<Map<String,Object>> testRecord(final Map<String,TapField> fieldMap, final int recordCount){
+        List<Map<String,Object>> records = new ArrayList<>();
+        Random random = new Random();
+        for (int index = 0; index < recordCount; index++) {
+            Map<String, Object> record = new HashMap<>();
+            fieldMap.forEach((key, field) -> {
+                String type = field.getDataType();
+                String keyName = field.getName();
+                switch (type) {
+                    case JAVA_Array: {
+                        List<String> list = new ArrayList<>();
+                        list.add(UUID.randomUUID().toString());
+                        list.add(UUID.randomUUID().toString());
+                        record.put(keyName, list);
+                    }
+                    break;
+                    case JAVA_Binary: {
+                        record.put(keyName, UUID.randomUUID().toString().getBytes(StandardCharsets.UTF_8));
+                    }
+                    break;
+                    case JAVA_Integer: {
+                        record.put(keyName, random.nextInt(Integer.MAX_VALUE));
+                    }
+                    break;
+                    case JAVA_Map: {
+                        Map<String, Object> map = new HashMap<>();
+                        map.put(UUID.randomUUID().toString(), UUID.randomUUID().toString());
+                        map.put(UUID.randomUUID().toString(), UUID.randomUUID().toString());
+                        record.put(keyName, map);
+                    }
+                    break;
+                    case JAVA_BigDecimal: {
+                        BigDecimal bd = BigDecimal.valueOf(Math.random() * 10 + 50);
+                        record.put(keyName, bd.setScale(4, RoundingMode.HALF_UP));
+                    }
+                    break;
+                    case JAVA_Boolean: {
+                        record.put(keyName, Math.random() * 10 + 50 > 55);
+                    }
+                    break;
+                    case JAVA_Float: {
+                        BigDecimal bd = BigDecimal.valueOf(Math.random() * 10 + 50);
+                        record.put(keyName, bd.setScale(4, RoundingMode.HALF_UP).floatValue());//Float.parseFloat("" + (Math.random() * 10 + 50)));
+                    }
+                    break;
+                    case JAVA_Long:
+                    case "INT64": {
+                        record.put(keyName, random.nextLong());
+                    }
+                    break;
+                    case JAVA_Double: {
+                        BigDecimal bd = BigDecimal.valueOf(Math.random() * 10 + 50);
+                        record.put(keyName, bd.setScale(4, RoundingMode.HALF_UP).doubleValue());
+                    }
+                    break;
+                    case JAVA_String:
+                    case "STRING(100)":
+                        record.put(keyName, UUID.randomUUID().toString());
+                        break;
+                    case JAVA_Date: {
+                        record.put(keyName, new Date(random.nextInt(Integer.MAX_VALUE)));
+                    }
+                    break;
+                    case "Date_Time": {
+                        TapDateTime tapType = (TapDateTime)field.getTapType();
+                        TimeZone.setDefault( null == tapType.getWithTimeZone() || !tapType.getWithTimeZone() ? null : TimeZone.getTimeZone("GMT+0"));
+                        Date date = new Date((long) (1293861599 + new Random().nextDouble() * 60 * 60 * 24 * 365));
+                        record.put(keyName, date);
+                    }
+                    break;
+                    case "Time":
+                        TapTime tapType = (TapTime)field.getTapType();
+                        TimeZone.setDefault( null == tapType.getWithTimeZone() || !tapType.getWithTimeZone() ? null : TimeZone.getTimeZone("GMT+0"));
+                        Date date = new Date(random.nextInt());
+                        record.put(keyName, date);
+                        break;
+                    case "Year":
+                        record.put(keyName, new Date(random.nextInt()));
+                        break;
+                    default:
+                        record.put(keyName, null);
+                }
+            });
+            records.add(record);
+        }
+        return records;
+    }
+    public Map<String,TapField> testTable(final int fieldCount){
+        Map<String, TapField> map = new HashMap<>();
+
+        for (int index = 0; index < fieldCount; index++) {
+            String keyName = "FIELD_" + index;
+            if (index % 19 == 0) {
+                map.put(keyName, field(keyName, JAVA_Long).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))));
+            } else if (index % 19 == 1) {
+                map.put(keyName, field(keyName, JAVA_Array).tapType(tapArray()));
+            } else if (index % 19 == 3) {
+                map.put(keyName, field(keyName, JAVA_Binary).tapType(tapBinary().bytes(100L)));
+            } else if (index % 19 == 4) {
+                map.put(keyName, field(keyName, JAVA_Boolean).tapType(tapBoolean()));
+            } else if (index % 19 == 5) {
+                map.put(keyName, field(keyName, JAVA_Date).tapType(tapDate()));
+            } else if (index % 19 == 6) {
+                map.put(keyName, field(keyName, "Date_Time").tapType(tapDateTime().fraction(3)));
+            } else if (index % 19 == 7) {
+                map.put(keyName, field(keyName, "Date_Time").tapType(tapDateTime().fraction(3).withTimeZone(true)));
+            } else if (index % 19 == 8) {
+                map.put(keyName, field(keyName, JAVA_Map).tapType(tapMap()));
+            } else if (index % 19 == 9) {
+                map.put(keyName, field(keyName, JAVA_Long).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))));
+            } else if (index % 19 == 10) {
+                map.put(keyName, field(keyName, JAVA_Integer).tapType(tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))));
+            } else if (index % 19 == 11) {
+                map.put(keyName, field(keyName, JAVA_BigDecimal).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(200).scale(4).fixed(true)));
+            } else if (index % 19 == 12) {
+                map.put(keyName, field(keyName, JAVA_Float).tapType(tapNumber().maxValue(BigDecimal.valueOf(Float.MAX_VALUE)).minValue(BigDecimal.valueOf(-Float.MAX_VALUE)).precision(200).scale(4).fixed(false)));
+            } else if (index % 19 == 13) {
+                map.put(keyName, field(keyName, JAVA_Double).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(200).scale(4).fixed(false)));
+            } else if (index % 19 == 14) {
+                map.put(keyName, field(keyName, JAVA_String).tapType(tapString().bytes(50L)));
+            } else if (index % 19 == 15) {
+                map.put(keyName, field(keyName, JAVA_String).tapType(tapString().bytes(50L)));
+            } else if (index % 19 == 16) {
+                map.put(keyName, field(keyName, "INT64").tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))));
+            } else if (index % 19 == 17) {
+                map.put(keyName, field(keyName, "Time").tapType(tapTime().withTimeZone(false)));
+            } else if (index % 19 == 18) {
+                map.put(keyName, field(keyName, "Time").tapType(tapTime().withTimeZone(true)));
+            } else {
+                map.put(keyName, field(keyName, "Year").tapType(tapYear()));
+            }
+        }
+        return map;
+    }
+
+
+    @Test
+    public void test(){
+        TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
+        Map<String, TapField> sourceNameFieldMap = testTable(5);
+        List<Map<String,Object>> maps = testRecord(sourceNameFieldMap, 10000);
+        long start = System.currentTimeMillis();
+        for (Map<String, Object> map : maps) {
+            codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap);
+            Map<String, TapField> nameFieldMap = new ConcurrentHashMap<>();
+            codecsFilterManager.transformFromTapValueMap(map, nameFieldMap);
+            //codecsFilterManager.transformToTapValueMap(map, nameFieldMap);
+        }
+        long end = System.currentTimeMillis();
+        //In 5 fields and table has 10000 records, qps only: 1.4705882 w/s
+        //In 5 fields and table has 10000 records, qps only: 1.6447369 w/s
+        assertFalse((10000.00F / (end-start))*1000> 30000.00F ,"In 5 fields and table has 10000 records, qps only: " + (1000.00F / (end-start)) + " w/s");
+
+        sourceNameFieldMap = testTable(50);
+        maps = testRecord(sourceNameFieldMap, 10000);
+        start = System.currentTimeMillis();
+        for (Map<String, Object> map : maps) {
+            codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap);
+            Map<String, TapField> nameFieldMap = new ConcurrentHashMap<>();
+            codecsFilterManager.transformFromTapValueMap(map, nameFieldMap);
+            //codecsFilterManager.transformToTapValueMap(map, nameFieldMap);
+        }
+        end = System.currentTimeMillis();
+        //In 50 fields and table has 10000 records, qps only: 3.4129694 w/s
+        //In 50 fields and table has 10000 records, qps only: 3.267974 w/s ==>
+        assertTrue((10000.00F / (end-start))*1000 > 30000.00F ,"In 50 fields and table has 10000 records, qps only: " + (1000.00F / (end-start)) + " w/s");
+
+        sourceNameFieldMap = testTable(100);
+        maps = testRecord(sourceNameFieldMap, 10000);
+        start = System.currentTimeMillis();
+        for (Map<String, Object> map : maps) {
+            codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap);
+            Map<String, TapField> nameFieldMap = new ConcurrentHashMap<>();
+            codecsFilterManager.transformFromTapValueMap(map, nameFieldMap);
+            //codecsFilterManager.transformToTapValueMap(map, nameFieldMap);
+        }
+        end = System.currentTimeMillis();
+        //In 100 fields and table has 10000 records, qps only: 1.7241379 w/s
+        //In 100 fields and table has 10000 records, qps only: 1.8867924 w/s
+        assertFalse((10000.00F / (end-start))*1000 > 30000.00F ,"In 100 fields and table has 10000 records, qps only: " + (1000.00F / (end-start)) + " w/s");
+
+        sourceNameFieldMap = testTable(500);
+        maps = testRecord(sourceNameFieldMap, 10000);
+        start = System.currentTimeMillis();
+        for (Map<String, Object> map : maps) {
+            codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap);
+            Map<String, TapField> nameFieldMap = new ConcurrentHashMap<>();
+            codecsFilterManager.transformFromTapValueMap(map, nameFieldMap);
+            //codecsFilterManager.transformToTapValueMap(map, nameFieldMap);
+        }
+        end = System.currentTimeMillis();
+        //In 500 fields and table has 10000 records, qps only: 0.6896552 w/s
+        //In 500 fields and table has 10000 records, qps only: 0.47619048 w/s
+        assertTrue((10000.00F / (end-start))*1000 > 30000.00F ,"In 500 fields and table has 10000 records, qps only: " + (1000.00F / (end-start)) + " w/s");
+    }
+
     @Test
     public void testValueConversion() {
         TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
-        Map<String, Object> map = map(
-                entry("string", "string"),
-                entry("int", 5555),
-                entry("long", 34324L),
-                entry("float", 324.3f),
-                entry("double", 343.324d)
-                );
+        //Map<String, Object> map = map(
+        //        entry("string", "string"),
+        //        entry("int", 5555),
+        //        entry("long", 34324L),
+        //        entry("float", 324.3f),
+        //        entry("double", 343.324d)
+        //        );
+        Map<String, TapField> sourceNameFieldMap = testTable(500);
+        List<Map<String,Object>> maps = testRecord(sourceNameFieldMap, 100000);
+        Map<String,Object> map = maps.get(0);
 
-        Map<String, TapField> sourceNameFieldMap = new HashMap<>();
-        sourceNameFieldMap.put("string", field("string", "varchar").tapType(tapString().bytes(50L)));
-        sourceNameFieldMap.put("int", field("int", "number(32)").tapType(tapNumber().bit(32).maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))));
-        sourceNameFieldMap.put("long", field("long", "number(64)").tapType(tapNumber().bit(64).minValue(BigDecimal.valueOf(Long.MIN_VALUE)).maxValue(BigDecimal.valueOf(Long.MAX_VALUE))));
-        sourceNameFieldMap.put("float", field("float", "number(32)").tapType(tapNumber().bit(32).scale(3).minValue(BigDecimal.valueOf(Float.MIN_VALUE)).maxValue(BigDecimal.valueOf(Float.MAX_VALUE))));
-        sourceNameFieldMap.put("double", field("double", "double").tapType(tapNumber().scale(3).bit(64).minValue(BigDecimal.valueOf(Double.MIN_VALUE)).maxValue(BigDecimal.valueOf(Double.MAX_VALUE))));
+        //Map<String, TapField> sourceNameFieldMap = new HashMap<>();
+        //sourceNameFieldMap.put("string", field("string", "varchar").tapType(tapString().bytes(50L)));
+        //sourceNameFieldMap.put("int", field("int", "number(32)").tapType(tapNumber().bit(32).maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))));
+        //sourceNameFieldMap.put("long", field("long", "number(64)").tapType(tapNumber().bit(64).minValue(BigDecimal.valueOf(Long.MIN_VALUE)).maxValue(BigDecimal.valueOf(Long.MAX_VALUE))));
+        //sourceNameFieldMap.put("float", field("float", "number(32)").tapType(tapNumber().bit(32).scale(3).minValue(BigDecimal.valueOf(Float.MIN_VALUE)).maxValue(BigDecimal.valueOf(Float.MAX_VALUE))));
+        //sourceNameFieldMap.put("double", field("double", "double").tapType(tapNumber().scale(3).bit(64).minValue(BigDecimal.valueOf(Double.MIN_VALUE)).maxValue(BigDecimal.valueOf(Double.MAX_VALUE))));
 
         //read from source, transform to TapValue out from source connector.
         codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap);

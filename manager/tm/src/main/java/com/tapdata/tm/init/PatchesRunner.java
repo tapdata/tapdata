@@ -23,6 +23,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Component;
 import org.springframework.util.ResourceUtils;
 
+import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -50,6 +51,12 @@ public class PatchesRunner implements ApplicationRunner {
     @Value("${spring.data.mongodb.default.uri}")
     private String mongodbUri;
 
+
+    @PostConstruct
+    public void init() {
+        InitLogMap.register(this.getClass());
+    }
+
     @Override
     public void run(ApplicationArguments args) throws Exception {
         // Add script patch replace map.
@@ -62,6 +69,8 @@ public class PatchesRunner implements ApplicationRunner {
         } else if (productList.contains("drs")) {
             executePatchByType(AppType.DRS, allVariables);
         }
+
+        InitLogMap.complete(this.getClass());
     }
 
     private void executePatchByType(AppType appType, Map<String, String> allVariables) {

@@ -15,7 +15,7 @@
 
     <properties>
         <java.version>8</java.version>
-        <tapdata.pdk.api.version>1.2.2-SNAPSHOT</tapdata.pdk.api.version>
+        <tapdata.pdk.api.version>1.2.4-SNAPSHOT</tapdata.pdk.api.version>
     </properties>
 
     <dependencies>
@@ -34,6 +34,10 @@
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-runner</artifactId>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>pdk-error-code</artifactId>
         </dependency>
     </dependencies>
 

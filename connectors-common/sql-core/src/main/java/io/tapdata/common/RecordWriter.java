@@ -12,6 +12,7 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -29,10 +30,17 @@ public class RecordWriter {
     protected final TapTable tapTable;
     protected ExceptionCollector exceptionCollector = new AbstractExceptionCollector() {
     };
+    protected boolean isTransaction = false;
 
     public RecordWriter(JdbcContext jdbcContext, TapTable tapTable) throws SQLException {
         this.connection = jdbcContext.getConnection();
         this.tapTable = tapTable;
+    }
+
+    public RecordWriter(Connection connection, TapTable tapTable) throws SQLException {
+        this.connection = connection;
+        this.tapTable = tapTable;
+        isTransaction = true;
     }
 
     public void write(List<TapRecordEvent> tapRecordEvents, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws SQLException {
@@ -70,7 +78,7 @@ public class RecordWriter {
             updateRecorder.executeBatch(listResult);
             deleteRecorder.executeBatch(listResult);
             //some datasource must be auto commit, error will occur when commit
-            if (!connection.getAutoCommit()) {
+            if (!connection.getAutoCommit() && !isTransaction) {
                 connection.commit();
             }
             //release resource
@@ -80,6 +88,7 @@ public class RecordWriter {
             exceptionCollector.collectViolateNull(null, e);
             TapRecordEvent errorEvent = listResult.getErrorMap().keySet().stream().findFirst().orElse(null);
             exceptionCollector.collectViolateUnique(toJson(tapTable.primaryKeys(true)), errorEvent, null, e);
+            exceptionCollector.collectWritePrivileges("writeRecord", Collections.emptyList(), e);
             exceptionCollector.collectWriteType(null, null, errorEvent, e);
             exceptionCollector.collectWriteLength(null, null, errorEvent, e);
             throw e;
@@ -87,7 +96,9 @@ public class RecordWriter {
             insertRecorder.releaseResource();
             updateRecorder.releaseResource();
             deleteRecorder.releaseResource();
-            connection.close();
+            if (!isTransaction) {
+                connection.close();
+            }
             writeListResultConsumer.accept(listResult
                     .insertedCount(insertRecorder.getAtomicLong().get())
                     .modifiedCount(updateRecorder.getAtomicLong().get())

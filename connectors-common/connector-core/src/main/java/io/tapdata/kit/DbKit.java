@@ -56,9 +56,10 @@ public class DbKit {
         DataMap map = DataMap.create();
         if (EmptyKit.isNotNull(resultSet) && resultSet.getRow() > 0) {
             String errorCol = null;
+            int index = 1;
             for (String col : columnNames) {
                 try {
-                    map.put(col, resultSet.getObject(col));
+                    map.put(col, resultSet.getObject(index++));
                 } catch (Exception e) {
                     errorCol = col;
                 }

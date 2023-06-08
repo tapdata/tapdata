@@ -3,7 +3,8 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.google.common.collect.Maps;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
-import com.tapdata.entity.TapdataShareLogEvent;
+import com.tapdata.constant.StringUtil;
+import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.ExistsDataProcessEnum;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -11,58 +12,41 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.AlterFieldAttributesFuncAspect;
-import io.tapdata.aspect.AlterFieldNameFuncAspect;
-import io.tapdata.aspect.ClearTableFuncAspect;
-import io.tapdata.aspect.CreateIndexFuncAspect;
-import io.tapdata.aspect.CreateTableFuncAspect;
-import io.tapdata.aspect.DropFieldFuncAspect;
-import io.tapdata.aspect.DropTableFuncAspect;
-import io.tapdata.aspect.NewFieldFuncAspect;
-import io.tapdata.aspect.SkipErrorDataAspect;
-import io.tapdata.aspect.TableInitFuncAspect;
-import io.tapdata.aspect.WriteRecordFuncAspect;
+import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
-import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
-import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
-import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
-import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
-import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
+import io.tapdata.entity.event.ddl.table.*;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
+import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
+import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleaner;
+import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleanerEntity;
+import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
 import io.tapdata.pdk.apis.entity.merge.MergeTableProperties;
+import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.target.AlterFieldAttributesFunction;
-import io.tapdata.pdk.apis.functions.connector.target.AlterFieldNameFunction;
-import io.tapdata.pdk.apis.functions.connector.target.ClearTableFunction;
-import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
-import io.tapdata.pdk.apis.functions.connector.target.DropFieldFunction;
-import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
-import io.tapdata.pdk.apis.functions.connector.target.NewFieldFunction;
-import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
+import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
@@ -73,22 +57,13 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
-import static io.tapdata.entity.simplify.TapSimplify.clearTableEvent;
-import static io.tapdata.entity.simplify.TapSimplify.createIndexEvent;
-import static io.tapdata.entity.simplify.TapSimplify.createTableEvent;
-import static io.tapdata.entity.simplify.TapSimplify.dropTableEvent;
+import static io.tapdata.entity.simplify.TapSimplify.*;
 
 /**
  * @author jackin
@@ -109,14 +84,13 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	protected void doInit(@NotNull Context context) throws Exception {
 		try {
 			super.doInit(context);
-			Node<?> node = dataProcessorContext.getNode();
-			if (node instanceof TableNode) {
-				TableNode tableNode = (TableNode) node;
+			if (getNode() instanceof TableNode) {
+				TableNode tableNode = (TableNode) getNode();
 				lastTableName = tableNode.getTableName();
 				updateConditionFieldsMap.put(lastTableName, tableNode.getUpdateConditionFields());
 				writeStrategy = tableNode.getWriteStrategy();
-			} else if (node instanceof DatabaseNode) {
-				DatabaseNode dbNode = (DatabaseNode) node;
+			} else if (getNode() instanceof DatabaseNode) {
+				DatabaseNode dbNode = (DatabaseNode) getNode();
 				if (Objects.isNull(dbNode.getUpdateConditionFieldMap())) {
 					dbNode.setUpdateConditionFieldMap(Maps.newHashMap());
 				}
@@ -130,6 +104,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				throw new TapCodeException(TaskTargetProcessorExCode_15.UNKNOWN_ERROR, e);
 			}
 		}
+		initDDLHandler();
+	}
+
+
+	private void initDDLHandler() {
 		ddlEventHandlers = new ClassHandlers();
 		ddlEventHandlers.register(TapNewFieldEvent.class, this::executeNewFieldFunction);
 		ddlEventHandlers.register(TapAlterFieldNameEvent.class, this::executeAlterFieldNameFunction);
@@ -212,7 +191,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
 				boolean usePkAsUpdateConditions = usePkAsUpdateConditions(updateConditionFields, tapTable.primaryKeys());
 				if (usePkAsUpdateConditions && createdTable) {
-					obsLogger.info("Table " + tableId + " use the primary key as the update condition, which is created when the table is create, and ignored");
+//					obsLogger.info("Table " + tableId + " use the primary key as the update condition, which is created when the table is create, and ignored");
 					return;
 				}
 
@@ -260,48 +239,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			throw new TapEventException(TaskTargetProcessorExCode_15.CLEAR_TABLE_FAILED, "Table name: " + tableId, throwable)
 					.addEvent(tapClearTableEvent.get());
 		}
-	}
-
-	private boolean createTable(TapTable tapTable) {
-		AtomicReference<TapCreateTableEvent> tapCreateTableEvent = new AtomicReference<>();
-		boolean createdTable;
-		try {
-			CreateTableFunction createTableFunction = getConnectorNode().getConnectorFunctions().getCreateTableFunction();
-			CreateTableV2Function createTableV2Function = getConnectorNode().getConnectorFunctions().getCreateTableV2Function();
-			createdTable = createTableV2Function != null || createTableFunction != null;
-			if (createdTable) {
-				handleTapTablePrimaryKeys(tapTable);
-				tapCreateTableEvent.set(createTableEvent(tapTable));
-				executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
-						.createTableEvent(tapCreateTableEvent.get())
-						.connectorContext(getConnectorNode().getConnectorContext())
-						.dataProcessorContext(dataProcessorContext)
-						.start(), (createTableFuncAspect ->
-						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CREATE_TABLE, () -> {
-							if (createTableV2Function != null) {
-								CreateTableOptions createTableOptions = createTableV2Function.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
-								if (createTableFuncAspect != null)
-									createTableFuncAspect.createTableOptions(createTableOptions);
-							} else {
-								createTableFunction.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
-							}
-						}, TAG)));
-			} else {
-				// only execute start function aspect so that it would be cheated as input
-				AspectUtils.executeAspect(new CreateTableFuncAspect()
-						.createTableEvent(tapCreateTableEvent.get())
-						.connectorContext(getConnectorNode().getConnectorContext())
-						.dataProcessorContext(dataProcessorContext).state(NewFieldFuncAspect.STATE_START));
-			}
-			//
-//			String s = JSONUtil.obj2Json(Collections.singletonList(tapTable));
-			clientMongoOperator.insertOne(Collections.singletonList(tapTable),
-					ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
-		} catch (Throwable throwable) {
-			throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_TABLE_FAILED, "Table model: " + tapTable, throwable)
-					.addEvent(tapCreateTableEvent.get());
-		}
-		return createdTable;
 	}
 
 	private void dropTable(ExistsDataProcessEnum existsDataProcessEnum, String tableId) {
@@ -361,11 +298,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						writeDDL(events);
 					}
 				});
-	}
-
-	@Override
-	void processShareLog(List<TapdataShareLogEvent> tapdataShareLogEvents) {
-		throw new UnsupportedOperationException();
 	}
 
 	private void writeDDL(List<TapEvent> events) {
@@ -437,8 +369,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		).map(updateConditionFields -> {
 			ValueChange<String> nameChange = tapAlterFieldNameEvent.getNameChange();
 			if (null != nameChange) {
-				updateConditionFields.removeIf(s -> nameChange.getBefore().equals(s));
-				updateConditionFields.add(nameChange.getAfter());
+				if(updateConditionFields.contains(nameChange.getBefore())){
+					updateConditionFields.removeIf(s -> nameChange.getBefore().equals(s));
+					updateConditionFields.add(nameChange.getAfter());
+				}
 				Optional.ofNullable(dataProcessorContext.getTaskDto()
 				).map(TaskDto::getDag
 				).map(dag -> dag.getNode(getNode().getId())
@@ -453,8 +387,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					}
 					return null;
 				}).map(fields -> {
-					fields.removeIf(s -> nameChange.getBefore().equals(s));
-					fields.add(nameChange.getAfter());
+					if(fields.contains(nameChange.getBefore())){
+						fields.removeIf(s -> nameChange.getBefore().equals(s));
+						fields.add(nameChange.getAfter());
+					}
 					return null;
 				});
 			}
@@ -611,6 +547,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
 		handleTapTablePrimaryKeys(tapTable);
 		events.forEach(this::addPropertyForMergeEvent);
+		tapRecordEvents.forEach(t -> removeNotSupportFields(t, tapTable.getId()));
 		WriteRecordFunction writeRecordFunction = getConnectorNode().getConnectorFunctions().getWriteRecordFunction();
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 		if (writeRecordFunction != null) {
@@ -682,61 +619,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 	}
 
-	private void dispatchTapRecordEvents(List<TapEvent> tapEvents, Predicate<DispatchEntity> dispatchClause, Consumer<List<TapEvent>> consumer) {
-		DispatchEntity dispatchEntity = new DispatchEntity();
-		List<TapEvent> tempList = new ArrayList<>();
-		for (TapEvent tapEvent : tapEvents) {
-			if (tapEvent instanceof TapRecordEvent) {
-				TapRecordEvent tapRecordEvent = (TapRecordEvent) tapEvent;
-				if (null == dispatchEntity.getLastTapEvent()) {
-					dispatchEntity.setLastTapEvent(tapRecordEvent);
-				}
-				dispatchEntity.setCurrentTapEvent(tapRecordEvent);
-				if (null != dispatchClause && dispatchClause.test(dispatchEntity)) {
-					if (CollectionUtils.isNotEmpty(tempList)) {
-						consumer.accept(tempList);
-						tempList.clear();
-					}
-					dispatchEntity.setLastTapEvent(tapRecordEvent);
-				}
-				tempList.add(tapEvent);
-			} else if (tapEvent instanceof TapDDLEvent) {
-				if (CollectionUtils.isNotEmpty(tempList)) {
-					consumer.accept(tempList);
-					tempList.clear();
-				}
-				tempList.add(tapEvent);
-				consumer.accept(tempList);
-				tempList.clear();
-			}
-		}
-		if (CollectionUtils.isNotEmpty(tempList)) {
-			consumer.accept(tempList);
-			tempList.clear();
-		}
-	}
-
-	private static class DispatchEntity {
-		private TapEvent lastTapEvent;
-		private TapEvent currentTapEvent;
-
-		public TapEvent getLastTapEvent() {
-			return lastTapEvent;
-		}
-
-		public void setLastTapEvent(TapEvent lastTapEvent) {
-			this.lastTapEvent = lastTapEvent;
-		}
-
-		public TapEvent getCurrentTapEvent() {
-			return currentTapEvent;
-		}
-
-		public void setCurrentTapEvent(TapEvent currentTapEvent) {
-			this.currentTapEvent = currentTapEvent;
-		}
-	}
-
 	private void addPropertyForMergeEvent(TapEvent tapEvent) {
 		if (null == tapEvent) return;
 		Object info = tapEvent.getInfo(MergeInfo.EVENT_INFO_KEY);
@@ -761,5 +643,164 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			}
 			currentProperty.setJoinKeys(joinKeys);
 		}
+	}
+
+	@Override
+	void transactionBegin() {
+		ConnectorNode connectorNode = getConnectorNode();
+		if (null == connectorNode) {
+			return;
+		}
+		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+		TransactionBeginFunction transactionBeginFunction = connectorFunctions.getTransactionBeginFunction();
+		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
+		try {
+			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TRANSACTION_BEGIN,
+					() -> pdkMethodInvoker.runnable(() -> transactionBeginFunction.begin(connectorNode.getConnectorContext())), TAG);
+		} finally {
+			removePdkMethodInvoker(pdkMethodInvoker);
+		}
+	}
+
+	@Override
+	void transactionCommit() {
+		ConnectorNode connectorNode = getConnectorNode();
+		if (null == connectorNode) {
+			return;
+		}
+		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+		TransactionCommitFunction transactionCommitFunction = connectorFunctions.getTransactionCommitFunction();
+		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
+		try {
+			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TRANSACTION_BEGIN,
+					() -> pdkMethodInvoker.runnable(() -> transactionCommitFunction.commit(connectorNode.getConnectorContext())), TAG);
+		} finally {
+			removePdkMethodInvoker(pdkMethodInvoker);
+		}
+	}
+
+	@Override
+	void transactionRollback() {
+		ConnectorNode connectorNode = getConnectorNode();
+		if (null == connectorNode) {
+			return;
+		}
+		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+		TransactionRollbackFunction transactionRollbackFunction = connectorFunctions.getTransactionRollbackFunction();
+		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
+		try {
+			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TRANSACTION_BEGIN,
+					() -> pdkMethodInvoker.runnable(() -> transactionRollbackFunction.rollback(connectorNode.getConnectorContext())), TAG);
+		} finally {
+			removePdkMethodInvoker(pdkMethodInvoker);
+		}
+	}
+
+	@Override
+	void processExactlyOnceWriteCache(List<TapdataEvent> tapdataEvents) {
+		ConnectorNode connectorNode = getConnectorNode();
+		if (null == connectorNode) {
+			return;
+		}
+		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+		WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
+		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
+		List<TapRecordEvent> tapRecordEvents = tapdataEvents.parallelStream().map(TapdataEvent::getExactlyOnceWriteCache)
+				.filter(Objects::nonNull)
+				.collect(Collectors.toList());
+		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,
+				pdkMethodInvoker.runnable(() -> writeRecordFunction.writeRecord(
+						connectorNode.getConnectorContext(),
+						tapRecordEvents,
+						dataProcessorContext.getTapTableMap().get(ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME),
+						result -> {
+							Map<TapRecordEvent, Throwable> errorMap = result.getErrorMap();
+							if (MapUtils.isNotEmpty(errorMap)) {
+								Iterator<Map.Entry<TapRecordEvent, Throwable>> iterator = errorMap.entrySet().iterator();
+								Map.Entry<TapRecordEvent, Throwable> next = iterator.next();
+								throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, "First error cache record: " + next.getKey(), next.getValue());
+							}
+						})
+				));
+	}
+
+	@Override
+	boolean eventExactlyOnceWriteCheckExists(TapdataEvent tapdataEvent) {
+		if (null == tapdataEvent) return false;
+		if (null == tapdataEvent.getExactlyOnceWriteCache()) return false;
+		ConnectorNode connectorNode = getConnectorNode();
+		if (null == connectorNode) {
+			return false;
+		}
+		TapInsertRecordEvent exactlyOnceWriteCache = tapdataEvent.getExactlyOnceWriteCache();
+		TapTable tapTable = dataProcessorContext.getTapTableMap().get(ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME);
+		Map<String, Object> filter = exactlyOnceWriteCache.getFilter(tapTable.primaryKeys());
+		TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create().match(DataMap.create(filter));
+
+		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorFunctions.getQueryByAdvanceFilterFunction();
+		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
+		AtomicBoolean result = new AtomicBoolean(false);
+		try {
+			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
+					pdkMethodInvoker.runnable(
+							() -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, rs -> {
+								if (null != rs.getError()) {
+									throw new TapCodeException(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED, "Check cache failed by filter: " + tapAdvanceFilter, rs.getError());
+								}
+								result.set(CollectionUtils.isNotEmpty(rs.getResults()));
+							})
+					));
+		} finally {
+			removePdkMethodInvoker(pdkMethodInvoker);
+		}
+		return result.get();
+	}
+
+	@Override
+	public void doClose() throws Exception {
+		super.doClose();
+	}
+	@Override
+	protected void updateNodeConfig(TapdataEvent tapdataEvent) {
+		super.updateNodeConfig(tapdataEvent);
+		final TapEvent tapEvent = tapdataEvent.getTapEvent();
+		if(tapEvent instanceof TapAlterFieldNameEvent){
+			TapAlterFieldNameEvent tapAlterFieldNameEvent = (TapAlterFieldNameEvent) tapEvent;
+			// 修改关联字段配置
+			Optional.ofNullable(updateConditionFieldsMap
+			).map(m -> m.get(tapAlterFieldNameEvent.getTableId())
+			).map(updateConditionFields -> {
+				ValueChange<String> nameChange = tapAlterFieldNameEvent.getNameChange();
+				if (null != nameChange) {
+					if(updateConditionFields.contains(nameChange.getBefore())){
+						updateConditionFields.removeIf(s -> nameChange.getBefore().equals(s));
+						updateConditionFields.add(nameChange.getAfter());
+					}
+					Optional.ofNullable(dataProcessorContext.getTaskDto()
+					).map(TaskDto::getDag
+					).map(dag -> dag.getNode(getNode().getId())
+					).map(node -> {
+						if (node instanceof DatabaseNode) {
+							Map<String, List<String>> updateConditionFieldMap = ((DatabaseNode) node).getUpdateConditionFieldMap();
+							if (null != updateConditionFieldMap) {
+								return updateConditionFieldMap.get(tapAlterFieldNameEvent.getTableId());
+							}
+						} else if (node instanceof TableNode) {
+							return ((TableNode) node).getUpdateConditionFields();
+						}
+						return null;
+					}).map(fields -> {
+						if(fields.contains(nameChange.getBefore())){
+							fields.removeIf(s -> nameChange.getBefore().equals(s));
+							fields.add(nameChange.getAfter());
+						}
+						return null;
+					});
+				}
+				return null;
+			});
+		}
+
 	}
 }

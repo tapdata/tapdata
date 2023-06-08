@@ -11,33 +11,38 @@ import java.util.Objects;
 @Slf4j
 public class DateTimeUtil {
 
-    public static boolean compare(QueryOperator queryOperator, Object databaseValue)  {
+    public static boolean compare(QueryOperator queryOperator, Object databaseValue) {
         // queryOperator   1:> 2:>= 3:< 4:<= 5:=
         Object filterValue = queryOperator.getValue();
-        //将字符串转换为日期和时间
-        Date filterDate;
-        try {
-            SimpleDateFormat dateformat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
-            filterDate = dateformat.parse(filterValue.toString());
-        }catch (Exception e){
-            log.error("SimpleDateFormat is error{}",e.getMessage());
-            return false;
-        }
+        DateTime filterDateTime;
         int operator = queryOperator.getOperator();
-        DateTime filterDateTime = AnyTimeToDateTime.toDateTime(filterDate);
+        if (!(filterValue instanceof DateTime)) {
+            //将字符串转换为日期和时间
+            Date filterDate;
+            try {
+                SimpleDateFormat dateformat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
+                filterDate = dateformat.parse(filterValue.toString());
+            } catch (Exception e) {
+                log.error("SimpleDateFormat is error{}", e.getMessage());
+                return false;
+            }
+            filterDateTime = AnyTimeToDateTime.toDateTime(filterDate);
+        } else {
+            filterDateTime = (DateTime) filterValue;
+        }
         DateTime databaseDateTime;
         if (databaseValue instanceof DateTime) {
             databaseDateTime = (DateTime) databaseValue;
-        } else{
+        } else {
             databaseDateTime = AnyTimeToDateTime.toDateTime(databaseValue);
-         }
+        }
         if (filterDateTime == null || databaseDateTime == null) {
             return Objects.equals(filterDateTime, databaseDateTime) && (
                     operator == QueryOpertorEnum.GTE.getOp()
                             || operator == QueryOpertorEnum.LTE.getOp()
                             || operator == QueryOpertorEnum.EQL.getOp());
         }
-        if (databaseDateTime.getSeconds() >filterDateTime.getSeconds()  && (operator == QueryOpertorEnum.GT.getOp()
+        if (databaseDateTime.getSeconds() > filterDateTime.getSeconds() && (operator == QueryOpertorEnum.GT.getOp()
                 || operator == QueryOpertorEnum.GTE.getOp())) {
             return true;
 

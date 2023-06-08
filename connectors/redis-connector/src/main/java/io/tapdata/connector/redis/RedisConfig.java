@@ -2,6 +2,7 @@ package io.tapdata.connector.redis;
 
 import io.tapdata.entity.utils.BeanUtils;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.kit.EmptyKit;
 import redis.clients.jedis.HostAndPort;
 
 import java.util.ArrayList;
@@ -40,8 +41,10 @@ public class RedisConfig {
 
     public RedisConfig load(Map<String, Object> map) {
         beanUtils.mapToBean(map, this);
-        clusterNodes = sentinelAddress.stream().map(v ->
-                new HostAndPort(String.valueOf(v.get("host")), v.get("port"))).collect(Collectors.toList());
+        if (EmptyKit.isNotNull(sentinelAddress)) {
+            clusterNodes = sentinelAddress.stream().map(v ->
+                    new HostAndPort(String.valueOf(v.get("host")), v.get("port"))).collect(Collectors.toList());
+        }
         return this;
     }
 
