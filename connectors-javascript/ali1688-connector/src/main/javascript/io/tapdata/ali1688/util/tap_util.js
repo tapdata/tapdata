@@ -1,14 +1,11 @@
-/**
- *  This is the toolkit encapsulated by Tap Data.
- * */
-var invoker = loadAPI();
+
 
 function isValue(value){
     return 'undefined' !== value && null != value;
 }
 
 function getSignatureRules(appSecret, urlPath, params){
-    let openKeyIdCodeOfValue = mapUtils.getParamsWithKeyValueAsString(params, "");
+    let openKeyIdCodeOfValue = urlPath + mapUtils.getParamsWithKeyValueAsString(params, "");
     //log.warn(openKeyIdCodeOfValue);
     //hex(sign(secretKeyCodeOfKey, openKeyIdCodeOfValue));
     return tapUtil.ali1688HmacSha1ToHexStr(openKeyIdCodeOfValue, appSecret);

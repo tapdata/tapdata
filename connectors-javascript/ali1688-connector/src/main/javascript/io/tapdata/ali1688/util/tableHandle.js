@@ -263,3 +263,114 @@ class ShippingOrder extends DefaultTable {
         }
     }
 }
+
+
+var execCommand = {
+    command: function (connectionConfig, nodeConfig, commandInfo) {
+        let type = commandInfo.command;
+        if ('undefined' === type || type == null || '' === type) return null;
+        switch (type) {
+            case 'executeQuery': {
+                let params = commandInfo.params;
+                if (!isParam(params) || null == params){
+                    log.error("The funcName is empty in params map. Please contact technical support personnel");
+                    return null;
+                }
+                let funcName = params.funcName;
+                if (!isParam(funcName) || null == funcName || "" === funcName.trim()){
+                    log.error("The funcName is empty. Please contact technical support personnel");
+                    return null;
+                }
+                switch (funcName){
+                    case 'getLogisticsInfos': return new CallCommandWithLogisticsInfos(connectionConfig, nodeConfig, params);
+                }
+            }
+        }
+        return null;
+    }
+}
+class ExecuateCommand{
+    connectionConfig;
+    nodeConfig;
+    commandInfo;
+    constructor(connectionConfig, nodeConfig, commandInfo) {
+        this.commandInfo = commandInfo;
+        this.connectionConfig = connectionConfig;
+        this.nodeConfig = nodeConfig;
+    }
+
+    command(){
+
+    }
+}
+
+class CallCommandWithLogisticsInfos extends ExecuateCommand {
+    //getLogisticsInfos
+    //该方法只有结构化数据库源才能使用，可执行指定的数据库存储过程及自定义函数
+    // ● funcName: getLogisticsInfos
+    // ● params: 传入的参数
+    //   orderId : id
+    command(){
+        let apiKey = this.connectionConfig.appKey;
+        if (!isParam(apiKey) || null == apiKey || "" === apiKey.trim()){
+            log.error("The App Key has expired. Please contact technical support personnel");
+            return null;
+        }
+        let secretKey = this.connectionConfig.secretKey;
+        if (!isParam(secretKey) || null == secretKey || "" === secretKey.trim()){
+            log.error("The App Secret has expired. Please contact technical support personnel");
+            return null;
+        }
+
+        let params = this.commandInfo.params;
+        if (!isParam(params) || null == params){
+            log.error("The commandInfo has expired. Please contact technical support personnel");
+            return null;
+        }
+        let orderId = params.orderId;
+        if (!isParam(orderId) || null == orderId){
+            log.error("The Order id is empty, can not get LogisticsInfos. Please contact technical support personnel");
+            return null;
+        }
+
+        let timeStamp = new Date().getTime();
+        let accessToken = getConfig("access_token");
+        let apiConfig = {
+            "_aop_timestamp": BigInt(timeStamp),
+            "fields": "company,name,sender,receiver,sendgood",
+            "orderId": orderId,
+            "access_token": accessToken,
+            "webSite": '1688'
+        };
+
+        apiConfig._aop_signature = getSignatureRules(
+            secretKey,
+            "param2/1/com.alibaba.logistics/alibaba.trade.getLogisticsInfos.buyerView/" + apiKey,
+            apiConfig
+        );
+        let logistics = invoker.invoke('getLogisticsInfos', apiConfig);
+        if (!isParam(logistics) || null == logistics){
+            log.warn("Can not get any logistics with Order id is {}, no http result.", orderId);
+            return null;
+        }
+        let logisticsRes = logistics.result;
+        if (!isParam(logisticsRes) || null == logisticsRes){
+            log.warn("Can not get any logistics with Order id is {}, no http result.", orderId);
+            return null;
+        }
+        let logisticsResList = logisticsRes.result;
+        if (!isValue(logisticsResList)){
+            let errorCode = isValue(logisticsRes.error_code) ? logisticsRes.error_code : (isValue(logisticsRes.errorCode) ? logisticsRes.errorCode : "0")
+            log.warn("Can not get logistics list, http code {}{}{}{}",
+                logistics.httpCode,
+                isValue(logisticsRes.error_code) ? ( ", error_code:" + logisticsRes.error_code) : (isValue(logisticsRes.errorCode) ? ( ", error_code:" + logisticsRes.errorCode) : ""),
+                isValue(logisticsRes.error_message) ? (", error_message: " + logisticsRes.error_message) : (isValue(logisticsRes.errorMessage) ? (", error_message: " + logisticsRes.errorMessage) : ""),
+                isValue(logisticsRes.exception) ? (", exception: " + logisticsRes.exception) : ""
+            );
+            return "500_2" === errorCode ? {
+                "message": isValue(logisticsRes.error_message) ? logisticsRes.error_message : (isValue(logisticsRes.errorMessage) ? logisticsRes.errorMessage : "")
+            } : null;
+        }
+        return logisticsResList;
+    }
+}

@@ -1,3 +1,7 @@
+/**
+ *  This is the toolkit encapsulated by Tap Data.
+ * */
+var invoker = loadAPI();
 config.setStreamReadIntervalSeconds(2*60);
 
 function discoverSchema(connectionConfig) {
@@ -80,7 +84,7 @@ function connectionTest(connectionConfig) {
     let result = goods.result;
     let pageInfo = result.result;
     //@todo
-    log.warn("orders: {}", JSON.stringify(result))
+    //log.warn("orders: {}", JSON.stringify(result))
     isCheck = !isValue(pageInfo);
     checkItems.push({"test":"Debugging the Order API and Check API result",
         "code": isCheck ? -1 : 1,
@@ -181,4 +185,13 @@ function getFromMap(map, key){
     }else {
         return map[key];
     }
+}
+
+
+function executeCommand(connectionConfig, nodeConfig, commandInfo){
+    let callCommand = execCommand.command(connectionConfig, nodeConfig, commandInfo);
+    if (isValue(callCommand)) {
+        return callCommand.command();
+    }
+    return null;
 }
