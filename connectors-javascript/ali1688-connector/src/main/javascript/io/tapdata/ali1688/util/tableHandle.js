@@ -367,9 +367,10 @@ class CallCommandWithLogisticsInfos extends ExecuateCommand {
                 isValue(logisticsRes.error_message) ? (", error_message: " + logisticsRes.error_message) : (isValue(logisticsRes.errorMessage) ? (", error_message: " + logisticsRes.errorMessage) : ""),
                 isValue(logisticsRes.exception) ? (", exception: " + logisticsRes.exception) : ""
             );
-            return "500_2" === errorCode ? {
+            return [{
+                "order": orderId,
                 "message": isValue(logisticsRes.error_message) ? logisticsRes.error_message : (isValue(logisticsRes.errorMessage) ? logisticsRes.errorMessage : "")
-            } : null;
+            }];
         }
         return logisticsResList;
     }
