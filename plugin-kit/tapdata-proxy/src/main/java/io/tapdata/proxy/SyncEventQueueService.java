@@ -50,12 +50,16 @@ public class SyncEventQueueService implements EventQueueService {
 			Set<String> remoteOld = remoteCachingChangedSubscribeIds;
 			remoteCachingChangedSubscribeIds = new ConcurrentSkipListSet<>();
 
+			//combine caching changed subscribe ids and remote caching changed subscribe ids
 			remoteOld.addAll(old);
 
-			Map<EngineSessionHandler, List<String>> sessionSubscribeIdsMap = subscribeMap.getSessionSubscribeIdsMap(remoteOld);
+			//match any of subscribe id, then send to all sessions
+			Map<EngineSessionHandler, List<String>> sessionSubscribeIdsMap = subscribeMap.getSessionSubscribeIdsMapByAnyOne(remoteOld);
 
-			for(Map.Entry<EngineSessionHandler, List<String>> entry : sessionSubscribeIdsMap.entrySet()) {
-				gatewaySessionManager.receiveOutgoingData(entry.getKey().getId(), new OutgoingData().message(new NewDataReceived().subscribeIds(entry.getValue())));
+			if(sessionSubscribeIdsMap != null) {
+				for(Map.Entry<EngineSessionHandler, List<String>> entry : sessionSubscribeIdsMap.entrySet()) {
+					gatewaySessionManager.receiveOutgoingData(entry.getKey().getId(), new OutgoingData().message(new NewDataReceived().subscribeIds(entry.getValue())));
+				}
 			}
 
 			if(old.isEmpty())
@@ -64,25 +68,27 @@ public class SyncEventQueueService implements EventQueueService {
 			String currentNodeId = CommonUtils.getProperty("tapdata_node_id");
 
 			NewDataReceived newDataReceived = new NewDataReceived().subscribeIds(new ArrayList<>(old));
-			List<String> nodeIds = proxySubscriptionService.subscribedNodeIds("engine", old);
-			for(String nodeId : nodeIds) {
-				if(currentNodeId.equals(nodeId))
-					continue;
+			List<String> nodeIds = proxySubscriptionService.subscribedNodeIdsByAnyOne("engine", old);
+			if(nodeIds != null) {
+				for(String nodeId : nodeIds) {
+					if(currentNodeId.equals(nodeId))
+						continue;
 
-				NodeConnection nodeConnection = nodeConnectionFactory.getNodeConnection(nodeId);
-				if (nodeConnection != null && nodeConnection.isReady()) {
-					try {
-						//TODO should use async queue way to send NewDataReceived, to avoid a timeout connection block the others.
-						//noinspection unchecked
-						nodeConnection.sendAsync(NewDataReceived.class.getSimpleName(), newDataReceived, Void.class, (o, throwable) -> {
-							if(throwable != null)
-								TapLogger.debug(TAG, "send NewDataReceived {} failed, {}", newDataReceived, throwable.getMessage());
-						});
-					} catch (IOException ioException) {
-						TapLogger.debug(TAG, "Send to nodeId {} failed {} and will try next, newDataReceived {}", nodeId, ioException.getMessage(), newDataReceived);
+					NodeConnection nodeConnection = nodeConnectionFactory.getNodeConnection(nodeId);
+					if (nodeConnection != null && nodeConnection.isReady()) {
+						try {
+							//TODO should use async queue way to send NewDataReceived, to avoid a timeout connection block the others.
+							//noinspection unchecked
+							nodeConnection.sendAsync(NewDataReceived.class.getSimpleName(), newDataReceived, Void.class, (o, throwable) -> {
+								if(throwable != null)
+									TapLogger.debug(TAG, "send NewDataReceived {} failed, {}", newDataReceived, throwable.getMessage());
+							});
+						} catch (IOException ioException) {
+							TapLogger.debug(TAG, "Send to nodeId {} failed {} and will try next, newDataReceived {}", nodeId, ioException.getMessage(), newDataReceived);
+						}
+					} else {
+						TapLogger.debug(TAG, "Try to notify node {} failed, state is not ready, as the node hit any of subscribeIds {}", nodeId, old);
 					}
-				} else {
-					TapLogger.debug(TAG, "Try to notify node {} failed, state is not ready, as the node hit any of subscribeIds {}", nodeId, old);
 				}
 			}
 		});

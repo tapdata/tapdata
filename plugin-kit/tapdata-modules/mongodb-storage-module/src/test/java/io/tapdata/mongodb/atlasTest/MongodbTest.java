@@ -17,8 +17,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
@@ -145,47 +145,53 @@ public class MongodbTest {
 		assertEquals("n3", proxySubscriptionToVerify2.getNodeId());
 		assertEquals(345L, proxySubscriptionToVerify2.getTime());
 
-		List<String> nodeIds = proxySubscriptionService.subscribedNodeIds("engine", "b");
+		List<String> nodeIds = proxySubscriptionService.subscribedNodeIdsByAnyOne("engine", Collections.singleton("b"));
 		assertNotNull(nodeIds);
 		assertEquals(2, nodeIds.size());
 		nodeIds.removeAll(Sets.newHashSet("n1", "n2"));
 		assertEquals(0, nodeIds.size());
 
-		nodeIds = proxySubscriptionService.subscribedNodeIds("engine", "g");
+		nodeIds = proxySubscriptionService.subscribedNodeIdsByAnyOne("engine", Collections.singleton("g"));
 		assertNotNull(nodeIds);
 		assertEquals(0, nodeIds.size());
 
-		nodeIds = proxySubscriptionService.subscribedNodeIds("engine", "f");
+		nodeIds = proxySubscriptionService.subscribedNodeIdsByAnyOne("engine", Collections.singleton("f"));
 		assertNotNull(nodeIds);
 		assertEquals(1, nodeIds.size());
 		nodeIds.removeAll(Sets.newHashSet("n3"));
 		assertEquals(0, nodeIds.size());
 
-		nodeIds = proxySubscriptionService.subscribedNodeIds("engine", Arrays.asList("b", "a"));
+		nodeIds = proxySubscriptionService.subscribedNodeIdsByAnyOne("engine", Sets.newHashSet("b", "a"));
+		assertNotNull(nodeIds);
+		assertEquals(2, nodeIds.size());
+		nodeIds.removeAll(Sets.newHashSet( "n1", "n2"));
+		assertEquals(0, nodeIds.size());
+
+		nodeIds = proxySubscriptionService.subscribedNodeIdsByAll("engine", Sets.newHashSet("b", "a"));
 		assertNotNull(nodeIds);
 		assertEquals(1, nodeIds.size());
 		nodeIds.removeAll(Sets.newHashSet( "n1"));
 		assertEquals(0, nodeIds.size());
 
-		nodeIds = proxySubscriptionService.subscribedNodeIds("engine", Arrays.asList("b", "a", "c"));
+		nodeIds = proxySubscriptionService.subscribedNodeIdsByAll("engine", Sets.newHashSet("b", "a", "c"));
 		assertNotNull(nodeIds);
 		assertEquals(1, nodeIds.size());
 		nodeIds.removeAll(Sets.newHashSet( "n1"));
 		assertEquals(0, nodeIds.size());
 
-		nodeIds = proxySubscriptionService.subscribedNodeIds("engine", Arrays.asList("b", "f"));
+		nodeIds = proxySubscriptionService.subscribedNodeIdsByAll("engine", Sets.newHashSet("b", "f"));
 		assertNotNull(nodeIds);
 		assertEquals(0, nodeIds.size());
 
-		nodeIds = proxySubscriptionService.subscribedNodeIds("engine", Arrays.asList("c", "f"));
+		nodeIds = proxySubscriptionService.subscribedNodeIdsByAll("engine", Sets.newHashSet("c", "f"));
 		assertNotNull(nodeIds);
 		assertEquals(0, nodeIds.size());
 
-		nodeIds = proxySubscriptionService.subscribedNodeIds("engine", Arrays.asList("a", "f1323"));
+		nodeIds = proxySubscriptionService.subscribedNodeIdsByAll("engine", Sets.newHashSet("a", "f1323"));
 		assertNotNull(nodeIds);
 		assertEquals(0, nodeIds.size());
 
-		nodeIds = proxySubscriptionService.subscribedNodeIds("engine", Arrays.asList("f1323"));
+		nodeIds = proxySubscriptionService.subscribedNodeIdsByAll("engine", Sets.newHashSet("f1323"));
 		assertNotNull(nodeIds);
 		assertEquals(0, nodeIds.size());
 

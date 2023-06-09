@@ -24,7 +24,6 @@ import io.tapdata.wsserver.channels.gateway.GatewaySessionManager;
 import io.tapdata.wsserver.channels.health.NodeHandler;
 import io.tapdata.wsserver.channels.health.NodeHealthManager;
 
-import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -64,11 +63,12 @@ public class EngineMessageExecutionServiceImpl implements EngineMessageExecution
 
 		String currentNodeId = CommonUtils.getProperty("tapdata_node_id");
 		Set<String> subscribeIds = engineMessage.getSubscribeIds();
+		List<Set<String>> orSubscribeIds = engineMessage.getOrSubscribeIds();
 
-		if(subscribeIds == null || subscribeIds.isEmpty()) {
+		if((subscribeIds == null || subscribeIds.isEmpty()) && (orSubscribeIds == null || orSubscribeIds.isEmpty())) {
 			send(engineMessage.getClass().getSimpleName(), engineMessage, Object.class, newConsumer, null);
 		} else {
-			List<String> nodeIds = proxySubscriptionService.subscribedNodeIds("engine", subscribeIds);
+			List<String> nodeIds = proxySubscriptionService.subscribedNodeIdsByAll("engine", subscribeIds, orSubscribeIds);
 			nodeIds.remove(currentNodeId);
 			send(engineMessage.getClass().getSimpleName(), engineMessage, Object.class, newConsumer, nodeIds);
 		}
@@ -116,8 +116,9 @@ public class EngineMessageExecutionServiceImpl implements EngineMessageExecution
 
 	private boolean handleEngineMessageInLocal(EngineMessage engineMessage, BiConsumer<Object, Throwable> biConsumer) {
 		Set<String> subscribeIds = engineMessage.getSubscribeIds();
+		List<Set<String>> orSubscribeIdsList = engineMessage.getOrSubscribeIds();
 
-		if(subscribeIds == null || subscribeIds.isEmpty()) {
+		if((subscribeIds == null || subscribeIds.isEmpty()) && (orSubscribeIdsList == null || orSubscribeIdsList.isEmpty())) {
 			//No subscribeIds, send EngineMessage to any engine which is alive.
 			//TODO should use RandomDraw to random the call.
 			Collection<GatewaySessionHandler> gatewaySessionHandlers = gatewaySessionManager.getUserIdGatewaySessionHandlerMap().values();
@@ -131,14 +132,25 @@ public class EngineMessageExecutionServiceImpl implements EngineMessageExecution
 			}
 		} else {
 			//Has subscribeIds, send EngineMessage to whom subscribed the ids.
-			Map<EngineSessionHandler, List<String>> map = subscribeMap.getSessionSubscribeIdsMap(subscribeIds);
-			if(map != null && !map.isEmpty()) {
-				Set<EngineSessionHandler> handlers = map.keySet();
-				for(EngineSessionHandler engineSessionHandler : handlers) {
-					boolean bool = executeEngineMessage(engineMessage, biConsumer, engineSessionHandler);
-					if(bool)
-						return true;
+			//TODO should use RandomDraw to random the call. otherwise the first one will be called always.
+			if ((subscribeIds != null && !subscribeIds.isEmpty()) && executeBySubscribeIds(engineMessage, biConsumer, subscribeIds)) return true;
+			if(orSubscribeIdsList != null) {
+				for(Set<String> orSubscribeIds : orSubscribeIdsList) {
+					if ((orSubscribeIds != null && !orSubscribeIds.isEmpty()) && executeBySubscribeIds(engineMessage, biConsumer, orSubscribeIds)) return true;
 				}
+			}
+		}
+		return false;
+	}
+
+	private boolean executeBySubscribeIds(EngineMessage engineMessage, BiConsumer<Object, Throwable> biConsumer, Set<String> subscribeIds) {
+		Map<EngineSessionHandler, List<String>> orMap = subscribeMap.getSessionSubscribeIdsMapByAll(subscribeIds);
+		if(orMap != null && !orMap.isEmpty()) {
+			Set<EngineSessionHandler> handlers = orMap.keySet();
+			for(EngineSessionHandler engineSessionHandler : handlers) {
+				boolean bool = executeEngineMessage(engineMessage, biConsumer, engineSessionHandler);
+				if(bool)
+					return true;
 			}
 		}
 		return false;
