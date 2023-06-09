@@ -27,6 +27,12 @@ public class MysqlConfig extends CommonDbConfig {
     @Override
     public MysqlConfig load(Map<String, Object> map) {
         MysqlConfig config = (MysqlConfig) super.load(map);
+        if(StringUtils.isBlank((String)map.get("user"))){
+            setUser((String) map.get("username"));
+        }
+        if(StringUtils.isBlank((String)map.get("extParams"))){
+            setExtParams((String) map.get("addtionalString"));
+        }
         setSchema(getDatabase());
         return config;
     }

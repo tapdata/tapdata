@@ -437,6 +437,11 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		if (Objects.isNull(connectionDto)) {
 			return null;
 		}
+		String type = connectionDto.getDatabase_type();
+		if("Mysql".equals(type) && StringUtils.isBlank((String)connectionDto.getConfig().get("user"))){
+			Object newUser = connectionDto.getConfig().get("username");
+			connectionDto.getConfig().put("user",newUser);
+		}
 
 		if (!Objects.isNull(noSchema)) {
 			List<DataSourceConnectionDto> items = new ArrayList<>();
