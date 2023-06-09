@@ -34,9 +34,12 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.*;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dag.service.DAGService;
+import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
+import com.tapdata.tm.discovery.entity.FieldBusinessDescEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.metadatainstance.dto.DataType2TapTypeDto;
+import com.tapdata.tm.metadatainstance.dto.TableDto;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.param.ClassificationParam;
 import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
@@ -161,7 +164,6 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             // maybe model deduction slow then task model not save, could query physics table meta
 
             Query query = new Query(criteria);
-
             long count = count(query, user);
 
             if (filter.getLimit() > 0) {
@@ -170,7 +172,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 query.limit(20);
             }
             query.skip(Math.max(filter.getSkip(), 0));
-
+            query.fields().include("comment");
             applyField(query, filter.getFields());
             applySort(query, filter.getSort());
             List<MetadataInstancesDto> allDto = findAllDto(query, user);
@@ -485,6 +487,9 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
             if (StringUtils.isNotBlank(result.getMetaType()) && MetaDataBuilderUtils.metaTypePropertyMap.get(result.getMetaType()).isModel()) {
                 result.setDatabase(databaseNameMap.get(result.getDatabaseId()));
+            }
+            if(StringUtils.isBlank(result.getComment())){
+                result.setComment("");
             }
         }
     }
@@ -1158,6 +1163,21 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return list.stream().map(MetadataInstancesEntity::getOriginalName).collect(Collectors.toList());
     }
 
+    public List<TableDto> newTables(String connectId, String sourceType) {
+        Criteria criteria = Criteria.where("source._id").is(connectId)
+                .and("sourceType").is(sourceType)
+                .and("is_deleted").ne(true)
+                .and("taskId").exists(false)
+                .and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
+        Query query = new Query(criteria);
+        query.fields().include("original_name","comment");
+        List<MetadataInstancesEntity> list = mongoTemplate.find(query, MetadataInstancesEntity.class);
+        List<TableDto> tableDtos = list.stream().map(m -> {
+            return TableDto.builder().tableName(m.getOriginalName()).tableComment(Optional.ofNullable(m.getComment()).orElse("")).build();
+        }).collect(Collectors.toList());
+        return tableDtos;
+    }
+
     public List<Map<String, String>> tableValues(String connectId, String sourceType) {
         Criteria criteria = Criteria.where("source._id").is(connectId)
                 .and("sourceType").is(sourceType)
@@ -1165,7 +1185,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 .and("taskId").exists(false)
                 .and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
         Query query = new Query(criteria);
-        query.fields().include("original_name");
+        query.fields().include("original_name","comment");
         List<MetadataInstancesEntity> list = mongoTemplate.find(query, MetadataInstancesEntity.class);
         List<Map<String, String>> values = new ArrayList<>();
         if (CollectionUtils.isNotEmpty(list)) {
@@ -1173,6 +1193,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 Map<String, String> value = new HashMap<>();
                 value.put("tableName", entity.getOriginalName());
                 value.put("tableId", entity.getId().toHexString());
+                value.put("tableComment",StringUtils.isNotBlank(entity.getComment()) ? entity.getComment():"");
                 values.add(value);
             }
         }
@@ -2252,6 +2273,17 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         Query query = new Query(criteria);
         Update update = Update.update("description",metadataInstances.getDescription());
         update(query,update,userDetail);
+    }
+
+    public void updateTableFieldDesc(String id, DiscoveryFieldDto discoveryFieldDto,UserDetail userDetail){
+        if(org.springframework.util.StringUtils.isEmpty(id)){
+            throw new BizException("IllegalArgument", "Id");
+        }
+        Criteria criteria = Criteria.where("metadataInstanceId").is(id);
+        Query query = new Query(criteria);
+        String key = discoveryFieldDto.getId();
+        Update update = Update.update("fieldBusinessDesc."+key,discoveryFieldDto.getBusinessDesc());
+        mongoTemplate.upsert(query,update, FieldBusinessDescEntity.class);
     }
 
     public MetadataInstancesDto importEntity(MetadataInstancesDto metadataInstancesDto, UserDetail userDetail) {
