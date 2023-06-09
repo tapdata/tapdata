@@ -119,7 +119,7 @@ public abstract class DataParentNode<S> extends Node<S> {
         SchemaTransformerResult str = new SchemaTransformerResult();
         LinkedList<FieldInfo> fieldInfos = null;
         String syncType = getSyncType();
-        if (StringUtils.isNotBlank(syncType)) {
+        if (StringUtils.isBlank(syncType)) {
             syncType = this instanceof DatabaseNode ? TaskDto.SYNC_TYPE_MIGRATE : TaskDto.SYNC_TYPE_SYNC;
         }
 
