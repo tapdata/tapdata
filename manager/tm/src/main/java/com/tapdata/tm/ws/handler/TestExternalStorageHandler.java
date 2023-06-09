@@ -23,6 +23,7 @@ import com.tapdata.tm.ws.enums.MessageType;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
+import java.util.function.Supplier;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
@@ -99,13 +100,14 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 				return;
 			}
 
-			connectorConfig.put("uri", dto.getUri());
-			connectorConfig.put("ssl", dto.isSsl());
-			connectorConfig.put("sslCA", dto.getSslCA());
-			connectorConfig.put("sslKey", dto.getSslKey());
-			connectorConfig.put("sslPass", dto.getSslPass());
-			connectorConfig.put("sslValidate", dto.isSslValidate());
-			connectorConfig.put("checkServerIdentity", dto.isCheckServerIdentity());
+			setIfExists(connectorConfig, externalStorageConfig, "id", dto::getId);
+			setIfExists(connectorConfig, externalStorageConfig, "uri", dto::getUri);
+			setIfExists(connectorConfig, externalStorageConfig, "ssl", dto::isSsl);
+			setIfExists(connectorConfig, externalStorageConfig, "sslCA", dto::getSslCA);
+			setIfExists(connectorConfig, externalStorageConfig, "sslKey", dto::getSslKey);
+			setIfExists(connectorConfig, externalStorageConfig, "sslPass", dto::getSslPass);
+			setIfExists(connectorConfig, externalStorageConfig, "sslValidate", dto::isSslValidate);
+			setIfExists(connectorConfig, externalStorageConfig, "checkServerIdentity", dto::isCheckServerIdentity);
 		}
 
 		MessageInfo testConnectionMessageInfo = new MessageInfo();
@@ -115,6 +117,13 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 		// 消息转发
 		WebSocketContext testConnectionWebSocketContext = new WebSocketContext(context.getSessionId(), context.getSender(), context.getUserId(), testConnectionMessageInfo);
 		handler.handleMessage(testConnectionWebSocketContext);
+	}
+
+	private void setIfExists(Map<String, Object> connectorConfig, Map<String, Object> externalStorageConfig, String key, Supplier<Object> supplier) {
+		if (externalStorageConfig.containsKey(key)) {
+			connectorConfig.put(key, externalStorageConfig.get(key));
+		}
+		connectorConfig.put(key, supplier.get());
 	}
 
 	private Map<String, Object> newMongoDBConnections(UserDetail userDetail) {
