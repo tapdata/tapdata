@@ -40,7 +40,8 @@ public enum MessageType {
 	AUTO_INSPECT_AGAIN("autoInspectAgain"),
 	TEST_RUN("testRun"),
 
-	PIPE_CLUSTER("pipeCluster");
+	PIPE_CLUSTER("pipeCluster"),
+	TEST_EXTERNAL_STORAGE("testExternalStorage");
 
 	private String type;
 
