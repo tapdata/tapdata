@@ -40,7 +40,7 @@ MD5.b64_hmac_md5 = function (key, data) {
 MD5.str_hmac_md5 = function (key, data) {
     return binl2str(core_hmac_md5(key, data));
 }
-module.exports = MD5
+//module.exports = MD5
 
 /*
  * Perform a simple self-test to see if the VM is working
