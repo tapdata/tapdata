@@ -24,6 +24,7 @@
 		<module>lark-approval-connector</module>
 		<module>shein-connector</module>
 		<module>ali1688-connector</module>
+		<module>temu-connector</module>
 	</modules>
 
 	<properties>
