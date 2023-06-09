@@ -23,6 +23,7 @@ import com.tapdata.tm.ws.enums.MessageType;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
@@ -84,13 +85,18 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 		Map<String, Object> connectorConfig = (Map<String, Object>) testConnectionConfig.computeIfAbsent("config", s -> new LinkedHashMap<>());
 		if (null == externalStorageId) {
 			// 新配置
-			connectorConfig.put("uri", externalStorageConfig.get("uri"));
-			connectorConfig.put("ssl", externalStorageConfig.get("ssl"));
-			connectorConfig.put("sslCA", externalStorageConfig.get("sslCA"));
-			connectorConfig.put("sslKey", externalStorageConfig.get("sslKey"));
-			connectorConfig.put("sslPass", externalStorageConfig.get("sslPass"));
-			connectorConfig.put("sslValidate", externalStorageConfig.get("sslValidate"));
-			connectorConfig.put("checkServerIdentity", externalStorageConfig.get("checkServerIdentity"));
+			BiFunction<String, Object, Object> boolSetter = (k, v) -> Boolean.TRUE.equals(v);
+			BiFunction<String, Object, Object> stringSetter = (k, v) -> {
+				if (null != v) connectorConfig.put(k, v);
+				return v;
+			};
+			externalStorageConfig.compute("uri", stringSetter);
+			externalStorageConfig.compute("ssl", boolSetter);
+			externalStorageConfig.compute("sslCA", stringSetter);
+			externalStorageConfig.compute("sslKey", stringSetter);
+			externalStorageConfig.compute("sslPass", stringSetter);
+			externalStorageConfig.compute("sslValidate", boolSetter);
+			externalStorageConfig.compute("checkServerIdentity", boolSetter);
 		} else {
 			// 已存在配置
 			ExternalStorageService externalStorageService = SpringContextHelper.getBean(ExternalStorageService.class);
@@ -100,14 +106,14 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 				return;
 			}
 
-			setIfExists(connectorConfig, externalStorageConfig, "id", dto::getId);
-			setIfExists(connectorConfig, externalStorageConfig, "uri", dto::getUri);
-			setIfExists(connectorConfig, externalStorageConfig, "ssl", dto::isSsl);
-			setIfExists(connectorConfig, externalStorageConfig, "sslCA", dto::getSslCA);
-			setIfExists(connectorConfig, externalStorageConfig, "sslKey", dto::getSslKey);
-			setIfExists(connectorConfig, externalStorageConfig, "sslPass", dto::getSslPass);
-			setIfExists(connectorConfig, externalStorageConfig, "sslValidate", dto::isSslValidate);
-			setIfExists(connectorConfig, externalStorageConfig, "checkServerIdentity", dto::isCheckServerIdentity);
+			fillString(connectorConfig, externalStorageConfig, "id", dto::getId);
+			fillString(connectorConfig, externalStorageConfig, "uri", dto::getUri);
+			fillBoolean(connectorConfig, externalStorageConfig, "ssl", dto::isSsl);
+			fillString(connectorConfig, externalStorageConfig, "sslCA", dto::getSslCA);
+			fillString(connectorConfig, externalStorageConfig, "sslKey", dto::getSslKey);
+			fillString(connectorConfig, externalStorageConfig, "sslPass", dto::getSslPass);
+			fillBoolean(connectorConfig, externalStorageConfig, "sslValidate", dto::isSslValidate);
+			fillBoolean(connectorConfig, externalStorageConfig, "checkServerIdentity", dto::isCheckServerIdentity);
 		}
 
 		MessageInfo testConnectionMessageInfo = new MessageInfo();
@@ -119,9 +125,18 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 		handler.handleMessage(testConnectionWebSocketContext);
 	}
 
-	private void setIfExists(Map<String, Object> connectorConfig, Map<String, Object> externalStorageConfig, String key, Supplier<Object> supplier) {
+	private void fillString(Map<String, Object> connectorConfig, Map<String, Object> externalStorageConfig, String key, Supplier<Object> supplier) {
 		if (externalStorageConfig.containsKey(key)) {
 			connectorConfig.put(key, externalStorageConfig.get(key));
+			return;
+		}
+		connectorConfig.put(key, supplier.get());
+	}
+
+	private void fillBoolean(Map<String, Object> connectorConfig, Map<String, Object> externalStorageConfig, String key, Supplier<Boolean> supplier) {
+		if (externalStorageConfig.containsKey(key)) {
+			connectorConfig.put(key, Boolean.TRUE.equals(externalStorageConfig.get(key)));
+			return;
 		}
 		connectorConfig.put(key, supplier.get());
 	}
@@ -167,9 +182,9 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 		data.put("type", "testConnectionResult");
 		data.put("status", "SUCCESS");
 		data.put("msg", message);
-		data.put("result", new HashMap<String, Object>(){{
+		data.put("result", new HashMap<String, Object>() {{
 			put("status", "invalid");
-			put("response_body", new HashMap<String, Object>(){{
+			put("response_body", new HashMap<String, Object>() {{
 				put("validate_details", Collections.singletonList(new HashMap<String, Object>() {{
 					put("sort", 0);
 					put("cost", 0);
