@@ -33,7 +33,7 @@ public class RecordEventExecute {
     Map<String, Object> tddConfig;
 
     public Map<String, Object> code(Map<String,Object> map){
-        LinkedHashMap<String, TapField> nameFieldMap = base.getSourceTable().getNameFieldMap();
+        LinkedHashMap<String, TapField> nameFieldMap = base.getTargetTable(connectorNode).getNameFieldMap();
         TapCodecsFilterManager codecsFilterManager = new TapCodecsFilterManager(TapCodecsRegistry.create());
         codecsFilterManager.transformToTapValueMap(map,nameFieldMap);
         TapCodecsFilterManager targetCodecsFilterManager = connectorNode.getCodecsFilterManager();

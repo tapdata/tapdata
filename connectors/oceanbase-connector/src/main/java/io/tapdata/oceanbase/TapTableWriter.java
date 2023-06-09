@@ -101,6 +101,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
                 }
                 lastStatement = getDeleteStatement(statementKey);
                 doDelete((TapDeleteRecordEvent) recordEvent);
+                summit(writeListResult);
                 break;
             }
             default:
@@ -344,9 +345,9 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
                 StringBuilder sql = new StringBuilder("delete from");
                 sql.append(" `").append(tapTable.getId()).append("` where ");
                 for (String field : uniqueCondition) {
-                    sql.append("`").append(field).append("`=?,");
+                    sql.append("`").append(field).append("`=? and");
                 }
-                sql.setLength(sql.length() - 1);
+                sql.setLength(sql.length() - 4);
                 TapLogger.info(OceanbaseConnector.TAG, "delete sql: " + sql);
                 return connection.prepareStatement(sql.toString());
             } catch (SQLException e) {

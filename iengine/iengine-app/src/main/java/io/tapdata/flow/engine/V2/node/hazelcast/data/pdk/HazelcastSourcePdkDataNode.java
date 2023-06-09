@@ -2,13 +2,18 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.CollectionUtil;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.JSONUtil;
+import com.tapdata.entity.Connections;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataCompleteSnapshotEvent;
+import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TapdataHeartbeatEvent;
 import com.tapdata.entity.TapdataStartedCdcEvent;
 import com.tapdata.entity.TapdataStartingCdcEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
+import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
@@ -32,6 +37,7 @@ import io.tapdata.aspect.taskmilestones.SnapshotReadTableBeginAspect;
 import io.tapdata.aspect.taskmilestones.SnapshotReadTableEndAspect;
 import io.tapdata.aspect.taskmilestones.SnapshotReadTableErrorAspect;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -45,6 +51,8 @@ import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderController;
+import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.sharecdc.ReaderType;
@@ -67,10 +75,12 @@ import io.tapdata.pdk.apis.entity.TapExecuteCommand;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.ConnectionConfigWithTables;
 import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
 import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunctionV2;
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadMultiConnectionFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
@@ -85,6 +95,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.data.mongodb.core.query.Query;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -92,19 +103,26 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 /**
  * @author jackin
@@ -147,7 +165,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			try {
 				if (need2InitialSync(syncProgress)) {
 					if (this.sourceRunnerFirstTime.get()) {
-						doSnapshot(new ArrayList<>(tapTableMap.keySet()));
+						doSnapshotWithControl(new ArrayList<>(tapTableMap.keySet()));
 					}
 				}
 
@@ -171,6 +189,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			}
 			Snapshot2CDCAspect.execute(dataProcessorContext);
 			if (need2CDC()) {
+				waitAllSnapshotCompleteIfNeed();
 				try {
 					executeAspect(new CDCReadBeginAspect().dataProcessorContext(dataProcessorContext));
 					AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_CDC_START));
@@ -193,6 +212,40 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			}
 		} catch (Throwable throwable) {
 			errorHandle(throwable, throwable.getMessage());
+		}
+	}
+
+	private void waitAllSnapshotCompleteIfNeed() {
+		while (isRunning()) {
+			if (hasMergeNode()) {
+				Predicate<TaskDto> mergeWaitPredicate = taskDto -> {
+					Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(taskDto.getId().toHexString());
+					Object obj = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);
+					if (obj instanceof AtomicInteger) {
+						return ((AtomicInteger) obj).get() > 0;
+					} else {
+						return false;
+					}
+				};
+				if (mergeWaitPredicate.test(dataProcessorContext.getTaskDto())) {
+					try {
+						TimeUnit.SECONDS.sleep(1L);
+					} catch (InterruptedException ignored) {
+					}
+				} else {
+					break;
+				}
+			} else {
+				break;
+			}
+		}
+	}
+
+	private void doSnapshotWithControl(List<String> tableList) throws Throwable {
+		SnapshotOrderController controller = SnapshotOrderService.getInstance().getController(dataProcessorContext.getTaskDto().getId().toHexString());
+		if (null != controller) {
+			CommonUtils.AnyError runner = () -> doSnapshot(tableList);
+			controller.runWithControl(getNode(), runner);
 		}
 	}
 
@@ -330,6 +383,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											)
 									));
 							executeAspect(new SnapshotReadTableEndAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
+							enqueue(new TapdataCompleteTableSnapshotEvent(tableName));
 						} catch (Throwable throwable) {
 							executeAspect(new SnapshotReadTableErrorAspect().dataProcessorContext(dataProcessorContext).tableName(tableName).error(throwable));
 							Throwable throwableWrapper = throwable;
@@ -469,26 +523,82 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			logger.warn("Failed to get source node");
 			return;
 		}
-		RawDataCallbackFilterFunction rawDataCallbackFilterFunction = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunction();
-		RawDataCallbackFilterFunctionV2 rawDataCallbackFilterFunctionV2 = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunctionV2();
-//		if(rawDataCallbackFilterFunctionV2 != null) {
-//			rawDataCallbackFilterFunction = null;
-//		}
-		StreamReadFunction streamReadFunction = connectorNode.getConnectorFunctions().getStreamReadFunction();
-		if (streamReadFunction != null || rawDataCallbackFilterFunction != null || rawDataCallbackFilterFunctionV2 != null) {
-			obsLogger.info("Starting stream read, table list: " + tapTableMap.keySet() + ", offset: " + syncProgress.getStreamOffsetObj());
-			List<String> tables = new ArrayList<>(tapTableMap.keySet());
-			Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
-			int batchSize = 1;
-			String streamReadFunctionName = null;
-			if (rawDataCallbackFilterFunctionV2 != null)
-				streamReadFunctionName = rawDataCallbackFilterFunctionV2.getClass().getSimpleName();
-			if (rawDataCallbackFilterFunction != null && streamReadFunctionName == null)
-				streamReadFunctionName = rawDataCallbackFilterFunction.getClass().getSimpleName();
-			if (streamReadFunctionName == null)
-				streamReadFunctionName = streamReadFunction.getClass().getSimpleName();
-			String finalStreamReadFunctionName = streamReadFunctionName;
 
+		// If 'LogCollectorNode' is merge connection mode then 'connectionConfigWithTables' not null use 'StreamReadMultiConnectionFunction'
+		List<ConnectionConfigWithTables> connectionConfigWithTables = ShareCdcUtil.connectionConfigWithTables(getNode(), ids -> {
+			Query connectionQuery = new Query(where("_id").in(ids));
+			connectionQuery.fields().include("config").include("pdkHash");
+			return clientMongoOperator.find(connectionQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+		});
+		StreamReadMultiConnectionFunction streamReadMultiConnectionFunction = Optional.ofNullable(connectionConfigWithTables).map(configWithTables -> {
+			// first config add heartbeat table to list
+			Optional.of(cdcDelayCalculation.addHeartbeatTable(configWithTables.get(0).getTables())).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
+			return connectorNode.getConnectorFunctions().getStreamReadMultiConnectionFunction();
+		}).orElse(null);
+
+		int batchSize = 1;
+		String streamReadFunctionName = null;
+		CommonUtils.AnyError anyError = null;
+		List<String> tables = new ArrayList<>();
+		if (null != streamReadMultiConnectionFunction) {
+			Set<String> tableSet = new HashSet<>();
+			for (ConnectionConfigWithTables withTables : connectionConfigWithTables) {
+				for (String tableName : withTables.getTables()) {
+					tableSet.add(ShareCdcUtil.joinNamespaces(Arrays.asList(
+							withTables.getConnectionConfig().getString("schema"), tableName
+					)));
+				}
+			}
+			tables.addAll(tableSet);
+			streamReadFunctionName = streamReadMultiConnectionFunction.getClass().getSimpleName();
+			anyError = () -> {
+				streamReadMultiConnectionFunction.streamRead(getConnectorNode().getConnectorContext(), connectionConfigWithTables,
+						syncProgress.getStreamOffsetObj(), batchSize, streamReadConsumer);
+			};
+		} else {
+			RawDataCallbackFilterFunction rawDataCallbackFilterFunction = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunction();
+			RawDataCallbackFilterFunctionV2 rawDataCallbackFilterFunctionV2 = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunctionV2();
+//			if(rawDataCallbackFilterFunctionV2 != null) {
+//				rawDataCallbackFilterFunction = null;
+//			}
+			StreamReadFunction streamReadFunction = connectorNode.getConnectorFunctions().getStreamReadFunction();
+			if (null != rawDataCallbackFilterFunction || null != rawDataCallbackFilterFunctionV2) {
+				if (null != rawDataCallbackFilterFunctionV2) {
+					streamReadFunctionName = rawDataCallbackFilterFunctionV2.getClass().getSimpleName();
+				} else {
+					streamReadFunctionName = rawDataCallbackFilterFunction.getClass().getSimpleName();
+				}
+				tables.addAll(tapTableMap.keySet());
+				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
+				anyError = () -> {
+					if (null != streamReadFuncAspect) {
+						executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_CALLBACK_RAW_DATA).streamReadConsumer(streamReadConsumer));
+						while (isRunning()) {
+							if (!streamReadFuncAspect.waitRawData()) {
+								break;
+							}
+						}
+						if (streamReadFuncAspect.getErrorDuringWait() != null) {
+							throw streamReadFuncAspect.getErrorDuringWait();
+						}
+					}
+				};
+			} else if (null != streamReadFunction) {
+				streamReadFunctionName = streamReadFunction.getClass().getSimpleName();
+				tables.addAll(tapTableMap.keySet());
+				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
+				anyError = () -> {
+					streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
+							syncProgress.getStreamOffsetObj(), batchSize, streamReadConsumer);
+				};
+			}
+		}
+
+		if (null != anyError) {
+			obsLogger.info("Starting stream read, table list: " + tables + ", offset: " + JSONUtil.obj2Json(syncProgress.getStreamOffsetObj()));
+
+			CommonUtils.AnyError finalAnyError = anyError;
+			String finalStreamReadFunctionName = streamReadFunctionName;
 			executeDataFuncAspect(StreamReadFuncAspect.class, () -> new StreamReadFuncAspect()
 							.connectorContext(connectorNode.getConnectorContext())
 							.dataProcessorContext(getDataProcessorContext())
@@ -497,30 +607,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							.eventBatchSize(batchSize)
 							.offsetState(syncProgress.getStreamOffsetObj())
 							.start(),
-					streamReadFuncAspect -> PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_STREAM_READ,
-							streamReadMethodInvoker.runnable(
-									() -> {
-										this.streamReadFuncAspect = streamReadFuncAspect;
-
-										if ((rawDataCallbackFilterFunction != null || rawDataCallbackFilterFunctionV2 != null) && streamReadFuncAspect != null) {
-											executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_CALLBACK_RAW_DATA).streamReadConsumer(streamReadConsumer));
-											while (isRunning()) {
-												if (!streamReadFuncAspect.waitRawData()) {
-													break;
-												}
-											}
-											if (streamReadFuncAspect.getErrorDuringWait() != null) {
-												throw streamReadFuncAspect.getErrorDuringWait();
-											}
-										} else {
-											if (streamReadFunction != null) {
-												streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
-														syncProgress.getStreamOffsetObj(), batchSize, streamReadConsumer);
-											}
-										}
-									}
-							)
-					));
+					streamReadFuncAspect -> {
+						this.streamReadFuncAspect = streamReadFuncAspect;
+						PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_STREAM_READ, streamReadMethodInvoker.runnable(finalAnyError));
+					});
 		} else {
 			throw new NodeException("PDK node does not support stream read: " + dataProcessorContext.getDatabaseType()).context(getProcessorBaseContext());
 		}
@@ -798,47 +888,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				TapType tapType = tapField.getTapType();
 				Object convertValue = defaultValue;
 				if (null != convertValue) {
-					switch (tapType.getType()) {
-						case TapType.TYPE_NUMBER:
-							if (defaultValue.contains(".")) {
-								try {
-									convertValue = Double.valueOf(defaultValue);
-								} catch (NumberFormatException e) {
-									throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to Double failed", e);
-								}
-							} else {
-								try {
-									convertValue = Long.valueOf(defaultValue);
-								} catch (NumberFormatException e) {
-									throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to Long failed", e);
-								}
-							}
-							break;
-						case TapType.TYPE_DATE:
-							LocalDate localDate;
-							String dateFormat = "yyyy-MM-dd";
-							try {
-								localDate = LocalDate.parse(defaultValue, DateTimeFormatter.ofPattern(dateFormat));
-							} catch (Exception e) {
-								throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to LocalDate failed, format: " + dateFormat);
-							}
-							ZonedDateTime gmtZonedDate = localDate.atStartOfDay(ZoneId.of("GMT"));
-							convertValue = new DateTime(gmtZonedDate);
-							break;
-						case TapType.TYPE_DATETIME:
-							LocalDateTime localDateTime;
-							String datetimeFormat = "yyyy-MM-dd HH:mm:ss";
-							try {
-								localDateTime = LocalDateTime.parse(defaultValue, DateTimeFormatter.ofPattern(datetimeFormat));
-							} catch (Exception e) {
-								throw new RuntimeException("The input string format is incorrect, expected format: " + datetimeFormat + ", actual value: " + defaultValue);
-							}
-							ZonedDateTime gmtZonedDateTime = localDateTime.atZone(ZoneId.of("GMT"));
-							convertValue = new DateTime(gmtZonedDateTime);
-							break;
-						default:
-							break;
-					}
+					convertValue = getConvertValue(tapType, defaultValue);
 				}
 				tablePollingCDCOffset.put(field, convertValue);
 			}
@@ -847,6 +897,52 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			tablePollingCDCOffset = (Map<String, Object>) streamOffsetObj.get(tableName);
 		}
 		return tablePollingCDCOffset;
+	}
+
+	private Object getConvertValue(TapType tapType, String defaultValue) {
+		Object convertValue = defaultValue;
+		switch (tapType.getType()) {
+			case TapType.TYPE_NUMBER:
+				if (defaultValue.contains(".")) {
+					try {
+						convertValue = Double.valueOf(defaultValue);
+					} catch (NumberFormatException e) {
+						throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to Double failed", e);
+					}
+				} else {
+					try {
+						convertValue = Long.valueOf(defaultValue);
+					} catch (NumberFormatException e) {
+						throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to Long failed", e);
+					}
+				}
+				break;
+			case TapType.TYPE_DATE:
+				LocalDate localDate;
+				String dateFormat = "yyyy-MM-dd";
+				try {
+					localDate = LocalDate.parse(defaultValue, DateTimeFormatter.ofPattern(dateFormat));
+				} catch (Exception e) {
+					throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to LocalDate failed, format: " + dateFormat);
+				}
+				ZonedDateTime gmtZonedDate = localDate.atStartOfDay(ZoneId.of("GMT"));
+				convertValue = new DateTime(gmtZonedDate);
+				break;
+			case TapType.TYPE_DATETIME:
+				LocalDateTime localDateTime;
+				String datetimeFormat = "yyyy-MM-dd HH:mm:ss";
+				try {
+					localDateTime = LocalDateTime.parse(defaultValue, DateTimeFormatter.ofPattern(datetimeFormat));
+				} catch (Exception e) {
+					throw new RuntimeException("The input string format is incorrect, expected format: " + datetimeFormat + ", actual value: " + defaultValue);
+				}
+				ZonedDateTime gmtZonedDateTime = localDateTime.atZone(ZoneId.of("GMT"));
+				convertValue = new DateTime(gmtZonedDateTime);
+				break;
+			default:
+				break;
+		}
+		return convertValue;
 	}
 
 	private void flushPollingCDCOffset(List<TapEvent> tapEvents) {
@@ -909,9 +1005,18 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (isTableFilter(tableNode)) {
 			List<QueryOperator> conditions = tableNode.getConditions();
 			if (CollectionUtils.isNotEmpty(conditions)) {
+				String tableName = tableNode.getTableName();
+				TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableName);
 				DataMap match = new DataMap();
 				List<QueryOperator> queryOperators = new ArrayList<>();
 				for (QueryOperator queryOperator : conditions) {
+					TapField tapField = tapTable.getNameFieldMap().get(queryOperator.getKey());
+					TapType tapType = tapField.getTapType();
+					Object convertValue;
+					if (queryOperator.getValue() != null) {
+						convertValue = getConvertValue(tapType, queryOperator.getValue().toString());
+						queryOperator.setValue(convertValue);
+					}
 					if (EQUAL_VALUE == queryOperator.getOperator()) {
 						match.put(queryOperator.getKey(), queryOperator.getValue());
 					} else {

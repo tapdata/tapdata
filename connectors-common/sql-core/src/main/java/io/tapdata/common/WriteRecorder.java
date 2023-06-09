@@ -129,9 +129,14 @@ public abstract class WriteRecorder {
 
     //(most often) update data
     public void addUpdateBatch(Map<String, Object> after, Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
-        if (EmptyKit.isEmpty(after) || EmptyKit.isEmpty(uniqueCondition)) {
+        if (EmptyKit.isEmpty(after)) {
             return;
         }
+        justUpdate(after, getBeforeForUpdate(after, before, listResult));
+        preparedStatement.addBatch();
+    }
+
+    protected Map<String, Object> getBeforeForUpdate(Map<String, Object> after, Map<String, Object> before, WriteListResult<TapRecordEvent> listResult) throws SQLException {
         if (EmptyKit.isEmpty(afterKeys)) {
             afterKeys = new ArrayList<>(after.keySet());
         }
@@ -142,9 +147,12 @@ public abstract class WriteRecorder {
         }
         //in some datasource, before of events is always empty, so before is unreliable
         Map<String, Object> lastBefore = new HashMap<>();
-        uniqueCondition.forEach(v -> lastBefore.put(v, (EmptyKit.isNotEmpty(before) && before.containsKey(v)) ? before.get(v) : after.get(v)));
-        justUpdate(after, lastBefore);
-        preparedStatement.addBatch();
+        if (EmptyKit.isEmpty(uniqueCondition)) {
+            allColumn.forEach(v -> lastBefore.put(v, (EmptyKit.isNotEmpty(before) && before.containsKey(v)) ? before.get(v) : after.get(v)));
+        } else {
+            uniqueCondition.forEach(v -> lastBefore.put(v, (EmptyKit.isNotEmpty(before) && before.containsKey(v)) ? before.get(v) : after.get(v)));
+        }
+        return lastBefore;
     }
 
     protected void justUpdate(Map<String, Object> after, Map<String, Object> before) throws SQLException {

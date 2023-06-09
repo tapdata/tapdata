@@ -62,7 +62,7 @@ public class RegisterMain {
 		MYSQL_PXC(BASE_PATH + "connectors/dist/mysql-pxc-connector-v1.0-SNAPSHOT.jar", "all", "mysql-pxc"),
 		POLAR_DB_MYSQL(BASE_PATH + "connectors/dist/polar-db-mysql-connector-v1.0-SNAPSHOT.jar", "all", "polar-db-mysql"),
 		POLAR_DB_POSTGRES(BASE_PATH + "connectors/dist/polar-db-postgres-connector-v1.0-SNAPSHOT.jar", "all", "polar-db-postgres"),
-		TENCENT_DB_MYSQL(BASE_PATH + "connectors/dist/tencent-db-mysql-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-mysql"),
+
 		TENCENT_DB_MARIADB(BASE_PATH + "connectors/dist/tencent-db-mariadb-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-mariadb"),
 		TENCENT_DB_MONGODB(BASE_PATH + "connectors/dist/tencent-db-mongodb-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-mongodb"),
 		TENCENT_DB_POSTGRES(BASE_PATH + "connectors/dist/tencent-db-postgres-connector-v1.0-SNAPSHOT.jar", "all", "tencent-db-postgres"),
@@ -83,6 +83,9 @@ public class RegisterMain {
 		MRSHIVE3(BASE_PATH + "connectors/dist/mrs-hive3-connector-v1.0-SNAPSHOT.jar", "all", "mrs-hive3"),
 		AIChat(BASE_PATH + "connectors/dist/ai-chat-connector-v1.0-SNAPSHOT.jar", "all", "ai-chat"),
 		LarkApproval(BASE_PATH + "connectors/dist/lark-approval-connector-v1.0-SNAPSHOT.jar", "all", "lark-approval"),
+		HttpReceiver(BASE_PATH + "connectors/dist/http-receiver-connector-v1.0-SNAPSHOT.jar", "all", "http-receiver"),
+		Shein(BASE_PATH + "connectors/dist/shein-connector-v1.0-SNAPSHOT.jar", "all", "shein"),
+		YashanDB(BASE_PATH + "connectors/dist/yashandb-connector-v1.0-SNAPSHOT.jar", "all", "yashandb", "basic", "jdbc"),
 		;
 
 		private final String path;

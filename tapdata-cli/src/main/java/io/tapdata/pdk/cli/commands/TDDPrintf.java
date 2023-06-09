@@ -1,5 +1,6 @@
 package io.tapdata.pdk.cli.commands;
 
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.cache.KVMap;
@@ -433,6 +434,7 @@ public class TDDPrintf {
                 .withPdkId(spec.getId())
                 .withGlobalStateMap(stateMap)
                 .withStateMap(stateMap)
+                .withLog(new TapLog())
                 .withTable(UUID.randomUUID().toString())
                 .build();
 

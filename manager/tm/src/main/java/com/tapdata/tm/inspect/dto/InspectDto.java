@@ -3,6 +3,8 @@ package com.tapdata.tm.inspect.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.commons.base.dto.SchedulableDto;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.inspect.bean.Limit;
 import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.inspect.bean.Timing;
@@ -105,4 +107,7 @@ public class InspectDto extends SchedulableDto {
 
     private String inspectResultId;     // 重新校验功能
     private List<String> taskIds;       // 重新校验要执行的任务id
+
+		private List<AlarmSettingVO> alarmSettings;
+		private List<AlarmRuleVO> alarmRules;
 }

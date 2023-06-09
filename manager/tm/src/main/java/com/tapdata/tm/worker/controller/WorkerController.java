@@ -13,6 +13,7 @@ import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.CheckTaskUsedAgentDto;
 import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -420,7 +421,7 @@ public class WorkerController extends BaseController {
             return success();
         }
         List<String> ids = JsonUtil.parseJson(processId, new TypeToken<List<String>>(){}.getType());
-        return success(workerService.getProcessInfo(ids));
+        return success(workerService.getProcessInfo(ids, getLoginUser()));
     }
 
 
@@ -450,4 +451,14 @@ public class WorkerController extends BaseController {
         return success(dto);
     }
 
+    @PostMapping("/share/create")
+    public ResponseMessage<Void> createShareWorker(@RequestBody WorkerExpireDto workerExpireDto) {
+        workerService.createShareWorker(workerExpireDto, getLoginUser());
+        return success();
+    }
+
+    @GetMapping("/share/get")
+    public ResponseMessage<WorkerExpireDto> getShareWorker() {
+        return success(workerService.getShareWorker(getLoginUser()));
+    }
 }

@@ -206,10 +206,13 @@ public class TaskSampleHandler extends AbstractHandler {
                 long allSourceSize = sourceNodeHandlers.values().size();
                 long completeSize = sourceNodeHandlers.values().stream()
                         .filter(h -> Objects.nonNull(h.getSnapshotDoneAt())).count();
-                if (allSourceSize == completeSize) {
-                   return Collections.max(sourceNodeHandlers.values().stream()
-                           .map(DataNodeSampleHandler::getSnapshotDoneAt)
-                           .filter(Objects::nonNull).collect(Collectors.toList())) ;
+                if (allSourceSize != 0 && allSourceSize == completeSize) {
+                    List<Long> collect = sourceNodeHandlers.values().stream()
+                            .map(DataNodeSampleHandler::getSnapshotDoneAt)
+                            .filter(Objects::nonNull).collect(Collectors.toList());
+                    if (!collect.isEmpty()) {
+                        return Collections.max(collect);
+                    }
                 }
                 return null;
             }

@@ -1,0 +1,310 @@
+{
+	"info": {
+		"_postman_id": "846b0351-e7b0-42b2-86dd-9ea89a909898",
+		"name": "Shien API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "WEB端授权",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://gw.open.1688.com/openapi/param2/1/cn.alibaba.open/member.get/1?memberId=xxx&access_token=ACCESS_TOKEN&_aop_signature=SIGENATURE",
+					"protocol": "http",
+					"host": [
+						"gw",
+						"open",
+						"1688",
+						"com"
+					],
+					"path": [
+						"openapi",
+						"param2",
+						"1",
+						"cn.alibaba.open",
+						"member.get",
+						"1"
+					],
+					"query": [
+						{
+							"key": "memberId",
+							"value": "xxx"
+						},
+						{
+							"key": "access_token",
+							"value": "ACCESS_TOKEN"
+						},
+						{
+							"key": "_aop_signature",
+							"value": "SIGENATURE"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "获取AccessToken",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "https://gw.open.1688.com/openapi/http/1/system.oauth2/getToken/8668585?grant_type=authorization_code&need_refresh_token=true&client_id=8668585&client_secret=J8uHFtF3MHy&redirect_uri=https://www.tapdata.io&code=d8864e8d-b1e6-475c-89b8-6c9899ac9e93",
+					"protocol": "https",
+					"host": [
+						"gw",
+						"open",
+						"1688",
+						"com"
+					],
+					"path": [
+						"openapi",
+						"http",
+						"1",
+						"system.oauth2",
+						"getToken",
+						"8668585"
+					],
+					"query": [
+						{
+							"key": "grant_type",
+							"value": "authorization_code"
+						},
+						{
+							"key": "need_refresh_token",
+							"value": "true"
+						},
+						{
+							"key": "client_id",
+							"value": "8668585"
+						},
+						{
+							"key": "client_secret",
+							"value": "J8uHFtF3MHy"
+						},
+						{
+							"key": "redirect_uri",
+							"value": "https://www.tapdata.io"
+						},
+						{
+							"key": "code",
+							"value": "d8864e8d-b1e6-475c-89b8-6c9899ac9e93"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "CreateOrder",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"flow\":\"流程，general（创建大市场订单），saleproxy（创建代销市场订单），fenxiao（普通分销下单）, boutiquefenxiao(新精选货源下单)，ttpft(老精选货源下单)，paired（火拼下单）\",\r\n    \"message\":\"买家留言\",\r\n    \"addressParam\":{\r\n        \"addressId\": 0,\r\n        \"fullName\": \"收货人姓名\",\r\n        \"mobile\":\"手机\",\r\n        \"phone\":\"电话\",\r\n        \"postCode\":\"邮编\",\r\n        \"cityText\":\"市文本,杭州市\",\r\n        \"provinceText\":\"省份文本, 省份文本\",\r\n        \"areaText\":\"区文本 滨江区\",\r\n        \"townText\":\"镇文本 长河镇\",\r\n        \"address\":\"街道地址, 网商路699号\",\r\n        \"districtCode\":\"地址编码, 310107\"\r\n    },\r\n    \"cargoParamList\":{\r\n        \"offerId\":\"商品对应的offer id, Long类型\",\r\n        \"specId\":\"商品规格id, \",\r\n        \"quantity\":\"商品数量(计算金额用), Double类型\"\r\n    },\r\n    \"invoiceParam\":{\r\n        \"invoiceType\":\"发票类型 0：普通发票，1:增值税发票, Integer类型\",\r\n        \"cityText\":\"市文本,杭州市\",\r\n        \"provinceText\":\"省份文本, 省份文本\",\r\n        \"areaText\":\"区文本 滨江区\",\r\n        \"townText\":\"镇文本 长河镇\",\r\n        \"address\":\"街道地址, 网商路699号\",\r\n        \"postCode\":\"邮编 \",\r\n        \"fullName\":\"收票人姓名\",\r\n        \"mobile\":\"手机\",\r\n        \"phone\":\"电话\",\r\n        \"companyName\":\"购货公司名（发票抬头）\",\r\n        \"taxpayerIdentifier\":\"纳税识别码\",\r\n        \"bankAndAccount\":\"开户行及帐号\",\r\n        \"localInvoiceId\":\"增值税本地发票号\"\r\n    }\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://gw.open.1688.com/param2/1/cn.alibaba.open/com.alibaba.trade/alibaba.trade.fastCreateOrder-1/:apiKey?_aop_timestamp={{_aop_timestamp}}&access_token={{access_token}}&_aop_signature={{_aop_signature}}",
+					"protocol": "https",
+					"host": [
+						"gw",
+						"open",
+						"1688",
+						"com"
+					],
+					"path": [
+						"param2",
+						"1",
+						"cn.alibaba.open",
+						"com.alibaba.trade",
+						"alibaba.trade.fastCreateOrder-1",
+						":apiKey"
+					],
+					"query": [
+						{
+							"key": "_aop_timestamp",
+							"value": "{{_aop_timestamp}}"
+						},
+						{
+							"key": "access_token",
+							"value": "{{access_token}}"
+						},
+						{
+							"key": "_aop_signature",
+							"value": "{{_aop_signature}}"
+						}
+					],
+					"variable": [
+						{
+							"key": "apiKey",
+							"value": ""
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "发起授权请求获取Code",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://auth.1688.com/oauth/authorize?client_id={{client_id}}&site=1688&redirect_uri=https://redirect.tapdata.io/oauth/complete/ali1688&state=1688",
+					"protocol": "https",
+					"host": [
+						"auth",
+						"1688",
+						"com"
+					],
+					"path": [
+						"oauth",
+						"authorize"
+					],
+					"query": [
+						{
+							"key": "client_id",
+							"value": "{{client_id}}"
+						},
+						{
+							"key": "site",
+							"value": "1688"
+						},
+						{
+							"key": "redirect_uri",
+							"value": "https://redirect.tapdata.io/oauth/complete/ali1688"
+						},
+						{
+							"key": "state",
+							"value": "1688"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "使用Code获取访问令牌",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "https://gw.open.1688.com/openapi/http/1/system.oauth2/getToken/:app_key?grant_type=authorization_code&need_refresh_token=true&client_id={{client_id}}&client_secret={{client_secret}}&redirect_uri={{redirect_uri}}&code={{code}}",
+					"protocol": "https",
+					"host": [
+						"gw",
+						"open",
+						"1688",
+						"com"
+					],
+					"path": [
+						"openapi",
+						"http",
+						"1",
+						"system.oauth2",
+						"getToken",
+						":app_key"
+					],
+					"query": [
+						{
+							"key": "grant_type",
+							"value": "authorization_code"
+						},
+						{
+							"key": "need_refresh_token",
+							"value": "true"
+						},
+						{
+							"key": "client_id",
+							"value": "{{client_id}}"
+						},
+						{
+							"key": "client_secret",
+							"value": "{{client_secret}}"
+						},
+						{
+							"key": "redirect_uri",
+							"value": "{{redirect_uri}}"
+						},
+						{
+							"key": "code",
+							"value": "{{code}}"
+						}
+					],
+					"variable": [
+						{
+							"key": "app_key",
+							"value": ""
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "买家视角查询订单列表",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"bizTypes\": [],\r\n    \"createEndTime\": \"下单结束时间, 20180802211113000+0800\",\r\n    \"createStartTime\": \"下单开始时间, 20180102211113000+0800\",\r\n    \"isHis\":\"是否查询历史订单表,默认查询当前表，即默认值为false\",\r\n    \"modifyEndTime\":\"查询修改时间结束, 20180802211113000+0800\",\r\n    \"modifyStartTime\":\"查询修改时间开始, 20180102211113000+0800\",\r\n    \"orderStatus\":\"订单状态，值有 success, cancel(交易取消，违约金等交割完毕), waitbuyerpay(等待卖家付款)， waitsellersend(等待卖家发货), waitbuyerreceive(等待买家收货 )\",\r\n    \"page\": 1,\r\n    \"pageSize\": 20,\r\n    \"refundStatus\":\"退款状态，支持： \\\"waitselleragree\\\"(等待卖家同意), \\\"refundsuccess\\\"(退款成功), \\\"refundclose\\\"(退款关闭), \\\"waitbuyermodify\\\"(待买家修改), \\\"waitbuyersend\\\"(等待买家退货), \\\"waitsellerreceive\\\"(等待卖家确认收货)\",\r\n    \"tradeType\":\"交易类型: 担保交易(1), 预存款交易(2), ETC境外收单交易(3), 即时到帐交易(4), 保障金安全交易(5), 统一交易流程(6), 分阶段交易(7), 货到付款交易(8), 信用凭证支付交易(9), 账期支付交易(10), 1688交易4.0，新分阶段交易(50060), 当面付的交易流程(50070), 服务类的交易流程(50080)\",\r\n    \"productName\":\"商品名称\",\r\n    \"needMemoInfo\": true,\r\n    \"needBuyerAddressAndPhone\": true\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://gw.open.1688.com/param2/1/cn.alibaba.open/com.alibaba.trade/alibaba.trade.fastCreateOrder-1/:apiKey?_aop_timestamp={{_aop_timestamp}}&access_token={{access_token}}&_aop_signature={{_aop_signature}}",
+					"protocol": "https",
+					"host": [
+						"gw",
+						"open",
+						"1688",
+						"com"
+					],
+					"path": [
+						"param2",
+						"1",
+						"cn.alibaba.open",
+						"com.alibaba.trade",
+						"alibaba.trade.fastCreateOrder-1",
+						":apiKey"
+					],
+					"query": [
+						{
+							"key": "_aop_timestamp",
+							"value": "{{_aop_timestamp}}"
+						},
+						{
+							"key": "access_token",
+							"value": "{{access_token}}"
+						},
+						{
+							"key": "_aop_signature",
+							"value": "{{_aop_signature}}"
+						}
+					],
+					"variable": [
+						{
+							"key": "apiKey",
+							"value": ""
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [],
+	"variable": []
+}

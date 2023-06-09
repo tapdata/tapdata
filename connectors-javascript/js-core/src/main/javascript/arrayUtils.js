@@ -40,5 +40,19 @@ var arrayUtils = {
      * */
     convertList: function (list, convertMatch) {
         return tapUtil.convertList(list, convertMatch);
+    },
+    /**
+     * @type function
+     * @author Gavin
+     * @description 判断是否数组
+     * @param Object 待判断对象
+     * @return boolean 是否是数组
+     * @date 2023/2/13
+     * */
+    isArray: function (list){
+        return !('undefined' === list || null == list || !(list instanceof Array));
+    },
+    isNotEmptyArray: function (list){
+        return arrayUtils.isArray(list) && list.length > 0;
     }
 }

@@ -1,5 +1,6 @@
 package io.tapdata.pdk.run.base;
 
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -93,6 +94,7 @@ public class PDKBaseRun extends PDKTestBase {
                 .withPdkId(spec.getId())
                 .withGlobalStateMap(stateMap)
                 .withStateMap(stateMap)
+                .withLog(new TapLog())
                 .withTable(testTableId)
                 .build();
         RecordEventExecute recordEventExecute = RecordEventExecute.create(connectorNode, this);

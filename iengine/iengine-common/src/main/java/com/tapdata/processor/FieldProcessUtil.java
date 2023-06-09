@@ -51,13 +51,8 @@ public class FieldProcessUtil {
 	}
 
 	public static void filedProcess(Map<String, Object> record, List<FieldProcess> fieldsProcess, String fieldsNameTransform) throws Exception {
-
 		// 记录字段改名的隐射关系
 		Map<String, String> renameMapping = new HashMap<>();
-
-		// clone一个record，用于rename
-		Map<String, Object> readOnlyRecord = new HashMap<>();
-		MapUtilV2.deepCloneMap(record, readOnlyRecord);
 
 		if (StringUtils.isNotBlank(fieldsNameTransform)) {
 			Map<String, Object> newRecord = MapUtil.recursiveMap(record, (key, value, parentKey) -> {
@@ -85,7 +80,7 @@ public class FieldProcessUtil {
 			switch (fieldOp) {
 				case OP_CONVERT:
 
-					convertDataTyeProcess(record, process, renameMapping, readOnlyRecord);
+					convertDataTyeProcess(record, process, renameMapping);
 					break;
 
 				case OP_REMOVE:
@@ -95,7 +90,7 @@ public class FieldProcessUtil {
 
 				case OP_RENAME:
 
-					renameField(record, renameMapping, process, field, readOnlyRecord);
+					renameField(record, renameMapping, process, field);
 					break;
 
 				case OP_CREATE:
@@ -226,8 +221,8 @@ public class FieldProcessUtil {
 		}
 	}
 
-	private static void renameField(Map<String, Object> record, Map<String, String> renameMapping, FieldProcess process, String field, Map<String, Object> readOnlyRecord) throws Exception {
-		Object value = MapUtilV2.getValueByKey(readOnlyRecord, field);
+	private static void renameField(Map<String, Object> record, Map<String, String> renameMapping, FieldProcess process, String field) throws Exception {
+		Object value = MapUtilV2.getValueByKey(record, field);
 		if (value instanceof TapList || value instanceof NotExistsNode) {
 			return;
 		}
@@ -342,7 +337,7 @@ public class FieldProcessUtil {
 	}
 
 	private static void convertDataTyeProcess(Map<String, Object> record, FieldProcess filedProcess,
-											  Map<String, String> renameMapping, Map<String, Object> readOnlyRecord) throws Exception {
+											  Map<String, String> renameMapping) throws Exception {
 
 		if (MapUtils.isNotEmpty(record)) {
 			String field = filedProcess.getField();
@@ -354,7 +349,7 @@ public class FieldProcessUtil {
 			String newDataType = filedProcess.getOperand();
 			String dataType = filedProcess.getOriginalDataType();
 
-			Object value = MapUtilV2.getValueByKeyV2(readOnlyRecord, field);
+			Object value = MapUtilV2.getValueByKeyV2(record, field);
 
 			Object afterConvertValue = convertType(newDataType, dataType, value);
 

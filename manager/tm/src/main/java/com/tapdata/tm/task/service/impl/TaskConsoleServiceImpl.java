@@ -29,7 +29,6 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Service
 @Setter(onMethod_ = {@Autowired})
@@ -56,6 +55,8 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
         //} else if (RelationTaskRequest.type_inspect.equals(request.getType())) {
         } else if (RelationTaskRequest.type_task_by_collector.equals(request.getType())) {
             getTaskByCollector(result, request, taskDto);
+        } else if (RelationTaskRequest.type_task_by_collector_table.equals(request.getType())) {
+            getTaskByCollectorTable(result, request, taskDto);
         } else {
             getLogCollector(connectionIds, result, request, taskDto);
 //            getShareCache(connectionIds, result, request, nodes);
@@ -66,6 +67,31 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
         getShareCacheByTaskAttrs(result, request, taskDto);
         getHeartbeat(result, request, taskDto);
         return result;
+    }
+
+    private void getTaskByCollectorTable(List<RelationTaskInfoVo> result, RelationTaskRequest request, TaskDto taskDto) {
+        Map<String, Set<String>> tableNameMap = request.getTableNameMap();
+        List<Criteria> criteriaList = new ArrayList<>();
+        for (Map.Entry<String, Set<String>> entry : tableNameMap.entrySet()) {
+					criteriaList.add(Criteria.where("dag.nodes").elemMatch(new Criteria().andOperator(
+									Criteria.where("connectionId").is(entry.getKey()),
+									new Criteria().orOperator(Criteria.where("tableName").in(entry.getValue()), Criteria.where("tableNames").in(entry.getValue())))));
+        }
+        Criteria criteria = new Criteria().andOperator(
+                Criteria.where("is_deleted").is(false).and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE),
+                new Criteria().orOperator(criteriaList));
+        List<TaskDto> logTasks = getFilterCriteria(request, criteria);
+        if (CollectionUtils.isEmpty(logTasks)) {
+            return;
+        }
+        List<RelationTaskInfoVo> list = logTasks.stream().map(task -> RelationTaskInfoVo.builder()
+                .id(task.getId().toHexString())
+                .name(task.getName())
+                .taskType(task.getType())
+                .syncType(task.getSyncType())
+                .status(task.getStatus())
+                .build()).collect(Collectors.toList());
+        result.addAll(list);
     }
 
     private void getShareCacheByTaskAttrs(List<RelationTaskInfoVo> result, RelationTaskRequest request, TaskDto taskDto) {
@@ -148,8 +174,14 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
         }
 
         Criteria criteria = Criteria.where("is_deleted").is(false).and("syncType").is("logCollector")
-                .and("dag.nodes.type").is(NodeEnum.logCollector.name())
-                .and("dag.nodes.connectionIds").in(connectionIds);
+                .and("dag.nodes.type").is(NodeEnum.logCollector.name());
+
+        List<Criteria> orCriteriaList = new ArrayList<>();
+        orCriteriaList.add(Criteria.where("dag.nodes.connectionIds").in(connectionIds));
+        for (String connectionId : connectionIds) {
+            orCriteriaList.add(Criteria.where("dag.nodes.logCollectorConnConfigs." + connectionId).exists(true));
+        }
+        criteria = new Criteria().andOperator(criteria, new Criteria().orOperator(orCriteriaList));
 
         List<TaskDto> logTasks = getFilterCriteria(request, criteria);
         logTasks.forEach(task -> {
@@ -157,6 +189,8 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
                     .status(task.getStatus())
                     .startTime(Objects.nonNull(task.getStartTime()) ? task.getStartTime().getTime() : null)
                     .type(RelationTaskRequest.type_logCollector)
+                    .taskType(task.getType())
+                    .syncType(task.getSyncType())
                     .build();
 
             result.add(logRelation);
@@ -211,6 +245,7 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
                 .flatMap(t -> ((LogCollectorNode) t).getConnectionIds().stream()).collect(Collectors.toList());
 
         Criteria criteria = Criteria.where("is_deleted").is(false).and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                .and("status").nin(TaskDto.STATUS_DELETE_FAILED)
                 .and("shareCdcEnable").is(true)
                 .and("dag.nodes.connectionId").in(connectionIds);
 
@@ -238,7 +273,7 @@ public class TaskConsoleServiceImpl implements TaskConsoleService {
                 logRelation.setCurrentEventTimestamp(taskInfo.getCurrentEventTimestamp());
                 logRelation.setTaskType(taskInfo.getType());
                 logRelation.setCreateDate(taskInfo.getCreateAt());
-                logRelation.setSyncType(taskInfo.getSyncType());
+                logRelation.setSyncType(taskInfo.getShareCache() ? TaskDto.SYNC_TYPE_MEM_CACHE : taskInfo.getSyncType());
 
                 if (Objects.isNull(tableNames)) {
                     logRelation.setTableNum(0);

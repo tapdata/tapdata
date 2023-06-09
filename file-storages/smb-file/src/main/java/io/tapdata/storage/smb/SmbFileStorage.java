@@ -14,7 +14,6 @@ import com.hierynomus.smbj.share.DiskShare;
 import com.hierynomus.smbj.share.File;
 import io.tapdata.file.TapFile;
 import io.tapdata.file.TapFileStorage;
-import io.tapdata.pdk.apis.error.NotSupportedException;
 import io.tapdata.storage.kit.EmptyKit;
 import io.tapdata.storage.kit.FileMatchKit;
 
@@ -111,7 +110,7 @@ public class SmbFileStorage implements TapFileStorage {
 
     @Override
     public boolean move(String sourcePath, String destPath) {
-        throw new NotSupportedException();
+        throw new UnsupportedOperationException();
     }
 
     @Override

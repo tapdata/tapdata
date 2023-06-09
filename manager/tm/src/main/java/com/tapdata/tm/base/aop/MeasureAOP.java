@@ -169,7 +169,7 @@ public class MeasureAOP {
 
     private void taskIncrementDelayAlarm(TaskDto task, String taskId, Number replicateLag, AlarmRuleDto alarmRuleDto) {
         // check task start cdc
-        if (Objects.isNull(task.getCurrentEventTimestamp()) || Objects.isNull(replicateLag) || replicateLag.longValue() < 0 ) {
+        if (Objects.isNull(task.getCurrentEventTimestamp()) || Objects.isNull(replicateLag)) {
             return;
         }
 

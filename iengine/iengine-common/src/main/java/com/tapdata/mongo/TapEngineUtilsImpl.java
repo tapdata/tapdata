@@ -27,6 +27,13 @@ public class TapEngineUtilsImpl implements TapEngineUtils {
 
 	@Override
 	public Integer getRealWsPort(Integer wsPort, String baseUrl) {
+		String portStr = CommonUtils.getProperty("proxy_port");
+		if (portStr != null) {
+			try {
+				return Integer.parseInt(portStr);
+			} catch (Throwable ignored) {
+			}
+		}
 		if (CloudSignUtil.isNeedSign()) {
 			URL url;
 			try {
@@ -42,14 +49,6 @@ public class TapEngineUtilsImpl implements TapEngineUtils {
 					return 80;
 				} else if (url.getProtocol().equals("https")) {
 					return 443;
-				}
-			}
-		} else {
-			String port = CommonUtils.getProperty("proxy_port");
-			if (port != null) {
-				try {
-					return Integer.parseInt(port);
-				} catch (Throwable ignored) {
 				}
 			}
 		}

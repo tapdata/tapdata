@@ -3,10 +3,15 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Queues;
 import com.hazelcast.jet.core.Inbox;
+import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
+import com.tapdata.constant.StringUtil;
+import com.tapdata.entity.Connections;
+import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataCompleteSnapshotEvent;
+import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TapdataHeartbeatEvent;
 import com.tapdata.entity.TapdataShareLogEvent;
@@ -14,6 +19,7 @@ import com.tapdata.entity.TapdataStartedCdcEvent;
 import com.tapdata.entity.TapdataStartingCdcEvent;
 import com.tapdata.entity.TapdataTaskErrorEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
+import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -24,26 +30,33 @@ import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
+import io.tapdata.aspect.CreateTableFuncAspect;
+import io.tapdata.aspect.NewFieldFuncAspect;
 import io.tapdata.aspect.TaskMilestoneFuncAspect;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
-import io.tapdata.aspect.taskmilestones.CDCHeartbeatWriteAspect;
-import io.tapdata.aspect.taskmilestones.CDCWriteBeginAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotWriteBeginAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotWriteEndAspect;
-import io.tapdata.aspect.taskmilestones.WriteErrorAspect;
+import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapMapValue;
+import io.tapdata.error.TapEventException;
 import io.tapdata.error.TapdataEventException;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
+import io.tapdata.flow.engine.V2.exactlyonce.write.CheckExactlyOnceWriteEnableResult;
+import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleaner;
+import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleanerEntity;
+import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderController;
+import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionConcurrentProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.KeysPartitioner;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.TapEventPartitionKeySelector;
@@ -53,14 +66,24 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.flow.engine.V2.util.TargetTapEventFilter;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
+import io.tapdata.pdk.apis.entity.Capability;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
+import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connector.target.*;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
+import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -79,8 +102,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
+
+import static io.tapdata.entity.simplify.TapSimplify.createIndexEvent;
+import static io.tapdata.entity.simplify.TapSimplify.createTableEvent;
 
 /**
  * @author samuel
@@ -114,6 +142,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected int targetBatch;
 	protected long targetBatchIntervalMs;
 	private TargetTapEventFilter targetTapEventFilter;
+	protected final List<String> exactlyOnceWriteTables = new ArrayList<>();
+	protected final ConcurrentHashMap<String, List<String>> exactlyOnceWriteNeedLookupTables = new ConcurrentHashMap<>();
+	protected CheckExactlyOnceWriteEnableResult checkExactlyOnceWriteEnableResult;
+
+	private final List<ExactlyOnceWriteCleanerEntity> exactlyOnceWriteCleanerEntities = new ArrayList<>();
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -129,69 +162,162 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
+		initExactlyOnceWriteIfNeed();
 		queueConsumerThreadPool.submitSync(() -> {
 			super.doInit(context);
-			if (getNode() instanceof TableNode || getNode() instanceof DatabaseNode) {
-				try {
-					createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
-					connectorNodeInit(dataProcessorContext);
-				} catch (Throwable e) {
-					throw new NodeException(e).context(getProcessorBaseContext());
-				}
-			}
-			this.uploadDagService = new AtomicBoolean(false);
-			this.insertMetadata = new CopyOnWriteArrayList<>();
-			this.updateMetadata = new ConcurrentHashMap<>();
-			this.removeMetadata = new CopyOnWriteArrayList<>();
-
-			targetBatch = DEFAULT_TARGET_BATCH;
-			if (getNode() instanceof DataParentNode) {
-				this.targetBatch = Optional.ofNullable(((DataParentNode<?>) getNode()).getWriteBatchSize()).orElse(DEFAULT_TARGET_BATCH);
-			}
-
-			targetBatchIntervalMs = DEFAULT_TARGET_BATCH_INTERVAL_MS;
-			if (getNode() instanceof DataParentNode) {
-				this.targetBatchIntervalMs = Optional.ofNullable(((DataParentNode<?>) getNode()).getWriteBatchWaitMs()).orElse(DEFAULT_TARGET_BATCH_INTERVAL_MS);
-			}
-			obsLogger.info("Write batch size: {}, max wait ms per batch: {}", targetBatch, targetBatchIntervalMs);
-			int writeQueueCapacity = new BigDecimal(targetBatch).multiply(new BigDecimal("1.5")).setScale(0, RoundingMode.HALF_UP).intValue();
-			this.tapEventQueue = new LinkedBlockingQueue<>(writeQueueCapacity);
-			obsLogger.debug("Initialize target write queue complete, capacity: {}", writeQueueCapacity);
-			this.queueConsumerThreadPool.submit(this::queueConsume);
-			obsLogger.debug("Initialize target event handler complete");
-
-			final Node<?> node = this.dataProcessorContext.getNode();
-			if (node instanceof DataParentNode) {
-				DataParentNode dataParentNode = (DataParentNode) node;
-				final Boolean initialConcurrent = dataParentNode.getInitialConcurrent();
-				if (initialConcurrent != null) {
-					this.initialConcurrent = initialConcurrent;
-					this.initialConcurrentWriteNum = dataParentNode.getInitialConcurrentWriteNum() != null ? dataParentNode.getInitialConcurrentWriteNum() : 8;
-					if (initialConcurrent) {
-						this.initialPartitionConcurrentProcessor = initConcurrentProcessor(initialConcurrentWriteNum);
-						this.initialPartitionConcurrentProcessor.start();
-					}
-				}
-				final Boolean cdcConcurrent = dataParentNode.getCdcConcurrent();
-				if (cdcConcurrent != null) {
-					this.cdcConcurrent = cdcConcurrent;
-					this.cdcConcurrentWriteNum = dataParentNode.getCdcConcurrentWriteNum() != null ? dataParentNode.getCdcConcurrentWriteNum() : 4;
-					if (cdcConcurrent) {
-						this.cdcPartitionConcurrentProcessor = initConcurrentProcessor(cdcConcurrentWriteNum);
-						this.cdcPartitionConcurrentProcessor.start();
-					}
-				}
-			}
-
-			TaskDto taskDto = dataProcessorContext.getTaskDto();
-			String type = taskDto.getType();
-			if (TaskDto.TYPE_INITIAL_SYNC.equals(type)) {
-				List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
-				putInGlobalMap(getCompletedInitialKey(), predecessors.size());
-			}
+			createPdkAndInit(context);
+			initTargetVariable();
+			initTargetQueueConsumer();
+			initTargetConcurrentProcessorIfNeed();
 			initTapEventFilter();
-			obsLogger.info("Init target queue consumer complete");
 		});
+	}
+
+	private void initExactlyOnceWriteIfNeed() {
+		checkExactlyOnceWriteEnableResult = enableExactlyOnceWrite();
+		if (!checkExactlyOnceWriteEnableResult.getEnable()) {
+			if (StringUtils.isNotBlank(checkExactlyOnceWriteEnableResult.getMessage())) {
+				obsLogger.info("Node({}) exactly once write is disabled, reason: {}", getNode().getName(), checkExactlyOnceWriteEnableResult.getMessage());
+			}
+			return;
+		}
+		ConnectorNode connectorNode = getConnectorNode();
+		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+
+		TapTable exactlyOnceTable = ExactlyOnceUtil.generateExactlyOnceTable(getConnectorNode());
+		if (null != dataProcessorContext.getTapTableMap()) {
+			dataProcessorContext.getTapTableMap().putNew(exactlyOnceTable.getId(), exactlyOnceTable, exactlyOnceTable.getId());
+		}
+		boolean create = createTable(exactlyOnceTable);
+		if (create) {
+			obsLogger.info("Create exactly once write cache table: {}", exactlyOnceTable);
+			CreateIndexFunction createIndexFunction = connectorFunctions.getCreateIndexFunction();
+			TapCreateIndexEvent indexEvent = createIndexEvent(exactlyOnceTable.getId(), exactlyOnceTable.getIndexList());
+			PDKInvocationMonitor.invoke(
+							getConnectorNode(), PDKMethod.TARGET_CREATE_INDEX,
+							() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), exactlyOnceTable, indexEvent), TAG);
+		}
+		Node node = getNode();
+		if (node instanceof TableNode) {
+			TableNode tableNode = (TableNode) node;
+			String tableName = tableNode.getTableName();
+			exactlyOnceWriteTables.add(tableName);
+			ExactlyOnceWriteCleanerEntity exactlyOnceWriteCleanerEntity = new ExactlyOnceWriteCleanerEntity(
+							tableNode.getId(),
+							tableName,
+							tableNode.getIncrementExactlyOnceEnableTimeWindowDay(),
+							tableNode.getConnectionId()
+			);
+			ExactlyOnceWriteCleaner.getInstance().registerCleaner(exactlyOnceWriteCleanerEntity);
+			exactlyOnceWriteCleanerEntities.add(exactlyOnceWriteCleanerEntity);
+			obsLogger.info("Registered exactly once write cleaner: {}", exactlyOnceWriteCleanerEntity);
+		} else if (node instanceof DatabaseNode) {
+			// Nonsupport
+		}
+		obsLogger.info("Exactly once write has been enabled, and the effective table is: {}", StringUtil.subLongString(Arrays.toString(exactlyOnceWriteTables.toArray()), 100, "..."));
+	}
+
+	protected boolean createTable(TapTable tapTable) {
+		AtomicReference<TapCreateTableEvent> tapCreateTableEvent = new AtomicReference<>();
+		boolean createdTable;
+		try {
+			CreateTableFunction createTableFunction = getConnectorNode().getConnectorFunctions().getCreateTableFunction();
+			CreateTableV2Function createTableV2Function = getConnectorNode().getConnectorFunctions().getCreateTableV2Function();
+			createdTable = createTableV2Function != null || createTableFunction != null;
+			if (createdTable) {
+				handleTapTablePrimaryKeys(tapTable);
+				tapCreateTableEvent.set(createTableEvent(tapTable));
+				executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
+								.createTableEvent(tapCreateTableEvent.get())
+								.connectorContext(getConnectorNode().getConnectorContext())
+								.dataProcessorContext(dataProcessorContext)
+								.start(), (createTableFuncAspect ->
+								PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CREATE_TABLE, () -> {
+									if (createTableV2Function != null) {
+										CreateTableOptions createTableOptions = createTableV2Function.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
+										if (createTableFuncAspect != null)
+											createTableFuncAspect.createTableOptions(createTableOptions);
+									} else {
+										createTableFunction.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
+									}
+								}, TAG)));
+			} else {
+				// only execute start function aspect so that it would be cheated as input
+				AspectUtils.executeAspect(new CreateTableFuncAspect()
+								.createTableEvent(tapCreateTableEvent.get())
+								.connectorContext(getConnectorNode().getConnectorContext())
+								.dataProcessorContext(dataProcessorContext).state(NewFieldFuncAspect.STATE_START));
+			}
+			//
+//			String s = JSONUtil.obj2Json(Collections.singletonList(tapTable));
+			clientMongoOperator.insertOne(Collections.singletonList(tapTable),
+							ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
+		} catch (Throwable throwable) {
+			throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_TABLE_FAILED, "Table model: " + tapTable, throwable)
+							.addEvent(tapCreateTableEvent.get());
+		}
+		return createdTable;
+	}
+
+	private void initTargetQueueConsumer() {
+		this.queueConsumerThreadPool.submit(this::queueConsume);
+		obsLogger.debug("Initialize target event handler complete");
+	}
+
+	private void initTargetConcurrentProcessorIfNeed() {
+		if (getNode() instanceof DataParentNode) {
+			DataParentNode dataParentNode = (DataParentNode) getNode();
+			final Boolean initialConcurrent = dataParentNode.getInitialConcurrent();
+			if (initialConcurrent != null) {
+				this.initialConcurrent = initialConcurrent;
+				this.initialConcurrentWriteNum = dataParentNode.getInitialConcurrentWriteNum() != null ? dataParentNode.getInitialConcurrentWriteNum() : 8;
+				if (initialConcurrent) {
+					this.initialPartitionConcurrentProcessor = initConcurrentProcessor(initialConcurrentWriteNum);
+					this.initialPartitionConcurrentProcessor.start();
+				}
+			}
+			final Boolean cdcConcurrent = dataParentNode.getCdcConcurrent();
+			if (cdcConcurrent != null) {
+				this.cdcConcurrent = cdcConcurrent;
+				this.cdcConcurrentWriteNum = dataParentNode.getCdcConcurrentWriteNum() != null ? dataParentNode.getCdcConcurrentWriteNum() : 4;
+				if (cdcConcurrent) {
+					this.cdcPartitionConcurrentProcessor = initConcurrentProcessor(cdcConcurrentWriteNum);
+					this.cdcPartitionConcurrentProcessor.start();
+				}
+			}
+		}
+	}
+
+	private void initTargetVariable() {
+		this.uploadDagService = new AtomicBoolean(false);
+		this.insertMetadata = new CopyOnWriteArrayList<>();
+		this.updateMetadata = new ConcurrentHashMap<>();
+		this.removeMetadata = new CopyOnWriteArrayList<>();
+
+		targetBatch = DEFAULT_TARGET_BATCH;
+		if (getNode() instanceof DataParentNode) {
+			this.targetBatch = Optional.ofNullable(((DataParentNode<?>) getNode()).getWriteBatchSize()).orElse(DEFAULT_TARGET_BATCH);
+		}
+
+		targetBatchIntervalMs = DEFAULT_TARGET_BATCH_INTERVAL_MS;
+		if (getNode() instanceof DataParentNode) {
+			this.targetBatchIntervalMs = Optional.ofNullable(((DataParentNode<?>) getNode()).getWriteBatchWaitMs()).orElse(DEFAULT_TARGET_BATCH_INTERVAL_MS);
+		}
+		obsLogger.info("Write batch size: {}, max wait ms per batch: {}", targetBatch, targetBatchIntervalMs);
+		int writeQueueCapacity = new BigDecimal(targetBatch).multiply(new BigDecimal("1.5")).setScale(0, RoundingMode.HALF_UP).intValue();
+		this.tapEventQueue = new LinkedBlockingQueue<>(writeQueueCapacity);
+		obsLogger.debug("Initialize target write queue complete, capacity: {}", writeQueueCapacity);
+	}
+
+	private void createPdkAndInit(@NotNull Context context) {
+		if (getNode() instanceof TableNode || getNode() instanceof DatabaseNode) {
+			try {
+				createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
+				connectorNodeInit(dataProcessorContext);
+			} catch (Throwable e) {
+				throw new NodeException(e).context(getProcessorBaseContext());
+			}
+		}
 	}
 
 	private void initTapEventFilter() {
@@ -339,91 +465,147 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-    private void handleTapdataEvents(List<TapdataEvent> tapdataEvents) {
-        AtomicReference<TapdataEvent> lastTapdataEvent = new AtomicReference<>();
-        List<TapEvent> tapEvents = new ArrayList<>();
-        List<TapdataShareLogEvent> tapdataShareLogEvents = new ArrayList<>();
-        if (null != getConnectorNode()) {
-            codecsFilterManager = getConnectorNode().getCodecsFilterManager();
-        }
-        for (TapdataEvent tapdataEvent : tapdataEvents) {
-                if (!isRunning()) return;
-                try {
-                    SyncStage syncStage = tapdataEvent.getSyncStage();
-                    if (null != syncStage) {
-                        if (syncStage == SyncStage.INITIAL_SYNC && firstBatchEvent.compareAndSet(false, true)) {
-                            executeAspect(new SnapshotWriteBeginAspect().dataProcessorContext(dataProcessorContext));
-                        } else if (syncStage == SyncStage.CDC && firstStreamEvent.compareAndSet(false, true)) {
-                            executeAspect(new CDCWriteBeginAspect().dataProcessorContext(dataProcessorContext));
-                        }
-                    }
-                    if (tapdataEvent instanceof TapdataHeartbeatEvent) {
-                        handleTapdataHeartbeatEvent(tapdataEvent);
-                    } else if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
-                        handleTapdataCompleteSnapshotEvent();
-                    } else if (tapdataEvent instanceof TapdataStartingCdcEvent) {
-                        handleTapdataStartCdcEvent(tapdataEvent);
-                    } else if (tapdataEvent instanceof TapdataStartedCdcEvent) {
-                        flushShareCdcTableMetrics(tapdataEvent);
-                    } else if (tapdataEvent instanceof TapdataTaskErrorEvent) {
-                        throw ((TapdataTaskErrorEvent) tapdataEvent).getThrowable();
-                    } else if (tapdataEvent instanceof TapdataShareLogEvent) {
-                        handleTapdataShareLogEvent(tapdataShareLogEvents, tapdataEvent, lastTapdataEvent::set);
-                } else {
-                    if (tapdataEvent.isDML()) {
-                        handleTapdataRecordEvent(tapdataEvent, tapEvents, lastTapdataEvent::set);
-                    } else if (tapdataEvent.isDDL()) {
-                        handleTapdataDDLEvent(tapdataEvent, tapEvents, lastTapdataEvent::set);
-                    } else {
-                        if (null != tapdataEvent.getTapEvent()) {
-                            obsLogger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
-                        }
-                    }
-                }
-            } catch (Throwable throwable) {
+	private void handleTapdataEvents(List<TapdataEvent> tapdataEvents) {
+		AtomicReference<TapdataEvent> lastTapdataEvent = new AtomicReference<>();
+		List<TapEvent> tapEvents = new ArrayList<>();
+		List<TapRecordEvent> exactlyOnceWriteCache = new ArrayList<>();
+		List<TapdataShareLogEvent> tapdataShareLogEvents = new ArrayList<>();
+		if (null != getConnectorNode()) {
+			codecsFilterManager = getConnectorNode().getCodecsFilterManager();
+		}
+		initAndGetExactlyOnceWriteLookupList();
+		boolean hasExactlyOnceWriteCache = false;
+		for (TapdataEvent tapdataEvent : tapdataEvents) {
+			if (!isRunning()) return;
+			try {
+				SyncStage syncStage = tapdataEvent.getSyncStage();
+				if (null != syncStage) {
+					if (syncStage == SyncStage.INITIAL_SYNC && firstBatchEvent.compareAndSet(false, true)) {
+						executeAspect(new SnapshotWriteBeginAspect().dataProcessorContext(dataProcessorContext));
+					} else if (syncStage == SyncStage.CDC && firstStreamEvent.compareAndSet(false, true)) {
+						executeAspect(new CDCWriteBeginAspect().dataProcessorContext(dataProcessorContext));
+					}
+				}
+				if (tapdataEvent instanceof TapdataHeartbeatEvent) {
+					handleTapdataHeartbeatEvent(tapdataEvent);
+				} else if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
+					handleTapdataCompleteSnapshotEvent();
+				} else if (tapdataEvent instanceof TapdataStartingCdcEvent) {
+					handleTapdataStartCdcEvent(tapdataEvent);
+				} else if (tapdataEvent instanceof TapdataStartedCdcEvent) {
+					flushShareCdcTableMetrics(tapdataEvent);
+				} else if (tapdataEvent instanceof TapdataTaskErrorEvent) {
+					throw ((TapdataTaskErrorEvent) tapdataEvent).getThrowable();
+				} else if (tapdataEvent instanceof TapdataShareLogEvent) {
+					handleTapdataShareLogEvent(tapdataShareLogEvents, tapdataEvent, lastTapdataEvent::set);
+				} else if (tapdataEvent instanceof TapdataCompleteTableSnapshotEvent) {
+					handleTapdataCompleteTableSnapshotEvent((TapdataCompleteTableSnapshotEvent) tapdataEvent);
+				} else {
+					if (tapdataEvent.isDML()) {
+						TapRecordEvent tapRecordEvent = handleTapdataRecordEvent(tapdataEvent);
+						if (null == tapRecordEvent) {
+							continue;
+						}
+						hasExactlyOnceWriteCache = handleExactlyOnceWriteCacheIfNeed(tapdataEvent, exactlyOnceWriteCache);
+						List<String> lookupTables = initAndGetExactlyOnceWriteLookupList();
+						String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapRecordEvent);
+						if (null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && hasExactlyOnceWriteCache && eventExactlyOnceWriteCheckExists(tapdataEvent)) {
+							if (obsLogger.isDebugEnabled()) {
+								obsLogger.debug("Event check exactly once write exists, will ignore it: {}" + JSONUtil.obj2Json(tapRecordEvent));
+							}
+							continue;
+						} else {
+							if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent)) {
+								obsLogger.info("Target table {} stop look up exactly once cache", tgtTableNameFromTapEvent);
+								lookupTables.remove(tgtTableNameFromTapEvent);
+							}
+						}
+						tapEvents.add(tapRecordEvent);
+						if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
+							lastTapdataEvent.set(tapdataEvent);
+						}
+					} else if (tapdataEvent.isDDL()) {
+						handleTapdataDDLEvent(tapdataEvent, tapEvents, lastTapdataEvent::set);
+					} else {
+						if (null != tapdataEvent.getTapEvent()) {
+							obsLogger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
+						}
+					}
+				}
+			} catch (Throwable throwable) {
 				throw new TapdataEventException(TaskTargetProcessorExCode_15.HANDLE_EVENTS_FAILED, throwable).addEvent(tapdataEvent);
-            }
-        }
-        if (CollectionUtils.isNotEmpty(tapEvents)) {
-            try {
-                processEvents(tapEvents);
-                flushOffsetByTapdataEventForNoConcurrent(lastTapdataEvent);
-            } catch (Throwable throwable) {
-                throw new RuntimeException(String.format("Process events failed: %s", throwable.getMessage()), throwable);
-            }
-        }
-        if (CollectionUtils.isNotEmpty(tapdataShareLogEvents)) {
-            try {
-                processShareLog(tapdataShareLogEvents);
-                flushOffsetByTapdataEventForNoConcurrent(lastTapdataEvent);
-            } catch (Throwable throwable) {
-                throw new RuntimeException(String.format("Process share log failed: %s", throwable.getMessage()), throwable);
-            }
-        }
+			}
+		}
+		if (CollectionUtils.isNotEmpty(tapEvents)) {
+			try {
+				try {
+					if (checkExactlyOnceWriteEnableResult.getEnable() && hasExactlyOnceWriteCache) {
+						transactionBegin();
+					}
+					processEvents(tapEvents);
+					if (checkExactlyOnceWriteEnableResult.getEnable() && hasExactlyOnceWriteCache) {
+						processExactlyOnceWriteCache(tapdataEvents);
+						transactionCommit();
+					}
+				} catch (Exception e) {
+					transactionRollback();
+					throw e;
+				}
+				flushOffsetByTapdataEventForNoConcurrent(lastTapdataEvent);
+			} catch (Throwable throwable) {
+				throw new RuntimeException(String.format("Process events failed: %s", throwable.getMessage()), throwable);
+			}
+		}
+		if (CollectionUtils.isNotEmpty(tapdataShareLogEvents)) {
+			try {
+				processShareLog(tapdataShareLogEvents);
+				flushOffsetByTapdataEventForNoConcurrent(lastTapdataEvent);
+			} catch (Throwable throwable) {
+				throw new RuntimeException(String.format("Process share log failed: %s", throwable.getMessage()), throwable);
+			}
+		}
 		if (firstStreamEvent.get()) {
 			executeAspect(new CDCHeartbeatWriteAspect().tapdataEvents(tapdataEvents).dataProcessorContext(dataProcessorContext));
 		}
-    }
+	}
 
-    private void flushOffsetByTapdataEventForNoConcurrent(AtomicReference<TapdataEvent> lastTapdataEvent) {
-        if (null != lastTapdataEvent.get()) {
-            SyncStage syncStage = lastTapdataEvent.get().getSyncStage();
-            if (null != syncStage) {
-                switch (syncStage) {
-                    case INITIAL_SYNC:
-                        if (null != lastTapdataEvent.get().getBatchOffset() && !initialConcurrent) {
-                            flushSyncProgressMap(lastTapdataEvent.get());
-                        }
-                        break;
-                    case CDC:
-                        if (null != lastTapdataEvent.get().getStreamOffset() && !cdcConcurrent) {
-                            flushSyncProgressMap(lastTapdataEvent.get());
-                        }
-                        break;
-                }
-            }
-        }
-    }
+	private void handleTapdataCompleteTableSnapshotEvent(TapdataCompleteTableSnapshotEvent tapdataEvent) {
+		List<String> nodeIds = tapdataEvent.getNodeIds();
+		if (CollectionUtils.isEmpty(nodeIds) && nodeIds.size() >= 1) {
+			return;
+		}
+		String srcNodeId = nodeIds.get(0);
+		Node srcNode = dataProcessorContext.getNodes().stream().filter(n -> n.getId().equals(srcNodeId)).findFirst().orElse(null);
+		if (null == srcNode) {
+			return;
+		}
+		SnapshotOrderController snapshotOrderController = SnapshotOrderService.getInstance().getController(dataProcessorContext.getTaskDto().getId().toHexString());
+		if (null != snapshotOrderController) {
+			snapshotOrderController.finish(srcNode);
+			snapshotOrderController.flush();
+		}
+		executeAspect(new SnapshotWriteTableCompleteAspect().sourceNodeId(srcNodeId).sourceTableName(tapdataEvent.getSourceTableName()).dataProcessorContext(dataProcessorContext));
+	}
+
+	private void flushOffsetByTapdataEventForNoConcurrent(AtomicReference<TapdataEvent> lastTapdataEvent) {
+		if (null != lastTapdataEvent.get()) {
+			SyncStage syncStage = lastTapdataEvent.get().getSyncStage();
+			if (null != syncStage) {
+				switch (syncStage) {
+					case INITIAL_SYNC:
+						if (null != lastTapdataEvent.get().getBatchOffset() && !initialConcurrent) {
+							flushSyncProgressMap(lastTapdataEvent.get());
+						}
+						break;
+					case CDC:
+						if (null != lastTapdataEvent.get().getStreamOffset() && !cdcConcurrent) {
+							flushSyncProgressMap(lastTapdataEvent.get());
+						}
+						break;
+				}
+			}
+		}
+	}
 
 	private void flushShareCdcTableMetrics(TapdataEvent tapdataEvent) {
 		if (tapdataEvent.getType().equals(SyncProgress.Type.LOG_COLLECTOR)) {
@@ -480,13 +662,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected void handleTapdataCompleteSnapshotEvent() {
-		if (TaskDto.TYPE_INITIAL_SYNC.equals(dataProcessorContext.getTaskDto().getType())) {
-			Object globalMap = getGlobalMap(getCompletedInitialKey());
-			if (globalMap instanceof Integer) {
-				int sourceSnapshotNum = (int) globalMap;
-				sourceSnapshotNum--;
-				putInGlobalMap(getCompletedInitialKey(), sourceSnapshotNum);
-			}
+		Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(dataProcessorContext.getTaskDto().getId().toHexString());
+		Object obj = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);
+		if (obj instanceof AtomicInteger) {
+			((AtomicInteger) obj).decrementAndGet();
 		}
 		executeAspect(new SnapshotWriteEndAspect().dataProcessorContext(dataProcessorContext));
 	}
@@ -496,19 +675,37 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		saveToSnapshot();
 	}
 
-	private void handleTapdataRecordEvent(TapdataEvent tapdataEvent, List<TapEvent> tapEvents, Consumer<TapdataEvent> consumer) {
+	private TapRecordEvent handleTapdataRecordEvent(TapdataEvent tapdataEvent) {
 		TapRecordEvent tapRecordEvent = (TapRecordEvent) tapdataEvent.getTapEvent();
 		if (writeStrategy.equals(MergeTableProperties.MergeType.appendWrite.name())) {
 			if (!(tapRecordEvent instanceof TapInsertRecordEvent)) {
-				return;
+				return null;
 			}
 		}
 		fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager);
 		fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager);
-		tapEvents.add(tapRecordEvent);
-		if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
-			consumer.accept(tapdataEvent);
+		return tapRecordEvent;
+	}
+
+	private boolean handleExactlyOnceWriteCacheIfNeed(TapdataEvent tapdataEvent, List<TapRecordEvent> exactlyOnceWriteCache) {
+		if (!tableEnableExactlyOnceWrite(tapdataEvent.getSyncStage(), getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()))) {
+			return false;
 		}
+		if (null == exactlyOnceWriteCache) {
+			throw new IllegalArgumentException("Exactly once write cache list is null");
+		}
+		TapRecordEvent tapEvent = (TapRecordEvent) tapdataEvent.getTapEvent();
+		Long timestamp = TapEventUtil.getTimestamp(tapEvent);
+		if (null == timestamp) {
+			throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED_TIMESTAMP_IS_NULL, "Event: " + tapEvent);
+		}
+		Map<String, Object> data = ExactlyOnceUtil.generateExactlyOnceCacheRow(getNode().getId(), getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()), tapEvent, timestamp);
+		TapInsertRecordEvent tapInsertRecordEvent = TapInsertRecordEvent.create()
+				.after(data)
+				.referenceTime(System.currentTimeMillis())
+				.init();
+		tapdataEvent.setExactlyOnceWriteCache(tapInsertRecordEvent);
+		return true;
 	}
 
 	private void handleTapdataDDLEvent(TapdataEvent tapdataEvent, List<TapEvent> tapEvents, Consumer<TapdataEvent> consumer) {
@@ -579,12 +776,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		if (syncProgress.getSyncStage() == null) {
 			obsLogger.warn(String.format("Found sync stage is null when flush sync progress, event: %s[%s]", tapdataEvent, tapdataEvent.getClass().getName()));
 		}
-	}
-
-	abstract void processEvents(List<TapEvent> tapEvents);
-
-	void processShareLog(List<TapdataShareLogEvent> tapdataShareLogEvents) {
-		throw new UnsupportedOperationException();
 	}
 
 	protected void handleTapTablePrimaryKeys(TapTable tapTable) {
@@ -771,14 +962,16 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	@Override
 	public void doClose() throws Exception {
 		try {
-			//threadPoolExecutorEx.submitSync(() -> {
+			if (CollectionUtils.isNotEmpty(exactlyOnceWriteCleanerEntities)) {
+				CommonUtils.ignoreAnyError(() -> {
+					ExactlyOnceWriteCleaner exactlyOnceWriteCleaner = ExactlyOnceWriteCleaner.getInstance();
+					exactlyOnceWriteCleanerEntities.forEach(exactlyOnceWriteCleaner::unregisterCleaner);
+				}, TAG);
+			}
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.initialPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.cdcPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
-			CommonUtils.ignoreAnyError(() -> removeGlobalMap(getCompletedInitialKey()), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.queueConsumerThreadPool).ifPresent(ExecutorService::shutdownNow), TAG);
-			//});
 		} finally {
-			//threadPoolExecutorEx.close();
 			super.doClose();
 		}
 	}
@@ -793,5 +986,159 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		}
 		return true;
+	}
+
+	protected CheckExactlyOnceWriteEnableResult enableExactlyOnceWrite() {
+		// Check whether the table supports exactly once write
+		Node node = getNode();
+		if (node instanceof TableNode) {
+			TableNode tableNode = (TableNode) getNode();
+			if (null == tableNode.getIncrementExactlyOnceEnable() || !tableNode.getIncrementExactlyOnceEnable()) {
+				return CheckExactlyOnceWriteEnableResult.createDisable("");
+			}
+		} else {
+			// Other data node type nonsupport exactly once write
+			return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Node type %s nonsupport exactly once write", node.getClass().getSimpleName()));
+		}
+
+		// Check whether the connector supports exactly once write functions
+		ConnectorNode connectorNode = getConnectorNode();
+		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+		TransactionBeginFunction transactionBeginFunction = connectorFunctions.getTransactionBeginFunction();
+		TransactionCommitFunction transactionCommitFunction = connectorFunctions.getTransactionCommitFunction();
+		TransactionRollbackFunction transactionRollbackFunction = connectorFunctions.getTransactionRollbackFunction();
+		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorFunctions.getQueryByAdvanceFilterFunction();
+		if (null == transactionBeginFunction || null == transactionCommitFunction || null == transactionRollbackFunction) {
+			return CheckExactlyOnceWriteEnableResult.createDisable("The connector nonsupport exactly once write transaction functions: begin, commit, rollback");
+		}
+		if (null == queryByAdvanceFilterFunction) {
+			return CheckExactlyOnceWriteEnableResult.createDisable("The connector is not support exactly once write functions: query by advance filter");
+		}
+
+		// Check only have one source node
+		List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
+		if (predecessors.size() > 1) {
+			return CheckExactlyOnceWriteEnableResult.createDisable("Exactly once write is not supported in any merge scenarios");
+		}
+
+		if (CollectionUtils.isNotEmpty(predecessors)) {
+			Node<?> sourceNode = predecessors.get(0);
+			if (sourceNode instanceof TableNode) {
+				String connectionId = ((TableNode) sourceNode).getConnectionId();
+				Connections sourceConn = clientMongoOperator.findOne(Query.query(Criteria.where("_id").is(connectionId)), ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+				DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, sourceConn.getPdkHash());
+				List<Capability> capabilities = databaseType.getCapabilities();
+				if (null == capabilities
+						|| null == capabilities.stream().map(Capability::getId).filter(capabilityId -> capabilityId.equals(ConnectionOptions.CAPABILITY_SOURCE_SUPPORT_EXACTLY_ONCE)).findFirst().orElse(null)) {
+					return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Source connector(%s) stream read is not supported exactly once", sourceConn.getName()));
+				}
+			} else if (sourceNode instanceof DatabaseNode) {
+				return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Exactly once write is not supported, source connector(%s) is not a table node", sourceNode.getName()));
+			}
+		}
+		return CheckExactlyOnceWriteEnableResult.createEnable();
+	}
+
+	private boolean tableEnableExactlyOnceWrite(SyncStage syncStage, String tableId) {
+		return SyncStage.CDC.equals(syncStage) && exactlyOnceWriteTables.contains(tableId);
+	}
+
+	private List<String> initAndGetExactlyOnceWriteLookupList() {
+		return exactlyOnceWriteNeedLookupTables.computeIfAbsent(Thread.currentThread().getName(), k -> {
+			Node node = getNode();
+			if (node instanceof TableNode) {
+				TableNode tableNode = (TableNode) node;
+				String tableName = tableNode.getTableName();
+				List<String> tables = new ArrayList<>();
+				if (exactlyOnceWriteTables.contains(tableName)) {
+					tables.add(tableName);
+				}
+				return tables;
+			} else if (node instanceof DatabaseNode) {
+				// Nonsupport
+			}
+			return null;
+		});
+	}
+
+	abstract void processEvents(List<TapEvent> tapEvents);
+
+	void processShareLog(List<TapdataShareLogEvent> tapdataShareLogEvents) {
+		throw new UnsupportedOperationException();
+	}
+
+	void transactionBegin() {
+		throw new UnsupportedOperationException();
+	}
+
+	void transactionCommit() {
+		throw new UnsupportedOperationException();
+	}
+
+	void transactionRollback() {
+		throw new UnsupportedOperationException();
+	}
+
+	void processExactlyOnceWriteCache(List<TapdataEvent> tapdataEvents) {
+		throw new UnsupportedOperationException();
+	}
+
+	boolean eventExactlyOnceWriteCheckExists(TapdataEvent tapdataEvent) {
+		throw new UnsupportedOperationException();
+	}
+
+	protected void dispatchTapRecordEvents(List<TapEvent> tapEvents, Predicate<DispatchEntity> dispatchClause, Consumer<List<TapEvent>> consumer) {
+		DispatchEntity dispatchEntity = new DispatchEntity();
+		List<TapEvent> tempList = new ArrayList<>();
+		for (TapEvent tapEvent : tapEvents) {
+			if (tapEvent instanceof TapRecordEvent) {
+				TapRecordEvent tapRecordEvent = (TapRecordEvent) tapEvent;
+				if (null == dispatchEntity.getLastTapEvent()) {
+					dispatchEntity.setLastTapEvent(tapRecordEvent);
+				}
+				dispatchEntity.setCurrentTapEvent(tapRecordEvent);
+				if (null != dispatchClause && dispatchClause.test(dispatchEntity)) {
+					if (CollectionUtils.isNotEmpty(tempList)) {
+						consumer.accept(tempList);
+						tempList.clear();
+					}
+					dispatchEntity.setLastTapEvent(tapRecordEvent);
+				}
+				tempList.add(tapEvent);
+			} else if (tapEvent instanceof TapDDLEvent) {
+				if (CollectionUtils.isNotEmpty(tempList)) {
+					consumer.accept(tempList);
+					tempList.clear();
+				}
+				tempList.add(tapEvent);
+				consumer.accept(tempList);
+				tempList.clear();
+			}
+		}
+		if (CollectionUtils.isNotEmpty(tempList)) {
+			consumer.accept(tempList);
+			tempList.clear();
+		}
+	}
+
+	protected static class DispatchEntity {
+		private TapEvent lastTapEvent;
+		private TapEvent currentTapEvent;
+
+		public TapEvent getLastTapEvent() {
+			return lastTapEvent;
+		}
+
+		public void setLastTapEvent(TapEvent lastTapEvent) {
+			this.lastTapEvent = lastTapEvent;
+		}
+
+		public TapEvent getCurrentTapEvent() {
+			return currentTapEvent;
+		}
+
+		public void setCurrentTapEvent(TapEvent currentTapEvent) {
+			this.currentTapEvent = currentTapEvent;
+		}
 	}
 }

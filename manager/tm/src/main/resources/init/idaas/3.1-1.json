@@ -1,0 +1,34 @@
+[
+  {
+    "insert": "Settings_Alarm",
+    "documents": [
+      {
+        "type": "INSPECT",
+        "open": true,
+        "key": "INSPECT_TASK_ERROR",
+        "sort": 1,
+        "notify": ["SYSTEM"],
+        "interval": 300,
+        "unit": "SECOND"
+      },
+      {
+        "type": "INSPECT",
+        "open": true,
+        "key": "INSPECT_COUNT_ERROR",
+        "sort": 2,
+        "notify": ["SYSTEM"],
+        "interval": 300,
+        "unit": "SECOND"
+      },
+      {
+        "type": "INSPECT",
+        "open": true,
+        "key": "INSPECT_VALUE_ERROR",
+        "sort": 3,
+        "notify": ["SYSTEM"],
+        "interval": 300,
+        "unit": "SECOND"
+      }
+    ]
+  }
+]

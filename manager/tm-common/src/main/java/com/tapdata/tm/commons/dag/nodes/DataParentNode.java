@@ -20,6 +20,7 @@ import lombok.Setter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -118,6 +119,10 @@ public abstract class DataParentNode<S> extends Node<S> {
         SchemaTransformerResult str = new SchemaTransformerResult();
         LinkedList<FieldInfo> fieldInfos = null;
         String syncType = getSyncType();
+        if (StringUtils.isNotBlank(syncType)) {
+            syncType = this instanceof DatabaseNode ? TaskDto.SYNC_TYPE_MIGRATE : TaskDto.SYNC_TYPE_SYNC;
+        }
+
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(syncType)) {
             str.setSinkQulifiedName(MetaDataBuilderUtils.generateQualifiedName(_metaType, dataSource, originTableName, getTaskId()));
         } else if (TaskDto.SYNC_TYPE_SYNC.equals(syncType)) {
@@ -192,7 +197,7 @@ public abstract class DataParentNode<S> extends Node<S> {
                     String op = operation.getOp();
                     String operand = operation.getOperand();
                     if ("CREATE".equalsIgnoreCase(op)) {
-                        Field f = createField(operation);
+                        Field f = createField(this.getId(), s.getOriginalName(), operation);
                         fields.add(f);
                     } else if ("REMOVE".equalsIgnoreCase(op)) {
                         fields.forEach(f -> {

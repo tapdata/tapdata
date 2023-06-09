@@ -17,7 +17,7 @@ import java.util.Map;
 public abstract class Element implements Serializable {
 
     @EqField
-    private String id;
+    protected String id;
     private String name;
 
     private String desc;
@@ -38,6 +38,17 @@ public abstract class Element implements Serializable {
 
     public Element(ElementType elementType) {
         this.elementType = elementType;
+    }
+
+    public Element(String name, ElementType elementType) {
+        this.name = name;
+        this.elementType = elementType;
+    }
+
+    public Element(String name, ElementType elementType, Map<String, Object> attrs) {
+        this.name = name;
+        this.elementType = elementType;
+        this.attrs = attrs;
     }
 
     @JsonIgnore

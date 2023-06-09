@@ -2,7 +2,6 @@ package imclient;
 
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.core.error.QuiteException;
-import io.tapdata.pdk.core.workflow.engine.DataFlowEngine;
 import org.junit.jupiter.api.AfterEach;
 
 import java.lang.reflect.InvocationTargetException;

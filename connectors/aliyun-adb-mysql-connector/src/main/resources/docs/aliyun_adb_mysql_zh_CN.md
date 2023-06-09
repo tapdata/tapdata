@@ -71,3 +71,6 @@ GRANT RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 't
 ```
 当从Aliyun ADB MySQL同步到其他异构数据库时，如果源Aliyun ADB MySQL存在表级联设置，因该级联触发产生的数据更新和删除不会传递到目标。如需要在目标端构建级联处理能力，可以视目标情况，通过触发器等手段来实现该类型的数据同步。
 ```
+
+###  **4. 关于更新事件**
+AliYun ADB Mysql 更新事件不可更新主键，因此写入需要判断修改前和修改后的主键值是否相同，相同时需要移除主键进行修改，不相同则拆成删除和插入处理

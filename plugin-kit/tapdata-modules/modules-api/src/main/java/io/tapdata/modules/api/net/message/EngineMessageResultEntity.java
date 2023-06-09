@@ -3,6 +3,7 @@ package io.tapdata.modules.api.net.message;
 import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.entity.utils.io.BinarySerializable;
 import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.entity.utils.io.DataOutputStreamEx;
@@ -54,6 +55,12 @@ public class EngineMessageResultEntity extends TapEntityEx {
 		id = dis.readUTF();
 		code = dis.readInt();
 		message = dis.readUTF();
+//		byte[] data = dis.readBytes();
+//		if(data != null) {
+//			ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
+//			content = objectSerializable.toObject(data);
+//		}
+
 //		if(contentClass != null && !contentClass.equals(ServiceCaller.RETURN_CLASS_MAP)) {
 //			try {
 //				content = dis.readJson(Class.forName(contentClass));
@@ -75,6 +82,11 @@ public class EngineMessageResultEntity extends TapEntityEx {
 		dos.writeUTF(id);
 		dos.writeInt(code);
 		dos.writeUTF(message);
+//		if(content != null) {
+//			ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
+//			byte[] data = objectSerializable.fromObject(content);
+//			dos.writeBytes(data);
+//		}
 //		dos.writeJson(content);
 
 		ArgumentsSerializer argumentsSerializer = InstanceFactory.instance(ArgumentsSerializer.class);

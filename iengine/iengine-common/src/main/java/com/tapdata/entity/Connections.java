@@ -456,6 +456,8 @@ public class Connections implements Serializable {
 
 	private String shareCDCExternalStorageId;
 	private Boolean heartbeatEnable;
+	private String multiConnectionInstanceId;
+	private List<String> namespace;
 
 	public Connections() {
 	}
@@ -2231,6 +2233,8 @@ public class Connections implements Serializable {
 				", redoLogParserEnable=" + redoLogParserEnable +
 				", redoLogParserHost='" + redoLogParserHost + '\'' +
 				", redoLogParserPort=" + redoLogParserPort +
+				", multiConnectionInstanceId='" + multiConnectionInstanceId + '\'' +
+				", namespace='" + namespace + '\'' +
 				'}';
 	}
 
@@ -2313,6 +2317,22 @@ public class Connections implements Serializable {
 
 	public void setHeartbeatEnable(Boolean heartbeatEnable) {
 		this.heartbeatEnable = heartbeatEnable;
+	}
+
+	public String getMultiConnectionInstanceId() {
+		return multiConnectionInstanceId;
+	}
+
+	public void setMultiConnectionInstanceId(String multiConnectionInstanceId) {
+		this.multiConnectionInstanceId = multiConnectionInstanceId;
+	}
+
+	public List<String> getNamespace() {
+		return namespace;
+	}
+
+	public void setNamespace(List<String> namespace) {
+		this.namespace = namespace;
 	}
 }
 

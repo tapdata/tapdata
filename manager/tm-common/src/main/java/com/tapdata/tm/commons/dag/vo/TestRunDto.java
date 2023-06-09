@@ -16,4 +16,5 @@ public class TestRunDto {
     private String tableName;
     private Integer rows;
     private Long version;
+    private int logOutputCount = 100;
 }

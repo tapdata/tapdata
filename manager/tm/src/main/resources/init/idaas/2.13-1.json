@@ -111,9 +111,17 @@
         "type": "system",
         "category" : "standard",
         "className": "Date",
-        "methodName": "add/remove",
-        "desc" : "日期类型",
-        "example": "var dte = new Date();\nvar year = dte.getYear()+1900;"
+        "methodName": "All of Method from Java Object Method",
+        "desc" : "标准JS处理器和增强JS处理器下的默认处理器的日期类型的使用，您可以使用以下方式",
+        "example": "//可参阅官方文档：https://docs.oracle.com/javase/8/docs/api/java/util/Date.html#method.summary\nvar dte = new Date();\nvar year = dte.getYear()+1900;"
+      },
+      {
+        "type": "system",
+        "category" : "standard",
+        "className": "Date",
+        "methodName": "All Native JavaScript Methods of Date Object",
+        "desc" : "标准化JS节点，您可以使用原生JavaScript的日期类型",
+        "example": "参考链接：https://www.runoob.com/jsref/jsref-obj-date.html"
       },
       {
         "type": "system",

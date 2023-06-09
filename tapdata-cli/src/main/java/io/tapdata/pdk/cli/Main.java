@@ -18,7 +18,6 @@ public class Main {
     public static CommandLine registerCommands() {
         CommandLine commandLine = new CommandLine(new MainCli());
         commandLine.addSubcommand("register", new RegisterCli());
-        commandLine.addSubcommand("start", new StartCli());
         commandLine.addSubcommand("discoverSchema", new DiscoverSchemaCli());
         commandLine.addSubcommand("connectionTest", new ConnectionTestCli());
         commandLine.addSubcommand("template", new ConnectorProjectBootCli());

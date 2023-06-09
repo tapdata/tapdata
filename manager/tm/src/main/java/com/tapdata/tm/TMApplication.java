@@ -3,6 +3,7 @@ package com.tapdata.tm;
 import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
 import com.tapdata.tm.ds.service.impl.RepairCreateTimeComponent;
 import com.tapdata.tm.listener.StartupListener;
+import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.SpringContextHelper;
@@ -110,7 +111,9 @@ public class TMApplication {
 
 		TapLogger.debug(TAG, "TapRuntime will start");
 
-		CommonUtils.setProperty("tapdata_proxy_mongodb_uri", userService.getMongodbUri());
+		String tapdata_proxy_mongodb_uri = CommonUtils.getProperty("tapdata_proxy_mongodb_uri");
+		if(tapdata_proxy_mongodb_uri == null)
+			CommonUtils.setProperty("tapdata_proxy_mongodb_uri", userService.getMongodbUri());
 		CommonUtils.setProperty("tapdata_proxy_server_port", userService.getServerPort());
 		TapRuntime.getInstance();
 		TapLogger.debug(TAG, "TapRuntime initialized");
@@ -118,6 +121,9 @@ public class TMApplication {
 		new Thread(() -> {
 			DefaultDataDirectoryService bean = applicationContext.getBean(DefaultDataDirectoryService.class);
 			bean.init();
+			LdpService ldpService = applicationContext.getBean(LdpService.class);
+			ldpService.generateLdpTaskByOld();
+
 		}).start();
 
 	}

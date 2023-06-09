@@ -7,11 +7,13 @@ import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.vo.ShareCacheDetailVo;
 import com.tapdata.tm.task.vo.ShareCacheVo;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -74,6 +76,11 @@ public class CacheTaskController extends BaseController {
 
 
         where.put("shareCache", true);
+        if (where.get("status") == null) {
+            Document statusCondition = new Document();
+            statusCondition.put("$nin", Lists.of(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING));
+            where.put("status", statusCondition);
+        }
         return success(taskService.findShareCache(filter, getLoginUser()));
     }
 
@@ -113,7 +120,7 @@ public class CacheTaskController extends BaseController {
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
     public ResponseMessage<Void> delete(@PathVariable("id") String id) {
-        taskService.deleteShareCache(MongoUtils.toObjectId(id), getLoginUser());
+        taskService.remove(MongoUtils.toObjectId(id), getLoginUser());
         return success();
     }
 

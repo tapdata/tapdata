@@ -34,6 +34,7 @@ import java.net.URLEncoder;
 public class UriRootConvertUtils {
 
   private final static String mongoPrefix = "mongodb://";
+  public final static String mongoHiddenPwd = "*********";
 
   public static String hidePassword(String uri) {
     if (StringUtils.isBlank(uri)) {
@@ -50,7 +51,7 @@ public class UriRootConvertUtils {
 
     String userNameAndPassword = uri.substring(indexStart + 3, indexEnd);
     int indexPasswd = userNameAndPassword.indexOf(":");
-    return uri.substring(0, indexStart + 4 + indexPasswd) + "*********" + uri.substring(indexEnd);
+    return uri.substring(0, indexStart + 4 + indexPasswd) + mongoHiddenPwd + uri.substring(indexEnd);
   }
 
   public static String constructUri(DataSourceConnectionDto connectionDto) {

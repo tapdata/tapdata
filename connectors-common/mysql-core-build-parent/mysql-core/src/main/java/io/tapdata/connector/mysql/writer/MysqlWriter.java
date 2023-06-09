@@ -1,7 +1,9 @@
 package io.tapdata.connector.mysql.writer;
 
+import io.tapdata.common.exception.ExceptionCollector;
+import io.tapdata.connector.mysql.MysqlExceptionCollector;
+import io.tapdata.connector.mysql.MysqlJdbcContextV2;
 import io.tapdata.connector.mysql.util.ExceptionWrapper;
-import io.tapdata.connector.tencent.db.mysql.MysqlJdbcContext;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -19,6 +21,7 @@ import org.apache.commons.collections4.map.LRUMap;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,13 +36,15 @@ import java.util.function.Consumer;
 public abstract class MysqlWriter {
 
 	private static final String TAG = MysqlWriter.class.getSimpleName();
-	protected MysqlJdbcContext mysqlJdbcContext;
+	protected MysqlJdbcContextV2 mysqlJdbcContext;
 	protected ExceptionWrapper exceptionWrapper;
+	protected ExceptionCollector exceptionCollector;
 	private final AtomicBoolean running;
 
-	public MysqlWriter(MysqlJdbcContext mysqlJdbcContext) throws Throwable {
+	public MysqlWriter(MysqlJdbcContextV2 mysqlJdbcContext) throws Throwable {
 		this.mysqlJdbcContext = mysqlJdbcContext;
 		this.exceptionWrapper = new ExceptionWrapper();
+		this.exceptionCollector = new MysqlExceptionCollector();
 		this.running = new AtomicBoolean(true);
 	}
 
@@ -125,6 +130,8 @@ public abstract class MysqlWriter {
 			after = ((TapInsertRecordEvent) tapRecordEvent).getAfter();
 		} else if (tapRecordEvent instanceof TapUpdateRecordEvent) {
 			after = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
+		} else {
+			after = new HashMap<>();
 		}
 		return after;
 	}

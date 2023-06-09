@@ -22,6 +22,7 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import lombok.Getter;
 import lombok.Setter;
@@ -31,15 +32,7 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
+import java.util.*;
 
 /**
  * DAG上的聚合节点的实现类（内置多个聚合器Aggregator）
@@ -50,6 +43,7 @@ import java.util.Set;
 public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
 
 	private final Logger logger = LogManager.getLogger(HazelcastMultiAggregatorProcessor.class);
+	private static final String CONSTRUCT_REFERENCE_ID = HazelcastMultiAggregatorProcessor.class.getSimpleName();
 
 	private final List<Aggregator> aggregators = new ArrayList<>();
 
@@ -83,29 +77,34 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
 
 	private void initCache(String nodeId, HazelcastInstance hazelcastInstance) {
 		cacheNumbers = new DocumentIMap<>(hazelcastInstance,
+			CONSTRUCT_REFERENCE_ID,
 				nodeId + "-" + "AggregatorCache",
 				externalStorageDto);
 		cacheList = new DocumentIMap<>(hazelcastInstance,
+			CONSTRUCT_REFERENCE_ID,
 				nodeId + "-" + "AggregatorCacheList",
 				externalStorageDto);
 	}
 
 	public static void clearCache(String nodeId, HazelcastInstance hazelcastInstance) {
-		ConstructIMap<BigDecimal> cacheNumbers = new ConstructIMap<>(hazelcastInstance, nodeId + "-" + "AggregatorCache");
-		ConstructIMap<ArrayList<BigDecimal>> cacheList = new ConstructIMap<>(hazelcastInstance, nodeId + "-" + "AggregatorCacheList");
+		ConstructIMap<BigDecimal> cacheNumbers = new DocumentIMap<>(hazelcastInstance, CONSTRUCT_REFERENCE_ID, nodeId + "-" + "AggregatorCache");
+		ConstructIMap<ArrayList<BigDecimal>> cacheList = new DocumentIMap<>(hazelcastInstance, CONSTRUCT_REFERENCE_ID, nodeId + "-" + "AggregatorCacheList");
 
-		try {
-			cacheNumbers.clear();
-			cacheNumbers.destroy();
-		} catch (Exception e) {
-			throw new RuntimeException("Clear aggregate cache failed, name: " + cacheNumbers.getName() + "(" + cacheNumbers.getType() + "), error: " + e.getMessage(), e);
-		}
-		try {
-			cacheList.clear();
-			cacheNumbers.destroy();
-		} catch (Exception e) {
-			throw new RuntimeException("Clear aggregate cache list failed, name: " + cacheList.getName() + "(" + cacheList.getType() + "), error: " + e.getMessage(), e);
-		}
+		CommonUtils.handleAnyErrors(null, () -> {
+			try {
+				cacheNumbers.clear();
+				cacheNumbers.destroy();
+			} catch (Exception e) {
+				throw new RuntimeException("Clear aggregate cache failed, name: " + cacheNumbers.getName() + "(" + cacheNumbers.getType() + "), error: " + e.getMessage(), e);
+			}
+		}, () -> {
+			try {
+				cacheList.clear();
+				cacheNumbers.destroy();
+			} catch (Exception e) {
+				throw new RuntimeException("Clear aggregate cache failed, name: " + cacheNumbers.getName() + "(" + cacheNumbers.getType() + "), error: " + e.getMessage(), e);
+			}
+		});
 	}
 
 	/***

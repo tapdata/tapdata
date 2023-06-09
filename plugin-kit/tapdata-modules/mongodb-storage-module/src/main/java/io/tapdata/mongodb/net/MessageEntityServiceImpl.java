@@ -20,6 +20,8 @@ import org.bson.Document;
 import java.time.Instant;
 import java.util.*;
 
+import static io.tapdata.entity.simplify.TapSimplify.entry;
+import static io.tapdata.entity.simplify.TapSimplify.map;
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 @Implementation(MessageEntityService.class)
@@ -68,17 +70,41 @@ public class MessageEntityServiceImpl implements MessageEntityService {
 			return nodeMessageEntity.getId().toString();
 		return null;
 	}
+
 	@Override
 	public FetchNewDataResult getMessageEntityList(String service, String subscribeId, String offset, Integer limit) {
+		return getMessageEntityList(service, subscribeId, offset, limit, null);
+	}
+
+	@Override
+	public FetchNewDataResult getMessageEntityListDesc(String service, String subscribeId, String offset, Integer limit) {
+		return getMessageEntityList(service, subscribeId, offset, limit, map(entry("message.time", -1)));
+	}
+
+	@Override
+	public FetchNewDataResult getMessageEntityList(String service, String subscribeId, String offset, Integer limit, Map<String, Object> sortMap){
 		if(limit == null)
 			limit = 100;
+		Document sortBson = new Document();
+		if (null != sortMap && !sortMap.isEmpty()){
+			sortMap.forEach((key, value) -> {
+				if (null != key && !"".equals(key.trim()) && null != value)
+					sortBson.append(key, value);
+			});
+		}
 		MongoCursor<NodeMessageEntity> cursor = null;
 		try {
 			Document filter = new Document("message.service", service).append("message.subscribeId", subscribeId);
 			if(offset != null) {
 				filter.append("_id", new Document("$gt", Long.valueOf(offset)));
 			}
-			FindIterable<NodeMessageEntity> iterable = nodeMessageV2DAO.getMongoCollection().find(filter).limit(limit);
+			FindIterable<NodeMessageEntity> iterable = nodeMessageV2DAO.getMongoCollection()
+					.find(filter);
+			if (!sortBson.isEmpty()){
+				iterable.sort(sortBson);
+			}
+			iterable.limit(limit);
+
 			cursor = iterable.cursor();
 			List<MessageEntity> list = Lists.newArrayList();
 			Long lastObjectId = null;

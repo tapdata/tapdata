@@ -3,7 +3,9 @@
     "name": "LarkTask",
     "icon": "icon/task.png",
     "doc": "${doc}",
-    "id": "lark-task"
+    "id": "lark-task",
+    "authentication": "Alpha",
+    "tags": ["SaaS"]
   },
   "configOptions": {
     "pdkExpansion": [],

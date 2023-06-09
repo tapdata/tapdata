@@ -62,6 +62,7 @@ public class AlarmInfo extends BaseEntity {
     private Date closeTime;
     @Schema(description = "告警被谁关闭")
     private String closeBy;
+		private String inspectId;
 
     private Map<String, Object> param;
 
