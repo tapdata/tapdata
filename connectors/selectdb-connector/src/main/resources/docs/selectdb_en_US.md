@@ -31,7 +31,7 @@ For global permissions:
 GRANT PROCESS ON *.* TO 'tapdata' IDENTIFIED BY 'password';
 ```
 
-#### **3.2 配置参数示例**
+#### **3.2 Example of configuration parameters**
 
 ```
 Connection name : Tapdata
