@@ -50,11 +50,11 @@ Obtain **service account**:
 
 - 7.Click the created Service Account to enter the Service Account At this point, we begin to configure the access secret key, that is, we need to use the key information to create the data source. Select the key option and click Add Key. Create a new key;
 
- ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount7.png)
+ ![](http://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount7en.png)
 
 - 8.Click Create and select the secret key in JSON format. After saving to the local, open the JSON file, copy all the contents to the Tapdata creation connection page, and paste the copied contents into the service account text field;
 
- ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount8.png)
+ ![](http://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount8en.png)
 
 Get **Dataset ID**
 
@@ -62,7 +62,7 @@ Get **Dataset ID**
 
 - 2.You can directly obtain the dataset ID from the interface, as shown in the following figure. The hierarchical relationship is Item ID ->Dataset ID ->Datasheet ID:
 
- ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount9.png)
+ ![](http://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/doc/BigQuery/serviceAccount9en.png)
  
 ### 3. Task error self-inspection guide
 
