@@ -2657,6 +2657,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         List<MetadataInstancesDto> metadataInstancess = new ArrayList<>();
         List<TaskDto> tasks = new ArrayList<>();
         List<DataSourceConnectionDto> connections = new ArrayList<>();
+        Set<ObjectId> connectionIds = new HashSet<>();
         List<CustomNodeDto> customNodeDtos = new ArrayList<>();
         for (TaskUpAndLoadDto taskUpAndLoadDto : taskUpAndLoadDtos) {
             try {
@@ -2669,7 +2670,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 } else if ("Task".equals(taskUpAndLoadDto.getCollectionName())) {
                     tasks.add(JsonUtil.parseJsonUseJackson(dtoJson, TaskDto.class));
                 } else if ("Connections".equals(taskUpAndLoadDto.getCollectionName())) {
-                    connections.add(JsonUtil.parseJsonUseJackson(dtoJson, DataSourceConnectionDto.class));
+                    DataSourceConnectionDto connectionDto = JsonUtil.parseJsonUseJackson(dtoJson, DataSourceConnectionDto.class);
+                    if (connectionDto != null) {
+                        if (!connectionIds.contains(connectionDto.getId())) {
+                            connections.add(connectionDto);
+                            if (connectionDto.getId() != null) {
+                                connectionIds.add(connectionDto.getId());
+                            }
+                        }
+                    }
                 } else if ("CustomNodeTemps".equals(taskUpAndLoadDto.getCollectionName())) {
                     customNodeDtos.add(JsonUtil.parseJsonUseJackson(dtoJson, CustomNodeDto.class));
                 }

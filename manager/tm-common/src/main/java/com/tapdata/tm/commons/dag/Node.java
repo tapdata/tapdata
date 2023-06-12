@@ -185,6 +185,32 @@ public abstract class Node<S> extends Element{
         if (inputSchemas != null && inputSchemas.size() > 0) {
             inputSchemas = inputSchemas.stream().map(this::cloneSchema).collect(Collectors.toList());
 
+
+            //这一步将下一个节点设置 「前置节点的字段名，字段类型」
+            List<Field> fields = new ArrayList<>();
+            for (S inputSchema : inputSchemas) {
+                if (inputSchema instanceof  List) {
+                    for (Object o : ((List<?>) inputSchema)) {
+                        Schema s = (Schema) o;
+                        List<Field> fieldList = s.getFields();
+                        if (CollectionUtils.isNotEmpty(fieldList)) {
+                            fields.addAll(fieldList);
+                        }
+
+                    }
+                } else if (inputSchema instanceof Schema) {
+                    List<Field> fieldList = ((Schema) inputSchema).getFields();
+                    if (CollectionUtils.isNotEmpty(fieldList)) {
+                        fields.addAll(fieldList);
+                    }
+                }
+            }
+
+            for (Field field : fields) {
+                field.setPreviousFieldName(field.getFieldName());
+                field.setPreviousDataType(field.getDataType());
+            }
+
             if ("all".equals(options.getRollback())) {
                 if (schema instanceof List) {
                     List<Schema> schemas = (List<Schema>) schema;
@@ -458,7 +484,7 @@ public abstract class Node<S> extends Element{
         if (fieldsNameTransform != null) {
             if ("toUpperCase".equalsIgnoreCase(fieldsNameTransform)) {
                 fields.forEach(field -> {
-                    if (inputFields.contains(field.getOriginalFieldName()) && !field.isDeleted()) {
+                    if (inputFields.contains(field.getFieldName()) && !field.isDeleted()) {
                         String fieldName = field.getFieldName();
                         fieldName = fieldName.toUpperCase();
                         field.setFieldName(fieldName);
@@ -466,7 +492,7 @@ public abstract class Node<S> extends Element{
                 });
             } else if ("toLowerCase".equalsIgnoreCase(fieldsNameTransform)) {
                 fields.forEach(field -> {
-                    if (inputFields.contains(field.getOriginalFieldName()) && !field.isDeleted()) {
+                    if (inputFields.contains(field.getFieldName()) && !field.isDeleted()) {
                         String fieldName = field.getFieldName();
                         fieldName = fieldName.toLowerCase();
                         field.setFieldName(fieldName);
@@ -482,8 +508,8 @@ public abstract class Node<S> extends Element{
         if (fieldsNameTransform != null) {
             if ("".equals(fieldsNameTransform)) {
                 fields.forEach(field -> {
-                    if (inputFields.contains(field.getOriginalFieldName())) {
-                        field.setFieldName(field.getOriginalFieldName());
+                    if (inputFields.contains(field.getPreviousFieldName())) {
+                        field.setFieldName(field.getPreviousFieldName());
                     }
                 });
             }

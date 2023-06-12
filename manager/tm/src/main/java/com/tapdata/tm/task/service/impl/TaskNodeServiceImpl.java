@@ -473,11 +473,12 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                         defaultValue = Objects.isNull(field.getOriginalDefaultValue()) ? "" : field.getOriginalDefaultValue().toString();
                     }
                     int primaryKey = Objects.isNull(field.getPrimaryKeyPosition()) ? 0 : field.getPrimaryKeyPosition();
-                    String fieldName = field.getOriginalFieldName();
+                    String previousFieldName = field.getPreviousFieldName();
+                    String fieldName = field.getFieldName();
                     String finalDefaultValue = defaultValue;
                     FieldsMapping mapping = FieldsMapping.builder()
                             .targetFieldName(fieldName)
-                            .sourceFieldName(fieldName)
+                            .sourceFieldName(previousFieldName)
                             .sourceFieldType(field.getDataType())
                             .type("auto")
                             .isShow(true)

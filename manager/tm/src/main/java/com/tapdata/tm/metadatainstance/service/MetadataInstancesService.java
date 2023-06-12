@@ -1892,6 +1892,9 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
 
     public Map<String, MetadataInstancesDto> batchImport(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user, boolean cover, Map<String, DataSourceConnectionDto> conMap) {
+        Map<String, MetadataInstancesDto> collect = metadataInstancesDtos.stream().collect(Collectors.toMap(k -> k.getQualifiedName(), v -> v, (k1, k2) -> k1));
+
+        metadataInstancesDtos = new ArrayList<>(collect.values());
         Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
         for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
             String connectionId = null;
@@ -1913,17 +1916,8 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             }
             MetadataInstancesDto newMeta = null;
             metadataInstancesDto.setListtags(null);
-            long count = count(new Query(new Criteria().orOperator(Criteria.where("_id").is(metadataInstancesDto.getId()),
-                    Criteria.where("qualified_name").is(metadataInstancesDto.getQualifiedName()))));
-            if (count == 0) {
-                newMeta = importEntity(metadataInstancesDto, user);
-            } else if (cover) {
-                newMeta = save(metadataInstancesDto, user);
-            }
-
-            if (newMeta != null) {
-                metaMap.put(metadataInstancesDto.getId().toHexString(), newMeta);
-            }
+            newMeta = importEntity(metadataInstancesDto, user);
+            metaMap.put(newMeta.getId().toHexString(), metadataInstancesDto);
         }
         return metaMap;
     }
@@ -2255,7 +2249,12 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     }
 
     public MetadataInstancesDto importEntity(MetadataInstancesDto metadataInstancesDto, UserDetail userDetail) {
-        MetadataInstancesEntity entity = repository.importEntity(convertToEntity(MetadataInstancesEntity.class, metadataInstancesDto), userDetail);
-        return convertToDto(entity, MetadataInstancesDto.class);
+
+        Criteria criteria = Criteria.where("qualified_name").is(metadataInstancesDto.getQualifiedName());
+        Query query = new Query(criteria);
+        upsert(query, metadataInstancesDto, userDetail);
+        return metadataInstancesDto;
+
+
     }
 }

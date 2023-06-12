@@ -10,11 +10,10 @@ import io.tapdata.entity.event.ddl.TapDDLEvent;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 
@@ -39,23 +38,29 @@ public class FieldRenameProcessorNode extends FieldProcessorNode {
     public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
         Schema outputSchema = superMergeSchema(inputSchemas, schema);
 
-        List<String> inputFields = inputSchemas.stream().map(Schema::getFields).flatMap(Collection::stream).map(Field::getFieldName).collect(Collectors.toList());
-        fieldNameReduction(inputFields, outputSchema.getFields(), fieldsNameTransform);
-        fieldNameUpLow(inputFields, outputSchema.getFields(), fieldsNameTransform);
+        //operation里面操作了的数据 就不做统一大小写前后缀处理了
+        Set<String> opFields;
+        if (CollectionUtils.isNotEmpty(operations)) {
+            opFields = operations.stream().map(Operation::getField).collect(Collectors.toSet());
+        } else {
+            opFields = new HashSet<>();
+        }
+        List<String> inputFields = inputSchemas.stream().map(Schema::getFields).flatMap(Collection::stream).map(Field::getFieldName).filter(f -> !opFields.contains(f)).collect(Collectors.toList());
         if (operations != null && operations.size() > 0) {
             operations.forEach(operation -> {
                 if (operation == null) {
                     return;
                 }
-                if (operation.getId() == null) {
-                    log.warn("Invalid operation in node {}, id can not be empty.", getId());
-                    return;
-                }
+//                if (operation.getId() == null) {
+//                    log.warn("Invalid operation in node {}, id can not be empty.", getId());
+//                    return;
+//                }
 
                 String operand = operation.getOp();
+                String fieldName = operation.getField();
                 if (StringUtils.isBlank(operand) || "RENAME".equalsIgnoreCase(operand)) {
                     for (Field field : outputSchema.getFields()) {
-                        if (operation.getId().equals(field.getId())) {
+                        if (fieldName.equals(field.getFieldName())) {
                             field.setFieldName(operation.getOperand());
                             break;
                             //field.setOriginalFieldName(operation.getOperand());
@@ -78,6 +83,10 @@ public class FieldRenameProcessorNode extends FieldProcessorNode {
 
             });
         }
+
+        fieldNameReduction(inputFields, outputSchema.getFields(), fieldsNameTransform);
+        fieldNameUpLow(inputFields, outputSchema.getFields(), fieldsNameTransform);
+
         return outputSchema;
     }
 
