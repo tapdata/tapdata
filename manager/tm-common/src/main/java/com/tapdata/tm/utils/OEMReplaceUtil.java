@@ -144,15 +144,25 @@ public class OEMReplaceUtil {
             while (scanner.hasNextLine()) {
                 docTxt.append(scanner.nextLine()).append("\n");
             }
-            String finalTxt = docTxt.toString();
-            for (Map.Entry<String, Object> entry : oemConfig.entrySet()) {
-                finalTxt = finalTxt.replaceAll(entry.getKey(), String.valueOf(entry.getValue()));
-            }
+            String finalTxt = replace(docTxt.toString(), oemConfig);
             return new ByteArrayInputStream(finalTxt.getBytes(StandardCharsets.UTF_8));
         } finally {
             try {
                 stream.close();
             } catch (Exception ignore) {}
         }
+    }
+
+    public static String replace(String item, String fileName){
+        Map<String, Object> replaceConfig = getOEMConfigMap(fileName);
+        return replace(item, replaceConfig);
+    }
+
+    public static String replace(String item, Map<String, Object> oemConfig) {
+        if (null == oemConfig || oemConfig.isEmpty() || null == item || "".equals(item.trim())) return item;
+        for (Map.Entry<String, Object> entry : oemConfig.entrySet()) {
+            item = item.replaceAll(entry.getKey(), String.valueOf(entry.getValue()));
+        }
+        return item;
     }
 }
