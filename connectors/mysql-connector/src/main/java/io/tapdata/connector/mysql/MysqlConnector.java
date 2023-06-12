@@ -5,6 +5,7 @@ import io.tapdata.common.CommonDbConfig;
 import io.tapdata.common.SqlExecuteCommandFunction;
 import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.common.ddl.type.DDLParserType;
+import io.tapdata.connector.mysql.config.MysqlConfig;
 import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.connector.mysql.writer.MysqlSqlBatchWriter;
@@ -69,9 +70,9 @@ public class MysqlConnector extends ConnectorBase {
     private MysqlReader mysqlReader;
     private MysqlWriter mysqlWriter;
     private String version;
-    private String connectionTimezone;
     private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
     private DDLSqlMaker ddlSqlMaker;
+    private TimeZone timeZone;
 
     private AtomicBoolean started = new AtomicBoolean(false);
 
@@ -87,10 +88,10 @@ public class MysqlConnector extends ConnectorBase {
             this.mysqlWriter = new MysqlSqlBatchWriter(mysqlJdbcContext);
             this.mysqlReader = new MysqlReader(mysqlJdbcContext);
             this.version = mysqlJdbcContext.getMysqlVersion();
-            this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
-            if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
-                this.connectionTimezone = mysqlJdbcContext.timezone().substring(3);
-            }
+            String timezone = tapConnectionContext.getConnectionConfig().getString("timezone");
+            this.timeZone = "Database Timezone".equals(timezone) || StringUtils.isBlank(timezone) ?
+                    TimeZone.getTimeZone(ZoneId.of(mysqlJdbcContext.timezone().substring(3)))
+                    : new MysqlJdbcContextV2(new MysqlConfig().load(tapConnectionContext.getConnectionConfig())).queryTimeZone();
         }
         ddlSqlMaker = new MysqlDDLSqlMaker(version);
         fieldDDLHandlers = new BiClassHandlers<>();
@@ -108,20 +109,20 @@ public class MysqlConnector extends ConnectorBase {
 
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
             if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
-                tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(ZoneId.of(this.connectionTimezone)));
+                tapDateTimeValue.getValue().setTimeZone(this.timeZone);
             }
             return formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS");
         });
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> {
             if (tapDateValue.getValue() != null && tapDateValue.getValue().getTimeZone() == null) {
-                tapDateValue.getValue().setTimeZone(TimeZone.getTimeZone(ZoneId.of(this.connectionTimezone)));
+                tapDateValue.getValue().setTimeZone(this.timeZone);
             }
             return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
         });
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTimeStr());
         codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
             if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
-                tapYearValue.getValue().setTimeZone(TimeZone.getTimeZone(ZoneId.of(this.connectionTimezone)));
+                tapYearValue.getValue().setTimeZone(this.timeZone);
             }
             return formatTapDateTime(tapYearValue.getValue(), "yyyy");
         });
