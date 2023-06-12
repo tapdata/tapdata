@@ -436,7 +436,7 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
                 Query.query(Criteria.where("_id").is(loginUser.getUserId())),
                 Update.update("phone", bindPhoneReq.getPhone())
                         .set("phoneVerified", bindPhoneReq.isPhoneVerified())
-                        .set("areaCode", bindPhoneReq.getAreaCode())
+                        .set("phoneCountryCode", bindPhoneReq.getPhoneCountryCode())
         );
 
         userLogService.addUserLog(Modular.USER,
