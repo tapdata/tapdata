@@ -29,6 +29,7 @@ public class Field implements Serializable {
     @JsonProperty("data_type")
     @org.springframework.data.mongodb.core.mapping.Field("data_type")
     private String dataType;
+    private String previousDataType;
     private String selectDataType;
     private String dataTypeTemp;
 
@@ -42,6 +43,8 @@ public class Field implements Serializable {
     @JsonProperty("field_name")
     @org.springframework.data.mongodb.core.mapping.Field("field_name")
     private String fieldName;
+    /** 上一个节点的字段名字 */
+    private String previousFieldName;
     @JsonProperty("foreign_key_position")
     @org.springframework.data.mongodb.core.mapping.Field("foreign_key_position")
     private Integer foreignKeyPosition;
@@ -51,6 +54,9 @@ public class Field implements Serializable {
 
     public void setId(String id) {
         this.id = id;
+    }
+    public String getId() {
+        return id;
     }
 
     private Boolean isAnalyze;
@@ -164,5 +170,14 @@ public class Field implements Serializable {
 
     public void setUseDefaultValue(boolean useDefaultValue) {
         this.useDefaultValue = useDefaultValue;
+    }
+
+
+    public String getPreviousFieldName() {
+        return previousFieldName != null ? previousFieldName : fieldName;
+    }
+
+    public String getPreviousDataType() {
+        return previousDataType != null ? previousDataType : dataType;
     }
 }

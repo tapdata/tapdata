@@ -41,9 +41,10 @@ public class FieldModTypeProcessorNode extends FieldProcessorNode {
                     return;
                 }
                 String operand = operation.getOp();
+                String fieldName = operation.getField();
                 if (StringUtils.isBlank(operand) || "CONVERT".equalsIgnoreCase(operand)) {
                     outputSchema.getFields().forEach(field -> {
-                        if (operation.getId().equals(field.getId())) {
+                        if (fieldName.equals(field.getFieldName())) {
                             field.setTapType(calTapType(operation.getOperand()));
                             field.setDataTypeTemp(null);
                         }
