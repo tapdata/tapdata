@@ -131,7 +131,7 @@ public class TaskController extends BaseController {
         // check user is had pulic agent, then task number can't more than 3
         WorkerExpireDto shareWorker = workerService.getShareWorker(user);
         if (shareWorker != null) {
-            long count = taskService.count(new Query(Criteria.where("is_deleted").is(false).and("status").nin(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING)), user);
+            long count = taskService.countTaskNumber(user);
             if (count > 3) {
                 return true;
             }

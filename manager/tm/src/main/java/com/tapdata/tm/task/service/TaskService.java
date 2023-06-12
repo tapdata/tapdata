@@ -2523,6 +2523,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     }
 
+    public long countTaskNumber(UserDetail user) {
+        return count(new Query(Criteria.where("is_deleted").is(false).and("status").nin(TaskDto.STATUS_DELETE_FAILED, TaskDto.STATUS_DELETING)), user);
+    }
+
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
