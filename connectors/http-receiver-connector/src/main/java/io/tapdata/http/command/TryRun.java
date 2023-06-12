@@ -128,7 +128,7 @@ public class TryRun implements Command {
         String script = config.script();
         final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
         ScriptOptions scriptOptions = new ScriptOptions().engineName("graal.js");
-        scriptOptions.setClassLoader(HttpReceiverConnector.class.getClassLoader());
+        //scriptOptions.setClassLoader(HttpReceiverConnector.class.getClassLoader());
         scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, scriptOptions);
         if (null != scriptEngine) {
             try {
