@@ -35,6 +35,8 @@ public class DataInspectEventHandler extends BaseEventHandler implements WebSock
 
 			if (InspectStatus.SCHEDULING.getCode().equalsIgnoreCase(inspect.getStatus())) {
 				InspectService.getInstance(clientMongoOperator, settingService).startInspect(inspect);
+			} else if (InspectStatus.STOPPING.getCode().equalsIgnoreCase(inspect.getStatus())) {
+				InspectService.getInstance(clientMongoOperator, settingService).doInspectStop(inspect.getId());
 			}
 
 			return WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.EXECUTE_DATA_INSPECT_RESULT, true);

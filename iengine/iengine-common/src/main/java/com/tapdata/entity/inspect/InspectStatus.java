@@ -13,6 +13,7 @@ public enum InspectStatus {
 	ERROR("error"),
 	DONE("done"),
 	WAITING("waiting"),
+	STOPPING("stopping"),
 	;
 
 	private final String code;
