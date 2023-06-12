@@ -1,33 +1,14 @@
-/**
- *  This is the toolkit encapsulated by Tap Data.
- * */
-var invoker = loadAPI();
+
 
 function isValue(value){
     return 'undefined' !== value && null != value;
 }
 
 function getSignatureRules(appSecret, urlPath, params){
-    let sort = getParamsWithKeyValue(params);
-    let openKeyIdCodeOfValue = urlPath;
-    for (let index = 0; index < sort.length; index++) {
-        openKeyIdCodeOfValue = openKeyIdCodeOfValue + sort[index];
-    }
+    let openKeyIdCodeOfValue = urlPath + mapUtils.getParamsWithKeyValueAsString(params, "");
     //log.warn(openKeyIdCodeOfValue);
     //hex(sign(secretKeyCodeOfKey, openKeyIdCodeOfValue));
     return tapUtil.ali1688HmacSha1ToHexStr(openKeyIdCodeOfValue, appSecret);
-}
-
-function getParamsWithKeyValue(params){
-    let keys = Object.keys(params);
-    let paramArr = [];
-    for (let i = 0; i < keys.length; i++) {
-        let key = keys[i];
-        let param = params[key];
-        paramArr.push(key + "" + param);
-    }
-    paramArr.sort();
-    return paramArr;
 }
 
 function handleRecord(order){

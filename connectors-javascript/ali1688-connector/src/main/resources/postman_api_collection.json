@@ -372,28 +372,30 @@
 				}
 			},
 			"response": []
-		}
-	],
-	"event": [
-		{
-			"listen": "prerequest",
-			"script": {
-				"type": "text/javascript",
-				"exec": [
-					""
-				]
-			}
 		},
 		{
-			"listen": "test",
-			"script": {
-				"type": "text/javascript",
-				"exec": [
-					""
-				]
-			}
+			"name": "getLogisticsInfos",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "http://gw.open.1688.com:80/openapi/param2/1/com.alibaba.logistics/alibaba.trade.getLogisticsInfos.buyerView/:appKey?_aop_timestamp={{_aop_timestamp}}&access_token={{access_token}}&_aop_signature={{_aop_signature}}&webSite={{webSite}}&orderId={{orderId}}&fields={{fields}}",
+					"protocol": "https",
+					"host": [],
+					"path": [],
+					"query": [],
+					"variable": [
+						{
+							"key": "appKey",
+							"value": ""
+						}
+					]
+				}
+			},
+			"response": []
 		}
 	],
+	"event": [],
 	"variable": [
 		{
 			"key": "domain",

@@ -58,5 +58,25 @@ var stringUtils = {
      * */
     sha256_HMAC(value, key){
         return tapUtil.sha256_HMAC(value, key);
+    },
+    /**
+     * MD5算法加密，生成加密串
+     * @param str 需要加密的str ,String
+     * @return String
+     * 例如：stringUtils.encodeMD5('abc')
+     * 则输出结果为加密后的加密串：900150983cd24fb0d6963f7d28e17f72
+     * */
+    encodeMD5(str){
+        return MD5.hex_md5(str);
+    },
+    /**
+     * MD5算法加密，生成大写加密串
+     * @param str 需要加密的str ,String
+     * @return String
+     * 例如：stringUtils.encodeMD5Upper('abc')
+     * 则输出结果为加密后的加密串：900150983CD24FB0D6963F7D28E17F72
+     * */
+    encodeMD5Upper(str){
+        return MD5.hex_md5(str).toUpperCase();
     }
 }
