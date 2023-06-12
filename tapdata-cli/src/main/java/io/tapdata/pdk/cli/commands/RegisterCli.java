@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Scanner;
 
 @CommandLine.Command(
         description = "Push PDK jar file into Tapdata",
