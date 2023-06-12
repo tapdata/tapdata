@@ -138,6 +138,8 @@ public class Field implements Serializable {
     private Boolean visible;
 
     private String comment;
+
+    private String description;
     private Integer columnPosition;
     /**
      * 模型推演时，用来记录字段在源库中的数据类型
