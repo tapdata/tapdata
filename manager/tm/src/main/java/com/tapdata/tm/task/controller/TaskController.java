@@ -94,8 +94,18 @@ public class TaskController extends BaseController {
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
     public ResponseMessage<TaskDto> save(@RequestBody TaskDto task) {
+        UserDetail user = getLoginUser();
+        // check user is had pulic agent, then task number can't more than 3
+        WorkerExpireDto shareWorker = workerService.getShareWorker(user);
+        if (shareWorker != null) {
+            long count = taskService.count(new Query(Criteria.where("is_deleted").is(false).and("status").ne(TaskDto.STATUS_DELETE_FAILED)), user);
+            if (count > 3) {
+                return failed("Task_Count_Over_Three" ,"public agent task number can't more than 3, current task number is " + count);
+            }
+        }
+
         task.setId(null);
-        return success(taskService.create(task, getLoginUser()));
+        return success(taskService.create(task, user));
     }
 
     /**
