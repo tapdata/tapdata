@@ -62,7 +62,11 @@ public class OEMReplaceUtil {
         //if (!file.exists()) {
         //    throw new FileNotFoundException("Can not found " + fileName + "in /" + oemType());
         //}
-        return new File(configPath);
+        try {
+            return new File(configPath);
+        }catch (Exception e){
+            throw new CoreException("FileNotFound in path '%s'", configPath);
+        }
     }
 
     /**
