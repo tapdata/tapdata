@@ -26,12 +26,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.util.StringUtils;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.SynchronousQueue;
@@ -49,7 +44,7 @@ public class InspectService {
 			60L, TimeUnit.SECONDS, new SynchronousQueue<>());
 	private ClientMongoOperator clientMongoOperator;
 	private Logger logger = LogManager.getLogger(InspectService.class);
-	private ConcurrentHashMap RUNNING_INSPECT = new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<String, InspectTask> RUNNING_INSPECT = new ConcurrentHashMap<>();
 	private SettingService settingService;
 
 	private InspectService() {
@@ -231,17 +226,16 @@ public class InspectService {
 			logger.warn("Data verification is running {}({}, {}) ", inspect.getName(), inspect.getId(), inspect.getInspectMethod());
 			return;
 		}
-		RUNNING_INSPECT.put(inspect.getId(), inspect);
 
 		InspectMethod inspectMethod = InspectMethod.get(inspect.getInspectMethod());
 		switch (inspectMethod) {
 			case FIELD:
 			case JOINTFIELD:
-				executeFieldInspect(inspect);
+				submitTask(executeFieldInspect(inspect));
 				break;
 			case CDC_COUNT:
 			case ROW_COUNT:
-				executeRowCountInspect(inspect);
+				submitTask(executeRowCountInspect(inspect));
 				break;
 			default:
 				logger.error("Unsupported comparison method '{}', inspect id '{}': `{}'", inspectMethod, inspect.getId(), inspect.getName());
@@ -251,8 +245,19 @@ public class InspectService {
 		}
 	}
 
-	public void stopInspect(Inspect inspect) {
+	public void onInspectStopped(Inspect inspect) {
 		RUNNING_INSPECT.remove(inspect.getId());
+	}
+
+	public void doInspectStop(String inspectId) {
+		RUNNING_INSPECT.compute(inspectId, (s, inspectTask) -> {
+			if (null == inspectTask) {
+				updateStatus(inspectId, InspectStatus.ERROR, "Inspect is stopped, can not be stop");
+			} else {
+				inspectTask.doStop();
+			}
+			return inspectTask;
+		});
 	}
 
 	/**
@@ -260,14 +265,14 @@ public class InspectService {
 	 *
 	 * @param inspect
 	 */
-	private void executeRowCountInspect(Inspect inspect) {
+	private InspectTask executeRowCountInspect(Inspect inspect) {
 		List<String> errorMsg = checkRowCountInspect(inspect);
 		if (errorMsg.size() > 0) {
 			updateStatus(inspect.getId(), InspectStatus.ERROR, String.join(", ", errorMsg));
-			return;
+			return null;
 		}
 
-		submitTask(new io.tapdata.inspect.InspectTask(this, inspect, clientMongoOperator) {
+		return new io.tapdata.inspect.InspectTask(this, inspect, clientMongoOperator) {
 
 			@Override
 			public Runnable createTableInspectJob(InspectTaskContext inspectTaskContext) {
@@ -277,7 +282,7 @@ public class InspectService {
 				}
 				return new TableRowCountInspectJob(inspectTaskContext);
 			}
-		});
+		};
 	}
 
 	/**
@@ -285,14 +290,14 @@ public class InspectService {
 	 *
 	 * @param inspect
 	 */
-	private void executeFieldInspect(Inspect inspect) {
+	private InspectTask executeFieldInspect(Inspect inspect) {
 		List<String> errorMsg = checkFieldInspect(inspect);
 		if (errorMsg.size() > 0) {
 			updateStatus(inspect.getId(), InspectStatus.ERROR, String.join(", ", errorMsg));
-			return;
+			return null;
 		}
 
-		submitTask(new io.tapdata.inspect.InspectTask(this, inspect, clientMongoOperator) {
+		return new InspectTask(this, inspect, clientMongoOperator) {
 
 			@Override
 			public Runnable createTableInspectJob(InspectTaskContext inspectTaskContext) {
@@ -304,11 +309,15 @@ public class InspectService {
 					return new TableRowScriptInspectJob(inspectTaskContext);
 				}
 			}
-		});
+		};
 	}
 
-	private Future submitTask(Runnable task) {
-		return executorService.submit(task);
+	private Future<?> submitTask(InspectTask task) {
+		if (null != task) {
+			RUNNING_INSPECT.put(task.getInspectId(), task);
+			return executorService.submit(task);
+		}
+		return null;
 	}
 
 	/**
