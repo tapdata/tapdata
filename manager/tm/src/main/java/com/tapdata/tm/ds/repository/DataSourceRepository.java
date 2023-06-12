@@ -39,6 +39,7 @@ public class DataSourceRepository extends BaseRepository<DataSourceEntity, Objec
     public DataSourceEntity importEntity(DataSourceEntity entity, UserDetail userDetail) {
         Assert.notNull(entity, "Entity must not be null!");
 
+        encryptConfig(entity);
         applyUserDetail(entity, userDetail);
         beforeCreateEntity(entity, userDetail);
         return mongoOperations.insert(entity, entityInformation.getCollectionName());

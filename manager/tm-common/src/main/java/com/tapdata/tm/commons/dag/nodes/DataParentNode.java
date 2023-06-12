@@ -4,6 +4,7 @@ import com.tapdata.tm.commons.dag.DmlPolicy;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
+import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.vo.FieldChangeRule;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
@@ -184,14 +185,24 @@ public abstract class DataParentNode<S> extends Node<S> {
             }).filter(Objects::nonNull).flatMap(Collection::stream).collect(Collectors.toList());
         }
 
-        fieldNameReduction(inputFields, fields, fieldsNameTransform);
-
         if (_fieldProcess != null && _fieldProcess.size() > 0) {
             List<FieldProcess> currentProcess = _fieldProcess.stream()
                     .filter(f -> s.getOriginalName() != null && s.getOriginalName().equals(transformTableName(f.getTableName())))
                     .filter(f -> f.getOperations() != null && f.getOperations().size() > 0)
                     .collect(Collectors.toList());
+
+
+
             currentProcess.forEach(process -> {
+
+                Set<String> opFields;
+                if (CollectionUtils.isNotEmpty(process.getOperations())) {
+                    opFields = process.getOperations().stream().filter(p -> "RENAME".equals(p.getOp())).map(FieldProcessorNode.Operation::getField).collect(Collectors.toSet());
+                } else {
+                    opFields = new HashSet<>();
+                }
+                List<String> newInputFields = inputFields.stream().filter(f -> !opFields.contains(f)).collect(Collectors.toList());
+
                 process.getOperations().forEach(operation -> {
                     String field = operation.getField();
                     String op = operation.getOp();
@@ -207,22 +218,23 @@ public abstract class DataParentNode<S> extends Node<S> {
                         });
                     } else if ("RENAME".equalsIgnoreCase(op)) {
                         fields.forEach(f -> {
-                            if (field.equals(f.getOriginalFieldName())) {
+                            if (field.equals(f.getFieldName())) {
                                 f.setFieldName(operation.getOperand());
                             }
                         });
                     } else if ("CONVERT".equalsIgnoreCase(operand)) {
                         fields.forEach(f -> {
-                            if (operation.getId().equals(f.getId())) {
+                            if (field.equals(f.getFieldName())) {
                                 f.setDataType(operation.getType());
                             }
                         });
                     }
                 });
+                fieldNameReduction(newInputFields, fields, fieldsNameTransform);
+                fieldNameUpLow(newInputFields, fields, fieldsNameTransform);
             });
         }
 
-        fieldNameUpLow(inputFields, fields, fieldsNameTransform);
         return fields;
     }
 
