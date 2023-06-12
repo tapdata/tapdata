@@ -692,11 +692,8 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
     public WorkerDto findByProcessId(String processId, UserDetail userDetail, String... fields) {
         Criteria criteria = Criteria.where("process_id").is(processId);
-        Query query = new Query(criteria);
-        if (fields != null && fields.length != 0) {
-            query.fields().include(fields);
-        }
-        return findOne(query, userDetail);
+        Worker worker = getWorkers(userDetail, criteria).stream().findFirst().orElse(null);
+        return BeanUtil.copyProperties(worker, WorkerDto.class);
     }
 
     public void createShareWorker(WorkerExpireDto workerExpireDto, UserDetail loginUser) {
@@ -751,7 +748,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         if (CollectionUtils.isNotEmpty(workerExpires)) {
             workerExpires.forEach(workerExpire -> {
                 // query worker by shareUser
-                List<WorkerDto> shareWorkers = findAll(Query.query(Criteria.where("createUser").is(workerExpire.getShareUser())));
+                List<WorkerDto> shareWorkers = findAll(Query.query(Criteria.where("user_id").is(workerExpire.getShareTmUserId())));
                 shareWorkers.forEach(workerDto -> {
                     String processId = workerDto.getProcessId();
                     taskExtendService.stopTaskByAgentIdAndUserId(processId, workerExpire.getUserId());
