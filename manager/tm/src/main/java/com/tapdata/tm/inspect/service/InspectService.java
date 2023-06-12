@@ -25,7 +25,6 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.commons.util.JsonUtil;
@@ -724,27 +723,20 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
     }
 
 		public void supplementAlarm(InspectDto inspectDto, UserDetail userDetail) {
-			List<AlarmSettingDto> settingDtos = alarmSettingService.findAllAlarmSetting(userDetail);
-			List<AlarmRuleDto> ruleDtos = alarmRuleService.findAllAlarm(userDetail);
-
-			Map<AlarmKeyEnum, AlarmSettingDto> settingDtoMap = settingDtos.stream().collect(Collectors.toMap(AlarmSettingDto::getKey, Function.identity(), (e1, e2) -> e1));
-			Map<AlarmKeyEnum, AlarmRuleDto> ruleDtoMap = ruleDtos.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
-
-			if (CollectionUtils.isEmpty(inspectDto.getAlarmSettings())) {
-				List<AlarmSettingDto> alarmSettingDtos = Lists.newArrayList();
-				alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.INSPECT_TASK_ERROR));
-				alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.INSPECT_COUNT_ERROR));
-				alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.INSPECT_VALUE_ERROR));
-				inspectDto.setAlarmSettings(CglibUtil.copyList(alarmSettingDtos, AlarmSettingVO::new));
-			}
-
-			List<AlarmRuleDto> alarmRuleDtos = Lists.newArrayList();
-//			if (CollectionUtils.isEmpty(inspectDto.getAlarmRules())) {
-//				alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
-//				inspectDto.setAlarmRules(CglibUtil.copyList(alarmRuleDtos, AlarmRuleVO::new));
-//			}
-
-		}
+        try {
+            List<AlarmSettingDto> settingDtos = alarmSettingService.findAllAlarmSetting(userDetail);
+            Map<AlarmKeyEnum, AlarmSettingDto> settingDtoMap = settingDtos.stream().collect(Collectors.toMap(AlarmSettingDto::getKey, Function.identity(), (e1, e2) -> e1));
+            if (CollectionUtils.isEmpty(inspectDto.getAlarmSettings())) {
+                List<AlarmSettingDto> alarmSettingDtos = Lists.newArrayList();
+                alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.INSPECT_TASK_ERROR));
+                alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.INSPECT_COUNT_ERROR));
+                alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.INSPECT_VALUE_ERROR));
+                inspectDto.setAlarmSettings(CglibUtil.copyList(alarmSettingDtos, AlarmSettingVO::new));
+            }
+        } catch (Exception e) {
+            log.warn("supplement alarm error", e);
+        }
+    }
 
 	@Override
 	public long updateByWhere(Where where, InspectDto dto, UserDetail userDetail) {
