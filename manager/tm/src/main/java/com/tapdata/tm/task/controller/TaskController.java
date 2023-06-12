@@ -15,6 +15,7 @@ import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.websocket.ReturnCallback;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -31,6 +32,7 @@ import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.github.openlg.graphlib.Graph;
 import io.swagger.v3.oas.annotations.Operation;
@@ -45,6 +47,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -104,6 +108,16 @@ public class TaskController extends BaseController {
     @PatchMapping()
     public ResponseMessage<TaskDto> update(@RequestBody TaskDto task) {
         UserDetail user = getLoginUser();
+
+        // check user is had pulic agent, then task number can't more than 3
+        WorkerExpireDto shareWorker = workerService.getShareWorker(user);
+        if (shareWorker != null) {
+            long count = taskService.count(new Query(Criteria.where("is_deleted").is(false).and("status").ne(TaskDto.STATUS_DELETE_FAILED)), user);
+            if (count > 3) {
+                return failed("Task_Count_Over_Three" ,"public agent task number can't more than 3, current task number is " + count);
+            }
+        }
+
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
         taskSaveService.supplementAlarm(task, user);
         task.setStatus(null);
