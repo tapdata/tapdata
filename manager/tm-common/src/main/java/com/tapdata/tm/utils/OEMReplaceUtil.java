@@ -155,4 +155,31 @@ public class OEMReplaceUtil {
             } catch (Exception ignore) {}
         }
     }
+
+    /**
+     * 根据对应的OEM配置,替换String中的相应关键字
+     * @param text
+     * @param fileName
+     * @return
+     */
+    public static String replace(String text, String fileName){
+        Map<String, Object> replaceConfig = getOEMConfigMap(fileName);
+        return replace(text, replaceConfig);
+    }
+
+    /**
+     * 根据对应的OEM配置,替换String中的相应关键字
+     * @param text
+     * @param oemConfig
+     * @return
+     */
+    public static String replace(String text, Map<String, Object> oemConfig){
+        if (null == oemConfig || oemConfig.isEmpty() || null == text) return text;
+        String finalTxt = new StringBuilder(text).toString();
+            for (Map.Entry<String, Object> entry : oemConfig.entrySet()) {
+                finalTxt = finalTxt.replaceAll(entry.getKey(), String.valueOf(entry.getValue()));
+            }
+            return finalTxt;
+        }
+
 }
