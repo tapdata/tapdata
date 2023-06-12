@@ -12,11 +12,13 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.metadatainstance.bean.NodeInfoPage;
 import com.tapdata.tm.metadatainstance.dto.DataType2TapTypeDto;
 import com.tapdata.tm.metadatainstance.dto.MigrateResetTableDto;
 import com.tapdata.tm.metadatainstance.dto.MigrateTableInfoDto;
+import com.tapdata.tm.metadatainstance.dto.TableDto;
 import com.tapdata.tm.metadatainstance.param.ClassificationParam;
 import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
 import com.tapdata.tm.metadatainstance.service.MetaMigrateService;
@@ -490,6 +492,11 @@ public class MetadataInstancesController extends BaseController {
         return success(metadataInstancesService.tables(connectionId, sourceType));
     }
 
+    @GetMapping("newTables")
+    public ResponseMessage<List<TableDto>> newTables(String connectionId, @RequestParam(value = "sourceType", defaultValue = "SOURCE") String sourceType) {
+        return success(metadataInstancesService.newTables(connectionId, sourceType));
+    }
+
     @GetMapping("tablesValue")
     public ResponseMessage<List<Map<String, String>>> tablesValue(String connectionId, @RequestParam(value = "sourceType", defaultValue = "SOURCE") String sourceType) {
         return success(metadataInstancesService.tableValues(connectionId, sourceType));
@@ -784,6 +791,14 @@ public class MetadataInstancesController extends BaseController {
         metadataInstancesService.updateTableDesc(metadataInstances, getLoginUser());
         return success();
     }
+
+    @PostMapping("updateTableFieldDesc/{id}")
+    public ResponseMessage<Void> updateTableFieldDesc(@PathVariable("id")String id,@RequestBody DiscoveryFieldDto discoveryFieldDto) {
+        metadataInstancesService.updateTableFieldDesc(id,discoveryFieldDto, getLoginUser());
+        return success();
+    }
+
+
 
 
 }

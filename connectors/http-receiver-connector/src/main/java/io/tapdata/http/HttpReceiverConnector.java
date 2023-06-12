@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 /**
  * @author GavinXiao
@@ -69,7 +70,7 @@ public class HttpReceiverConnector extends ConnectorBase {
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry tapCodecsRegistry) {
         connectorFunctions
-                //.supportBatchRead(this::batchRead)
+                .supportBatchRead(this::batchRead)
                 //.supportStreamRead(this::streamRead)
                 .supportTimestampToStreamOffset(this::offset)
                 .supportRawDataCallbackFilterFunctionV2(this::callback)
@@ -100,9 +101,9 @@ public class HttpReceiverConnector extends ConnectorBase {
         return System.currentTimeMillis();
     }
 
-    //private void batchRead(TapConnectorContext context, TapTable tapTable, Object offset, int batchSize, BiConsumer<List<TapEvent>, Object> con) {
-    //    context.getLog().info(TAG, "Http Receiver can not support batch read, and batch read is over now.");
-    //}
+    private void batchRead(TapConnectorContext context, TapTable tapTable, Object offset, int batchSize, BiConsumer<List<TapEvent>, Object> con) {
+        context.getLog().info(TAG, "Http Receiver can not support batch read, and batch read is over now.");
+    }
 
     private List<TapEvent> callback(TapConnectorContext context, List<String> tableName, Map<String, Object> eventMap) {
         if (null == config) {

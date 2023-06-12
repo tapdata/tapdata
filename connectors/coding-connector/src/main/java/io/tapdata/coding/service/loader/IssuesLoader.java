@@ -711,9 +711,10 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                     lastTimeSplitIssueCode = new HashSet<>();
                 }
                 lastTimeSplitIssueCode.add(issueDetailHash);
-            }else {
-                tapConnectionContext.getLog().warn("{} will be ignore.", issueDetailHash);
             }
+            //else {
+            //    TapLogger.warn("{} will be ignore.", issueDetailHash);
+            //}
             offset.getTableUpdateTimeMap().put(TABLE_NAME, referenceTime);
             if (events.size() != readSize) continue;
             consumer.accept(events, offset);
