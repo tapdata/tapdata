@@ -96,12 +96,8 @@ public class TaskController extends BaseController {
     public ResponseMessage<TaskDto> save(@RequestBody TaskDto task) {
         UserDetail user = getLoginUser();
         // check user is had pulic agent, then task number can't more than 3
-        WorkerExpireDto shareWorker = workerService.getShareWorker(user);
-        if (shareWorker != null) {
-            long count = taskService.count(new Query(Criteria.where("is_deleted").is(false).and("status").ne(TaskDto.STATUS_DELETE_FAILED)), user);
-            if (count > 3) {
-                return failed("Task_Count_Over_Three" ,"public agent task number can't more than 3, current task number is " + count);
-            }
+        if (countTaskLimit(user)) {
+            return failed("Task_Count_Over_Three" ,"public agent task number can't more than 3");
         }
 
         task.setId(null);
@@ -120,18 +116,28 @@ public class TaskController extends BaseController {
         UserDetail user = getLoginUser();
 
         // check user is had pulic agent, then task number can't more than 3
-        WorkerExpireDto shareWorker = workerService.getShareWorker(user);
-        if (shareWorker != null) {
-            long count = taskService.count(new Query(Criteria.where("is_deleted").is(false).and("status").ne(TaskDto.STATUS_DELETE_FAILED)), user);
-            if (count > 3) {
-                return failed("Task_Count_Over_Three" ,"public agent task number can't more than 3, current task number is " + count);
-            }
+        if (countTaskLimit(user)) {
+            return failed("Task_Count_Over_Three" ,"public agent task number can't more than 3");
         }
 
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
         taskSaveService.supplementAlarm(task, user);
         task.setStatus(null);
         return success(taskService.updateById(task, user));
+    }
+
+    private boolean countTaskLimit(UserDetail user) {
+        boolean flag = false;
+        // check user is had pulic agent, then task number can't more than 3
+        WorkerExpireDto shareWorker = workerService.getShareWorker(user);
+        if (shareWorker != null) {
+            long count = taskService.count(new Query(Criteria.where("is_deleted").is(false).and("status").ne(TaskDto.STATUS_DELETE_FAILED)), user);
+            if (count > 3) {
+                return true;
+            }
+        }
+
+        return flag;
     }
 
 
