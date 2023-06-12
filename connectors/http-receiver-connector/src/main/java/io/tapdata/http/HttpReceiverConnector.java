@@ -46,7 +46,9 @@ public class HttpReceiverConnector extends ConnectorBase {
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
         final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
-        scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
+        ScriptOptions scriptOptions = new ScriptOptions().engineName("graal.js");
+        scriptOptions.setClassLoader(HttpReceiverConnector.class.getClassLoader());
+        scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, scriptOptions);
         config = ConnectionConfig.create(connectionContext);
         if (config.handleType()) {
             if (null != scriptEngine) {

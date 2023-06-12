@@ -127,7 +127,9 @@ public class TryRun implements Command {
             final CollectLog<? extends Log> logger) {
         String script = config.script();
         final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
-        scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
+        ScriptOptions scriptOptions = new ScriptOptions().engineName("graal.js");
+        scriptOptions.setClassLoader(HttpReceiverConnector.class.getClassLoader());
+        scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, scriptOptions);
         if (null != scriptEngine) {
             try {
                 ScriptEvel scriptEvel = ScriptEvel.create(scriptEngine);
