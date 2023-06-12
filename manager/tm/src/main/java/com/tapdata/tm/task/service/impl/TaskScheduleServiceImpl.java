@@ -11,7 +11,6 @@ import com.tapdata.tm.commons.task.dto.DataSyncMq;
 import com.tapdata.tm.commons.task.dto.TaskCollectionObjDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.disruptor.service.DisruptorService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
@@ -22,9 +21,11 @@ import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.service.TaskCollectionObjService;
 import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
@@ -33,12 +34,14 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
+import org.springframework.util.Assert;
 
 import java.text.MessageFormat;
 import java.util.*;
@@ -52,19 +55,23 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     private WorkerService workerService;
     private TaskService taskService;
     private MessageQueueService messageQueueService;
-    private DisruptorService disruptorService;
     private MonitoringLogsService monitoringLogsService;
     private TaskCollectionObjService taskCollectionObjService;
     private SettingsService settingsService;
     private StateMachineService stateMachineService;
+    private UserService userService;
 
     @Override
     public void scheduling(TaskDto taskDto, UserDetail user) {
+        TaskDto userId = taskService.findByTaskId(taskDto.getId(), "user_id");
+        Assert.notNull(userId, "task not found");
+        user = userService.loadUserById(new ObjectId(userId.getUserId()));
 
         AtomicBoolean needCalculateAgent = new AtomicBoolean(true);
         String agentId = taskDto.getAgentId();
+        UserDetail finalUser = user;
         Optional.ofNullable(agentId).ifPresent(id -> {
-            List<Worker> workerList = workerService.findAvailableAgentByAccessNode(user, Lists.newArrayList(agentId));
+            List<Worker> workerList = workerService.findAvailableAgentByAccessNode(finalUser, Lists.newArrayList(agentId));
             if (CollectionUtils.isNotEmpty(workerList)) {
                 Worker workerDto = workerList.get(0);
 
@@ -101,17 +108,32 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
 
         CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
 
+        boolean scheduleFailed = false;
         if (StringUtils.isBlank(taskDto.getAgentId()) && calculationEngineVo.getTaskAvailable() != calculationEngineVo.getAvailable()) {
+            scheduleFailed = true;
+        }
+
+        // check public agent can't more than 3 task number
+        WorkerExpireDto shareWorker = workerService.getShareWorker(user);
+        if (shareWorker != null) {
+            long countTaskNumber = taskService.countTaskNumber(user);
+            if (countTaskNumber > 3) {
+                scheduleFailed = true;
+            }
+        }
+
+        if (scheduleFailed) {
             StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
             if (stateMachineResult.isOk()) {
                 throw new BizException("Task.ScheduleLimit");
             }
         }
 
+
         FunctionUtils.ignoreAnyError(() -> {
             String template = "Scheduling calculation results: {0}, all agent data: {1}.";
             String msg = MessageFormat.format(template, calculationEngineVo.getProcessId() , JSON.toJSONString(calculationEngineVo.getThreadLog()));
-            monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.INFO);
+            monitoringLogsService.startTaskErrorLog(taskDto, finalUser, msg, Level.INFO);
         });
         if (StringUtils.isBlank(taskDto.getAgentId())) {
             scheduleFailed(taskDto, user);

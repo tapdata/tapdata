@@ -404,20 +404,19 @@ public class MeasurementServiceV2 {
 
         Map<String, Sample> data = new HashMap<>();
         for (String hash : endSamples.keySet()) {
-            if (!startSamples.containsKey(hash)) {
-                continue;
+            Sample startSample;
+            if (startSamples.containsKey(hash)) {
+                startSample = startSamples.get(hash);
+            } else {
+                startSample = new Sample();
             }
 
             Sample ret = new Sample();
             ret.setVs(new HashMap<>());
-            Sample startSample = startSamples.get(hash);
             Sample endSample = endSamples.get(hash);
             for (String key : endSample.getVs().keySet()) {
-                if (!startSample.getVs().containsKey(key)) {
-                    continue;
-                }
+                Number startNum = startSample.getVs() == null ? 0 : startSample.getVs().getOrDefault(key, 0);
                 Number endNum = endSample.getVs().get(key);
-                Number startNum = startSample.getVs().get(key);
                 Number diff;
                 if (ObjectUtils.anyNull(startNum, endNum)) {
                     diff = 0;

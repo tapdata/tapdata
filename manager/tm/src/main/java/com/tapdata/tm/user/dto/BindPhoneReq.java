@@ -13,7 +13,7 @@ public class BindPhoneReq {
     @NotEmpty
     private String phone;
 
-    private String areaCode;
+    private String phoneCountryCode;
 
     private boolean phoneVerified;
 
