@@ -429,6 +429,21 @@ public class LdpServiceImpl implements LdpService {
     public void afterLdpTask(String taskId, UserDetail user) {
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), user);
         taskService.updateAfter(taskDto, user);
+
+        LiveDataPlatformDto platformDto = liveDataPlatformService.findOne(new Query(), user);
+        if (platformDto == null) {
+            return;
+        }
+
+        String mdmStorageConnectionId = platformDto.getMdmStorageConnectionId();
+        String fdmStorageConnectionId = platformDto.getFdmStorageConnectionId();
+
+        String ldpType = ldpTask(taskDto.getDag(), fdmStorageConnectionId, mdmStorageConnectionId);
+        taskDto.setLdpType(ldpType);
+
+        if (TaskDto.LDP_TYPE_FDM.equals(ldpType)) {
+            createFdmTags(taskDto, user);
+        }
         createLdpMetaByTask(taskDto, user);
     }
 
@@ -941,7 +956,7 @@ public class LdpServiceImpl implements LdpService {
         if (CollectionUtils.isEmpty(tasks)) {
             return;
         }
-        tasks = tasks.stream().filter(t -> isTargetNode(t.getDag(), fdmStorageConnectionId)).collect(Collectors.toList());
+        tasks = tasks.stream().filter(t -> fdmTask(t.getDag(), fdmStorageConnectionId)).collect(Collectors.toList());
 
         for (TaskDto task : tasks) {
             task.setLdpType(TaskDto.LDP_TYPE_FDM);
@@ -976,7 +991,7 @@ public class LdpServiceImpl implements LdpService {
         if (CollectionUtils.isEmpty(tasks)) {
             return;
         }
-        tasks = tasks.stream().filter(t -> isTargetNode(t.getDag(), mdmStorageConnectionId)).collect(Collectors.toList());
+        tasks = tasks.stream().filter(t -> mdmTask(t.getDag(), mdmStorageConnectionId)).collect(Collectors.toList());
 
         for (TaskDto task : tasks) {
             task.setLdpType(TaskDto.LDP_TYPE_MDM);
@@ -985,22 +1000,35 @@ public class LdpServiceImpl implements LdpService {
         }
     }
 
-    private boolean isTargetNode(DAG dag, String fdmStorageConnectionId) {
+    private boolean fdmTask(DAG dag, String fdmStorageConnectionId) {
+        String ldpType = ldpTask(dag, fdmStorageConnectionId, null);
+        return TaskDto.LDP_TYPE_FDM.equals(ldpType);
+    }
+
+    private boolean mdmTask(DAG dag, String mdmStorageConnectionId) {
+        String ldpType = ldpTask(dag, null, mdmStorageConnectionId);
+        return TaskDto.LDP_TYPE_MDM.equals(ldpType);
+    }
+
+    private String ldpTask(DAG dag, String fdmStorageConnectionId, String mdmStorageConnectionId) {
         if (dag == null) {
-            return false;
+            return null;
         }
         List<Node> targets = dag.getTargets();
         if (CollectionUtils.isEmpty(targets)) {
-            return false;
+            return null;
         }
 
         for (Node target : targets) {
             if (target instanceof DataParentNode) {
-                if (fdmStorageConnectionId.equals(((DataParentNode<?>) target).getConnectionId())) {
-                    return true;
+                if (fdmStorageConnectionId != null && fdmStorageConnectionId.equals(((DataParentNode<?>) target).getConnectionId())) {
+                    return TaskDto.LDP_TYPE_FDM;
+                }
+                if (mdmStorageConnectionId != null && mdmStorageConnectionId.equals(((DataParentNode<?>) target).getConnectionId())) {
+                    return TaskDto.LDP_TYPE_MDM;
                 }
             }
         }
-        return false;
+        return null;
     }
 }
