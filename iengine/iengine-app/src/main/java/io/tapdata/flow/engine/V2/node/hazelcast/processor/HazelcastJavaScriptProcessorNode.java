@@ -170,7 +170,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 	private ScriptExecutorsManager.ScriptExecutor getDefaultScriptExecutor(List<Node<?>> nodes, String flag) {
 		TaskDto taskDto = processorBaseContext.getTaskDto();
-		if ("target".equals(flag) && taskDto.isDeduceSchemaTask()) {
+		if ("target".equals(flag) && taskDto.isTestTask()) {
 			return this.scriptExecutorsManager.createDummy();
 		}
 		if (nodes != null && nodes.size() > 0) {
