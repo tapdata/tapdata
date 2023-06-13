@@ -14,6 +14,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.val;
+import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.*;
 
@@ -27,36 +28,73 @@ import java.util.*;
 @NoArgsConstructor
 public class FieldChangeRuleGroup {
 
-    private Map<String, Map<FieldChangeRule.Scope, Collection<FieldChangeRule>>> rules = new HashMap<>();
+    private Map<String, Map<FieldChangeRule.Scope, List<FieldChangeRule>>> rules = new HashMap<>();
 
     public void add(String nodeId, FieldChangeRule rule) {
         rules.computeIfAbsent(nodeId, k -> new HashMap<>())
                 .computeIfAbsent(rule.getScope(), k -> new ArrayList<>()).add(rule);
     }
 
-    public void addAll(String nodeId, Collection<FieldChangeRule> rules) {
+    public void addAll(String nodeId, List<FieldChangeRule> rules) {
         for (FieldChangeRule r : rules) add(nodeId, r);
     }
 
-    public FieldChangeRule getRule(String nodeId, String qualifiedName, String fieldName, String dataType) {
-        return Optional.ofNullable(rules.get(nodeId)).map(nodeRules -> Optional.ofNullable(nodeRules.get(FieldChangeRule.Scope.Field)).map(ruleSet -> {
-            for (FieldChangeRule r : ruleSet) {
-                if (fieldName.equals(r.getFieldName()) && qualifiedName.equals(r.getQualifiedName())) return r;
-            }
+    public FieldChangeRule getRule(String nodeId, String qualifiedName, String fieldName, String dataType, TypeExprResult<DataMap> exprResult) {
+        Map<FieldChangeRule.Scope, List<FieldChangeRule>> scopeListMap = rules.get(nodeId);
+
+        if (scopeListMap == null) {
             return null;
-        }).orElse(Optional.ofNullable(nodeRules.get(FieldChangeRule.Scope.Node)).map(ruleSet -> {
-            for (FieldChangeRule r : ruleSet) {
-                if (r.getType().equals(FieldChangeRule.Type.MutiDataType)) {
-                    return r;
+        }
+
+        List<FieldChangeRule> fieldChangeRules = scopeListMap.get(FieldChangeRule.Scope.Field);
+        if (CollectionUtils.isNotEmpty(fieldChangeRules)) {
+            fieldChangeRules = new ArrayList<>(fieldChangeRules);
+            Collections.reverse(fieldChangeRules);
+            for (FieldChangeRule fieldChangeRule : fieldChangeRules) {
+                if (fieldName.equals(fieldChangeRule.getFieldName()) && qualifiedName.equals(fieldChangeRule.getQualifiedName())) {
+                    return fieldChangeRule;
                 }
-                if (r.getAccept().equals(dataType)) return r;
             }
-            return null;
-        }).orElse(null))).orElse(null);
+        }
+
+        List<FieldChangeRule> nodeChangeRules = scopeListMap.get(FieldChangeRule.Scope.Node);
+        if (CollectionUtils.isNotEmpty(nodeChangeRules)) {
+            nodeChangeRules = new ArrayList<>(nodeChangeRules);
+            Collections.reverse(nodeChangeRules);
+            for (FieldChangeRule fieldChangeRule : nodeChangeRules) {
+                if (fieldChangeRule.getType().equals(FieldChangeRule.Type.MutiDataType)) {
+                    if (exprResult != null && exprResult.getParams() != null
+                            && exprResult.getValue().get("_tapMapping") != null && exprResult.getValue().get("_tapMapping") instanceof TapStringMapping) {
+                        return fieldChangeRule;
+                    }
+                }
+
+                if (fieldChangeRule.getAccept().equals(dataType)) {
+                    return fieldChangeRule;
+                }
+            }
+        }
+
+//        return Optional.ofNullable(rules.get(nodeId)).map(nodeRules -> Optional.ofNullable(nodeRules.get(FieldChangeRule.Scope.Field)).map(ruleSet -> {
+//            for (FieldChangeRule r : ruleSet) {
+//                if (fieldName.equals(r.getFieldName()) && qualifiedName.equals(r.getQualifiedName())) return r;
+//            }
+//            return null;
+//        }).orElse(Optional.ofNullable(nodeRules.get(FieldChangeRule.Scope.Node)).map(ruleSet -> {
+//            for (FieldChangeRule r : ruleSet) {
+//                if (r.getType().equals(FieldChangeRule.Type.MutiDataType)) {
+//                    return r;
+//                }
+//                if (r.getAccept().equals(dataType)) return r;
+//            }
+//            return null;
+//        }).orElse(null))).orElse(null);
+        return null;
     }
 
     public void process(String nodeId, String qualifiedName, Field f, DefaultExpressionMatchingMap map) {
-        FieldChangeRule rule = getRule(nodeId, qualifiedName, f.getFieldName(), f.getDataType());
+        TypeExprResult<DataMap> exprResult = map.get(f.getDataType());
+        FieldChangeRule rule = getRule(nodeId, qualifiedName, f.getFieldName(), f.getDataType(), exprResult);
         if (null == rule) return;
 
         switch (rule.getType()) {
@@ -69,7 +107,6 @@ public class FieldChangeRuleGroup {
             case MutiDataType:
                 Double multiple = rule.getMultiple();
                 if (multiple != 0 && multiple > 1) {
-                    TypeExprResult<DataMap> exprResult = map.get(f.getDataType());
                     if (exprResult.getParams() != null && !exprResult.getParams().isEmpty()) {
                         TapType tapType = PdkSchemaConvert.getJsonParser().fromJson(f.getTapType(), TapType.class);
                         if (tapType instanceof TapString) {
