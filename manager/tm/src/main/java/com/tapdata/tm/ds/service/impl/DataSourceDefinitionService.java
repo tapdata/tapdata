@@ -473,6 +473,10 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
                 criteria.and("authentication").in(authentication,"GA");
             }
         }
+				if (null != where.get("type")) {
+					criteria.and("type").is(where.get("type"));
+				}
+
         query.addCriteria(criteria);
         query.limit(0);
         query.skip(0);

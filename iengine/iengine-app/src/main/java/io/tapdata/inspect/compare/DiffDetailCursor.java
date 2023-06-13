@@ -77,12 +77,10 @@ public class DiffDetailCursor implements AutoCloseable {
 				Map<String, Object> data = detail.getTarget();
 				if (data.containsKey("data") && data.containsKey("message") && data.get("data") instanceof Map) {
 					data = (Map<String, Object>) data.get("data");
-					MapUtil.keyToLowerCase(data, 1, 0);
 					for (String k : targetKeys) {
 						values.add(data.get(k));
 					}
 				} else {
-					MapUtil.keyToLowerCase(data, 1, 0);
 					for (String k : targetKeys) {
 						values.add(detail.getTarget().get(k));
 					}
