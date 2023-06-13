@@ -21,6 +21,7 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.classification.dto.ClassificationDto;
 import com.tapdata.tm.classification.service.ClassificationService;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.schema.bean.Schema;
@@ -40,6 +41,8 @@ import com.tapdata.tm.ds.repository.DataSourceRepository;
 import com.tapdata.tm.ds.utils.UriRootConvertUtils;
 import com.tapdata.tm.ds.vo.SupportListVo;
 import com.tapdata.tm.ds.vo.ValidateTableVo;
+import com.tapdata.tm.externalStorage.entity.ExternalStorageEntity;
+import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.job.dto.JobDto;
 import com.tapdata.tm.job.service.JobService;
 import com.tapdata.tm.libSupported.entity.LibSupportedsEntity;
@@ -146,6 +149,8 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	@Autowired
 	@Lazy
 	private LogCollectorService logCollectorService;
+	@Autowired
+	private ExternalStorageService externalStorageService;
 
 	public DataSourceService(@NonNull DataSourceRepository repository) {
 		super(repository, DataSourceConnectionDto.class, DataSourceEntity.class);
@@ -1442,15 +1447,34 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 			oldConnectionDto.setLoadSchemaField(loadSchemaField);
 			List<MetadataInstancesDto> newModelList = metadataUtil.modelNext(newModels, oldConnectionDto, databaseId, user);
-
-			Pair<Integer, Integer> pair = metadataInstancesService.bulkUpsetByWhere(newModelList, user);
 			List<String> qualifiedNames = newModelList.stream().filter(Objects::nonNull).map(MetadataInstancesDto::getQualifiedName)
 					.filter(StringUtils::isNotBlank).collect(Collectors.toList());
+			Criteria criteria = Criteria.where("qualified_name").in(qualifiedNames).and("is_deleted").ne(true);
+			Query query = new Query(criteria);
+			List<MetadataInstancesDto> oldModelList = metadataInstancesService.findAllDto(query,user);
+			setDescription(newModelList,oldModelList);
+			Pair<Integer, Integer> pair = metadataInstancesService.bulkUpsetByWhere(newModelList, user);
 			metadataInstancesService.qualifiedNameLinkLogic(qualifiedNames, user);
 			String name = newModelList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList()).toString();
 			log.info("Upsert model, model list = {}, values = {}, modify count = {}, insert count = {}"
 					, newModelList.size(), name, pair.getLeft(), pair.getRight());
 		}
+	}
+
+	private void setDescription(List<MetadataInstancesDto> newModelList ,List<MetadataInstancesDto> oldModelList ){
+		Map<String, String> map = new HashMap<>();
+		oldModelList.forEach(metadataInstancesDto -> {
+			metadataInstancesDto.getFields().forEach(field -> {
+				map.put(field.getId(),field.getDescription());
+			});
+		});
+		newModelList.forEach(metadataInstancesDto -> {
+			metadataInstancesDto.getFields().forEach(field -> {
+			    if(map.containsKey(field.getId())) {
+					field.setDescription(map.get(field.getId()));
+				}
+			});
+		});
 	}
 
 	private Document setToDocumentByJsonParser(Document update) {
@@ -1609,6 +1633,15 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			if (connection == null) {
 				while (checkRepeatNameBool(user, connectionDto.getName(), null)) {
 					connectionDto.setName(connectionDto.getName() + "_import");
+				}
+				if(StringUtils.isNotBlank(connectionDto.getShareCDCExternalStorageId())){
+					ExternalStorageDto externalStorageDto = externalStorageService.findById(MongoUtils.toObjectId(connectionDto.getShareCDCExternalStorageId()));
+					if(externalStorageDto == null){
+						Query query1 = new Query(Criteria.where("defaultStorage").is(true));
+						ExternalStorageDto defaultExternalStorage = externalStorageService.findOne(query1);
+						connectionDto.setShareCDCExternalStorageId(defaultExternalStorage.getId().toString());
+					}
+
 				}
 				connection = importEntity(connectionDto, user);
 			} else {

@@ -262,6 +262,12 @@ public class TransformSchemaService {
                 List<MetadataInstancesDto> metadataList1 = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, user, "histories");
                 for (MetadataInstancesDto metadataInstancesDto : metadataList1) {
                     metadataInstancesDto.setQualifiedName(metadataInstancesDto.getQualifiedName() + "_" + taskDto.getId().toHexString());
+                    List<Field> fields = metadataInstancesDto.getFields();
+                    if (CollectionUtils.isNotEmpty(fields)) {
+                        for (Field field : fields) {
+                            field.setPreviousFieldName(field.getFieldName());
+                        }
+                    }
                 }
                 metadataList.addAll(metadataList1);
             }

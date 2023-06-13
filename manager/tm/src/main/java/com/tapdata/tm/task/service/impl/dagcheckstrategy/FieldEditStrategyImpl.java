@@ -83,7 +83,7 @@ public class FieldEditStrategyImpl implements DagLogStrategy {
                         List<FieldProcessorNode.Operation> operations = ((FieldRenameProcessorNode) node).getOperations();
                         Optional.ofNullable(operations).ifPresent(list -> {
                             for (FieldProcessorNode.Operation operation : list) {
-                                if (StringUtils.isNotBlank(operation.getOp()) && StringUtils.isBlank(operation.getLabel())) {
+                                if (StringUtils.isNotBlank(operation.getOp()) && StringUtils.isBlank(operation.getField())) {
                                     renameEmpty.set(true);
                                     fieldName.set(operation.getField());
                                     break;

@@ -1,6 +1,7 @@
 package io.tapdata.js.connector.base;
 
 import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.js.connector.base.ali.SecurityUtil;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -145,7 +146,67 @@ public class JsUtil {
         return hs.toString().toLowerCase();
     }
 
+    public static final char[] digital = "0123456789ABCDEF".toCharArray();
+
+    public String encodeHexAsStr(final byte[] bytes){
+        if(bytes == null){
+            return null;
+        }
+        char[] result = new char[bytes.length * 2];
+        for (int i = 0; i < bytes.length; i++) {
+            result[i*2] = digital[(bytes[i] & 0xf0) >> 4];
+            result[i*2 + 1] = digital[bytes[i] & 0x0f];
+        }
+        return new String(result);
+    }
+
+    public byte[] decodeHexAsByteArr(final String str) {
+        if(str == null){
+            return null;
+        }
+        char[] charArray = str.toCharArray();
+        if(charArray.length%2 != 0){
+            throw new RuntimeException("hex str length must can mod 2, str:" + str);
+        }
+        byte[] bytes = new byte[charArray.length/2];
+        for (int i = 0; i < charArray.length; i++) {
+            char c = charArray[i];
+            int b;
+            if(c >= '0' && c <= '9'){
+                b = (c-'0')<<4;
+            }else if(c >= 'A' && c <= 'F'){
+                b = (c-'A'+10)<<4;
+            }else{
+                throw new RuntimeException("unsport hex str:" + str);
+            }
+            c = charArray[++i];
+            if(c >= '0' && c <= '9'){
+                b |= c-'0';
+            }else if(c >= 'A' && c <= 'F'){
+                b |= c-'A'+10;
+            }else{
+                throw new RuntimeException("unsport hex str:" + str);
+            }
+            bytes[i/2] = (byte)b;
+        }
+        return bytes;
+    }
+
+
+    public String ali1688HmacSha1ToHexStr(String data, String key){
+        return SecurityUtil.hmacSha1ToHexStr(data, key);
+    }
+
     public static void main(String[] args) {
-        System.out.println(new JsUtil().sha256_HMAC("I'm Gavin in Tapdata", "gavin"));
+        JsUtil util = new JsUtil();
+//        String data = "param2/1/com.alibaba.trade/alibaba.trade.getBuyerOrderList/8668585_aop_timestamp1686034577415access_tokendb1e0dba-0ccb-4203-bcbf-27fc2e2fa0e1";
+//        String hmac = util.sha256_HMAC(data, "**J8uHFtF3MHy");
+//        //String hexAsStr = util.encodeHexAsStr(hmac.getBytes());
+//        System.out.println(hmac.toUpperCase());
+//        //27B46835E05251D2B0EAE628BB99C8DA9BE73DB8
+//
+//        System.out.println(SecurityUtil.hmacSha1ToHexStr(data, "**J8uHFtF3MHy"));
+
+        System.out.println(util.timeStamp2Date(System.currentTimeMillis(), "yyyyMMddHHmmsssss"));
     }
 }

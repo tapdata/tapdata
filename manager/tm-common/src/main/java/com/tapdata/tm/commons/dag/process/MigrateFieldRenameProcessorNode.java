@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.dag.process;
 
+import cn.hutool.core.util.StrUtil;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.DAG;
@@ -159,6 +160,23 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
                                     targetFieldName = targetFieldName.concat(operation.getSuffix());
                                 }
                                 if (StringUtils.isNotBlank(operation.getCapitalized())) {
+                                    switch (CapitalizedEnum.fromValue(operation.getCapitalized())) {
+                                        case UPPER:
+                                            targetFieldName = StringUtils.upperCase(targetFieldName);
+                                            break;
+                                        case LOWER:
+                                            targetFieldName = StringUtils.lowerCase(targetFieldName);
+                                            break;
+                                        case SNAKE:
+                                            targetFieldName = StrUtil.toUnderlineCase(targetFieldName);
+                                            break;
+                                        case CAMEL:
+                                            targetFieldName = StrUtil.toCamelCase(targetFieldName);
+                                            break;
+                                        default:
+                                            break;
+
+                                    }
                                     if (CapitalizedEnum.fromValue(operation.getCapitalized()) == CapitalizedEnum.UPPER) {
                                         targetFieldName = StringUtils.upperCase(targetFieldName);
                                     } else {

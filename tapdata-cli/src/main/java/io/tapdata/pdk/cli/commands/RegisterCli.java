@@ -18,18 +18,25 @@ import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.IOUtils;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import picocli.CommandLine;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.Scanner;
 
 @CommandLine.Command(
         description = "Push PDK jar file into Tapdata",
@@ -57,6 +64,9 @@ public class RegisterCli extends CommonCli {
 
     @CommandLine.Option(names = {"-h", "--help"}, usageHelp = true, description = "TapData cli help")
     private boolean helpRequested = false;
+
+    @CommandLine.Option(names = {"-r", "--replace"}, required = false, description = "Replace Config file name")
+    private String replaceName;
 
     //    private SummaryGeneratingListener listener = new SummaryGeneratingListener();
 //    public void runOne() {
@@ -141,6 +151,8 @@ public class RegisterCli extends CommonCli {
 
                     TapNodeContainer nodeContainer = JSON.parseObject(IOUtils.toString(nodeInfo.readResource(nodeInfo.getNodeClass().getAnnotation(TapConnectorClass.class).value())), TapNodeContainer.class);
                     Map<String, Object> messsages = nodeContainer.getMessages();
+                    String replacePath = null;//"replace_default";
+                    Map<String, Object> replaceConfig = needReplaceKeyWords(nodeInfo, replacePath);
                     if(messsages != null) {
                         Set<String> keys = messsages.keySet();
                         for(String key : keys) {
@@ -151,9 +163,29 @@ public class RegisterCli extends CommonCli {
                                     if(docPath instanceof String) {
                                         String docPathStr = (String) docPath;
                                         if(!inputStreamMap.containsKey(docPathStr)) {
-                                            InputStream is = nodeInfo.readResource(docPathStr);
-                                            if(is != null)
-                                                inputStreamMap.put(docPathStr, is);
+                                            Optional.ofNullable(nodeInfo.readResource(docPathStr)).ifPresent(stream -> {
+                                                InputStream inputStream = stream;
+                                                if (null != replaceConfig){
+                                                    Scanner scanner = null;
+                                                    try {
+                                                        scanner = new Scanner(stream, "UTF-8");
+                                                        StringBuilder docTxt = new StringBuilder();
+                                                        while(scanner.hasNextLine()) {
+                                                            docTxt.append(scanner.nextLine()).append("\n");
+                                                        }
+                                                        String finalTxt = docTxt.toString();
+                                                        for (Map.Entry<String, Object> entry : replaceConfig.entrySet()) {
+                                                            finalTxt = finalTxt.replaceAll(entry.getKey(), String.valueOf(entry.getValue()));
+                                                        }
+                                                        inputStream = new ByteArrayInputStream(finalTxt.getBytes(StandardCharsets.UTF_8));
+                                                    } catch (Exception e) {} finally {
+                                                        try {
+                                                            if (null != scanner) scanner.close();
+                                                        }catch (Exception ignore){}
+                                                    }
+                                                }
+                                                inputStreamMap.put(docPathStr, inputStream);
+                                            });
                                         }
                                     }
                                 }
@@ -218,13 +250,12 @@ public class RegisterCli extends CommonCli {
                     System.out.println(file.getName() + " uploading... to url " + tmUrl);
                     UploadFileService.upload(inputStreamMap, file, jsons, latest, tmUrl, authToken, ak, sk);
                     System.out.println(file.getName() + " registered successfully");
-                } else {
+                }
+                else {
                     System.out.println("File " + file + " doesn't exists");
                     System.out.println(file.getName() + " registered failed");
                 }
-
             }
-
             System.exit(0);
         } catch (Throwable throwable) {
             throwable.printStackTrace();
@@ -234,4 +265,16 @@ public class RegisterCli extends CommonCli {
         return 0;
     }
 
+    private static final String path = "tapdata-cli/src/main/resources/replace/";
+    private Map<String, Object> needReplaceKeyWords(TapNodeInfo nodeInfo, String replacePath){
+        if (null != this.replaceName && !"".equals(replaceName.trim())){
+            replacePath = replaceName;
+        }
+        if (null == replacePath || "".equals(replacePath.trim())) return null;
+        try {
+            InputStream as = FileUtils.openInputStream(new File(path + replacePath + ".json"));//nodeInfo.readResource((String) replacePath);
+            return JSON.parseObject(as, StandardCharsets.UTF_8, LinkedHashMap.class);
+        }catch (IOException e){}
+        return null;
+    }
 }

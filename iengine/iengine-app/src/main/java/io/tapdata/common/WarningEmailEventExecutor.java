@@ -4,6 +4,7 @@ import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.entity.Event;
 import com.tapdata.entity.Setting;
 import com.tapdata.entity.TapLog;
+import com.tapdata.tm.utils.OEMReplaceUtil;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -44,15 +45,18 @@ public class WarningEmailEventExecutor extends BaseEmailExecutor implements Even
 
 				Map<String, Object> eventData = event.getEvent_data();
 				List<String> customReceivers = event.getReceivers();
+				Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("email/replace.json");
 				String title = (String) eventData.getOrDefault("title", "TAPDATA WARNING");
 				if (StringUtils.isNotBlank(titlePrefix)) {
 					title = titlePrefix + title;
 				}
+				title = OEMReplaceUtil.replace(title,oemConfig);
+				String messageBody = OEMReplaceUtil.replace(assemblyMessageBody((String) eventData.getOrDefault("message", "")), oemConfig);
 				EmailPopulatingBuilder emailPopulatingBuilder = EmailBuilder.startingBlank();
 				emailPopulatingBuilder
 						.from("", fromAddress)
 						.withSubject(title)
-						.withHTMLText(assemblyMessageBody((String) eventData.getOrDefault("message", "")));
+						.withHTMLText(messageBody);
 				if (CollectionUtils.isNotEmpty(customReceivers)) {
 					for (String customReceiver : customReceivers) {
 						emailPopulatingBuilder.to("", customReceiver);
