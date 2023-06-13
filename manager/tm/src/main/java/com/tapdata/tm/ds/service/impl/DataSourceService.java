@@ -1634,6 +1634,15 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				while (checkRepeatNameBool(user, connectionDto.getName(), null)) {
 					connectionDto.setName(connectionDto.getName() + "_import");
 				}
+				if(StringUtils.isNotBlank(connectionDto.getShareCDCExternalStorageId())){
+					ExternalStorageDto externalStorageDto = externalStorageService.findById(MongoUtils.toObjectId(connectionDto.getShareCDCExternalStorageId()));
+					if(externalStorageDto == null){
+						Query query1 = new Query(Criteria.where("defaultStorage").is(true));
+						ExternalStorageDto defaultExternalStorage = externalStorageService.findOne(query1);
+						connectionDto.setShareCDCExternalStorageId(defaultExternalStorage.getId().toString());
+					}
+
+				}
 				connection = importEntity(connectionDto, user);
 			} else {
 				if (cover) {
