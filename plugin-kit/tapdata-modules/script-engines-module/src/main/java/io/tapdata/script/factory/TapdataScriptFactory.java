@@ -6,6 +6,7 @@ import io.tapdata.entity.error.TapAPIErrorCodes;
 import io.tapdata.entity.script.ScriptFactory;
 import io.tapdata.entity.script.ScriptOptions;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.script.factory.py.TapPythonEngine;
 import io.tapdata.script.factory.script.TapRunScriptEngine;
 
 import javax.script.ScriptEngine;
@@ -22,19 +23,17 @@ public class TapdataScriptFactory implements ScriptFactory {
 
     @Override
     public ScriptEngine create(String type, ScriptOptions scriptOptions) {
+		Class<? extends ScriptEngine> engineClass = scriptOptions.getEngineCustomClass(type);
+		if(engineClass != null) {
+			try {
+				return engineClass.getConstructor(ScriptOptions.class).newInstance(scriptOptions);
+			} catch (Throwable e) {
+				throw new CoreException(TapAPIErrorCodes.ERROR_INSTANTIATE_ENGINE_CLASS_FAILED, e, "Instantiate engine class {} failed, {}", engineClass, e.getMessage());
+			}
+		}
 		switch (type) {
-			case TYPE_PYTHON:
-				break;
-			case TYPE_JAVASCRIPT:
-				Class<? extends ScriptEngine> engineClass = scriptOptions.getEngineCustomClass(type);
-				if(engineClass != null) {
-					try {
-						return engineClass.getConstructor(ScriptOptions.class).newInstance(scriptOptions);
-					} catch (Throwable e) {
-						throw new CoreException(TapAPIErrorCodes.ERROR_INSTANTIATE_ENGINE_CLASS_FAILED, e, "Instantiate engine class {} failed, {}", engineClass, e.getMessage());
-					}
-				}
-				return new TapRunScriptEngine(scriptOptions);
+			case TYPE_PYTHON: return new TapPythonEngine(scriptOptions);
+			case TYPE_JAVASCRIPT: return new TapRunScriptEngine(scriptOptions);
 		}
 		return null;
     }
