@@ -9,6 +9,8 @@ import org.apache.commons.lang3.StringUtils;
 public enum CapitalizedEnum {
     UPPER("toUpperCase"), // 转大写
     LOWER("toLowerCase"), // 转小写
+    SNAKE("toSnakeCase"), // 转小写
+    CAMEL("toCamelCase"), // 转小写
     NONE("");
 
     private final String value;
