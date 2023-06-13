@@ -172,7 +172,9 @@ public class TaskController extends BaseController {
                 taskId = objectId instanceof Map ? ((Map) objectId).get("$oid").toString() : objectId.toString();
             else taskId = where.get("id").toString();
             TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
-            Assert.notNull(taskDto, "task is empty");
+            if (taskDto == null) {
+                return success(new Page<>());
+            }
             userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
         } else {
             userDetail = getLoginUser();

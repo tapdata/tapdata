@@ -379,6 +379,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 //						TaskDto.SYNC_TYPE_TEST_RUN,
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 			tapTableMap = TapTableUtil.getTapTableMap(node, tmCurrentTime);
+		} else if (node instanceof VirtualTargetNode) {
+			tapTableMap = TapTableMap.create(node.getId());
 		} else {
 			tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId(), tmCurrentTime);
 		}
