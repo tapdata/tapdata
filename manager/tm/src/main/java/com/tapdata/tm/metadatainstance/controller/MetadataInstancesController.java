@@ -18,7 +18,7 @@ import com.tapdata.tm.metadatainstance.bean.NodeInfoPage;
 import com.tapdata.tm.metadatainstance.dto.DataType2TapTypeDto;
 import com.tapdata.tm.metadatainstance.dto.MigrateResetTableDto;
 import com.tapdata.tm.metadatainstance.dto.MigrateTableInfoDto;
-import com.tapdata.tm.metadatainstance.dto.TableDto;
+import com.tapdata.tm.metadatainstance.dto.TableCommentDto;
 import com.tapdata.tm.metadatainstance.param.ClassificationParam;
 import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
 import com.tapdata.tm.metadatainstance.service.MetaMigrateService;
@@ -492,9 +492,9 @@ public class MetadataInstancesController extends BaseController {
         return success(metadataInstancesService.tables(connectionId, sourceType));
     }
 
-    @GetMapping("newTables")
-    public ResponseMessage<List<TableDto>> newTables(String connectionId, @RequestParam(value = "sourceType", defaultValue = "SOURCE") String sourceType) {
-        return success(metadataInstancesService.newTables(connectionId, sourceType));
+    @GetMapping("tableComments")
+    public ResponseMessage<List<TableCommentDto>> tableComments(String connectionId, @RequestParam(value = "sourceType", defaultValue = "SOURCE") String sourceType) {
+        return success(metadataInstancesService.tableComments(connectionId, sourceType));
     }
 
     @GetMapping("tablesValue")

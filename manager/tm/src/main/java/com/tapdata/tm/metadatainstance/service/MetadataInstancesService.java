@@ -39,7 +39,7 @@ import com.tapdata.tm.discovery.entity.FieldBusinessDescEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.metadatainstance.dto.DataType2TapTypeDto;
-import com.tapdata.tm.metadatainstance.dto.TableDto;
+import com.tapdata.tm.metadatainstance.dto.TableCommentDto;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.param.ClassificationParam;
 import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
@@ -1163,7 +1163,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return list.stream().map(MetadataInstancesEntity::getOriginalName).collect(Collectors.toList());
     }
 
-    public List<TableDto> newTables(String connectId, String sourceType) {
+    public List<TableCommentDto> tableComments(String connectId, String sourceType) {
         Criteria criteria = Criteria.where("source._id").is(connectId)
                 .and("sourceType").is(sourceType)
                 .and("is_deleted").ne(true)
@@ -1172,8 +1172,8 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         Query query = new Query(criteria);
         query.fields().include("original_name","comment");
         List<MetadataInstancesEntity> list = mongoTemplate.find(query, MetadataInstancesEntity.class);
-        List<TableDto> tableDtos = list.stream().map(m -> {
-            return TableDto.builder().tableName(m.getOriginalName()).tableComment(Optional.ofNullable(m.getComment()).orElse("")).build();
+        List<TableCommentDto> tableDtos = list.stream().map(m -> {
+            return TableCommentDto.builder().tableName(m.getOriginalName()).tableComment(Optional.ofNullable(m.getComment()).orElse("")).build();
         }).collect(Collectors.toList());
         return tableDtos;
     }
@@ -2273,11 +2273,10 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         if(org.springframework.util.StringUtils.isEmpty(id)){
             throw new BizException("IllegalArgument", "Id");
         }
-        Criteria criteria = Criteria.where("metadataInstanceId").is(id);
+        Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(id)).and("fields.id").is(discoveryFieldDto.getId());
         Query query = new Query(criteria);
-        String key = discoveryFieldDto.getId();
-        Update update = Update.update("fieldBusinessDesc."+key,discoveryFieldDto.getBusinessDesc());
-        mongoTemplate.upsert(query,update, FieldBusinessDescEntity.class);
+        Update update = Update.update("fields.$.description",discoveryFieldDto.getBusinessDesc());
+        update(query,update, userDetail);
     }
 
     public MetadataInstancesDto importEntity(MetadataInstancesDto metadataInstancesDto, UserDetail userDetail) {

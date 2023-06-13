@@ -711,14 +711,6 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         //dto.setAllTags();
         List<Field> fields = metadataInstancesDto.getFields();
         List<TableIndex> indices = metadataInstancesDto.getIndices();
-        Criteria criteria = Criteria.where("metadataInstanceId").is(metadataInstancesDto.getId().toString());
-        Query query = new Query(criteria);
-        FieldBusinessDescEntity fieldBusinessDescEntity = Optional.ofNullable(mongoTemplate.findOne(query, FieldBusinessDescEntity.class)).orElseGet(()->{
-            FieldBusinessDescEntity fieldBusines = new FieldBusinessDescEntity();
-            fieldBusines.setFieldBusinessDesc(new HashMap<String,String>());
-            return fieldBusines;
-        });
-        Map<String,String> fieldDescMap = fieldBusinessDescEntity.getFieldBusinessDesc();
         Set<String> indexNames = new HashSet<>();
         if (CollectionUtils.isNotEmpty(indices)) {
             for (TableIndex index : indices) {
@@ -753,10 +745,10 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 //discoveryFieldDto.setBusinessName();
                 //discoveryFieldDto.setBusinessType();
                 discoveryFieldDto.setComment(field.getComment());
-                if(StringUtils.isBlank(fieldDescMap.get(field.getId())) && StringUtils.isNotBlank(field.getComment())) {
-                    discoveryFieldDto.setBusinessDesc(field.getComment());
+                if(StringUtils.isNotBlank(field.getDescription())){
+                    discoveryFieldDto.setBusinessDesc(field.getDescription());
                 }else{
-                    discoveryFieldDto.setBusinessDesc(fieldDescMap.get(field.getId()));
+                    discoveryFieldDto.setBusinessDesc(field.getComment());
                 }
 
                 dataFields.add(discoveryFieldDto);
