@@ -1465,13 +1465,13 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		Map<String, String> map = new HashMap<>();
 		oldModelList.forEach(metadataInstancesDto -> {
 			metadataInstancesDto.getFields().forEach(field -> {
-				map.put(field.getId(),field.getDescription());
+				map.put(field.getFieldName(),field.getDescription());
 			});
 		});
 		newModelList.forEach(metadataInstancesDto -> {
 			metadataInstancesDto.getFields().forEach(field -> {
 			    if(map.containsKey(field.getId())) {
-					field.setDescription(map.get(field.getId()));
+					field.setDescription(map.get(field.getFieldName()));
 				}
 			});
 		});

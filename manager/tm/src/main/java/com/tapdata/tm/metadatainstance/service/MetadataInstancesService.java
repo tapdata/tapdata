@@ -39,6 +39,7 @@ import com.tapdata.tm.discovery.entity.FieldBusinessDescEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.metadatainstance.dto.DataType2TapTypeDto;
+import com.tapdata.tm.metadatainstance.dto.DataTypeCheckMultipleVo;
 import com.tapdata.tm.metadatainstance.dto.TableCommentDto;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.param.ClassificationParam;
@@ -54,9 +55,12 @@ import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SchemaTransformUtils;
 import io.tapdata.entity.conversion.PossibleDataTypes;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
+import io.tapdata.entity.mapping.TypeExprResult;
+import io.tapdata.entity.mapping.type.TapStringMapping;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.utils.DataMap;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -2287,5 +2291,61 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return metadataInstancesDto;
 
 
+    }
+
+    public void updateTableCustomDesc(String qualifiedName, String customDesc, UserDetail user) {
+        Criteria criteria = Criteria.where("qualified_name").is(qualifiedName);
+        update(new Query(criteria), Update.update("customDesc", customDesc), user);
+    }
+
+    public void updateFieldCustomDesc(String qualifiedName, Map<String, String> fieldCustomDescMap, UserDetail user) {
+        Criteria criteria = Criteria.where("qualified_name").is(qualifiedName);
+        Query query = new Query(criteria);
+        query.fields().include("fields");
+        MetadataInstancesDto dto = findOne(query, user);
+        List<Field> fields = dto.getFields();
+        if (CollectionUtils.isNotEmpty(fields)) {
+            for (Field field : fields) {
+                String customDesc = fieldCustomDescMap.get(field.getFieldName());
+                field.setDescription(customDesc);
+            }
+        }
+        update(new Query(criteria), Update.update("fields", fields), user);
+
+    }
+
+    public DataTypeCheckMultipleVo dataTypeCheckMultiple(String databaseType, String dataType, UserDetail user) {
+        DataTypeCheckMultipleVo dataTypeCheckMultipleVo = new DataTypeCheckMultipleVo();
+        dataTypeCheckMultipleVo.setResult(false);
+        DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(databaseType, user);
+        if (definitionDto == null) {
+            return dataTypeCheckMultipleVo;
+        }
+
+        String expression = definitionDto.getExpression();
+        DefaultExpressionMatchingMap map = DefaultExpressionMatchingMap.map(expression);
+        TypeExprResult<DataMap> exprResult = map.get(dataType);
+        if (exprResult == null) {
+            return dataTypeCheckMultipleVo;
+        }
+
+        if (exprResult.getParams() == null) {
+            return dataTypeCheckMultipleVo;
+        }
+
+        Object tapMapping = exprResult.getValue().get("_tapMapping");
+        if (tapMapping instanceof TapStringMapping) {
+            dataTypeCheckMultipleVo.setResult(true);
+        }
+
+        String originType = dataType;
+        int i = originType.indexOf("(");
+        if (i >= 0) {
+            originType = originType.substring(0, i);
+        }
+
+        dataTypeCheckMultipleVo.setOriginType(originType);
+
+        return dataTypeCheckMultipleVo;
     }
 }
