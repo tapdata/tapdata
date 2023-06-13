@@ -5,11 +5,7 @@ import com.google.common.collect.Maps;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.DAGDataService;
-import com.tapdata.tm.commons.dag.Edge;
-import com.tapdata.tm.commons.dag.FieldsMapping;
-import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -21,19 +17,10 @@ import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.dag.vo.TestRunDto;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
-import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.JsonUtil;
-import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
-import com.tapdata.tm.commons.util.MetaType;
-import com.tapdata.tm.commons.util.PdkSchemaConvert;
-import com.tapdata.tm.commons.util.ProcessorNodeType;
+import com.tapdata.tm.commons.util.*;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
@@ -62,12 +49,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.Call;
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
+import okhttp3.*;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -77,18 +59,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.StringJoiner;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -520,7 +491,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
     @SuppressWarnings("unchecked")
     @Override
-    public void testRunJsNode(TestRunDto dto, UserDetail userDetail, String accessToken) {
+    public void testRunJsNode(TestRunDto dto, UserDetail userDetail) {
         String taskId = dto.getTaskId();
         String nodeId = dto.getJsNodeId();
         String tableName = dto.getTableName();
