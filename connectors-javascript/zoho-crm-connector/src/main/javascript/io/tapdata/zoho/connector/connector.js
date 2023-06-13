@@ -1162,6 +1162,242 @@ function discoverSchema(connectionConfig) {
                 "nullable": false
             }
         }
+    }, {
+        "name":"Sales_Orders",
+        "fields":{
+            "Owner": {
+                "type": "Object",
+                "comment": "销售订单所有者的名称和ID",
+                "nullable": false
+            },
+            "Discount": {
+                "type": "Number",
+                "comment": "表示价格上的折扣(如果有的话)",
+                "nullable": false
+            },
+            "Description": {
+                "type": "String",
+                "comment": "销售订单说明",
+                "nullable": true
+            },
+            "_currency_symbol": {
+                "type": "String",
+                "comment": "产生收入的货币",
+                "nullable": false
+            },
+            "Customer_No": {
+                "type": "String",
+                "comment": "表示客户ID(如果有的话)",
+                "nullable": true
+            },
+            "Shipping_State": {
+                "type": "String",
+                "comment": "联系人的收货地址",
+                "nullable": false
+            },
+            "Tax": {
+                "type": "Number",
+                "comment": "销售税和增值税的总和",
+                "nullable": false
+            },
+            "Modified_By": {
+                "type": "Object",
+                "comment": "修改记录的用户名称和ID。这是一个系统生成的字段。你不能修改它",
+                "nullable": false
+            },
+            "_converted": {
+                "type": "Boolean",
+                "comment": "表示销售订单是否转换为发票",
+                "nullable": false
+            },
+            "_process_flow": {
+                "type": "Boolean",
+                "comment": "表示记录是否为蓝图数据",
+                "nullable": false
+            },
+            "Deal_Name": {
+                "type": "Object",
+                "comment": "需要为其创建销售订单的商机名称和ID",
+                "nullable": false
+            },
+            "Billing_Country": {
+                "type": "String",
+                "comment": "",
+                "nullable": false
+            },
+            "Account_Name": {
+                "type": "Object",
+                "comment": "必须为其创建销售订单的客户名和ID。这个字段是必填的",
+                "nullable": false
+            },
+            "id": {
+                "type": "String",
+                "comment": "记录的唯一ID",
+                "nullable": false,
+                'isPrimaryKey':true,
+                'primaryKeyPos':1
+            },
+            "Carrier": {
+                "type": "String",
+                "comment": "承运人名称",
+                "nullable": false
+            },
+            "_approved": {
+                "type": "Boolean",
+                "comment": "表示记录是否被批准",
+                "nullable": false
+            },
+            "Quote_Name": {
+                "type": "Object",
+                "comment": "参考报价单的名称和ID",
+                "nullable": false
+            },
+            "Status": {
+                "type": "String",
+                "comment": "表示销售订单的状态",
+                "nullable": false
+            },
+            "Sales_Commission": {
+                "type": "Number",
+                "comment": "在完成交易后，代表销售人员的佣金",
+                "nullable": false
+            },
+            "Grand_Total": {
+                "type": "Number",
+                "comment": "表示产品扣除税金和折扣后的总金额",
+                "nullable": false
+            },
+            "_approval": {
+                "type": "Object",
+                "comment": "表示当前用户是否可以批准、委托、拒绝或重新提交在此记录上执行的操作",
+                "nullable": false
+            },
+            "Modified_Time": {
+                "type": "String",
+                "comment": "记录最后一次修改的日期和时间。这是一个系统生成的字段。你不能修改它",
+                "nullable": false
+            },
+            "Due_Date": {
+                "type": "String",
+                "comment": "销售订单到期的日期",
+                "nullable": false
+            },
+            "Billing_Street": {
+                "type": "String",
+                "comment": "",
+                "nullable": false
+            },
+            "Adjustment": {
+                "type": "Number",
+                "comment": "表示总金额中的调整(如果有的话)",
+                "nullable": false
+            },
+            "Created_Time": {
+                "type": "String",
+                "comment": "记录创建的日期和时间。这是一个系统生成的字段。你不能修改它",
+                "nullable": false
+            },
+            "Terms_and_Conditions": {
+                "type": "String",
+                "comment": "表示与采购订单关联的条款和条件",
+                "nullable": true
+            },
+            "Sub_Total": {
+                "type": "Number",
+                "comment": "表示产品不含税的总额",
+                "nullable": false
+            },
+            "_editable": {
+                "type": "Boolean",
+                "comment": "表示记录是否可编辑",
+                "nullable": false
+            },
+            "Billing_Code": {
+                "type": "String",
+                "comment": "",
+                "nullable": true
+            },
+            "Product_Details": {
+                "type": "Array",
+                "comment": "为其创建销售订单的产品详细信息",
+                "nullable": false
+            },
+            "Subject": {
+                "type": "String",
+                "comment": "销售订单的主题/标题",
+                "nullable": false
+            },
+            "Contact_Name": {
+                "type": "Object",
+                "comment": "为其创建销售订单的联系人名称和ID",
+                "nullable": false
+            },
+            "Excise_Duty": {
+                "type": "Number",
+                "comment": "产品的消费税",
+                "nullable": false
+            },
+            "Shipping_City": {
+                "type": "String",
+                "comment": "",
+                "nullable": false
+            },
+            "Shipping_Country": {
+                "type": "String",
+                "comment": "",
+                "nullable": false
+            },
+            "Shipping_Code": {
+                "type": "String",
+                "comment": "",
+                "nullable": true
+            },
+            "Billing_City": {
+                "type": "String",
+                "comment": "",
+                "nullable": false
+            },
+            "SO_Number": {
+                "type": "String",
+                "comment": "创建服务支持后的销售订单ID",
+                "nullable": false
+            },
+            "Purchase_Order": {
+                "type": "String",
+                "comment": "参考采购订单",
+                "nullable": true
+            },
+            "Billing_State": {
+                "type": "String",
+                "comment": "",
+                "nullable": false
+            },
+            "_line_tax": {
+                "type": "Array",
+                "comment": "产品的销售税和增值税的百分比",
+                "nullable": false
+            },
+            "Created_By": {
+                "type": "Object",
+                "comment": "创建记录的用户名称和ID。这是一个系统生成的字段。你不能修改它",
+                "nullable": false
+            },
+            "Tag": {
+                "type": "Array",
+                "comment": "与记录关联的标记列表",
+                "nullable": false
+            },
+            "Pending": {
+                "type": "String",
+                "comment": "",
+                "nullable": true
+            },
+            "Shipping_Street": {
+                "type": "String",
+                "comment": "",
+                "nullable": false
+            }
+        }
     }
     ]
 }
