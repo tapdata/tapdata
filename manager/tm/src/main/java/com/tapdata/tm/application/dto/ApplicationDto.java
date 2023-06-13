@@ -40,6 +40,7 @@ public class ApplicationDto extends BaseDto {
     private Object responseTypes;
     private String clientSecret;
     private List scopes;
+    private List scopeNames;
     private List<String> redirectUris;
     private Boolean showMenu;
     private Set<String> clientAuthenticationMethods;

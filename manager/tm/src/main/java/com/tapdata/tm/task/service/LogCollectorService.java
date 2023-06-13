@@ -55,7 +55,6 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
-import org.bson.BsonDocument;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
@@ -1804,30 +1803,59 @@ public class LogCollectorService {
 		public void removeTask() {
 			Criteria taskStatusCriteria = Criteria.where("is_deleted").ne(true)
 							.and("syncType").is(TaskDto.SYNC_TYPE_LOG_COLLECTOR)
-							.and("status").ne(TaskDto.STATUS_RUNNING);
+							.and("status").nin(TaskDto.STATUS_RUNNING, TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED);
 
-			Criteria noTablesCriteria = Criteria.where("dag.nodes").elemMatch(new Criteria().andOperator(
+			Criteria noTablesCriteria1 = Criteria.where("dag.nodes").elemMatch(new Criteria().andOperator(
 							Criteria.where("type").is("logCollector"),
-							new Criteria().orOperator(
-											new Criteria().andOperator(new Criteria().orOperator(
-															Criteria.where("logCollectorConnConfigs").exists(false), Criteria.where("logCollectorConnConfigs").is(new BsonDocument())),
-															new Criteria().orOperator(Criteria.where("tableNames").exists(false), Criteria.where("tableNames").size(0))),
-											Criteria.where("logCollectorConnConfigs").exists(true).not().elemMatch(Criteria.where("tableNames").exists(true).ne(Collections.emptyList()))
-			)));
+							new Criteria().andOperator(
+											Criteria.where("logCollectorConnConfigs").exists(false),
+											new Criteria().orOperator(Criteria.where("tableNames").exists(false), Criteria.where("tableNames").size(0))
+							)));
 
-			Query query = Query.query(new Criteria().andOperator(taskStatusCriteria, noTablesCriteria));
-			query.fields().include("_id", "name","user_id");
-			List<TaskDto> taskDtos = taskService.findAll(query);
-			if (CollectionUtils.isNotEmpty(taskDtos)) {
-				taskDtos.forEach(taskDto -> {
-					try {
-						UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
-						taskService.remove(taskDto.getId(), userDetail);
-						log.info("removed logCollector task: {} {}", taskDto.getId().toHexString(), taskDto.getName());
-					} catch (Exception e) {
-						log.error("Failed to remove logCollector task: {} {}", taskDto.getId().toHexString(), taskDto.getName(), e);
+			Query query1 = Query.query(new Criteria().andOperator(taskStatusCriteria, noTablesCriteria1));
+			query1.fields().include("_id", "name", "user_id");
+			List<TaskDto> taskDtos1 = taskService.findAll(query1);
+			removeLogCollectorTask(taskDtos1);
+
+			Criteria noTablesCriteria2 = Criteria.where("dag.nodes").elemMatch(new Criteria().andOperator(
+							Criteria.where("type").is("logCollector"),
+							Criteria.where("logCollectorConnConfigs").exists(true)
+			));
+
+			Query query2 = Query.query(new Criteria().andOperator(taskStatusCriteria, noTablesCriteria2)).limit(20);
+			query2.fields().include("_id", "name", "dag", "user_id");
+			List<TaskDto> taskDtos2 = taskService.findAll(query2);
+			if (CollectionUtils.isNotEmpty(taskDtos2)) {
+				for (TaskDto taskDto : taskDtos2) {
+					DAG dag = taskDto.getDag();
+					if (dag != null && dag.getNodes() != null && dag.getNodes().size() > 0) {
+						for (Node node : dag.getNodes()) {
+							if (node instanceof LogCollectorNode) {
+								Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = ((LogCollectorNode) node).getLogCollectorConnConfigs();
+								if (MapUtils.isNotEmpty(logCollectorConnConfigs)
+												&& logCollectorConnConfigs.values().stream().allMatch(logCollecotrConnConfig -> CollectionUtils.isEmpty(logCollecotrConnConfig.getTableNames()))) {
+									removeLogCollectorTask(taskDto);
+								}
+							}
+						}
 					}
-				});
+				}
+			}
+		}
+
+		private void removeLogCollectorTask(List<TaskDto> taskDtos) {
+			if (CollectionUtils.isNotEmpty(taskDtos)) {
+				taskDtos.forEach(this::removeLogCollectorTask);
+			}
+		}
+
+		private void removeLogCollectorTask(TaskDto taskDto) {
+			try {
+				UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
+				taskService.remove(taskDto.getId(), userDetail);
+				log.info("removed logCollector task: {} {}", taskDto.getId().toHexString(), taskDto.getName());
+			} catch (Exception e) {
+				log.error("Failed to remove logCollector task: {} {}", taskDto.getId().toHexString(), taskDto.getName(), e);
 			}
 		}
 

@@ -80,6 +80,18 @@ public class TargetTypesGeneratorImpl implements TargetTypesGenerator {
             String largestStringDataType = largestStringMappingField != null ? largestStringMappingField.getDataType() : null;
             targetFieldMap.put(field.getName(), dataType == null ? field.clone().dataType(largestStringDataType)
                     : field.clone().dataType(dataType));
+            if(findPossibleDataTypes != null) {
+                PossibleDataTypes possibleDataTypes = findPossibleDataTypes.get(field.getName());
+                TapField targetField = targetFieldMap.get(field.getName());
+                if(possibleDataTypes == null || possibleDataTypes.getDataTypes() == null) {
+                    if(possibleDataTypes == null) {
+                        possibleDataTypes = new PossibleDataTypes();
+                        findPossibleDataTypes.put(field.getName(), possibleDataTypes);
+                    }
+
+                    possibleDataTypes.dataType(targetField.getDataType());
+                }
+            }
         }
         if(finalResult.getResultItems() != null && !finalResult.getResultItems().isEmpty()) {
             finalResult.result(TapResult.RESULT_SUCCESSFULLY_WITH_WARN);

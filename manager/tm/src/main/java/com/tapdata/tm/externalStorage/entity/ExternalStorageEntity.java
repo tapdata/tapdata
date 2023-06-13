@@ -23,4 +23,11 @@ public class ExternalStorageEntity extends BaseEntity {
 	private Boolean canDelete;
     private boolean defaultStorage = false;
 	private Boolean init;
+
+	private boolean ssl;
+	private String sslCA;
+	private String sslKey;
+	private String sslPass;
+	private boolean sslValidate;
+	private boolean checkServerIdentity;
 }

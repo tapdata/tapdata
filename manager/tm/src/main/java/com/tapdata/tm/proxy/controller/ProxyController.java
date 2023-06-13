@@ -10,6 +10,7 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.proxy.dto.*;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
+import com.tapdata.tm.sdk.available.TmStatusService;
 import com.tapdata.tm.utils.WebUtils;
 import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.service.WorkerService;
