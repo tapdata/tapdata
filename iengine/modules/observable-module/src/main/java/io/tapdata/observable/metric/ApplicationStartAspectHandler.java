@@ -12,7 +12,12 @@ import io.tapdata.common.sample.SampleCollector;
 import io.tapdata.common.sample.process.GcSampler;
 import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.aspect.annotations.AspectObserverClass;
+import io.tapdata.entity.script.ScriptFactory;
+import io.tapdata.entity.script.ScriptOptions;
+import io.tapdata.entity.utils.InstanceFactory;
 
+import javax.script.ScriptEngine;
+import javax.script.ScriptException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryUsage;
 import java.util.HashMap;
@@ -49,5 +54,13 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
             gcSamplerTime.value().doubleValue() / 300000
         );
         collector.addSampler("date", System::currentTimeMillis);
+
+        final ScriptFactory scriptFactory = InstanceFactory.instance(ScriptFactory.class, "tapdata");
+        ScriptEngine scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
+        try {
+            scriptEngine.eval("console.log('graal.js engine loaded');");
+        } catch (ScriptException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

@@ -571,6 +571,9 @@ public class AlarmServiceImpl implements AlarmService {
                 content = StringUtils.replace(info.getSummary(), "$taskName", info.getName());
                 SmsEvent ="异常";
         }
+        Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("email/replace.json");
+        title = OEMReplaceUtil.replace(title, oemConfig);
+        content = OEMReplaceUtil.replace(content, oemConfig);
         Map map = new HashMap();
         map.put("title", title);
         map.put("content", content);

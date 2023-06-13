@@ -64,11 +64,32 @@ public abstract class InspectTask implements Runnable {
 	private Logger logger = LogManager.getLogger(InspectTask.class);
 	private static final String INSPECT_THREAD_NAME_PREFIX = "INSPECT-RUNNER-";
 	private static final String PROCESS_ID = ConfigurationCenter.processId;
+	private final AtomicBoolean isDoStop = new AtomicBoolean(false);
+	private final List<Future<?>> jobFutures = new ArrayList<>();
 
 	public InspectTask(InspectService inspectService, Inspect inspect, ClientMongoOperator clientMongoOperator) {
 		this.inspectService = inspectService;
 		this.inspect = inspect;
 		this.clientMongoOperator = clientMongoOperator;
+	}
+
+	public String getInspectId() {
+		return inspect.getId();
+	}
+
+	public void doStop() {
+		synchronized (jobFutures) {
+			isDoStop.set(true);
+			for (Future<?> future : jobFutures) {
+				try {
+					logger.info("stop begin");
+					future.cancel(true);
+					logger.info("stop completed");
+				} catch (Exception e) {
+					logger.warn("Stop inspect failed: {}", e.getMessage(), e);
+				}
+			}
+		}
 	}
 
 	@Override
@@ -216,8 +237,6 @@ public abstract class InspectTask implements Runnable {
 			ScheduledExecutorService heartBeatThreads = new ScheduledThreadPoolExecutor(1);
 			heartBeatThreads.scheduleAtFixedRate(() -> inspectService.inspectHeartBeat(inspect.getId()), 5, 5, TimeUnit.SECONDS);
 
-			List<Future<?>> futures = new ArrayList<>();
-
 			// Create a verification task for each table and submit it for execution
 			Map<String, ConnectorNode> finalConnectorNodeMap = connectorNodeMap;
 			inspectResult.getInspect().getTasks().forEach(task -> {
@@ -298,12 +317,14 @@ public abstract class InspectTask implements Runnable {
 							}
 						}, sourceNode, targetNode, clientMongoOperator
 				);
-				futures.add(executorService.submit(createTableInspectJob(inspectTaskContext)));
+				synchronized (jobFutures) {
+					jobFutures.add(executorService.submit(createTableInspectJob(inspectTaskContext)));
+				}
 			});
 
 			boolean hasError = false;
 			String errorMessage = "";
-			for (Future future : futures) {
+			for (Future<?> future : jobFutures) {
 				try {
 					future.get();
 				} catch (InterruptedException | ExecutionException e) {
@@ -329,7 +350,10 @@ public abstract class InspectTask implements Runnable {
 			}
 
 			InspectStatus inspectStatus = null;
-			if (hasError) {
+			if (isDoStop.get()) {
+				inspectStatus = InspectStatus.ERROR;
+				errorMessage = "Exit of user stop";
+			} else if (hasError) {
 				inspectStatus = InspectStatus.ERROR;
 			} else {
 				switch (Inspect.Mode.fromValue(inspect.getMode())) {
@@ -348,13 +372,16 @@ public abstract class InspectTask implements Runnable {
 			logger.info("Execute data verification done.");
 		} catch (Throwable e) {
 			logger.error("Execute data verification failed", e);
-			if (null == inspectResult.getErrorMsg()) {
+			if (isDoStop.get()) {
+				inspectResult.setErrorMsg("Failed of user stop");
+				inspectService.updateStatus(inspect.getId(), InspectStatus.ERROR, "Failed of user stop: " + e.getMessage());
+			} else if (null == inspectResult.getErrorMsg()) {
 				inspectResult.setErrorMsg("Execute data verification error: " + e.getMessage());
+				inspectService.updateStatus(inspect.getId(), InspectStatus.ERROR, "Execute data verification error: " + e.getMessage());
 			}
-			inspectService.updateStatus(inspect.getId(), InspectStatus.ERROR, "Execute data verification error: " + e.getMessage());
 		} finally {
+			inspectService.onInspectStopped(inspect);
 			releaseConectorNodes(connectorNodeMap);
-			inspectService.stopInspect(inspect);
 		}
 	}
 
