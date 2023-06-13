@@ -618,7 +618,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
     @SuppressWarnings("unchecked")
     @Override
-    public Map<String, Object> testRunJsNodeRPC(TestRunDto dto, UserDetail userDetail, String accessToken) {
+    public Map<String, Object> testRunJsNodeRPC(TestRunDto dto, UserDetail userDetail) {
         String taskId = dto.getTaskId();
         String nodeId = dto.getJsNodeId();
         String tableName = dto.getTableName();
@@ -716,11 +716,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         taskDtoCopy.setName(taskDto.getName() + "(101)");
         taskDtoCopy.setVersion(version);
         taskDtoCopy.setId(MongoUtils.toObjectId(testTaskId));
-        accessToken = Optional.ofNullable(accessToken).orElse(userDetail.getAccessCode());
-        return jsType == 1 ? rpcTestRun(testTaskId, accessToken, taskDtoCopy, logOutputCount, nodeId) : wsTestRun(userDetail, taskDto, taskDtoCopy);
+        return jsType == 1 ? rpcTestRun(testTaskId, taskDtoCopy, logOutputCount, nodeId) : wsTestRun(userDetail, taskDto, taskDtoCopy);
     }
 
-    private Map<String, Object> rpcTestRun(String testTaskId, String accessToken, TaskDto taskDtoCopy, int logOutputCount, String nodeId){
+    private Map<String, Object> rpcTestRun(String testTaskId, TaskDto taskDtoCopy, int logOutputCount, String nodeId){
         // RPC
         String serverPort = CommonUtils.getProperty("tapdata_proxy_server_port", "3000");
         int port;
@@ -807,8 +806,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         } else if (request.getHeader("authorization") != null) {
             ent.put("authorization", request.getHeader("authorization").trim());
             return new AbstractMap.SimpleEntry<>("Header", ent);
+        } else {
+            throw new BizException("NotLogin");
         }
-        return null;
     }
 
 
