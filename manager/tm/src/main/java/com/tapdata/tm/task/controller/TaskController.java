@@ -1058,7 +1058,12 @@ public class TaskController extends BaseController {
 
     @PostMapping("migrate-js/test-run-rpc")
     @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
-    public ResponseMessage<Map<String, Object>> testRunRPC(@RequestBody TestRunDto dto, @RequestParam("access_token") String accessToken) {
+    public ResponseMessage<Map<String, Object>> testRunRPC(
+            @RequestBody TestRunDto dto,
+            @RequestParam(value = "access_token", required = false) String accessToken,
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) {
         Map<String, Object> data = null;
         ResponseMessage<Map<String, Object>> responseMessage = new ResponseMessage<>();
         Map<String, Object> result = null;
