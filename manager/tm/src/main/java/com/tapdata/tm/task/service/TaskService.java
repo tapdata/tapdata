@@ -445,6 +445,31 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     taskDto.setAccessNodeProcessIdList(oldTaskDto.getAccessNodeProcessIdList());
                 }
 
+                if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+                    DAG dag = oldTaskDto.getDag();
+                    DAG newDag = taskDto.getDag();
+                    if (dag != null && newDag != null) {
+                        LinkedList<DatabaseNode> sourceNode = dag.getSourceNode();
+                        LinkedList<DatabaseNode> newSourceNode = newDag.getSourceNode();
+                        if (CollectionUtils.isNotEmpty(sourceNode) && CollectionUtils.isNotEmpty(newSourceNode)) {
+                            DatabaseNode first = sourceNode.getFirst();
+                            DatabaseNode newFirst = newSourceNode.getFirst();
+                            List<String> tableNames = first.getTableNames();
+                            List<String> newTableNames = new ArrayList<>(newFirst.getTableNames());
+                            newTableNames.removeAll(tableNames);
+                            if (CollectionUtils.isNotEmpty(newTableNames)) {
+                                List<String> ldpNewTables = taskDto.getLdpNewTables();
+                                if (ldpNewTables == null) {
+                                    ldpNewTables = new ArrayList<>();
+                                }
+                                ldpNewTables.addAll(tableNames);
+                                ldpNewTables = ldpNewTables.stream().distinct().collect(Collectors.toList());
+                                taskDto.setLdpNewTables(ldpNewTables);
+                            }
+
+                        }
+                    }
+                }
                 log.debug("old task = {}", oldTaskDto);
             }
         }
