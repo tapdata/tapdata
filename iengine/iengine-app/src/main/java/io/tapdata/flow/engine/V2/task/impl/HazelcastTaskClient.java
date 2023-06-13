@@ -25,6 +25,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -200,7 +201,11 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	@Override
 	public boolean isRunning() {
 		JobStatus status = job.getStatus();
-		return status == JobStatus.STARTING || status == JobStatus.RUNNING;
+		boolean b = status == JobStatus.STARTING || status == JobStatus.RUNNING;
+		if (!b) {
+			logger.warn("The task is not running, status:  {} {}", status, Arrays.asList(Thread.currentThread().getStackTrace()));
+		}
+		return b;
 	}
 
 	@Override
