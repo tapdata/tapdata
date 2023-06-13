@@ -15,7 +15,7 @@ public interface TaskNodeService {
     Page<MetadataTransformerItemDto> getNodeTableInfo(String taskId, String taskRecordId, String nodeId, String searchTableName,
                                                       Integer page, Integer pageSize, UserDetail userDetail);
 
-    void testRunJsNode(TestRunDto dto, UserDetail userDetail, String accessToken);
+    void testRunJsNode(TestRunDto dto, UserDetail userDetail);
 
     Map<String, Object> testRunJsNodeRPC(TestRunDto dto, UserDetail userDetail, String accessToken);
 
