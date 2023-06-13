@@ -716,7 +716,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         taskDtoCopy.setName(taskDto.getName() + "(101)");
         taskDtoCopy.setVersion(version);
         taskDtoCopy.setId(MongoUtils.toObjectId(testTaskId));
-        accessToken = Optional.ofNullable(accessToken).orElse(userDetail.getAccessCode());
         return jsType == 1 ? rpcTestRun(testTaskId, taskDtoCopy, logOutputCount, nodeId) : wsTestRun(userDetail, taskDto, taskDtoCopy);
     }
 
