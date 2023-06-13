@@ -37,6 +37,7 @@ import com.tapdata.tm.task.vo.JsResultVo;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.OEMReplaceUtil;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.entity.codec.TapCodecsRegistry;
@@ -444,11 +445,12 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                         defaultValue = Objects.isNull(field.getOriginalDefaultValue()) ? "" : field.getOriginalDefaultValue().toString();
                     }
                     int primaryKey = Objects.isNull(field.getPrimaryKeyPosition()) ? 0 : field.getPrimaryKeyPosition();
-                    String fieldName = field.getOriginalFieldName();
+                    String previousFieldName = field.getPreviousFieldName();
+                    String fieldName = field.getFieldName();
                     String finalDefaultValue = defaultValue;
                     FieldsMapping mapping = FieldsMapping.builder()
                             .targetFieldName(fieldName)
-                            .sourceFieldName(fieldName)
+                            .sourceFieldName(previousFieldName)
                             .sourceFieldType(field.getDataType())
                             .type("auto")
                             .isShow(true)
@@ -724,7 +726,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             Response response = call.execute();
             int code = response.code();
             return 200 >= code && code < 300 ?
-                    (Map<String, Object>) fromJson(response.body().string())
+                    (Map<String, Object>) fromJson(OEMReplaceUtil.replace(response.body().string(), "connector/replace.json"))
                     : resultMap(testTaskId, false, "Access remote service error, http code: " + code);
         }catch (Exception e){
             return resultMap(testTaskId, false, e.getMessage());

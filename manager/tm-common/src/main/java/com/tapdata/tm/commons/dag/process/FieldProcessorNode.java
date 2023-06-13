@@ -65,14 +65,15 @@ public class FieldProcessorNode extends ProcessorNode {
                     return;
                 }
                 String operand = operation.getOp();
+                String fieldName = operation.getField();
                 if ("CREATE".equalsIgnoreCase(operand)) {
                     outputSchema.getFields().add(createField(this.getId(), schema.getOriginalName(), operation));
                 } else if ("REMOVE".equalsIgnoreCase(operand)) {
                     outputSchema.getFields().removeIf(field ->
-                            operation.getId().equals(field.getId()));
+                            fieldName.equals(field.getFieldName()));
                 } else if ("RENAME".equalsIgnoreCase(operand)) {
                     for (Field field : outputSchema.getFields()) {
-                        if (operation.getId().equals(field.getId())) {
+                        if (fieldName.equals(field.getFieldName())) {
                             field.setOriginalFieldName(operation.getOperand());
                             field.setFieldName(operation.getOperand());
                             break;
@@ -80,7 +81,7 @@ public class FieldProcessorNode extends ProcessorNode {
                     }
                 } else if ("CONVERT".equalsIgnoreCase(operand)) {
                     outputSchema.getFields().forEach(field -> {
-                        if (operation.getId().equals(field.getId())) {
+                        if (fieldName.equals(field.getFieldName())) {
                             field.setDataType(operation.getType());
                         }
                     });

@@ -71,6 +71,7 @@ public class FieldAddDelProcessorNode extends FieldProcessorNode {
                     return;
                 }
                 String operand = operation.getOp();
+                String fieldName = operation.getField();
                 if ("CREATE".equalsIgnoreCase(operand)) {
                     operation.setType("String");
                     operation.setJava_type("String");
@@ -81,7 +82,7 @@ public class FieldAddDelProcessorNode extends FieldProcessorNode {
                     outputSchema.getFields().add(field);
                 } else if ("REMOVE".equalsIgnoreCase(operand) && !"false".equals(operation.getOperand())) {
                     for (Field field : outputSchema.getFields()) {
-                        if (operation.getId().equals(field.getId()))  {
+                        if (fieldName.equals(field.getFieldName()))  {
                             field.setDeleted(true);
                             break;
                         }

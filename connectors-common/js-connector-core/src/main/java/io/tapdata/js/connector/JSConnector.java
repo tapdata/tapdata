@@ -23,6 +23,7 @@ import io.tapdata.js.connector.server.function.support.JSBatchCountFunction;
 import io.tapdata.js.connector.server.function.support.JSBatchReadFunction;
 import io.tapdata.js.connector.server.function.support.JSCommandFunction;
 import io.tapdata.js.connector.server.function.support.JSCreateTableV2Function;
+import io.tapdata.js.connector.server.function.support.JSExecuteCommandFunction;
 import io.tapdata.js.connector.server.function.support.JSRawDataCallbackFunction;
 import io.tapdata.js.connector.server.function.support.JSStreamReadFunction;
 import io.tapdata.js.connector.server.function.support.JSTimestampToStreamOffsetFunction;
@@ -91,6 +92,7 @@ public class JSConnector extends ConnectorBase {
                 .supportCreateTableV2(FunctionSupport.function(this.javaScripter, JSCreateTableV2Function::create))
                 .supportTimestampToStreamOffset(FunctionSupport.function(this.javaScripter, JSTimestampToStreamOffsetFunction::create))
                 .supportCommandCallbackFunction(FunctionSupport.function(this.javaScripter, JSCommandFunction::create))
+                .supportExecuteCommandFunction(FunctionSupport.function(this.javaScripter, JSExecuteCommandFunction::create))
         ;
     }
 
@@ -147,7 +149,11 @@ public class JSConnector extends ConnectorBase {
                     this.javaScripter.scriptEngine().put("nodeIsAlive", isAlive);
                     this.javaScripter.scriptEngine().put("_tapConfig_", configMap);
                     this.javaScripter.scriptEngine().put("tapConfig", tapConfig);
-                    this.javaScripter.scriptEngine().put("tapLog", new TapConnectorLog(new TapLog()));
+                    this.javaScripter.scriptEngine().put("tapLog",
+                            Objects.nonNull(connectionContext) ?
+                                    new TapConnectorLog(Optional.ofNullable(connectionContext.getLog()).orElse(new TapLog()))
+                                    : new TapLog()
+                            );
                     this.load();
                 }
             }
