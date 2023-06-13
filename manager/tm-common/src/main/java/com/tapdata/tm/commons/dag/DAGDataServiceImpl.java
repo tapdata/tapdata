@@ -506,13 +506,15 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
      * @param schema 映射后的字段类型将保存在这个对象上
      */
     private Schema processFieldFromDB(MetadataInstancesDto metadataInstances, Schema schema) {
-        String dbVersion = metadataInstances.getSource().getDb_version();
+        String sourceId = metadataInstances.getSource().get_id();
+        DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(sourceId);
+        String dbVersion = dataSourceConnectionDto.getDb_version();
         if (StringUtils.isBlank(dbVersion)) {
             dbVersion = "*";
         }
 
 
-        String databaseType = metadataInstances.getSource().getDatabase_type();
+        String databaseType = dataSourceConnectionDto.getDatabase_type();
         //Map<String, List<TypeMappingsEntity>> typeMapping = typeMappingsService.getTypeMapping(databaseType, TypeMappingDirection.TO_TAPTYPE);
 
         if (schema.getFields() == null) {
