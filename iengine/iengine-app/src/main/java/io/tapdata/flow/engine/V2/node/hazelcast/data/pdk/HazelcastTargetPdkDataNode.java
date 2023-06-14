@@ -9,6 +9,7 @@ import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.ExistsDataProcessEnum;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -88,13 +89,15 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				TableNode tableNode = (TableNode) getNode();
 				lastTableName = tableNode.getTableName();
 				updateConditionFieldsMap.put(lastTableName, tableNode.getUpdateConditionFields());
-				writeStrategy = tableNode.getWriteStrategy();
 			} else if (getNode() instanceof DatabaseNode) {
 				DatabaseNode dbNode = (DatabaseNode) getNode();
 				if (Objects.isNull(dbNode.getUpdateConditionFieldMap())) {
 					dbNode.setUpdateConditionFieldMap(Maps.newHashMap());
 				}
 				updateConditionFieldsMap.putAll(dbNode.getUpdateConditionFieldMap());
+			}
+			if (getNode() instanceof DataParentNode) {
+				writeStrategy = ((DataParentNode<?>) getNode()).getWriteStrategy();
 			}
 			initTargetDB();
 		} catch (Exception e) {

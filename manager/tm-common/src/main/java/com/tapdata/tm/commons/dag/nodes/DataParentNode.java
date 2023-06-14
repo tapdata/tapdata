@@ -13,6 +13,8 @@ import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.TableIndex;
+import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import lombok.EqualsAndHashCode;
@@ -252,5 +254,35 @@ public abstract class DataParentNode<S> extends Node<S> {
 
     public void setReadPartitionOptions(ReadPartitionOptions readPartitionOptions) {
         this.readPartitionOptions = readPartitionOptions;
+    }
+
+    protected void removeAllPrimaryKeys(Schema schema) {
+        if(null == schema) return;
+        List<Field> fields = schema.getFields();
+        if(null == fields) return;
+        fields.forEach(field -> {
+            field.setPrimaryKey(false);
+            field.setPrimaryKeyPosition(0);
+        });
+    }
+
+    protected void removeAllUniqueIndex(Schema schema) {
+        if(null == schema) return;
+        List<TableIndex> indices = schema.getIndices();
+        if(null == indices) return;
+        Iterator<TableIndex> iterator = indices.iterator();
+        while (iterator.hasNext()) {
+            TableIndex index = iterator.next();
+            if (index.isUnique()) {
+                iterator.remove();
+            }
+        }
+    }
+
+    protected void handleAppendWrite(Schema outputSchema) {
+        if (getWriteStrategy().equals(MergeTableProperties.MergeType.appendWrite.name())) {
+            removeAllPrimaryKeys(outputSchema);
+            removeAllUniqueIndex(outputSchema);
+        }
     }
 }
