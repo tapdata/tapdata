@@ -503,7 +503,8 @@
 					"3.402823466E+38"
 				],
 				"unsigned": "unsigned",
-				"fixed": false
+				"fixed": false,
+				"queryOnly": true
 			},
 			"float": {
 				"to": "TapNumber",
@@ -515,7 +516,8 @@
 					0,
 					6
 				],
-				"fixed": false
+				"fixed": false,
+				"queryOnly": true
 			},
 			"double": {
 				"to": "TapNumber",
