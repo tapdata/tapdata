@@ -152,7 +152,13 @@ public class RabbitmqService extends AbstractMqService {
         AtomicLong delete = new AtomicLong(0);
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
         Channel channel = rabbitmqConnection.createChannel();
+        // 如果 tapTable 为 null, 直接返回
+        if (tapTable == null) {
+            writeListResultConsumer.accept(listResult.insertedCount(0).modifiedCount(0).removedCount(0));
+            return;
+        }
         channel.queueDeclare(tapTable.getId(), true, false, false, null);
+
         for (TapRecordEvent event : tapRecordEvents) {
             if (null != isAlive && !isAlive.get()) {
                 break;
