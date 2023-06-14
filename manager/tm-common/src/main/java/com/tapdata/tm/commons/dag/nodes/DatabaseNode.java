@@ -154,6 +154,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
                     break;
                 }
             }
+            handleAppendWrite(schema);
         }
         return outputSchema;
     }
