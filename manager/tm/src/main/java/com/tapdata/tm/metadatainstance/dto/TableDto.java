@@ -5,7 +5,7 @@ import lombok.Data;
 
 @Data
 @Builder
-public class TableCommentDto {
+public class TableDto {
     private String tableName;
 
     private String tableComment;
