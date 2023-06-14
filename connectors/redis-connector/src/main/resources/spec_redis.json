@@ -78,6 +78,16 @@
           "x-index": 4,
           "required": true
         },
+        "schemaKey": {
+          "type": "string",
+          "title": "${schemaKey}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "schemaKey",
+          "default": "-schema-key-",
+          "x-index": 5,
+          "required": true
+        },
         "passwordDisplay": {
           "type": "boolean",
           "title": "${passwordDisplay}",
@@ -222,7 +232,7 @@
               "dependencies": [".valueType",".oneKey"],
               "fulfill": {
                 "state": {
-                  "visible": "{{$deps[0] === 'List' && $deps[1]}}"
+                  "visible": "{{($deps[0] !== 'String') && $deps[1]}}"
                 }
               }
             }
@@ -392,6 +402,7 @@
       "doc": "docs/redis_en_US.md",
       "host": "DB Host",
       "database": "Database Name",
+      "schemaKey": "Schema Key",
       "port": "Port",
       "password": "Password",
       "deploymentMode": "Deployment mode",
@@ -431,6 +442,7 @@
       "doc": "docs/redis_zh_CN.md",
       "host": "数据库地址",
       "database": "数据库名称",
+      "schemaKey": "Schema键",
       "port": "端口",
       "password": "密码",
       "deploymentMode": "部署模式",
@@ -470,6 +482,7 @@
       "doc": "docs/redis_zh_TW.md",
       "host": "數據庫地址",
       "database": "數據庫名稱",
+      "schemaKey": "Schema鍵",
       "port": "端口",
       "password": "密碼",
       "deploymentMode": "部署模式",
