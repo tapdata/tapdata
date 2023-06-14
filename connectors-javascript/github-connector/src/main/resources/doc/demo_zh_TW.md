@@ -1,5 +1,5 @@
 ### 寫在前面
-如果您感興趣的話，不妨前往ZoHo提供的OpenAPI文檔文檔，詳細了解全部內容：
+如果您感興趣的話，不妨前往Github提供的OpenAPI文檔文檔，詳細了解全部內容：
 
 - OpenAPI文檔：[https://docs.github.com/zh](https://docs.github.com/zh)
 
