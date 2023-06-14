@@ -83,20 +83,20 @@ public class MysqlConnector extends ConnectorBase {
 
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
+        String timezone = tapConnectionContext.getConnectionConfig().getString("timezone");
+        this.timeZone = "Database Timezone".equals(timezone) || StringUtils.isBlank(timezone) ?
+                new MysqlJdbcContextV2(new MysqlConfig().load(tapConnectionContext.getConnectionConfig())).queryTimeZone()
+                : TimeZone.getTimeZone(ZoneId.of(timezone));
+        String id = timeZone.toZoneId().getId();
+        if (id.startsWith("GMT")){
+            id = id.replace("GMT", "");
+        }
+        tapConnectionContext.getConnectionConfig().put("timezone", id);
         this.mysqlJdbcContext = initMysqlJdbcContext(tapConnectionContext);
         if (tapConnectionContext instanceof TapConnectorContext) {
             this.mysqlWriter = new MysqlSqlBatchWriter(mysqlJdbcContext);
             this.mysqlReader = new MysqlReader(mysqlJdbcContext);
             this.version = mysqlJdbcContext.getMysqlVersion();
-            String timezone = tapConnectionContext.getConnectionConfig().getString("timezone");
-            this.timeZone = "Database Timezone".equals(timezone) || StringUtils.isBlank(timezone) ?
-                    new MysqlJdbcContextV2(new MysqlConfig().load(tapConnectionContext.getConnectionConfig())).queryTimeZone()
-                    : TimeZone.getTimeZone(ZoneId.of(timezone));
-            String id = timeZone.toZoneId().getId();
-            if (id.startsWith("GMT")){
-                id = id.replace("GMT", "");
-            }
-            tapConnectionContext.getConnectionConfig().put("timezone", id);
         }
         ddlSqlMaker = new MysqlDDLSqlMaker(version);
         fieldDDLHandlers = new BiClassHandlers<>();
