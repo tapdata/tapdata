@@ -85,7 +85,7 @@ public class LdpServiceImpl implements LdpService {
 
     @Override
     @Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
-    public TaskDto createFdmTask(TaskDto task, UserDetail user) {
+    public TaskDto createFdmTask(TaskDto task, boolean start, UserDetail user) {
         //check fdm task
         String fdmConnId = checkFdmTask(task, user);
         task.setLdpType(TaskDto.LDP_TYPE_FDM);
@@ -94,12 +94,15 @@ public class LdpServiceImpl implements LdpService {
         DatabaseNode databaseNode = (DatabaseNode) dag.getSources().get(0);
         String connectionId = databaseNode.getConnectionId();
 
-        Criteria criteria = Criteria.where("ldpType").is(TaskDto.LDP_TYPE_FDM)
-                .and("dag.nodes.connectionId").is(connectionId)
-                .and("is_deleted").ne(true)
-                .and("status").nin(Lists.newArrayList(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED));
+        Criteria criteria = fdmTaskCriteria(connectionId);
+        criteria.and("fdmMain").is(true);
         Query query = new Query(criteria);
         TaskDto oldTask = taskService.findOne(query, user);
+        if (oldTask == null) {
+            criteria = fdmTaskCriteria(connectionId);
+            criteria.and("name").regex("Clone_To_FDM");
+            oldTask = taskService.findOne(query, user);
+        }
 
 
         List<String> oldTableNames = new ArrayList<>();
@@ -128,7 +131,6 @@ public class LdpServiceImpl implements LdpService {
             if (StringUtils.isNotBlank(oldSourceNode.getTableExpression())) {
                 mergeAllTable(user, connectionId, oldTask, oldTableNames);
                 task = oldTask;
-                databaseNode = (DatabaseNode) task.getDag().getSources().get(0);
             } else if ((StringUtils.isNotBlank(databaseNode.getTableExpression()))) {
                 mergeAllTable(user, connectionId, task, oldTableNames);
                 oldTask.setDag(task.getDag());
@@ -139,8 +141,10 @@ public class LdpServiceImpl implements LdpService {
         } else if (StringUtils.isNotBlank(databaseNode.getTableExpression())) {
             mergeAllTable(user, connectionId, task, null);
         } else {
-            task = createNew(task, dag, oldTask);
+            task = createNew(task, dag, null);
         }
+
+        task.setFdmMain(true);
 
         databaseNode = (DatabaseNode) task.getDag().getSources().get(0);
         List<String> sourceTableNames = new ArrayList<>(databaseNode.getTableNames());
@@ -177,17 +181,27 @@ public class LdpServiceImpl implements LdpService {
         //创建fdm的分类
         createFdmTags(taskDto, user);
 
-        if (oldTask != null) {
-            if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
-                taskService.pause(taskDto, user, false, true);
+        if (start) {
+            if (oldTask != null) {
+                if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
+                    taskService.pause(taskDto, user, false, true);
+                } else {
+                    taskService.start(taskDto, user, "00");
+                }
             } else {
                 taskService.start(taskDto, user, "00");
             }
-        } else {
-            taskService.start(taskDto, user, "00");
         }
 
         return taskDto;
+    }
+
+
+    private Criteria fdmTaskCriteria(String connectionId) {
+        return  Criteria.where("ldpType").is(TaskDto.LDP_TYPE_FDM)
+                .and("dag.nodes.connectionId").is(connectionId)
+                .and("is_deleted").ne(true)
+                .and("status").nin(Lists.newArrayList(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED));
     }
 
     @Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
@@ -664,6 +678,16 @@ public class LdpServiceImpl implements LdpService {
         return new Tag(mdmTag.getId().toHexString(), mdmTag.getValue());
     }
 
+    public boolean queryTagBelongMdm(String tagId, UserDetail user, String mdmTags) {
+        if (StringUtils.isBlank(mdmTags)) {
+            Tag mdmTag = getMdmTag(user);
+            mdmTags = mdmTag.getId();
+        }
+        Map<String, Boolean> map = queryTagBelongMdm(Lists.newArrayList(tagId), user, mdmTags);
+        Boolean b = map.get(tagId);
+        return b != null && b;
+
+    }
     private Map<String, Boolean> queryTagBelongMdm(List<String> tagIds, UserDetail user, String mdmTags) {
         Map<String, Boolean> mdmMap = new HashMap<>();
 
@@ -913,6 +937,95 @@ public class LdpServiceImpl implements LdpService {
                 log.warn("generate mdm task by old failed, user = {}, e = {}", userDetail == null ? null : userDetail.getEmail(), e);
             }
         }
+    }
+
+    @Override
+    public Map<String, String> ldpTableStatus(String connectionId, List<String> tableNames, String ldpType, UserDetail user) {
+        Map<String, String> tableStatusMap = new HashMap<>();
+        if (TaskDto.LDP_TYPE_FDM.equals(ldpType)) {
+            Criteria criteria = fdmTaskCriteria(connectionId);
+            List<TaskDto> taskDtos = taskService.findAllDto(new Query(criteria), user);
+            for (TaskDto taskDto : taskDtos) {
+                DAG dag = taskDto.getDag();
+                if (dag != null) {
+                    LinkedList<DatabaseNode> targetNode = dag.getTargetNode();
+                    DatabaseNode last = targetNode.getFirst();
+                    if (last != null) {
+                        List<SyncObjects> syncObjects = last.getSyncObjects();
+                        SyncObjects syncObjects1 = syncObjects.get(0);
+                        Map<String, String> map = new HashMap<>();
+                        LinkedHashMap<String, String> tableNameRelation = syncObjects1.getTableNameRelation();
+                        tableNameRelation.forEach((k, v) -> {
+                            map.put(v, k);
+                        });
+
+                        List<String> ldpNewTables = taskDto.getLdpNewTables();
+                        if (ldpNewTables == null) {
+                            ldpNewTables = new ArrayList<>();
+                        }
+                        if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
+                            String state = "running";
+                            for (String tableName : tableNames) {
+                                if (map.containsKey(tableName)) {
+                                    if (!ldpNewTables.contains(tableName)) {
+                                        tableStatusMap.put(tableName, state);
+                                    } else {
+                                        if (!"running".equals(tableStatusMap.get(tableName))) {
+                                            tableStatusMap.put(tableName, "noRunning");
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            for (String tableName : tableNames) {
+                                if (map.containsKey(tableName)) {
+                                    if (!"running".equals(tableStatusMap.get(tableName))) {
+                                        tableStatusMap.put(tableName, "noRunning");
+                                    }
+                                }
+                            }
+
+                        }
+
+                    }
+                }
+
+
+            }
+
+        } else {
+            Criteria criteria = Criteria.where("ldpType").is(TaskDto.LDP_TYPE_MDM)
+                    .and("dag.nodes.tableName").in(tableNames)
+                    .and("is_deleted").ne(true)
+                    .and("status").nin(Lists.newArrayList(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED));
+
+
+            List<TaskDto> taskDtos = taskService.findAllDto(new Query(criteria), user);
+            for (TaskDto taskDto : taskDtos) {
+                DAG dag = taskDto.getDag();
+                if (dag != null) {
+                    List<Node> targets = dag.getTargets();
+                    for (Node target : targets) {
+                        if (target instanceof TableNode) {
+                            String tableName = ((TableNode) target).getTableName();
+                            if (tableNames.contains(tableName)) {
+                                if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
+                                    tableStatusMap.put(tableName, "running");
+                                } else {
+                                    if (!"running".equals(tableStatusMap.get(tableName))) {
+                                        tableStatusMap.put(tableName, "noRunning");
+                                    }
+                                }
+                            }
+
+                        }
+                    }
+                }
+            }
+
+        }
+
+        return tableStatusMap;
     }
 
     private void supplementaryLdpTaskByOld(UserDetail user) {

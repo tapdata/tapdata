@@ -33,6 +33,7 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.task.repository.TaskCollectionObjRepository;
+import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.task.service.TaskCollectionObjService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.WorkerDto;
@@ -80,7 +81,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
     private ApiServerService apiServerService;
 
-    private MongoTemplate mongoTemplate;
+    private LdpService ldpService;
 
     /**
      * 查询对象概览列表
@@ -1033,9 +1034,9 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     Criteria.where("name").regex(param.getQueryKey()),
                     Criteria.where("tableName").regex(param.getQueryKey()));
         }
-
+        MetadataDefinitionDto definitionDto = null;
         if (StringUtils.isNotBlank(param.getTagId())) {
-            MetadataDefinitionDto definitionDto = metadataDefinitionService.findById(MongoUtils.toObjectId(param.getTagId()));
+            definitionDto = metadataDefinitionService.findById(MongoUtils.toObjectId(param.getTagId()));
             if (definitionDto != null) {
                 List<String> itemTypes = definitionDto.getItemType();
 
@@ -1240,6 +1241,20 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
 
         List<DataDirectoryDto> items = unionQueryResults.parallelStream().map(this::convertToDataDirectory).collect(Collectors.toList());
+
+        List<String> collect = items.stream().map(DataDirectoryDto::getName).collect(Collectors.toList());
+        Map<String, String> tableStatus = null;
+        if (definitionDto != null && StringUtils.isNotBlank(definitionDto.getLinkId())) {
+            tableStatus = ldpService.ldpTableStatus(definitionDto.getLinkId(), collect, TaskDto.LDP_TYPE_FDM, user);
+
+        } else if (definitionDto != null && ldpService.queryTagBelongMdm(definitionDto.getId().toHexString(), user, null)) {
+            tableStatus = ldpService.ldpTableStatus(definitionDto.getLinkId(), collect, TaskDto.LDP_TYPE_FDM, user);
+        }
+        if (tableStatus != null) {
+            for (DataDirectoryDto item : items) {
+                item.setStatus(tableStatus.get(item.getName()));
+            }
+        }
 
         page.setItems(items);
         page.setTotal(total);

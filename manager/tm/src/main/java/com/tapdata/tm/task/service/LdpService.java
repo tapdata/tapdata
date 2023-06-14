@@ -10,7 +10,7 @@ import java.util.Map;
 
 public interface LdpService {
 
-    TaskDto createFdmTask(TaskDto task, UserDetail user);
+    TaskDto createFdmTask(TaskDto task, boolean start, UserDetail user);
 
 
     TaskDto createMdmTask(TaskDto task, String tagId, UserDetail user, boolean confirmTable, boolean start);
@@ -26,4 +26,8 @@ public interface LdpService {
     void addLdpDirectory(UserDetail user, Map<String, String> oldLdpMap);
 
     void generateLdpTaskByOld();
+
+    boolean queryTagBelongMdm(String tagId, UserDetail user, String mdmTags);
+
+    Map<String, String> ldpTableStatus(String connectionId, List<String> tableNames, String ldpType, UserDetail user);
 }
