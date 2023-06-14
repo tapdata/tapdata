@@ -5,6 +5,7 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
 import com.alibaba.fastjson.JSON;
+import com.google.common.base.Splitter;
 import com.google.common.collect.Lists;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.result.UpdateResult;
@@ -362,7 +363,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
             int num = taskService.runningTaskNum(agentId);
             if (Objects.nonNull(worker)) {
-                if (worker.getLimitTaskNum() > num || !type.equals("task")) {
+                if (getLimitTaskNum(worker, userDetail) > num || !type.equals("task")) {
                     calculationEngineVo.setProcessId(agentId);
                     calculationEngineVo.setManually(true);
 
@@ -444,7 +445,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                     worker.setWeight(1);
                 }
                 long num = taskService.runningTaskNum(worker.getProcessId());
-                if (worker.getLimitTaskNum() > num || !type.equals("task")) {
+                if (getLimitTaskNum(worker, userDetail) > num || !type.equals("task")) {
                     workerNum++;
 
                     worker.setRunningThread((int) num);
@@ -755,5 +756,48 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                 });
             });
         }
+    }
+
+    public int getLimitTaskNum(WorkerDto workerDto, UserDetail user) {
+        // query by public agent -- start
+        if (!workerDto.getUserId().equals(user.getUserId())) {
+            return 3;
+        }
+        // query by public agent -- end
+
+        // query limit by tags -- start
+        if (CollectionUtils.isEmpty(workerDto.getAgentTags())) {
+            return Integer.MAX_VALUE;
+        }
+
+        String limitString = null;
+        for (String agentTag : workerDto.getAgentTags()) {
+            if (agentTag.startsWith("limitScheduleTask")) {
+                limitString = agentTag;
+                break;
+            }
+        }
+
+        if (org.apache.commons.lang3.StringUtils.isBlank(limitString)) {
+            return Integer.MAX_VALUE;
+        }
+
+        List<String> list = Splitter.on(':')
+                .trimResults()
+                .omitEmptyStrings()
+                .splitToList(limitString);
+
+        if (list.size() < 2) {
+            return Integer.MAX_VALUE;
+        }
+
+        int limit = Integer.MAX_VALUE;
+        try {
+            limit = Integer.parseInt(list.get(1));
+        } catch (Exception ignore) {
+        }
+
+        return limit;
+        // query limit by tags -- end
     }
 }
