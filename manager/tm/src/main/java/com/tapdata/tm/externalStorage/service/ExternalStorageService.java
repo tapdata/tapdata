@@ -230,6 +230,10 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 		return maskPasswordIfNeed(super.findOne(filter, userDetail));
 	}
 
+	public ExternalStorageDto findNotCheckById(String id) {
+		return super.findById(new ObjectId(id), new Field());
+	}
+
 	@Override
 	public boolean deleteById(ObjectId objectId, UserDetail userDetail) {
 		ExternalStorageEntity externalStorageEntity = repository.findById(objectId, userDetail).orElse(null);
