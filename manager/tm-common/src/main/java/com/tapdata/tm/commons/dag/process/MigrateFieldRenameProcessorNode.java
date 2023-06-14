@@ -12,6 +12,9 @@ import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.util.CapitalizedEnum;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.entity.ValueChange;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -103,6 +106,26 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 		return SchemaUtils.cloneSchema(schemas);
 	}
 
+	@Override
+	public void fieldDdlEvent(TapDDLEvent tapEvent) throws Exception {
+		// update field config of rename ddl
+		if (tapEvent instanceof TapAlterFieldNameEvent) {
+			if (null == fieldsMapping) return;
+			ValueChange<String> nameChange = ((TapAlterFieldNameEvent) tapEvent).getNameChange();
+			for (TableFieldInfo tableFieldInfo : fieldsMapping) {
+				if (!tapEvent.getTableId().equals(tableFieldInfo.getPreviousTableName())) continue;
+				if (null == tableFieldInfo.getFields() || tableFieldInfo.getFields().isEmpty()) continue;
+
+				for (FieldInfo fieldInfo : tableFieldInfo.getFields()) {
+					if (nameChange.getAfter().equals(fieldInfo.getSourceFieldName())) {
+						fieldInfo.setSourceFieldName(nameChange.getBefore());
+						return;
+					}
+				}
+			}
+		}
+	}
+
 	private String getConnectId() {
 		AtomicReference<String> connectionId = new AtomicReference<>("");
 
@@ -111,15 +134,18 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 	}
 
 	public interface IOperator<T> {
-		default void deleteField(T param, String originalName){}
+		default void deleteField(T param, String originalName) {
+		}
 
-		default void renameField(T param, String fromName, String toName){}
+		default void renameField(T param, String fromName, String toName) {
+		}
 	}
 
 	public static class ApplyConfig {
 		private final Operation fieldsOperation;
 		private final Map<String, TableFieldInfo> tableFieldInfoMap;
 		private final Map<String, Map<String, FieldInfo>> fieldInfoMaps;
+
 
 		public ApplyConfig(MigrateFieldRenameProcessorNode node) {
 			fieldsOperation = node.getFieldsOperation();
@@ -154,7 +180,8 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 			return fieldInfoMap.get(fieldName);
 		}
 
-		public <T> void apply(String tableName, String fieldName, T operatorParam, IOperator<T> operator) {
+		public <T> boolean apply(String tableName, String fieldName, T operatorParam, IOperator<T> operator) {
+			boolean isShow = true;
 			AtomicReference<String> newFieldName = new AtomicReference<>(fieldName);
 			newFieldName.set(apply(fieldsOperation, newFieldName.get())); // global settings
 
@@ -168,6 +195,7 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 				if (null != fieldInfo) {
 					if (Boolean.FALSE.equals(fieldInfo.getIsShow())) {
 						operator.deleteField(operatorParam, fieldName);
+						isShow = false;
 					}
 					if (StringUtils.isNotBlank(fieldInfo.getTargetFieldName())) {
 						newFieldName.set(fieldInfo.getTargetFieldName());
@@ -178,6 +206,8 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 			if (!fieldName.equals(newFieldName.get())) {
 				operator.renameField(operatorParam, fieldName, newFieldName.get());
 			}
+
+			return isShow;
 		}
 
 		private String apply(Operation operation, String originalFieldName) {

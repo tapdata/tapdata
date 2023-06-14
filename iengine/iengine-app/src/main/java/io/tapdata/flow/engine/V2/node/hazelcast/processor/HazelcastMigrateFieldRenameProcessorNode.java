@@ -6,17 +6,15 @@ import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.FieldAttrChange;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldPrimaryKeyEvent;
-import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
+import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
-import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -39,6 +37,12 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 		@Override
 		public void renameField(TapAlterFieldAttributesEvent param, String fromName, String toName) {
 			param.setFieldName(toName);
+		}
+	};
+	private final MigrateFieldRenameProcessorNode.IOperator<TapField> newFieldOperator = new MigrateFieldRenameProcessorNode.IOperator<TapField>() {
+		@Override
+		public void renameField(TapField param, String fromName, String toName) {
+			param.setName(toName);
 		}
 	};
 	private final MigrateFieldRenameProcessorNode.IOperator<TapAlterFieldNameEvent> alterFieldNameOperator = new MigrateFieldRenameProcessorNode.IOperator<TapAlterFieldNameEvent>() {
@@ -105,56 +109,59 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 			processedEvent.set(tapdataEvent);
 		} else {
 			//ddl event
-			if (tapEvent instanceof TapAlterFieldAttributesEvent) {
-				TapAlterFieldAttributesEvent param = (TapAlterFieldAttributesEvent) tapEvent;
-				applyConfig.apply(tableId, param.getFieldName(), param, alterFieldOperator);
-			} else if (tapEvent instanceof TapAlterFieldNameEvent) {
-				TapAlterFieldNameEvent param = (TapAlterFieldNameEvent) tapEvent;
-				applyConfig.apply(tableId, param.getNameChange().getBefore(), param, alterFieldNameOperator);
-			} else if (tapEvent instanceof TapDropFieldEvent) {
-				TapDropFieldEvent param = (TapDropFieldEvent) tapEvent;
-				applyConfig.apply(tableId, param.getFieldName(), param, dropFieldOperator);
-			} else if (tapEvent instanceof TapAlterFieldPrimaryKeyEvent) {
-				List<FieldAttrChange<List<String>>> primaryKeyChanges = ((TapAlterFieldPrimaryKeyEvent) tapEvent).getPrimaryKeyChanges();
-				ListIterator<FieldAttrChange<List<String>>> primaryKeyChangesIter = primaryKeyChanges.listIterator();
-				while (primaryKeyChangesIter.hasNext()) {
-					FieldAttrChange<List<String>> fieldAttrChange = primaryKeyChangesIter.next();
-					List<String> before = fieldAttrChange.getBefore();
-					ListIterator<String> fieldsIter = before.listIterator();
+			boolean validEvent = true;
+			if (tapEvent instanceof TapDDLEvent) {
+				if (tapEvent instanceof TapAlterFieldAttributesEvent) {
+					TapAlterFieldAttributesEvent param = (TapAlterFieldAttributesEvent) tapEvent;
+					validEvent = applyConfig.apply(tableId, param.getFieldName(), param, alterFieldOperator);
+				} else if (tapEvent instanceof TapNewFieldEvent) {
+					TapNewFieldEvent param = (TapNewFieldEvent) tapEvent;
+					param.getNewFields().removeIf(tapField -> !applyConfig.apply(tableId, tapField.getName(), tapField, newFieldOperator));
+					validEvent = !param.getNewFields().isEmpty();
+				} else if (tapEvent instanceof TapAlterFieldNameEvent) {
+					TapAlterFieldNameEvent param = (TapAlterFieldNameEvent) tapEvent;
+					validEvent = applyConfig.apply(tableId, param.getNameChange().getBefore(), param, alterFieldNameOperator);
+				} else if (tapEvent instanceof TapDropFieldEvent) {
+					TapDropFieldEvent param = (TapDropFieldEvent) tapEvent;
+					validEvent = applyConfig.apply(tableId, param.getFieldName(), param, dropFieldOperator);
+				} else if (tapEvent instanceof TapAlterFieldPrimaryKeyEvent) {
+					List<FieldAttrChange<List<String>>> primaryKeyChanges = ((TapAlterFieldPrimaryKeyEvent) tapEvent).getPrimaryKeyChanges();
+					ListIterator<FieldAttrChange<List<String>>> primaryKeyChangesIter = primaryKeyChanges.listIterator();
+					while (primaryKeyChangesIter.hasNext()) {
+						FieldAttrChange<List<String>> fieldAttrChange = primaryKeyChangesIter.next();
+						List<String> before = fieldAttrChange.getBefore();
+						ListIterator<String> fieldsIter = before.listIterator();
 
-					while (fieldsIter.hasNext()) {
-						String fieldName = fieldsIter.next();
-						applyConfig.apply(tableId, fieldName, fieldsIter, alterFieldPrimaryKeyOperator);
+						while (fieldsIter.hasNext()) {
+							String fieldName = fieldsIter.next();
+							applyConfig.apply(tableId, fieldName, fieldsIter, alterFieldPrimaryKeyOperator);
+						}
+						if (before.isEmpty()) {
+							primaryKeyChangesIter.remove();
+						}
 					}
-					if (CollectionUtils.isEmpty(before)) {
-						primaryKeyChangesIter.remove();
-					}
-				}
-				if (CollectionUtils.isNotEmpty(primaryKeyChanges)) {
-					processedEvent.set(tapdataEvent);
-				}
-			} else if (tapEvent instanceof TapCreateIndexEvent) {
-				List<TapIndex> indexList = ((TapCreateIndexEvent) tapEvent).getIndexList();
-				Iterator<TapIndex> indexIterator = indexList.iterator();
-				while (indexIterator.hasNext()) {
-					TapIndex tapIndex = indexIterator.next();
-					List<TapIndexField> indexFields = tapIndex.getIndexFields();
-					ListIterator<TapIndexField> tapIndexFieldListIterator = indexFields.listIterator();
-					while (tapIndexFieldListIterator.hasNext()) {
-						TapIndexField tapIndexField = tapIndexFieldListIterator.next();
-						String fieldName = tapIndexField.getName();
+					validEvent = !primaryKeyChanges.isEmpty();
+				} else if (tapEvent instanceof TapCreateIndexEvent) {
+					List<TapIndex> indexList = ((TapCreateIndexEvent) tapEvent).getIndexList();
+					Iterator<TapIndex> indexIterator = indexList.iterator();
+					while (indexIterator.hasNext()) {
+						TapIndex tapIndex = indexIterator.next();
+						List<TapIndexField> indexFields = tapIndex.getIndexFields();
+						ListIterator<TapIndexField> tapIndexFieldListIterator = indexFields.listIterator();
+						while (tapIndexFieldListIterator.hasNext()) {
+							TapIndexField tapIndexField = tapIndexFieldListIterator.next();
+							String fieldName = tapIndexField.getName();
 
-						applyConfig.apply(tableId, fieldName, tapIndexFieldListIterator, createIndexEventOperator);
+							applyConfig.apply(tableId, fieldName, tapIndexFieldListIterator, createIndexEventOperator);
+						}
+						if (indexFields.isEmpty()) {
+							indexIterator.remove();
+						}
 					}
-					if (CollectionUtils.isEmpty(indexFields)) {
-						indexIterator.remove();
-					}
+					validEvent = !indexList.isEmpty();
 				}
-				if (CollectionUtils.isNotEmpty(indexList)) {
-					processedEvent.set(tapdataEvent);
-				}
-			} else {
-				//no processing required
+			}
+			if (validEvent) {
 				processedEvent.set(tapdataEvent);
 			}
 		}
