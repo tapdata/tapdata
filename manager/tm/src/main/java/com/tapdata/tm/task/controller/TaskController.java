@@ -15,7 +15,6 @@ import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.websocket.ReturnCallback;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -32,7 +31,6 @@ import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.github.openlg.graphlib.Graph;
 import io.swagger.v3.oas.annotations.Operation;
@@ -47,8 +45,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -95,10 +91,6 @@ public class TaskController extends BaseController {
     @PostMapping
     public ResponseMessage<TaskDto> save(@RequestBody TaskDto task) {
         UserDetail user = getLoginUser();
-        // check user is had pulic agent, then task number can't more than 3
-        if (countTaskLimit(user)) {
-            return failed("Task_Count_Over_Three" ,"public agent task number can't more than 3");
-        }
 
         task.setId(null);
         return success(taskService.create(task, user));
@@ -115,31 +107,11 @@ public class TaskController extends BaseController {
     public ResponseMessage<TaskDto> update(@RequestBody TaskDto task) {
         UserDetail user = getLoginUser();
 
-        // check user is had pulic agent, then task number can't more than 3
-        if (countTaskLimit(user)) {
-            return failed("Task_Count_Over_Three" ,"public agent task number can't more than 3");
-        }
-
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
         taskSaveService.supplementAlarm(task, user);
         task.setStatus(null);
         return success(taskService.updateById(task, user));
     }
-
-    private boolean countTaskLimit(UserDetail user) {
-        boolean flag = false;
-        // check user is had pulic agent, then task number can't more than 3
-        WorkerExpireDto shareWorker = workerService.getShareWorker(user);
-        if (shareWorker != null) {
-            long count = taskService.countTaskNumber(user);
-            if (count > 3) {
-                return true;
-            }
-        }
-
-        return flag;
-    }
-
 
     /**
      * 获取数据开发列表
@@ -172,7 +144,9 @@ public class TaskController extends BaseController {
                 taskId = objectId instanceof Map ? ((Map) objectId).get("$oid").toString() : objectId.toString();
             else taskId = where.get("id").toString();
             TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
-            Assert.notNull(taskDto, "task is empty");
+            if (taskDto == null) {
+                return success(new Page<>());
+            }
             userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
         } else {
             userDetail = getLoginUser();
@@ -1051,19 +1025,19 @@ public class TaskController extends BaseController {
 
     @PostMapping("migrate-js/test-run")
     @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
-    public ResponseMessage<Void> testRun(@RequestBody TestRunDto dto, @RequestParam("access_token") String accessToken) {
-        taskNodeService.testRunJsNode(dto, getLoginUser(), accessToken);
+    public ResponseMessage<Void> testRun(@RequestBody TestRunDto dto) {
+        taskNodeService.testRunJsNode(dto, getLoginUser());
         return success();
     }
 
     @PostMapping("migrate-js/test-run-rpc")
     @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
-    public ResponseMessage<Map<String, Object>> testRunRPC(@RequestBody TestRunDto dto, @RequestParam("access_token") String accessToken) {
+    public ResponseMessage<Map<String, Object>> testRunRPC(@RequestBody TestRunDto dto) {
         Map<String, Object> data = null;
         ResponseMessage<Map<String, Object>> responseMessage = new ResponseMessage<>();
         Map<String, Object> result = null;
         try {
-            data = taskNodeService.testRunJsNodeRPC(dto, getLoginUser(), accessToken);
+            data = taskNodeService.testRunJsNodeRPC(dto, getLoginUser());
             result = (Map<String, Object>)Optional.ofNullable(data.get("data")).orElse(data);
             if (null == result || result.isEmpty()) {
                 throw new CoreException("Can not get data from source,  Please ensure if source connection is valid");

@@ -5,6 +5,7 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
 import com.alibaba.fastjson.JSON;
+import com.google.common.base.Splitter;
 import com.google.common.collect.Lists;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.result.UpdateResult;
@@ -49,6 +50,7 @@ import com.tapdata.tm.worker.vo.ApiWorkerStatusVo;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import io.firedome.MultiTaggedCounter;
 import io.micrometer.core.instrument.Metrics;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -362,7 +364,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
             int num = taskService.runningTaskNum(agentId);
             if (Objects.nonNull(worker)) {
-                if (worker.getLimitTaskNum() > num || !type.equals("task")) {
+                if (getLimitTaskNum(worker, userDetail) > num || !type.equals("task")) {
                     calculationEngineVo.setProcessId(agentId);
                     calculationEngineVo.setManually(true);
 
@@ -444,7 +446,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                     worker.setWeight(1);
                 }
                 long num = taskService.runningTaskNum(worker.getProcessId());
-                if (worker.getLimitTaskNum() > num || !type.equals("task")) {
+                if (getLimitTaskNum(worker, userDetail) > num || !type.equals("task")) {
                     workerNum++;
 
                     worker.setRunningThread((int) num);
@@ -751,9 +753,62 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                 List<WorkerDto> shareWorkers = findAll(Query.query(Criteria.where("user_id").is(workerExpire.getShareTmUserId())));
                 shareWorkers.forEach(workerDto -> {
                     String processId = workerDto.getProcessId();
-                    taskExtendService.stopTaskByAgentIdAndUserId(processId, workerExpire.getUserId());
+                    CommonUtils.ignoreAnyError(() -> taskExtendService.stopTaskByAgentIdAndUserId(processId, workerExpire.getUserId()), "TM");
                 });
             });
         }
+    }
+
+    public int getLimitTaskNum(WorkerDto workerDto, UserDetail user) {
+        if (workerDto == null || workerDto.getProcessId() == null) {
+            return -1;
+        }
+
+        // query by public agent -- start
+        if (!user.getUserId().equals(workerDto.getUserId())) {
+            return 3;
+        }
+        // query by public agent -- end
+
+        // query limit by tags -- start
+        if (CollectionUtils.isEmpty(workerDto.getAgentTags())) {
+            return Integer.MAX_VALUE;
+        }
+
+        String limitString = null;
+        for (String agentTag : workerDto.getAgentTags()) {
+            if (agentTag.startsWith("limitScheduleTask")) {
+                limitString = agentTag;
+                break;
+            }
+        }
+
+        if (org.apache.commons.lang3.StringUtils.isBlank(limitString)) {
+            return Integer.MAX_VALUE;
+        }
+
+        List<String> list = Splitter.on(':')
+                .trimResults()
+                .omitEmptyStrings()
+                .splitToList(limitString);
+
+        if (list.size() < 2) {
+            return Integer.MAX_VALUE;
+        }
+
+        int limit = Integer.MAX_VALUE;
+        try {
+            limit = Integer.parseInt(list.get(1));
+        } catch (Exception ignore) {
+        }
+
+        return limit;
+        // query limit by tags -- end
+    }
+
+    public void deleteShareWorker(UserDetail loginUser) {
+        Query query = Query.query(Criteria.where("userId").is(loginUser.getUserId()));
+        Update expireTime = Update.update("expireTime", new Date());
+        mongoTemplate.updateFirst(query, expireTime, WorkerExpire.class);
     }
 }

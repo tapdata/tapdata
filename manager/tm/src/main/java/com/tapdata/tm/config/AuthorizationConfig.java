@@ -5,13 +5,20 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.role.entity.RoleEntity;
+import com.tapdata.tm.utils.SpringContextHelper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
+import org.bson.types.ObjectId;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
@@ -37,6 +44,7 @@ import java.security.spec.X509EncodedKeySpec;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -45,7 +53,6 @@ import java.util.*;
 @Configuration
 @Slf4j
 public class AuthorizationConfig {
-
     /**
      * 个性化 JWT token
      */
@@ -55,10 +62,14 @@ public class AuthorizationConfig {
         public void customize(JwtEncodingContext context) {
             RegisteredClient registeredClient = context.getRegisteredClient();
             Authentication oAuth2ClientAuthenticationToken = context.getPrincipal();
-            Set<String> scopes = context.getAuthorizedScopes();
+            MongoOperations mongoOperations = SpringContextHelper.getBean(MongoOperations.class);
+            Set<ObjectId> scopes = context.getAuthorizedScopes().stream().map(ObjectIdDeserialize::toObjectId).collect(Collectors.toSet());
+            Criteria criteria = Criteria.where("_id").in(scopes);
+            List<RoleEntity> roleEntities = mongoOperations.find(Query.query(criteria),RoleEntity.class);
+            List<String> roleNames = roleEntities.stream().map(RoleEntity::getName).collect(Collectors.toList());
             List<String> roles = new ArrayList<>();
             roles.add("$everyone");
-            roles.addAll(scopes);
+            roles.addAll(roleNames);
 
             // 优先使用 Registered Client 中配置的 Access Token TTL
             Duration accessTokenTTL = registeredClient.getTokenSettings().accessTokenTimeToLive();

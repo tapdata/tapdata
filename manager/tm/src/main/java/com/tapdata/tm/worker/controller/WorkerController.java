@@ -461,4 +461,11 @@ public class WorkerController extends BaseController {
     public ResponseMessage<WorkerExpireDto> getShareWorker() {
         return success(workerService.getShareWorker(getLoginUser()));
     }
+
+    @PostMapping("/share/delete")
+    @Operation(summary = "删除共享实例")
+    public ResponseMessage<Void> deleteShareWorker() {
+        workerService.deleteShareWorker(getLoginUser());
+        return success();
+    }
 }

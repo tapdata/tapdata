@@ -25,7 +25,6 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.worker.dto.WorkerDto;
-import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
@@ -96,8 +95,8 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(taskDto.getAccessNodeType())
                 && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
             int num = taskService.runningTaskNum(taskDto.getAgentId());
-            WorkerDto workerDto = workerService.findByProcessId(taskDto.getAgentId(), user, "agentTags");
-            int limitTaskNum = workerDto.getLimitTaskNum();
+            WorkerDto workerDto = workerService.findByProcessId(taskDto.getAgentId(), user, "user_id","agentTags", "process_id");
+            int limitTaskNum = workerService.getLimitTaskNum(workerDto, user);
             if (limitTaskNum <= num) {
                 StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
                 if (stateMachineResult.isOk()) {
@@ -108,27 +107,12 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
 
         CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
 
-        boolean scheduleFailed = false;
         if (StringUtils.isBlank(taskDto.getAgentId()) && calculationEngineVo.getTaskAvailable() != calculationEngineVo.getAvailable()) {
-            scheduleFailed = true;
-        }
-
-        // check public agent can't more than 3 task number
-        WorkerExpireDto shareWorker = workerService.getShareWorker(user);
-        if (shareWorker != null) {
-            long countTaskNumber = taskService.countTaskNumber(user);
-            if (countTaskNumber > 3) {
-                scheduleFailed = true;
-            }
-        }
-
-        if (scheduleFailed) {
             StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
             if (stateMachineResult.isOk()) {
                 throw new BizException("Task.ScheduleLimit");
             }
         }
-
 
         FunctionUtils.ignoreAnyError(() -> {
             String template = "Scheduling calculation results: {0}, all agent data: {1}.";
