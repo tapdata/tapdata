@@ -29,13 +29,16 @@ import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -51,6 +54,7 @@ public class DorisConnector extends CommonDbConnector {
     private DorisJdbcContext dorisJdbcContext;
     private DorisConfig dorisConfig;
     private final Map<String, DorisStreamLoader> dorisStreamLoaderMap = new ConcurrentHashMap<>();
+    private TimeZone timeZone;
 
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) {
@@ -60,6 +64,24 @@ public class DorisConnector extends CommonDbConnector {
         commonDbConfig = dorisConfig;
         jdbcContext = dorisJdbcContext;
         commonSqlMaker = new DorisSqlMaker();
+        setTimeZone(tapConnectionContext);
+    }
+
+    private void setTimeZone(TapConnectionContext tapConnectionContext){
+        if (tapConnectionContext instanceof TapConnectorContext) {
+            String timezone = tapConnectionContext.getConnectionConfig().getString("timezone");
+            try {
+                this.timeZone = "Database Timezone".equals(timezone) || StringUtils.isBlank(timezone) ?
+                        dorisJdbcContext.queryTimeZone() : TimeZone.getTimeZone(ZoneId.of(timezone));
+            } catch (Exception e){
+                this.timeZone = TimeZone.getTimeZone(ZoneId.of(timezone));
+            }
+            String id = timeZone.toZoneId().getId();
+            if (id.startsWith("GMT")){
+                id = id.replace("GMT", "");
+            }
+            tapConnectionContext.getConnectionConfig().put("timezone", id);
+        }
     }
 
 
@@ -126,9 +148,24 @@ public class DorisConnector extends CommonDbConnector {
             }
             return "null";
         });
-        codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> formatTapDateTime(tapYearValue.getValue(), "yyyy"));
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
-        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
+        codecRegistry.registerFromTapValue(TapYearValue.class, tapYearValue -> {
+            if (tapYearValue.getValue() != null && tapYearValue.getValue().getTimeZone() == null) {
+                tapYearValue.getValue().setTimeZone(this.timeZone);
+            }
+            return formatTapDateTime(tapYearValue.getValue(), "yyyy");
+        });
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
+            if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
+                tapDateTimeValue.getValue().setTimeZone(this.timeZone);
+            }
+            return tapDateTimeValue.getValue().toTimestamp();
+        });
+        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> {
+            if (tapDateValue.getValue() != null && tapDateValue.getValue().getTimeZone() == null) {
+                tapDateValue.getValue().setTimeZone(this.timeZone);
+            }
+            return tapDateValue.getValue().toSqlDate();
+        });
         connectorFunctions.supportErrorHandleFunction(this::errorHandle);
         connectorFunctions.supportGetTableInfoFunction(this::getTableInfo);
 

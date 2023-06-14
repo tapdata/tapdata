@@ -90,8 +90,13 @@ public class MysqlConnector extends ConnectorBase {
             this.version = mysqlJdbcContext.getMysqlVersion();
             String timezone = tapConnectionContext.getConnectionConfig().getString("timezone");
             this.timeZone = "Database Timezone".equals(timezone) || StringUtils.isBlank(timezone) ?
-                    TimeZone.getTimeZone(ZoneId.of(mysqlJdbcContext.timezone().substring(3)))
-                    : new MysqlJdbcContextV2(new MysqlConfig().load(tapConnectionContext.getConnectionConfig())).queryTimeZone();
+                    new MysqlJdbcContextV2(new MysqlConfig().load(tapConnectionContext.getConnectionConfig())).queryTimeZone()
+                    : TimeZone.getTimeZone(ZoneId.of(timezone));
+            String id = timeZone.toZoneId().getId();
+            if (id.startsWith("GMT")){
+                id = id.replace("GMT", "");
+            }
+            tapConnectionContext.getConnectionConfig().put("timezone", id);
         }
         ddlSqlMaker = new MysqlDDLSqlMaker(version);
         fieldDDLHandlers = new BiClassHandlers<>();
