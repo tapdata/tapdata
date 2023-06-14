@@ -58,10 +58,10 @@ public class DorisConnector extends CommonDbConnector {
 
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) {
-        setTimeZone(tapConnectionContext);
         this.dorisConfig = new DorisConfig().load(tapConnectionContext.getConnectionConfig());
         isConnectorStarted(tapConnectionContext, connectorContext -> dorisConfig.load(connectorContext.getNodeConfig()));
         dorisJdbcContext = new DorisJdbcContext(dorisConfig);
+        setTimeZone(tapConnectionContext);
         commonDbConfig = dorisConfig;
         jdbcContext = dorisJdbcContext;
         commonSqlMaker = new DorisSqlMaker();
@@ -79,6 +79,9 @@ public class DorisConnector extends CommonDbConnector {
             String id = timeZone.toZoneId().getId();
             if (id.startsWith("GMT")){
                 id = id.replace("GMT", "");
+            } else {
+                int offset = timeZone.getRawOffset() / (60 * 60 * 1000);
+                id = ((offset >= 0 ) ? "+" : "") +  offset + ":00";
             }
             tapConnectionContext.getConnectionConfig().put("timezone", id);
         }

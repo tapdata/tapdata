@@ -88,10 +88,14 @@ public class MysqlConnector extends ConnectorBase {
                 new MysqlJdbcContextV2(new MysqlConfig().load(tapConnectionContext.getConnectionConfig())).queryTimeZone()
                 : TimeZone.getTimeZone(ZoneId.of(timezone));
         String id = timeZone.toZoneId().getId();
-        if (id.startsWith("GMT")){
+        if (id.startsWith("GMT")) {
             id = id.replace("GMT", "");
+        } else {
+            int offset = timeZone.getRawOffset() / (60 * 60 * 1000);
+            id = ((offset >= 0 ) ? "+" : "") +  offset + ":00";
         }
         tapConnectionContext.getConnectionConfig().put("timezone", id);
+
         this.mysqlJdbcContext = initMysqlJdbcContext(tapConnectionContext);
         if (tapConnectionContext instanceof TapConnectorContext) {
             this.mysqlWriter = new MysqlSqlBatchWriter(mysqlJdbcContext);
