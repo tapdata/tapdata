@@ -32,7 +32,7 @@ import java.util.Set;
  * OEM config util
  **/
 public class OEMReplaceUtil {
-    private static final String path = "oem/";
+    private static final String path = "manager/tm/src/main/resources/oem/";
 
     /**
      * @type function
