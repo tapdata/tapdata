@@ -480,14 +480,13 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                             .useDefaultValue(field.getUseDefaultValue())
                             .defaultValue(finalDefaultValue).build();
 
-                    if (Objects.nonNull(fieldInfoMap) && fieldInfoMap.containsKey(fieldName)) {
-                        FieldInfo fieldInfo = fieldInfoMap.get(fieldName);
+                    if (Objects.nonNull(fieldInfoMap) && fieldInfoMap.containsKey(mapping.getSourceFieldName())) {
+                        FieldInfo fieldInfo = fieldInfoMap.get(mapping.getSourceFieldName());
 
                         if (!(currentNode instanceof MigrateFieldRenameProcessorNode) && !fieldInfo.getIsShow()) {
                             continue;
                         }
 
-                        mapping.setTargetFieldName(fieldInfo.getTargetFieldName());
                         mapping.setIsShow(fieldInfo.getIsShow());
                         mapping.setMigrateType(fieldInfo.getType());
                         mapping.setTargetFieldName(fieldInfo.getTargetFieldName());

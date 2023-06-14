@@ -4,8 +4,6 @@ import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
-import com.tapdata.tm.commons.dag.vo.FieldInfo;
-import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.entity.FieldAttrChange;
@@ -19,52 +17,76 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessorBaseNode {
 
 	private static final Logger logger = LogManager.getLogger(HazelcastMigrateFieldRenameProcessorNode.class);
 
+	private final MigrateFieldRenameProcessorNode.ApplyConfig applyConfig;
+	private final MigrateFieldRenameProcessorNode.IOperator<Map<String, Object>> dataOperator = new MigrateFieldRenameProcessorNode.IOperator<Map<String, Object>>() {
+		@Override
+		public void renameField(Map<String, Object> param, String fromName, String toName) {
+			MapUtil.replaceKey(fromName, param, toName);
+		}
+	};
+	private final MigrateFieldRenameProcessorNode.IOperator<TapAlterFieldAttributesEvent> alterFieldOperator = new MigrateFieldRenameProcessorNode.IOperator<TapAlterFieldAttributesEvent>() {
+		@Override
+		public void renameField(TapAlterFieldAttributesEvent param, String fromName, String toName) {
+			param.setFieldName(toName);
+		}
+	};
+	private final MigrateFieldRenameProcessorNode.IOperator<TapAlterFieldNameEvent> alterFieldNameOperator = new MigrateFieldRenameProcessorNode.IOperator<TapAlterFieldNameEvent>() {
+		@Override
+		public void renameField(TapAlterFieldNameEvent param, String fromName, String toName) {
+			param.getNameChange().setBefore(toName);
+		}
+	};
+	private final MigrateFieldRenameProcessorNode.IOperator<TapDropFieldEvent> dropFieldOperator = new MigrateFieldRenameProcessorNode.IOperator<TapDropFieldEvent>() {
+		@Override
+		public void renameField(TapDropFieldEvent param, String fromName, String toName) {
+			param.setFieldName(toName);
+		}
+	};
+	private final MigrateFieldRenameProcessorNode.IOperator<ListIterator<String>> alterFieldPrimaryKeyOperator = new MigrateFieldRenameProcessorNode.IOperator<ListIterator<String>>() {
+		@Override
+		public void deleteField(ListIterator<String> param, String originalName) {
+			param.remove();
+		}
 
-	/**
-	 * key: table name
-	 * --key old field name
-	 */
-	private final Map<String, Map<String, FieldInfo>> tableFieldsMappingMap;
+		@Override
+		public void renameField(ListIterator<String> param, String fromName, String toName) {
+			param.set(toName);
+		}
+	};
+	private final MigrateFieldRenameProcessorNode.IOperator<ListIterator<TapIndexField>> createIndexEventOperator = new MigrateFieldRenameProcessorNode.IOperator<ListIterator<TapIndexField>>() {
+		@Override
+		public void deleteField(ListIterator<TapIndexField> param, String originalName) {
+			param.remove();
+		}
+
+		@Override
+		public void renameField(ListIterator<TapIndexField> param, String fromName, String toName) {
+			TapIndexField current = param.previous();
+			param.next(); // reset the cursor
+
+			current.setName(toName);
+		}
+	};
 
 	public HazelcastMigrateFieldRenameProcessorNode(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
-		MigrateFieldRenameProcessorNode migrateFieldRenameProcessorNode = (MigrateFieldRenameProcessorNode) getNode();
-
-
-
-		if (CollectionUtils.isNotEmpty(migrateFieldRenameProcessorNode.getFieldsMapping())) {
-			this.tableFieldsMappingMap = migrateFieldRenameProcessorNode.getFieldsMapping().stream()
-					.collect(Collectors.toMap(TableFieldInfo::getPreviousTableName,
-							t -> t.getFields().stream()
-									.collect(Collectors.toMap(FieldInfo::getSourceFieldName, Function.identity()))));
-		} else {
-			this.tableFieldsMappingMap = new LinkedHashMap<>();
-		}
+		MigrateFieldRenameProcessorNode nodeConfig = (MigrateFieldRenameProcessorNode) getNode();
+		applyConfig = new MigrateFieldRenameProcessorNode.ApplyConfig(nodeConfig);
 	}
 
 	@Override
 	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
-
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		if (!(tapEvent instanceof TapBaseEvent)) {
 			// No processing required
@@ -76,22 +98,22 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 			//dml event
 			Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
 			Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
-			TapEventUtil.setAfter(tapEvent, processFields(after, tableId));
-			TapEventUtil.setBefore(tapEvent, processFields(before, tableId));
+
+			TapEventUtil.setAfter(tapEvent, processData(after, tableId));
+			TapEventUtil.setBefore(tapEvent, processData(before, tableId));
 
 			processedEvent.set(tapdataEvent);
-
 		} else {
 			//ddl event
 			if (tapEvent instanceof TapAlterFieldAttributesEvent) {
-				processField(tapdataEvent, processedEvent, tableId, ((TapAlterFieldAttributesEvent) tapEvent).getFieldName(),
-						(newFieldName) -> ((TapAlterFieldAttributesEvent) tapEvent).setFieldName(newFieldName));
+				TapAlterFieldAttributesEvent param = (TapAlterFieldAttributesEvent) tapEvent;
+				applyConfig.apply(tableId, param.getFieldName(), param, alterFieldOperator);
 			} else if (tapEvent instanceof TapAlterFieldNameEvent) {
-				processField(tapdataEvent, processedEvent, tableId, ((TapAlterFieldNameEvent) tapEvent).getNameChange().getBefore(),
-						(newFieldName) -> ((TapAlterFieldNameEvent) tapEvent).getNameChange().setBefore(newFieldName));
+				TapAlterFieldNameEvent param = (TapAlterFieldNameEvent) tapEvent;
+				applyConfig.apply(tableId, param.getNameChange().getBefore(), param, alterFieldNameOperator);
 			} else if (tapEvent instanceof TapDropFieldEvent) {
-				processField(tapdataEvent, processedEvent, tableId, ((TapDropFieldEvent) tapEvent).getFieldName(),
-						(newFieldName) -> ((TapDropFieldEvent) tapEvent).setFieldName(newFieldName));
+				TapDropFieldEvent param = (TapDropFieldEvent) tapEvent;
+				applyConfig.apply(tableId, param.getFieldName(), param, dropFieldOperator);
 			} else if (tapEvent instanceof TapAlterFieldPrimaryKeyEvent) {
 				List<FieldAttrChange<List<String>>> primaryKeyChanges = ((TapAlterFieldPrimaryKeyEvent) tapEvent).getPrimaryKeyChanges();
 				ListIterator<FieldAttrChange<List<String>>> primaryKeyChangesIter = primaryKeyChanges.listIterator();
@@ -99,16 +121,10 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 					FieldAttrChange<List<String>> fieldAttrChange = primaryKeyChangesIter.next();
 					List<String> before = fieldAttrChange.getBefore();
 					ListIterator<String> fieldsIter = before.listIterator();
+
 					while (fieldsIter.hasNext()) {
 						String fieldName = fieldsIter.next();
-						processField(tableId, fieldName, (newFieldName) -> {
-							if (newFieldName == null) {
-								fieldsIter.remove();
-							}
-							if (!StringUtils.equals(fieldName, newFieldName)) {
-								fieldsIter.set(newFieldName);
-							}
-						});
+						applyConfig.apply(tableId, fieldName, fieldsIter, alterFieldPrimaryKeyOperator);
 					}
 					if (CollectionUtils.isEmpty(before)) {
 						primaryKeyChangesIter.remove();
@@ -127,14 +143,8 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 					while (tapIndexFieldListIterator.hasNext()) {
 						TapIndexField tapIndexField = tapIndexFieldListIterator.next();
 						String fieldName = tapIndexField.getName();
-						processField(tableId, fieldName, (newFieldName) -> {
-							if (StringUtils.isEmpty(newFieldName)) {
-								tapIndexFieldListIterator.remove();
-							}
-							if (!StringUtils.equals(fieldName, newFieldName)) {
-								tapIndexField.setName(newFieldName);
-							}
-						});
+
+						applyConfig.apply(tableId, fieldName, tapIndexFieldListIterator, createIndexEventOperator);
 					}
 					if (CollectionUtils.isEmpty(indexFields)) {
 						indexIterator.remove();
@@ -143,7 +153,6 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 				if (CollectionUtils.isNotEmpty(indexList)) {
 					processedEvent.set(tapdataEvent);
 				}
-
 			} else {
 				//no processing required
 				processedEvent.set(tapdataEvent);
@@ -159,62 +168,12 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 		}
 	}
 
-	private void processField(TapdataEvent tapdataEvent, AtomicReference<TapdataEvent> processedEvent,
-							  String tableName, String fieldName, Consumer<String> renameFieldNameConsumer) {
-
-		processField(tableName, fieldName, (newFieldName) -> {
-			if (StringUtils.isEmpty(newFieldName)) {
-				return;
-			}
-			if (!StringUtils.equals(fieldName, newFieldName)) {
-				renameFieldNameConsumer.accept(newFieldName);
-			}
-			processedEvent.set(tapdataEvent);
-		});
-	}
-
-	private void processField(String tableName, String fieldName, Consumer<String> renameFieldNameConsumer) {
-		Map<String, FieldInfo> fieldInfoMap = this.tableFieldsMappingMap.get(tableName);
-		if (MapUtils.isNotEmpty(fieldInfoMap)) {
-			FieldInfo fieldInfo = fieldInfoMap.get(fieldName);
-			if (fieldInfo != null) {
-				if (fieldInfo.getIsShow() != null && !fieldInfo.getIsShow()) {
-					renameFieldNameConsumer.accept(null);
-				} else {
-					renameFieldNameConsumer.accept(fieldInfo.getTargetFieldName());
-				}
+	private Map<String, Object> processData(Map<String, Object> data, String tableName) {
+		if (null != data) {
+			for (String fieldName : new HashSet<>(data.keySet())) {
+				applyConfig.apply(tableName, fieldName, data, dataOperator);
 			}
 		}
-		renameFieldNameConsumer.accept(fieldName);
-	}
-
-	private Map<String, Object> processFields(Map<String, Object> map, String tableName) {
-		if (MapUtils.isEmpty(map)) {
-			return map;
-		}
-		if (StringUtils.isEmpty(tableName)) {
-			return map;
-		}
-		Map<String, FieldInfo> fieldsMappingMap = this.tableFieldsMappingMap.get(tableName);
-		if (MapUtils.isEmpty(fieldsMappingMap)) {
-			return map;
-		}
-
-		for (Map.Entry<String, FieldInfo> entry : fieldsMappingMap.entrySet()) {
-			if (MapUtil.containsKey(map, entry.getKey())) {
-				FieldInfo fieldInfo = entry.getValue();
-				if (fieldInfo.getIsShow() != null && !fieldInfo.getIsShow()) {
-					MapUtil.removeValueByKey(map, entry.getKey());
-					continue;
-				}
-				Object value = MapUtil.getValueByKey(map, entry.getKey());
-				try {
-					MapUtil.replaceKey(fieldInfo.getSourceFieldName(), map, fieldInfo.getTargetFieldName());
-				} catch (Exception e) {
-					throw new RuntimeException("Error when modifying field name: " + fieldInfo + "--" + value, e);
-				}
-			}
-		}
-		return map;
+		return data;
 	}
 }
