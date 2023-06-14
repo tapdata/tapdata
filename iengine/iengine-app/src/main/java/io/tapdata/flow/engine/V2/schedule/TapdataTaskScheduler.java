@@ -419,6 +419,7 @@ public class TapdataTaskScheduler {
 							} else if (TerminalMode.COMPLETE == terminalMode) {
 								stopTaskResource = StopTaskResource.COMPLETE;
 							} else {
+								logger.warn("Task status to error: {}", terminalMode);
 								TaskRetryService taskRetryService = TaskRetryFactory.getInstance().getTaskRetryService(taskId).orElse(null);
 								if (null != taskRetryService) {
 									TaskRetryService.TaskRetryResult taskRetryResult = taskRetryService.canTaskRetry();

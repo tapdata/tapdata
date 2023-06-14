@@ -57,9 +57,9 @@
           "x-index": 3,
           "required": true
         },
-        "user": {
+        "username": {
           "type": "string",
-          "title": "${user}",
+          "title": "${username}",
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_username",
@@ -74,12 +74,12 @@
           "apiServerKey": "database_password",
           "x-index": 5
         },
-        "extParams": {
+        "addtionalString": {
           "type": "string",
-          "title": "${extParams}",
+          "title": "${addtionalString}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "apiServerKey": "extParams",
+          "apiServerKey": "addtionalString",
           "x-index": 6
         },
         "timezone": {
@@ -209,9 +209,9 @@
       "host": "Host",
       "port": "Port",
       "database": "database",
-      "user": "user",
+      "username": "username",
       "password": "password",
-      "extParams": "Connection Parameter String",
+      "addtionalString": "Connection Parameter String",
       "timezone": "timezone",
       "doc": "docs/mysql_en_US.md"
     },
@@ -219,9 +219,9 @@
       "host": "地址",
       "port": "端口",
       "database": "数据库",
-      "user": "账号",
+      "username": "账号",
       "password": "密码",
-      "extParams": "连接参数",
+      "addtionalString": "连接参数",
       "timezone": "时区",
       "doc": "docs/mysql_zh_CN.md"
     },
@@ -229,9 +229,9 @@
       "host": "地址",
       "port": "端口",
       "database": "數據庫",
-      "user": "賬號",
+      "username": "賬號",
       "password": "密碼",
-      "extParams": "連接參數",
+      "addtionalString": "連接參數",
       "timezone": "時區",
       "doc": "docs/mysql_zh_TW.md"
     }

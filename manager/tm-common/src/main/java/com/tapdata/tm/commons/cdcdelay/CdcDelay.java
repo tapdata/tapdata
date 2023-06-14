@@ -96,15 +96,19 @@ public class CdcDelay implements ICdcDelay {
         }
         if (ts instanceof Date) {
             return ((Date) ts).getTime();
-        } else if (null != ts) {
+        } else if (ts instanceof Long) {
+            return (Long) ts;
+        } else if (ts instanceof String) {
             try {
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
                 sdf.setTimeZone(UTC_TIME_ZONE);
                 Date date = sdf.parse(ts.toString());
                 return date.getTime();
             } catch (ParseException e) {
-                logger.warn("calc '{}' delay failed: {}", ts, e.getMessage());
+                logger.warn("Parse string to date failed: {}, error: {}", ts, e.getMessage());
             }
+        } else {
+            logger.warn("Calc '{}' delay failed: unknown type: {}", ts, null == ts ? "null" : ts.getClass().getName());
         }
         return recordEvent.getReferenceTime();
     }
