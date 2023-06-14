@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.dag;
 
+import cn.hutool.core.util.StrUtil;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.exception.DDLException;
@@ -9,6 +10,7 @@ import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
+import com.tapdata.tm.commons.util.CapitalizedEnum;
 import io.github.openlg.graphlib.Graph;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
@@ -482,23 +484,33 @@ public abstract class Node<S> extends Element{
 
     protected void fieldNameUpLow(List<String> inputFields, List<Field> fields, String fieldsNameTransform) {
         if (fieldsNameTransform != null) {
-            if ("toUpperCase".equalsIgnoreCase(fieldsNameTransform)) {
-                fields.forEach(field -> {
-                    if (inputFields.contains(field.getFieldName()) && !field.isDeleted()) {
-                        String fieldName = field.getFieldName();
-                        fieldName = fieldName.toUpperCase();
-                        field.setFieldName(fieldName);
+            CapitalizedEnum capitalizedEnum = CapitalizedEnum.valueOf(fieldsNameTransform.trim());
+
+            fields.forEach(field -> {
+                if (inputFields.contains(field.getFieldName()) && !field.isDeleted()) {
+                    String fieldName = field.getFieldName();
+
+                    switch (capitalizedEnum) {
+                        case UPPER:
+                            fieldName = StringUtils.upperCase(fieldName);
+                            break;
+                        case LOWER:
+                            fieldName = StringUtils.lowerCase(fieldName);
+                            break;
+                        case SNAKE:
+                            fieldName = StrUtil.toUnderlineCase(fieldName);
+                            break;
+                        case CAMEL:
+                            fieldName = StrUtil.toCamelCase(fieldName);
+                            break;
+                        default:
+                            break;
+
                     }
-                });
-            } else if ("toLowerCase".equalsIgnoreCase(fieldsNameTransform)) {
-                fields.forEach(field -> {
-                    if (inputFields.contains(field.getFieldName()) && !field.isDeleted()) {
-                        String fieldName = field.getFieldName();
-                        fieldName = fieldName.toLowerCase();
-                        field.setFieldName(fieldName);
-                    }
-                });
-            }
+                    fieldName = fieldName.toUpperCase();
+                    field.setFieldName(fieldName);
+                }
+            });
         }
 
     }
