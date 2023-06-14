@@ -25,7 +25,6 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.worker.dto.WorkerDto;
-import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
@@ -93,8 +92,6 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             }
         }
 
-        // check public agent can't more than 3 task number
-        WorkerExpireDto shareWorker = workerService.getShareWorker(user);
         if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(taskDto.getAccessNodeType())
                 && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
             int num = taskService.runningTaskNum(taskDto.getAgentId());

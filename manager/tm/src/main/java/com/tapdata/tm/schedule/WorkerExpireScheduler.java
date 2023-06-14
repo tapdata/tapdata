@@ -15,7 +15,7 @@ public class WorkerExpireScheduler {
 
     private WorkerService workerService;
 
-    @Scheduled(cron = "0 0/30 * * * ? ")
+    @Scheduled(cron = "0/5 * * * * ?")
     @SchedulerLock(name = "checkWorkerExpire", lockAtMostFor = "PT1M", lockAtLeastFor = "PT1M")
     public void checkWorkerExpire() {
         workerService.checkWorkerExpire();

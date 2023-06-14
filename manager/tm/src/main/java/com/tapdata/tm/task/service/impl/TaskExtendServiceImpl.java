@@ -8,6 +8,7 @@ import com.tapdata.tm.task.service.TaskExtendService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,7 +28,7 @@ public class TaskExtendServiceImpl implements TaskExtendService {
 
     @Override
     public void stopTaskByAgentIdAndUserId(String agentId, String userId) {
-        Criteria criteria = Criteria.where("agentId").is(agentId).and("userId").is(userId);
+        Criteria criteria = Criteria.where("agentId").is(agentId).and("user_id").is(userId).and("status").is(TaskDto.STATUS_RUNNING);
         List<TaskDto> all = taskService.findAll(Query.query(criteria));
         if (CollectionUtils.isEmpty(all)) {
             return;
@@ -35,7 +36,7 @@ public class TaskExtendServiceImpl implements TaskExtendService {
 
         UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(userId));
         all.forEach(taskDto -> {
-            taskService.pause(taskDto, userDetail, false);
+            CommonUtils.ignoreAnyError(() -> taskService.pause(taskDto, userDetail, false), "TM");
 
             String msg = "The public agent trial has expired and the task has stopped. Please create a new agent as soon as possible";
             monitoringLogsService.startTaskErrorLog(taskDto, userDetail, msg, Level.WARN);

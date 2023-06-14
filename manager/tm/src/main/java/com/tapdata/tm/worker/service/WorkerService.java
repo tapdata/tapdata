@@ -50,6 +50,7 @@ import com.tapdata.tm.worker.vo.ApiWorkerStatusVo;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import io.firedome.MultiTaggedCounter;
 import io.micrometer.core.instrument.Metrics;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -752,15 +753,19 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                 List<WorkerDto> shareWorkers = findAll(Query.query(Criteria.where("user_id").is(workerExpire.getShareTmUserId())));
                 shareWorkers.forEach(workerDto -> {
                     String processId = workerDto.getProcessId();
-                    taskExtendService.stopTaskByAgentIdAndUserId(processId, workerExpire.getUserId());
+                    CommonUtils.ignoreAnyError(() -> taskExtendService.stopTaskByAgentIdAndUserId(processId, workerExpire.getUserId()), "TM");
                 });
             });
         }
     }
 
     public int getLimitTaskNum(WorkerDto workerDto, UserDetail user) {
+        if (workerDto == null || workerDto.getProcessId() == null) {
+            return -1;
+        }
+
         // query by public agent -- start
-        if (!workerDto.getUserId().equals(user.getUserId())) {
+        if (!user.getUserId().equals(workerDto.getUserId())) {
             return 3;
         }
         // query by public agent -- end
@@ -799,5 +804,11 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
         return limit;
         // query limit by tags -- end
+    }
+
+    public void deleteShareWorker(UserDetail loginUser) {
+        Query query = Query.query(Criteria.where("userId").is(loginUser.getUserId()));
+        Update expireTime = Update.update("expireTime", new Date());
+        mongoTemplate.updateFirst(query, expireTime, WorkerExpire.class);
     }
 }
