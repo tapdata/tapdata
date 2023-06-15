@@ -4,7 +4,7 @@
 		"documents": [
 			{
 				"description": "高级功能",
-				"name": "v2_advanced_features",
+				"name": "√",
 				"need_permission": true,
 				"order": 1,
 				"parentId": "",
@@ -25,7 +25,7 @@
 		"insert": "RoleMapping",
 		"documents": [
 			{
-				"principalId": "",
+				"principalId": "v2_advanced_features",
 				"principalType": "PERMISSION",
 				"roleId": {
 					"$oid": "5b9a0a383fcba02649524bf1"
@@ -33,7 +33,7 @@
 				"self_only": false
 			},
 			{
-				"principalId": "",
+				"principalId": "v2_advanced_features",
 				"principalType": "PERMISSION",
 				"roleId": {
 					"$oid": "5d31ae1ab953565ded04badd"
