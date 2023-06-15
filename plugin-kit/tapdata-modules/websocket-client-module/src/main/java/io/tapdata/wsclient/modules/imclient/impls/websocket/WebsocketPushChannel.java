@@ -185,6 +185,9 @@ public class WebsocketPushChannel extends PushChannel {
 
         try {
             String finalTheUrl = theUrl;
+            if(imClient.getCachedCookie() != null) {
+                headers.put("Cookie", imClient.getCachedCookie());
+            }
             data = HttpUtils.post(theUrl, jsonStr, headers, (code, message) -> {
                 if(code == 401) {
                     String newToken = refreshAccessToken(baseUrl);
@@ -246,6 +249,12 @@ public class WebsocketPushChannel extends PushChannel {
             theUrl = tapEngineUtils.signUrl("POST", theUrl, jsonStr);
             jsonObject = HttpUtils.post(theUrl, jsonStr, null);
             newToken = jsonObject.getString("id");
+            String userId = jsonObject.getString("userId");
+            if(userId != null) {
+                imClient.setCachedCookie("user_id=" + userId);
+            } else {
+                imClient.setCachedCookie(null);
+            }
         } catch (IOException e) {
             throw new CoreException(NetErrors.GENERATE_TOKEN_FAILED, e, "Generate access token failed, " + e.getMessage());
         }
