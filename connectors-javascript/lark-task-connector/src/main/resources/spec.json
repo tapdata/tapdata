@@ -68,7 +68,6 @@
         "ownerArray": {
           "title": "${task_owner}",
           "type": "string",
-          "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
           "x-decorator": "FormItem",
           "x-component": "FieldSelect",
           "x-component-props": {
@@ -101,7 +100,6 @@
         "followerArray": {
           "title": "${task_follower}",
           "type": "string",
-          "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
           "x-decorator": "FormItem",
           "x-component": "FieldSelect",
           "x-component-props": {
@@ -192,7 +190,6 @@
         "richSummary": {
           "title": "${task_rich_summary}",
           "type": "string",
-          "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
           "x-decorator": "FormItem",
           "x-component": "FieldSelect",
           "x-component-props": {
@@ -221,7 +218,6 @@
         "richDescription": {
           "title": "${task_rich_description}",
           "type": "string",
-          "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
           "x-decorator": "FormItem",
           "x-component": "FieldSelect",
           "x-component-props": {
@@ -295,7 +291,6 @@
         "taskLinkTitle": {
           "title": "${task_link_title}",
           "type": "string",
-          "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
           "x-decorator": "FormItem",
           "x-component": "FieldSelect",
           "x-component-props": {
@@ -321,7 +316,6 @@
         "taskUrl": {
           "title": "${task_url}",
           "type": "string",
-          "description": "{{ !$isDaas ? \"${i18n.t('packages_dag_nodes_table_isDaa_ruguoyuanweimongodb')}\" : \"\"}}",
           "x-decorator": "FormItem",
           "x-component": "FieldSelect",
           "x-component-props": {
