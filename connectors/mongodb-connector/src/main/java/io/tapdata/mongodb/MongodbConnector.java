@@ -1029,26 +1029,29 @@ public class MongodbConnector extends ConnectorBase {
 	private void batchRead(TapConnectorContext connectorContext, TapTable table, Object offset, int eventBatchSize, BiConsumer<List<TapEvent>, Object> tapReadOffsetConsumer) throws Throwable {
 		try {
 			List<TapEvent> tapEvents = list();
-			MongoCursor<Document> mongoCursor;
 			MongoCollection<Document> collection = getMongoCollection(table.getId());
 			final int batchSize = eventBatchSize > 0 ? eventBatchSize : 5000;
+			FindIterable<Document> findIterable;
 			if (offset == null) {
-				mongoCursor = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize).iterator();
+				findIterable = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize);
 			} else {
 				MongoBatchOffset mongoOffset = (MongoBatchOffset) offset;//fromJson(offset, MongoOffset.class);
 				Object offsetValue = mongoOffset.value();
 				if (offsetValue != null) {
-					mongoCursor = collection.find(queryCondition(COLLECTION_ID_FIELD, offsetValue)).sort(Sorts.ascending(COLLECTION_ID_FIELD))
-							.batchSize(batchSize).iterator();
+					findIterable = collection.find(queryCondition(COLLECTION_ID_FIELD, offsetValue)).sort(Sorts.ascending(COLLECTION_ID_FIELD))
+									.batchSize(batchSize);
 				} else {
-					mongoCursor = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize).iterator();
+					findIterable = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize);
 					TapLogger.warn(TAG, "Offset format is illegal {}, no offset value has been found. Final offset will be null to do the batchRead", offset);
 				}
+			}
+			if (mongoConfig.isNoCursorTimeout()) {
+				findIterable.noCursorTimeout(true).maxTime(30, TimeUnit.MINUTES);
 			}
 
 			Document lastDocument;
 
-			try {
+			try (MongoCursor<Document> mongoCursor = findIterable.iterator()) {
 				while (mongoCursor.hasNext()) {
 					if (!isAlive()) return;
 					lastDocument = mongoCursor.next();
