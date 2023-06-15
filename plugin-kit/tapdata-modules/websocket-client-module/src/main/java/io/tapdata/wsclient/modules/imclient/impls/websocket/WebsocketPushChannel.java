@@ -173,14 +173,25 @@ public class WebsocketPushChannel extends PushChannel {
         Map<String, String> headers = new HashMap<>();
         JSONObject data = null;
         String jsonStr = Objects.requireNonNull(InstanceFactory.instance(JsonParser.class)).toJson(loginObj);
-        String theUrl = baseUrl;
+
+        if(imClient.getCachedAccessToken() == null) {
+            imClient.setCachedAccessToken(refreshAccessToken(baseUrl));
+        }
+        String theUrl = baseUrl + "?access_token=" + imClient.getCachedAccessToken();
         TapEngineUtils tapEngineUtils = InstanceFactory.instance(TapEngineUtils.class);
         if(tapEngineUtils != null) {
             theUrl = tapEngineUtils.signUrl("POST", theUrl, jsonStr);
         }
 
         try {
-            data = HttpUtils.post(theUrl, jsonStr, headers);
+            String finalTheUrl = theUrl;
+            data = HttpUtils.post(theUrl, jsonStr, headers, (code, message) -> {
+                if(code == 401) {
+                    String newToken = refreshAccessToken(baseUrl);
+                    imClient.setCachedAccessToken(newToken);
+                }
+                throw new CoreException(NetErrors.WEBSOCKET_LOGIN_FAILED, "Login failed, accessToken {}, code {} message {} for theUrl {}", imClient.getCachedAccessToken(), code, message, finalTheUrl);
+            });
         } catch (IOException e) {
             throw new CoreException(NetErrors.WEBSOCKET_LOGIN_FAILED, "Login url {} loginObj {} headers {} failed, {}", baseUrl, loginObj, headers, e.getMessage());
         }
@@ -214,6 +225,30 @@ public class WebsocketPushChannel extends PushChannel {
         if(protocol == null || wsPort == null || host == null || sid == null) {
             throw new CoreException(NetErrors.WEBSOCKET_LOGIN_FAILED, "Illegal parameters for wsPort " + wsPort + " host " + host + " server " + server + " sid " + sid + " protocol " + protocol);
         }
+    }
+
+    private String refreshAccessToken(String baseUrl) {
+        String token = imClient.getToken();
+        if(token == null) {
+            throw new CoreException(NetErrors.TOKEN_NOT_FOUND, "Token not found");
+        }
+        int pos = baseUrl.indexOf("/api/") + "/api/".length();
+        String newBaseUrl = baseUrl.substring(0, pos);
+
+        JSONObject param = new JSONObject();
+        param.put("accesscode", imClient.getToken());
+        String newToken = null;
+        JSONObject jsonObject = null;
+        try {
+            jsonObject = HttpUtils.post(newBaseUrl + "users/generatetoken", param, null);
+            newToken = jsonObject.getString("id");
+        } catch (IOException e) {
+            throw new CoreException(NetErrors.GENERATE_TOKEN_FAILED, e, "Generate access token failed, " + e.getMessage());
+        }
+        if(newToken == null) {
+            throw new CoreException(NetErrors.GENERATE_TOKEN_FAILED, "Generate access token failed, token not found in result " + jsonObject);
+        }
+        return newToken;
     }
 
     private void connectWS(String protocol, final String host, final int port, String path) {
