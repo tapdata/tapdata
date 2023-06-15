@@ -44,6 +44,8 @@ public class MongodbConfig extends CommonDbConfig {
 
 	private boolean enableFillingModifiedData;
 
+	private boolean noCursorTimeout;
+
 //	public static MongodbConfig load(String jsonFile) throws IOException {
 //		ObjectMapper mapper = new ObjectMapper(new JsonFactory());
 //		mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -226,5 +228,13 @@ public class MongodbConfig extends CommonDbConfig {
 
 	public void setEnableFillingModifiedData(boolean enableFillingModifiedData) {
 		this.enableFillingModifiedData = enableFillingModifiedData;
+	}
+
+	public boolean isNoCursorTimeout() {
+		return noCursorTimeout;
+	}
+
+	public void setNoCursorTimeout(boolean noCursorTimeout) {
+		this.noCursorTimeout = noCursorTimeout;
 	}
 }
