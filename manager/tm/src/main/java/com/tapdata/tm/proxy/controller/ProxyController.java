@@ -6,9 +6,13 @@ import com.tapdata.tm.async.AsyncContextManager;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.proxy.dto.*;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
+import com.tapdata.tm.proxy.service.impl.SubscribeServer;
 import com.tapdata.tm.sdk.available.TmStatusService;
 import com.tapdata.tm.utils.WebUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,6 +27,7 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.modules.api.net.entity.SubscribeToken;
+import io.tapdata.modules.api.net.entity.SubscribeURLToken;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.message.MessageEntity;
 import io.tapdata.modules.api.net.service.EngineMessageExecutionService;
@@ -31,9 +36,11 @@ import io.tapdata.modules.api.net.service.MessageEntityService;
 import io.tapdata.modules.api.net.service.node.connection.NodeConnectionFactory;
 import io.tapdata.modules.api.net.service.node.connection.entity.NodeMessage;
 import io.tapdata.modules.api.proxy.constants.ProxyConstants;
+import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.entity.message.EngineMessage;
 import io.tapdata.pdk.apis.entity.message.ServiceCaller;
+import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.JWTUtils;
@@ -42,6 +49,7 @@ import io.tapdata.wsserver.channels.websocket.impl.WebSocketProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.apache.poi.ss.formula.functions.T;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -137,7 +145,6 @@ public class ProxyController extends BaseController {
         return success(loginProxyResponseDto);
     }
 
-
     @Operation(summary = "Generate callback url token")
     @PostMapping("subscribe")
     public ResponseMessage<SubscribeResponseDto> generateSubscriptionToken(@RequestBody SubscribeDto subscribeDto, HttpServletRequest request) {
@@ -151,7 +158,7 @@ public class ProxyController extends BaseController {
             else
                 throw new BizException("gatewaySecret can not be read from @Value(\"${gateway.secret}\")");
         }
-        return success(proxyService.generateSubscriptionToken(subscribeDto, userDetail, token, request.getRequestURI()));
+        return success(proxyService.generateSubscriptionToken(subscribeDto, token));
 //        if(subscribeDto == null)
 //            throw new BizException("SubscribeDto is null");
 //        if(subscribeDto.getSubscribeId() == null)
@@ -190,7 +197,14 @@ public class ProxyController extends BaseController {
     }
 
     @GetMapping("callback/{token}")
-    public void get(@PathVariable("token") String token, HttpServletRequest request, HttpServletResponse response){
+    public void get(@PathVariable("token") String token, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        byte[] data = null;
+        try {
+            data = CommonUtils.decryptWithRC4(Base64.getUrlDecoder().decode(token.getBytes(StandardCharsets.US_ASCII)), ProxyService.KEY);
+        } catch (Exception e) {
+            response.sendError(SC_UNAUTHORIZED, " The Hook link has expired or is no longer valid. Please use the refresh URL to retrieve it again ");
+            return;
+        }
         System.out.println("ping...");
     }
 
@@ -205,39 +219,33 @@ public class ProxyController extends BaseController {
             response.sendError(SC_BAD_REQUEST, "content must be collection or map");
             return;
         }
+
+        ProxyService proxyService = InstanceFactory.bean(ProxyService.class);
+        SubscribeToken subscribeToken = new SubscribeToken();
+        if (!proxyService.validateSubscribeToken(subscribeToken, token, response, TAG)) {
+            return;
+        }
+
         Map<String, Object> value = null;
+        String supplierKey = subscribeToken.getSupplierKey();
         if(content instanceof Collection) {
-            value = map(entry("array", content), entry("proxy_callback_array_content", true));
+            value = map(entry("array", content)
+                    , entry("proxy_callback_array_content", true)
+            );
+            if (null != supplierKey && !"".equals(supplierKey.trim())){
+                value.put("proxy_callback_supplier_id", supplierKey);
+            }
         } else {
             value = (Map<String, Object>) content;
+            if (null != supplierKey && !"".equals(supplierKey.trim())){
+                value = map(entry("map", content)
+                        , entry("proxy_callback_supplier_id", supplierKey)
+                );
+            }
         }
-        byte[] data = null;
-        try {
-            data = CommonUtils.decryptWithRC4(Base64.getUrlDecoder().decode(token.getBytes(StandardCharsets.US_ASCII)), ProxyService.KEY);
-        } catch (Exception e) {
-            response.sendError(SC_UNAUTHORIZED, "Token illegal");
-            return;
-        }
-        SubscribeToken subscribeDto = new SubscribeToken();
-        try (ByteArrayInputStream bais = new ByteArrayInputStream(data)) {
-            subscribeDto.from(bais);
-        } catch (IOException e) {
-            response.sendError(SC_INTERNAL_SERVER_ERROR, "Deserialize token failed, " + e.getMessage());
-            TapLogger.info(TAG,FormatUtils.format("Deserialize token failed, key = {}",ProxyService.KEY));
-            return;
-        }
-//        Map<String, Object> claims = JWTUtils.getClaims(key, token);
-        String service = subscribeDto.getService();
-        String subscribeId = subscribeDto.getSubscribeId();
-        Long expireAt = subscribeDto.getExpireAt();
-        if(service == null || subscribeId == null) {
-            response.sendError(SC_BAD_REQUEST, FormatUtils.format("Illegal arguments for subscribeId {}, subscribeId {}", service, subscribeId));
-            return;
-        }
-        if(expireAt != null && System.currentTimeMillis() > expireAt) {
-            response.sendError(SC_UNAUTHORIZED, "Token expired");
-            return;
-        }
+
+        String subscribeId = subscribeToken.getSubscribeId();
+        String service = subscribeToken.getService();
 
         EventQueueService eventQueueService = InstanceFactory.instance(EventQueueService.class, "sync", true);
         if(eventQueueService != null) {
@@ -245,6 +253,37 @@ public class ProxyController extends BaseController {
             eventQueueService.offer(message);
         }
         response.setStatus(SC_OK);
+    }
+
+    public SubscribeToken validateSubscribeToken(String token, HttpServletResponse response) throws IOException {
+        byte[] data = null;
+        try {
+            data = CommonUtils.decryptWithRC4(Base64.getUrlDecoder().decode(token.getBytes(StandardCharsets.US_ASCII)), ProxyService.KEY);
+        } catch (Exception e) {
+            response.sendError(SC_UNAUTHORIZED, "Token illegal");
+            return null;
+        }
+        SubscribeToken subscribeDto = new SubscribeToken();
+        try (ByteArrayInputStream bais = new ByteArrayInputStream(data)) {
+            subscribeDto.from(bais);
+        } catch (IOException e) {
+            response.sendError(SC_INTERNAL_SERVER_ERROR, "Deserialize token failed, " + e.getMessage());
+            TapLogger.info(TAG,FormatUtils.format("Deserialize token failed, key = {}",ProxyService.KEY));
+            return null;
+        }
+//        Map<String, Object> claims = JWTUtils.getClaims(key, token);
+        String service = subscribeDto.getService();
+        String subscribeId = subscribeDto.getSubscribeId();
+        Long expireAt = subscribeDto.getExpireAt();
+        if(service == null || subscribeId == null) {
+            response.sendError(SC_BAD_REQUEST, FormatUtils.format("Illegal arguments for subscribeId {}, subscribeId {}", service, subscribeId));
+            return null;
+        }
+        if(expireAt != null && System.currentTimeMillis() > expireAt) {
+            response.sendError(SC_UNAUTHORIZED, " The Hook link has expired or is no longer valid. Please use the refresh URL to retrieve it again ");
+            return null;
+        }
+        return subscribeDto;
     }
 
     @Operation(summary = "External callback url")

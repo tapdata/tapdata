@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 /**
  * @author GavinXiao
@@ -50,7 +51,7 @@ public class HttpReceiverConnector extends ConnectorBase {
         config = ConnectionConfig.create(connectionContext);
         if (config.handleType()) {
             if (null != scriptEngine) {
-                ScriptEvel scriptEvel = ScriptEvel.create(scriptEngine);
+                ScriptEvel scriptEvel = ScriptEvel.create(scriptEngine, connectionContext);
                 scriptEvel.evalSourceForSelf();
                 scriptEngine.eval(config.script());
             } else {
@@ -67,7 +68,7 @@ public class HttpReceiverConnector extends ConnectorBase {
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry tapCodecsRegistry) {
         connectorFunctions
-                //.supportBatchRead(this::batchRead)
+                .supportBatchRead(this::batchRead)
                 //.supportStreamRead(this::streamRead)
                 .supportTimestampToStreamOffset(this::offset)
                 .supportRawDataCallbackFilterFunctionV2(this::callback)
@@ -98,9 +99,9 @@ public class HttpReceiverConnector extends ConnectorBase {
         return System.currentTimeMillis();
     }
 
-    //private void batchRead(TapConnectorContext context, TapTable tapTable, Object offset, int batchSize, BiConsumer<List<TapEvent>, Object> con) {
-    //    context.getLog().info(TAG, "Http Receiver can not support batch read, and batch read is over now.");
-    //}
+    private void batchRead(TapConnectorContext context, TapTable tapTable, Object offset, int batchSize, BiConsumer<List<TapEvent>, Object> con) {
+        context.getLog().info("Http Receiver can not support batch read, and batch read is over now.");
+    }
 
     private List<TapEvent> callback(TapConnectorContext context, List<String> tableName, Map<String, Object> eventMap) {
         if (null == config) {
@@ -108,16 +109,20 @@ public class HttpReceiverConnector extends ConnectorBase {
         }
         String name = config.tableName();
         if (Checker.isEmpty(eventMap)) {
-            context.getLog().debug(TAG, "WebHook of http body is empty, Data callback has been over.");
+            context.getLog().debug("WebHook of http body is empty, Data callback has been over.");
             return null;
         }
         Object isArrayObj = Optional.ofNullable(eventMap.get("proxy_callback_array_content")).orElse(false);
-        Object data = eventMap;
-        if (isArrayObj instanceof Boolean && ((Boolean)isArrayObj) ) {
-            data = eventMap.get("array");
+
+        Object supplierKey = eventMap.get("proxy_callback_supplier_id");
+        if (null == supplierKey) {
+            context.getLog().error("System error: Unknow supplierId");
+            return null;
         }
+
+        Object data = eventMap.get(isArrayObj instanceof Boolean && ((Boolean)isArrayObj) ? "array" : "map");
         if (null == data) {
-            context.getLog().info(TAG, "Before script filtering, the current record is empty and will be ignored.");
+            context.getLog().info("Before script filtering, the current record is empty and will be ignored.");
             return null;
         }
         //Object listObj = eventMap.get("array");
@@ -133,15 +138,19 @@ public class HttpReceiverConnector extends ConnectorBase {
         if (null != scriptEngine) {
             Invocable invocable = (Invocable) scriptEngine;
             try {
-                Object invokeResult = invocable.invokeFunction(ConnectionConfig.EVENT_FUNCTION_NAME, data);
+                Object invokeResult = invocable.invokeFunction(
+                        ConnectionConfig.EVENT_FUNCTION_NAME,
+                        data,
+                        supplierKey
+                );
                 if (null != invokeResult) {
                     return EventHandle.eventList(name, invokeResult);
                 }
-                context.getLog().info(TAG, "After script filtering, the current record has been ignored. Please be informed, record is {}", toJson(eventMap));
+                context.getLog().info("After script filtering, the current record has been ignored. Please be informed, record is {}", toJson(eventMap));
             } catch (ScriptException e) {
-                context.getLog().warn(TAG, "Occur exception When execute script, error message: {}", e.getMessage());
+                context.getLog().warn("Occur exception When execute script, error message: {}", e.getMessage());
             } catch (NoSuchMethodException methodException) {
-                context.getLog().warn(TAG, "Occur exception When execute script, error message: Can not find function named is '{}' in script.", ConnectionConfig.EVENT_FUNCTION_NAME);
+                context.getLog().warn("Occur exception When execute script, error message: Can not find function named is '{}' in script.", ConnectionConfig.EVENT_FUNCTION_NAME);
             }
         } else {
             throw new CoreException("Can not get script engine, please check you connection config.");
