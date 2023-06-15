@@ -15,7 +15,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public class HttpUtils {
+    public interface ErrorHandle {
+        void error(int code, String message);
+    }
     public static JSONObject post(String url, String data, Map<String, String> headers) throws IOException {
+        return post(url, data, headers, null);
+    }
+    public static JSONObject post(String url, String data, Map<String, String> headers, ErrorHandle errorHandle) throws IOException {
         HttpURLConnection connection = getUrlConnection(url, "POST", headers);
         try {
 //            output(connection, data);
@@ -31,6 +37,9 @@ public class HttpUtils {
             if(code >= 200 && code < 300) {
                 return getJSONResult(url, connection);
             } else {
+                if(errorHandle != null) {
+                    errorHandle.error(code, connection.getResponseMessage());
+                }
                 throw new IOException("Url(post) " + url + " occur error, code " + code + " message " + connection.getResponseMessage());
             }
         } finally {

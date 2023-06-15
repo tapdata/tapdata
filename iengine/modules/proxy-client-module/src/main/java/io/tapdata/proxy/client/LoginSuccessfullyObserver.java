@@ -31,8 +31,9 @@ public class LoginSuccessfullyObserver implements AspectObserver<LoginSuccessful
             TapLogger.error(TAG, "baseURLs is empty, can NOT continue login for websocket channel");
             return;
         }
-        String accessToken = (String) configurationCenter.getConfig(ConfigurationCenter.TOKEN);
-        proxySubscriptionManager.startIMClient(baseURLs, accessToken);
+//        String accessToken = (String) configurationCenter.getConfig(ConfigurationCenter.TOKEN);
+        String accessCode = (String) configurationCenter.getConfig(ConfigurationCenter.ACCESS_CODE);
+        proxySubscriptionManager.startIMClient(baseURLs, accessCode);
 
         proxySubscriptionManager.setProcessId(ConfigurationCenter.processId);
         proxySubscriptionManager.setUserId((String) configurationCenter.getConfig(ConfigurationCenter.USER_ID));
