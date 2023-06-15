@@ -458,13 +458,23 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                             if (first.getTableNames() != null && newFirst != null && newFirst.getTableNames() != null) {
                                 List<String> newTableNames = new ArrayList<>(newFirst.getTableNames());
                                 newTableNames.removeAll(tableNames);
+                                List<String> ldpNewTables = oldTaskDto.getLdpNewTables();
                                 if (CollectionUtils.isNotEmpty(newTableNames)) {
-                                    List<String> ldpNewTables = taskDto.getLdpNewTables();
                                     if (ldpNewTables == null) {
                                         ldpNewTables = new ArrayList<>();
                                     }
-                                    ldpNewTables.addAll(tableNames);
+                                    ldpNewTables.addAll(newTableNames);
                                     ldpNewTables = ldpNewTables.stream().distinct().collect(Collectors.toList());
+                                    taskDto.setLdpNewTables(ldpNewTables);
+                                }
+                                List<String> removeList = new ArrayList<>();
+                                if (CollectionUtils.isNotEmpty(ldpNewTables)) {
+                                    for (String ldpNewTable : ldpNewTables) {
+                                        if (!newFirst.getTableNames().contains(ldpNewTable)) {
+                                            removeList.add(ldpNewTable);
+                                        }
+                                    }
+                                    ldpNewTables.removeAll(removeList);
                                     taskDto.setLdpNewTables(ldpNewTables);
                                 }
                             }

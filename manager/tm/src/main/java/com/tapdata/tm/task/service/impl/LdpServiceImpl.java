@@ -1314,10 +1314,10 @@ public class LdpServiceImpl implements LdpService {
 
         for (Node target : targets) {
             if (target instanceof DataParentNode) {
-                if (fdmStorageConnectionId != null && fdmStorageConnectionId.equals(((DataParentNode<?>) target).getConnectionId())) {
+                if (target instanceof DatabaseNode && fdmStorageConnectionId != null && fdmStorageConnectionId.equals(((DataParentNode<?>) target).getConnectionId())) {
                     return TaskDto.LDP_TYPE_FDM;
                 }
-                if (mdmStorageConnectionId != null && mdmStorageConnectionId.equals(((DataParentNode<?>) target).getConnectionId())) {
+                if (target instanceof TableNode && mdmStorageConnectionId != null && mdmStorageConnectionId.equals(((DataParentNode<?>) target).getConnectionId())) {
                     return TaskDto.LDP_TYPE_MDM;
                 }
             }
