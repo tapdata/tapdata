@@ -197,9 +197,16 @@ public class UploadFileService {
     request.part("latest", latestString);
 
     String response = request.body();
-    System.out.println(response);
 
+    Map map = JSON.parseObject(response, Map.class);
 
+    String msg = "success";
+    String result = "success";
+    if (!"ok".equals(map.get("code"))) {
+        msg = map.get("reqId") != null ? (String) map.get("message") : (String) map.get("msg");
+        result = "fail";
+    }
+    System.out.println("result:" + result + ", name:" + file.getName() + ", msg:" + msg + ", response:" + response);
   }
 
   public static RequestBody create(final MediaType mediaType, final InputStream inputStream) {
