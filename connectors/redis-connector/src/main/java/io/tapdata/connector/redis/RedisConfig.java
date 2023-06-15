@@ -38,6 +38,7 @@ public class RedisConfig {
     private Boolean resetExpire;
     private Boolean listHead = true;
     private Boolean oneKey = false;
+    private String schemaKey = "-schema-key-";
 
     public RedisConfig load(Map<String, Object> map) {
         beanUtils.mapToBean(map, this);
@@ -220,4 +221,11 @@ public class RedisConfig {
         this.oneKey = oneKey;
     }
 
+    public String getSchemaKey() {
+        return schemaKey;
+    }
+
+    public void setSchemaKey(String schemaKey) {
+        this.schemaKey = schemaKey;
+    }
 }

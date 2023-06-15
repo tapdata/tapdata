@@ -29,11 +29,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 import org.voovan.tools.collection.CacheMap;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Supplier;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -103,6 +99,10 @@ public class ScriptExecutorsManager {
 						this.getClass().getSimpleName() + "-" + taskId + "-" + nodeId + "-" + connections.getId(), trialRun);
 	}
 
+	public ScriptExecutor createDummy() {
+		return new DummyScriptExecutor();
+	}
+
 	public void close() {
 		this.cacheMap.forEach((key, value) -> this.cacheMap.getDestory().apply(key, value));
 		this.cacheMap.clear();
@@ -122,6 +122,16 @@ public class ScriptExecutorsManager {
 		private final Log scriptLogger;
 
 		private final boolean trialRun;
+
+		private ScriptExecutor() {
+			this.connectorNode = null;
+			this.TAG = null;
+			this.associateId = null;
+			this.executeCommandFunctionSupplier = null;
+			this.tapTableMap = null;
+			this.scriptLogger = null;
+			this.trialRun = false;
+		}
 
 		private ScriptExecutor(Connections connections, ClientMongoOperator clientMongoOperator, HazelcastInstance hazelcastInstance, Log scriptLogger, String TAG, boolean trialRun) {
 			this.TAG = TAG;
@@ -269,5 +279,37 @@ public class ScriptExecutorsManager {
 			}, err -> scriptLogger.warn(String.format("Clean [%s] schema data failed: %s", TAG, err.getMessage())));
 		}
 
+	}
+
+	public static class DummyScriptExecutor extends ScriptExecutor {
+
+		@Override
+		public long execute(Map<String, Object> executeObj) throws Throwable {
+			return 0;
+		}
+
+		@Override
+		public List<? extends Map<String, Object>> executeQuery(Map<String, Object> executeObj) throws Throwable {
+			return Collections.emptyList();
+		}
+
+		@Override
+		public long count(Map<String, Object> executeObj) throws Throwable {
+			return 0;
+		}
+
+		@Override
+		public List<? extends Map<String, Object>> aggregate(Map<String, Object> executeObj) throws Throwable {
+			return Collections.emptyList();
+		}
+
+		@Override
+		public Object call(String funcName, List<Map<String, Object>> params) throws Throwable {
+			return new Object();
+		}
+
+		@Override
+		public void close() {
+		}
 	}
 }

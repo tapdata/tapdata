@@ -285,7 +285,7 @@ public class CommonJedis implements JedisCommands, Closeable {
 
     @Override
     public long hset(String s, String s1, String s2) {
-        return 0;
+        return jedisCommands.hset(s, s1, s2);
     }
 
     @Override
@@ -330,7 +330,7 @@ public class CommonJedis implements JedisCommands, Closeable {
 
     @Override
     public long hdel(String s, String... strings) {
-        return 0;
+        return jedisCommands.hdel(s, strings);
     }
 
     @Override

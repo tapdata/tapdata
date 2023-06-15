@@ -43,6 +43,7 @@ import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.error.TapEventException;
@@ -678,7 +679,19 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private TapRecordEvent handleTapdataRecordEvent(TapdataEvent tapdataEvent) {
 		TapRecordEvent tapRecordEvent = (TapRecordEvent) tapdataEvent.getTapEvent();
 		if (writeStrategy.equals(MergeTableProperties.MergeType.appendWrite.name())) {
-			if (!(tapRecordEvent instanceof TapInsertRecordEvent)) {
+			if (tapRecordEvent instanceof TapUpdateRecordEvent) {
+				Map<String, Object> after = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
+				TapInsertRecordEvent tapInsertRecordEvent = TapInsertRecordEvent.create();
+				tapRecordEvent.clone(tapInsertRecordEvent);
+				tapInsertRecordEvent.setAfter(after);
+				tapRecordEvent = tapInsertRecordEvent;
+			} else if (tapRecordEvent instanceof TapDeleteRecordEvent) {
+				Map<String, Object> before = ((TapDeleteRecordEvent) tapRecordEvent).getBefore();
+				TapInsertRecordEvent tapInsertRecordEvent = TapInsertRecordEvent.create();
+				tapRecordEvent.clone(tapInsertRecordEvent);
+				tapInsertRecordEvent.setAfter(before);
+				tapRecordEvent = tapInsertRecordEvent;
+			} else {
 				return null;
 			}
 		}
