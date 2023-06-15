@@ -24,6 +24,7 @@ import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.OEMReplaceUtil;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -77,6 +78,9 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
 
         BulkOperations bulkOperations = repository.getMongoOperations().bulkOps(BulkOperations.BulkMode.UNORDERED, MonitoringLogsEntity.class);
         for (MonitoringLogsDto monitoringLoge : monitoringLoges) {
+            Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("log/replace.json");
+            String message = OEMReplaceUtil.replace(monitoringLoge.getMessage(), oemConfig);
+            monitoringLoge.setMessage(message);
             beforeSave(monitoringLoge, user);
         }
 
@@ -86,7 +90,9 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             monitoringLogsEntity.setTimestamp(System.currentTimeMillis());
             repository.applyUserDetail(monitoringLogsEntity, user);
             if (Objects.nonNull(monitoringLogsEntity.getData())) {
-                monitoringLogsEntity.setDataJson(JSON.toJSONString(monitoringLogsEntity.getData()));
+                Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("log/replace.json");
+                String jsonData = OEMReplaceUtil.replace(JSON.toJSONString(monitoringLogsEntity.getData()), oemConfig);
+                monitoringLogsEntity.setDataJson(jsonData);
             }
             bulkOperations.insert(monitoringLogsEntity);
         }
