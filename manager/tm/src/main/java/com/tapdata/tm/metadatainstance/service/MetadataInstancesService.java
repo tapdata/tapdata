@@ -1167,20 +1167,6 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return list.stream().map(MetadataInstancesEntity::getOriginalName).collect(Collectors.toList());
     }
 
-    public List<TableDto> listTable(String connectId, String sourceType) {
-        Criteria criteria = Criteria.where("source._id").is(connectId)
-                .and("sourceType").is(sourceType)
-                .and("is_deleted").ne(true)
-                .and("taskId").exists(false)
-                .and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
-        Query query = new Query(criteria);
-        query.fields().include("original_name","comment");
-        List<MetadataInstancesEntity> list = mongoTemplate.find(query, MetadataInstancesEntity.class);
-        List<TableDto> tableDtos = list.stream().map(m -> {
-            return TableDto.builder().tableName(m.getOriginalName()).tableComment(Optional.ofNullable(m.getComment()).orElse("")).build();
-        }).collect(Collectors.toList());
-        return tableDtos;
-    }
 
     public List<Map<String, String>> tableValues(String connectId, String sourceType) {
         Criteria criteria = Criteria.where("source._id").is(connectId)
@@ -1204,7 +1190,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return values;
     }
 
-    public Page<String> pageTables(String connectId, String sourceType, String regex, int skip, int limit) {
+    public Page<Map<String, String>> pageTables(String connectId, String sourceType, String regex, int skip, int limit) {
         Criteria criteria = Criteria.where("source._id").is(connectId)
                 .and("sourceType").is(sourceType)
                 .and("is_deleted").ne(true)
@@ -1217,26 +1203,43 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         }
 
         Query query = new Query(criteria);
-        query.fields().include("original_name");
+        query.fields().include("original_name","comment");
 
         long totals;
-        List<String> rows;
+        List<Map<String, String>> values = new ArrayList<>();
+
         if (limit > 0) {
             totals = mongoTemplate.count(query, MetadataInstancesEntity.class);
             if (totals > 0) {
                 query.skip(skip).limit(limit);
                 List<MetadataInstancesEntity> list = mongoTemplate.find(query, MetadataInstancesEntity.class);
-                rows = list.stream().map(MetadataInstancesEntity::getOriginalName).collect(Collectors.toList());
+                if (CollectionUtils.isNotEmpty(list)) {
+                    for (MetadataInstancesEntity entity : list) {
+                        Map<String, String> value = new HashMap<>();
+                        value.put("tableName", entity.getOriginalName());
+                        value.put("tableId", entity.getId().toHexString());
+                        value.put("tableComment",StringUtils.isNotBlank(entity.getComment()) ? entity.getComment():"");
+                        values.add(value);
+                    }
+                }
             } else {
-                rows = new ArrayList<>();
+                values = new ArrayList<>();
             }
         } else {
             List<MetadataInstancesEntity> list = mongoTemplate.find(query, MetadataInstancesEntity.class);
-            rows = list.stream().map(MetadataInstancesEntity::getOriginalName).collect(Collectors.toList());
-            totals = rows.size();
+            if (CollectionUtils.isNotEmpty(list)) {
+                for (MetadataInstancesEntity entity : list) {
+                    Map<String, String> value = new HashMap<>();
+                    value.put("tableName", entity.getOriginalName());
+                    value.put("tableId", entity.getId().toHexString());
+                    value.put("tableComment",StringUtils.isNotBlank(entity.getComment()) ? entity.getComment():"");
+                    values.add(value);
+                }
+            }
+            totals = values.size();
         }
 
-        return new Page<>(totals, rows);
+        return new Page<>(totals, values);
     }
 
     public TableSupportInspectVo tableSupportInspect(String connectId, String tableName) {
@@ -2347,5 +2350,15 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         dataTypeCheckMultipleVo.setOriginType(originType);
 
         return dataTypeCheckMultipleVo;
+    }
+    public Set<String> getTypeFilter(String nodeId,UserDetail userDetail){
+        List<MetadataInstancesDto> metadataInstancesDtos = findByNodeId(nodeId, null, userDetail, null);
+        Set<String> set = new HashSet<>();
+        metadataInstancesDtos.forEach(metadataInstancesDto -> {
+            metadataInstancesDto.getFields().forEach(field -> {
+                set.add(RemoveBracketsUtil.removeBrackets(field.getOriginalDataType()));
+            });
+        });
+    return set;
     }
 }
