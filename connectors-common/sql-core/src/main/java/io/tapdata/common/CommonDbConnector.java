@@ -556,6 +556,7 @@ public abstract class CommonDbConnector extends ConnectorBase {
         });
     }
 
+    //for mysql type (with offset & limit)
     protected void queryByAdvanceFilterWithOffset(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
         String sql = commonSqlMaker.buildSelectClause(table, filter) + getSchemaAndTable(table.getId()) + commonSqlMaker.buildSqlByAdvanceFilter(filter);
         jdbcContext.query(sql, resultSet -> {
@@ -611,5 +612,21 @@ public abstract class CommonDbConnector extends ConnectorBase {
         List<String> dropIndexesSql = new ArrayList<>();
         deleteIndexEvent.getIndexNames().forEach(idx -> dropIndexesSql.add("drop index " + getSchemaAndTable(table.getId()) + "." + escapeChar + idx + escapeChar));
         jdbcContext.batchExecute(dropIndexesSql);
+    }
+
+    protected long countRawCommand(TapConnectorContext connectorContext, String command, TapTable tapTable) throws Throwable {
+        AtomicLong count = new AtomicLong(0);
+        if (EmptyKit.isNotBlank(command) && command.trim().toLowerCase().startsWith("select")) {
+            jdbcContext.query("select count(1) from (" + command + ") as tmp", resultSet -> {
+                if (resultSet.next()) {
+                    count.set(resultSet.getLong(1));
+                }
+            });
+        }
+        return count.get();
+    }
+
+    protected long countByAdvanceFilter(TapConnectorContext connectorContext, TapTable tapTable, TapAdvanceFilter tapAdvanceFilter) {
+        return 0;
     }
 }
