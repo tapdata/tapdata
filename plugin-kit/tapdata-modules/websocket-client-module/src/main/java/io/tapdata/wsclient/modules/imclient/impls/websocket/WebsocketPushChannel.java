@@ -1,5 +1,6 @@
 package io.tapdata.wsclient.modules.imclient.impls.websocket;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import io.netty.channel.*;
 import io.tapdata.entity.error.CoreException;
@@ -239,7 +240,11 @@ public class WebsocketPushChannel extends PushChannel {
         String newToken = null;
         JSONObject jsonObject = null;
         try {
-            jsonObject = HttpUtils.post(newBaseUrl + "users/generatetoken", param, null);
+            String theUrl = newBaseUrl + "users/generatetoken";
+            TapEngineUtils tapEngineUtils = InstanceFactory.instance(TapEngineUtils.class);
+            String jsonStr = JSON.toJSONString(param);
+            theUrl = tapEngineUtils.signUrl("POST", theUrl, jsonStr);
+            jsonObject = HttpUtils.post(theUrl, jsonStr, null);
             newToken = jsonObject.getString("id");
         } catch (IOException e) {
             throw new CoreException(NetErrors.GENERATE_TOKEN_FAILED, e, "Generate access token failed, " + e.getMessage());
