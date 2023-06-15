@@ -1,5 +1,6 @@
 package io.tapdata.wsclient.modules.imclient.impls.websocket;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import io.netty.channel.*;
 import io.tapdata.entity.error.CoreException;
@@ -185,6 +186,9 @@ public class WebsocketPushChannel extends PushChannel {
 
         try {
             String finalTheUrl = theUrl;
+            if(imClient.getCachedCookie() != null) {
+                headers.put("Cookie", imClient.getCachedCookie());
+            }
             data = HttpUtils.post(theUrl, jsonStr, headers, (code, message) -> {
                 if(code == 401) {
                     String newToken = refreshAccessToken(baseUrl);
@@ -240,8 +244,18 @@ public class WebsocketPushChannel extends PushChannel {
         String newToken = null;
         JSONObject jsonObject = null;
         try {
-            jsonObject = HttpUtils.post(newBaseUrl + "users/generatetoken", param, null);
+            String theUrl = newBaseUrl + "users/generatetoken";
+            TapEngineUtils tapEngineUtils = InstanceFactory.instance(TapEngineUtils.class);
+            String jsonStr = JSON.toJSONString(param);
+            theUrl = tapEngineUtils.signUrl("POST", theUrl, jsonStr);
+            jsonObject = HttpUtils.post(theUrl, jsonStr, null);
             newToken = jsonObject.getString("id");
+            String userId = jsonObject.getString("userId");
+            if(userId != null) {
+                imClient.setCachedCookie("user_id=" + userId);
+            } else {
+                imClient.setCachedCookie(null);
+            }
         } catch (IOException e) {
             throw new CoreException(NetErrors.GENERATE_TOKEN_FAILED, e, "Generate access token failed, " + e.getMessage());
         }
