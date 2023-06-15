@@ -3,6 +3,7 @@ package com.tapdata.tm.task.service.impl;
 import com.google.common.collect.Lists;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Element;
 import com.tapdata.tm.commons.dag.Node;
@@ -34,6 +35,8 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.utils.ThreadLocalUtils;
+import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -82,6 +85,9 @@ public class LdpServiceImpl implements LdpService {
 
     @Autowired
     private SettingsService settingsService;
+
+    @Autowired
+    private WorkerService workerService;
 
     @Override
     @Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
@@ -642,10 +648,9 @@ public class LdpServiceImpl implements LdpService {
     }
 
     @Override
-    public Map<String, TaskDto> queryFdmTaskByTags(List<String> tagIds, UserDetail user) {
-        Map<String, TaskDto> result = new HashMap<>();
+    public Map<String, List<TaskDto>> queryFdmTaskByTags(List<String> tagIds, UserDetail user) {
+        Map<String, List<TaskDto>> result = new HashMap<>();
         if (CollectionUtils.isEmpty(tagIds)) {
-
             return result;
         }
 
@@ -663,9 +668,10 @@ public class LdpServiceImpl implements LdpService {
             DAG dag = taskDto.getDag();
             Node node = dag.getSources().get(0);
             String connectionId = ((DatabaseNode) node).getConnectionId();
-            String linkId = tagMap.get(connectionId);
-            if (StringUtils.isNotBlank(linkId)) {
-                result.put(tagMap.get(connectionId), taskDto);
+            String tagId = tagMap.get(connectionId);
+            if (StringUtils.isNotBlank(tagId)) {
+                List<TaskDto> tasks = result.computeIfAbsent(tagId, k -> new ArrayList<>());
+                tasks.add(taskDto);
             }
         }
         return result;
@@ -1027,6 +1033,135 @@ public class LdpServiceImpl implements LdpService {
 
         return tableStatusMap;
     }
+
+    @Override
+    public boolean checkFdmTaskStatus(String tagId, UserDetail user) {
+        MetadataDefinitionDto definitionDto = metadataDefinitionService.findById(MongoUtils.toObjectId(tagId), user);
+        if (definitionDto == null || StringUtils.isBlank(definitionDto.getLinkId())) {
+            return true;
+        }
+        String connectionId = definitionDto.getLinkId();
+        Criteria criteria = fdmTaskCriteria(connectionId);
+        criteria.and("fdmMain").is(true);
+        Query query = new Query(criteria);
+        TaskDto fdmTask = taskService.findOne(query, user);
+        if (fdmTask == null) {
+            criteria = fdmTaskCriteria(connectionId);
+            criteria.and("name").regex("Clone_To_FDM");
+            fdmTask = taskService.findOne(query, user);
+        }
+
+        if (fdmTask == null) {
+            return true;
+        }
+
+        switch (fdmTask.getStatus()) {
+            case TaskDto.STATUS_RUNNING:
+            case TaskDto.STATUS_COMPLETE:
+            case TaskDto.STATUS_EDIT:
+            case TaskDto.STATUS_ERROR:
+            case TaskDto.STATUS_RENEW_FAILED:
+            case TaskDto.STATUS_SCHEDULE_FAILED:
+            case TaskDto.STATUS_STOP:
+            case TaskDto.STATUS_WAIT_START:
+                return false;
+            default:
+                return true;
+        }
+    }
+
+    @Override
+    public void fdmBatchStart(String tagId, List<String> taskIds, UserDetail user) {
+        Map<String, List<TaskDto>> taskMap = queryFdmTaskByTags(Lists.newArrayList(tagId), user);
+        List<TaskDto> taskDtos = taskMap.get(tagId);
+        if (CollectionUtils.isEmpty(taskDtos)) {
+            return;
+        }
+
+        if (CollectionUtils.isNotEmpty(taskIds)) {
+            taskDtos = taskDtos.stream().filter(t -> taskIds.contains(t.getId().toHexString())).collect(Collectors.toList());
+        }
+
+        for (TaskDto taskDto : taskDtos) {
+            switch (taskDto.getStatus()) {
+                case TaskDto.STATUS_COMPLETE:
+                case TaskDto.STATUS_EDIT:
+                case TaskDto.STATUS_ERROR:
+                case TaskDto.STATUS_RENEW_FAILED:
+                case TaskDto.STATUS_SCHEDULE_FAILED:
+                case TaskDto.STATUS_STOP:
+                case TaskDto.STATUS_WAIT_START:
+                    taskService.start(taskDto, user, "11");
+                    break;
+                case TaskDto.STATUS_RUNNING:
+                    taskService.pause(taskDto, user, false, true);
+                default:
+                    log.info("fdm task status can't do anything, name = {}, status = {}", taskDto.getName(), taskDto.getStatus());
+
+            }
+        }
+
+    }
+
+    @Override
+    public void deleteMdmTable(String qualifiedName, UserDetail user) {
+        MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedName, user);
+        if (CollectionUtils.isEmpty(metadataInstancesDto.getListtags())) {
+            throw new BizException("");
+        }
+
+        boolean belongMdm = queryTagBelongMdm(metadataInstancesDto.getListtags().toString(), user, null);
+        if (!belongMdm) {
+            throw new BizException("");
+        }
+
+        LiveDataPlatformDto liveDataPlatformDto = liveDataPlatformService.findOne(new Query(), user);
+
+        if (liveDataPlatformDto == null) {
+            throw new BizException("SystemError", "Ldp config error");
+        }
+        String mdmStorageConnectionId = liveDataPlatformDto.getMdmStorageConnectionId();
+        DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(mdmStorageConnectionId), user);
+
+        if (connectionDto == null) {
+            throw new BizException("SystemError", "mdm connection is null");
+        }
+
+        String agent = findAgent(connectionDto, user);
+        if (agent == null) {
+            throw new BizException("Task.AgentNotFound");
+        }
+
+
+
+    }
+
+    private String findAgent(DataSourceConnectionDto connectionDto, UserDetail user) {
+        if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), connectionDto.getAccessNodeType())
+                && CollectionUtils.isNotEmpty(connectionDto.getAccessNodeProcessIdList())) {
+
+            List<Worker> availableAgent = workerService.findAvailableAgent(user);
+            List<String> processIds = availableAgent.stream().map(Worker::getProcessId).collect(Collectors.toList());
+            String agentId = null;
+            for (String p : connectionDto.getAccessNodeProcessIdList()) {
+                if (processIds.contains(p)) {
+                    agentId = p;
+                    break;
+                }
+            }
+
+            return agentId;
+
+        } else {
+            List<Worker> availableAgent = workerService.findAvailableAgent(user);
+            if (CollectionUtils.isNotEmpty(availableAgent)) {
+                Worker worker = availableAgent.get(0);
+                return worker.getProcessId();
+            }
+        }
+        return null;
+    }
+
 
     private void supplementaryLdpTaskByOld(UserDetail user) {
         Criteria criteria = Criteria.where("ldpType").in(TaskDto.LDP_TYPE_FDM, TaskDto.LDP_TYPE_MDM)

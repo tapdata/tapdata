@@ -18,7 +18,7 @@ public interface LdpService {
     void afterLdpTask(String taskId, UserDetail user);
 
     Tag getMdmTag(UserDetail user);
-    Map<String, TaskDto> queryFdmTaskByTags(List<String> tagIds, UserDetail user);
+    Map<String, List<TaskDto>> queryFdmTaskByTags(List<String> tagIds, UserDetail user);
 
     List<LdpFuzzySearchVo> fuzzySearch(String key, List<String> connectType, UserDetail loginUser);
 
@@ -30,4 +30,10 @@ public interface LdpService {
     boolean queryTagBelongMdm(String tagId, UserDetail user, String mdmTags);
 
     Map<String, String> ldpTableStatus(String connectionId, List<String> tableNames, String ldpType, UserDetail user);
+
+    boolean checkFdmTaskStatus(String tagId, UserDetail loginUser);
+
+    void fdmBatchStart(String tagId, List<String> taskIds, UserDetail loginUser);
+
+    void deleteMdmTable(String qualifiedName, UserDetail loginUser);
 }
