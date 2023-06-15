@@ -2354,11 +2354,11 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     public Set<String> getTypeFilter(String nodeId,UserDetail userDetail){
         List<MetadataInstancesDto> metadataInstancesDtos = findByNodeId(nodeId, null, userDetail, null);
         Set<String> set = new HashSet<>();
-        metadataInstancesDtos.forEach(metadataInstancesDto -> {
-            metadataInstancesDto.getFields().forEach(field -> {
-                set.add(RemoveBracketsUtil.removeBrackets(field.getOriginalDataType()));
-            });
-        });
+//        metadataInstancesDtos.forEach(metadataInstancesDto -> {
+//            metadataInstancesDto.getFields().forEach(field -> {
+//                set.add(RemoveBracketsUtil.removeBrackets(field.getOriginalDataType()));
+//            });
+//        });
     return set;
     }
 }

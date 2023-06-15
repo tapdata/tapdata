@@ -4,8 +4,11 @@ import com.google.common.collect.Maps;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.bean.LdpFuzzySearchVo;
 import com.tapdata.tm.task.service.LdpService;
+import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Setter;
@@ -27,6 +30,8 @@ import java.util.Map;
 public class LdpController extends BaseController {
 
     private LdpService ldpService;
+
+    private UserService userService;
 
 
     /**
@@ -100,7 +105,8 @@ public class LdpController extends BaseController {
 
     @DeleteMapping("mdm/table/{qualifiedName}")
     public ResponseMessage<Void> deleteMdmTable(@PathVariable("qualifiedName") String qualifiedName) {
-        ldpService.deleteMdmTable(qualifiedName, getLoginUser());
+        UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId("62bc5008d4958d013d97c7a6"));
+        ldpService.deleteMdmTable(qualifiedName, userDetail);
         return success();
     }
 

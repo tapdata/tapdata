@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.service.impl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Lists;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
@@ -17,12 +18,16 @@ import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.livedataplatform.dto.LiveDataPlatformDto;
 import com.tapdata.tm.livedataplatform.service.LiveDataPlatformService;
 import com.tapdata.tm.lock.annotation.Lock;
 import com.tapdata.tm.lock.constant.LockType;
+import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
+import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
@@ -70,6 +75,8 @@ public class LdpServiceImpl implements LdpService {
 
     @Autowired
     private DataSourceService dataSourceService;
+    @Autowired
+    private DataSourceDefinitionService definitionService;
 
 
     @Autowired
@@ -88,6 +95,10 @@ public class LdpServiceImpl implements LdpService {
 
     @Autowired
     private WorkerService workerService;
+
+
+    @Autowired
+    private MessageQueueService messageQueueService;
 
     @Override
     @Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
@@ -696,7 +707,10 @@ public class LdpServiceImpl implements LdpService {
     }
     private Map<String, Boolean> queryTagBelongMdm(List<String> tagIds, UserDetail user, String mdmTags) {
         Map<String, Boolean> mdmMap = new HashMap<>();
-
+        if (StringUtils.isBlank(mdmTags)) {
+            Tag mdmTag = getMdmTag(user);
+            mdmTags = mdmTag.getId();
+        }
         if (CollectionUtils.isEmpty(tagIds)) {
             return mdmMap;
         }
@@ -1110,7 +1124,15 @@ public class LdpServiceImpl implements LdpService {
             throw new BizException("");
         }
 
-        boolean belongMdm = queryTagBelongMdm(metadataInstancesDto.getListtags().toString(), user, null);
+        List<String> tagIds = metadataInstancesDto.getListtags().stream().map(Tag::getId).collect(Collectors.toList());
+        Map<String, Boolean> map = queryTagBelongMdm(tagIds, user, null);
+        boolean belongMdm = false;
+        for (String tagId : tagIds) {
+            if (map.get(tagId) != null && map.get(tagId)) {
+                belongMdm = true;
+                break;
+            }
+        }
         if (!belongMdm) {
             throw new BizException("");
         }
@@ -1121,19 +1143,42 @@ public class LdpServiceImpl implements LdpService {
             throw new BizException("SystemError", "Ldp config error");
         }
         String mdmStorageConnectionId = liveDataPlatformDto.getMdmStorageConnectionId();
-        DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(mdmStorageConnectionId), user);
+        Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(mdmStorageConnectionId));
+        Query query = new Query(criteria);
+        query.fields().include("_id", "name", "config", "encryptConfig", "database_type");
+
+        DataSourceConnectionDto connectionDto = dataSourceService.findOne(query, user);
 
         if (connectionDto == null) {
             throw new BizException("SystemError", "mdm connection is null");
         }
+        DataSourceDefinitionDto dataSourceDefinitionDto = definitionService.getByDataSourceType(connectionDto.getDatabase_type(), user);
+
+        if (dataSourceDefinitionDto != null) {
+            connectionDto.setPdkHash(dataSourceDefinitionDto.getPdkHash());
+        }
+
 
         String agent = findAgent(connectionDto, user);
         if (agent == null) {
             throw new BizException("Task.AgentNotFound");
         }
 
+        Map<String, Object> data = new HashMap<>();
+        data.put("tableName", metadataInstancesDto.getName());
+        String json = JsonUtil.toJsonUseJackson(connectionDto);
+        Map connections = JsonUtil.parseJsonUseJackson(json, Map.class);
+        data.put("connections", connections);
 
+        data.put("type", "dropTable");
+        MessageQueueDto queueDto = new MessageQueueDto();
+        queueDto.setReceiver(agent);
+        queueDto.setData(data);
+        queueDto.setType("pipe");
 
+        log.info("build send test connection websocket context, processId = {}, userId = {}", agent, user.getUserId());
+        messageQueueService.sendMessage(queueDto);
+        metadataInstancesService.deleteAll(new Query(Criteria.where("qualified_name").is(qualifiedName)), user);
     }
 
     private String findAgent(DataSourceConnectionDto connectionDto, UserDetail user) {
