@@ -412,7 +412,13 @@ public class TDDCli extends CommonCli {
                 boolean isSub = tapGo.isSub();
                 boolean debug = !isDebugMode || tapGo.debug();
                 boolean ignored = tapGo.ignore();
-                return (PDKTestBase.class.isAssignableFrom(cls)) && !ignored && goTest && !isSub && debug ;
+                String group = tapGo.group();
+                String groupConfig = CommonUtils.getProperty("TDD_FILTER_GROUP", null);
+                if (null == groupConfig || "".equals(groupConfig.trim()))
+                    return (PDKTestBase.class.isAssignableFrom(cls)) && !ignored && goTest && !isSub && debug ;
+                else {
+                    return groupConfig.equals(group) && PDKTestBase.class.isAssignableFrom(cls) && !ignored && goTest && !isSub && debug ;
+                }
             } catch (Exception e) {
                 return false;
             }

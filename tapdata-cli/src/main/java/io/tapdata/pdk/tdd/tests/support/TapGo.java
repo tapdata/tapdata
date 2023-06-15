@@ -25,4 +25,6 @@ public @interface TapGo {
     boolean debug() default false;
 
     boolean ignore() default false;
+
+    String group() default "";
 }

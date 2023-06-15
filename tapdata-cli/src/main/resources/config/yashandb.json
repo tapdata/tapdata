@@ -1,10 +1,10 @@
 {
 	"connection": {
-		"host": "127.0.0.1",
-		"port": 1000,
-		"user": "*****",
-		"password": "****",
-		"schema": "****"
+		"host": "119.23.65.155",
+		"port": 1688,
+		"user": "tapdata",
+		"password": "tapdata",
+		"schema": "TAPDATA"
 	},
 	"node": {
 	}
