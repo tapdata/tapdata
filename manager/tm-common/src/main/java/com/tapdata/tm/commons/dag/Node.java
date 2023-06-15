@@ -483,8 +483,8 @@ public abstract class Node<S> extends Element{
 
 
     protected void fieldNameUpLow(List<String> inputFields, List<Field> fields, String fieldsNameTransform) {
-        if (fieldsNameTransform != null) {
-            CapitalizedEnum capitalizedEnum = CapitalizedEnum.valueOf(fieldsNameTransform.trim());
+        if (StringUtils.isNotBlank(fieldsNameTransform)) {
+            CapitalizedEnum capitalizedEnum = CapitalizedEnum.fromValue(fieldsNameTransform.trim());
 
             fields.forEach(field -> {
                 if (inputFields.contains(field.getFieldName()) && !field.isDeleted()) {
