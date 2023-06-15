@@ -1,7 +1,11 @@
 package com.tapdata.tm.init;
 
+
+import com.tapdata.tm.utils.TMStartMsgUtil;
+import com.tapdata.tm.utils.TmStartMsg;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationRunner;
+
 
 import java.util.HashMap;
 import java.util.Map;
@@ -22,6 +26,8 @@ public class InitLogMap {
                 return;
             }
         }
+        TmStartMsg tmStartMsg = new TmStartMsg("ok","TM启动成功");
+        TMStartMsgUtil.writeTMStartMsg(tmStartMsg);
         log.info("\n" +
                 "  _______              _       _           _                    _             _                                _      _           _ \n" +
                 " |__   __|            | |     | |         | |                  | |           | |                              | |    | |         | |\n" +
