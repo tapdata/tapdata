@@ -455,16 +455,18 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                             DatabaseNode first = sourceNode.getFirst();
                             DatabaseNode newFirst = newSourceNode.getFirst();
                             List<String> tableNames = first.getTableNames();
-                            List<String> newTableNames = new ArrayList<>(newFirst.getTableNames());
-                            newTableNames.removeAll(tableNames);
-                            if (CollectionUtils.isNotEmpty(newTableNames)) {
-                                List<String> ldpNewTables = taskDto.getLdpNewTables();
-                                if (ldpNewTables == null) {
-                                    ldpNewTables = new ArrayList<>();
+                            if (first.getTableNames() != null && newFirst != null && newFirst.getTableNames() != null) {
+                                List<String> newTableNames = new ArrayList<>(newFirst.getTableNames());
+                                newTableNames.removeAll(tableNames);
+                                if (CollectionUtils.isNotEmpty(newTableNames)) {
+                                    List<String> ldpNewTables = taskDto.getLdpNewTables();
+                                    if (ldpNewTables == null) {
+                                        ldpNewTables = new ArrayList<>();
+                                    }
+                                    ldpNewTables.addAll(tableNames);
+                                    ldpNewTables = ldpNewTables.stream().distinct().collect(Collectors.toList());
+                                    taskDto.setLdpNewTables(ldpNewTables);
                                 }
-                                ldpNewTables.addAll(tableNames);
-                                ldpNewTables = ldpNewTables.stream().distinct().collect(Collectors.toList());
-                                taskDto.setLdpNewTables(ldpNewTables);
                             }
 
                         }
