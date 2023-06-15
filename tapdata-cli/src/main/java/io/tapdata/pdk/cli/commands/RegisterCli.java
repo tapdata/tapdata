@@ -4,6 +4,8 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -23,13 +25,8 @@ import picocli.CommandLine;
 
 import java.io.File;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 
 @CommandLine.Command(
         description = "Push PDK jar file into Tapdata",
@@ -140,6 +137,18 @@ public class RegisterCli extends CommonCli {
                     o.put("group", nodeInfo.getNodeClass().getPackage().getImplementationVendor());
 
                     TapNodeContainer nodeContainer = JSON.parseObject(IOUtils.toString(nodeInfo.readResource(nodeInfo.getNodeClass().getAnnotation(TapConnectorClass.class).value())), TapNodeContainer.class);
+                    if(nodeContainer.getDataTypes() == null) {
+                        try (InputStream dataTypeInputStream = this.getClass().getClassLoader().getResourceAsStream("default-data-types.json")) {
+                            if (dataTypeInputStream != null) {
+                                String dataTypesJson = org.apache.commons.io.IOUtils.toString(dataTypeInputStream, StandardCharsets.UTF_8);
+                                if (StringUtils.isNotBlank(dataTypesJson)) {
+                                    TapNodeContainer container = InstanceFactory.instance(JsonParser.class).fromJson(dataTypesJson, TapNodeContainer.class);
+                                    if (container != null && container.getDataTypes() != null)
+                                        nodeContainer.setDataTypes(container.getDataTypes());
+                                }
+                            }
+                        }
+                    }
                     Map<String, Object> messsages = nodeContainer.getMessages();
                     if(messsages != null) {
                         Set<String> keys = messsages.keySet();
