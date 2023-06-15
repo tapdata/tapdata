@@ -31,7 +31,7 @@ TINYINT
 TINYINT UNSIGNED	
 BOOL
 NCHAR
-BINARY (VARCHAR的别名，BINARY类型字段在建表是会换成VARCHAR类型)
+BINARY (An alias for VARCHAR, BINARY type fields will be converted to VARCHAR type when creating the table.)
 VARCHAR
 ```
 ### **5. Common issues**
