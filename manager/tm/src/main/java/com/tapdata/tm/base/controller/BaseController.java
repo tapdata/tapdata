@@ -131,8 +131,10 @@ public class BaseController {
 	public Field parseField(String fieldJson) {
 		return JsonUtil.parseJson(fieldJson, Field.class);
 	}
-
 	public UserDetail getLoginUser() {
+		return getLoginUser(null);
+	}
+	public UserDetail getLoginUser(String specifiedUserId) {
 //		return new UserDetail("62bc5008d4958d013d97c7a6", "62bc5008d4958d013d97c7a6", "admin@admin.com", "", Collections.singletonList(new SimpleGrantedAuthority("USERS")));
 //	}
 ////	public UserDetail getLoginUser1() {
@@ -144,7 +146,7 @@ public class BaseController {
 		ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
 		HttpServletRequest request = attributes.getRequest();
 
-		String userIdFromHeader = request.getHeader("user_id");
+		String userIdFromHeader = specifiedUserId != null ? specifiedUserId : request.getHeader("user_id");
 
 		if (!StringUtils.isBlank(userIdFromHeader)) {
 			log.debug("Load user by request header user_id({})", userIdFromHeader);

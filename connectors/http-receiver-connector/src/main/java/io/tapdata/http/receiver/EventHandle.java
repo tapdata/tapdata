@@ -39,7 +39,7 @@ public class EventHandle {
         switch (eventType){
             case Tags.OP_DELETE:
                 before = oBefore instanceof Map ? (Map<String, Object>) oBefore : null;
-                event = TapSimplify.deleteDMLEvent(before, tableName);
+                event = TapSimplify.deleteDMLEvent(before, tableName).referenceTime(time);
                 break;
             case Tags.OP_UPDATE:
                 event = TapSimplify.updateDMLEvent(before, eventData, tableName).referenceTime(time);

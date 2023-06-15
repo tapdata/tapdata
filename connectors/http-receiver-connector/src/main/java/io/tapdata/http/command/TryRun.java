@@ -38,6 +38,7 @@ public class TryRun implements Command {
     public static final String EVENT_DATA_KEY = "before";
     public static final String LOG_COUNT_KEY = "logSize";
     private ScriptEngine scriptEngine;
+    TapConnectionContext tapConnectionContext;
 
     /**
      * {
@@ -54,6 +55,7 @@ public class TryRun implements Command {
      */
     @Override
     public CommandResult execCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
+        this.tapConnectionContext = tapConnectionContext;
         ConnectionConfig config = null == tapConnectionContext ||  null == tapConnectionContext.getConnectionConfig()?
                 ConnectionConfig.create(commandInfo.getConnectionConfig())
                 : ConnectionConfig.create(tapConnectionContext);
@@ -130,7 +132,7 @@ public class TryRun implements Command {
         scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
         if (null != scriptEngine) {
             try {
-                ScriptEvel scriptEvel = ScriptEvel.create(scriptEngine);
+                ScriptEvel scriptEvel = ScriptEvel.create(scriptEngine, this.tapConnectionContext);
                 scriptEvel.evalSourceForSelf();
                 scriptEngine.eval(script);
             } catch (Exception e) {

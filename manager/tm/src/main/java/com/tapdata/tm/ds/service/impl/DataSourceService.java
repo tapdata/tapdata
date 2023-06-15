@@ -888,7 +888,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 							else
 								throw new BizException("gatewaySecret can not be read from @Value(\"${gateway.secret}\")");
 						}
-						SubscribeResponseDto subscribeResponseDto = proxyService.generateSubscriptionToken(subscribeDto, user, token, requestURI);
+						SubscribeResponseDto subscribeResponseDto = proxyService.generateSubscriptionToken(subscribeDto, token);
 						String webHookUrl = keyValue.substring(0, lastCharIndex) + subscribeResponseDto.getToken();
 						config.put(key, webHookUrl);
 
