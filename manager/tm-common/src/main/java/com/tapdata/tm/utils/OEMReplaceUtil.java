@@ -46,7 +46,7 @@ public class OEMReplaceUtil {
     public static String getOEMConfigPath(String fileName){
         String oemType = oemType();
         if (null == fileName || "".equals(fileName.trim()) || null == oemType) return null;
-        return CommonUtils.getProperty("oem_file_path", path) + oemType + (fileName.startsWith("/") ? "" : "/") + fileName;
+        return Optional.ofNullable(System.getenv("oem_file_path")).orElse(path) + oemType + (fileName.startsWith("/") ? "" : "/") + fileName;
     }
 
     /**
@@ -116,7 +116,7 @@ public class OEMReplaceUtil {
      * @date 2023/6/12
      * */
     public static String oemType() {
-        return System.getProperty("oem", null);
+        return System.getenv("oem");
     }
 
     /**
