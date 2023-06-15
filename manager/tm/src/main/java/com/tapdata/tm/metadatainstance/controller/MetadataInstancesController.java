@@ -499,7 +499,7 @@ public class MetadataInstancesController extends BaseController {
     }
 
     @GetMapping("page-tables")
-    public ResponseMessage<Page<Map<String, String>>> pageTables(
+    public ResponseMessage<Page<Map<String, Object>>> pageTables(
             @RequestParam(value = "connectionId") String connectionId // 连接编号
             , @RequestParam(value = "sourceType", defaultValue = "SOURCE") String sourceType // 源类型
             , @RequestParam(value = "keyword", required = false) String keyword // 过滤关键字

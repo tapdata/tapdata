@@ -35,12 +35,10 @@ import com.tapdata.tm.commons.util.*;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dag.service.DAGService;
 import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
-import com.tapdata.tm.discovery.entity.FieldBusinessDescEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.metadatainstance.dto.DataType2TapTypeDto;
 import com.tapdata.tm.metadatainstance.dto.DataTypeCheckMultipleVo;
-import com.tapdata.tm.metadatainstance.dto.TableDto;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.param.ClassificationParam;
 import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
@@ -72,6 +70,7 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.MongoExpression;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.*;
@@ -1190,57 +1189,66 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return values;
     }
 
-    public Page<Map<String, String>> pageTables(String connectId, String sourceType, String regex, int skip, int limit) {
-        Criteria criteria = Criteria.where("source._id").is(connectId)
-                .and("sourceType").is(sourceType)
-                .and("is_deleted").ne(true)
-                .and("taskId").exists(false)
-                .and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
+    public Page<Map<String, Object>> pageTables(String connectId, String sourceType, String regex, int skip, int limit) {
+			Criteria criteria = Criteria.where("source._id").is(connectId)
+				.and("sourceType").is(sourceType)
+				.and("is_deleted").ne(true)
+				.and("taskId").exists(false)
+				.and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
 
-        if (null != regex) {
-            regex = "^" + regex + "$";
-            criteria.and("original_name").regex(regex);
-        }
+			if (null != regex) {
+				regex = "^" + regex + "$";
+				criteria.and("original_name").regex(regex);
+			}
 
-        Query query = new Query(criteria);
-        query.fields().include("original_name","comment");
+			Aggregation aggregation = Aggregation.newAggregation(
+				Aggregation.match(criteria),
+				Aggregation.unwind("fields"),
+				Aggregation.project()
+					.and(AggregationExpression.from(MongoExpression.create("{ \"$toString\": \"$_id\" }"))).as("_id")
+					.and("original_name").as("tableName")
+					.and("comment").as("tableComment")
+					.and(ConditionalOperators
+						.when(ComparisonOperators.Eq.valueOf("fields.primaryKey").equalToValue(true))
+						.then(1)
+						.otherwise(0)
+					).as("primaryKey"),
+				Aggregation.group("_id")
+					.first("tableName").as("tableName")
+					.first("tableComment").as("tableComment")
+					.sum("primaryKey").as("primaryKeyCounts"),
+				Aggregation.project()
+					.and("_id").as("tableId")
+					.andInclude("tableName", "tableComment", "primaryKeyCounts")
+					.andExclude("_id"),
+				Aggregation.sort(Sort.by("tableId"))
+			);
 
-        long totals;
-        List<Map<String, String>> values = new ArrayList<>();
+			long totals;
+			List<Map<String, Object>> values = new ArrayList<>();
+			if (limit > 0) {
+				Query query = new Query(criteria);
+				query.fields().include("original_name", "comment");
+				totals = mongoTemplate.count(query, MetadataInstancesEntity.class);
+				if (totals > 0) {
+					aggregation.getPipeline().add(Aggregation.skip((long) skip)).add(Aggregation.limit(limit));
+					AggregationResults<Map> aggregate = mongoTemplate.aggregate(aggregation, "MetadataInstances", Map.class);
+					for (Map m : aggregate.getMappedResults()) {
+						values.add(m);
+					}
+				} else {
+					values = new ArrayList<>();
+				}
+			} else {
+				AggregationResults<Map> aggregate = mongoTemplate.aggregate(aggregation, "MetadataInstances", Map.class);
+				totals = aggregate.getMappedResults().size();
+				for (Map m : aggregate.getMappedResults()) {
+					values.add(m);
+				}
+			}
 
-        if (limit > 0) {
-            totals = mongoTemplate.count(query, MetadataInstancesEntity.class);
-            if (totals > 0) {
-                query.skip(skip).limit(limit);
-                List<MetadataInstancesEntity> list = mongoTemplate.find(query, MetadataInstancesEntity.class);
-                if (CollectionUtils.isNotEmpty(list)) {
-                    for (MetadataInstancesEntity entity : list) {
-                        Map<String, String> value = new HashMap<>();
-                        value.put("tableName", entity.getOriginalName());
-                        value.put("tableId", entity.getId().toHexString());
-                        value.put("tableComment",StringUtils.isNotBlank(entity.getComment()) ? entity.getComment():"");
-                        values.add(value);
-                    }
-                }
-            } else {
-                values = new ArrayList<>();
-            }
-        } else {
-            List<MetadataInstancesEntity> list = mongoTemplate.find(query, MetadataInstancesEntity.class);
-            if (CollectionUtils.isNotEmpty(list)) {
-                for (MetadataInstancesEntity entity : list) {
-                    Map<String, String> value = new HashMap<>();
-                    value.put("tableName", entity.getOriginalName());
-                    value.put("tableId", entity.getId().toHexString());
-                    value.put("tableComment",StringUtils.isNotBlank(entity.getComment()) ? entity.getComment():"");
-                    values.add(value);
-                }
-            }
-            totals = values.size();
-        }
-
-        return new Page<>(totals, values);
-    }
+			return new Page<>(totals, values);
+		}
 
     public TableSupportInspectVo tableSupportInspect(String connectId, String tableName) {
         TableSupportInspectVo tableSupportInspectVo = new TableSupportInspectVo();

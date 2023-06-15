@@ -78,6 +78,8 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
      * migrateTableSelectType=expression的正则表达式
      */
     private String tableExpression;
+	// 无主键表处理方式：HasKeys|NoKeys|All，默认：All
+	private String noPrimaryKeyTableSelectType;
 
     private Map<String, Object> nodeConfig;
 
