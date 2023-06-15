@@ -7,6 +7,7 @@ import io.tapdata.pdk.core.connector.TapConnector;
 import io.tapdata.pdk.core.connector.TapConnectorManager;
 import io.tapdata.pdk.core.tapnode.TapNodeContainer;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.IOUtils;
 import org.apache.commons.io.FileUtils;
 
@@ -45,7 +46,7 @@ public class OEMReplaceUtil {
     public static String getOEMConfigPath(String fileName){
         String oemType = oemType();
         if (null == fileName || "".equals(fileName.trim()) || null == oemType) return null;
-        return path + oemType + (fileName.startsWith("/") ? "" : "/") + fileName;
+        return CommonUtils.getProperty("oem_file_path", path) + oemType + (fileName.startsWith("/") ? "" : "/") + fileName;
     }
 
     /**
