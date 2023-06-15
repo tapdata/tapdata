@@ -179,10 +179,7 @@ public class MetadataInstancesController extends BaseController {
         return success(metadataInstancesDtos);
     }
 
-    @GetMapping("node/filterTypeList")
-    public ResponseMessage<Set<String>> getTypeFilter(@RequestParam("nodeId") String nodeId) {
-        return success(metadataInstancesService.getTypeFilter(nodeId,getLoginUser()));
-    }
+
 
     @GetMapping("node/schemaPage")
     @Operation(summary = "目标节点表详情接口")
