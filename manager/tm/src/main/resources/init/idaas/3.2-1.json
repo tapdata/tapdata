@@ -4,7 +4,7 @@
 		"documents": [
 			{
 				"description": "高级功能",
-				"name": "√",
+				"name": "v2_advanced_features",
 				"need_permission": true,
 				"order": 1,
 				"parentId": "",

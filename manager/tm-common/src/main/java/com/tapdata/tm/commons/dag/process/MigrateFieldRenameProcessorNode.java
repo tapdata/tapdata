@@ -238,13 +238,9 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 						break;
 
 				}
-				if (CapitalizedEnum.fromValue(operation.getCapitalized()) == CapitalizedEnum.UPPER) {
-					resValue = StringUtils.upperCase(resValue);
-				} else {
-					resValue = StringUtils.lowerCase(resValue);
-				}
 			}
 			return resValue;
 		}
 	}
 }
+
