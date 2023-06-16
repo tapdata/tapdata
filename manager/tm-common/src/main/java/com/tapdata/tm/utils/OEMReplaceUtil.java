@@ -33,7 +33,7 @@ import java.util.Set;
  * OEM config util
  **/
 public class OEMReplaceUtil {
-    private static final String path = "manager/tm/src/main/resources/oem/";
+    private static final String path = "classpath:oem/";
 
     /**
      * @type function
@@ -64,7 +64,7 @@ public class OEMReplaceUtil {
         //    throw new FileNotFoundException("Can not found " + fileName + "in /" + oemType());
         //}
         try {
-            return new File(configPath);
+            return org.springframework.util.ResourceUtils.getFile(configPath);//new File(configPath);
         }catch (Exception e){
             throw new CoreException("FileNotFound in path '%s'", configPath);
         }
