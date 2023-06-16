@@ -8,6 +8,8 @@ package com.tapdata.tm.proxy.dto;
 public class SubscribeURLResponseDto extends SubscribeResponseDto {
     private String path;
 
+    private String access_token;
+
     public String getPath() {
         return path;
     }
@@ -16,4 +18,11 @@ public class SubscribeURLResponseDto extends SubscribeResponseDto {
         this.path = path;
     }
 
+    public String getAccess_token() {
+        return access_token;
+    }
+
+    public void setAccess_token(String access_token) {
+        this.access_token = access_token;
+    }
 }
