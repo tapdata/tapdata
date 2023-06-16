@@ -13,6 +13,7 @@ import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.OEMReplaceUtil;
+import io.tapdata.entity.logger.TapLogger;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -64,7 +65,15 @@ public class PkdSourceService {
             throw new BizException("Invalid jar file, please upload a valid jar file.");
         }
 
+        String oem = System.getenv("oem");
+        if (null == oem) {
+            throw new BizException("not found oem from evn");
+        }
+        TapLogger.info("","oem is {}", oem);
         Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("connector/replace.json");
+        if(null == oemConfig){
+            throw new BizException("null map");
+        }
         for(PdkSourceDto pdkSourceDto : pdkSourceDtos) {
             // try to verify the version
             String version  = pdkSourceDto.getVersion();
