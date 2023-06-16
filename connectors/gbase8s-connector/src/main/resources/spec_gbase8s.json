@@ -1,0 +1,470 @@
+{
+  "properties": {
+    "name": "GBase-8s",
+    "icon": "icons/gbase8s.png",
+    "id": "gbase8s",
+    "doc": "${doc}",
+    "authentication": "Beta",
+    "tags": ["Database"]
+  },
+  "configOptions": {
+    "capabilities": [
+      {
+        "id": "dml_insert_policy",
+        "alternatives": [
+          "update_on_exists",
+          "ignore_on_exists"
+        ]
+      },
+      {
+        "id": "dml_update_policy",
+        "alternatives": [
+          "ignore_on_nonexists",
+          "insert_on_nonexists"
+        ]
+      }
+    ],
+    "connection": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string",
+          "title": "${host}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 1,
+          "required": true
+        },
+        "port": {
+          "type": "string",
+          "title": "${port}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "database_port",
+          "x-index": 2,
+          "required": true
+        },
+        "database": {
+          "type": "string",
+          "title": "${database}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_name",
+          "x-index": 3,
+          "required": true
+        },
+        "schema": {
+          "required": true,
+          "type": "string",
+          "title": "${schema}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_owner",
+          "x-index": 4
+        },
+        "user": {
+          "type": "string",
+          "title": "${user}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_username",
+          "x-index": 5,
+          "required": true
+        },
+        "password": {
+          "type": "string",
+          "title": "${password}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "database_password",
+          "x-index": 6
+        },
+        "extParams": {
+          "type": "string",
+          "title": "${extParams}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "default": ":delimident=y",
+          "apiServerKey": "additionalString",
+          "x-index": 7
+        },
+        "timezone": {
+          "type": "string",
+          "title": "${timezone}",
+          "default": "",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-index": 8,
+          "enum": [
+            {
+              "label": "Database Timezone",
+              "value": ""
+            },
+            {
+              "label": "UTC -11",
+              "value": "-11:00"
+            },
+            {
+              "label": "UTC -10",
+              "value": "-10:00"
+            },
+            {
+              "label": "UTC -09",
+              "value": "-09:00"
+            },
+            {
+              "label": "UTC -08",
+              "value": "-08:00"
+            },
+            {
+              "label": "UTC -07",
+              "value": "-07:00"
+            },
+            {
+              "label": "UTC -06",
+              "value": "-06:00"
+            },
+            {
+              "label": "UTC -05",
+              "value": "-05:00"
+            },
+            {
+              "label": "UTC -04",
+              "value": "-04:00"
+            },
+            {
+              "label": "UTC -03",
+              "value": "-03:00"
+            },
+            {
+              "label": "UTC -02",
+              "value": "-02:00"
+            },
+            {
+              "label": "UTC -01",
+              "value": "-01:00"
+            },
+            {
+              "label": "UTC",
+              "value": "+00:00"
+            },
+            {
+              "label": "UTC +01",
+              "value": "+01:00"
+            },
+            {
+              "label": "UTC +02",
+              "value": "+02:00"
+            },
+            {
+              "label": "UTC +03",
+              "value": "+03:00"
+            },
+            {
+              "label": "UTC +04",
+              "value": "+04:00"
+            },
+            {
+              "label": "UTC +05",
+              "value": "+05:00"
+            },
+            {
+              "label": "UTC +06",
+              "value": "+06:00"
+            },
+            {
+              "label": "UTC +07",
+              "value": "+07:00"
+            },
+            {
+              "label": "UTC +08",
+              "value": "+08:00"
+            },
+            {
+              "label": "UTC +09",
+              "value": "+09:00"
+            },
+            {
+              "label": "UTC +10",
+              "value": "+10:00"
+            },
+            {
+              "label": "UTC +11",
+              "value": "+11:00"
+            },
+            {
+              "label": "UTC +12",
+              "value": "+12:00"
+            },
+            {
+              "label": "UTC +13",
+              "value": "+13:00"
+            },
+            {
+              "label": "UTC +14",
+              "value": "+14:00"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "host": "Host",
+      "port": "Port",
+      "database": "database",
+      "schema" : "schema",
+      "user": "username",
+      "password": "password",
+      "extParams": "Connection Parameter String",
+      "timezone": "timezone",
+      "doc": "docs/gbase8s_en_US.md"
+    },
+    "zh_CN": {
+      "host": "地址",
+      "port": "端口",
+      "database": "数据库",
+      "schema" : "模型",
+      "user": "账号",
+      "password": "密码",
+      "extParams": "连接参数",
+      "timezone": "时区",
+      "doc": "docs/gbase8s_zh_CN.md"
+    },
+    "zh_TW": {
+      "host": "地址",
+      "port": "端口",
+      "database": "數據庫",
+      "schema" : "模型",
+      "user": "賬號",
+      "password": "密碼",
+      "extParams": "連接參數",
+      "timezone": "時區",
+      "doc": "docs/gbase8s_zh_TW.md"
+    }
+  },
+  "dataTypes": {
+    "SMALLINT": {
+      "bit": 16,
+      "priority": 3,
+      "value": [
+        -32768,
+        32767
+      ],
+      "to": "TapNumber"
+    },
+    "INTEGER": {
+      "bit": 32,
+      "priority": 1,
+      "value": [
+        -2147483648,
+        2147483647
+      ],
+      "to": "TapNumber"
+    },
+    "BIGINT": {
+      "bit": 64,
+      "priority": 3,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ],
+      "to": "TapNumber"
+    },
+    "INT8": {
+      "bit": 64,
+      "priority": 3,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ],
+      "to": "TapNumber"
+    },
+    "SERIAL": {
+      "bit": 32,
+      "queryOnly": true,
+      "value": [
+        -2147483648,
+        2147483647
+      ],
+      "to": "TapNumber"
+    },
+    "BIGSERIAL": {
+      "bit": 64,
+      "queryOnly": true,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ],
+      "to": "TapNumber"
+    },
+    "SERIAL8": {
+      "bit": 64,
+      "queryOnly": true,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ],
+      "to": "TapNumber"
+    },
+    "DECIMAL[($precision,$scale)]": {
+      "precision": [
+        1,
+        32
+      ],
+      "scale": [
+        0,
+        32
+      ],
+      "fixed": true,
+      "preferPrecision": 20,
+      "preferScale": 8,
+      "priority": 1,
+      "to": "TapNumber"
+    },
+    "SMALLFLOAT": {
+      "bit": 16,
+      "priority": 2,
+      "precision": [
+        1,
+        4
+      ],
+      "scale": [
+        0,
+        4
+      ],
+      "fixed": false,
+      "to": "TapNumber"
+    },
+    "FLOAT[($precision)]": {
+      "bit": 64,
+      "priority": 2,
+      "precision": [
+        1,
+        16
+      ],
+      "scale": [
+        0,
+        6
+      ],
+      "defaultPrecision": 8,
+      "fixed": false,
+      "to": "TapNumber"
+    },
+    "CHAR[($byte)]": {
+      "byte": 32767,
+      "priority": 2,
+      "defaultByte": 1,
+      "preferByte": 255,
+      "fixed": true,
+      "to": "TapString"
+    },
+    "VARCHAR[($byte)]": {
+      "byte": 32765,
+      "priority": 1,
+      "defaultByte": 1,
+      "preferByte": 2000,
+      "to": "TapString"
+    },
+    "NCHAR[($byte)]": {
+      "byte": 32767,
+      "byteRatio": 3,
+      "queryOnly": true,
+      "defaultByte": 1,
+      "preferByte": 255,
+      "fixed": true,
+      "to": "TapString"
+    },
+    "NVCHAR[($byte)]": {
+      "byte": 32765,
+      "byteRatio": 3,
+      "queryOnly": true,
+      "defaultByte": 1,
+      "preferByte": 2000,
+      "to": "TapString"
+    },
+    "LVARCHAR[($byte)]": {
+      "byte": 32739,
+      "queryOnly": true,
+      "defaultByte": 2048,
+      "preferByte": 2048,
+      "to": "TapString"
+    },
+    "TEXT": {
+      "byte": "2g",
+      "priority": 2,
+      "to": "TapString"
+    },
+    "BYTE": {
+      "byte": "2g",
+      "priority": 1,
+      "to": "TapBinary"
+    },
+    "BOOLEAN": {
+      "bit": 1,
+      "priority": 1,
+      "to": "TapBoolean"
+    },
+    "CLOB": {
+      "byte": "4t",
+      "priority": 2,
+      "to": "TapString"
+    },
+    "BLOB": {
+      "byte": "4t",
+      "priority": 1,
+      "to": "TapBinary"
+    },
+    "DATE": {
+      "range": [
+        "0001-01-01",
+        "9999-12-31"
+      ],
+      "pattern": "yyyy-MM-dd",
+      "priority": 1,
+      "to": "TapDate"
+    },
+    "DATETIME HOUR TO SECOND": {
+      "range": [
+        "00:00:00",
+        "23:59:59"
+      ],
+      "pattern": "HH:mm:ss",
+      "withTimeZone": false,
+      "priority": 1,
+      "to": "TapTime"
+    },
+    "DATETIME YEAR TO FRACTION($fraction)": {
+      "range": [
+        "1000-01-01 00:00:00",
+        "9999-12-31 23:59:59"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss",
+      "fraction": [
+        1,
+        5
+      ],
+      "defaultFraction": 3,
+      "priority": 2,
+      "to": "TapDateTime"
+    },
+    "DATETIME $start TO $end": {
+      "range": [
+        "1000-01-01 00:00:00",
+        "9999-12-31 23:59:59"
+      ],
+      "queryOnly": true,
+      "pattern": "yyyy-MM-dd HH:mm:ss",
+      "fraction": [
+        1,
+        5
+      ],
+      "defaultFraction": 3,
+      "priority": 2,
+      "to": "TapDateTime"
+    }
+  }
+}
