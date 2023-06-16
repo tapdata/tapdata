@@ -571,6 +571,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected boolean handleNewTables(List<String> addList) {
 		if (CollectionUtils.isNotEmpty(addList)) {
 			List<String> loadedTableNames;
+			final List<String> noPrimaryKeyTableNames = new ArrayList<>();
 			obsLogger.info("Found new table(s): " + addList);
 			List<TapTable> addTapTables = new ArrayList<>();
 			List<TapdataEvent> tapdataEvents = new ArrayList<>();
@@ -578,7 +579,33 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (obsLogger.isDebugEnabled()) {
 				obsLogger.debug("Starting load new table(s) schema: {}", addList);
 			}
-			LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), addList, addTapTables::add);
+			Function<TapTable, Boolean> filterTableByNoPrimaryKey = Optional.ofNullable(getNode()).map(node->{
+				if (node instanceof DatabaseNode) {
+					DatabaseNode databaseNode = (DatabaseNode) node;
+					if ("expression".equals(databaseNode.getMigrateTableSelectType())) {
+						NoPrimaryKeyTableSelectType type = NoPrimaryKeyTableSelectType.parse(databaseNode.getNoPrimaryKeyTableSelectType());
+						switch (type) {
+							case HasKeys:
+								// filter no hove primary key tables
+								return (Function<TapTable, Boolean>)tapTable -> Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true);
+							case NoKeys:
+								// filter has primary key tables
+								return (Function<TapTable, Boolean>)tapTable -> !Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true);
+							default:
+								break;
+						}
+					}
+				}
+				return null;
+			}).orElse(tapTable -> false);
+			LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), addList, tapTable -> {
+				if (filterTableByNoPrimaryKey.apply(tapTable)) {
+					logger.warn("Ignore DDL no primary key table '{}'", tapTable.getId());
+					noPrimaryKeyTableNames.add(tapTable.getId());
+					return;
+				}
+				addTapTables.add(tapTable);
+			});
 			if (obsLogger.isDebugEnabled()) {
 				if (CollectionUtils.isNotEmpty(addTapTables)) {
 					addTapTables.forEach(tapTable -> obsLogger.debug("Loaded new table schema: {}", tapTable));
@@ -588,7 +615,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			loadedTableNames = addTapTables.stream().map(TapTable::getId).collect(Collectors.toList());
 			List<String> missingTableNames = new ArrayList<>();
 			addList.forEach(tableName -> {
-				if (!loadedTableNames.contains(tableName)) {
+				if (!noPrimaryKeyTableNames.contains(tableName) && !loadedTableNames.contains(tableName)) {
 					missingTableNames.add(tableName);
 				}
 			});
@@ -597,27 +624,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						addList.size(), missingTableNames.size(), missingTableNames);
 			}
 			if (CollectionUtils.isNotEmpty(loadedTableNames)) {
-				Function<TapTable, Boolean> filterTableByNoPrimaryKey = null;
-				if (getNode() instanceof DatabaseNode) {
-					DatabaseNode databaseNode = (DatabaseNode) getNode();
-					if ("expression".equals(databaseNode.getMigrateTableSelectType())) {
-						NoPrimaryKeyTableSelectType type = NoPrimaryKeyTableSelectType.parse(databaseNode.getNoPrimaryKeyTableSelectType());
-						switch (type) {
-							case HasKeys:
-								filterTableByNoPrimaryKey = tapTable -> Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true);
-								break;
-							case NoKeys:
-								filterTableByNoPrimaryKey = tapTable -> !Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true);
-								break;
-							default:
-								break;
-						}
-					}
-				}
-				if (null == filterTableByNoPrimaryKey) {
-					filterTableByNoPrimaryKey = tapTable -> false;
-				}
-
 				for (TapTable addTapTable : addTapTables) {
 					if (!isRunning()) {
 						break;
@@ -633,11 +639,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						return true;
 					}
 
-					if (filterTableByNoPrimaryKey.apply(addTapTable)) {
-						logger.warn("Ignore DDL no primary key table '{}'", addTapTable.getName());
-					} else {
-						tapdataEvents.add(tapdataEvent);
-					}
+					tapdataEvents.add(tapdataEvent);
 				}
 				if (!isRunning()) {
 					return true;

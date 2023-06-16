@@ -176,10 +176,44 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 //            if (CollectionUtils.isEmpty(metaInstances)) {
 //                metaInstances = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(), null, userDetail);
 //            }
+					Function<MetadataInstancesDto, Boolean> filterTableByNoPrimaryKey = Optional
+						.of(NoPrimaryKeyTableSelectType.parse(sourceNode.getNoPrimaryKeyTableSelectType()))
+						.map(type -> {
+							switch (type) {
+								case HasKeys:
+									return (Function<MetadataInstancesDto, Boolean>) metadataInstancesDto -> {
+										if (null != metadataInstancesDto.getFields()) {
+											for (Field field : metadataInstancesDto.getFields()) {
+												if (Boolean.TRUE.equals(field.getPrimaryKey())) return false;
+											}
+										}
+										return true;
+									};
+								case NoKeys:
+									return (Function<MetadataInstancesDto, Boolean>) metadataInstancesDto -> {
+										if (null != metadataInstancesDto.getFields()) {
+											for (Field field : metadataInstancesDto.getFields()) {
+												if (Boolean.TRUE.equals(field.getPrimaryKey())) return true;
+											}
+										}
+										return false;
+									};
+								default:
+							}
+							return null;
+						}).orElse(metadataInstancesDto -> false);
+
             tableNames = metaInstances.stream()
-                    .map(MetadataInstancesDto::getOriginalName)
+							.map(metadataInstancesDto -> {
+								if (filterTableByNoPrimaryKey.apply(metadataInstancesDto)) {
+									return null;
+								}
+								return metadataInstancesDto.getOriginalName();
+							})
                     .filter(originalName -> {
-                        if (StringUtils.isEmpty(sourceNode.getTableExpression())) {
+											if (null == originalName) {
+												return false;
+											} else if (StringUtils.isEmpty(sourceNode.getTableExpression())) {
                             return false;
                         } else {
                             return Pattern.matches(sourceNode.getTableExpression(), originalName);
