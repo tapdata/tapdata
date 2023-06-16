@@ -65,6 +65,8 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
 
     private final MongoTemplate mongoOperations;
 
+    private final Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("log/replace.json");
+
     public MonitoringLogsService(@NonNull MonitoringLogsRepository repository,@Qualifier(value = "logMongoTemplate") CompletableFuture<MongoTemplate> mongoTemplateCompletableFuture) throws ExecutionException, InterruptedException {
         super(repository, MonitoringLogsDto.class, MonitoringLogsEntity.class);
         this.mongoOperations = mongoTemplateCompletableFuture.get();
@@ -78,9 +80,10 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
 
         BulkOperations bulkOperations = repository.getMongoOperations().bulkOps(BulkOperations.BulkMode.UNORDERED, MonitoringLogsEntity.class);
         for (MonitoringLogsDto monitoringLoge : monitoringLoges) {
-            Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("log/replace.json");
             String message = OEMReplaceUtil.replace(monitoringLoge.getMessage(), oemConfig);
             monitoringLoge.setMessage(message);
+            String errorStack = OEMReplaceUtil.replace(monitoringLoge.getErrorStack(), oemConfig);
+            monitoringLoge.setErrorStack(errorStack);
             beforeSave(monitoringLoge, user);
         }
 
@@ -90,7 +93,6 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             monitoringLogsEntity.setTimestamp(System.currentTimeMillis());
             repository.applyUserDetail(monitoringLogsEntity, user);
             if (Objects.nonNull(monitoringLogsEntity.getData())) {
-                Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("log/replace.json");
                 String jsonData = OEMReplaceUtil.replace(JSON.toJSONString(monitoringLogsEntity.getData()), oemConfig);
                 monitoringLogsEntity.setDataJson(jsonData);
             }
@@ -285,7 +287,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             message = MessageFormat.format(template, user.getUsername(), event.getName(), stateMachineResult.getCode(),
                     stateMachineResult.getBefore(), stateMachineResult.getAfter(), cost);
         }
-
+        message = OEMReplaceUtil.replace(message, oemConfig);
         save(builder.message(message).build(), user);
     }
 
@@ -323,6 +325,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         } else {
             msg = e.toString();
         }
+        msg = OEMReplaceUtil.replace(msg, oemConfig);
 
         save(builder.message(msg).build(), user);
     }
