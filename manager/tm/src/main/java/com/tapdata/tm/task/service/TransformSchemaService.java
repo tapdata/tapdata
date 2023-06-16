@@ -109,7 +109,7 @@ public class TransformSchemaService {
     }
 
     public TransformerWsMessageDto getTransformParam(TaskDto taskDto, UserDetail user, boolean allParam) {
-        return getTransformParam(taskDto, user, null, false);
+        return getTransformParam(taskDto, user, null, allParam);
     }
     public TransformerWsMessageDto getTransformParam(TaskDto taskDto, UserDetail user, List<String> includes, boolean allParam) {
         log.debug("start transform schema, task = {}, user = {}", taskDto, user);

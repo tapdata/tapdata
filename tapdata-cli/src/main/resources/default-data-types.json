@@ -1,0 +1,71 @@
+{
+  "dataTypes": {
+    "Object": {
+      "to": "TapMap"
+    },
+    "Null": {
+      "to": "TapArray"
+    },
+    "Number": {
+      "precision": [
+        1,
+        1000
+      ],
+      "scale": [
+        0,
+        1000
+      ],
+      "fixed": true,
+      "preferPrecision": 20,
+      "preferScale": 8,
+      "priority": 1,
+      "to": "TapNumber"
+    },
+    "DateTime": {
+      "range": [
+        "1000-01-01 00:00:00.000000000",
+        "9999-12-31 23:59:59.999999999"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss.SSSSSSSSS",
+      "fraction": [
+        0,
+        9
+      ],
+      "defaultFraction": 3,
+      "withTimeZone": false,
+      "priority": 2,
+      "to": "TapDateTime"
+    },
+    "Long": {
+      "bit": 64,
+      "priority": 10,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ],
+      "to": "TapNumber"
+    },
+    "Boolean": {
+      "to": "TapBoolean"
+    },
+    "String": {
+      "byte": 1024,
+      "priority": 1,
+      "defaultByte": 512,
+      "preferByte": 1024,
+      "to": "TapString"
+    },
+    "Array": {
+      "to": "TapArray"
+    },
+    "Float": {
+      "to": "TapNumber",
+      "bit": 64,
+      "scale": [
+        0,
+        6
+      ],
+      "fixed": false
+    }
+  }
+}

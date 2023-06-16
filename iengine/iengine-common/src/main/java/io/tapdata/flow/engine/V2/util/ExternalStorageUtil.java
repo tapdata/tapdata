@@ -3,11 +3,7 @@ package io.tapdata.flow.engine.V2.util;
 import com.hazelcast.config.Config;
 import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
-import com.hazelcast.persistence.config.PersistenceHttpConfig;
-import com.hazelcast.persistence.config.PersistenceInMemConfig;
-import com.hazelcast.persistence.config.PersistenceMongoDBConfig;
-import com.hazelcast.persistence.config.PersistenceRocksDBConfig;
-import com.hazelcast.persistence.config.PersistenceStorageAbstractConfig;
+import com.hazelcast.persistence.config.*;
 import com.mongodb.MongoClientURI;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MongodbUtil;
@@ -16,6 +12,7 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
+import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
@@ -33,11 +30,7 @@ import org.jetbrains.annotations.Nullable;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -51,6 +44,7 @@ public class ExternalStorageUtil {
 	private final static String LOG_PREFIX = "[Hazelcast IMDG Persistence] - ";
 	private static final Logger logger = LogManager.getLogger(ExternalStorageUtil.class);
 	public static final int DEFAULT_IN_MEM_SIZE = 100;
+	public static final String DEFAULT_MAX_SIZE_POLICY = "USED_HEAP_SIZE";
 
 	public synchronized static void initHZMapStorage(ExternalStorageDto externalStorageDto, String referenceId, String name, Config config) {
 		addConfig(externalStorageDto, ConstructType.IMAP, name);
@@ -95,7 +89,8 @@ public class ExternalStorageUtil {
 		switch (externalStorageType) {
 			case memory:
 				persistenceStorageAbstractConfig = PersistenceInMemConfig.create(constructType, constructName);
-				persistenceStorageAbstractConfig.setInMemSize(DEFAULT_IN_MEM_SIZE);
+				persistenceStorageAbstractConfig.setMaxSizePolicy(StringUtils.isEmpty(externalStorageDto.getMaxSizePolicy()) ? DEFAULT_MAX_SIZE_POLICY : externalStorageDto.getMaxSizePolicy());
+				persistenceStorageAbstractConfig.setInMemSize(externalStorageDto.getInMemSize() != null ? externalStorageDto.getInMemSize() : DEFAULT_IN_MEM_SIZE);
 				break;
 			case mongodb:
 				persistenceStorageAbstractConfig = getMongoDBConfig(externalStorageDto, constructType, constructName);
@@ -281,11 +276,22 @@ public class ExternalStorageUtil {
 			externalStorageDto = getPdkStateMapExternalStorage(node, connections, clientMongoOperator);
 		} else if (node instanceof HazelCastImdgNode) {
 			externalStorageDto = getShareCDCExternalStorage(node, nodes, clientMongoOperator);
+		} else if (node instanceof CacheNode) {
+			externalStorageDto = getShareCacheExternalStorageDto(node, clientMongoOperator);
 		} else {
 			externalStorageDto = getExternalStorageDto(node, clientMongoOperator);
 		}
 		if (null == externalStorageDto) {
 			externalStorageDto = getDefaultExternalStorage(node, clientMongoOperator);
+		}
+		return externalStorageDto;
+	}
+
+	private static ExternalStorageDto getShareCacheExternalStorageDto(@NotNull Node node, @NotNull ClientMongoOperator clientMongoOperator) {
+		ExternalStorageDto externalStorageDto = getExternalStorageDto(node, clientMongoOperator);
+		if (externalStorageDto != null && node instanceof CacheNode) {
+			externalStorageDto.setInMemSize(((CacheNode) node).getMaxMemory());
+			externalStorageDto.setMaxSizePolicy(DEFAULT_MAX_SIZE_POLICY);
 		}
 		return externalStorageDto;
 	}

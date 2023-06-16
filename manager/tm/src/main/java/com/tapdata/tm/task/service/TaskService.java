@@ -445,6 +445,43 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     taskDto.setAccessNodeProcessIdList(oldTaskDto.getAccessNodeProcessIdList());
                 }
 
+                if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+                    DAG dag = oldTaskDto.getDag();
+                    DAG newDag = taskDto.getDag();
+                    if (dag != null && newDag != null) {
+                        LinkedList<DatabaseNode> sourceNode = dag.getSourceNode();
+                        LinkedList<DatabaseNode> newSourceNode = newDag.getSourceNode();
+                        if (CollectionUtils.isNotEmpty(sourceNode) && CollectionUtils.isNotEmpty(newSourceNode)) {
+                            DatabaseNode first = sourceNode.getFirst();
+                            DatabaseNode newFirst = newSourceNode.getFirst();
+                            List<String> tableNames = first.getTableNames();
+                            if (first.getTableNames() != null && newFirst != null && newFirst.getTableNames() != null) {
+                                List<String> newTableNames = new ArrayList<>(newFirst.getTableNames());
+                                newTableNames.removeAll(tableNames);
+                                List<String> ldpNewTables = oldTaskDto.getLdpNewTables();
+                                if (CollectionUtils.isNotEmpty(newTableNames)) {
+                                    if (ldpNewTables == null) {
+                                        ldpNewTables = new ArrayList<>();
+                                    }
+                                    ldpNewTables.addAll(newTableNames);
+                                    ldpNewTables = ldpNewTables.stream().distinct().collect(Collectors.toList());
+                                    taskDto.setLdpNewTables(ldpNewTables);
+                                }
+                                List<String> removeList = new ArrayList<>();
+                                if (CollectionUtils.isNotEmpty(ldpNewTables)) {
+                                    for (String ldpNewTable : ldpNewTables) {
+                                        if (!newFirst.getTableNames().contains(ldpNewTable)) {
+                                            removeList.add(ldpNewTable);
+                                        }
+                                    }
+                                    ldpNewTables.removeAll(removeList);
+                                    taskDto.setLdpNewTables(ldpNewTables);
+                                }
+                            }
+
+                        }
+                    }
+                }
                 log.debug("old task = {}", oldTaskDto);
             }
         }

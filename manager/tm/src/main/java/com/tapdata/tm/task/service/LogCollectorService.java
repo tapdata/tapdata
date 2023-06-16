@@ -55,7 +55,6 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
-import org.bson.BsonDocument;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
@@ -866,30 +865,46 @@ public class LogCollectorService {
         List<DataSourceConnectionDto> dataSourceDtos = dataSourceService.findAllDto(query, user);
 
         //根据数据源连接
-        Set<String> sourceUniqSet = new HashSet<>();
-        List<DataSourceConnectionDto> _dataSourceDtos = new ArrayList<>();
-        List<DataSourceConnectionDto> createLogCollects = new ArrayList<>();
+//        Set<String> sourceUniqSet = new HashSet<>();
+//        List<DataSourceConnectionDto> _dataSourceDtos = new ArrayList<>();
+//        List<DataSourceConnectionDto> createLogCollects = new ArrayList<>();
+//        for (DataSourceConnectionDto dataSourceDto : dataSourceDtos) {
+//            if (dataSourceDto.getShareCdcEnable() == null || !dataSourceDto.getShareCdcEnable()) {
+//                continue;
+//            }
+//
+//            String uniqueName = dataSourceDto.getMultiConnectionInstanceId();
+//
+//            if (sourceUniqSet.contains(uniqueName)) {
+//                _dataSourceDtos.add(dataSourceDto);
+//            }
+//
+//            if (StringUtils.isBlank(uniqueName) || !sourceUniqSet.contains(uniqueName)) {
+//                createLogCollects.add(dataSourceDto);
+//                sourceUniqSet.add(uniqueName);
+//            }
+//        }
+//
+//        _dataSourceDtos.addAll(createLogCollects);
+//        dataSourceDtos = _dataSourceDtos;
+
+        dataSourceDtos = dataSourceDtos.stream().filter(d -> d.getShareCdcEnable() != null && d.getShareCdcEnable()).collect(Collectors.toList());
+
+        Map<String, List<DataSourceConnectionDto>> datasourceMap = new HashMap<>();
+
         for (DataSourceConnectionDto dataSourceDto : dataSourceDtos) {
-            if (dataSourceDto.getShareCdcEnable() == null || !dataSourceDto.getShareCdcEnable()) {
+            if (StringUtils.isBlank(dataSourceDto.getMultiConnectionInstanceId())) {
+                datasourceMap.put(dataSourceDto.getId().toHexString(), Lists.of(dataSourceDto));
                 continue;
             }
 
-            String uniqueName = dataSourceDto.getMultiConnectionInstanceId();
+            String key = StringUtils.isBlank(dataSourceDto.getShareCDCExternalStorageId()) ? dataSourceDto.getMultiConnectionInstanceId() :
+                    dataSourceDto.getMultiConnectionInstanceId() + dataSourceDto.getShareCDCExternalStorageId();
 
-            if (sourceUniqSet.contains(uniqueName)) {
-                _dataSourceDtos.add(dataSourceDto);
-            }
+            List<DataSourceConnectionDto> connectionDtos = datasourceMap.computeIfAbsent(key, k -> new ArrayList<>());
+            connectionDtos.add(dataSourceDto);
 
-            if (StringUtils.isBlank(uniqueName) || !sourceUniqSet.contains(uniqueName)) {
-                createLogCollects.add(dataSourceDto);
-                sourceUniqSet.add(uniqueName);
-            }
         }
-
-        _dataSourceDtos.addAll(createLogCollects);
-        dataSourceDtos = _dataSourceDtos;
-
-        Map<String, List<DataSourceConnectionDto>> datasourceMap = dataSourceDtos.stream().collect(Collectors.groupingBy(d -> StringUtils.isBlank(d.getMultiConnectionInstanceId()) ? d.getId().toHexString() : d.getMultiConnectionInstanceId()));
 
         //不同类型数据源的id缓存
         Map<String, List<DataSourceConnectionDto>> dataSourceCacheByType = new HashMap<>();
@@ -925,6 +940,8 @@ public class LogCollectorService {
             //根据unique name查询，或者根据id查询
             DataSourceConnectionDto dataSource = v.get(0);
             List<String> ids = new ArrayList<>();
+//            List<String> ids = new ArrayList<>();
+
 
             //如果没有uniqname,则唯一键采用的id，所以不会存在相似的数据源
             if (StringUtils.isBlank(dataSource.getMultiConnectionInstanceId())) {
@@ -934,12 +951,15 @@ public class LogCollectorService {
                 if (CollectionUtils.isEmpty(cache)) {
                     Criteria criteria1 = Criteria.where("database_type").is(dataSource.getDatabase_type());
                     Query query1 = new Query(criteria1);
-                    query1.fields().include("_id", "uniqueName", "multiConnectionInstanceId");
+                    query1.fields().include("_id", "uniqueName", "multiConnectionInstanceId", "shareCDCExternalStorageId");
                     cache = dataSourceService.findAllDto(query1, user);
                     dataSourceCacheByType.put(dataSource.getDatabase_type(), cache);
 
                 }
-                ids = cache.stream().filter(c -> dataSource.getMultiConnectionInstanceId().equals(c.getMultiConnectionInstanceId())).map(d -> d.getId().toHexString()).collect(Collectors.toList());
+                //得到所有的可以合并的数据源，他们可能存在挖掘任务。
+                ids = cache.stream()
+                        .filter(c -> dataSource.getMultiConnectionInstanceId().equals(c.getMultiConnectionInstanceId())
+                                && dataSource.getShareCDCExternalStorageId().equals(c.getShareCDCExternalStorageId())).map(d -> d.getId().toHexString()).collect(Collectors.toList());
             }
 
             Criteria criteria1 = Criteria.where("is_deleted").is(false)
@@ -1761,30 +1781,59 @@ public class LogCollectorService {
 		public void removeTask() {
 			Criteria taskStatusCriteria = Criteria.where("is_deleted").ne(true)
 							.and("syncType").is(TaskDto.SYNC_TYPE_LOG_COLLECTOR)
-							.and("status").ne(TaskDto.STATUS_RUNNING);
+							.and("status").nin(TaskDto.STATUS_RUNNING, TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED);
 
-			Criteria noTablesCriteria = Criteria.where("dag.nodes").elemMatch(new Criteria().andOperator(
+			Criteria noTablesCriteria1 = Criteria.where("dag.nodes").elemMatch(new Criteria().andOperator(
 							Criteria.where("type").is("logCollector"),
-							new Criteria().orOperator(
-											new Criteria().andOperator(new Criteria().orOperator(
-															Criteria.where("logCollectorConnConfigs").exists(false), Criteria.where("logCollectorConnConfigs").is(new BsonDocument())),
-															new Criteria().orOperator(Criteria.where("tableNames").exists(false), Criteria.where("tableNames").size(0))),
-											Criteria.where("logCollectorConnConfigs").exists(true).not().elemMatch(Criteria.where("tableNames").exists(true).ne(Collections.emptyList()))
-			)));
+							new Criteria().andOperator(
+											Criteria.where("logCollectorConnConfigs").exists(false),
+											new Criteria().orOperator(Criteria.where("tableNames").exists(false), Criteria.where("tableNames").size(0))
+							)));
 
-			Query query = Query.query(new Criteria().andOperator(taskStatusCriteria, noTablesCriteria));
-			query.fields().include("_id", "name","user_id");
-			List<TaskDto> taskDtos = taskService.findAll(query);
-			if (CollectionUtils.isNotEmpty(taskDtos)) {
-				taskDtos.forEach(taskDto -> {
-					try {
-						UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
-						taskService.remove(taskDto.getId(), userDetail);
-						log.info("removed logCollector task: {} {}", taskDto.getId().toHexString(), taskDto.getName());
-					} catch (Exception e) {
-						log.error("Failed to remove logCollector task: {} {}", taskDto.getId().toHexString(), taskDto.getName(), e);
+			Query query1 = Query.query(new Criteria().andOperator(taskStatusCriteria, noTablesCriteria1));
+			query1.fields().include("_id", "name", "user_id");
+			List<TaskDto> taskDtos1 = taskService.findAll(query1);
+			removeLogCollectorTask(taskDtos1);
+
+			Criteria noTablesCriteria2 = Criteria.where("dag.nodes").elemMatch(new Criteria().andOperator(
+							Criteria.where("type").is("logCollector"),
+							Criteria.where("logCollectorConnConfigs").exists(true)
+			));
+
+			Query query2 = Query.query(new Criteria().andOperator(taskStatusCriteria, noTablesCriteria2)).limit(20);
+			query2.fields().include("_id", "name", "dag", "user_id");
+			List<TaskDto> taskDtos2 = taskService.findAll(query2);
+			if (CollectionUtils.isNotEmpty(taskDtos2)) {
+				for (TaskDto taskDto : taskDtos2) {
+					DAG dag = taskDto.getDag();
+					if (dag != null && dag.getNodes() != null && dag.getNodes().size() > 0) {
+						for (Node node : dag.getNodes()) {
+							if (node instanceof LogCollectorNode) {
+								Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = ((LogCollectorNode) node).getLogCollectorConnConfigs();
+								if (MapUtils.isNotEmpty(logCollectorConnConfigs)
+												&& logCollectorConnConfigs.values().stream().allMatch(logCollecotrConnConfig -> CollectionUtils.isEmpty(logCollecotrConnConfig.getTableNames()))) {
+									removeLogCollectorTask(taskDto);
+								}
+							}
+						}
 					}
-				});
+				}
+			}
+		}
+
+		private void removeLogCollectorTask(List<TaskDto> taskDtos) {
+			if (CollectionUtils.isNotEmpty(taskDtos)) {
+				taskDtos.forEach(this::removeLogCollectorTask);
+			}
+		}
+
+		private void removeLogCollectorTask(TaskDto taskDto) {
+			try {
+				UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
+				taskService.remove(taskDto.getId(), userDetail);
+				log.info("removed logCollector task: {} {}", taskDto.getId().toHexString(), taskDto.getName());
+			} catch (Exception e) {
+				log.error("Failed to remove logCollector task: {} {}", taskDto.getId().toHexString(), taskDto.getName(), e);
 			}
 		}
 

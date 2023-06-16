@@ -5,11 +5,7 @@ import com.google.common.collect.Maps;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.DAGDataService;
-import com.tapdata.tm.commons.dag.Edge;
-import com.tapdata.tm.commons.dag.FieldsMapping;
-import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -21,19 +17,10 @@ import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.dag.vo.TestRunDto;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
-import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.JsonUtil;
-import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
-import com.tapdata.tm.commons.util.MetaType;
-import com.tapdata.tm.commons.util.PdkSchemaConvert;
-import com.tapdata.tm.commons.util.ProcessorNodeType;
+import com.tapdata.tm.commons.util.*;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
@@ -63,12 +50,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.Call;
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
+import okhttp3.*;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -77,8 +59,16 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
+import javax.servlet.http.HttpServletRequest;
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
@@ -97,7 +87,9 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static io.tapdata.entity.simplify.TapSimplify.entry;
 import static io.tapdata.entity.simplify.TapSimplify.fromJson;
+import static io.tapdata.entity.simplify.TapSimplify.map;
 
 @Service
 @Slf4j
@@ -184,10 +176,44 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 //            if (CollectionUtils.isEmpty(metaInstances)) {
 //                metaInstances = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(), null, userDetail);
 //            }
+					Function<MetadataInstancesDto, Boolean> filterTableByNoPrimaryKey = Optional
+						.of(NoPrimaryKeyTableSelectType.parse(sourceNode.getNoPrimaryKeyTableSelectType()))
+						.map(type -> {
+							switch (type) {
+								case HasKeys:
+									return (Function<MetadataInstancesDto, Boolean>) metadataInstancesDto -> {
+										if (null != metadataInstancesDto.getFields()) {
+											for (Field field : metadataInstancesDto.getFields()) {
+												if (Boolean.TRUE.equals(field.getPrimaryKey())) return false;
+											}
+										}
+										return true;
+									};
+								case NoKeys:
+									return (Function<MetadataInstancesDto, Boolean>) metadataInstancesDto -> {
+										if (null != metadataInstancesDto.getFields()) {
+											for (Field field : metadataInstancesDto.getFields()) {
+												if (Boolean.TRUE.equals(field.getPrimaryKey())) return true;
+											}
+										}
+										return false;
+									};
+								default:
+							}
+							return null;
+						}).orElse(metadataInstancesDto -> false);
+
             tableNames = metaInstances.stream()
-                    .map(MetadataInstancesDto::getOriginalName)
+							.map(metadataInstancesDto -> {
+								if (filterTableByNoPrimaryKey.apply(metadataInstancesDto)) {
+									return null;
+								}
+								return metadataInstancesDto.getOriginalName();
+							})
                     .filter(originalName -> {
-                        if (StringUtils.isEmpty(sourceNode.getTableExpression())) {
+											if (null == originalName) {
+												return false;
+											} else if (StringUtils.isEmpty(sourceNode.getTableExpression())) {
                             return false;
                         } else {
                             return Pattern.matches(sourceNode.getTableExpression(), originalName);
@@ -488,14 +514,13 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                             .useDefaultValue(field.getUseDefaultValue())
                             .defaultValue(finalDefaultValue).build();
 
-                    if (Objects.nonNull(fieldInfoMap) && fieldInfoMap.containsKey(fieldName)) {
-                        FieldInfo fieldInfo = fieldInfoMap.get(fieldName);
+                    if (Objects.nonNull(fieldInfoMap) && fieldInfoMap.containsKey(mapping.getSourceFieldName())) {
+                        FieldInfo fieldInfo = fieldInfoMap.get(mapping.getSourceFieldName());
 
                         if (!(currentNode instanceof MigrateFieldRenameProcessorNode) && !fieldInfo.getIsShow()) {
                             continue;
                         }
 
-                        mapping.setTargetFieldName(fieldInfo.getTargetFieldName());
                         mapping.setIsShow(fieldInfo.getIsShow());
                         mapping.setMigrateType(fieldInfo.getType());
                         mapping.setTargetFieldName(fieldInfo.getTargetFieldName());
@@ -522,7 +547,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
     @SuppressWarnings("unchecked")
     @Override
-    public void testRunJsNode(TestRunDto dto, UserDetail userDetail, String accessToken) {
+    public void testRunJsNode(TestRunDto dto, UserDetail userDetail) {
         String taskId = dto.getTaskId();
         String nodeId = dto.getJsNodeId();
         String tableName = dto.getTableName();
@@ -626,7 +651,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
     @SuppressWarnings("unchecked")
     @Override
-    public Map<String, Object> testRunJsNodeRPC(TestRunDto dto, UserDetail userDetail, String accessToken) {
+    public Map<String, Object> testRunJsNodeRPC(TestRunDto dto, UserDetail userDetail) {
         String taskId = dto.getTaskId();
         String nodeId = dto.getJsNodeId();
         String tableName = dto.getTableName();
@@ -724,10 +749,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         taskDtoCopy.setName(taskDto.getName() + "(101)");
         taskDtoCopy.setVersion(version);
         taskDtoCopy.setId(MongoUtils.toObjectId(testTaskId));
-        return jsType == 1 ? rpcTestRun(testTaskId, accessToken, taskDtoCopy, logOutputCount, nodeId) : wsTestRun(userDetail, taskDto, taskDtoCopy);
+        return jsType == 1 ? rpcTestRun(testTaskId, taskDtoCopy, logOutputCount, nodeId) : wsTestRun(userDetail, taskDto, taskDtoCopy);
     }
 
-    private Map<String, Object> rpcTestRun(String testTaskId, String accessToken, TaskDto taskDtoCopy, int logOutputCount, String nodeId){
+    private Map<String, Object> rpcTestRun(String testTaskId, TaskDto taskDtoCopy, int logOutputCount, String nodeId){
         // RPC
         String serverPort = CommonUtils.getProperty("tapdata_proxy_server_port", "3000");
         int port;
@@ -736,21 +761,32 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         } catch (Exception exception){
             return resultMap(testTaskId, false, "Can't get server port.");
         }
-        String url = "http://localhost:" + port +"/api/proxy/call?access_token=" + accessToken;
+        Map.Entry<String, Map<String, Object>> attributes = getLoginUserAttributes();
+        String attributesKey = attributes.getKey();
+        Map<String, Object> attributesValue = attributes.getValue();
+        String url = "http://localhost:" +
+                port +"/api/proxy/call" +
+                ("Param".equals(attributesKey) ? "?access_token=" + attributesValue.get("access_token")  : "");
         Map<String, Object> paraMap = new HashMap<>();
         paraMap.put("className", "JSProcessNodeTestRunService");
         paraMap.put("method", "testRun");
         paraMap.put("args", new ArrayList<Object>(){{ add(taskDtoCopy); add(nodeId); add(logOutputCount); }});
+
         try {
             OkHttpClient client = new OkHttpClient.Builder()
                     .connectTimeout(90, TimeUnit.SECONDS)
                     .readTimeout(90, TimeUnit.SECONDS)
                     .build();
-            Request request = new Request.Builder()
+            Request.Builder post = new Request.Builder()
                     .url(url)
                     .method("POST", RequestBody.create(MediaType.parse("application/json"), JsonUtil.toJsonUseJackson(paraMap)))
-                    .addHeader("Content-Type", "application/json")
-                    .build();
+                    .addHeader("Content-Type", "application/json");
+            if ("Header".equals(attributesKey) && null != attributesValue && !attributesValue.isEmpty()){
+                for (Map.Entry<String, Object> entry : attributesValue.entrySet()) {
+                    post.addHeader(entry.getKey(), String.valueOf(entry.getValue()));
+                }
+            }
+            Request request = post.build();
             Call call = client.newCall(request);
             Response response = call.execute();
             int code = response.code();
@@ -776,6 +812,38 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         messageQueueService.sendMessage(queueDto);
         return new HashMap<>();
     }
+
+    private Map.Entry<String, Map<String, Object>> getLoginUserAttributes() {
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+        HttpServletRequest request = attributes.getRequest();
+
+        String userIdFromHeader = request.getHeader("user_id");
+        Map<String, Object> ent = new HashMap<>();
+        if (!com.tapdata.manager.common.utils.StringUtils.isBlank(userIdFromHeader)) {
+            ent.put("user_id", userIdFromHeader);
+            return new AbstractMap.SimpleEntry<>("Header", ent);
+        } else if((request.getQueryString() != null ? request.getQueryString() : "").contains("access_token")) {
+            Map<String, String> queryMap = Arrays.stream(request.getQueryString().split("&"))
+                    .filter(s -> s.startsWith("access_token"))
+                    .map(s -> s.split("=")).collect(Collectors.toMap(a -> a[0], a -> {
+                        try {
+                            return URLDecoder.decode(a[1], "UTF-8");
+                        } catch (UnsupportedEncodingException e) {
+                            e.printStackTrace();
+                            return a[1];
+                        }
+                    }, (a, b) -> a));
+            String accessToken = queryMap.get("access_token");
+            ent.put("access_token", accessToken);
+            return new AbstractMap.SimpleEntry<>("Param", ent);
+        } else if (request.getHeader("authorization") != null) {
+            ent.put("authorization", request.getHeader("authorization").trim());
+            return new AbstractMap.SimpleEntry<>("Header", ent);
+        } else {
+            throw new BizException("NotLogin");
+        }
+    }
+
 
     private Map<String,Object> resultMap(String testTaskId, boolean isSucceed, String message){
         Map<String, Object> errorMap = new HashMap<>();

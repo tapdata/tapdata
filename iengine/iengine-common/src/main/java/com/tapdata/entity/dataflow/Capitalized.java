@@ -1,5 +1,6 @@
 package com.tapdata.entity.dataflow;
 
+import cn.hutool.core.util.StrUtil;
 import com.tapdata.constant.MapUtil;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -15,6 +16,8 @@ import java.util.Map;
 public enum Capitalized {
 	UPPER("toUpperCase"), // 转大写
 	LOWER("toLowerCase"), // 转小写
+	SNAKE("toSnakeCase"), // 转蛇形
+	CAMEL("toCamelCase"), // 转驼峰
 	NONE(""), // 不做转换
 	NOOPERATION("noOperation"),
 	;
@@ -60,6 +63,10 @@ public enum Capitalized {
 				return objectName.toUpperCase();
 			case LOWER:
 				return objectName.toLowerCase();
+			case SNAKE:
+				return StrUtil.toUnderlineCase(objectName);
+			case CAMEL:
+				return StrUtil.toCamelCase(objectName);
 			default:
 				return objectName;
 		}
