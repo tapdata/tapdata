@@ -84,9 +84,13 @@ public class MysqlConnector extends ConnectorBase {
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
         String timezone = tapConnectionContext.getConnectionConfig().getString("timezone");
-        this.timeZone = "Database Timezone".equals(timezone) || StringUtils.isBlank(timezone) ?
-                new MysqlJdbcContextV2(new MysqlConfig().load(tapConnectionContext.getConnectionConfig())).queryTimeZone()
-                : TimeZone.getTimeZone(ZoneId.of(timezone));
+        if ("Database Timezone".equals(timezone) || StringUtils.isBlank(timezone)){
+            try (MysqlJdbcContextV2 jdbc = new MysqlJdbcContextV2(new MysqlConfig().load(tapConnectionContext.getConnectionConfig()))) {
+                this.timeZone = jdbc.queryTimeZone();
+            }
+        } else {
+            this.timeZone = TimeZone.getTimeZone(ZoneId.of(timezone));
+        }
         String id = timeZone.toZoneId().getId();
         if (id.startsWith("GMT")) {
             id = id.replace("GMT", "");

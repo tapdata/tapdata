@@ -465,7 +465,7 @@ public class JdbcValueConverters implements ValueConverterProvider {
         // epoch is the fallback value
         return convertValue(column, fieldDefn, data, 0L, (r) -> {
             try {
-                r.deliver(Timestamp.toEpochMillis(data, adjuster));
+                r.deliver(Timestamp.toEpochMillis(data, adjuster, this.defaultOffset));
             }
             catch (IllegalArgumentException e) {
             }
@@ -549,7 +549,7 @@ public class JdbcValueConverters implements ValueConverterProvider {
         // epoch is the fallback value
         return convertValue(column, fieldDefn, data, new java.util.Date(0L), (r) -> {
             try {
-                r.deliver(new java.util.Date(Timestamp.toEpochMillis(data, adjuster)));
+                r.deliver(new java.util.Date(Timestamp.toEpochMillis(data, adjuster, this.defaultOffset)));
             }
             catch (IllegalArgumentException e) {
             }

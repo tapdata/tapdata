@@ -148,11 +148,22 @@ public class MySqlValueConverters extends JdbcValueConverters {
      * @param binaryMode how binary columns should be represented
      * @param adjuster a temporal adjuster to make a database specific time modification before conversion
      * @param handler for errors during postponed binlog parsing
+     * @deprecated
      */
     public MySqlValueConverters(DecimalMode decimalMode, TemporalPrecisionMode temporalPrecisionMode, BigIntUnsignedMode bigIntUnsignedMode,
                                 BinaryHandlingMode binaryMode,
-                                TemporalAdjuster adjuster, ParsingErrorHandler parsingErrorHandler) {
+                                TemporalAdjuster adjuster,
+                                ParsingErrorHandler parsingErrorHandler) {
         super(decimalMode, temporalPrecisionMode, ZoneOffset.UTC, adjuster, bigIntUnsignedMode, binaryMode);
+        this.parsingErrorHandler = parsingErrorHandler;
+    }
+
+    public MySqlValueConverters(DecimalMode decimalMode, TemporalPrecisionMode temporalPrecisionMode, BigIntUnsignedMode bigIntUnsignedMode,
+                                BinaryHandlingMode binaryMode,
+                                TemporalAdjuster adjuster,
+                                ParsingErrorHandler parsingErrorHandler,
+                                ZoneOffset zoneOffset) {
+        super(decimalMode, temporalPrecisionMode, zoneOffset, adjuster, bigIntUnsignedMode, binaryMode);
         this.parsingErrorHandler = parsingErrorHandler;
     }
 

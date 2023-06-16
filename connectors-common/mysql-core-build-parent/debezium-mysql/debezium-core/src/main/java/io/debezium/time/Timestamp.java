@@ -8,6 +8,8 @@ package io.debezium.time;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.TemporalAdjuster;
+import java.util.Optional;
+import java.util.TimeZone;
 
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -65,7 +67,7 @@ public class Timestamp {
      * @return the epoch milliseconds
      * @throws IllegalArgumentException if the value is not an instance of the acceptable types
      */
-    public static long toEpochMillis(Object value, TemporalAdjuster adjuster) {
+    public static long toEpochMillis(Object value, TemporalAdjuster adjuster, ZoneOffset offset) {
         if (value instanceof Long) {
             return (Long) value;
         }
@@ -74,9 +76,20 @@ public class Timestamp {
             dateTime = dateTime.with(adjuster);
         }
 
-        return dateTime.toInstant(ZoneOffset.UTC).toEpochMilli();
+        return dateTime.toInstant(Optional.ofNullable(offset).orElse(ZoneOffset.UTC)).toEpochMilli();
     }
 
     private Timestamp() {
+    }
+
+    public static String timezoneId(TimeZone zone){
+        String id = zone.toZoneId().getId();
+        if (id.startsWith("GMT")) {
+            id = id.replace("GMT", "");
+        } else {
+            int offset = zone.getRawOffset() / (60 * 60 * 1000);
+            id = ((offset >= 0 ) ? "+" : "") +  offset + ":00";
+        }
+        return id;
     }
 }

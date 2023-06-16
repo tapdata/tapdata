@@ -5,11 +5,16 @@
  */
 package io.debezium.connector.mysql.legacy;
 
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.function.Predicate;
 
+import io.debezium.time.Timestamp;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.slf4j.Logger;
@@ -156,6 +161,11 @@ public class MySqlSchema extends RelationalDatabaseSchema {
         BigIntUnsignedMode bigIntUnsignedMode = bigIntUnsignedHandlingMode.asBigIntUnsignedMode();
         final boolean timeAdjusterEnabled = configuration.getConfig().getBoolean(MySqlConnectorConfig.ENABLE_TIME_ADJUSTER);
         // TODO With MySQL connector rewrite the error handling should report also binlog coordinates
+
+        //@TODO
+        ZoneId timezone = ZoneId.of(Optional.of(configuration.getConfig().getString("database.serverTimezone")).orElse(ZoneOffset.UTC.getId()));
+        String zone = Timestamp.timezoneId(TimeZone.getTimeZone(timezone));
+
         return new MySqlValueConverters(decimalMode, timePrecisionMode, bigIntUnsignedMode,
                 configuration.binaryHandlingMode(), timeAdjusterEnabled ? MySqlValueConverters::adjustTemporal : x -> x,
                 (message, exception) -> {
@@ -167,7 +177,7 @@ public class MySqlSchema extends RelationalDatabaseSchema {
                             .getEventProcessingFailureHandlingMode() == EventProcessingFailureHandlingMode.WARN) {
                         logger.warn(message, exception);
                     }
-                });
+                }, ZoneOffset.of(zone));
     }
 
     public HistoryRecordComparator historyComparator() {
