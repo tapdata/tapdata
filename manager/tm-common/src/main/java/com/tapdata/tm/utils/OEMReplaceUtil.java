@@ -66,7 +66,7 @@ public class OEMReplaceUtil {
         try {
             return org.springframework.util.ResourceUtils.getFile(configPath);//new File(configPath);
         }catch (Exception e){
-            throw new CoreException("FileNotFound in path '%s'", configPath);
+            throw new CoreException("FileNotFound in path {}", configPath);
         }
     }
 

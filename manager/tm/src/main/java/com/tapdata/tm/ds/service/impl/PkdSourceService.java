@@ -65,15 +65,7 @@ public class PkdSourceService {
             throw new BizException("Invalid jar file, please upload a valid jar file.");
         }
 
-        String oem = System.getenv("oem");
-        if (null == oem) {
-            throw new BizException("not found oem from evn");
-        }
-        TapLogger.info("","oem is {}", oem);
         Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("connector/replace.json");
-        if(null == oemConfig){
-            throw new BizException("null map");
-        }
         for(PdkSourceDto pdkSourceDto : pdkSourceDtos) {
             // try to verify the version
             String version  = pdkSourceDto.getVersion();
