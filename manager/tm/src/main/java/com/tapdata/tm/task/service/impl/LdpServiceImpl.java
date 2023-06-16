@@ -1120,8 +1120,13 @@ public class LdpServiceImpl implements LdpService {
     @Override
     public void deleteMdmTable(String qualifiedName, UserDetail user) {
         MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedName, user);
+
+        if (metadataInstancesDto == null) {
+            return;
+        }
+
         if (CollectionUtils.isEmpty(metadataInstancesDto.getListtags())) {
-            throw new BizException("");
+            throw new BizException("Ldp.DeleteMdmTableFailed");
         }
 
         List<String> tagIds = metadataInstancesDto.getListtags().stream().map(Tag::getId).collect(Collectors.toList());
@@ -1134,7 +1139,7 @@ public class LdpServiceImpl implements LdpService {
             }
         }
         if (!belongMdm) {
-            throw new BizException("");
+            throw new BizException("Ldp.DeleteMdmTableFailed");
         }
 
         LiveDataPlatformDto liveDataPlatformDto = liveDataPlatformService.findOne(new Query(), user);
