@@ -455,16 +455,28 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                             DatabaseNode first = sourceNode.getFirst();
                             DatabaseNode newFirst = newSourceNode.getFirst();
                             List<String> tableNames = first.getTableNames();
-                            List<String> newTableNames = new ArrayList<>(newFirst.getTableNames());
-                            newTableNames.removeAll(tableNames);
-                            if (CollectionUtils.isNotEmpty(newTableNames)) {
-                                List<String> ldpNewTables = taskDto.getLdpNewTables();
-                                if (ldpNewTables == null) {
-                                    ldpNewTables = new ArrayList<>();
+                            if (first.getTableNames() != null && newFirst != null && newFirst.getTableNames() != null) {
+                                List<String> newTableNames = new ArrayList<>(newFirst.getTableNames());
+                                newTableNames.removeAll(tableNames);
+                                List<String> ldpNewTables = oldTaskDto.getLdpNewTables();
+                                if (CollectionUtils.isNotEmpty(newTableNames)) {
+                                    if (ldpNewTables == null) {
+                                        ldpNewTables = new ArrayList<>();
+                                    }
+                                    ldpNewTables.addAll(newTableNames);
+                                    ldpNewTables = ldpNewTables.stream().distinct().collect(Collectors.toList());
+                                    taskDto.setLdpNewTables(ldpNewTables);
                                 }
-                                ldpNewTables.addAll(tableNames);
-                                ldpNewTables = ldpNewTables.stream().distinct().collect(Collectors.toList());
-                                taskDto.setLdpNewTables(ldpNewTables);
+                                List<String> removeList = new ArrayList<>();
+                                if (CollectionUtils.isNotEmpty(ldpNewTables)) {
+                                    for (String ldpNewTable : ldpNewTables) {
+                                        if (!newFirst.getTableNames().contains(ldpNewTable)) {
+                                            removeList.add(ldpNewTable);
+                                        }
+                                    }
+                                    ldpNewTables.removeAll(removeList);
+                                    taskDto.setLdpNewTables(ldpNewTables);
+                                }
                             }
 
                         }

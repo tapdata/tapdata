@@ -78,7 +78,7 @@ public class DummyConfig implements IDummyConfig {
     @Override
     public Integer getIncrementalIntervalTotals() {
         String val = config.getString("incremental_interval_totals");
-        val = DummyUtils.blankDefault(val, "1");
+        val = DummyUtils.blankDefault(val, "0");
         return Integer.parseInt(val);
     }
 

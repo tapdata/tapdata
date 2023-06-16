@@ -71,10 +71,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.BindException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 
@@ -181,6 +178,8 @@ public class MetadataInstancesController extends BaseController {
         }
         return success(metadataInstancesDtos);
     }
+
+
 
     @GetMapping("node/schemaPage")
     @Operation(summary = "目标节点表详情接口")
@@ -493,10 +492,6 @@ public class MetadataInstancesController extends BaseController {
         return success(metadataInstancesService.tables(connectionId, sourceType));
     }
 
-    @GetMapping("listTable")
-    public ResponseMessage<List<TableDto>> listTable(String connectionId, @RequestParam(value = "sourceType", defaultValue = "SOURCE") String sourceType) {
-        return success(metadataInstancesService.listTable(connectionId, sourceType));
-    }
 
     @GetMapping("tablesValue")
     public ResponseMessage<List<Map<String, String>>> tablesValue(String connectionId, @RequestParam(value = "sourceType", defaultValue = "SOURCE") String sourceType) {
@@ -504,7 +499,7 @@ public class MetadataInstancesController extends BaseController {
     }
 
     @GetMapping("page-tables")
-    public ResponseMessage<Page<String>> pageTables(
+    public ResponseMessage<Page<Map<String, Object>>> pageTables(
             @RequestParam(value = "connectionId") String connectionId // 连接编号
             , @RequestParam(value = "sourceType", defaultValue = "SOURCE") String sourceType // 源类型
             , @RequestParam(value = "keyword", required = false) String keyword // 过滤关键字

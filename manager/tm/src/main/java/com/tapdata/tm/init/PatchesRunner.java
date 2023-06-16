@@ -5,6 +5,8 @@ import cn.hutool.core.io.IoUtil;
 import com.tapdata.tm.init.scanners.JavaPatchScanner;
 import com.tapdata.tm.init.scanners.ScriptPatchScanner;
 import com.tapdata.tm.sdk.util.AppType;
+import com.tapdata.tm.utils.TMStartMsgUtil;
+import com.tapdata.tm.utils.TmStartMsg;
 import com.tapdata.tm.verison.dto.VersionDto;
 import com.tapdata.tm.verison.service.VersionService;
 import lombok.NonNull;
@@ -98,6 +100,8 @@ public class PatchesRunner implements ApplicationRunner {
             } catch (Exception e) {
                 String msg = String.format("Patch %s %s error: %s", patch.type(), patch.version(), e.getMessage());
                 logger.error(msg);
+                TmStartMsg tmMsg = new TmStartMsg("fail",msg);
+                TMStartMsgUtil.writeTMStartMsg(tmMsg);
                 throw new RuntimeException(msg, e);
             }
         }
