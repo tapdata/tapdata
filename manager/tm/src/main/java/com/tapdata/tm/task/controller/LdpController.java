@@ -5,6 +5,7 @@ import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.task.bean.FdmBatchStartDto;
 import com.tapdata.tm.task.bean.LdpFuzzySearchVo;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.user.service.UserService;
@@ -96,8 +97,8 @@ public class LdpController extends BaseController {
 
     @Operation(summary = "fdm task batch start")
     @PostMapping("fdm/batch/start")
-    public ResponseMessage<Void> fdmBatchStart(@RequestParam("tagId") String tagId, @RequestParam(value = "taskId", required = false) List<String> taskIds) {
-       ldpService.fdmBatchStart(tagId, taskIds, getLoginUser());
+    public ResponseMessage<Void> fdmBatchStart(@RequestBody FdmBatchStartDto fdmBatchStartDto) {
+       ldpService.fdmBatchStart(fdmBatchStartDto.getTagId(), fdmBatchStartDto.getTaskIds(), getLoginUser());
         return success();
     }
 
