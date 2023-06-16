@@ -2,29 +2,17 @@ package com.tapdata.tm.utils;
 
 import com.alibaba.fastjson.JSON;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.pdk.apis.annotations.TapConnectorClass;
-import io.tapdata.pdk.core.connector.TapConnector;
-import io.tapdata.pdk.core.connector.TapConnectorManager;
-import io.tapdata.pdk.core.tapnode.TapNodeContainer;
-import io.tapdata.pdk.core.tapnode.TapNodeInfo;
-import io.tapdata.pdk.core.utils.CommonUtils;
-import io.tapdata.pdk.core.utils.IOUtils;
-import org.apache.commons.io.FileUtils;
 import org.springframework.core.io.ClassPathResource;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Scanner;
-import java.util.Set;
 
 /**
  * @author GavinXiao
@@ -69,8 +57,10 @@ public class OEMReplaceUtil {
             return classPathResource.getInputStream();
             //return org.springframework.util.ResourceUtils.getFile(configPath);//new File(configPath);
         }catch (Exception e){
-            throw new CoreException("FileNotFound in path {}", configPath);
+            //TapLogger.info("FileNotFound in path {}", configPath);
+            throw new CoreException("OEM name is {} in evn, but file not found in path {}", oemType(), configPath);
         }
+        //return null;
     }
 
     /**
