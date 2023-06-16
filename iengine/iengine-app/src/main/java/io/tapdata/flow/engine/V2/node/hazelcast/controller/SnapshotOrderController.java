@@ -4,6 +4,7 @@ import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -25,7 +26,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -189,9 +190,36 @@ public class SnapshotOrderController implements Serializable {
 
 	public void flush() {
 		if (null != clientMongoOperator && CollectionUtils.isNotEmpty(snapshotOrderList)) {
+			removeUnnecessaryProperties(snapshotOrderList);
 			byte[] bytes = InstanceFactory.instance(ObjectSerializable.class).fromObject(snapshotOrderList);
 			Update update = Update.update("attrs." + SnapshotOrderService.SNAPSHOT_ORDER_LIST_KEY, bytes);
 			clientMongoOperator.update(Query.query(Criteria.where("_id").is(taskDto.getId())), update, ConnectorConstant.TASK_COLLECTION);
+		}
+	}
+
+	private void removeUnnecessaryProperties(List<NodeControlLayer> snapshotOrderList) {
+		processNodeController(snapshotOrderList, nodeController -> {
+			TableNode tableNode = new TableNode();
+			tableNode.setId(nodeController.getNode().getId());
+			nodeController.setNode(tableNode);
+		});
+	}
+
+	public static void init(TaskDto taskDto, List<NodeControlLayer> snapshotOrderList) {
+		processNodeController(snapshotOrderList, nodeController -> {
+			String id = nodeController.getNode().getId();
+			nodeController.setNode(taskDto.getDag().getNode(id));
+		});
+	}
+	private static void processNodeController(List<NodeControlLayer> snapshotOrderList, Consumer<NodeController> consumer) {
+		if (CollectionUtils.isNotEmpty(snapshotOrderList)) {
+			for (NodeControlLayer nodeControlLayer : snapshotOrderList) {
+				if (CollectionUtils.isNotEmpty(nodeControlLayer.getNodeControllers())) {
+					for (NodeController nodeController : nodeControlLayer.getNodeControllers()) {
+						consumer.accept(nodeController);
+					}
+				}
+			}
 		}
 	}
 
