@@ -12,6 +12,7 @@ public enum JSFunctionNames {
     WebHookFunction("webhookEvent", "RowDataCallbackFunctionV2", ""),
     CreateTableV2Function("createTableV2", "CreateTableV2Function", ""),
     TimestampToStreamOffset("timestampToStreamOffset", "TimestampToStreamOffset", ""),
+    ExecuteCommandFunction("executeCommand", "ExecuteCommandFunction", ""),
 
     CONNECTION_TEST("connectionTest", "ConnectionTest", ""),
     DISCOVER_SCHEMA("discoverSchema", "DiscoverSchema", ""),

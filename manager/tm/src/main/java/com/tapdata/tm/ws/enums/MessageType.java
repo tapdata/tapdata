@@ -41,7 +41,8 @@ public enum MessageType {
 	TEST_RUN("testRun"),
 
 	PIPE_CLUSTER("pipeCluster"),
-	TEST_EXTERNAL_STORAGE("testExternalStorage");
+	TEST_EXTERNAL_STORAGE("testExternalStorage"),
+	DROP_TABLE("dropTable");
 
 	private String type;
 

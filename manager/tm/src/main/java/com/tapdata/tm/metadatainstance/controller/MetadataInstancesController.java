@@ -12,11 +12,14 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.metadatainstance.bean.NodeInfoPage;
+import com.tapdata.tm.metadatainstance.dto.*;
 import com.tapdata.tm.metadatainstance.dto.DataType2TapTypeDto;
 import com.tapdata.tm.metadatainstance.dto.MigrateResetTableDto;
 import com.tapdata.tm.metadatainstance.dto.MigrateTableInfoDto;
+import com.tapdata.tm.metadatainstance.dto.TableDto;
 import com.tapdata.tm.metadatainstance.param.ClassificationParam;
 import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
 import com.tapdata.tm.metadatainstance.service.MetaMigrateService;
@@ -68,10 +71,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.BindException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 
@@ -178,6 +178,8 @@ public class MetadataInstancesController extends BaseController {
         }
         return success(metadataInstancesDtos);
     }
+
+
 
     @GetMapping("node/schemaPage")
     @Operation(summary = "目标节点表详情接口")
@@ -490,13 +492,14 @@ public class MetadataInstancesController extends BaseController {
         return success(metadataInstancesService.tables(connectionId, sourceType));
     }
 
+
     @GetMapping("tablesValue")
     public ResponseMessage<List<Map<String, String>>> tablesValue(String connectionId, @RequestParam(value = "sourceType", defaultValue = "SOURCE") String sourceType) {
         return success(metadataInstancesService.tableValues(connectionId, sourceType));
     }
 
     @GetMapping("page-tables")
-    public ResponseMessage<Page<String>> pageTables(
+    public ResponseMessage<Page<Map<String, Object>>> pageTables(
             @RequestParam(value = "connectionId") String connectionId // 连接编号
             , @RequestParam(value = "sourceType", defaultValue = "SOURCE") String sourceType // 源类型
             , @RequestParam(value = "keyword", required = false) String keyword // 过滤关键字
@@ -769,6 +772,13 @@ public class MetadataInstancesController extends BaseController {
     }
 
 
+    @Operation(summary = "类型映射检查")
+    @PostMapping("dataType/checkMultiple")
+    public ResponseMessage<DataTypeCheckMultipleVo> dataTypeCheckMultiple(@RequestBody DataTypeCheckMultipleReq req) {
+        return success(metadataInstancesService.dataTypeCheckMultiple(req.getDatabaseType(), req.getDataType(), getLoginUser()));
+    }
+
+
     @Operation(summary = "校验物理表是否存在")
     @GetMapping("check/table/exist")
     public ResponseMessage<Map<String, Boolean>> checkTableExist(@RequestParam("connectionId") String connectionId, @RequestParam("tableName") String tableName) {
@@ -784,6 +794,31 @@ public class MetadataInstancesController extends BaseController {
         metadataInstancesService.updateTableDesc(metadataInstances, getLoginUser());
         return success();
     }
+
+    @PostMapping("updateTableFieldDesc/{id}")
+    public ResponseMessage<Void> updateTableFieldDesc(@PathVariable("id")String id,@RequestBody DiscoveryFieldDto discoveryFieldDto) {
+        metadataInstancesService.updateTableFieldDesc(id,discoveryFieldDto, getLoginUser());
+        return success();
+    }
+
+
+    @PatchMapping("customDesc/table/{qualifiedName}")
+    public ResponseMessage<Void> updateTableCustomDesc(@PathVariable("qualifiedName") String qualifiedName
+            , @RequestParam("customDesc") String customDesc) {
+        metadataInstancesService.updateTableCustomDesc(qualifiedName, customDesc, getLoginUser());
+        return success();
+
+    }
+
+    @PatchMapping("customDesc/field/{qualifiedName}")
+    public ResponseMessage<Void> updateFieldCustomDesc(@PathVariable("qualifiedName") String qualifiedName
+            , @RequestBody Map<String, String> fieldCustomDescMap) {
+        metadataInstancesService.updateFieldCustomDesc(qualifiedName, fieldCustomDescMap, getLoginUser());
+        return success();
+
+    }
+
+
 
 
 }

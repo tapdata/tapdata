@@ -341,8 +341,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
         boolean needPossibleDataTypes = Node.SourceType.target.equals(node.sourceType());
 
-        if (DataSourceDefinitionDto.PDK_TYPE.equals(dataSource.getPdkType())) {
-            DataSourceDefinitionDto definitionDto = definitionDtoMap.get(dataSource.getDatabase_type());
+        DataSourceDefinitionDto definitionDto  = definitionDtoMap.get(dataSource.getDatabase_type());
             if (definitionDto != null) {
                 dataSource.setDefinitionScope(definitionDto.getScope());
                 dataSource.setDefinitionGroup(definitionDto.getGroup());
@@ -350,8 +349,10 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                 dataSource.setDefinitionPdkId(definitionDto.getPdkId());
                 dataSource.setDefinitionBuildNumber(String.valueOf(definitionDto.getBuildNumber()));
                 dataSource.setDefinitionTags(definitionDto.getTags());
+            } else {
+                log.error("Save schema failed, can't not found metadata for data source type {}", dataSource.getDatabase_type());
+                return Collections.emptyList();
             }
-        }
 
         String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", dataSource, null);
         MetadataInstancesDto dataSourceMetadataInstance = metadataMap.get(databaseQualifiedName);
@@ -377,6 +378,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         } else {
             updateConditionFieldMap = null;
         }
+
+        final DefaultExpressionMatchingMap map = DefaultExpressionMatchingMap.map(definitionDto.getExpression());
 
         final String _metaType = metaType;
         List<MetadataInstancesDto> metadataInstancesDtos = schemas.parallelStream().map(schema -> {
@@ -420,7 +423,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             /*MetadataInstancesDto result = metadataInstancesService.upsertByWhere(
                     Where.where("qualified_name", metadataInstancesDto.getQualifiedName()), metadataInstancesDto, userDetail);*/
 
-            options.processRule(metadataInstancesDto);
+            options.processRule(metadataInstancesDto, map);
             return metadataInstancesDto;
         }).collect(Collectors.toList());
 
@@ -1145,7 +1148,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         }
 
         Node<?> node = dag.getNode(nodeId);
-        if (node instanceof DatabaseNode || node instanceof MigrateProcessorNode) {
+				if (node instanceof ProcessorNode) {
+					return nodeId;
+				} else if (node instanceof DatabaseNode || node instanceof MigrateProcessorNode) {
             List<Node> sources = node.getDag().getSources();
             Node source = sources.get(0);
             LinkedList<TableRenameProcessNode> linkedList = new LinkedList<>();

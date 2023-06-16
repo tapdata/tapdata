@@ -1,7 +1,6 @@
 package com.tapdata.tm.task.service.impl;
 
 import cn.hutool.extra.cglib.CglibUtil;
-import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
@@ -20,13 +19,13 @@ import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
+import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.service.TaskSaveService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import io.tapdata.entity.conversion.PossibleDataTypes;
-import io.tapdata.entity.schema.type.TapType;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -57,17 +56,51 @@ public class TaskSaveServiceImpl implements TaskSaveService {
                     String connectionId = sourceNode.getConnectionId();
                     List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(connectionId, null, userDetail);
                     if (CollectionUtils.isNotEmpty(metaList)) {
-                        List<String> collect = metaList.stream()
-                                .map(MetadataInstancesDto::getOriginalName)
-                                .filter(originalName -> {
-                                    if (StringUtils.isEmpty(sourceNode.getTableExpression())) {
-                                        return false;
-                                    } else {
-                                        return Pattern.matches(sourceNode.getTableExpression(), originalName);
-                                    }
-                                })
-                                .collect(Collectors.toList());
-                        sourceNode.setTableNames(collect);
+											Function<MetadataInstancesDto, Boolean> filterTableByNoPrimaryKey = Optional
+												.of(NoPrimaryKeyTableSelectType.parse(sourceNode.getNoPrimaryKeyTableSelectType()))
+												.map(type -> {
+													switch (type) {
+														case HasKeys:
+															return (Function<MetadataInstancesDto, Boolean>) metadataInstancesDto -> {
+																if (null != metadataInstancesDto.getFields()) {
+																	for (Field field : metadataInstancesDto.getFields()) {
+																		if (Boolean.TRUE.equals(field.getPrimaryKey())) return false;
+																	}
+																}
+																return true;
+															};
+														case NoKeys:
+															return (Function<MetadataInstancesDto, Boolean>) metadataInstancesDto -> {
+																if (null != metadataInstancesDto.getFields()) {
+																	for (Field field : metadataInstancesDto.getFields()) {
+																		if (Boolean.TRUE.equals(field.getPrimaryKey())) return true;
+																	}
+																}
+																return false;
+															};
+														default:
+													}
+													return null;
+												}).orElse(metadataInstancesDto -> false);
+
+											List<String> collect = metaList.stream()
+												.map(metadataInstancesDto -> {
+													if (filterTableByNoPrimaryKey.apply(metadataInstancesDto)) {
+														return null;
+													}
+													return metadataInstancesDto.getOriginalName();
+												})
+												.filter(originalName -> {
+													if (null == originalName) {
+														return false;
+													} else if (StringUtils.isEmpty(sourceNode.getTableExpression())) {
+														return false;
+													} else {
+														return Pattern.matches(sourceNode.getTableExpression(), originalName);
+													}
+												})
+												.collect(Collectors.toList());
+											sourceNode.setTableNames(collect);
                     }
                 }
 

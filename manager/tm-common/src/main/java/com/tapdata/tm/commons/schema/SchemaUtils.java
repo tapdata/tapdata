@@ -89,52 +89,24 @@ public class SchemaUtils {
         }
 
 
-        List<String> inputSchemaFieldIds = _inputSchemas.stream().flatMap(s -> s.getFields().stream())
-                .map(Field::getId).filter(Objects::nonNull).collect(Collectors.toList());
-
-        Map<String, Field> inputSchemaFieldMap = _inputSchemas.stream().flatMap(s -> s.getFields().stream())
-                .filter(Objects::nonNull).collect(
-                        Collectors.toMap(Field::getId, f->f, (v, m) -> getPriority(v.getSource()) > getPriority(m.getSource()) ? v : m));
-
-            List<Field> targetFields = targetSchema.getFields();
-        List<String> targetSchemaFieldIds = targetFields != null ? targetFields.stream().filter(Objects::nonNull)
-                .map(Field::getId).collect(Collectors.toList()) : new ArrayList<>();
-        Map<String, Field> targetSchemaFieldMap = targetFields != null ?
-                targetFields.stream().filter(Objects::nonNull).collect(
-                        Collectors.toMap(Field::getId, f->f, (v, m) -> getPriority(v.getSource()) > getPriority(m.getSource()) ? v : m)) :
-                new HashMap<>();
+//        List<String> inputSchemaFieldIds = _inputSchemas.stream().flatMap(s -> s.getFields().stream())
+//                .map(Field::getId).filter(Objects::nonNull).collect(Collectors.toList());
+//
+//        Map<String, Field> inputSchemaFieldMap = _inputSchemas.stream().flatMap(s -> s.getFields().stream())
+//                .filter(Objects::nonNull).collect(
+//                        Collectors.toMap(Field::getId, f->f, (v, m) -> getPriority(v.getSource()) > getPriority(m.getSource()) ? v : m));
+//
+//            List<Field> targetFields = targetSchema.getFields();
+//        List<String> targetSchemaFieldIds = targetFields != null ? targetFields.stream().filter(Objects::nonNull)
+//                .map(Field::getId).collect(Collectors.toList()) : new ArrayList<>();
+//        Map<String, Field> targetSchemaFieldMap = targetFields != null ?
+//                targetFields.stream().filter(Objects::nonNull).collect(
+//                        Collectors.toMap(Field::getId, f->f, (v, m) -> getPriority(v.getSource()) > getPriority(m.getSource()) ? v : m)) :
+//                new HashMap<>();
         Map<String, Field> fields = Stream.concat(
                 _inputSchemas.stream().flatMap(m ->
-                        (m != null && m.getFields() != null) ?
-                                m.getFields().stream().filter(f -> {
-                                    if (!targetSchemaFieldIds.contains(f.getId())) {
-                                        return true;
-                                    }
-                                    //都为手动修改的时候，取后者更合理
-                                    int tPriority = getPriority(targetSchemaFieldMap.get(f.getId()).getSource());
-                                    int sPriority = getPriority(f.getSource());
-                                    if (tPriority == sPriority && tPriority == 3) {
-                                        return false;
-                                    }
-                                    return getPriority(targetSchemaFieldMap.get(f.getId()).getSource()) <= getPriority(f.getSource());
-                                }
-                                ) :
-                                Stream.empty()),
-                targetSchema.getFields() != null ?
-                        targetSchema.getFields().stream().filter(f -> {
-                            if (!inputSchemaFieldIds.contains(f.getId())) {
-                                return true;
-                            }
-                            //都为手动修改的时候，取后者更合理
-                            int sPriority = getPriority(inputSchemaFieldMap.get(f.getId()).getSource());
-                            int tPriority = getPriority(f.getSource());
-                            if (tPriority == sPriority && tPriority == 3) {
-                                return true;
-                            }
-                            return getPriority(inputSchemaFieldMap.get(f.getId()).getSource()) < getPriority(f.getSource());
-                        })
-                                :
-                        Stream.empty())
+                        (m != null && m.getFields() != null) ? m.getFields().stream() : Stream.empty()),
+                targetSchema.getFields() != null ? targetSchema.getFields().stream(): Stream.empty())
                 .collect(Collectors.toMap(Field::getFieldName, f -> f, (v, m) -> {
 
                     // 根据 模型来源优先级(create_source) 控制是否覆盖策略
@@ -153,14 +125,14 @@ public class SchemaUtils {
                     } else {
                         field = getPriority(v.getSource()) >= getPriority(m.getSource()) ? v : m;
                     }
-                    List<String> oldIdList = field.getOldIdList();
-
-                    if (oldIdList == null) {
-                        oldIdList = new ArrayList<>();
-                    }
-
-                    oldIdList.add(v.getId());
-                    oldIdList.add(m.getId());
+//                    List<String> oldIdList = field.getOldIdList();
+//
+//                    if (oldIdList == null) {
+//                        oldIdList = new ArrayList<>();
+//                    }
+//
+//                    oldIdList.add(v.getId());
+//                    oldIdList.add(m.getId());
                     return field;
 
                 }));
@@ -205,7 +177,7 @@ public class SchemaUtils {
         if (StringUtils.isNotBlank(operation.getId())) {
             field.setId(operation.getId());
         } else {
-					field.setId(MetaDataBuilderUtils.generateFieldId(nodeId, tableName, operation.getField()));
+            field.setId(MetaDataBuilderUtils.generateFieldId(nodeId, tableName, operation.getField()));
         }
         field.setTableName(operation.getTableName());
         field.setOriginalFieldName(operation.getField());

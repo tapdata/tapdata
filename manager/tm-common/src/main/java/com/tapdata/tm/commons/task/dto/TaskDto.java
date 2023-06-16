@@ -82,6 +82,9 @@ public class TaskDto extends ParentTaskDto {
 
     private Map<String, Object> logSetting;
 
+    /** 是否为fdm主任务 */
+    private Boolean fdmMain;
+
     /** 编辑中 */
     public static final String STATUS_EDIT = "edit";
     /** 调度中 */

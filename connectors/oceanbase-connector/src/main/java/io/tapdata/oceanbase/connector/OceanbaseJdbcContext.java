@@ -34,7 +34,7 @@ public class OceanbaseJdbcContext extends JdbcContext {
     private static final String SET_CLIENT_SQL_MODE = "set sql_mode = ?";
     private static final String SELECT_TABLE = "SELECT t.* FROM `%s`.`%s` t";
     private static final String SELECT_COUNT = "SELECT count(*) FROM `%s`.`%s` t";
-    private static final String CHECK_TABLE_EXISTS_SQL = "SELECT * FROM information_schema.tables WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s'";
+    private static final String CHECK_TABLE_EXISTS_SQL = "SELECT TABLE_ROWS,DATA_LENGTH FROM information_schema.tables WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s'";
     private static final String DROP_TABLE_IF_EXISTS_SQL = "DROP TABLE IF EXISTS `%s`.`%s`";
     private static final String TRUNCATE_TABLE_SQL = "TRUNCATE TABLE `%s`.`%s`";
 
