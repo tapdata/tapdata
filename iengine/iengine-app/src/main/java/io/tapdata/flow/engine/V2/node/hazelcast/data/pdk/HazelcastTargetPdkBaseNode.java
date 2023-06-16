@@ -498,6 +498,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private void handleTapdataRecordEvent(TapdataEvent tapdataEvent, List<TapEvent> tapEvents, Consumer<TapdataEvent> consumer) {
 		TapRecordEvent tapRecordEvent = (TapRecordEvent) tapdataEvent.getTapEvent();
 		if (writeStrategy.equals(MergeTableProperties.MergeType.appendWrite.name())) {
+			// When append write, update and delete event turn into insert event
 			if (tapRecordEvent instanceof TapUpdateRecordEvent) {
 				Map<String, Object> after = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
 				TapInsertRecordEvent tapInsertRecordEvent = TapInsertRecordEvent.create();
@@ -510,8 +511,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				tapRecordEvent.clone(tapInsertRecordEvent);
 				tapInsertRecordEvent.setAfter(before);
 				tapRecordEvent = tapInsertRecordEvent;
-			} else {
-				return;
 			}
 		}
 		fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager);
