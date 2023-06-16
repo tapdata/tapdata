@@ -103,10 +103,10 @@ public class LdpController extends BaseController {
 
 
 
-    @DeleteMapping("mdm/table/{qualifiedName}")
-    public ResponseMessage<Void> deleteMdmTable(@PathVariable("qualifiedName") String qualifiedName) {
+    @DeleteMapping("mdm/table/{id}")
+    public ResponseMessage<Void> deleteMdmTable(@PathVariable("id") String id) {
         UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId("62bc5008d4958d013d97c7a6"));
-        ldpService.deleteMdmTable(qualifiedName, userDetail);
+        ldpService.deleteMdmTable(id, userDetail);
         return success();
     }
 

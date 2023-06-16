@@ -35,5 +35,5 @@ public interface LdpService {
 
     void fdmBatchStart(String tagId, List<String> taskIds, UserDetail loginUser);
 
-    void deleteMdmTable(String qualifiedName, UserDetail loginUser);
+    void deleteMdmTable(String id, UserDetail loginUser);
 }

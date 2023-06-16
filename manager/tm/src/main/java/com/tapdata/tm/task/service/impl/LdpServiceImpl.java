@@ -1118,8 +1118,9 @@ public class LdpServiceImpl implements LdpService {
     }
 
     @Override
-    public void deleteMdmTable(String qualifiedName, UserDetail user) {
-        MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedName, user);
+    public void deleteMdmTable(String id, UserDetail user) {
+
+        MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(id), user);
 
         if (metadataInstancesDto == null) {
             return;
@@ -1183,7 +1184,7 @@ public class LdpServiceImpl implements LdpService {
 
         log.info("build send test connection websocket context, processId = {}, userId = {}", agent, user.getUserId());
         messageQueueService.sendMessage(queueDto);
-        metadataInstancesService.deleteAll(new Query(Criteria.where("qualified_name").is(qualifiedName)), user);
+        metadataInstancesService.deleteById(MongoUtils.toObjectId(id), user);
     }
 
     private String findAgent(DataSourceConnectionDto connectionDto, UserDetail user) {
