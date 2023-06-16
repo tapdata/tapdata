@@ -2,27 +2,17 @@ package com.tapdata.tm.utils;
 
 import com.alibaba.fastjson.JSON;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.pdk.apis.annotations.TapConnectorClass;
-import io.tapdata.pdk.core.connector.TapConnector;
-import io.tapdata.pdk.core.connector.TapConnectorManager;
-import io.tapdata.pdk.core.tapnode.TapNodeContainer;
-import io.tapdata.pdk.core.tapnode.TapNodeInfo;
-import io.tapdata.pdk.core.utils.IOUtils;
-import org.apache.commons.io.FileUtils;
+import org.springframework.core.io.ClassPathResource;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Scanner;
-import java.util.Set;
 
 /**
  * @author GavinXiao
@@ -32,7 +22,7 @@ import java.util.Set;
  * OEM config util
  **/
 public class OEMReplaceUtil {
-    private static final String path = "manager/tm/src/main/resources/oem/";
+    private static final String path = "oem/";
 
     /**
      * @type function
@@ -45,7 +35,7 @@ public class OEMReplaceUtil {
     public static String getOEMConfigPath(String fileName){
         String oemType = oemType();
         if (null == fileName || "".equals(fileName.trim()) || null == oemType) return null;
-        return path + oemType + (fileName.startsWith("/") ? "" : "/") + fileName;
+        return Optional.ofNullable(System.getenv("oem_file_path")).orElse(path) + oemType + (fileName.startsWith("/") ? "" : "/") + fileName;
     }
 
     /**
@@ -56,17 +46,21 @@ public class OEMReplaceUtil {
      * @return File
      * @date 2023/6/12
      * */
-    public static File getOEMConfigFile(String fileName) throws FileNotFoundException {
+    public static InputStream getOEMConfigInputStream(String fileName) throws FileNotFoundException {
         String configPath = getOEMConfigPath(fileName);
         if (null == configPath) return null;
         //if (!file.exists()) {
         //    throw new FileNotFoundException("Can not found " + fileName + "in /" + oemType());
         //}
         try {
-            return new File(configPath);
+            ClassPathResource classPathResource = new ClassPathResource(configPath);
+            return classPathResource.getInputStream();
+            //return org.springframework.util.ResourceUtils.getFile(configPath);//new File(configPath);
         }catch (Exception e){
-            throw new CoreException("FileNotFound in path '%s'", configPath);
+            //TapLogger.info("FileNotFound in path {}", configPath);
+            throw new CoreException("OEM name is {} in evn, but file not found in path {}", oemType(), configPath);
         }
+        //return null;
     }
 
     /**
@@ -79,9 +73,7 @@ public class OEMReplaceUtil {
      * */
     public static InputStream getOEMConfigFileAsInputStream(String fileName) throws IOException {
         assertFileName(fileName);
-        File configFile = getOEMConfigFile(fileName);
-        if (null == configFile) return null;
-        return FileUtils.openInputStream(configFile);
+        return getOEMConfigInputStream(fileName);
     }
 
     /**
@@ -115,7 +107,7 @@ public class OEMReplaceUtil {
      * @date 2023/6/12
      * */
     public static String oemType() {
-        return System.getProperty("oem", null);
+        return System.getenv("oem");
     }
 
     /**
