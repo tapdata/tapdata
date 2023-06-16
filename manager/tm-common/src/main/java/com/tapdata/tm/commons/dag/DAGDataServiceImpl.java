@@ -1148,7 +1148,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         }
 
         Node<?> node = dag.getNode(nodeId);
-        if (node instanceof DatabaseNode || node instanceof MigrateProcessorNode) {
+				if (node instanceof ProcessorNode) {
+					return nodeId;
+				} else if (node instanceof DatabaseNode || node instanceof MigrateProcessorNode) {
             List<Node> sources = node.getDag().getSources();
             Node source = sources.get(0);
             LinkedList<TableRenameProcessNode> linkedList = new LinkedList<>();
