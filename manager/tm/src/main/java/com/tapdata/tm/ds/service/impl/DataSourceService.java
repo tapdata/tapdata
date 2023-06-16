@@ -1462,19 +1462,22 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	}
 
 	private void setDescription(List<MetadataInstancesDto> newModelList ,List<MetadataInstancesDto> oldModelList ){
-		Map<String, String> map = new HashMap<>();
-		oldModelList.forEach(metadataInstancesDto -> {
-			metadataInstancesDto.getFields().forEach(field -> {
+		Map<String, MetadataInstancesDto> newMap = newModelList.stream().collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, v -> v, (k1, k2) -> k1));
+		for (MetadataInstancesDto metadataInstancesDto : oldModelList) {
+			Map<String, String> map = new HashMap<>();
+			for (Field field : metadataInstancesDto.getFields()) {
 				map.put(field.getFieldName(),field.getDescription());
-			});
-		});
-		newModelList.forEach(metadataInstancesDto -> {
-			metadataInstancesDto.getFields().forEach(field -> {
-			    if(map.containsKey(field.getId())) {
-					field.setDescription(map.get(field.getFieldName()));
-				}
-			});
-		});
+			}
+
+			MetadataInstancesDto newModel = newMap.get(metadataInstancesDto.getQualifiedName());
+			if (newModel != null) {
+				newModel.getFields().forEach(field -> {
+					if(map.containsKey(field.getId())) {
+						field.setDescription(map.get(field.getFieldName()));
+					}
+				});
+			}
+		}
 	}
 
 	private Document setToDocumentByJsonParser(Document update) {

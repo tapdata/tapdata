@@ -20,12 +20,14 @@ import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.conversion.PossibleDataTypes;
+import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapRaw;
 import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.utils.InstanceFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
@@ -614,6 +616,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             }
             LinkedHashMap<String, TapField> data = convert.getData();
 
+            if (convert.getData() != null) {
+                PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(convert.getData(), DefaultExpressionMatchingMap.map(expression));
+            }
             if (!findPossibleDataTypes.isEmpty()) {
                 boolean anyMatch = findPossibleDataTypes.values().stream().anyMatch(dataType -> dataType.getLastMatchedDataType() == null);
                 if (anyMatch) {
