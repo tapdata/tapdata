@@ -208,7 +208,7 @@ public class HttpReceiverController extends BaseController {
         StringBuffer fullRequestURL = request.getRequestURL();
         final String requestPath = "/api/proxy/host";
         Map<String, String> map = new HashMap<>();
-        map.put("host", fullRequestURL.substring(0, fullRequestURL.indexOf(requestPath) + 1) + "api/proxy/call/{access_token}");
+        map.put("host", fullRequestURL.substring(0, fullRequestURL.indexOf(requestPath) + 1) + "api/proxy/callback/{access_token}");
         return success(map);
     }
 
