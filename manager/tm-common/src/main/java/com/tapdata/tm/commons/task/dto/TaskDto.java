@@ -166,6 +166,10 @@ public class TaskDto extends ParentTaskDto {
 
     private transient Map<String, Object> taskInfo;
 
+    @JsonSerialize()
+    @JsonDeserialize()
+    private Map<String, Object> globalTaskContext;
+
     public Object taskInfo(String key){
         if (null == taskInfo) return null;
         return taskInfo.get(key);
