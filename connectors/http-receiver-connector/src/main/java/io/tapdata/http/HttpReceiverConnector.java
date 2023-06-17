@@ -171,7 +171,7 @@ public class HttpReceiverConnector extends ConnectorBase {
         ConnectionTest test = ConnectionTest.create(ConnectionConfig.create(tapConnectionContext));
         ConnectionOptions options = ConnectionOptions.create();
         consumer.accept(test.testTableName());
-        consumer.accept(test.testHookUrl());
+        //consumer.accept(test.testHookUrl());
         //consumer.accept(test.testScript());
         return options;
     }
