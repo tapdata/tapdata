@@ -702,7 +702,7 @@ public class ProxyController extends BaseController {
 
     @Operation(summary = "External callback url")
     @GetMapping("call/history")
-    public ResponseMessage<List<Map<String, Object>> > historyMessage(
+    public ResponseMessage<List<Object>> historyMessage(
             @RequestParam(value = "connectionId")String connectionId,
             @RequestParam(value = "dataSize", required = false) Integer dataSize) {
         if(connectionId == null || "".equals(connectionId.trim()))
@@ -712,7 +712,7 @@ public class ProxyController extends BaseController {
 
         getLoginUser();
 
-        List<Map<String, Object>> result = new ArrayList<>();
+        List<Object> result = new ArrayList<>();
         if (null == messageEntityService) {
             messageEntityService = InstanceFactory.instance(MessageEntityService.class);
         }
@@ -721,9 +721,31 @@ public class ProxyController extends BaseController {
         }
         Optional.ofNullable(messageEntityService.getMessageEntityListDesc("engine", connectionId, null, dataSize))
                 .flatMap(entity -> Optional.ofNullable(entity.getMessages())
-                        .flatMap(messages -> Optional.of(messages.stream().filter(Objects::nonNull).map(MessageEntity::getContent).collect(Collectors.toList()))))
+                        .flatMap(messages -> Optional.of(messages.stream()
+                                    .filter(Objects::nonNull)
+                                    .map(ent -> filterCallbackEvent(ent.getContent()))
+                                    .filter(Objects::nonNull)
+                                    .collect(Collectors.toList()))
+                        ))
                 .ifPresent(result::addAll);
         return success(result);
+    }
+
+    public static Object filterCallbackEvent(Map<String, Object> callbackEvent) {
+        Object isArrayObj = Optional.ofNullable(callbackEvent.get("proxy_callback_array_content")).orElse(false);
+
+        Object supplierKey = callbackEvent.get("proxy_callback_supplier_id");
+        if (null == supplierKey) {
+            TapLogger.warn("", "System error: Unknown supplier id");
+            return null;
+        }
+
+        Object data = callbackEvent.get(isArrayObj instanceof Boolean && ((Boolean)isArrayObj) ? "array" : "map");
+        if (null == data) {
+            TapLogger.info("", "Before script filtering, the current record is empty and will be ignored.");
+            return null;
+        }
+        return data;
     }
 
     private void executeEngineMessage(EngineMessage engineMessage, HttpServletRequest request, HttpServletResponse response) {
