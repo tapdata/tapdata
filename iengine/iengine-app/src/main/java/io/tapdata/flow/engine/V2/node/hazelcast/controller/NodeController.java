@@ -49,4 +49,8 @@ public class NodeController implements Serializable {
 	public void finish() {
 		this.status.set(FINISH);
 	}
+
+	public void setNode(Node<?> node) {
+		this.node = node;
+	}
 }

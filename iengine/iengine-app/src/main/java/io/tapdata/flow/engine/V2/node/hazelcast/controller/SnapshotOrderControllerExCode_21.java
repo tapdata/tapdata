@@ -40,4 +40,10 @@ public interface SnapshotOrderControllerExCode_21 {
 			describeCN = "创建初始化顺序控制器失败，任务数据不能为空"
 	)
 	String FAILED_TO_CREATE_CONTROLLER_TASK_NULL = "21007";
+
+	@TapExCode(
+					describe = "The format of the initialization sequence controller was incorrect. Procedure",
+					describeCN = "初始化顺序控制器格式错误"
+	)
+	String SNAPSHOT_ORDER_LIST_FORMAT_ERROR = "21008";
 }
