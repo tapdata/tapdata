@@ -311,7 +311,7 @@ public class ClickhouseConnector extends CommonDbConnector {
             clickhouseJdbcContext.batchExecute(sqlList);
             tapLogger.info("Clickhouse Optimize Table end");
         } catch (Throwable e) {
-            tapLogger.warn("Clickhouse Optimize Table failed");
+            tapLogger.warn("Clickhouse Optimize Table failed", e);
         }
         lastMergeTime = System.currentTimeMillis();
         connectorContext.getStateMap().put("lastMergeTime", lastMergeTime);
