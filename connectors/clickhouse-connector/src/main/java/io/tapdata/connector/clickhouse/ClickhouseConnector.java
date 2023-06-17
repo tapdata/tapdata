@@ -296,7 +296,7 @@ public class ClickhouseConnector extends CommonDbConnector {
                 while (isAlive()) {
                     TapSimplify.sleep(1000);
                     if (System.currentTimeMillis() - lastMergeTime > 1000L * 60 * clickhouseConfig.getMergeMinutes()) {
-                        List<String> sqlList = tapTableMap.values().stream().map(v -> "OPTIMIZE TABLE `" + clickhouseConfig.getDatabase() + "`.`" + v.getId() + "`").collect(Collectors.toList());
+                        List<String> sqlList = tapTableMap.values().stream().map(v -> "OPTIMIZE TABLE `" + clickhouseConfig.getDatabase() + "`.`" + v.getId() + "` FINAL").collect(Collectors.toList());
                         try {
                             tapLogger.info("Clickhouse Optimize Table start, tables: {}", toJson(tapTableMap.keySet()));
                             clickhouseJdbcContext.batchExecute(sqlList);

@@ -203,6 +203,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 			case FIELD_ADD_DEL_PROCESSOR:
 			case FIELD_CALC_PROCESSOR:
 			case FIELD_MOD_TYPE_PROCESSOR:
+			case FIELD_MOD_TYPE_FILTER_PROCESSOR:
 				List<FieldProcess> fieldProcesses = new ArrayList<>();
 				FieldProcessorNode fieldProcessor = (FieldProcessorNode) node;
 				final List<FieldProcessorNode.Operation> operations = fieldProcessor.getOperations();

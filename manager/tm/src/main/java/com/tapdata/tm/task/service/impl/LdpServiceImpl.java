@@ -987,7 +987,7 @@ public class LdpServiceImpl implements LdpService {
                             String state = "running";
                             for (String tableName : tableNames) {
                                 if (map.containsKey(tableName)) {
-                                    if (!ldpNewTables.contains(tableName)) {
+                                    if (!ldpNewTables.contains(map.get(tableName))) {
                                         tableStatusMap.put(tableName, state);
                                     } else {
                                         if (!"running".equals(tableStatusMap.get(tableName))) {

@@ -40,6 +40,9 @@ public enum NodeTypeEnum {
 	MIGRATE_FIELD_RENAME_PROCESSOR("migrate_field_rename_processor"),
 	MIGRATE_DATE_PROCESSOR("migrate_date_processor"),
 	DATE_PROCESSOR("date_processor"),
+
+	MIGRATE_FIELD_MOD_TYPE_FILTER_PROCESSOR("migrate_field_mod_type_filter_processor"),
+	FIELD_MOD_TYPE_FILTER_PROCESSOR("field_mod_type_filter_processor"),
 	;
 
 	public final String type;
