@@ -132,7 +132,7 @@ public class HttpReceiverController extends BaseController {
 
     @Operation(summary = "Get access URL")
     @GetMapping("refresh/{token}")
-    public ResponseMessage<SubscribeResponseDto> refreshToken(
+    public ResponseMessage<SubscribeURLResponseDto> refreshToken(
             @PathVariable(name = "token") String token,
             @RequestParam(name = "access_token", required = false) String accessToken,
             HttpServletRequest request,
@@ -192,7 +192,11 @@ public class HttpReceiverController extends BaseController {
         //final String host = fullRequestURL.substring(0, fullRequestURL.indexOf(requestPath) +1 );
         //responseDto.setHost(host);
         //responseDto.setFullPath(host + responseDto.getPath() + dto.getToken());
-        return success(proxyService.generateSubscriptionToken(subscribeDto, accessToken));
+        SubscribeResponseDto subscribeResponseDto = proxyService.generateSubscriptionToken(subscribeDto, accessToken);
+        SubscribeURLResponseDto dto = new SubscribeURLResponseDto();
+        dto.setAccess_token(subscribeResponseDto.getToken());
+        dto.setExpireSeconds(subscribeResponseDto.getExpireSeconds());
+        return success(dto);
     }
 
     @Operation(summary = "Get access URL")
@@ -204,7 +208,7 @@ public class HttpReceiverController extends BaseController {
         StringBuffer fullRequestURL = request.getRequestURL();
         final String requestPath = "/api/proxy/host";
         Map<String, String> map = new HashMap<>();
-        map.put("host", fullRequestURL.substring(0, fullRequestURL.indexOf(requestPath) + 1) + "api/proxy/call/{token}");
+        map.put("host", fullRequestURL.substring(0, fullRequestURL.indexOf(requestPath) + 1) + "api/proxy/callback/{access_token}");
         return success(map);
     }
 
