@@ -14,6 +14,7 @@ import io.tapdata.http.receiver.ConnectionTest;
 import io.tapdata.http.receiver.EventHandle;
 import io.tapdata.http.util.Checker;
 import io.tapdata.http.util.ScriptEvel;
+import io.tapdata.http.util.Tags;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -112,19 +113,11 @@ public class HttpReceiverConnector extends ConnectorBase {
             context.getLog().debug("WebHook of http body is empty, Data callback has been over.");
             return null;
         }
-        Object isArrayObj = Optional.ofNullable(eventMap.get("proxy_callback_array_content")).orElse(false);
-
-        Object supplierKey = eventMap.get("proxy_callback_supplier_id");
-        if (null == supplierKey) {
-            context.getLog().error("System error: Unknow supplierId");
-            return null;
-        }
-
-        Object data = eventMap.get(isArrayObj instanceof Boolean && ((Boolean)isArrayObj) ? "array" : "map");
+        Object data = Tags.filterCallbackEvent(context, eventMap);
         if (null == data) {
-            context.getLog().info("Before script filtering, the current record is empty and will be ignored.");
             return null;
         }
+        Object supplierKey = eventMap.get("proxy_callback_supplier_id");
         //Object listObj = eventMap.get("array");
         //if (Checker.isEmpty(listObj) || !(listObj instanceof Collection)){
         //    TapLogger.debug(TAG,"WebHook of http body is empty or not Collection, Data callback has been over.");
