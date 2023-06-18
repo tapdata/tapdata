@@ -2,6 +2,7 @@ package io.tapdata.connector.redis;
 
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.connector.redis.constant.ValueTypeEnum;
+import io.tapdata.connector.redis.exception.RedisExceptionCollector;
 import io.tapdata.connector.redis.writer.AbstractRedisRecordWriter;
 import io.tapdata.connector.redis.writer.HashRedisRecordWriter;
 import io.tapdata.connector.redis.writer.ListRedisRecordWriter;
@@ -37,6 +38,7 @@ public class RedisConnector extends ConnectorBase {
     private final static String INIT_TABLE_NAME = "tapdata";
     private RedisConfig redisConfig;
     private RedisContext redisContext;
+    private RedisExceptionCollector redisExceptionCollector;
 
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
@@ -63,6 +65,7 @@ public class RedisConnector extends ConnectorBase {
         redisConfig.load(connectionContext.getConnectionConfig());
         redisConfig.load(connectionContext.getNodeConfig());
         this.redisContext = new RedisContext(redisConfig);
+        this.redisExceptionCollector = new RedisExceptionCollector();
     }
 
     /**
@@ -114,7 +117,12 @@ public class RedisConnector extends ConnectorBase {
             default:
                 recordWriter = new StringRedisRecordWriter(redisContext, tapTable);
         }
-        recordWriter.write(tapRecordEvents, writeListResultConsumer);
+        try {
+            recordWriter.write(tapRecordEvents, writeListResultConsumer);
+        } catch (Throwable e) {
+            redisExceptionCollector.collectRedisServerUnavailable(e);
+            throw e;
+        }
     }
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
