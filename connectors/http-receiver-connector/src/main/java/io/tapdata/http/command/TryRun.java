@@ -11,6 +11,7 @@ import io.tapdata.http.command.entity.CollectLog;
 import io.tapdata.http.entity.ConnectionConfig;
 import io.tapdata.http.util.ListUtil;
 import io.tapdata.http.util.ScriptEvel;
+import io.tapdata.http.util.Tags;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
@@ -68,7 +70,7 @@ public class TryRun implements Command {
         return handleCommand(tapConnectionContext, commandInfo, config);
     }
 
-    private CommandResult handleCommand(final TapConnectionContext tapConnectionContext, final CommandInfo commandInfo, final ConnectionConfig config) {
+    private CommandResult handleCommand(final TapConnectionContext context, final CommandInfo commandInfo, final ConnectionConfig config) {
         Map<String, Object> commandArgs = Optional.ofNullable(commandInfo.getArgMap()).orElse(new HashMap<>());
         final int logSize = (Integer) Optional.ofNullable(commandArgs.get(LOG_COUNT_KEY)).orElse(100);
         List<CollectLog.LogRecord> logList = new LinkedList<CollectLog.LogRecord>() {
@@ -92,7 +94,7 @@ public class TryRun implements Command {
         };
         List<Object> afterData = new ArrayList<>();
         List<Object> beforeData = new ArrayList<>();
-        final CollectLog<? extends Log> logger = new CollectLog<>(tapConnectionContext.getLog(), logList);
+        final CollectLog<? extends Log> logger = new CollectLog<>(context.getLog(), logList);
         Map<String, Object> resultDate = new HashMap<>();
         resultDate.put("logs", logList);
         resultDate.put("after", afterData);
