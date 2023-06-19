@@ -4,16 +4,9 @@ Please follow the instructions below to ensure successful addition and usage of 
 ### **2. Limitation explanation**
 The current version of the Tapdata system supports Redis only as a target, meaning it can be used as a destination for data synchronization. The supported data source types for Tapdata include Oracle、MySQL、MongoDB、PostgreSQL、SQL Server.
 
-|   Source   | Target | Support status |
-|:----------:|:------:|:--------------:|
-|   Oracle   | Redis  |      Yes       |
-|   MySQL    | Redis  |       Yes       |
-|  MongoDB   | Redis  |       Yes       |
-| PostgreSQL | Redis  |       Yes       |
-| SQL Server | Redis  |       Yes       |
-
 ### **3. Supported versions**
-Redis 3.3
+Redis 2.8 - 7.0
+
 ### **4. Configuration instructions**
 - Host/IP
 - Port
