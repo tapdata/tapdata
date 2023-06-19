@@ -223,7 +223,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private void initSourceEventQueue() {
-		this.sourceQueueCapacity = readBatchSize >> 1;
+		this.sourceQueueCapacity = readBatchSize * 2;
 		this.eventQueue = new LinkedBlockingQueue<>(sourceQueueCapacity);
 		obsLogger.info("Source node \"{}\" event queue capacity: {}", getNode().getName(), sourceQueueCapacity);
 	}
