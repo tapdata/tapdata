@@ -166,8 +166,7 @@ public class TaskDto extends ParentTaskDto {
 
     private transient Map<String, Object> taskInfo;
 
-    @JsonSerialize()
-    @JsonDeserialize()
+    /** 任务维度的容器，缓存在内存中，任务启动后重置*/
     private Map<String, Object> globalTaskContext;
 
     public Object taskInfo(String key){
