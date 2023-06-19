@@ -23,6 +23,8 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
 import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.vo.FieldChangeRule;
+import com.tapdata.tm.commons.dag.vo.FieldChangeRuleGroup;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.*;
@@ -37,6 +39,7 @@ import com.tapdata.tm.dag.service.DAGService;
 import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.metadatainstance.bean.MultiPleTransformReq;
 import com.tapdata.tm.metadatainstance.dto.DataType2TapTypeDto;
 import com.tapdata.tm.metadatainstance.dto.DataTypeCheckMultipleVo;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
@@ -2368,5 +2371,42 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             });
         });
     return set;
+    }
+
+    public MetadataInstancesDto multiTransform(MultiPleTransformReq multiPleTransformReq, UserDetail user) {
+
+        MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
+        metadataInstancesDto.setFields(multiPleTransformReq.getFields());
+        List<Field> fields = metadataInstancesDto.getFields();
+        if (CollectionUtils.isEmpty(fields)) {
+            return metadataInstancesDto;
+        }
+
+        List<FieldChangeRule> rules = multiPleTransformReq.getRules();
+        if (CollectionUtils.isEmpty(rules)) {
+            return metadataInstancesDto;
+        }
+
+        DataSourceDefinitionDto dataSourceDefinitionDto = dataSourceDefinitionService.getByDataSourceType(multiPleTransformReq.getDatabaseType(), user);
+        if (dataSourceDefinitionDto == null) {
+            return metadataInstancesDto;
+        }
+
+        String expression = dataSourceDefinitionDto.getExpression();
+        DefaultExpressionMatchingMap map = DefaultExpressionMatchingMap.map(expression);
+
+
+        FieldChangeRuleGroup fieldChangeRuleGroup = new FieldChangeRuleGroup();
+        for (FieldChangeRule rule : rules) {
+            fieldChangeRuleGroup.add(multiPleTransformReq.getNodeId(), rule);
+        }
+
+
+        for (Field field : fields) {
+            fieldChangeRuleGroup.process(multiPleTransformReq.getNodeId(), multiPleTransformReq.getQualifiedName(), field, map);
+        }
+
+        return metadataInstancesDto;
+
     }
 }

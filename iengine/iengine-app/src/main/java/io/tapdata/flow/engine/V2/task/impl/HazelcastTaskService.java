@@ -109,6 +109,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -428,7 +429,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 										.withCacheService(cacheService)
 										.build());
 					}
-				} else if (CollectionUtils.isNotEmpty(successors)) {
+				}
+				else if (CollectionUtils.isNotEmpty(successors)) {
 					if ("pdk".equals(connection.getPdkType())) {
 						DataProcessorContext processorContext = DataProcessorContext.newBuilder()
 								.withTaskDto(taskDto)
@@ -471,7 +473,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 										.withSourceConn(connection)
 										.build());
 					}
-				} else {
+				}
+				else {
 					if ("pdk".equals(connection.getPdkType())) {
 						hazelcastNode = new HazelcastTargetPdkDataNode(
 								DataProcessorContext.newBuilder()
@@ -519,7 +522,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 									.withTaskConfig(taskConfig)
 									.build()
 					);
-				} else {
+				}
+				else {
 					hazelcastNode = new HazelcastCacheTarget(
 							DataProcessorContext.newBuilder()
 									.withTaskDto(taskDto)
@@ -551,7 +555,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 									.withTaskConfig(taskConfig)
 									.build()
 					);
-				} else {
+				}
+				else {
 					throw new RuntimeException("un support AutoInspect node " + connection.getPdkType());
 				}
 				break;

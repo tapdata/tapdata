@@ -507,7 +507,6 @@ public abstract class Node<S> extends Element{
                             break;
 
                     }
-                    fieldName = fieldName.toUpperCase();
                     field.setFieldName(fieldName);
                 }
             });

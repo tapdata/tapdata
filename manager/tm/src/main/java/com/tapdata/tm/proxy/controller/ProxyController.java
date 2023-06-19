@@ -723,8 +723,8 @@ public class ProxyController extends BaseController {
                 .flatMap(entity -> Optional.ofNullable(entity.getMessages())
                         .flatMap(messages -> Optional.of(messages.stream()
                                     .filter(Objects::nonNull)
-                                    .map(ent -> filterCallbackEvent(ent.getContent()))
-                                    .filter(Objects::nonNull)
+                                    //.map(ent -> filterCallbackEvent(ent.getContent()))
+                                    //.filter(Objects::nonNull)
                                     .collect(Collectors.toList()))
                         ))
                 .ifPresent(result::addAll);
