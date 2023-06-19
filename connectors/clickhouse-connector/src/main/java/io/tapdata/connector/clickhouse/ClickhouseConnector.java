@@ -137,6 +137,7 @@ public class ClickhouseConnector extends CommonDbConnector {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
+        isConnectorStarted(connectionContext, this::mergeWriteRecordTables);
         EmptyKit.closeQuietly(clickhouseJdbcContext);
         EmptyKit.closeQuietly(clickhouseWriter);
         if (EmptyKit.isNotNull(executorService)) {
@@ -296,20 +297,24 @@ public class ClickhouseConnector extends CommonDbConnector {
                 while (isAlive()) {
                     TapSimplify.sleep(1000);
                     if (System.currentTimeMillis() - lastMergeTime > 1000L * 60 * clickhouseConfig.getMergeMinutes()) {
-                        List<String> sqlList = tapTableMap.values().stream().map(v -> "OPTIMIZE TABLE `" + clickhouseConfig.getDatabase() + "`.`" + v.getId() + "` FINAL").collect(Collectors.toList());
-                        try {
-                            tapLogger.info("Clickhouse Optimize Table start, tables: {}", toJson(tapTableMap.keySet()));
-                            clickhouseJdbcContext.batchExecute(sqlList);
-                            tapLogger.info("Clickhouse Optimize Table end");
-                        } catch (Throwable e) {
-                            tapLogger.warn("Clickhouse Optimize Table failed");
-                        }
-                        lastMergeTime = System.currentTimeMillis();
-                        tapConnectorContext.getStateMap().put("lastMergeTime", lastMergeTime);
+                        mergeWriteRecordTables(tapConnectorContext);
                     }
                 }
             });
         }
+    }
+
+    private void mergeWriteRecordTables(TapConnectorContext connectorContext) {
+        List<String> sqlList = tapTableMap.values().stream().map(v -> "OPTIMIZE TABLE `" + clickhouseConfig.getDatabase() + "`.`" + v.getId() + "` FINAL").collect(Collectors.toList());
+        try {
+            tapLogger.info("Clickhouse Optimize Table start, tables: {}", toJson(tapTableMap.keySet()));
+            clickhouseJdbcContext.batchExecute(sqlList);
+            tapLogger.info("Clickhouse Optimize Table end");
+        } catch (Throwable e) {
+            tapLogger.warn("Clickhouse Optimize Table failed", e);
+        }
+        lastMergeTime = System.currentTimeMillis();
+        connectorContext.getStateMap().put("lastMergeTime", lastMergeTime);
     }
 
     //需要改写成ck的创建索引方式
