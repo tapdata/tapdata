@@ -319,6 +319,7 @@ public class ScriptUtil {
 		buildInMethod.append("var UUIDGenerator = Java.type(\"com.tapdata.constant.UUIDGenerator\");\n");
 		buildInMethod.append("var idGen = Java.type(\"com.tapdata.constant.UUIDGenerator\");\n");
 		buildInMethod.append("var HashMap = Java.type(\"java.util.HashMap\");\n");
+		buildInMethod.append("var LinkedHashMap = Java.type(\"java.util.LinkedHashMap\");\n");
 		buildInMethod.append("var ArrayList = Java.type(\"java.util.ArrayList\");\n");
 		buildInMethod.append("var Date = Java.type(\"java.util.Date\");\n");
 		buildInMethod.append("var uuid = UUIDGenerator.uuid;\n");
@@ -519,6 +520,7 @@ public class ScriptUtil {
 		buildInMethod.append("var UUIDGenerator = Java.type(\"com.tapdata.constant.UUIDGenerator\");\n");
 		buildInMethod.append("var idGen = Java.type(\"com.tapdata.constant.UUIDGenerator\");\n");
 		buildInMethod.append("var HashMap = Java.type(\"java.util.HashMap\");\n");
+		buildInMethod.append("var LinkedHashMap = Java.type(\"java.util.LinkedHashMap\");\n");
 		buildInMethod.append("var ArrayList = Java.type(\"java.util.ArrayList\");\n");
 		buildInMethod.append("var uuid = UUIDGenerator.uuid;\n");
 		buildInMethod.append("var JSONUtil = Java.type('com.tapdata.constant.JSONUtil');\n");
