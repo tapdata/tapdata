@@ -211,7 +211,7 @@
       "database": "database",
       "username": "username",
       "password": "password",
-      "extParams": "Connection Parameter String",
+      "addtionalString": "Connection Parameter String",
       "timezone": "timezone",
       "doc": "docs/mysql_en_US.md"
     },
@@ -221,7 +221,7 @@
       "database": "数据库",
       "username": "账号",
       "password": "密码",
-      "extParams": "连接参数",
+      "addtionalString": "连接参数",
       "timezone": "时区",
       "doc": "docs/mysql_zh_CN.md"
     },
@@ -231,7 +231,7 @@
       "database": "數據庫",
       "username": "賬號",
       "password": "密碼",
-      "extParams": "連接參數",
+      "addtionalString": "連接參數",
       "timezone": "時區",
       "doc": "docs/mysql_zh_TW.md"
     }

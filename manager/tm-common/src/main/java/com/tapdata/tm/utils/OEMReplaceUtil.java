@@ -2,6 +2,7 @@ package com.tapdata.tm.utils;
 
 import com.alibaba.fastjson.JSON;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.TapLogger;
 import org.springframework.core.io.ClassPathResource;
 
 import java.io.ByteArrayInputStream;
@@ -58,9 +59,10 @@ public class OEMReplaceUtil {
             //return org.springframework.util.ResourceUtils.getFile(configPath);//new File(configPath);
         }catch (Exception e){
             //TapLogger.info("FileNotFound in path {}", configPath);
-            throw new CoreException("OEM name is {} in evn, but file not found in path {}", oemType(), configPath);
+            TapLogger.warn("OEM-REPLACE", "OEM name is {} in evn, but file not found in path {}", oemType(), configPath);
+            //throw new CoreException("OEM name is {} in evn, but file not found in path {}", oemType(), configPath);
         }
-        //return null;
+        return null;
     }
 
     /**
