@@ -308,7 +308,7 @@ public class MapUtil {
 						logger.warn("get new obj error, skip it...", e);
 					}
 				}
-				Map newObject = new HashMap();
+				Map newObject = mapInstance((Map<String, Object>) value);
 				copyToNewMap((Map) value, newObject);
 				newMap.put(key, newObject);
 
@@ -321,6 +321,21 @@ public class MapUtil {
 			}
 		}
 
+	}
+
+	private static Map<String, Object> mapInstance(Map<String, Object> value){
+		if (value instanceof LinkedHashMap) {
+			return new LinkedHashMap<>();
+		}
+		return  new HashMap<String, Object>();
+
+		//Class<? extends Map> aClass = value.getClass();
+		//try {
+		//	Map<String, Object> map = (Map<String, Object>) aClass.newInstance();
+		//	return map;
+		//} catch (Exception e){
+		//	return  new HashMap<String, Object>();
+		//}
 	}
 
 	public static void copyToNewDocument(Map map, Map newMap) {

@@ -18,7 +18,7 @@
       "properties": {
         "initial_totals": {"type": "number", "title": "${df_initial_totals}", "x-decorator": "FormItem", "x-component": "InputNumber", "x-index": 1, "required": true, "default": 1, "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='target' ? null:'none'}}", "required": "{{$deps[0]!=='target' ? true:false}}" } }}},
         "incremental_interval": {"type": "number", "title": "${df_incremental_interval}", "x-decorator": "FormItem", "x-component": "InputNumber", "x-index": 2, "required": true, "default": 1000, "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='target' ? null:'none'}}", "required": "{{$deps[0]!=='target' ? true:false}}" } }}},
-        "incremental_interval_totals": {"type": "number", "title": "${df_incremental_interval_totals}", "x-decorator": "FormItem", "x-component": "InputNumber", "x-index": 3, "required": true, "default": 1, "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='target' ? null:'none'}}", "required": "{{$deps[0]!=='target' ? true:false}}" } }}},
+        "incremental_interval_totals": {"type": "number", "title": "${df_incremental_interval_totals}", "x-decorator": "FormItem", "x-decorator-props": {"tooltip": "${df_interval_totals_tooltip}"}, "x-component": "InputNumber", "x-index": 3, "required": true, "default": 1, "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='target' ? null:'none'}}", "required": "{{$deps[0]!=='target' ? true:false}}" } }}},
         "incremental_types": {"type": "array", "title": "${df_incremental_types}", "x-decorator": "FormItem", "x-component": "Checkbox.Group", "x-index": 4, "default": [1],
           "enum": [
             {"label": "${df_incremental_types_insert}", "value": 1},
@@ -28,7 +28,7 @@
           "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='target' ? null:'none'}}" } } }
         },
         "write_interval": {"type": "number", "title": "${df_write_interval}", "x-decorator": "FormItem", "x-component": "InputNumber", "x-index": 5, "required": true, "default": 1000, "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='source' ? null:'none'}}", "required": "{{$deps[0]!=='source' ? true:false}}" } }}},
-        "write_interval_totals": {"type": "number", "title": "${df_write_interval_totals}", "x-decorator": "FormItem", "x-component": "InputNumber", "x-index": 6, "required": true, "default": 1, "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='source' ? null:'none'}}", "required": "{{$deps[0]!=='source' ? true:false}}" } }}},
+        "write_interval_totals": {"type": "number", "title": "${df_write_interval_totals}", "x-decorator": "FormItem", "x-decorator-props": {"tooltip": "${df_interval_totals_tooltip}"}, "x-component": "InputNumber", "x-index": 6, "required": true, "default": 0, "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='source' ? null:'none'}}", "required": "{{$deps[0]!=='source' ? true:false}}" } }}},
         "write_log": {"type": "boolean", "title": "${df_write_log}", "x-decorator": "FormItem", "x-component": "Switch", "x-index": 7, "required": true, "default": false, "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='source' ? null:'none'}}", "required": "{{$deps[0]!=='source' ? true:false}}" } }}},
         "table_name": {"type": "string", "title": "${df_table_name}", "x-decorator": "FormItem", "x-component": "Input", "x-index": 8, "required": true, "default": "dummy_test", "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='target' ? null:'none'}}", "required": "{{$deps[0]!=='target' ? true:false}}" } }}},
         "table_fields": {"type": "array", "title": "${df_table_fields}", "x-decorator": "FormItem", "x-component": "ArrayTable", "x-index": 9, "required": true, "default": [
@@ -78,6 +78,7 @@
     "default": "en_US",
     "en_US": {
       "doc": "docs/dummy_en_US.md",
+			"df_interval_totals_tooltip": "0 indicates no frequency limit",
       "df_initial_totals": "Initial data amount",
       "df_incremental_interval": "Incremental interval (ms)",
       "df_incremental_interval_totals": "Incremental Interval Upper Limits",
@@ -99,6 +100,7 @@
     },
     "zh_CN": {
       "doc": "docs/dummy_zh_CN.md",
+			"df_interval_totals_tooltip": "0 为无频率限制",
       "df_initial_totals": "初始化数据量",
       "df_incremental_interval": "增量间隔（毫秒）",
       "df_incremental_interval_totals": "增量间隔上限",
@@ -120,6 +122,7 @@
     },
     "zh_TW": {
       "doc": "docs/dummy_zh_TW.md",
+			"df_interval_totals_tooltip": "0 为无频率限制",
       "df_initial_totals": "初始化數據量",
       "df_incremental_interval": "增量間隔（毫秒）",
       "df_incremental_interval_totals": "增量間隔上限",

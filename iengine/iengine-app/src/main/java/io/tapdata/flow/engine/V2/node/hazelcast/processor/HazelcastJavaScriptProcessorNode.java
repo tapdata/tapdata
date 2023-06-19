@@ -76,6 +76,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	private ScriptExecutorsManager scriptExecutorsManager;
 
 	private final ThreadLocal<Map<String, Object>> processContextThreadLocal;
+	private final Map<String, Object> globalTaskContent;
 	private ScriptExecutorsManager.ScriptExecutor source;
 	private ScriptExecutorsManager.ScriptExecutor target;
 
@@ -145,6 +146,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				scriptCacheService,
 				new ObsScriptLogger(obsLogger, logger),
 				this.standard);
+		TaskDto taskDto = processorBaseContext.getTaskDto();
+		this.globalTaskContent = Optional.ofNullable(taskDto.getGlobalTaskContext()).orElse(new HashMap<>());
 		this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
 	}
 
@@ -169,6 +172,10 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	}
 
 	private ScriptExecutorsManager.ScriptExecutor getDefaultScriptExecutor(List<Node<?>> nodes, String flag) {
+		TaskDto taskDto = processorBaseContext.getTaskDto();
+		if ("target".equals(flag) && taskDto.isTestTask()) {
+			return this.scriptExecutorsManager.createDummy();
+		}
 		if (nodes != null && nodes.size() > 0) {
 			Node<?> node = nodes.get(0);
 			if (node instanceof DataParentNode) {
@@ -229,9 +236,12 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		contextMap.put("event", eventMap);
 		contextMap.put("before", before);
 		contextMap.put("info", tapEvent.getInfo());
+		contextMap.put("global", this.globalTaskContent);
 		Map<String, Object> context = this.processContextThreadLocal.get();
 		context.putAll(contextMap);
 		((ScriptEngine) this.engine).put("context", context);
+
+
 		AtomicReference<Object> scriptInvokeResult = new AtomicReference<>();
 		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
 				TaskDto.SYNC_TYPE_TEST_RUN,

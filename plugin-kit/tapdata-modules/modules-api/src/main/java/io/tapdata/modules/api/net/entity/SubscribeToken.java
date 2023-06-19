@@ -5,9 +5,10 @@ import io.tapdata.entity.serializer.JavaCustomSerializer;
 import java.io.*;
 
 public class SubscribeToken implements JavaCustomSerializer {
-	private String subscribeId;
-	private String service;
-	private Long expireAt;
+	protected String supplierKey;
+	protected String subscribeId;
+	protected String service;
+	protected Long expireAt;
 
 
 	@Override
@@ -16,6 +17,7 @@ public class SubscribeToken implements JavaCustomSerializer {
 		subscribeId = dis.readUTF();
 		service = dis.readUTF();
 		expireAt = dis.readLong();
+		supplierKey = dis.readUTF();
 	}
 
 	@Override
@@ -24,6 +26,7 @@ public class SubscribeToken implements JavaCustomSerializer {
 		dos.writeUTF(subscribeId);
 		dos.writeUTF(service);
 		dos.writeLong(expireAt);
+		dos.writeUTF(supplierKey);
 	}
 
 	public String getSubscribeId() {
@@ -48,5 +51,13 @@ public class SubscribeToken implements JavaCustomSerializer {
 
 	public void setExpireAt(Long expireAt) {
 		this.expireAt = expireAt;
+	}
+
+	public String getSupplierKey() {
+		return supplierKey;
+	}
+
+	public void setSupplierKey(String supplierKey) {
+		this.supplierKey = supplierKey;
 	}
 }

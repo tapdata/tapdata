@@ -88,6 +88,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		job.setTaskId(subTaskDto.getId().toHexString());
 		job.setJobErrorNotifier(this::errorHandle);
 		job.setUser_id(subTaskDto.getUserId());
+		job.setStopOnError(true);
 		List<JavaScriptFunctions> javaScriptFunctions = clientMongoOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))), ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class);
 
 		ProcessorContext processorContext = new ProcessorContext(
@@ -202,6 +203,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 			case FIELD_ADD_DEL_PROCESSOR:
 			case FIELD_CALC_PROCESSOR:
 			case FIELD_MOD_TYPE_PROCESSOR:
+			case FIELD_MOD_TYPE_FILTER_PROCESSOR:
 				List<FieldProcess> fieldProcesses = new ArrayList<>();
 				FieldProcessorNode fieldProcessor = (FieldProcessorNode) node;
 				final List<FieldProcessorNode.Operation> operations = fieldProcessor.getOperations();

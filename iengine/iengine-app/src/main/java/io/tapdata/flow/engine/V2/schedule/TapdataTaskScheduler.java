@@ -208,6 +208,9 @@ public class TapdataTaskScheduler {
 					Object lock = lockTask(taskId);
 					synchronized (lock) {
 						TaskDto taskDto = startTaskOperation.getTaskDto();
+						if (null == taskDto.getGlobalTaskContext()) {
+							taskDto.setGlobalTaskContext(new ConcurrentHashMap<String, Object>());
+						}
 						try {
 							startTask(taskDto);
 						} finally {
@@ -419,6 +422,7 @@ public class TapdataTaskScheduler {
 							} else if (TerminalMode.COMPLETE == terminalMode) {
 								stopTaskResource = StopTaskResource.COMPLETE;
 							} else {
+								logger.warn("Task status to error: {}", terminalMode);
 								TaskRetryService taskRetryService = TaskRetryFactory.getInstance().getTaskRetryService(taskId).orElse(null);
 								if (null != taskRetryService) {
 									TaskRetryService.TaskRetryResult taskRetryResult = taskRetryService.canTaskRetry();

@@ -893,7 +893,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 							else
 								throw new BizException("gatewaySecret can not be read from @Value(\"${gateway.secret}\")");
 						}
-						SubscribeResponseDto subscribeResponseDto = proxyService.generateSubscriptionToken(subscribeDto, user, token, requestURI);
+						SubscribeResponseDto subscribeResponseDto = proxyService.generateSubscriptionToken(subscribeDto, token);
 						String webHookUrl = keyValue.substring(0, lastCharIndex) + subscribeResponseDto.getToken();
 						config.put(key, webHookUrl);
 
@@ -1462,19 +1462,22 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	}
 
 	private void setDescription(List<MetadataInstancesDto> newModelList ,List<MetadataInstancesDto> oldModelList ){
-		Map<String, String> map = new HashMap<>();
-		oldModelList.forEach(metadataInstancesDto -> {
-			metadataInstancesDto.getFields().forEach(field -> {
-				map.put(field.getId(),field.getDescription());
-			});
-		});
-		newModelList.forEach(metadataInstancesDto -> {
-			metadataInstancesDto.getFields().forEach(field -> {
-			    if(map.containsKey(field.getId())) {
-					field.setDescription(map.get(field.getId()));
-				}
-			});
-		});
+		Map<String, MetadataInstancesDto> newMap = newModelList.stream().collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, v -> v, (k1, k2) -> k1));
+		for (MetadataInstancesDto metadataInstancesDto : oldModelList) {
+			Map<String, String> map = new HashMap<>();
+			for (Field field : metadataInstancesDto.getFields()) {
+				map.put(field.getFieldName(),field.getDescription());
+			}
+
+			MetadataInstancesDto newModel = newMap.get(metadataInstancesDto.getQualifiedName());
+			if (newModel != null) {
+				newModel.getFields().forEach(field -> {
+					if(map.containsKey(field.getId())) {
+						field.setDescription(map.get(field.getFieldName()));
+					}
+				});
+			}
+		}
 	}
 
 	private Document setToDocumentByJsonParser(Document update) {
