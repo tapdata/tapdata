@@ -324,13 +324,18 @@ public class MapUtil {
 	}
 
 	private static Map<String, Object> mapInstance(Map<String, Object> value){
-		Class<? extends Map> aClass = value.getClass();
-		try {
-			Map<String, Object> map = (Map<String, Object>) aClass.newInstance();
-			return map;
-		} catch (Exception e){
-			return  new HashMap<String, Object>();
+		if (value instanceof LinkedHashMap) {
+			return new LinkedHashMap<>();
 		}
+		return  new HashMap<String, Object>();
+
+		//Class<? extends Map> aClass = value.getClass();
+		//try {
+		//	Map<String, Object> map = (Map<String, Object>) aClass.newInstance();
+		//	return map;
+		//} catch (Exception e){
+		//	return  new HashMap<String, Object>();
+		//}
 	}
 
 	public static void copyToNewDocument(Map map, Map newMap) {
