@@ -7,7 +7,8 @@ public enum InspectStatusEnum {
     FAILED("failed"),
     DONE("done"),
     WAITING("waiting"),
-    SCHEDULING("scheduling")  ;
+    SCHEDULING("scheduling"),
+	STOPPING("stopping");
 
     private final String value;
 

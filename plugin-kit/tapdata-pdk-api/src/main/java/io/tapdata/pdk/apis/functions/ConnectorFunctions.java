@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> {
+    protected CountRawCommandFunction countRawCommandFunction;
     protected RunRawCommandFunction runRawCommandFunction;
     protected ExecuteCommandFunction executeCommandFunction;
     protected ReleaseExternalFunction releaseExternalFunction;
@@ -79,6 +80,11 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
     }
     public ConnectorFunctions supportStreamReadMultiConnectionFunction(StreamReadMultiConnectionFunction function) {
         streamReadMultiConnectionFunction = function;
+        return this;
+    }
+
+    public ConnectorFunctions supportCountRawCommandFunction(CountRawCommandFunction function) {
+        countRawCommandFunction = function;
         return this;
     }
 
@@ -462,5 +468,9 @@ public class  ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions>
 
     public TransactionRollbackFunction getTransactionRollbackFunction() {
         return transactionRollbackFunction;
+    }
+
+    public CountRawCommandFunction getCountRawCommandFunction() {
+        return countRawCommandFunction;
     }
 }

@@ -229,6 +229,6 @@ public class MysqlJdbcContextV2 extends JdbcContext {
 
     private final static String MYSQL_TIMEZONE = "SHOW VARIABLES LIKE 'time_zone'";
 
-    private static final String GET_TABLE_INFO_SQL = "SELECT * FROM information_schema.tables WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s'";
+    private static final String GET_TABLE_INFO_SQL = "SELECT TABLE_ROWS,DATA_LENGTH  FROM information_schema.tables WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s'";
 
 }

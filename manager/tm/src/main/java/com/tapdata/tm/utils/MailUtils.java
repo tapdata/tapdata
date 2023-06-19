@@ -27,6 +27,7 @@ import javax.mail.internet.MimeMessage;
 import java.io.*;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 
@@ -559,6 +560,8 @@ public class MailUtils {
                 mailTitle = "【Tapdata】运行任务提醒";
             }
         }
+        Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("email/replace.json");
+        mailTitle = OEMReplaceUtil.replace(mailTitle, oemConfig);
         return mailTitle;
     }
 
@@ -596,7 +599,10 @@ public class MailUtils {
                 account.setSocketFactoryFallback(true);
                 // 指定的端口连接到在使用指定的套接字工厂。如果没有设置,将使用默认端口456
                 account.setSocketFactoryPort(465);
-                MailUtil.send(account, adressees, title, assemblyMessageBody(content), true);
+                Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("email/replace.json");
+                title = OEMReplaceUtil.replace(title, oemConfig);
+                content = OEMReplaceUtil.replace(assemblyMessageBody(content), oemConfig);
+                MailUtil.send(account, adressees, title ,content, true);
             } catch (Exception e) {
                 log.error("mail send error：{}", e.getMessage(), e);
                 flag = false;

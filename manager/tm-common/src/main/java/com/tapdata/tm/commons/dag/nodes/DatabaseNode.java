@@ -78,6 +78,8 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
      * migrateTableSelectType=expression的正则表达式
      */
     private String tableExpression;
+	// 无主键表处理方式：HasKeys|NoKeys|All，默认：All
+	private String noPrimaryKeyTableSelectType;
 
     private Map<String, Object> nodeConfig;
 
@@ -143,7 +145,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             outputSchema = Stream.concat(new ArrayList<>(inputTables.values()).stream(), existsTables.stream()).collect(Collectors.toList());
         }
         for (Schema schema : outputSchema) {
-            schema.setFields(transformFields(inputFields, schema, inputFieldOriginalNames));
+            schema.setFields(transformFields(inputFields, schema, null));
             //  has migrateFieldNode && field not show => will del index where contain field
             schema.setIndices(updateIndexDelField(schema.getIndices(), fieldMapping));
             long count = schema.getFields().stream().filter(Field::isDeleted).count();

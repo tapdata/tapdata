@@ -26,6 +26,7 @@ import io.github.openlg.graphlib.Graph;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
+import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import lombok.*;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.math.NumberUtils;
@@ -1099,11 +1100,11 @@ public class DAG implements Serializable, Cloneable {
             this.rollbackTable = rollbackTable;
             this.customTypeMappings = customTypeMappings;
         }
-        public void processRule(MetadataInstancesDto dto) {
+        public void processRule(MetadataInstancesDto dto, DefaultExpressionMatchingMap map) {
             if (null == fieldChangeRules) return;
             String nodeId = dto.getNodeId();
             for (Field f : dto.getFields()) {
-                fieldChangeRules.process(nodeId, dto.getQualifiedName(), f);
+                fieldChangeRules.process(nodeId, dto.getQualifiedName(), f, map);
             }
         }
     }

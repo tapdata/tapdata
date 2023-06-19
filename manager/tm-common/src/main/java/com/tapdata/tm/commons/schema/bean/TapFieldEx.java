@@ -56,6 +56,8 @@ public class TapFieldEx extends TapField {
     private Object originalDefaultValue;
 
     private String fieldName;
+    private String previousFieldName;
+    private String previousDataType;
     private Integer foreignKeyPosition;
 
     private Boolean isAnalyze;
@@ -320,7 +322,21 @@ public class TapFieldEx extends TapField {
     public void setFieldName(String fieldName) {
         this.fieldName = fieldName;
     }
+    public String getPreviousFieldName() {
+        return previousFieldName;
+    }
 
+    public void setPreviousFieldName(String previousFieldName) {
+        this.previousFieldName = previousFieldName;
+    }
+
+    public String getPreviousDataType() {
+        return previousDataType;
+    }
+
+    public void setPreviousDataType(String previousDataType) {
+        this.previousDataType = previousDataType;
+    }
     public Integer getForeignKeyPosition() {
         return foreignKeyPosition;
     }
