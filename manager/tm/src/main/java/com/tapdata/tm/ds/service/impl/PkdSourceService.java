@@ -323,7 +323,7 @@ public class PkdSourceService {
 				Map<String, String> manifest = info.getManifest();
 				if (Objects.nonNull(manifest) && Objects.nonNull(manifest.get("Git-Build-Time"))) {
 					String buildTime = manifest.get("Git-Build-Time");
-					buildDate = DateUtil.parseDate(buildTime);
+					buildDate = DateUtil.parseDateTime(buildTime);
 
 					checkDto.setGitBuildUserName(manifest.get("Git-Build-User-Name"));
 					checkDto.setGitBranch(manifest.get("Git-Branch"));
