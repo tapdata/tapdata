@@ -47,12 +47,16 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>pdk-error-code</artifactId>
+        </dependency>
     </dependencies>
 
     <properties>
         <java.version>8</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-<!--        <tapdata.pdk.api.version>1.2.0</tapdata.pdk.api.version>-->
+        <tapdata.pdk.api.version>1.2.2-SNAPSHOT</tapdata.pdk.api.version>
     </properties>
 
     <build>
