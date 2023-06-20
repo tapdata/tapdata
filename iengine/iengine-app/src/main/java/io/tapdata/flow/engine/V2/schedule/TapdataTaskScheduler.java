@@ -408,6 +408,11 @@ public class TapdataTaskScheduler {
 								stopTaskResource = StopTaskResource.STOPPED;
 							} else if (TerminalMode.COMPLETE == terminalMode) {
 								stopTaskResource = StopTaskResource.COMPLETE;
+							} else if(TerminalMode.INTERNAL_STOP == terminalMode){
+								if(taskClient.stop()){
+									clearTaskCacheAfterStopped(taskClient);
+									clearTaskRetryCache(taskId);
+								}
 							} else {
 								TaskRetryService taskRetryService = TaskRetryFactory.getInstance().getTaskRetryService(taskId).orElse(null);
 								if (null != taskRetryService) {

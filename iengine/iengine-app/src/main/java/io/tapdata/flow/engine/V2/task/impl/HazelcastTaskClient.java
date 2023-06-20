@@ -15,6 +15,7 @@ import io.tapdata.flow.engine.V2.common.HazelcastStatusMappingEnum;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
+import io.tapdata.flow.engine.V2.util.ConsumerImpl;
 import io.tapdata.flow.engine.V2.util.SupplierImpl;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
@@ -65,7 +66,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			this.monitorManager = new MonitorManager();
 			try {
-				this.monitorManager.startMonitor(MonitorManager.MonitorType.TASK_PING_TIME, taskDto, clientMongoOperator, new SupplierImpl<>(this::stop));
+				this.monitorManager.startMonitor(MonitorManager.MonitorType.TASK_PING_TIME, taskDto, clientMongoOperator, new SupplierImpl<>(this::stop),new ConsumerImpl<>(this::terminalMode));
 			} catch (Exception e) {
 				logger.warn("The task ping time monitor failed to start, which may affect the ping time functionality; Error: "
 						+ e.getMessage() + "\n" + Log4jUtil.getStackString(e));
@@ -100,6 +101,9 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	public synchronized void terminalMode(TerminalMode terminalMode) {
 		switch (terminalMode) {
 			case STOP_GRACEFUL:
+				this.terminalMode = terminalMode;
+				break;
+			case INTERNAL_STOP:
 				this.terminalMode = terminalMode;
 				break;
 			case ERROR:

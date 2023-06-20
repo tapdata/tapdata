@@ -10,6 +10,8 @@ import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.ping.PingDto;
 import com.tapdata.tm.commons.ping.PingType;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.flow.engine.V2.task.TerminalMode;
+import io.tapdata.flow.engine.V2.util.ConsumerImpl;
 import io.tapdata.flow.engine.V2.util.SupplierImpl;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.websocket.ManagementWebsocketHandler;
@@ -30,6 +32,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -48,11 +51,14 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 	private HttpClientMongoOperator clientMongoOperator;
 	private Supplier<Boolean> stopTask;
 
-	public TaskPingTimeMonitor(TaskDto taskDto, HttpClientMongoOperator clientMongoOperator, SupplierImpl<Boolean> stopTask) {
+	private Consumer<TerminalMode> taskMonitor;
+
+	public TaskPingTimeMonitor(TaskDto taskDto, HttpClientMongoOperator clientMongoOperator, SupplierImpl<Boolean> stopTask, ConsumerImpl<TerminalMode> terminalMode) {
 		super(taskDto);
 		this.executorService = new ScheduledThreadPoolExecutor(1);
 		this.clientMongoOperator = clientMongoOperator;
 		this.stopTask = stopTask;
+		this.taskMonitor = terminalMode;
 	}
 
 	@Override
@@ -113,12 +119,14 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 			UpdateResult updateResult = clientMongoOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);
 			// 任务状态异常，应该将任务停止
 			if (updateResult.getModifiedCount() == 0) {
-				logger.warn("Send task ping time failed, will stop task");
+				logger.warn("Task is scheduled by other engines, will stop task");
+				taskMonitor.accept(TerminalMode.INTERNAL_STOP);
 				stopTask.get();
 			}
 		} catch (Exception e) {
 			logger.warn("Send task ping time failed, will stop task: {}", e.getMessage(), e);
 			if (!AppType.init().isCloud()) {
+				taskMonitor.accept(TerminalMode.INTERNAL_STOP);
 				stopTask.get();
 			}
 		}
