@@ -2,6 +2,7 @@ package io.tapdata.pdk.core.api;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.Log;
+import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -370,6 +371,8 @@ public class PDKIntegration {
             connectionNode.init((TapConnector) nodeInstance.getTapNode());
             connectionNode.associateId = associateId;
             connectionNode.tapNodeInfo = nodeInstance.getTapNodeInfo();
+            if(log == null)
+                log = new TapLog();
             connectionNode.connectionContext = new TapConnectionContext(nodeInstance.getTapNodeInfo().getTapNodeSpecification(), connectionConfig, nodeConfig, log);
 
             PDKInvocationMonitor.getInstance().invokePDKMethod(connectionNode, PDKMethod.REGISTER_CAPABILITIES,
@@ -394,6 +397,8 @@ public class PDKIntegration {
             connectorNode.table = table;
             connectorNode.tables = tables;
             connectorNode.tapNodeInfo = nodeInstance.getTapNodeInfo();
+            if(log == null)
+                log = new TapLog();
             connectorNode.connectorContext = new TapConnectorContext(nodeInstance.getTapNodeInfo().getTapNodeSpecification(), connectionConfig, nodeConfig, log);
             connectorNode.connectorContext.setConfigContext(configContext);
             if(connectorCapabilities == null)
@@ -423,6 +428,8 @@ public class PDKIntegration {
             processorNode.processor = (TapProcessor) nodeInstance.getTapNode();
             processorNode.processorFunctions = new ProcessorFunctions();
             processorNode.tapNodeInfo = nodeInstance.getTapNodeInfo();
+            if(log == null)
+                log = new TapLog();
             processorNode.processorContext = new TapProcessorContext(nodeInstance.getTapNodeInfo().getTapNodeSpecification(), connectionConfig, log);
             PDKInvocationMonitor.getInstance().invokePDKMethod(processorNode, PDKMethod.PROCESSOR_FUNCTIONS,
                     () -> processorNode.processorFunctions(processorNode.processorFunctions),
