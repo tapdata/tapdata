@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
@@ -74,7 +75,12 @@ public class HazelcastTypeFilterProcessorNode extends HazelcastProcessorBaseNode
             boolean validEvent = true;
             if (tapEvent instanceof TapNewFieldEvent) {
                 TapNewFieldEvent param = (TapNewFieldEvent) tapEvent;
-                param.getNewFields().removeIf(tapField -> filterTypes.contains(RemoveBracketsUtil.removeBrackets(tapField.getDataType())));
+                param.getNewFields().removeIf(tapField -> {
+                    FieldInfo fieldInfo = new FieldInfo(tapField.getName(),null,false,tapField.getDataType());
+                    Map<String,FieldInfo> map = fieldTypeFilterMap.get(tableId);
+                    map.put(tapField.getName(),fieldInfo);
+                    return filterTypes.contains(RemoveBracketsUtil.removeBrackets(tapField.getDataType()));
+                });
                 validEvent = !param.getNewFields().isEmpty();
             }else if (tapEvent instanceof TapAlterFieldAttributesEvent) {
                 TapAlterFieldAttributesEvent param = (TapAlterFieldAttributesEvent) tapEvent;
@@ -83,15 +89,17 @@ public class HazelcastTypeFilterProcessorNode extends HazelcastProcessorBaseNode
                         !filterTypes.contains(RemoveBracketsUtil.removeBrackets(param.getDataTypeChange().getAfter()));
                 if(drop){
                     FieldInfo fieldInfo = new FieldInfo(param.getFieldName(),null,false,param.getDataTypeChange().getAfter());
-                    Map<String,FieldInfo> map = new HashMap<>();
+                    Map<String,FieldInfo> map = fieldTypeFilterMap.get(tableId);
                     map.put(param.getFieldName(),fieldInfo);
-                    fieldTypeFilterMap.put(tableId,map);
                     TapDropFieldEvent tapDropFieldEvent = new TapDropFieldEvent();
+                    BeanUtil.copyProperties(param,tapDropFieldEvent);
                     tapDropFieldEvent.setFieldName(param.getFieldName());
+                    tapDropFieldEvent.setTableId(param.getTableId());
                     tapdataEvent.setTapEvent(tapDropFieldEvent);
                 }else if(add){
                     fieldTypeFilterMap.get(tableId).remove(param.getFieldName());
                     TapNewFieldEvent tapNewFieldEvent = new TapNewFieldEvent();
+                    BeanUtil.copyProperties(param,tapNewFieldEvent);
                     List<TapField> newFields = new ArrayList<>();
                     TapField tapField = new TapField();
                     tapField.setName(param.getFieldName());
@@ -134,10 +142,7 @@ public class HazelcastTypeFilterProcessorNode extends HazelcastProcessorBaseNode
 
         for (Map.Entry<String, FieldInfo> entry : fieldsMappingMap.entrySet()) {
             if (MapUtil.containsKey(map, entry.getKey())) {
-                FieldInfo fieldInfo = entry.getValue();
-                if (fieldInfo.getIsShow() == false) {
-                    MapUtil.removeValueByKey(map, entry.getKey());
-                }
+                MapUtil.removeValueByKey(map, entry.getKey());
             }
         }
         return map;
