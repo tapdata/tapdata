@@ -317,7 +317,7 @@
       "timezoneTips": "Affect Type: DATE",
       "writeByteBufferCapacity": "Write buffer capacity(KB)",
       "writeFormat": "Write format",
-      "doc": "docs/readme_zh_CN.md",
+      "doc": "docs/readme_en_US.md",
       "duplicateKey": "duplicateKey",
       "distributedKey": "distributedKey",
       "replicationNum": "replicationNum"
