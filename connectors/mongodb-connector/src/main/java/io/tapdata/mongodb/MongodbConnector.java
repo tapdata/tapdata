@@ -1151,7 +1151,17 @@ public class MongodbConnector extends ConnectorBase {
 	private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) throws Throwable {
 		String database = mongoConfig.getDatabase();
 		List<String> temp = new ArrayList<>();
-		for (String tableName : mongoClient.getDatabase(database).listCollectionNames()) {
+		for (Document collection : mongoClient.getDatabase(database).listCollections()) {
+			// 去除视图表
+			if (collection.get("type", "").equals("view")) {
+				continue;
+			}
+			String tableName = collection.getString("name");
+			// 如果 tableName 以 "system." 开头, 则跳过(这是一些系统表)
+			if (tableName.startsWith("system.")) {
+				continue;
+			}
+
 			if (getMongoCollection(tableName).estimatedDocumentCount() <= 0) {
 				continue;
 			}
