@@ -1,7 +1,6 @@
 package com.tapdata.tm.ds.service.impl;
 
 import cn.hutool.core.date.DateUtil;
-import cn.hutool.core.lang.Assert;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
@@ -33,13 +32,7 @@ import org.springframework.web.multipart.commons.CommonsMultipartFile;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.temporal.ChronoUnit;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -306,7 +299,9 @@ public class PkdSourceService {
 //             get tcm build info
 			String tcmReleaseTemp = tcmService.getLatestProductReleaseCreateTime();
 //            String tcmReleaseTemp = "2023-04-28T03:27:04.856+00:00";
-			Assert.notNull(tcmReleaseTemp, "tcmReleaseDate is null");
+			if (StringUtils.isBlank(tcmReleaseTemp)) {
+				tcmReleaseTemp = DateUtil.now();
+			}
 
 			List<DataSourceDefinitionDto> list = all.stream()
 					.collect(Collectors.groupingBy(DataSourceDefinitionDto::getPdkId))
@@ -316,6 +311,7 @@ public class PkdSourceService {
 							.orElse(null))
 					.collect(Collectors.toList());
 
+			String finalTcmReleaseTemp = tcmReleaseTemp;
 			list.forEach(info -> {
 				PdkVersionCheckDto checkDto = PdkVersionCheckDto.builder().pdkId(info.getPdkId()).pdkVersion(info.getPdkAPIVersion()).pdkHash(info.getPdkHash()).build();
 
@@ -323,7 +319,7 @@ public class PkdSourceService {
 				Map<String, String> manifest = info.getManifest();
 				if (Objects.nonNull(manifest) && Objects.nonNull(manifest.get("Git-Build-Time"))) {
 					String buildTime = manifest.get("Git-Build-Time");
-					buildDate = DateUtil.parseDateTime(buildTime);
+					buildDate = DateUtil.parse(buildTime, "yyyy-MM-dd'T'HH:mm:ssZ");
 
 					checkDto.setGitBuildUserName(manifest.get("Git-Build-User-Name"));
 					checkDto.setGitBranch(manifest.get("Git-Branch"));
@@ -334,7 +330,7 @@ public class PkdSourceService {
 				}
 				checkDto.setGitBuildTime(DateUtil.formatDateTime(buildDate));
 
-				Date tcmReleaseDate = DateUtil.parseDate(tcmReleaseTemp);
+				Date tcmReleaseDate = DateUtil.parseDate(finalTcmReleaseTemp);
 				boolean isLatest = tcmReleaseDate.before(buildDate) || ChronoUnit.DAYS.between(buildDate.toInstant(), tcmReleaseDate.toInstant()) <= days;
 				// compare with tcm build info
 				checkDto.setLatest(isLatest);
