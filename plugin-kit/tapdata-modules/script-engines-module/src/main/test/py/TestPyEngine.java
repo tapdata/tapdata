@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.python.core.Options;
 import org.python.core.PyList;
 import org.python.core.PyString;
+import org.python.jsr223.PyScriptEngineFactory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -38,6 +39,7 @@ public class TestPyEngine {
         ScriptEngineManager manager = new ScriptEngineManager();
         ScriptEngine pythonEngine = manager.getEngineByName("python");
         ScriptContext context = pythonEngine.getContext();
+        new PyScriptEngineFactory().getScriptEngine().eval("print 'Hello!Gavin, I\\'m python.'");
         context.setAttribute("javax.script.filename", "sample.py", 100);
         assertNull(pythonEngine.eval("x = 5"));
         assertEquals(5, pythonEngine.eval("x"));

@@ -2,6 +2,8 @@ package io.tapdata.pdk.cli.utils;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.archivers.zip.ZipUtil;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -116,7 +118,38 @@ public class ZipUtils {
         File outputDir = new File(outputPath);
         if (outputDir.isFile())
             throw new CoreException(PDKRunnerErrorCodes.CLI_UNZIP_DIR_IS_FILE, "Unzip director is a file, expect to be directory or none");
-        unzip(zipFile, outputDir);
+        if (zipFile.endsWith(".tar.gz") || zipFile.endsWith(".gz")){
+            unTarZip(zipFile, outputPath);
+        } else {
+            unzip(zipFile, outputDir);
+        }
+    }
+
+    public static void unTarZip(String tarFilePath, String targetDirectoryPath){
+        try (InputStream inputStream = new FileInputStream(tarFilePath)) {
+            TarArchiveInputStream tarArchiveInputStream = new TarArchiveInputStream(inputStream);
+            TarArchiveEntry entry;
+            while ((entry = tarArchiveInputStream.getNextTarEntry()) != null) {
+                File outputFile = new File(targetDirectoryPath, entry.getName());
+                if (entry.isDirectory()) {
+                    if (!outputFile.exists()) {
+                        outputFile.mkdirs();
+                    }
+                    continue;
+                }
+                outputFile.getParentFile().mkdirs();
+                try (OutputStream outputStream = new FileOutputStream(outputFile)) {
+                    byte[] buffer = new byte[4096];
+                    int len;
+                    while ((len = tarArchiveInputStream.read(buffer)) != -1) {
+                        outputStream.write(buffer, 0, len);
+                    }
+                }
+            }
+            tarArchiveInputStream.close();
+        } catch (Exception e){
+            throw new CoreException(PDKRunnerErrorCodes.CLI_UNZIP_DIR_IS_FILE, "Unzip director is a file, expect to be directory or none, " + e.getMessage());
+        }
     }
 
     public static void unzip(String zipFile, File outputDir) {

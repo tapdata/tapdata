@@ -608,6 +608,20 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.build()
 				);
 				break;
+			case PYTHON_PROCESS:
+				hazelcastNode = new HazelcastPythonProcessNode(
+						DataProcessorContext.newBuilder()
+								.withTaskDto(taskDto)
+								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
+								.withCacheService(cacheService)
+								.withConfigurationCenter(config)
+								.withTapTableMap(tapTableMap)
+								.withTaskConfig(taskConfig)
+								.build()
+				);
+				break;
 			case FIELD_PROCESSOR:
 			case ROW_FILTER_PROCESSOR:
 			case FIELD_RENAME_PROCESSOR:

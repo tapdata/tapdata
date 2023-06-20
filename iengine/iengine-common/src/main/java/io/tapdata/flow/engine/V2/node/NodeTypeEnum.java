@@ -43,6 +43,8 @@ public enum NodeTypeEnum {
 
 	MIGRATE_FIELD_MOD_TYPE_FILTER_PROCESSOR("migrate_field_mod_type_filter_processor"),
 	FIELD_MOD_TYPE_FILTER_PROCESSOR("field_mod_type_filter_processor"),
+
+	PYTHON_PROCESS("py_processor"),
 	;
 
 	public final String type;
