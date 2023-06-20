@@ -975,7 +975,7 @@ public class TaskController extends BaseController {
     @PostMapping("migrate-js/test-run")
     @Operation(description = "js节点试运行, 执行试运行后即可获取到试运行结果和试运行日志")
     public ResponseMessage<Void> testRun(@RequestBody TestRunDto dto, @RequestParam("access_token") String accessToken) {
-        taskNodeService.testRunJsNode(dto, getLoginUser(), accessToken);
+        taskNodeService.testRunJsNode(dto, getLoginUser());
         return success();
     }
 
@@ -986,7 +986,7 @@ public class TaskController extends BaseController {
         ResponseMessage<Map<String, Object>> responseMessage = new ResponseMessage<>();
         Map<String, Object> result = null;
         try {
-            data = taskNodeService.testRunJsNodeRPC(dto, getLoginUser(), accessToken);
+            data = taskNodeService.testRunJsNodeRPC(dto, getLoginUser());
             result = (Map<String, Object>)Optional.ofNullable(data.get("data")).orElse(data);
             if (null == result || result.isEmpty()) {
                 throw new CoreException("Can not get data from source,  Please ensure if source connection is valid");
