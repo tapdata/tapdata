@@ -97,7 +97,7 @@ public class HttpReceiverController extends BaseController {
         String userId = userDetail.getUserId();
         subscribeURLDto.setUserId(userId);
         ProxyService proxyService = InstanceFactory.bean(ProxyService.class);
-        productList.remove("dfs");
+        //productList.remove("dfs");
         if (productList != null && productList.contains("dfs")) { //is cloud env
             if (!StringUtils.isBlank(gatewaySecret)) {
                 token = proxyService.generateStaticToken(userId, gatewaySecret);
@@ -146,7 +146,7 @@ public class HttpReceiverController extends BaseController {
             return failed("401", " invalid path variable token ");
         }
         UserDetail loginUser = null;
-        productList.remove("dfs");//getLoginUser(subscribeToken.getUserId());
+        //productList.remove("dfs");//getLoginUser(subscribeToken.getUserId());
         if (productList != null && productList.contains("dfs")) { //is cloud env
             loginUser = getLoginUser(subscribeToken.getUserId());
         } else {
@@ -213,7 +213,7 @@ public class HttpReceiverController extends BaseController {
     }
 
     private String token(ProxyService proxyService, String token, SubscribeURLToken subscribeToken) {
-        productList.remove("dfs");
+        //productList.remove("dfs");
         if (productList != null && productList.contains("dfs")) { //is cloud env
             if (!StringUtils.isBlank(gatewaySecret)) {
                 String userId = subscribeToken.getUserId();
