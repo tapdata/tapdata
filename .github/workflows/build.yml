@@ -1,0 +1,77 @@
+name: Docker Image Construction
+
+on:
+  push:
+    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*", "build-with-frontend" ]
+  pull_request:
+    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*", "build-with-frontend" ]
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+    Build:
+      runs-on: ubuntu-latest
+      timeout-minutes: 60
+      steps:
+        - name: Set Env if Push
+          if: ${{ github.event_name == 'push' }}
+          run: |
+            echo "CURRENT_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+        - name: Set Env if Pull Request
+          if: ${{ github.event_name == 'pull_request' }}
+          run: |
+            echo "CURRENT_BRANCH=${{ github.ref }}" >> $GITHUB_ENV
+        - name: Checkout Frontend Repo
+          uses: actions/checkout@v3
+          with:
+              fetch-depth: 0
+              repository: tapdata/tapdata-enterprise-web
+              ref: develop-v3.2
+              token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+              path: tapdata-enterprise-web
+        - name: Checkout Opensource Repo
+          uses: actions/checkout@v3
+          with:
+              fetch-depth: 0
+              ref: ${{ env.CURRENT_BRANCH }}
+              token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+              path: tapdata
+        - name: Setup Node
+          uses: actions/setup-node@v3
+          with:
+            node-version: '16.20.0'
+        - name: Setup Pnpm
+          uses: pnpm/action-setup@v2
+          with:
+            version: 7.30.5
+        - name: Build Frontend
+          run: |
+            cd tapdata-enterprise-web && bash build/build.sh
+        - name: COPY Frontend Artifact
+          run: |
+            cp tapdata-enterprise-web/dist/* tapdata/manager/tm-enterprise/src/main/resources/static/
+        - name: Setup Java
+          uses: actions/setup-java@v3
+          with:
+            distribution: 'oracle'
+            java-version: '8'
+        - name: Build Opensource
+          run: |
+            cd tapdata && mvn install
+        - name: Build Image
+          run: |
+            tag=`cd tapdata && git describe --tag --long HEAD`
+            docker_tag="ghcr.io/tapdata/${{ env.CURRENT_BRANCH }}:$tag"
+            cd tapdata && bash build/build.sh -p 1 -o image -t $docker_tag
+        - name: Log in to the Container registry
+          uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+          with:
+            registry: ${{ env.REGISTRY }}
+            username: ${{ github.actor }}
+            password: ${{ secrets.GITHUB_TOKEN }}
+        - name: Push Image
+          run: |
+            tag=`cd tapdata && git describe --tag --long HEAD`
+            docker_tag="ghcr.io/tapdata/${{ env.CURRENT_BRANCH }}:$tag"
+            docker push $docker_tag
