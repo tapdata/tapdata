@@ -9,6 +9,7 @@ import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
+import io.tapdata.flow.engine.V2.util.DelayHandler;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -32,6 +33,8 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	 * Ignore process
 	 */
 	private boolean ignore;
+
+	private final DelayHandler delayHandler = new DelayHandler(obsLogger);
 
 	public HazelcastProcessorBaseNode(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
@@ -98,7 +101,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			if (CollectionUtils.isNotEmpty(processedEventList)) {
 				for (TapdataEvent event : processedEventList) {
 					while (isRunning()) {
-						if (offer(event)) {
+						if (delayHandler.process(() -> this.offer(event))) {
 							break;
 						}
 					}
