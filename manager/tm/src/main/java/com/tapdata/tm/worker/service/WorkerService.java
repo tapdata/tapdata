@@ -808,7 +808,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
     public void deleteShareWorker(UserDetail loginUser) {
         Query query = Query.query(Criteria.where("userId").is(loginUser.getUserId()));
-        Update expireTime = Update.update("expireTime", new Date());
+        Update expireTime = Update.update("expireTime", new Date()).set("is_deleted", true);
         mongoTemplate.updateFirst(query, expireTime, WorkerExpire.class);
     }
 }

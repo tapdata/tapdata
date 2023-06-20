@@ -19,4 +19,5 @@ public class WorkerExpire extends BaseEntity {
     private String shareTmUserId;
     private String shareTcmUserId;
     private Date expireTime;
+    private boolean is_deleted;
 }
