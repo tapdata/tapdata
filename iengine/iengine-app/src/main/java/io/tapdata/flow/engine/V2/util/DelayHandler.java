@@ -9,16 +9,19 @@ import java.util.function.Supplier;
 public class DelayHandler {
 
 
-    private static final long MAX_DELAY = TimeUnit.SECONDS.toMicros(1);
+    private static final long MAX_DELAY = TimeUnit.MILLISECONDS.toMicros(100);
     private static final long MIN_DELAY = TimeUnit.MICROSECONDS.toMicros(0);
     private static final long UNIT = TimeUnit.MICROSECONDS.toMicros(10);
     private static final long WARN_DELAY = TimeUnit.MILLISECONDS.toMicros(10);
     private final ObsLogger obsLogger;
+
+    private final String TAG;
     private final AtomicLong succeeded = new AtomicLong(0);
     private final AtomicLong failed = new AtomicLong(0);
 
-    public DelayHandler(ObsLogger obsLogger) {
+    public DelayHandler(ObsLogger obsLogger, String tag) {
         this.obsLogger = obsLogger;
+        TAG = tag;
     }
 
     public boolean process(Supplier<Boolean> supplier) {
@@ -41,10 +44,10 @@ public class DelayHandler {
         long relay = delay();
         if (relay > MIN_DELAY) {
             if (obsLogger.isDebugEnabled()) {
-                obsLogger.debug("Successor node processing speed is limited, about to delay {} millisecond", TimeUnit.MICROSECONDS.toMillis(relay));
+                obsLogger.debug("[{}} Successor node processing speed is limited, about to delay {} millisecond", TAG, TimeUnit.MICROSECONDS.toMillis(relay));
             }
             if (relay > WARN_DELAY) {
-                obsLogger.warn("Successor node processing speed is limited, about to delay {} millisecond", TimeUnit.MICROSECONDS.toMillis(relay));
+                obsLogger.warn("[{}] Successor node processing speed is limited, about to delay {} millisecond", TAG, TimeUnit.MICROSECONDS.toMillis(relay));
             }
             TimeUnit.MICROSECONDS.sleep(relay);
         }
