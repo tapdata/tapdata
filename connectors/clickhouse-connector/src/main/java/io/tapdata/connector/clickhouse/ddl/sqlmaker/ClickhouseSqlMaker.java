@@ -62,7 +62,7 @@ public class ClickhouseSqlMaker extends CommonSqlMaker {
             }
             if (needComment && EmptyKit.isNotBlank(tapField.getComment())) {
                 String comment = tapField.getComment();
-                comment = comment.replace("'", "\\'");
+                comment = comment.replace("'", "''");
                 builder.append("comment '").append(comment).append("' ");
             }
             return builder.toString();

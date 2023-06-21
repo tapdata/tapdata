@@ -36,7 +36,14 @@ public class StopTaskOnErrorLog implements Log {
 	public void error(String message, Object... params) {
 		if (hazelcastBaseNode != null) {
 			String msg = FormatUtils.format(message, params);
-			hazelcastBaseNode.errorHandle(new TapCodeException(msg, new RuntimeException(msg)), null);
+			Throwable throwable;
+			if (null != params && params.length > 0 && params[params.length - 1] instanceof Throwable) {
+				throwable = (Throwable) params[params.length - 1];
+				params[params.length - 1] = null;
+			} else {
+				throwable = new RuntimeException(msg);
+			}
+			hazelcastBaseNode.errorHandle(throwable, null);
 		} else {
 			log.error(message, params);
 		}
