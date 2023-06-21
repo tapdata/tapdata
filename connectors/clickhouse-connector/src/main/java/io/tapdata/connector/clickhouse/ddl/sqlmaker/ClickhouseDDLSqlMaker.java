@@ -210,7 +210,7 @@ public class ClickhouseDDLSqlMaker implements DDLSqlMaker {
             }
             if (needComment && EmptyKit.isNotBlank(tapField.getComment())) {
                 String comment = tapField.getComment();
-                comment = comment.replace("'", "\\'");
+                comment = comment.replace("'", "''");
                 builder.append("comment '").append(comment).append("' ");
             }
             return builder.toString();
