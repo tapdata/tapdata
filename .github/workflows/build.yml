@@ -30,6 +30,14 @@ jobs:
               ref: develop-v3.2
               token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
               path: tapdata-enterprise-web
+        - name: Checkout Enterprise Repo
+          uses: actions/checkout@v3
+          with:
+            fetch-depth: 0
+            repository: tapdata/tapdata-enterprise
+            ref: develop-v3.2
+            token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+            path: tapdata-enterprise
         - name: Checkout Opensource Repo
           uses: actions/checkout@v3
           with:
@@ -50,16 +58,30 @@ jobs:
             cd tapdata-enterprise-web && bash build/build.sh
         - name: COPY Frontend Artifact
           run: |
+            rsync -avt tapdata-enterprise/manager/. tapdata/manager/
             mkdir -p manager/tm-enterprise/src/main/resources/static/
-            cp tapdata-enterprise-web/dist/* tapdata/manager/tm-enterprise/src/main/resources/static/
-        - name: Setup Java
-          uses: actions/setup-java@v3
-          with:
-            distribution: 'oracle'
-            java-version: '8'
-        - name: Build Opensource
+            rsync -avt tapdata-enterprise-web/dist/. tapdata/manager/tm-enterprise/src/main/resources/static/
+        - name: compile error-code-root module
           run: |
-            cd tapdata && mvn install
+            if [[ -d 'error-code-root/' ]]; then
+              build/build.sh -c error-code-root
+            fi
+        - name: compile plugin-kit module
+          run: |
+            build/build.sh -c plugin-kit
+        - name: compile file-storages module
+          run: |
+            build/build.sh -c file-storages
+        - name: compile manager module
+          run: |
+            build/build.sh -c manager
+            cd manager/
+            mvn -f pom-tm-parent.xml clean install -DskipTests -P not_encrypt -U
+            cd tm/
+            mvn -f pom-opensource.xml clean install -DskipTests -P not_encrypt -U
+        - name: compile tapdata module
+          run: |
+              build/build.sh -c tapdata
         - name: Build Image
           run: |
             tag=`cd tapdata && git describe --tag --long HEAD`
