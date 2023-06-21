@@ -32,6 +32,7 @@ import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.bean.LdpFuzzySearchVo;
+import com.tapdata.tm.task.bean.MultiSearchDto;
 import com.tapdata.tm.task.constant.LdpDirEnum;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.task.service.TaskSaveService;
@@ -837,6 +838,11 @@ public class LdpServiceImpl implements LdpService {
             criteria.and("source.connection_type").in(connectType);
         }
 
+        return getLdpFuzzySearchVos(user, criteria);
+    }
+
+    @NotNull
+    private List<LdpFuzzySearchVo> getLdpFuzzySearchVos(UserDetail user, Criteria criteria) {
         Query query = new Query(criteria);
         /*query.fields().include("qualified_name", "meta_type", "is_deleted", "original_name", "ancestorsName", "dev_version", "databaseId",
                 "schemaVersion", "version", "comment", "name", )*/
@@ -870,6 +876,26 @@ public class LdpServiceImpl implements LdpService {
         }
 
         return fuzzySearchList;
+    }
+
+    public List<LdpFuzzySearchVo> multiSearch(List<MultiSearchDto> multiSearchDtos, UserDetail loginUser) {
+        Criteria criteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name());
+        if (multiSearchDtos == null) {
+            return new ArrayList<>();
+        }
+
+        List<Criteria> or = new ArrayList<>();
+        for (MultiSearchDto multiSearchDto : multiSearchDtos) {
+            Criteria criteriaMulti = Criteria.where("source._id").is(multiSearchDto.getConnectionId())
+                    .and("original_name").in(multiSearchDto.getTableNames());
+            or.add(criteriaMulti);
+        }
+
+        if (CollectionUtils.isNotEmpty(or)) {
+            criteria.orOperator(or);
+        }
+
+        return getLdpFuzzySearchVos(loginUser, criteria);
     }
 
     @Override

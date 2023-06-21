@@ -4,6 +4,7 @@ import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.bean.LdpFuzzySearchVo;
+import com.tapdata.tm.task.bean.MultiSearchDto;
 
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,7 @@ public interface LdpService {
     Map<String, List<TaskDto>> queryFdmTaskByTags(List<String> tagIds, UserDetail user);
 
     List<LdpFuzzySearchVo> fuzzySearch(String key, List<String> connectType, UserDetail loginUser);
+    List<LdpFuzzySearchVo> multiSearch(List<MultiSearchDto> multiSearchDto, UserDetail loginUser);
 
     void addLdpDirectory(UserDetail user);
     void addLdpDirectory(UserDetail user, Map<String, String> oldLdpMap);
