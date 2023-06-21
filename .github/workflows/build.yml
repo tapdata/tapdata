@@ -63,7 +63,8 @@ jobs:
             rsync -avt tapdata-enterprise-web/dist/. tapdata/manager/tm-enterprise/src/main/resources/static/
         - name: compile error-code-root module
           run: |
-            if [[ -d 'error-code-root/' ]]; then
+            chmod +x tapdata/build/build.sh
+            if [[ -d 'tapdata/error-code-root/' ]]; then
               cd tapdata/ && build/build.sh -c error-code-root
             fi
         - name: compile plugin-kit module

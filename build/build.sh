@@ -23,7 +23,7 @@ if [[ $_in_docker == "" ]]; then
 fi
 
 components=""
-all_components=("plugin-kit" "file-storages" "connectors-common" "manager" "iengine" "connectors" "tapdata-cli")
+all_components=("plugin-kit" "file-storages" "connectors-common" "manager" "iengine" "connectors" "tapdata-cli", "error-code-root")
 package_all_components=("iengine" "manager")
 source_components=("plugin-kit" "file-storages" "connectors-common" "connectors" "tapshell" "build" "tapdata-cli")
 output="package"
