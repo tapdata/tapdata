@@ -73,16 +73,28 @@ jobs:
         - name: compile file-storages module
           run: |
             cd tapdata/ && build/build.sh -c file-storages
-        - name: compile manager module
+        - name: compile open-manager module
           run: |
-            cd tapdata/ && build/build.sh -c manager
-            cd manager/
-            mvn -f pom-tm-parent.xml clean install -DskipTests -P not_encrypt -U
-            cd tm/
-            mvn -f pom-opensource.xml clean install -DskipTests -P not_encrypt -U
-        - name: compile tapdata module
+            rsync -avt tapdata-enterprise/manager/tm-enterprise/pom-opensource.xml tapdata/manager/tm/pom-opensource.xml
+            rsync -avt tapdata-enterprise/manager/tm-enterprise/pom-tm-parent.xml tapdata/manager/pom-tm-parent.xml
+            docker exec -it tapdata-build-container bash -c "cd /tapdata-source/manager/ && bash build/build.sh"
+            docker exec -it tapdata-build-container bash -c "cd /tapdata-source/manager/ && mvn -f pom-tm-parent.xml clean install -DskipTests -P not_encrypt -U && cd /tapdata-source/manager/tm/ && mvn -f pom-opensource.xml clean install -DskipTests -P not_encrypt -U"
+        - name: compile connectors-common module
+          run:
+            cd tapdata/ && build/build.sh -c connectors-common
+        - name: compile manager-enterprise module
+          run: |
+            rsync -avt tapdata-enterprise/manager/build/build.sh tapdata/manager/build/build.sh
+            cd tapdata/ && build/build.sh -c manager -m prod
+        - name: compile iengine module
           run: |
             cd tapdata/ && build/build.sh -c tapdata
+        - name: compile connectors-javascript module
+          run: |
+            if [[ -d "connectors-javascript" ]]; then
+              cd tapdata/ && build/build.sh -c connectors-javascript
+            fi
+            cd tapdata / && build/build.sh -c
         - name: Build Image
           run: |
             tag=`cd tapdata && git describe --tag --long HEAD`
