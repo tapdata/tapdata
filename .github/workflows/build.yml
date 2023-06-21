@@ -55,7 +55,7 @@ jobs:
             version: 7.30.5
         - name: Build Frontend
           run: |
-            cd tapdata-enterprise-web && bash build/build.sh
+            cd tapdata-enterprise-web && bash cd tapdata/ && build/build.sh
         - name: COPY Frontend Artifact
           run: |
             rsync -avt tapdata-enterprise/manager/. tapdata/manager/
@@ -64,29 +64,29 @@ jobs:
         - name: compile error-code-root module
           run: |
             if [[ -d 'error-code-root/' ]]; then
-              build/build.sh -c error-code-root
+              cd tapdata/ && build/build.sh -c error-code-root
             fi
         - name: compile plugin-kit module
           run: |
-            build/build.sh -c plugin-kit
+            cd tapdata/ && build/build.sh -c plugin-kit
         - name: compile file-storages module
           run: |
-            build/build.sh -c file-storages
+            cd tapdata/ && build/build.sh -c file-storages
         - name: compile manager module
           run: |
-            build/build.sh -c manager
+            cd tapdata/ && build/build.sh -c manager
             cd manager/
             mvn -f pom-tm-parent.xml clean install -DskipTests -P not_encrypt -U
             cd tm/
             mvn -f pom-opensource.xml clean install -DskipTests -P not_encrypt -U
         - name: compile tapdata module
           run: |
-              build/build.sh -c tapdata
+            cd tapdata/ && build/build.sh -c tapdata
         - name: Build Image
           run: |
             tag=`cd tapdata && git describe --tag --long HEAD`
             docker_tag="ghcr.io/tapdata/${{ env.CURRENT_BRANCH }}:$tag"
-            cd tapdata && bash build/build.sh -p 1 -o image -t $docker_tag
+            cd tapdata && bash cd tapdata/ && build/build.sh -p 1 -o image -t $docker_tag
         - name: Log in to the Container registry
           uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
           with:
