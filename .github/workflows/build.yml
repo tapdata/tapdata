@@ -55,7 +55,7 @@ jobs:
             version: 7.30.5
         - name: Build Frontend
           run: |
-            cd tapdata-enterprise-web && bash cd tapdata/ && build/build.sh
+            cd tapdata-enterprise-web && bash build/build.sh
         - name: COPY Frontend Artifact
           run: |
             rsync -avt tapdata-enterprise/manager/. tapdata/manager/
