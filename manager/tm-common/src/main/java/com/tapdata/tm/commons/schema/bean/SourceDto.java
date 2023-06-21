@@ -45,7 +45,7 @@ public class SourceDto {
     /** 数据源连接名称 */
     private String name;
     /** 数据源的配置信息 jsonschema */
-    private Object config;
+    //private Object config;
     /** 连接类型 源，目标，源&目标 */
     private String connection_type;
     /** 对应DataSourceDefinition databasetype */
