@@ -17,7 +17,7 @@ public class PdkVersionController {
     @Autowired
     private PkdSourceService pkdSourceService;
     @RequestMapping("/pdk_version")
-    public String versionCheck(@RequestParam(value = "days", defaultValue = "7") int days, Model model) {
+    public String versionCheck(@RequestParam(value = "days", defaultValue = "14") int days, Model model) {
         List<PdkVersionCheckDto> data = pkdSourceService.versionCheck(days);
         model.addAttribute("pdks", data);
         return "checkVersion";
