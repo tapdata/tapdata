@@ -269,6 +269,21 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
         return findChild(metadataDefinitionDtos, ids, user, fields);
     }
 
+
+    public Page<MetadataDefinitionDto> findAndChildAccount(Filter filter, UserDetail user) {
+        if (filter == null) {
+            filter = new Filter();
+        }
+
+        List<MetadataDefinitionEntity> entityList = repository.findAllAndChildAccount(filter, user);
+
+        long total = repository.count(filter.getWhere(), user);
+
+        List<MetadataDefinitionDto> items = convertToDto(entityList, dtoClass);
+
+        return new Page<>(total, items);
+    }
+
     @Override
     public Page<MetadataDefinitionDto> find(Filter filter, UserDetail user) {
         Page<MetadataDefinitionDto> dtoPage = super.find(filter, user);

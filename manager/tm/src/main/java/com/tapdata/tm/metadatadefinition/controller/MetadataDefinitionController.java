@@ -79,6 +79,29 @@ public class MetadataDefinitionController extends BaseController {
         return success(metadataDefinitionService.find(filter, getLoginUser()));
     }
 
+
+    /**
+     * Find all instances of the model matched by filter from the data source
+     * @param filterJson
+     * @return
+     */
+    @Operation(summary = "Find all instances of the model matched by filter from the data source")
+    @GetMapping("and/child_account")
+    public ResponseMessage<Page<MetadataDefinitionDto>> findAndChildAccount(
+            @Parameter(in = ParameterIn.QUERY,
+                    description = "Filter defining fields, where, sort, skip, and limit - must be a JSON-encoded string (`{\"where\":{\"something\":\"value\"},\"fields\":{\"something\":true|false},\"sort\": [\"name desc\"],\"page\":1,\"size\":20}`)."
+            )
+            @RequestParam(value = "filter", required = false) String filterJson) {
+        Filter filter = parseFilter(filterJson);
+        if (filter == null) {
+            filter = new Filter();
+        }
+
+        //数据目录不需要分页
+        filter.setLimit(10000);
+        return success(metadataDefinitionService.findAndChildAccount(filter, getLoginUser()));
+    }
+
     /**
      *  Replace an existing model instance or insert a new one into the data source
      * @param metadataDefinition
