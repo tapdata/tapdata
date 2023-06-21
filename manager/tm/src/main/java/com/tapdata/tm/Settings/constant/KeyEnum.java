@@ -11,6 +11,7 @@ public enum KeyEnum {
     EMAIL_TITLE_PREFIX("email.title.prefix"),
     BUILD_PROFILE("buildProfile"),
     SHARE_AGENT_CREATE_USER("shareAgentCreateUser"),
+    SUPPORT_CDC_CONNECTION("supportCdcConnection"),
     SHARE_AGENT_EXPRIRE_DAYS("shareAgentExprireDays")
     ;
 

@@ -1,15 +1,17 @@
 package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
-import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Sets;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.bean.ResponseBody;
+import com.tapdata.tm.commons.schema.bean.ValidateDetail;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
@@ -23,18 +25,16 @@ import com.tapdata.tm.task.service.TaskDagCheckLogService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
-import io.tapdata.entity.conversion.PossibleDataTypes;
-import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.pdk.apis.entity.Capability;
+import io.tapdata.pdk.apis.entity.TestItem;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import javax.xml.crypto.dsig.keyinfo.KeyName;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Component("sourceSettingStrategy")
@@ -44,6 +44,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
     private DataSourceService dataSourceService;
     private MetadataInstancesService metadataInstancesService;
     private TaskDagCheckLogService taskDagCheckLogService;
+    private SettingsService settingsService;
 
     private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.SOURCE_SETTING_CHECK;
 
@@ -139,6 +140,10 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                         TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.ERROR, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_TYPE"), name, JSON.toJSONString(caps), StringUtils.join(syncType, "+"));
                         result.add(log);
                     }
+
+                    // check connection cdc flag open
+                    checkSourceSupportCdcByTestConnectionResult(taskDto, locale, taskId, result, userId, node, nodeId, dto, capList);
+
                 }
 
                 if (CollectionUtils.isEmpty(tables)) {
@@ -193,5 +198,29 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
             }
         });
         return result;
+    }
+
+    private void checkSourceSupportCdcByTestConnectionResult(TaskDto taskDto, Locale locale, String taskId, List<TaskDagCheckLog> result, String userId, Node node, String nodeId, DataSourceConnectionDto dto, List<String> capList) {
+        if (taskDto.getType().contains("cdc") && capList.contains("stream_read_function")) {
+            ResponseBody responseBody = dto.getResponse_body();
+            if (taskDto.getType().contains("cdc") && responseBody != null) {
+                List<ValidateDetail> validateDetails = responseBody.getValidateDetails();
+                Map<String, ValidateDetail> map = new HashMap<>();
+                if (CollectionUtils.isNotEmpty(validateDetails)) {
+                    // list to map
+                    map = validateDetails.stream().collect(Collectors.toMap(ValidateDetail::getShowMsg, Function.identity()));
+                }
+                boolean cdcOk = true;
+                if (!map.containsKey(TestItem.ITEM_READ_LOG) || !"passed".equals(map.get(TestItem.ITEM_READ_LOG).getStatus())) {
+                    cdcOk = false;
+                }
+
+                if (!cdcOk) {
+                    TaskDagCheckLog log = taskDagCheckLogService.createLog(taskId, nodeId, userId, Level.WARN, templateEnum, MessageUtil.getDagCheckMsg(locale, "SOURCE_SETTING_CHECK_CDC"), node.getName());
+                    result.add(log);
+                }
+
+            }
+        }
     }
 }
