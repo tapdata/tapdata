@@ -167,9 +167,8 @@ public abstract class LogMiner implements ILogMiner {
                             }
                         }
                     } catch (Exception e) {
-                        tapLogger.error("Error redoLogContent:{}", redoLogContent.toString());
-                        tapLogger.error(e.getMessage());
-                        throw new RuntimeException(e);
+                        String msg = String.format("Error redo log content, error: %s, content: %s", e.getMessage(), redoLogContent);
+                        throw new RuntimeException(msg, e);
                     }
                 }
                 break;
