@@ -4142,6 +4142,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public int runningTaskNum(String processId) {
         long workNum = count(Query.query(Criteria.where("agentId").is(processId)
+                .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
                 .and("is_deleted").ne(true)
                         .orOperator(Criteria.where("status").is(TaskDto.STATUS_RUNNING), Criteria.where("planStartDateFlag").is(true))));
         return (int) workNum;
