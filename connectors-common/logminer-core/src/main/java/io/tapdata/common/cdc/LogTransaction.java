@@ -122,7 +122,9 @@ public class LogTransaction {
                 redoLogContents.forEach((k, v) -> pushKey(k));
             }
             if (!chronicleMap.containsKey(rsId)) {
-                chronicleMap.put(rsId, Collections.singletonList(redoLogContent));
+                List<RedoLogContent> list = new ArrayList<>();
+                list.add(redoLogContent);
+                chronicleMap.put(rsId, list);
                 pushKey(rsId);
             } else {
                 List<RedoLogContent> list = chronicleMap.get(rsId);
