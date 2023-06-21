@@ -68,7 +68,7 @@ public class MysqlMaker implements SqlMaker {
         String tablePropertiesSql = "";
         // table comment
         if (StringUtils.isNotBlank(tapTable.getComment())) {
-            tablePropertiesSql += " COMMENT='" + tapTable.getComment().replaceAll("\\\\", "\\\\\\\\") + "'";
+            tablePropertiesSql += " COMMENT='" + tapTable.getComment().replace("'", "''").replaceAll("\\\\", "\\\\\\\\") + "'";
         }
 
         String sql = String.format(CREATE_TABLE_TEMPLATE, database, tapTable.getId(), fieldSql, tablePropertiesSql);
@@ -304,7 +304,7 @@ public class MysqlMaker implements SqlMaker {
         String defaultValue = tapField.getDefaultValue() == null ? "" : tapField.getDefaultValue().toString();
         if (StringUtils.isNotBlank(defaultValue)) {
             if (defaultValue.contains("'")) {
-                defaultValue = StringUtils.replace(defaultValue, "'", "\\'");
+                defaultValue = StringUtils.replace(defaultValue, "'", "''");
             }
             if (tapField.getTapType() instanceof TapNumber) {
                 defaultValue = defaultValue.trim();
@@ -317,7 +317,7 @@ public class MysqlMaker implements SqlMaker {
         String comment = tapField.getComment();
         if (StringUtils.isNotBlank(comment)) {
             // try to escape the single quote in comments
-            comment = comment.replace("'", "\\'").replace("\\", "\\\\");
+            comment = comment.replace("'", "''").replace("\\", "\\\\");
             fieldSql += " comment '" + comment + "'";
         }
 
