@@ -8,7 +8,7 @@ import io.tapdata.common.ddl.DDLFactory;
 import io.tapdata.common.ddl.ccj.CCJBaseDDLWrapper;
 import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.common.ddl.wrapper.DDLWrapperConfig;
-import io.tapdata.connector.mysql.config.MysqlConfig;
+//import io.tapdata.connector.mysql.config.MysqlConfig;
 import io.tapdata.connector.mysql.entity.MysqlBinlogPosition;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.connector.mysql.entity.MysqlStreamEvent;
@@ -272,12 +272,15 @@ public class MysqlReader implements Closeable {
 					.with("snapshot.locking.mode", "none");
 			if (EmptyKit.isNotBlank(connectionConfig.getString("timezone"))) {
 				builder.with("database.serverTimezone", TimeZone.getTimeZone(ZoneId.of(connectionConfig.getString("timezone"))).toZoneId());
-				//TimeZone.getTimeZone(ZoneId.of(connectionConfig.getString("timezone"))).toZoneId());
-			} else {
-				try (MysqlJdbcContextV2 jdbc = new MysqlJdbcContextV2(new MysqlConfig().load(connectionConfig))){
-					builder.with("database.serverTimezone", jdbc.queryTimeZone().toZoneId());
-				}
 			}
+			//if (EmptyKit.isNotBlank(connectionConfig.getString("timezone"))) {
+			//	builder.with("database.serverTimezone", TimeZone.getTimeZone(ZoneId.of(connectionConfig.getString("timezone"))).toZoneId());
+			//	//TimeZone.getTimeZone(ZoneId.of(connectionConfig.getString("timezone"))).toZoneId());
+			//} else {
+			//	try (MysqlJdbcContextV2 jdbc = new MysqlJdbcContextV2(new MysqlConfig().load(connectionConfig))){
+			//		builder.with("database.serverTimezone", jdbc.queryTimeZone().toZoneId());
+			//	}
+			//}
 			List<String> dbTableNames = tables.stream().map(t -> database + "." + t).collect(Collectors.toList());
 			builder.with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, database);
 			builder.with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, String.join(",", dbTableNames));

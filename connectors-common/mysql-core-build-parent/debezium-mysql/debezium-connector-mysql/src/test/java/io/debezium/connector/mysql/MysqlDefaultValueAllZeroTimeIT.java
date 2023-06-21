@@ -117,7 +117,7 @@ public class MysqlDefaultValueAllZeroTimeIT extends AbstractConnectorTest {
         // column I, 0000-00-00 00:00:00 => 1970-01-01 00:00:00
         String valueI = "1970-01-01 00:00:00";
         long toEpochMillisI = Timestamp.toEpochMillis(LocalDateTime.from(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").parse(valueI)),
-                MySqlValueConverters::adjustTemporal, ZoneOffset.UTC);
+                MySqlValueConverters::adjustTemporal);
         assertThat(schemaI.defaultValue()).isEqualTo(toEpochMillisI);
 
         // column J allows null, default value should be null
@@ -127,7 +127,7 @@ public class MysqlDefaultValueAllZeroTimeIT extends AbstractConnectorTest {
         // column K, 0000-00-00 00:00:00 => 1970-01-01 00:00:00
         String valueK = "1970-01-01 00:00:00";
         long toEpochMillisK = Timestamp.toEpochMillis(LocalDateTime.from(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").parse(valueK)),
-                MySqlValueConverters::adjustTemporal, ZoneOffset.UTC);
+                MySqlValueConverters::adjustTemporal);
         assertThat(schemaK.defaultValue()).isEqualTo(toEpochMillisK);
 
         // column L allows null, default value should be null

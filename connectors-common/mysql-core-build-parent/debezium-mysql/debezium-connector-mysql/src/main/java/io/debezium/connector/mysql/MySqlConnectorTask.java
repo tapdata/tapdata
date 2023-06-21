@@ -6,14 +6,14 @@
 package io.debezium.connector.mysql;
 
 import java.sql.SQLException;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
+//import java.time.ZoneId;
+//import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Optional;
-import java.util.TimeZone;
+//import java.util.Optional;
+//import java.util.TimeZone;
 import java.util.stream.Collectors;
 
-import io.debezium.time.Timestamp;
+//import io.debezium.time.Timestamp;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -173,13 +173,15 @@ public class MySqlConnectorTask extends BaseSourceTask {
         BigIntUnsignedMode bigIntUnsignedMode = bigIntUnsignedHandlingMode.asBigIntUnsignedMode();
 
         final boolean timeAdjusterEnabled = configuration.getConfig().getBoolean(MySqlConnectorConfig.ENABLE_TIME_ADJUSTER);
-
         //@TODO
-        ZoneId timezone = ZoneId.of(Optional.of(configuration.getConfig().getString("database.serverTimezone")).orElse(ZoneOffset.UTC.getId()));
-        String zone = Timestamp.timezoneId(TimeZone.getTimeZone(timezone));
+//        ZoneId timezone = ZoneId.of(Optional.of(configuration.getConfig().getString("database.serverTimezone")).orElse(ZoneOffset.UTC.getId()));
+//        String zone = Timestamp.timezoneId(TimeZone.getTimeZone(timezone));
+//        return new MySqlValueConverters(decimalMode, timePrecisionMode, bigIntUnsignedMode,
+//                configuration.binaryHandlingMode(), timeAdjusterEnabled ? MySqlValueConverters::adjustTemporal : x -> x,
+//                MySqlValueConverters::defaultParsingErrorHandler, ZoneOffset.of(zone));
         return new MySqlValueConverters(decimalMode, timePrecisionMode, bigIntUnsignedMode,
                 configuration.binaryHandlingMode(), timeAdjusterEnabled ? MySqlValueConverters::adjustTemporal : x -> x,
-                MySqlValueConverters::defaultParsingErrorHandler, ZoneOffset.of(zone));
+                MySqlValueConverters::defaultParsingErrorHandler);
     }
 
     @Override

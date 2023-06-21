@@ -152,20 +152,26 @@ public class MySqlValueConverters extends JdbcValueConverters {
      */
     public MySqlValueConverters(DecimalMode decimalMode, TemporalPrecisionMode temporalPrecisionMode, BigIntUnsignedMode bigIntUnsignedMode,
                                 BinaryHandlingMode binaryMode,
-                                TemporalAdjuster adjuster,
-                                ParsingErrorHandler parsingErrorHandler) {
+                                TemporalAdjuster adjuster, ParsingErrorHandler parsingErrorHandler) {
         super(decimalMode, temporalPrecisionMode, ZoneOffset.UTC, adjuster, bigIntUnsignedMode, binaryMode);
         this.parsingErrorHandler = parsingErrorHandler;
     }
 
-    public MySqlValueConverters(DecimalMode decimalMode, TemporalPrecisionMode temporalPrecisionMode, BigIntUnsignedMode bigIntUnsignedMode,
-                                BinaryHandlingMode binaryMode,
-                                TemporalAdjuster adjuster,
-                                ParsingErrorHandler parsingErrorHandler,
-                                ZoneOffset zoneOffset) {
-        super(decimalMode, temporalPrecisionMode, zoneOffset, adjuster, bigIntUnsignedMode, binaryMode);
-        this.parsingErrorHandler = parsingErrorHandler;
-    }
+//    public MySqlValueConverters(DecimalMode decimalMode, TemporalPrecisionMode temporalPrecisionMode, BigIntUnsignedMode bigIntUnsignedMode,
+//                                BinaryHandlingMode binaryMode,
+//                                TemporalAdjuster adjuster,
+//                                ParsingErrorHandler parsingErrorHandler) {
+//        super(decimalMode, temporalPrecisionMode, ZoneOffset.UTC, adjuster, bigIntUnsignedMode, binaryMode);
+//        this.parsingErrorHandler = parsingErrorHandler;
+//    }
+//    public MySqlValueConverters(DecimalMode decimalMode, TemporalPrecisionMode temporalPrecisionMode, BigIntUnsignedMode bigIntUnsignedMode,
+//                                BinaryHandlingMode binaryMode,
+//                                TemporalAdjuster adjuster,
+//                                ParsingErrorHandler parsingErrorHandler,
+//                                ZoneOffset zoneOffset) {
+//        super(decimalMode, temporalPrecisionMode, zoneOffset, adjuster, bigIntUnsignedMode, binaryMode);
+//        this.parsingErrorHandler = parsingErrorHandler;
+//    }
 
     @Override
     protected ByteOrder byteOrderOfBitType() {

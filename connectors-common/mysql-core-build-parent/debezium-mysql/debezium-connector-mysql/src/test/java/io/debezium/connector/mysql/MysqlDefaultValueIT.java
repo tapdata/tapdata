@@ -678,12 +678,12 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
 
         String value2 = "2018-01-03 00:00:10";
         long toEpochMillis1 = Timestamp.toEpochMillis(LocalDateTime.from(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").parse(value2)),
-                MySqlValueConverters::adjustTemporal, ZoneOffset.UTC);
+                MySqlValueConverters::adjustTemporal);
         assertThat(schemaC.defaultValue()).isEqualTo(toEpochMillis1);
 
         String value3 = "2018-01-03 00:00:10.7";
         long toEpochMillis2 = Timestamp.toEpochMillis(LocalDateTime.from(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.S").parse(value3)),
-                MySqlValueConverters::adjustTemporal, ZoneOffset.UTC);
+                MySqlValueConverters::adjustTemporal);
         assertThat(schemaD.defaultValue()).isEqualTo(toEpochMillis2);
 
         String value4 = "2018-01-03 00:00:10.123456";
@@ -746,19 +746,19 @@ public class MysqlDefaultValueIT extends AbstractConnectorTest {
         assertThat(schemaB.defaultValue()).isEqualTo(isoString);
 
         LocalDateTime localDateTimeC = LocalDateTime.from(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").parse("2018-01-03 00:00:10"));
-        assertThat(schemaC.defaultValue()).isEqualTo(new java.util.Date(Timestamp.toEpochMillis(localDateTimeC, MySqlValueConverters::adjustTemporal, ZoneOffset.UTC)));
+        assertThat(schemaC.defaultValue()).isEqualTo(new java.util.Date(Timestamp.toEpochMillis(localDateTimeC, MySqlValueConverters::adjustTemporal)));
 
         LocalDateTime localDateTimeD = LocalDateTime.from(DateTimeFormatter
                 .ofPattern("yyyy-MM-dd HH:mm:ss.S").parse("2018-01-03 00:00:10.7"));
-        assertThat(schemaD.defaultValue()).isEqualTo(new java.util.Date(Timestamp.toEpochMillis(localDateTimeD, MySqlValueConverters::adjustTemporal, ZoneOffset.UTC)));
+        assertThat(schemaD.defaultValue()).isEqualTo(new java.util.Date(Timestamp.toEpochMillis(localDateTimeD, MySqlValueConverters::adjustTemporal)));
 
         LocalDateTime localDateTimeE = LocalDateTime.from(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS").parse("2018-01-03 00:00:10.123456"));
-        assertThat(schemaE.defaultValue()).isEqualTo(new java.util.Date(Timestamp.toEpochMillis(localDateTimeE, MySqlValueConverters::adjustTemporal, ZoneOffset.UTC)));
+        assertThat(schemaE.defaultValue()).isEqualTo(new java.util.Date(Timestamp.toEpochMillis(localDateTimeE, MySqlValueConverters::adjustTemporal)));
 
         assertThat(schemaF.defaultValue()).isEqualTo(2001);
 
         LocalTime localTime = Time.valueOf("00:00:00").toLocalTime();
-        java.util.Date date = new java.util.Date(Timestamp.toEpochMillis(localTime, MySqlValueConverters::adjustTemporal, ZoneOffset.UTC));
+        java.util.Date date = new java.util.Date(Timestamp.toEpochMillis(localTime, MySqlValueConverters::adjustTemporal));
         assertThat(schemaG.defaultValue()).isEqualTo(date);
 
         Duration duration1 = Duration.between(LocalTime.MIN, LocalTime.from(DateTimeFormatter.ofPattern("HH:mm:ss.S").parse("23:00:00.7")));
