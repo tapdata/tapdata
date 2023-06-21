@@ -197,7 +197,7 @@ public class MysqlDDLSqlGenerator implements DDLSqlGenerator {
             String comment = field.getComment();
             if (StringUtils.isNotBlank(comment)) {
                 // try to escape the single quote in comments
-                comment = comment.replace("'", "\\'");
+                comment = comment.replace("'", "''");
                 sql += " comment '" + comment + "'";
             }
 
