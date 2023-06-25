@@ -11,6 +11,7 @@ import io.tapdata.http.command.entity.CollectLog;
 import io.tapdata.http.entity.ConnectionConfig;
 import io.tapdata.http.util.ListUtil;
 import io.tapdata.http.util.ScriptEvel;
+import io.tapdata.http.util.Tags;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
@@ -38,6 +40,7 @@ public class TryRun implements Command {
     public static final String EVENT_DATA_KEY = "before";
     public static final String LOG_COUNT_KEY = "logSize";
     private ScriptEngine scriptEngine;
+    TapConnectionContext tapConnectionContext;
 
     /**
      * {
@@ -54,6 +57,7 @@ public class TryRun implements Command {
      */
     @Override
     public CommandResult execCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
+        this.tapConnectionContext = tapConnectionContext;
         ConnectionConfig config = null == tapConnectionContext ||  null == tapConnectionContext.getConnectionConfig()?
                 ConnectionConfig.create(commandInfo.getConnectionConfig())
                 : ConnectionConfig.create(tapConnectionContext);
@@ -66,7 +70,7 @@ public class TryRun implements Command {
         return handleCommand(tapConnectionContext, commandInfo, config);
     }
 
-    private CommandResult handleCommand(final TapConnectionContext tapConnectionContext, final CommandInfo commandInfo, final ConnectionConfig config) {
+    private CommandResult handleCommand(final TapConnectionContext context, final CommandInfo commandInfo, final ConnectionConfig config) {
         Map<String, Object> commandArgs = Optional.ofNullable(commandInfo.getArgMap()).orElse(new HashMap<>());
         final int logSize = (Integer) Optional.ofNullable(commandArgs.get(LOG_COUNT_KEY)).orElse(100);
         List<CollectLog.LogRecord> logList = new LinkedList<CollectLog.LogRecord>() {
@@ -90,7 +94,7 @@ public class TryRun implements Command {
         };
         List<Object> afterData = new ArrayList<>();
         List<Object> beforeData = new ArrayList<>();
-        final CollectLog<? extends Log> logger = new CollectLog<>(tapConnectionContext.getLog(), logList);
+        final CollectLog<? extends Log> logger = new CollectLog<>(context.getLog(), logList);
         Map<String, Object> resultDate = new HashMap<>();
         resultDate.put("logs", logList);
         resultDate.put("after", afterData);
@@ -130,7 +134,7 @@ public class TryRun implements Command {
         scriptEngine = scriptFactory.create(ScriptFactory.TYPE_JAVASCRIPT, new ScriptOptions().engineName("graal.js"));
         if (null != scriptEngine) {
             try {
-                ScriptEvel scriptEvel = ScriptEvel.create(scriptEngine);
+                ScriptEvel scriptEvel = ScriptEvel.create(scriptEngine, this.tapConnectionContext);
                 scriptEvel.evalSourceForSelf();
                 scriptEngine.eval(script);
             } catch (Exception e) {

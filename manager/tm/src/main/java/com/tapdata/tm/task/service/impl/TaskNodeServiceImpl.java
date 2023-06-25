@@ -37,6 +37,7 @@ import com.tapdata.tm.task.vo.JsResultVo;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.OEMReplaceUtil;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.entity.codec.TapCodecsRegistry;
@@ -58,7 +59,12 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
+import javax.servlet.http.HttpServletRequest;
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -595,7 +601,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
     @SuppressWarnings("unchecked")
     @Override
-    public Map<String, Object> testRunJsNodeRPC(TestRunDto dto, UserDetail userDetail, String accessToken) {
+    public Map<String, Object> testRunJsNodeRPC(TestRunDto dto, UserDetail userDetail) {
         String taskId = dto.getTaskId();
         String nodeId = dto.getJsNodeId();
         String tableName = dto.getTableName();
@@ -693,10 +699,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         taskDtoCopy.setName(taskDto.getName() + "(101)");
         taskDtoCopy.setVersion(version);
         taskDtoCopy.setId(MongoUtils.toObjectId(testTaskId));
-        return jsType == 1 ? rpcTestRun(testTaskId, accessToken, taskDtoCopy, logOutputCount, nodeId) : wsTestRun(userDetail, taskDto, taskDtoCopy);
+        return jsType == 1 ? rpcTestRun(testTaskId, taskDtoCopy, logOutputCount, nodeId) : wsTestRun(userDetail, taskDto, taskDtoCopy);
     }
 
-    private Map<String, Object> rpcTestRun(String testTaskId, String accessToken, TaskDto taskDtoCopy, int logOutputCount, String nodeId){
+    private Map<String, Object> rpcTestRun(String testTaskId, TaskDto taskDtoCopy, int logOutputCount, String nodeId){
         // RPC
         String serverPort = CommonUtils.getProperty("tapdata_proxy_server_port", "3000");
         int port;
@@ -705,7 +711,12 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         } catch (Exception exception){
             return resultMap(testTaskId, false, "Can't get server port.");
         }
-        String url = "http://localhost:" + port +"/api/proxy/call?access_token=" + accessToken;
+        Map.Entry<String, Map<String, Object>> attributes = getLoginUserAttributes();
+        String attributesKey = attributes.getKey();
+        Map<String, Object> attributesValue = attributes.getValue();
+        String url = "http://localhost:" +
+                port +"/api/proxy/call" +
+                ("Param".equals(attributesKey) ? "?access_token=" + attributesValue.get("access_token")  : "");
         Map<String, Object> paraMap = new HashMap<>();
         paraMap.put("className", "JSProcessNodeTestRunService");
         paraMap.put("method", "testRun");
@@ -715,19 +726,55 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                     .connectTimeout(90, TimeUnit.SECONDS)
                     .readTimeout(90, TimeUnit.SECONDS)
                     .build();
-            Request request = new Request.Builder()
+            Request.Builder post = new Request.Builder()
                     .url(url)
                     .method("POST", RequestBody.create(MediaType.parse("application/json"), JsonUtil.toJsonUseJackson(paraMap)))
-                    .addHeader("Content-Type", "application/json")
-                    .build();
+                    .addHeader("Content-Type", "application/json");
+            if ("Header".equals(attributesKey) && null != attributesValue && !attributesValue.isEmpty()){
+                for (Map.Entry<String, Object> entry : attributesValue.entrySet()) {
+                    post.addHeader(entry.getKey(), String.valueOf(entry.getValue()));
+                }
+            }
+            Request request = post.build();
             Call call = client.newCall(request);
             Response response = call.execute();
             int code = response.code();
             return 200 >= code && code < 300 ?
-                    (Map<String, Object>) fromJson(response.body().string())
+                    (Map<String, Object>) fromJson(OEMReplaceUtil.replace(response.body().string(), "connector/replace.json"))
                     : resultMap(testTaskId, false, "Access remote service error, http code: " + code);
         }catch (Exception e){
             return resultMap(testTaskId, false, e.getMessage());
+        }
+    }
+
+    private Map.Entry<String, Map<String, Object>> getLoginUserAttributes() {
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+        HttpServletRequest request = attributes.getRequest();
+
+        String userIdFromHeader = request.getHeader("user_id");
+        Map<String, Object> ent = new HashMap<>();
+        if (!com.tapdata.manager.common.utils.StringUtils.isBlank(userIdFromHeader)) {
+            ent.put("user_id", userIdFromHeader);
+            return new AbstractMap.SimpleEntry<>("Header", ent);
+        } else if((request.getQueryString() != null ? request.getQueryString() : "").contains("access_token")) {
+            Map<String, String> queryMap = Arrays.stream(request.getQueryString().split("&"))
+                    .filter(s -> s.startsWith("access_token"))
+                    .map(s -> s.split("=")).collect(Collectors.toMap(a -> a[0], a -> {
+                        try {
+                            return URLDecoder.decode(a[1], "UTF-8");
+                        } catch (UnsupportedEncodingException e) {
+                            e.printStackTrace();
+                            return a[1];
+                        }
+                    }, (a, b) -> a));
+            String accessToken = queryMap.get("access_token");
+            ent.put("access_token", accessToken);
+            return new AbstractMap.SimpleEntry<>("Param", ent);
+        } else if (request.getHeader("authorization") != null) {
+            ent.put("authorization", request.getHeader("authorization").trim());
+            return new AbstractMap.SimpleEntry<>("Header", ent);
+        } else {
+            throw new BizException("NotLogin");
         }
     }
 

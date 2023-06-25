@@ -5,6 +5,7 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.exception.TapCodeException;
 
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,11 +28,18 @@ public class SnapshotOrderService {
 		List<NodeControlLayer> snapshotOrderList = null;
 		if (null!=attrs && attrs.containsKey(SNAPSHOT_ORDER_LIST_KEY)) {
 			Object o = attrs.get(SNAPSHOT_ORDER_LIST_KEY);
+			byte[] bytes;
 			if (o instanceof byte[]) {
-				Object object = InstanceFactory.instance(ObjectSerializable.class).toObject((byte[]) o);
-				if (object instanceof List) {
-					snapshotOrderList = (List<NodeControlLayer>) object;
-				}
+				bytes = (byte[]) o;
+			} else if (o instanceof String) {
+				bytes = Base64.getDecoder().decode((String) o);
+			} else {
+				throw new TapCodeException(SnapshotOrderControllerExCode_21.SNAPSHOT_ORDER_LIST_FORMAT_ERROR, o.getClass().toString());
+			}
+			Object object = InstanceFactory.instance(ObjectSerializable.class).toObject(bytes);
+			if (object instanceof List) {
+				snapshotOrderList = (List<NodeControlLayer>) object;
+				SnapshotOrderController.init(taskDto, snapshotOrderList);
 			}
 		}
 		SnapshotOrderController snapshotOrderController = SnapshotOrderController.create(taskDto, snapshotOrderList);

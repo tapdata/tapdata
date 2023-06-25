@@ -12,6 +12,7 @@ import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.OEMReplaceUtil;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -63,6 +64,7 @@ public class PkdSourceService {
             throw new BizException("Invalid jar file, please upload a valid jar file.");
         }
 
+        Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("connector/replace.json");
         for(PdkSourceDto pdkSourceDto : pdkSourceDtos) {
             // try to verify the version
             String version  = pdkSourceDto.getVersion();
@@ -144,7 +146,11 @@ public class PkdSourceService {
                             if (docMap.containsKey(path)) {
                                 CommonsMultipartFile doc = docMap.getOrDefault(path, null);
                                 try {
-                                    ObjectId docId = fileService.storeFile(doc.getInputStream(), doc.getOriginalFilename(), null, fileInfo);
+                                    ObjectId docId = fileService.storeFile(
+                                            OEMReplaceUtil.replace(doc.getInputStream(), oemConfig),
+                                            doc.getOriginalFilename(),
+                                            null,
+                                            fileInfo );
                                     pathMap.put(path, docId);
                                 } catch (IOException e) {
                                     throw new BizException(e);

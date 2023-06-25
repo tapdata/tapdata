@@ -114,9 +114,13 @@ public class TaskSaveServiceImpl implements TaskSaveService {
                     notSupportFieldMap.put(instancesDto.getOriginalName(), notSupportFields);
                 }
             }
-
+            Map oldNotSupportMap = node.getNotSupportFieldMap();
             if (!notSupportFieldMap.isEmpty()) {
                 node.setNotSupportFieldMap(notSupportFieldMap);
+                needBuildDag = true;
+            } else if(oldNotSupportMap != null && !oldNotSupportMap.isEmpty()){
+                //如果原来有不支持的字段，现在没有了，需要清空
+                node.setNotSupportFieldMap(Collections.EMPTY_MAP);
                 needBuildDag = true;
             }
         }

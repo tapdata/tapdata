@@ -1,5 +1,9 @@
 package io.tapdata.http.util;
 
+import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
+
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -17,7 +21,7 @@ public class Tags {
     public static final String OP_UPDATE = "u";
     public static final String OP_DELETE = "d";
 
-    public static final String SCRIPT_BEFORE = "function handleEvent(eventData) {";
+    public static final String SCRIPT_BEFORE = "function handleEvent(eventData, supplierId) {";
     public static final String SCRIPT_AFTER = "}";
 
     public static String script(String body){
@@ -46,5 +50,22 @@ public class Tags {
         }else {
             return Tags.OP_INSERT;
         }
+    }
+
+    public static Object filterCallbackEvent(TapConnectionContext context, Map<String, Object> callbackEvent) {
+        Object isArrayObj = Optional.ofNullable(callbackEvent.get("proxy_callback_array_content")).orElse(false);
+
+        Object supplierKey = callbackEvent.get("proxy_callback_supplier_id");
+        if (null == supplierKey) {
+            context.getLog().error("System error: Unknown supplier id");
+            return null;
+        }
+
+        Object data = callbackEvent.get(isArrayObj instanceof Boolean && ((Boolean)isArrayObj) ? "array" : "map");
+        if (null == data) {
+            context.getLog().info("Before script filtering, the current record is empty and will be ignored.");
+            return null;
+        }
+        return data;
     }
 }

@@ -25,11 +25,23 @@
           "title": "${table_name}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "x-index": 10,
-          "x-reactions": [
-            "{{useAsyncDataSourceByConfig({service: getToken, withoutField: true}, {name:'hookText'}, $values, $form)}}"
-          ]
+          "x-index": 10
         },
+        "authType": {
+          "type": "boolean",
+          "title": "${c_oauth_type}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "required": true,
+          "default": true,
+          "show": false,
+          "x-display": "hidden",
+          "x-decorator-props": {
+            "colon": false
+          },
+          "x-index": 12
+        },
+
         "hookText": {
           "type": "string",
           "title": "${hookTitle}",
@@ -39,7 +51,20 @@
           },
           "x-component": "Input",
           "x-index": 20,
-          "actionOnCopy": "NEW_WEB_HOOK_URL"
+          "actionOnCopy": "NEW_WEB_HOOK_URL",
+          "x-reactions": {
+            "dependencies": [
+              "authType"
+            ],
+            "fulfill": {
+              "schema": {
+                "required": "{{!$deps[0]}}"
+              },
+              "state": {
+                "display": "{{$deps[0] ? \"hidden\" : \"visible\"}}"
+              }
+            }
+          }
         },
         "hookButton": {
           "type": "void",
@@ -48,11 +73,215 @@
           "x-component-props": {
             "onClick": "{{useAsyncDataSourceByConfig({service: getToken, withoutField: true}, {name:'hookText'}, $values, $form)}}"
           },
+          "x-decorator-props": {
+            "colon": false
+          },
           "x-content": "${hookButton}",
           "x-component": "Button",
-          "x-display": "hidden",
-          "x-index": 30
+          "x-index": 30,
+          "x-reactions": {
+            "dependencies": [
+              "authType"
+            ],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] ? \"hidden\" : \"visible\"}}"
+              }
+            }
+          }
         },
+
+        "hookURLSuffix": {
+          "type": "string",
+          "title": "${c_hook_suffix}",
+          "x-decorator": "FormItem",
+          "x-component-props": {
+            "readOnly": true
+          },
+          "x-component": "Input",
+          "default": "",
+          "x-index": 32,
+          "x-reactions": [
+            "{{useAsyncDataSourceByConfig({service: getHost, withoutField: true, fieldName: 'value'})}}",
+            {
+            "dependencies": [
+              "authType"
+            ],
+            "fulfill": {
+              "schema": {
+                "required": "{{$deps[0]}}"
+              },
+              "state": {
+                "display": "{{$deps[0] ? \"visible\" : \"hidden\"}}"
+              }
+            }
+          }]
+        },
+        "expireSeconds": {
+          "type": "string",
+          "title": "${c_expire_second}",
+          "x-decorator": "FormItem",
+          "default": 3600,
+          "x-component": "InputNumber",
+          "x-index": 35,
+          "required": true,
+          "x-reactions": {
+            "dependencies": [
+              "authType"
+            ],
+            "fulfill": {
+              "schema": {
+                "required": "{{$deps[0]}}"
+              },
+              "state": {
+                "display": "{{$deps[0] ? \"visible\" : \"hidden\"}}"
+              }
+            }
+          }
+        },
+        "supplierConfig": {
+          "type": "array",
+          "title": "${c_supplier_config}",
+          "x-decorator": "FormItem",
+          "x-component": "ArrayTable",
+          "x-index": 36,
+          "required": false,
+          "default": [
+          ],
+          "x-reactions": {
+            "dependencies": [
+              "authType"
+            ],
+            "fulfill": {
+              "schema": {
+                "required": "{{$deps[0]}}"
+              },
+              "state": {
+                "display": "{{$deps[0] ? \"visible\" : \"hidden\"}}"
+              }
+            }
+          },
+          "items": {
+            "type": "object",
+            "properties": {
+              "c1": {
+                "type": "void",
+                "x-component": "ArrayTable.Column",
+                "x-index": 361,
+                "x-component-props": {
+                  "title": "${c_supplier_name}",
+                  "width": 150
+                },
+                "properties": {
+                  "randomId": {
+                    "type": "string",
+                    "x-display": "hidden",
+                    "default": "{{ getUid() }}"
+                  },
+                  "supplierKey": {
+                    "type": "string",
+                    "required": true,
+                    "x-decorator": "FormItem",
+                    "x-component": "Input",
+                    "x-component-props": {
+                      "disabled": "{{!!$record.refreshURL}}"
+                    }
+                  }
+                }
+              },
+              "c2": {
+                "type": "void",
+                "x-component": "ArrayTable.Column",
+                "x-index": 362,
+                "x-component-props": {
+                  "title": "${c_refresh_url}"
+                },
+                "properties": {
+                  "space": {
+                    "type": "void",
+                    "x-component": "Space",
+                    "properties": {
+                      "refreshURL": {
+                        "type": "string",
+                        "required": true,
+                        "default": null,
+                        "description": "",
+                        "x-component-props": {
+                          "readOnly": true,
+                          "style": {
+                            "width": "320px"
+                          }
+                        },
+                        "x-decorator": "FormItem",
+                        "x-component": "Input",
+                        "x-index": 3621,
+                        "x-reactions": {
+                          "fulfill": {
+                            "state": {
+                              "display": "{{$self.value ? \"visible\" : \"hidden\"}}",
+                            }
+                          }
+                        }
+                      },
+                      "generate": {
+                        "type": "void",
+                        "x-decorator": "FormItem",
+                        "x-component-props": {
+                          "onClick": "{{ () => handleGetGenerateRefreshToken($index, $record, $values.supplierConfig, {'expireSeconds' : $values.expireSeconds}) }}"
+                        },
+                        "x-content": "${c_generate_url}",
+                        "x-component": "Button",
+                        "x-index": 3622,
+                        "x-decorator-props": {
+                          "colon": false
+                        },
+                        "x-reactions": {
+                          "fulfill": {
+                            "state": {
+                              "display": "{{!!$record.refreshURL ? \"hidden\" : \"visible\"}}",
+                              "disabled": "{{!!$record.refreshURL}}"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "c3": {
+                "type": "void",
+                "x-component": "ArrayTable.Column",
+                "x-index": 363,
+                "x-component-props": {
+                  "title": "${c_operator}",
+                  "prop": "operations",
+                  "fixed": "right",
+                  "width": 60
+                },
+                "properties": {
+                  "refreshURL": {
+                    "type": "void",
+                    "x-component": "FormItem",
+                    "properties": {
+                      "remove": {
+                        "type": "void",
+                        "x-component": "ArrayTable.Remove"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "properties": {
+            "add": {
+              "type": "void",
+              "x-component": "ArrayTable.Addition",
+              "title": "${c_supplier_add}"
+            }
+          }
+        },
+
         "handleType": {
           "type": "boolean",
           "title": "${open_script}",
@@ -85,13 +314,13 @@
             "colon": false,
             "tooltip": "${node_tip_script}"
           },
-          "default": "\n\n\t//${node_return_type}\n\t//return {\n\t//\t\"eventType\": \"i\", ${node_event_type}\n\t//\t\"data\": { }, ${node_event_data}\n\t//}\n\treturn {\n\t\t\"opType\": \"i\", \n\t\t\"after\": eventData\n\t};",
+          "default": "\n\n\t//${node_return_type}\n\t//return {\n\t//\t\"opType\": \"i\", ${node_event_type}\n\t//\t\"after\": { }, ${node_event_data}\n\t//}\n\treturn {\n\t\t\"opType\": \"i\", \n\t\t\"after\": eventData\n\t};",
           "x-component": "JsEditor",
           "x-component-props": {
             "height": 300,
-            "before": "function handleEvent(eventData) {",
+            "before": "function handleEvent(eventData, supplierId) {",
             "after": "}",
-            "beforeRegexp": "^[^]*function\\s+handleEvent\\s*\\(eventData\\)\\s+\\{",
+            "beforeRegexp": "^[^]*function\\s+handleEvent\\s*\\(eventData, supplierId\\)\\s+\\{",
             "afterRegexp": "}[^}]*$"
           },
           "x-reactions": {
@@ -182,6 +411,16 @@
     "en_US": {
       "doc": "docs/http_en_US.md",
 
+      "c_oauth_type": "Enable auth mode",
+      "c_supplier_config": "Supplier List",
+      "c_hook_suffix": "Server URL Addr",
+      "c_supplier_name": "Supplier ID",
+      "c_refresh_url": "Obtain Service Token Link",
+      "c_generate_url": "Generate",
+      "c_operator": "Operate",
+      "c_supplier_add": "Add new supplier",
+      "c_expire_second": "Token expiration time",
+
       "table_name": "Table Name",
       "webHook": "Service URL",
       "hookButton": "Generate Service URL",
@@ -202,6 +441,16 @@
     "zh_CN": {
       "doc": "docs/http_zh_CN.md",
 
+      "c_oauth_type": "开启鉴权模式",
+      "c_supplier_config": "供应商列表",
+      "c_hook_suffix": "服务URL访问地址",
+      "c_supplier_name": "供应商ID",
+      "c_refresh_url": "服务令牌获取链接",
+      "c_generate_url": "生成",
+      "c_operator": "操作",
+      "c_supplier_add": "新增供应商",
+      "c_expire_second": "服务令牌过期时间",
+
       "table_name": "表名称",
       "webHook": "Service Hook",
       "hookButton": "生成服务 URL",
@@ -221,6 +470,16 @@
     },
     "zh_TW": {
       "doc": "docs/http_zh_TW.md",
+
+      "c_oauth_type": "開啟鑒權模式",
+      "c_supplier_config": "供應商清單",
+      "c_hook_suffix": "服務URL訪問地址",
+      "c_supplier_name": "供應商ID",
+      "c_refresh_url": "服務權杖獲取連結",
+      "c_generate_url": "生成",
+      "c_operator": "操作",
+      "c_supplier_add": "新增供應商",
+      "c_expire_second": "服務權杖過期時間",
 
       "table_name": "錶名稱",
       "webHook": "Service Hook",

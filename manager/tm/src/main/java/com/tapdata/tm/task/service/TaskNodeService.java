@@ -17,7 +17,7 @@ public interface TaskNodeService {
 
     void testRunJsNode(TestRunDto dto, UserDetail userDetail);
 
-    Map<String, Object> testRunJsNodeRPC(TestRunDto dto, UserDetail userDetail, String accessToken);
+    Map<String, Object> testRunJsNodeRPC(TestRunDto dto, UserDetail userDetail);
 
     void saveResult(JsResultDto jsResultDto);
 
