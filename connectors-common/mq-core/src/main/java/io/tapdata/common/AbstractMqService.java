@@ -3,6 +3,7 @@ package io.tapdata.common;
 import com.google.common.collect.Lists;
 import io.tapdata.constant.MqTestItem;
 import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
+import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.kit.EmptyKit;
@@ -31,6 +32,11 @@ public abstract class AbstractMqService implements MqService {
     protected final static int concurrency = 5;
     protected ExecutorService executorService;
     protected MqConfig mqConfig;
+    protected Log tapLogger;
+
+    public void setTapLogger(Log tapLogger) {
+        this.tapLogger = tapLogger;
+    }
 
     @Override
     public TestItem testHostAndPort() {
