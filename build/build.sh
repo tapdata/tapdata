@@ -23,10 +23,11 @@ if [[ $_in_docker == "" ]]; then
 fi
 
 components=""
-all_components=("plugin-kit" "file-storages" "connectors-common" "manager" "iengine" "connectors" "tapdata-cli" "error-code-root" "file-storages")
+all_components=("plugin-kit" "file-storages" "connectors-common" "manager" "iengine" "connectors" "tapdata-cli" "error-code-root" "file-storages" "connectors-javascript")
 package_all_components=("iengine" "manager")
 source_components=("plugin-kit" "file-storages" "connectors-common" "connectors" "tapshell" "build" "tapdata-cli")
 output="package"
+image=`cat $basepath/image/tag`
 
 check_env() {
     which java &> /dev/null
@@ -175,23 +176,26 @@ is_build=0
 is_package=0
 output="jar"
 
-while getopts 'c:p:o:d:' opt; do
+while getopts 'c:p:o:d::t:' opt; do
 	case "$opt" in
 	'c')
 		components="$OPTARG"
-        is_build=1
+    is_build=1
 		;;
 	'p')
 		is_package=1
 		;;
 	'd')
-        clean
-        exit 0
+    clean
+    exit 0
 		;;
 	'o')
-        output="$OPTARG"
-        is_package=1
+    output="$OPTARG"
+    is_package=1
 		;;
+	't')
+    image="$OPTARG"
+    ;;
 	esac
 done
 
