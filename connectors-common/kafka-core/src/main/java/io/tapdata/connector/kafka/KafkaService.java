@@ -14,7 +14,6 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -46,7 +45,6 @@ import java.util.stream.Collectors;
 
 public class KafkaService extends AbstractMqService {
 
-    private static final String TAG = KafkaService.class.getSimpleName();
     private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
     private String connectorId;
     private KafkaProducer<byte[], byte[]> kafkaProducer;
@@ -62,7 +60,7 @@ public class KafkaService extends AbstractMqService {
             kafkaProducer = new KafkaProducer<>(producerConfiguration.build());
         } catch (Exception e) {
             e.printStackTrace();
-            TapLogger.error(TAG, "Kafka producer error: " + ErrorKit.getLastCause(e).getMessage(), e);
+            tapLogger.error("Kafka producer error: " + ErrorKit.getLastCause(e).getMessage(), e);
             throw new RuntimeException(e);
         }
     }
@@ -193,11 +191,11 @@ public class KafkaService extends AbstractMqService {
                         try {
                             messageBody = jsonParser.fromJsonBytes(record.value(), Map.class);
                         } catch (Exception e) {
-                            TapLogger.error(TAG, "topic[{}] value [{}] can not parse to json, ignore...", record.topic(), record.value());
+                            tapLogger.error("topic[{}] value [{}] can not parse to json, ignore...", record.topic(), record.value());
                             continue;
                         }
                         if (messageBody == null) {
-                            TapLogger.warn(TAG, "messageBody not allow null...");
+                            tapLogger.warn("messageBody not allow null...");
                             continue;
                         }
                         if (messageBody.containsKey("mqOp")) {
@@ -208,7 +206,7 @@ public class KafkaService extends AbstractMqService {
                             SCHEMA_PARSER.parse(tapTable, messageBody);
                             tableList.add(tapTable);
                         } catch (Throwable t) {
-                            TapLogger.error(TAG, String.format("%s parse topic invalid json object: %s", record.topic(), t.getMessage()), t);
+                            tapLogger.error(String.format("%s parse topic invalid json object: %s", record.topic(), t.getMessage()), t);
                         }
                         topics.remove(record.topic());
                     }
@@ -273,9 +271,9 @@ public class KafkaService extends AbstractMqService {
                 kafkaProducer.send(producerRecord, callback);
             }
         } catch (RejectedExecutionException e) {
-            TapLogger.warn(TAG, "task stopped, some data produce failed!", e);
+            tapLogger.warn("task stopped, some data produce failed!", e);
         } catch (Exception e) {
-            TapLogger.error(TAG, "produce error, or task interrupted!", e);
+            tapLogger.error("produce error, or task interrupted!", e);
         }
         try {
             while (null != isAlive && isAlive.get()) {
@@ -284,7 +282,7 @@ public class KafkaService extends AbstractMqService {
                 }
             }
         } catch (InterruptedException e) {
-            TapLogger.error(TAG, "error occur when await", e);
+            tapLogger.error("error occur when await", e);
         } finally {
             writeListResultConsumer.accept(listResult.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
         }
@@ -310,7 +308,7 @@ public class KafkaService extends AbstractMqService {
         if (EmptyKit.isEmpty(tapTable.primaryKeys(true))) {
             return null;
         } else {
-            return jsonParser.toJsonBytes(tapTable.primaryKeys(true).stream().map(key -> data.get(key).toString()).collect(Collectors.joining("_")));
+            return jsonParser.toJsonBytes(tapTable.primaryKeys(true).stream().map(key -> String.valueOf(data.get(key))).collect(Collectors.joining("_")));
         }
     }
 
