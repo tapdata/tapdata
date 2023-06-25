@@ -82,6 +82,8 @@ public class ActivemqConnector extends ConnectorBase {
             consumer.accept(testConnect);
             if (testConnect.getResult() == TestItem.RESULT_FAILED) {
                 return connectionOptions;
+            } else {
+                consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY));
             }
         }
         return connectionOptions;
