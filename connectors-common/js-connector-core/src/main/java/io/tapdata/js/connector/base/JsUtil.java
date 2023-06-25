@@ -209,4 +209,16 @@ public class JsUtil {
 
         System.out.println(util.timeStamp2Date(System.currentTimeMillis(), "yyyyMMddHHmmsssss"));
     }
+
+    public static Date parseDate(String dataStr, String format, int timeZone){
+        //SimpleDateFormat 格式化日期所用到的类
+        try {
+            SimpleDateFormat simpleDateFormat = new SimpleDateFormat(format);
+            SimpleTimeZone simpleTimeZone = new SimpleTimeZone(timeZone, "GMT");
+            simpleDateFormat.setTimeZone(simpleTimeZone);
+            return simpleDateFormat.parse(dataStr);
+        } catch (Exception e){
+            return null;
+        }
+    }
 }

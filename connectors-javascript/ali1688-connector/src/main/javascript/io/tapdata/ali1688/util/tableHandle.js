@@ -34,11 +34,11 @@ class ShippingOrder extends DefaultTable {
 
     batchReadV(connectionConfig, nodeConfig, offset, pageSize, batchReadSender) {
         offset = this.defaultBatchReadOffset(offset);
-        this.read(false, connectionConfig, offset, pageSize, batchReadSender, (orderInfo, offset1) => {
-            let baseInfo = orderInfo.baseInfo;
-            let orderId = orderInfo.id;
-            let addTime = baseInfo.createTime;
-            let updateTime = baseInfo.modifyTime;
+        this.read(false, connectionConfig, nodeConfig, offset, pageSize, batchReadSender, (orderInfo, offset1) => {
+            //let baseInfo = orderInfo.baseInfo;
+            let orderId = orderInfo.get('交易ID') + orderInfo.get('skuID');
+            let addTime = orderInfo.get('创建时间');
+            let updateTime = orderInfo.get('修改时间');
 
             let cacheKey = orderId + "_C" + addTime + "_U" + updateTime;
             if (addTime === this.time){
@@ -54,7 +54,7 @@ class ShippingOrder extends DefaultTable {
             }
 
             batchReadSender.send({
-                "afterData": handleRecord(orderInfo),
+                "afterData": orderInfo,
                 "eventType": "i",
                 "tableName": this.tableName
             }, this.tableName, offset1);
@@ -63,11 +63,11 @@ class ShippingOrder extends DefaultTable {
 
     streamReadV(connectionConfig, nodeConfig, offset, pageSize, streamReadSender) {
         offset = this.defaultStreamReadOffset(offset);
-        this.read(true, connectionConfig, offset, pageSize, streamReadSender, (orderInfo, offset1) => {
-            let baseInfo = orderInfo.baseInfo;//订单基础信息
-            let orderNo = orderInfo.id;//订单ID
-            let addTime = baseInfo.createTime;//订单创建时间
-            let updateTime = baseInfo.modifyTime;//订单修改时间
+        this.read(true, connectionConfig, nodeConfig, offset, pageSize, streamReadSender, (orderInfo, offset1) => {
+            //let baseInfo = orderInfo.baseInfo;//订单基础信息
+            let orderNo = orderInfo.get('交易ID') + orderInfo.get('skuID');//订单ID
+            let addTime = orderInfo.get('创建时间');//订单创建时间
+            let updateTime = orderInfo.get('修改时间');//订单修改时间
 
             let cacheKey = orderNo + "_C" + addTime + "_U" + updateTime;
             if (updateTime === this.time){
@@ -85,7 +85,7 @@ class ShippingOrder extends DefaultTable {
 
             offset1[this.tableName].updateTimeStart = updateTime;
             streamReadSender.send({
-                "afterData": handleRecord(orderInfo),
+                "afterData": orderInfo,
                 "eventType": !isValue(updateTime) || updateTime === addTime ? "i" : "u",
                 "tableName": this.tableName,
             }, this.tableName, offset1);
@@ -135,7 +135,7 @@ class ShippingOrder extends DefaultTable {
         return offset;
     }
 
-    read(isStreamRead, connectionConfig, offset, pageSize, streamReadSender, eventHandle){
+    read(isStreamRead, connectionConfig, nodeConfig, offset, pageSize, streamReadSender, eventHandle){
         let apiKey = connectionConfig.appKey;
         if (!isParam(apiKey) || null == apiKey || "" === apiKey.trim()){
             log.error("The App Key has expired. Please contact technical support personnel");
@@ -257,10 +257,476 @@ class ShippingOrder extends DefaultTable {
                 continue;
             }
             for (let index = 0; index < pageList.length; index++) {
-                let orderInfo = pageList[index];
-                eventHandle(orderInfo, offset);
+                let record = handleRecord(pageList[index]);
+
+                //获取物流信息
+                let needLogistics = connectionConfig.getLogistics;
+                if (!(isValue(needLogistics) && !needLogistics)){
+                    let commandInfo = {
+                        "command": "executeQuery",
+                        "params": {
+                            "params":{
+                                "orderId": record.idOfStr
+                            },
+                            "funcName": "getLogisticsInfos"
+                        },
+                    }
+                    let callCommand = execCommand.command(connectionConfig, nodeConfig, commandInfo);
+                    if (isValue(callCommand)) {
+                        let logistics = callCommand.command();
+                        if (isValue(logistics)) {
+                            let logisticsRecords = new Array();
+                            logistics.forEach(it => {
+                                if (!it.orderEntryIds) {
+                                    it.orderEntryIds = it.order;
+                                    it.logisticsId = it.order;
+                                    delete it.order;
+
+                                    it.status = "NONE";
+                                    //物流状态。WAITACCEPT:未受理;CANCEL:已撤销;ACCEPT:已受理;TRANSPORT:运输中;NOGET:揽件失败;SIGN:已签收;UNSIGN:签收异常
+                                }
+                                logisticsRecords.push(it);
+                            })
+                            if (logisticsRecords.length > 0) {
+                                pageList[index].logistics = logisticsRecords;
+                                record.logistics = logisticsRecords;
+                            }
+                        }
+                    }
+                }
+
+                let orderInfo = this.csv(record);
+                let afterEvent = [];
+                for (let index = 0; index < orderInfo.length; index++) {
+                    let finalHandle1 = this.finalHandle(orderInfo[index]);
+                    afterEvent.push(finalHandle1);
+                    eventHandle(finalHandle1, offset);
+                }
+
+                if (isValue(nodeConfig.logCompile) && nodeConfig.logCompile) {
+                    log.info("Before: {} \nAfter: {}", JSON.stringify(pageList[index]), tapUtil.fromJson(afterEvent.length === 1? afterEvent[0] : afterEvent))
+                }
             }
         }
+    }
+
+    csv(record) {
+        function convertDateStr(dateStr) {
+            if(!dateStr)
+                return null;
+            try {
+                // 定义正则表达式
+                // 匹配日期字符串，并提取年、月、日、小时、分钟、秒、毫秒和时区信息
+                let year = dateStr.substr(0, 4);
+                let month = dateStr.substr(4, 6);
+                let day = dateStr.substr(6, 8);
+                let hours = dateStr.substr(8, 10);
+                let minutes = dateStr.substr(10, 12);
+                let seconds = dateStr.substr(12, 14);
+                let milliseconds = dateStr.substr(14, 7);
+                let timezone = dateStr.substr(17, dateStr.length);
+
+                let str = year + "-" + month + "-" + day + " " + hours + ":" + minutes + ":" + ":" + seconds + "." + milliseconds;
+                log.info("str " + str);
+                let zone = parseInt(timezone.substring(0, 3), 10)
+                log.info("zone " + zone);
+                let date = dateUtils.parseDate(str, 'yyyy-MM-dd hh:mm:ss.sss', zone);
+                log.info("date " + date);
+                // 创建日期对象
+                return date.getTime();
+            } catch(t) {
+                log.warn("convertDateStr failed " + t);
+            }
+            return dateStr;
+        }
+
+        let newRecord = new LinkedHashMap();
+        newRecord.put('订单编号', record.idOfStr);
+        newRecord.put('买家主账号ID', bigintConvert(record.buyerID));
+        newRecord.put('交易ID', bigintConvert(record.id));
+        newRecord.put('卖家主账号ID', bigintConvert(record.sellerID));
+        newRecord.put('采购账号', bigintConvert(record.buyerLoginId));
+        newRecord.put('发货时间', convertDateStr(record.allDeliveredTime));
+        newRecord.put('买家备忘信息', record.buyerMemo);
+        newRecord.put('完成时间', convertDateStr(record.completeTime));
+        newRecord.put('创建时间', convertDateStr(record.createTime));
+        newRecord.put('修改时间', convertDateStr(record.modifyTime));
+        newRecord.put('付款时间', convertDateStr(record.payTime));
+        newRecord.put('收货时间', convertDateStr(record.receivingTime));
+        newRecord.put('退款金额（元）', record.refund);
+        newRecord.put('订单备注', record.remark);
+        newRecord.put('运费（元）', record.shippingFee);
+        newRecord.put('应付款总金额（元）', record.totalAmount);
+        newRecord.put('买家备忘标志', record.buyerRemarkIcon);
+        newRecord.put('折扣信息（元）',record.discount / 100);
+        newRecord.put('货品金额总计（不包含运费）', record.sumProductPayment);
+        newRecord.put('币种', record.currency);
+        newRecord.put('订单最后修改时间', convertDateStr(record.modifyTime));
+
+        //业务类型。
+        //国际站：ta(信保),wholesale(在线批发)。
+        //中文站：普通订单类型 = "cn"; 大额批发订单类型 = "ws"; 普通拿样订单类型 = "yp"; 一分钱拿样订单类型 = "yf";
+        //        倒批(限时折扣)订单类型 = "fs"; 加工定制订单类型 = "cz"; 协议采购订单类型 = "ag"; 伙拼订单类型 = "hp";
+        //        供销订单类型 = "supply"; 淘工厂订单 = "factory"; 快订下单 = "quick"; 享拼订单 = "xiangpin"; 当面付 = "f2f";
+        //        存样服务 = "cyfw"; 代销订单 = "sp"; 微供订单 = "wg";零售通 = "lst";
+        let bzType = record.businessType;
+        let typeName = '';
+        switch (bzType) {
+            case 'ta': typeName = '信保';break;
+            case 'wholesale':  typeName = '在线批发';break;
+            case 'cn':  typeName = '普通订单';break;
+            case 'ws':  typeName = '大额批发订单';break;
+            case 'yp':  typeName = '普通拿样订单';break;
+            case 'yf':  typeName = '一分钱拿样订单';break;
+            case 'fs':  typeName = '倒批(限时折扣)订单';break;
+            case 'cz':  typeName = '加工定制订单';break;
+            case 'ag':  typeName = '协议采购订单';break;
+            case 'hp':  typeName = '伙拼订单';break;
+            case 'supply':  typeName = '供销订单';break;
+            case 'factory':  typeName = '淘工厂订单';break;
+            case 'quick':  typeName = '快订下单';break;
+            case 'xiangpin':  typeName = '享拼订单';break;
+            case 'f2f':  typeName = '当面付';break;
+            case 'cyfw':  typeName = '存样服务';break;
+            case 'sp':  typeName = '代销订单';break;
+            case 'wg':  typeName = '微供订单';break;
+            case 'lst':  typeName = '零售通';break;
+            default: typeName = '-';
+        }
+        newRecord.put('业务类型', typeName);
+
+        //交易状态，waitbuyerpay:等待买家付款;waitsellersend:等待卖家发货;waitlogisticstakein:等待物流公司揽件;
+        //waitbuyerreceive:等待买家收货;waitbuyersign:等待买家签收;signinsuccess:买家已签收;confirm_goods:已收货;
+        //success:交易成功;cancel:交易取消;terminated:交易终止;未枚举:其他状态
+        let status = record.status;
+        switch(status){
+            case 'waitbuyerpay': typeName = '等待买家付款';break;
+            case 'waitsellersend': typeName = '等待卖家发货';break;
+            case 'waitlogisticstakein': typeName = '等待物流公司揽件';break;
+            case 'waitbuyerreceive': typeName = '等待买家收货';break;
+            case 'waitbuyersign': typeName = '等待买家签收';break;
+            case 'signinsuccess': typeName = '买家已签收';break;
+            case 'confirm_goods': typeName = '已收货';break;
+            case 'success': typeName = '交易成功';break;
+            case 'cancel': typeName = '交易取消';break;
+            case 'terminated': typeName = '交易终止';break;
+            default: typeName = '其他状态';
+        }
+        newRecord.put('交易状态', typeName);
+
+        if(record.info_tradeTerms && record.info_tradeTerms.length > 0) {
+            let tradeTerm = record.info_tradeTerms[0];
+            newRecord.put('阶段', tradeTerm.phase);
+        }
+        if(record.info_overseasExtraAddress){
+            newRecord.put('跨境地址扩展信息', JSON.stringify(record.info_overseasExtraAddress));
+        }
+        if(record.info_customs){
+            newRecord.put('跨境报关信息', JSON.stringify(record.info_customs));
+        }
+
+        // if(record.info_orderRateInfo){
+        //   let rate = record.info_orderRateInfo.buyerRateStatus;
+        //   //4:已评论,5:未评论,6;不需要评论
+        //   switch(rate){
+        //     case 4:newRecord['买家评价状态', '已评论';break;
+        //     case 5:newRecord['买家评价状态','未评论'; break;
+        //     case 6:newRecord['买家评价状态','不需要评论'; break;
+        //     default:newRecord['买家评价状态','-'; break;
+        //   }
+
+        //   rate = record.info_orderRateInfo.sellerRateStatus;
+        //   switch(rate){
+        //     case 4:newRecord['卖家评价状态', '已评论';break;
+        //     case 5:newRecord['卖家评价状态','未评论'; break;
+        //     case 6:newRecord['卖家评价状态','不需要评论'; break;
+        //     default:newRecord['卖家评价状态','-'; break;
+        //   }
+        // }
+
+        if(record.info_orderInvoiceInfo){
+            newRecord.put('发票公司', record.info_orderInvoiceInfo.invoiceCompanyName);
+            let invoiceType = record.info_orderInvoiceInfo.invoiceType;
+            let invoiceTypeName = '-';
+            //0：普通发票，1:增值税发票，9未知类型
+            switch(invoiceType){
+                case '0':invoiceTypeName = '普通发票';break;
+                case '1':invoiceTypeName = '增值税发票';break;
+                default:invoiceTypeName = '未知类型';break;
+            }
+            newRecord.put('发票类型', invoiceTypeName);
+            newRecord.put('本地发票号', record.info_orderInvoiceInfo.localInvoiceId);
+            newRecord.put('订单ID', bigintConvert(record.info_orderInvoiceInfo.orderId));
+
+            newRecord.put('（收件人）址区域编码', record.info_orderInvoiceInfo.receiveCode);
+            newRecord.put('（收件人）省市区编码对应的文案', record.info_orderInvoiceInfo.receiveCodeText);
+            newRecord.put('发票收货人手机', record.info_orderInvoiceInfo.receiveMobile);
+            newRecord.put('发票收货人', record.info_orderInvoiceInfo.receiveName);
+            newRecord.put('发票收货人电话', record.info_orderInvoiceInfo.receivePhone);
+            newRecord.put('发票收货地址邮编', record.info_orderInvoiceInfo.receivePost);
+            newRecord.put('街道地址（增值税发票信息）', record.info_orderInvoiceInfo.receiveStreet);
+            newRecord.put('银行账号（增值税发票信息）', record.info_orderInvoiceInfo.registerAccountId);
+            newRecord.put('开户银行（增值税发票信息）', record.info_orderInvoiceInfo.registerBank);
+            newRecord.put('省市区编码（增值税发票信息）', record.info_orderInvoiceInfo.registerCode);
+            newRecord.put('省市区文本（增值税发票信息）', record.info_orderInvoiceInfo.registerCodeText);
+            newRecord.put('注册电话（增值税发票信息）', record.info_orderInvoiceInfo.registerPhone);
+            newRecord.put('街道地址（增值税发票信息）', record.info_orderInvoiceInfo.registerStreet);
+            newRecord.put('纳税人识别号（增值税发票信息）', record.info_orderInvoiceInfo.taxpayerIdentify);
+        }
+
+        // if(record.info_nativeLogistics){
+        //   newRecord['物流地址', record.info_nativeLogistics.address;
+        //   newRecord['县/区（物流）', record.info_nativeLogistics.area;
+        //   newRecord['省/市/区编码（物流）', record.info_nativeLogistics.areaCode;
+        //   newRecord['城市（物流）', record.info_nativeLogistics.city;
+        //   newRecord['联系人（物流）', record.info_nativeLogistics.contactPerson;
+        //   newRecord['传真（物流）', record.info_nativeLogistics.fax;
+        //   newRecord['手机（物流）', record.info_nativeLogistics.mobile;
+        //   newRecord['省份（物流）', record.info_nativeLogistics.province;
+        //   newRecord['电话（物流）', record.info_nativeLogistics.telephone;
+        //   newRecord['邮编（物流）', record.info_nativeLogistics.zip;
+        //   newRecord['镇/街道地址码（物流）', record.info_nativeLogistics.townCode;
+        //   newRecord['镇/街道地址码（物流）', record.info_nativeLogistics.town;
+        // }
+
+        // if(record.info_guaranteesTerms){
+        //   newRecord['保障条款', record.info_guaranteesTerms.assuranceInfo;
+        //   let assuranceType = record.info_guaranteesTerms.assuranceType;
+        //   let assuranceName = '';
+        //   //国际站：TA(信保)
+        //   switch(assuranceName){
+        //     case 'TA': assuranceName = '信保';break;
+        //     default: assuranceName = '-'
+        //   }
+        //   newRecord['保障方式（保障条款）', record.info_guaranteesTerms.assuranceType;
+        //   assuranceType = record.info_guaranteesTerms.qualityAssuranceType;
+        //   assuranceName = '';
+        //   //质量保证类型。国际站：pre_shipment(发货前),post_delivery(发货后)
+        //   switch(assuranceName){
+        //     case 'pre_shipment': assuranceName = '发货前';break;
+        //     case 'post_delivery': assuranceName = '发货后';break;
+        //     default: assuranceName = '-'
+        //   }
+        //   newRecord['质量保证类型（保障条款）', assuranceName;
+        // }
+
+        // if(record.info_orderBizInfo){
+        //   newRecord['是否采源宝订单(诚e赊)', record.info_nativeLogistics.odsCyd ? "是" : "否";
+        //   newRecord['账期交易到账时间(诚e赊)', convertDateStr(record.info_nativeLogistics.accountPeriodTime);
+        //   newRecord['诚e赊交易方式(诚e赊)', record.info_nativeLogistics.creditOrder ? "采用" : "未采用";
+        //   if(record.info_orderBizInfo.creditOrderDetail){
+        //     let creditOrderDetail = record.info_orderBizInfo.creditOrderDetail;
+        //     newRecord['订单金额(诚e赊)', creditOrderDetail.payAmount;
+        //     newRecord['支付时间(诚e赊)', convertDateStr(creditOrderDetail.createTime);
+        //     newRecord['状态(诚e赊)', creditOrderDetail['status'];
+        //     newRecord['最晚还款时间(诚e赊)', creditOrderDetail.gracePeriodEndTime;
+        //     newRecord['状态描述(诚e赊)', creditOrderDetail.statusStr;
+        //     newRecord['应还金额(诚e赊)', creditOrderDetail.restRepayAmount;
+        //   }
+        //   if(record.info_orderBizInfo.preOrderInfo){
+        //     let preOrderInfo = record.info_orderBizInfo.preOrderInfo;
+        //     newRecord['创建预订单的appkey', preOrderInfo.appkey;
+        //     newRecord['传入市场名', preOrderInfo.marketName;
+        //     newRecord['当前查询的ERP创建', preOrderInfo.createPreOrderApp ?
+        //     '预订单为当前查询的通过当前查询的ERP创建' :
+        //     '预订单不为当前查询的通过当前查询的ERP创建';
+        //   }
+        // }
+        if(record.info_sellerContact) {
+            let sellerContact = record.sellerContact;
+            newRecord.put("供应商", sellerContact.companyName);
+            newRecord.put("供应商手机号码", sellerContact.mobile);
+            newRecord.put("供应商旺旺号", sellerContact.imInPlatform);
+            newRecord.put("供应商联系人", sellerContact.name);
+        }
+
+        if(record.info_productItems){
+            let items = record.info_productItems;
+            let records = [];
+            let hasShippingFee = false;
+            items.forEach(r => {
+                let sub = new LinkedHashMap();
+                let keys = newRecord.keySet();//Object.keys(newRecord);
+                for(let index = 0 ;index < keys.length; index++){
+                    let key = keys[index];
+                    sub.put(key, newRecord.get(key));
+                }
+                if(!hasShippingFee) {
+                    hasShippingFee = true;
+                } else {
+                    sub.put('运费（元）', 0);
+                }
+                sub.put('单品货号', r.cargoNumber);
+                sub.put('描述', r.description);
+                sub.put('实付金额', r.itemAmount);
+                sub.put('商品名称', r.name);
+                sub.put('原始单价（元）', r.price);
+                sub.put('产品ID（非在线产品为空）', bigintConvert(r.productID));
+                if(r.productImgUrl){
+                    let urls = r.productImgUrl;
+                    let allUrl = '';
+                    for(let index = 0; index < urls.length; index++){
+                        allUrl = allUrl + urls[index] + "; ";
+                        // if(urls.length > index + 1){
+                        //   allUrl + ', ';
+                        // }
+                    }
+                    sub.put('商品图片url', allUrl);
+                }
+                sub.put('产品快照url', r.productSnapshotUrl);
+                sub.put('数量', r.quantity);
+                sub.put('退款金额（元）', r.refund);
+                sub.put('skuID', bigintConvert(r.skuID));
+                sub.put('排序字段', r.sort);
+                // sub['子订单状态'] = r.status);
+                sub.put('商品明细条目ID', bigintConvert(r.subItemID));
+                // sub['类型'] = r.type;
+                sub.put('售卖单位', r.unit);
+                sub.put('重量', r.weight);
+                sub.put('重量单位', r.weightUnit);
+                sub.put('商品货号', r.productCargoNumber);
+                sub.put('订单明细涨价或降价的金额', r.entryDiscount / 100);
+                sub.put('订单销售属性ID', bigintConvert(r.specId));
+                sub.put('精度系数', r.quantityFactor);
+                sub.put('子订单状态描述', r.statusStr);
+
+                //WAIT_SELLER_AGREE 等待卖家同意
+                //REFUND_SUCCESS 退款成功
+                //REFUND_CLOSED 退款关闭
+                //WAIT_BUYER_MODIFY 待买家修改
+                //WAIT_BUYER_SEND 等待买家退货
+                //WAIT_SELLER_RECEIVE 等待卖家确认收货
+                let st = r.refundStatus;
+                let stName = '';
+                switch(st){
+                    case 'WAIT_SELLER_AGREE': stName = '等待卖家同意';break;
+                    case 'REFUND_SUCCESS': stName = '退款成功';break;
+                    case 'REFUND_CLOSED': stName = '退款关闭';break;
+                    case 'WAIT_BUYER_MODIFY': stName = '待买家修改';break;
+                    case 'WAIT_BUYER_SEND': stName = '等待买家退货';break;
+                    case 'WAIT_SELLER_RECEIVE': stName = '等待卖家确认收货';break;
+                    default: stName = '-';
+                }
+                sub.put('退货状态', stName);
+
+                st = r.refundStatus;
+                sub.put('关闭原因', r.closeReason);
+
+                // st = r.logisticsStatus;
+                // //1 未发货 2 已发货 3 已收货 4 已经退货
+                // //5 部分发货 8 还未创建物流订单
+                // stName = '';
+                // switch(st){
+                //   case 1: stName = '未发货';break;
+                //   case 2: stName = '已发货';break;
+                //   case 3: stName = '已收货';break;
+                //   case 4: stName = '已经退货';break;
+                //   case 5: stName = '部分发货';break;
+                //   case 8: stName = '还未创建物流订单';break;
+                //   default: stName = '未知';
+                // }
+                // sub['物流状态'] = stName;
+                sub.put('售中退款单号', r.refundId);
+                sub.put('售后退款单号', r.refundIdForAs);
+                sub.put('子订单关联码', r.relatedCode);
+
+
+                if(r.skuInfos){
+                    let infoStr = "";
+                    r.skuInfos.forEach(skuInfo => {
+                        infoStr = infoStr + skuInfo.name + ": " + skuInfo.value + "; "
+                    })
+                    sub.put('SKU属性描述', infoStr);
+                }
+                if(record.logistics) {
+                    let logistics = record.logistics;
+                    logistics.forEach(logi => {
+                        if(logi.sendGoods && logi.sendGoods.length > 0) {
+                            var sendGoods = logi.sendGoods;
+                            sendGoods.forEach(good => {
+                                if(good.goodName === r.name) {
+                                    sub.put("货物单位", good.unit);
+                                    sub.put("货物数量", good.quantity);
+                                    sub.put("货物名称", good.goodName);
+                                } else {
+                                    return;
+                                }
+                            })
+                        } else {
+                            return;
+                        }
+                        if(logi.receiver) {
+                            let receiver = logi.receiver;
+                            //sub.put("收货人", receiver.receiverName);
+                            sub.put("收货地址", receiver.receiverProvince + " "
+                                + receiver.receiverCity + " "
+                                + receiver.receiverCounty + " "
+                                + receiver.receiverAddress);
+                            sub.put("收货人", receiver.receiverName);
+                            sub.put("收货区号", receiver.receiverCountyCode);
+                            sub.put("收货手机号码", receiver.receiverMobile);
+                        }
+                        if(logi.sender) {
+                            let sender = logi.sender;
+                            sub.put("发货人", sender.senderName);
+                            sub.put("发货地址", sender.senderProvince + " "
+                                + sender.senderCity + " "
+                                + sender.senderCounty + " "
+                                + sender.senderAddress);
+                            sub.put("发货电话", sender.senderMobile);
+                            sub.put("发货区号", sender.senderCountyCode);
+                        }
+                        // log.info("logistics " + JSON.stringify(Pretty(logistics));
+                        // log.info("logistics.sendGoods " + logistics.sendGoods);
+
+                        sub.put("物流公司", logi.logisticsCompanyName);
+                        sub.put("物流单号", logi.logisticsId);
+                        sub.put("物流公司ID", bigintConvert(logi.logisticsCompanyId));
+                        sub.put("物流账单号", logi.logisticsBillNo);
+                        var lstatus = logi.status;
+                        //物流状态。WAITACCEPT:未受理;CANCEL:已撤销;ACCEPT:已受理;
+                        // TRANSPORT:运输中;NOGET:揽件失败;SIGN:已签收;UNSIGN:签收异常
+                        let statusName = '';
+                        switch(lstatus){
+                            case 'WAITACCEPT': statusName = '未受理';break;
+                            case 'CANCEL': statusName = '已撤销';break;
+                            case 'ACCEPT': statusName = '已受理';break;
+                            case 'TRANSPORT': statusName = '运输中';break;
+                            case 'NOGET': statusName = '揽件失败';break;
+                            case 'SIGN': statusName = '已签收';break;
+                            case 'UNSIGN': statusName = '签收异常';break;
+                            case 'NONE': statusName = '订单尚未发货';break;
+                            default: statusName = logi.message;
+                        }
+                        sub.put("物流状态", statusName);
+                    });
+
+                }
+                records.push(sub);
+            });
+            return records;
+        }
+        return [newRecord];
+    }
+
+    finalHandle(record){
+        //计算单价
+        let total = 0;
+        try{
+            total = isValue(record['实付金额']) ? parseFloat(record['实付金额']) : 0;//实付金额
+        } catch (e){
+            total = 0;
+        }
+        let number = 0;
+        try{
+            number = isValue(record['数量']) ? parseInt(record['数量']) : 0;//运费
+            record.put("实际单价", "" + (total / number));//.toFixed(2))
+        }catch (e ) {
+            log.info("Error to set '实际单价' into record, '数量' is an invalid argument ");
+        }
+
+
+        return record;
     }
 }
 
@@ -289,7 +755,7 @@ var execCommand = {
         return null;
     }
 }
-class ExecuateCommand{
+class ExecuateCommand {
     connectionConfig;
     nodeConfig;
     commandInfo;
@@ -374,4 +840,12 @@ class CallCommandWithLogisticsInfos extends ExecuateCommand {
         }
         return logisticsResList;
     }
+}
+
+function bigintConvert(value){
+    if (!isValue(value)) return null;
+    if (typeof value === 'string') return value;
+    if (typeof value === 'bigint') return BigInt('' + value);
+    if (!isNaN(value)) return BigInt("" + value);
+    return value;
 }

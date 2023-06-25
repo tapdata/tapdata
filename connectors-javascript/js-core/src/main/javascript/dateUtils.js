@@ -93,5 +93,9 @@ var dateUtils = {
         let date = dateUtils.timeStamp2Date(new Date().getTime(), 'yyyy-MM-dd hh:mm:ss');
         return date.length > 10 ? '9999-12-31 23:59:59' : date;
         //return tapUtil.longToDateStr(time);
+    },
+
+    parseDate(dataStr, format, timeZoneNumber){
+        return tapUtil.parseDate(dataStr, format, timeZoneNumber);
     }
 };

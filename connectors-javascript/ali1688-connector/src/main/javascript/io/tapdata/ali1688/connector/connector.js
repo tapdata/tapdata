@@ -5,10 +5,15 @@ var invoker = loadAPI();
 config.setStreamReadIntervalSeconds(2*60);
 
 function discoverSchema(connectionConfig) {
-    return Object.values(globalTableConfig);
+    let tableType = connectionConfig.tableType;
+    if (isValue(tableType) && "" === tableType){
+        return Object.values(globalTableConfig);
+    }
+    return Object.values(csvTableConfig);
 }
 
 function batchRead(connectionConfig, nodeConfig, offset, tableName, pageSize, batchReadSender) {
+    //log.warn("nodeConfig.logCompile: {}, ", nodeConfig.logCompile);
     tableHandle.handle(tableName).batchReadV(connectionConfig, nodeConfig, offset, pageSize, batchReadSender);
 }
 

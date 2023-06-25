@@ -202,9 +202,101 @@ class ShippingOrder extends DefaultTable {
                     this.shippingOrderNoHistory = [];
                     this.shippingOrderNoHistory.push(cacheKey);
                 }
-
-                eventHandle(updateTime, addTime, orderInfo, offset);
+                let csvRecords = this.csv(orderInfo);
+                for (let index = 0; index < csvRecords.length; index++) {
+                    eventHandle(updateTime, addTime, csvRecords[index], offset);
+                }
             }
         }
+    }
+
+    csv(record) {
+        function convertDateStr(dateStr) {
+            if(!dateStr)
+                return null;
+            try {
+                let date = DateUtil.parse(dateStr, 8);
+                // 创建日期对象
+                let time = date.getTime();
+                if(time) {
+                    return time < 10000 ? null : time;
+                }
+            } catch(t) {
+                log.warn("convertDateStr failed " + t);
+            }
+            return null;
+        }
+        let newRecords = [];
+        if(record.orderExtends && record.orderExtends.length > 0) {
+            record.orderExtends.forEach((it) => {
+                let newRecord = new LinkedHashMap();
+                newRecord.put('备货状态', record.prepareTypeName);
+                newRecord.put('添加时间', convertDateStr(record.addTime));
+                newRecord.put('发货时间', convertDateStr(record.deliveryTime));
+                newRecord.put('入仓时间', convertDateStr(record.storageTime));
+                newRecord.put('紧急类型', record.urgentTypeName);
+                newRecord.put('要求发货时间', convertDateStr(record.requestDeliveryTime));
+                newRecord.put('分单时间', convertDateStr(record.allocateTime));
+                newRecord.put('类型名称', record.typeName);
+                newRecord.put('订单类型名称', record.categoryName);
+                // 订单类型id: "" + record.category);
+                newRecord.put('仓库名称', record.warehouseName);
+                // 是否JIT母单（枚举值：是、否）【场景示例：JIT母单是预下单，比如下单500，不需要发货。需要发货时，比如要发货100，会产生一个JIT子单（即普通订单）数量100。】
+                newRecord.put('JIT母单', record.isJitMotherName);
+                // 订单标识: record.orderMarkId);
+                newRecord.put('订单标识名称', record.orderMarkName);
+                newRecord.put('收货时间', convertDateStr(record.receiptTime));
+                newRecord.put('币种名称', record.currencyName);
+                // 币种: record.currencyId);
+                // 备货类型: record.prepareTypeId);
+                newRecord.put('预约送货时间', convertDateStr(record.reserveTime));
+                newRecord.put('状态名称', record.statusName);
+                // 状态id: record.status,
+                newRecord.put('添加人', record.addUid);
+                // 仓库id: record.storageId);
+                newRecord.put('供应商名称', record.supplierName);
+                newRecord.put('订单编号', record.orderNo);
+                newRecord.put('是否送货', record.isDeliveryName);
+                newRecord.put('更新时间', convertDateStr(record.updateTime));
+                newRecord.put('退货时间', convertDateStr(record.returnTime));
+                newRecord.put('查验时间', convertDateStr(record.checkTime));
+                // 首单id: record.firstMark,
+                newRecord.put('首单标识', record.firstMarkName);
+                newRecord.put('供应商SKU', it.supplierSku);
+                newRecord.put('商品后缀', it.suffixZh);
+                newRecord.put('下单数量', it.orderQuantity);
+                newRecord.put('入仓数量', it.storageQuantity);
+                newRecord.put('收货数量', it.receiptQuantity);
+                newRecord.put('送货数量', it.deliveryQuantity);
+                newRecord.put('次品数量', it.defectiveQuantity);
+                newRecord.put('skc', it.skc);
+                newRecord.put('skuCode', it.skuCode);
+                newRecord.put('备注', it.remark);
+                newRecord.put('供应商货号', it.supplierCode);
+                newRecord.put('价格', it.price);
+                newRecord.put('图片', it.imgPath);
+
+                if(record.type) {
+                    if(record.type === 1) {
+                        newRecord['订单类型'] = "急采";
+                    } else if(record.type === 2) {
+                        newRecord['订单类型'] = "备货";
+                    } else {
+                        newRecord['订单类型'] = "未知";
+                    }
+                }
+                if(record.requestDeliveryQuantity != undefined) {
+                    newRecord['已要求发货数量'] = record.requestDeliveryQuantity;
+                }
+                if(record.noRequestDeliveryQuantity != undefined) {
+                    newRecord['未要求发货数'] = record.noRequestDeliveryQuantity;
+                }
+                if(record.alreadyDeliveryQuantity != undefined) {
+                    newRecord['已发货数量'] = record.alreadyDeliveryQuantity;
+                }
+                newRecords.push(newRecord)
+            })
+        }
+        return newRecords;
     }
 }
