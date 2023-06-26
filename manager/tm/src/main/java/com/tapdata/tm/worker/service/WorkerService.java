@@ -725,11 +725,15 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         WorkerExpire workerExpire = new WorkerExpire();
         workerExpire.setUserId(loginUser.getUserId());
         workerExpire.setShareUser(shareAgentUserRandom);
+        workerExpire.setCreateUser(loginUser.getUsername());
+        Date date = new Date();
+        workerExpire.setCreateAt(date);
+        workerExpire.setLastUpdAt(date);
         UserDetail userDetail = userService.loadUserByUsername(shareAgentUserRandom);
         Assert.notNull(userDetail, "userDetail is null");
         workerExpire.setShareTmUserId(userDetail.getUserId());
         workerExpire.setShareTcmUserId(userDetail.getTcmUserId());
-        workerExpire.setExpireTime(DateUtil.offsetDay(new Date(), shareAgentDays));
+        workerExpire.setExpireTime(DateUtil.offsetDay(date, shareAgentDays));
 
         mongoTemplate.insert(workerExpire);
     }
@@ -808,7 +812,8 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
     public void deleteShareWorker(UserDetail loginUser) {
         Query query = Query.query(Criteria.where("userId").is(loginUser.getUserId()));
-        Update expireTime = Update.update("expireTime", new Date()).set("is_deleted", true);
+        Date date = new Date();
+        Update expireTime = Update.update("expireTime", date).set("is_deleted", true).set("last_updated", date);
         mongoTemplate.updateFirst(query, expireTime, WorkerExpire.class);
     }
 }

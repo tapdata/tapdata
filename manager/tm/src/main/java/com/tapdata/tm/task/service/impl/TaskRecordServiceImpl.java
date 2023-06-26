@@ -96,6 +96,8 @@ public class TaskRecordServiceImpl implements TaskRecordService {
 
             if (userMap.containsKey(r.getUserId())) {
                 vo.setOperator(userMap.get(r.getUserId()));
+            } else {
+                vo.setOperator(r.getUserId());
             }
 
             List<TaskRecord.TaskStatusUpdate> statusStack = r.getStatusStack();

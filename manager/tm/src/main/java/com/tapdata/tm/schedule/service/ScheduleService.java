@@ -12,6 +12,8 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
+import com.tapdata.tm.worker.service.WorkerService;
+import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
@@ -28,8 +30,19 @@ import java.util.HashMap;
 public class ScheduleService{
 
     public void executeTask(TaskDto taskDto) {
-        TaskService taskService = SpringContextHelper.getBean(TaskService.class);
+        WorkerService workerService = SpringContextHelper.getBean(WorkerService.class);
         UserService userService = SpringContextHelper.getBean(UserService.class);
+        TaskService taskService = SpringContextHelper.getBean(TaskService.class);
+
+        UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
+        CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, userDetail, "task", taskDto.getName());
+        if (StringUtils.isBlank(taskDto.getAgentId()) && calculationEngineVo.getTaskAvailable() != calculationEngineVo.getAvailable()) {
+            // 调度失败
+            taskDto.setCrontabSchduleMsg("Task.ScheduleLimit");
+            taskService.save(taskDto, userDetail);
+            return;
+        }
+
         TaskRecordService taskRecordService = SpringUtil.getBean(TaskRecordService.class);
         // 防止任务被删除
         if (taskDto.is_deleted()) {
@@ -55,9 +68,9 @@ public class ScheduleService{
         Date startTime = cronTrigger.getStartTime();
         Long newScheduleDate = cronTrigger.getFireTimeAfter(startTime).getTime();
         Long scheduleDate = taskDto.getScheduleDate();
-        UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
         if (scheduleDate == null || newScheduleDate < scheduleDate) {
             taskDto.setScheduleDate(newScheduleDate);
+            taskDto.setCrontabSchduleMsg("");
             taskService.save(taskDto, userDetail);
             return;
         }
@@ -73,12 +86,13 @@ public class ScheduleService{
             taskSnapshot.setStartTime(new Date());
             ObjectId objectId = ObjectId.get();
             taskSnapshot.setTaskRecordId(objectId.toHexString());
-            TaskRecord taskRecord = new TaskRecord(objectId.toHexString(), taskDto.getId().toHexString(), taskSnapshot, taskDto.getUserId(), new Date());
+            TaskRecord taskRecord = new TaskRecord(objectId.toHexString(), taskDto.getId().toHexString(), taskSnapshot, "system", new Date());
             // 创建记录
             taskRecordService.createRecord(taskRecord);
             taskDto.setTaskRecordId(objectId.toString());
             taskDto.setAttrs(new HashMap<>());
             taskDto.setScheduleDate(newScheduleDate);
+            taskDto.setCrontabSchduleMsg("");
             taskService.save(taskDto, userDetail);
             // 执行记录
             taskService.start(taskDto.getId(), userDetail);
