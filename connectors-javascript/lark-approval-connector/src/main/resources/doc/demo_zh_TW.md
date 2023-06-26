@@ -23,4 +23,4 @@
 
 ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/approval/approval_2.jpg)
 
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/approval/approval_1.jpg)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/approval_1/approval_1.jpg)
