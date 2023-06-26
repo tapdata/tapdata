@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.schema;
 
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.task.dto.Message;
 import lombok.Data;
 import org.bson.Document;
@@ -18,5 +19,6 @@ public class TransformerWsMessageResult {
     private List<MetadataTransformerDto> upsertTransformer;
     private Map<String, List<Message>> transformSchema;
     private String taskId;
+    private DAG dag;
     private String transformUuid;
 }
