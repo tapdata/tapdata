@@ -17,7 +17,9 @@ import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
+import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.CapabilityEnum;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -44,6 +46,7 @@ import com.tapdata.tm.utils.ThreadLocalUtils;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.pdk.apis.entity.Capability;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -111,6 +114,10 @@ public class LdpServiceImpl implements LdpService {
         DAG dag = task.getDag();
         DatabaseNode databaseNode = (DatabaseNode) dag.getSources().get(0);
         String connectionId = databaseNode.getConnectionId();
+
+        String type = generateLdpTaskType(connectionId, user);
+        task.setType(type);
+
 
         Criteria criteria = fdmTaskCriteria(connectionId);
         criteria.and("fdmMain").is(true);
@@ -212,6 +219,38 @@ public class LdpServiceImpl implements LdpService {
         }
 
         return taskDto;
+    }
+
+
+    public String generateLdpTaskType(String sourceConnId, UserDetail user) {
+        Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(sourceConnId));
+        Query conQuery = new Query(criteria);
+        conQuery.fields().include("database_type");
+        DataSourceConnectionDto connection = dataSourceService.findOne(conQuery);
+        dataSourceService.buildDefinitionParam(Lists.newArrayList(connection), user);
+        List<Capability> capabilities = connection.getCapabilities();
+        if (CollectionUtils.isEmpty(capabilities)) {
+            return ParentTaskDto.TYPE_INITIAL_SYNC_CDC;
+        }
+        boolean streamRead = false;
+        boolean batchRead = false;
+        for (Capability capability : capabilities) {
+            if (CapabilityEnum.STREAM_READ_FUNCTION.name().equalsIgnoreCase(capability.getId())) {
+                streamRead = true;
+            }
+            if (CapabilityEnum.BATCH_READ_FUNCTION.name().equalsIgnoreCase(capability.getId())) {
+                batchRead = true;
+            }
+        }
+
+        if (batchRead && streamRead) {
+            return ParentTaskDto.TYPE_INITIAL_SYNC_CDC;
+        }
+
+        if (streamRead) {
+            return ParentTaskDto.TYPE_CDC;
+        }
+        return ParentTaskDto.TYPE_INITIAL_SYNC;
     }
 
 
@@ -426,6 +465,16 @@ public class LdpServiceImpl implements LdpService {
     public TaskDto createMdmTask(TaskDto task, String tagId, UserDetail user, boolean confirmTable, boolean start) {
 
         try {
+            DAG dag = task.getDag();
+            if (dag != null) {
+                LinkedList<DatabaseNode> sourceNode = dag.getSourceNode();
+                if (sourceNode != null) {
+                    DatabaseNode first = sourceNode.getFirst();
+                    String connectionId = first.getConnectionId();
+                    String type = generateLdpTaskType(connectionId, user);
+                    task.setType(type);
+                }
+            }
             taskSaveService.supplementAlarm(task, user);
             //check mdm task
             checkMdmTask(task, user, confirmTable);
