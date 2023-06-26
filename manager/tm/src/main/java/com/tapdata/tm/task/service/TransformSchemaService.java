@@ -320,6 +320,7 @@ public class TransformSchemaService {
         transformerWsMessageResult.setBatchMetadataUpdateMap(dagDataService1.getBatchMetadataUpdateMap());
         transformerWsMessageResult.setTaskId(taskDto.getId().toHexString());
         transformerWsMessageResult.setTransformUuid(transformParam.getOptions().getUuid());
+        transformerWsMessageResult.setDag(taskDto.getDag());
         transformerResult(user, transformerWsMessageResult);
     }
 
@@ -393,8 +394,13 @@ public class TransformSchemaService {
             if (StringUtils.isNotBlank(result.getTransformUuid()) && StringUtils.isNotBlank(result.getTaskId())) {
                 Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(result.getTaskId()))
                         .and("transformUuid").lte(result.getTransformUuid());
+
+                Update set = Update.update("transformed", true).set("transformUuid", result.getTransformUuid());
+                if (result.getDag() != null) {
+                    set.set("dag", result.getDag());
+                }
                 taskService.update(new Query(criteria),
-                        Update.update("transformed", true).set("transformUuid", result.getTransformUuid()), user);
+                        set, user);
             }
         }
 
