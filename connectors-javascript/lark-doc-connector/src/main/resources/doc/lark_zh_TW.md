@@ -37,6 +37,6 @@ b. 新建新的知識庫，新建後再進入編輯頁面
 ![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/doc/doc_3.png)
 
 （5）添加將機器人所在的群
-![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark-doc/doc/config-2.PNG)
+![](https://tapdata-bucket-01.oss-cn-beijing.aliyuncs.com/lark/doc/doc_4.png)
 
 （6）許可權配寘完成。 
