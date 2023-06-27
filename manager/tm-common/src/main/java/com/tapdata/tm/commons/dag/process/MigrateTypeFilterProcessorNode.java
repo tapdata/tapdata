@@ -51,7 +51,7 @@ public class MigrateTypeFilterProcessorNode extends MigrateProcessorNode {
 
         inputSchemas.get(0).forEach(schema -> {
             List<Field> fields = schema.getFields();
-            String ancestorsName = schema.getAncestorsName();
+            String ancestorsName = schema.getName();
                 Map<String, FieldInfo> filterFields = new HashMap<>();
                 for (Field field : fields) {
                     Boolean show = filterTypes.contains(RemoveBracketsUtil.removeBrackets(field.getDataType()));
