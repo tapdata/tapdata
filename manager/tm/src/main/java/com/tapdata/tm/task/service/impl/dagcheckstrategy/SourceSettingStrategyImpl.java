@@ -2,7 +2,6 @@ package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Sets;
-import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -44,7 +43,6 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
     private DataSourceService dataSourceService;
     private MetadataInstancesService metadataInstancesService;
     private TaskDagCheckLogService taskDagCheckLogService;
-    private SettingsService settingsService;
 
     private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.SOURCE_SETTING_CHECK;
 
