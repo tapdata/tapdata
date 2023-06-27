@@ -93,7 +93,7 @@ public class CommonSqlMaker {
     protected void buildCommentDefinition(StringBuilder builder, TapField tapField) {
         if (EmptyKit.isNotBlank(tapField.getComment())) {
             String comment = tapField.getComment();
-            comment = comment.replace("'", "\\'");
+            comment = comment.replace("'", "''");
             builder.append("comment '").append(comment).append("' ");
         }
     }

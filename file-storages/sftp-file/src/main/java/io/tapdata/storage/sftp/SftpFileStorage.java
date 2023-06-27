@@ -73,7 +73,7 @@ public class SftpFileStorage implements TapFileStorage {
     }
 
     @Override
-    public void readFile(String path, Consumer<InputStream> consumer) throws Exception {
+    public synchronized void readFile(String path, Consumer<InputStream> consumer) throws Exception {
         if (!isFileExist(path)) {
             return;
         }
