@@ -108,7 +108,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
 
             // check schema
             String connectionId = dataParentNode.getConnectionId();
-            DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId));
+            DataSourceConnectionDto connectionDto = dataSourceService.findByIdByCheck(MongoUtils.toObjectId(connectionId));
             Optional.ofNullable(connectionDto).ifPresent(dto -> {
                 List<String> tables = metadataInstancesService.tables(connectionId, SourceTypeEnum.SOURCE.name());
 

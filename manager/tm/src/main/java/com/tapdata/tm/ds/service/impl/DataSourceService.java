@@ -1929,7 +1929,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
         return add(connectionDto, userDetail);
     }
 
-    public DataSourceConnectionDto findById(ObjectId id) {
+    public DataSourceConnectionDto findByIdByCheck(ObjectId id) {
         return repository.findById(id, new com.tapdata.tm.base.dto.Field()).map(v ->
                 BeanUtil.copyProperties(v, DataSourceConnectionDto.class)).orElse(null);
     }
