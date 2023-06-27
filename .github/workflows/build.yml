@@ -60,47 +60,12 @@ jobs:
           run: |
             mkdir -p tapdata/manager/tm/src/main/resources/static/
             rsync -avt tapdata-enterprise-web/dist/. tapdata/manager/tm/src/main/resources/static/
-#        - name: compile error-code-root module
-#          run: |
-#            chmod +x tapdata/build/build.sh
-#            if [[ -d 'tapdata/error-code-root/' ]]; then
-#              cd tapdata/ && build/build.sh -c error-code-root
-#            fi
-#        - name: compile plugin-kit module
-#          run: |
-#            cd tapdata/ && build/build.sh -c plugin-kit
-#        - name: compile file-storages module
-#          run: |
-#            cd tapdata/ && build/build.sh -c file-storages
-#        - name: compile manager module
-#          run: |
-#            current_dir=`pwd`
-#            cd tapdata/manager/ && bash build/build.sh -p prod
-#        - name: compile connectors-common module
-#          run:
-#            rsync -avt tapdata-enterprise/connector-common/. tapdata/connector-common/
-#            rsync -avt tapdata/connectors-common/pom-ent.xml tapdata/connector-common/pom.xml
-#            cd tapdata/ && build/build.sh -c connectors-common
-#        - name: compile iengine module
-#          run: |
-#            cd tapdata/ && build/build.sh -c iengine
-#        - name: compile connectors-javascript module
-#          run: |
-#            if [[ -d "tapdata/connectors-javascript" ]]; then
-#              cd tapdata/ && build/build.sh -c connectors-javascript
-#            fi
-#        - name: compile tapdata-cli to export pdk
-#          run: |
-#            cd tapdata/tapdata-cli/ && mvn clean install -DskipTests -P not_encrypt -U
         - name: compile opensource tapdata
           run: |
-            cd tapdata && mvn clean install -DskipTests
+            cd tapdata && bash build/build.sh -c true
         - name: Build Image
           run: |
-            tag=`cd tapdata && git describe --tag --long HEAD`
-            docker_tag="ghcr.io/tapdata/${{ env.CURRENT_BRANCH }}:$tag"
-            rsync -avt tapdata-enterprise/build/NDK/ tapdata/build/NDK/
-            cd tapdata && build/build.sh -p 1 -o image -t $docker_tag
+            cd tapdata && build/build.sh -p true -o image
         - name: Log in to the Container registry
           uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
           with:

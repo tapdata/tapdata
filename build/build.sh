@@ -25,14 +25,14 @@ fi
 image=`cat $basepath/image/tag`
 is_build="false"
 is_package="false"
-output="jar"
+output=""
 
 usage() {
     echo "Usage: $0 [-c] [-p] [-o jar|tar|docker] [-d] [-t image]"
-    echo "  -c: build project"
-    echo "  -p: package project"
-    echo "  -o: output type, jar|tar|docker"
-    echo "  -d: clean project outputs"
+    echo "  -c: build project, default is false"
+    echo "  -p: package project, default is false"
+    echo "  -o: output type, default is blank, optional value: image"
+    echo "  -d: clean project outputs, default is false"
     echo "  -t: docker image tag"
     echo "  -h: help"
     exit 1
@@ -54,9 +54,6 @@ while getopts 'c:p:o:d::t:' OPT; do
     output="$OPTARG"
     is_package="true"
 		;;
-	't')
-    image="$OPTARG"
-    ;;
   ?)
     usage
     exit 1
@@ -68,7 +65,6 @@ cat <<_END_
 tapdata build env:    $tapdata_build_env
 tapdata build image:  $tapdata_build_image
 tapdata build output: $output
-tapdata build image:  $image
 is_build:             $is_build
 is_package:           $is_package
 _in_docker:           $_in_docker
