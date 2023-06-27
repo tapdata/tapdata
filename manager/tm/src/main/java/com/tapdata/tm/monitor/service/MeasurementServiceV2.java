@@ -296,13 +296,16 @@ public class MeasurementServiceV2 {
             }
         }
 
+			long fixTimes = 0;
+			String granularity = Granularity.GRANULARITY_MINUTE;
         AtomicReference<Date> startDate = new AtomicReference<>();
         AtomicReference<Date>  endDate = new AtomicReference<>();
         if (start != null) {
-            startDate.set(new Date(start));
+					fixTimes = Granularity.calculateGranularityStart(granularity, start) - start;
+					startDate.set(new Date(start + fixTimes));
         }
         if (end != null) {
-            endDate.set(new Date(end));
+					endDate.set(new Date(end - fixTimes));
         }
 
         if (typeIsTask && StringUtils.isNotBlank(taskId) && (ObjectUtils.anyNull(start, end) || Objects.equals(start, end))) {
@@ -327,7 +330,7 @@ public class MeasurementServiceV2 {
         }
 
         criteria = criteria.gte(startDate.get()).lte(endDate.get());
-        criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
+        criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(granularity);
         SortOperation sort;
         long time;
         if (padding.equals(INSTANT_PADDING_LEFT)) {
