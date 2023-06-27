@@ -1,25 +1,7 @@
 package io.tapdata.mongodb;
 
-import com.mongodb.MongoClientException;
-import com.mongodb.MongoCommandException;
-import com.mongodb.MongoConfigurationException;
-import com.mongodb.MongoConnectionPoolClearedException;
-import com.mongodb.MongoInterruptedException;
-import com.mongodb.MongoNodeIsRecoveringException;
-import com.mongodb.MongoNotPrimaryException;
-import com.mongodb.MongoQueryException;
-import com.mongodb.MongoSecurityException;
-import com.mongodb.MongoServerUnavailableException;
-import com.mongodb.MongoSocketClosedException;
-import com.mongodb.MongoSocketException;
-import com.mongodb.MongoSocketOpenException;
-import com.mongodb.MongoSocketReadException;
-import com.mongodb.MongoSocketReadTimeoutException;
-import com.mongodb.MongoSocketWriteException;
-import com.mongodb.MongoTimeoutException;
-import com.mongodb.MongoWriteConcernException;
-import com.mongodb.MongoCursorNotFoundException;
-import com.mongodb.MongoWriteException;
+import com.mongodb.*;
+import com.mongodb.bulk.BulkWriteError;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
@@ -123,6 +105,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
@@ -830,9 +813,27 @@ public class MongodbConnector extends ConnectorBase {
 		} catch (Throwable e) {
 			if (e instanceof MongoTimeoutException) {
 				throw new TapPdkTerminateByServerEx(connectorContext.getId(), e);
-			}
-			if (e instanceof MongoSocketReadException) {
+			} else if (e instanceof MongoSocketReadException) {
 				throw new TapPdkRetryableEx(connectorContext.getId(), e);
+			} else if (e instanceof MongoBulkWriteException) {
+				MongoBulkWriteException mongoBulkWriteException = (MongoBulkWriteException) e;
+				List<BulkWriteError> writeErrors = mongoBulkWriteException.getWriteErrors();
+				AtomicReference<Throwable> throwableAtomicReference = new AtomicReference<>();
+				BulkWriteError bulkWriteError = writeErrors.stream().filter(writeError -> {
+					int code = writeError.getCode();
+					String message = writeError.getMessage();
+					if (code == 133
+							&& Pattern.compile("Write results unavailable from failing to.*a host in the shard.*:: caused by :: Could not find host matching read preference \\{ mode: \"primary\" } for set.*").matcher(message).matches()) {
+						throwableAtomicReference.set(new TapPdkTerminateByServerEx(connectorContext.getSpecification().getId(), e));
+					} else if (code == 10107
+							&& Pattern.compile(".*not master.*").matcher(message).matches()) {
+						throwableAtomicReference.set(new TapPdkTerminateByServerEx(connectorContext.getSpecification().getId(), e));
+					}
+					return throwableAtomicReference.get() != null;
+				}).findFirst().orElse(null);
+				if (null != bulkWriteError) {
+					throw throwableAtomicReference.get();
+				}
 			}
 			throw e;
 		}
@@ -1078,8 +1079,22 @@ public class MongodbConnector extends ConnectorBase {
 		} catch (Exception e) {
 			if (e instanceof MongoTimeoutException) {
 				throw new TapPdkTerminateByServerEx(connectorContext.getId(), e);
+			}else if (e instanceof MongoQueryException) {
+				String message = e.getMessage();
+				int code = ((MongoQueryException) e).getCode();
+				Throwable throwable = null;
+				if (code == 6
+						&& Pattern.compile("Query failed with error code 6 and error message 'Error on remote shard.*:: caused by :: interrupted at shutdown' on server.*").matcher(message).matches()) {
+					throwable = new TapPdkTerminateByServerEx(connectorContext.getSpecification().getId(), e);
+				} else if (code == 133
+						&& Pattern.compile("Query failed with error code 133 and error message 'Encountered non-retryable error during query :: caused by :: Could not find host matching read preference \\{ mode: \"primary\" } for set.*").matcher(message).matches()) {
+					throwable = new TapPdkTerminateByServerEx(connectorContext.getSpecification().getId(), e);
+				}
+				if (null != throwable) {
+					throw throwable;
+				}
 			}
-			throw new RuntimeException(e);
+			throw e;
 		}
 	}
 
