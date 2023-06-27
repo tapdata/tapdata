@@ -179,7 +179,7 @@ public class DorisStreamLoader {
 
         TapLogger.debug(TAG, "Stream load Result {}", loadResult);
         RespContent respContent = OBJECT_MAPPER.readValue(loadResult, RespContent.class);
-        if (!respContent.isSuccess()) {
+        if (!respContent.isSuccess() && !"Publish Timeout".equals(respContent.getStatus())) {
             if (respContent.getMessage().toLowerCase().contains("too many filtered rows")) {
                 throw new StreamLoadException("Stream load failed | Error: " + loadResult);
             }

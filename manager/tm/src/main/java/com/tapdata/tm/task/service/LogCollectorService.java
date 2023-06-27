@@ -1378,6 +1378,7 @@ public class LogCollectorService {
         Query query = new Query(criteria);
         query.fields().include("_id", "uniqueName", "database_type", "name", "capabilities", "heartbeatEnable", "pdkHash");
         List<DataSourceConnectionDto> dataSourceDtos = dataSourceService.findAllDto(query, user);
+        dataSourceService.buildDefinitionParam(dataSourceDtos, user);
         return dataSourceDtos;
     }
 

@@ -445,7 +445,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     taskDto.setAccessNodeProcessIdList(oldTaskDto.getAccessNodeProcessIdList());
                 }
 
-                if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+                if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) && !ParentTaskDto.TYPE_CDC.equals(taskDto.getType())) {
                     DAG dag = oldTaskDto.getDag();
                     DAG newDag = taskDto.getDag();
                     if (dag != null && newDag != null) {

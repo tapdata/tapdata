@@ -79,7 +79,7 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 		String externalStorageId = (String) externalStorageConfig.get("id");
 		Map<String, Object> testConnectionConfig = newMongoDBConnections(userDetail);
 		if (null == testConnectionConfig) {
-			sendErrorMessage(context, "ExternalStorageId", String.format("Can not found storage by id '%s'", externalStorageId));
+			sendErrorMessage(context, "NotFoundStorage", String.format("Can not found storage by id '%s', please check the datasource 'MongoDB' is exists", externalStorageId));
 			return;
 		}
 		Map<String, Object> connectorConfig = (Map<String, Object>) testConnectionConfig.computeIfAbsent("config", s -> new LinkedHashMap<>());

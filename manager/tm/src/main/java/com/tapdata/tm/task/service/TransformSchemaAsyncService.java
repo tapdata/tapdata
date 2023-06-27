@@ -35,13 +35,13 @@ public class TransformSchemaAsyncService {
     @Lock(value = "taskId", type = LockType.TRANSFORM_SCHEMA)
     public void transformSchema(DAG dag, UserDetail user, ObjectId taskId) {
         transformSchemaService.transformSchema(dag, user, taskId);
-        taskUpdateDagService.updateDag(taskId, dag);
+        //taskUpdateDagService.updateDag(taskId, dag);
     }
 
     @Async
     @Lock(value = "taskId", type = LockType.TRANSFORM_SCHEMA)
     public void transformSchema(TaskDto taskDto, UserDetail user, ObjectId taskId) {
         transformSchemaService.transformSchema(taskDto, user);
-        taskUpdateDagService.updateDag(taskId, taskDto.getDag());
+        //taskUpdateDagService.updateDag(taskId, taskDto.getDag());
     }
 }

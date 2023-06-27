@@ -1,19 +1,21 @@
 package com.tapdata.tm.utils;
 
 import com.alibaba.fastjson.JSON;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
-
+@Slf4j
 public class TMStartMsgUtil {
-    private static String fullPath =  File.separator + ".tmStartMsg.json";
+    private static String fullPath = ".tmStartMsg.json";
     public static void writeTMStartMsg(TmStartMsg tmStartMsg){
         try {
             // 保证创建一个新文件
-            if(null != System.getenv("TAPDATA_WORK_DIR")){
-                fullPath = System.getenv("TAPDATA_WORK_DIR") + fullPath;
+            if(StringUtils.isNotEmpty(System.getenv("TAPDATA_WORK_DIR"))){
+                fullPath = System.getenv("TAPDATA_WORK_DIR") + File.separator + fullPath;
             }
             File file = new File(fullPath);
             if (file.exists()) { // 如果已存在,删除旧文件
@@ -28,7 +30,7 @@ public class TMStartMsgUtil {
             write.flush();
             write.close();
         } catch (Exception e) {
-            e.printStackTrace();
+            log.warn("Failed to generate .tmStartMsg.json : {}",e.getMessage());
         }
     }
 }
