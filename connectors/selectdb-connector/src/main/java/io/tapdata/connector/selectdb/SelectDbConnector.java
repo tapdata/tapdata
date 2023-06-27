@@ -334,7 +334,7 @@ public class SelectDbConnector extends CommonDbConnector {
 //            }
 //        }
 //        this.valve.write(tapRecordEvents, tapTable);
-        uploadEvents(writeListResultConsumer, tapRecordEvents, tapTable);
+        uploadEvents(connectorContext,writeListResultConsumer, tapRecordEvents, tapTable);
     }
 
     /**
@@ -343,9 +343,9 @@ public class SelectDbConnector extends CommonDbConnector {
      * @param writeListResultConsumer
      * @param events
      */
-    private void uploadEvents(Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer, List<TapRecordEvent> events, TapTable table) {
+    private void uploadEvents(TapConnectorContext connectorContext,Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer, List<TapRecordEvent> events, TapTable table) {
         try {
-            writeListResultConsumer.accept(selectDbStreamLoader.writeRecord(events, table));
+            writeListResultConsumer.accept(selectDbStreamLoader.writeRecord(connectorContext,events, table));
         } catch (IOException e) {
             TapLogger.error(TAG, "Data write failure" + e.getMessage());
         }
