@@ -15,8 +15,10 @@ import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.bean.ResponseBody;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
+import com.tapdata.tm.commons.schema.bean.ValidateDetail;
 import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.CapabilityEnum;
@@ -28,6 +30,7 @@ import com.tapdata.tm.livedataplatform.dto.LiveDataPlatformDto;
 import com.tapdata.tm.livedataplatform.service.LiveDataPlatformService;
 import com.tapdata.tm.lock.annotation.Lock;
 import com.tapdata.tm.lock.constant.LockType;
+import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
@@ -36,10 +39,12 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.bean.LdpFuzzySearchVo;
 import com.tapdata.tm.task.bean.MultiSearchDto;
 import com.tapdata.tm.task.constant.LdpDirEnum;
+import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.LdpService;
 import com.tapdata.tm.task.service.TaskSaveService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.utils.ThreadLocalUtils;
@@ -47,6 +52,7 @@ import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.pdk.apis.entity.Capability;
+import io.tapdata.pdk.apis.entity.TestItem;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -60,6 +66,7 @@ import org.springframework.security.config.web.servlet.OAuth2LoginDsl;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -225,21 +232,39 @@ public class LdpServiceImpl implements LdpService {
     public String generateLdpTaskType(String sourceConnId, UserDetail user) {
         Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(sourceConnId));
         Query conQuery = new Query(criteria);
-        conQuery.fields().include("database_type");
+        conQuery.fields().include("database_type", "response_body");
         DataSourceConnectionDto connection = dataSourceService.findOne(conQuery);
         dataSourceService.buildDefinitionParam(Lists.newArrayList(connection), user);
         List<Capability> capabilities = connection.getCapabilities();
         if (CollectionUtils.isEmpty(capabilities)) {
             return ParentTaskDto.TYPE_INITIAL_SYNC_CDC;
         }
-        boolean streamRead = false;
-        boolean batchRead = false;
-        for (Capability capability : capabilities) {
-            if (CapabilityEnum.STREAM_READ_FUNCTION.name().equalsIgnoreCase(capability.getId())) {
-                streamRead = true;
+
+        boolean streamRead = true;
+        boolean batchRead = true;
+        ResponseBody responseBody = connection.getResponse_body();
+        if (responseBody != null) {
+            List<ValidateDetail> validateDetails = responseBody.getValidateDetails();
+            Map<String, ValidateDetail> map = new HashMap<>();
+            if (org.apache.commons.collections.CollectionUtils.isNotEmpty(validateDetails)) {
+                // list to map
+                map = validateDetails.stream().collect(Collectors.toMap(ValidateDetail::getShowMsg, Function.identity()));
             }
-            if (CapabilityEnum.BATCH_READ_FUNCTION.name().equalsIgnoreCase(capability.getId())) {
-                batchRead = true;
+            if (!map.containsKey(TestItem.ITEM_READ_LOG) || !"passed".equals(map.get(TestItem.ITEM_READ_LOG).getStatus())) {
+                streamRead = false;
+            }
+
+            if (!map.containsKey(TestItem.ITEM_READ) || !"passed".equals(map.get(TestItem.ITEM_READ).getStatus())) {
+                batchRead = false;
+            }
+
+        }
+        for (Capability capability : capabilities) {
+            if (!CapabilityEnum.STREAM_READ_FUNCTION.name().equalsIgnoreCase(capability.getId())) {
+                streamRead = false;
+            }
+            if (!CapabilityEnum.BATCH_READ_FUNCTION.name().equalsIgnoreCase(capability.getId())) {
+                batchRead = false;
             }
         }
 
@@ -252,7 +277,6 @@ public class LdpServiceImpl implements LdpService {
         }
         return ParentTaskDto.TYPE_INITIAL_SYNC;
     }
-
 
     private Criteria fdmTaskCriteria(String connectionId) {
         return  Criteria.where("ldpType").is(TaskDto.LDP_TYPE_FDM)
