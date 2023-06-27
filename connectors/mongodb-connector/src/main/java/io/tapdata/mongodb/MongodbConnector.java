@@ -57,7 +57,6 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ParagraphFormatter;
-import io.tapdata.exception.TapPdkRetryableEx;
 import io.tapdata.exception.TapPdkTerminateByServerEx;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.mongodb.entity.MongodbConfig;
@@ -830,9 +829,6 @@ public class MongodbConnector extends ConnectorBase {
 		} catch (Throwable e) {
 			if (e instanceof MongoTimeoutException) {
 				throw new TapPdkTerminateByServerEx(connectorContext.getId(), e);
-			}
-			if (e instanceof MongoSocketReadException) {
-				throw new TapPdkRetryableEx(connectorContext.getId(), e);
 			}
 			throw e;
 		}
