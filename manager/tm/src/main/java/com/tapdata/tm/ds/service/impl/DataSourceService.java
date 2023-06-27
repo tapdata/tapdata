@@ -454,24 +454,17 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 	}
 
-	private Map<ObjectId, DataSourceConnectionDto> buildFindResult(boolean noSchema, List<DataSourceConnectionDto> items, UserDetail user) {
-		Map<String, DataSourceConnectionDto> connectMap = new HashMap<>();
-		Map<ObjectId, DataSourceConnectionDto> newResultObj = new HashMap<>();
-
-		Set<String> databaseTypes = items.stream().map(DataSourceConnectionDto::getDatabase_type).collect(Collectors.toSet());
-		List<DataSourceDefinitionDto> definitionDtoList = dataSourceDefinitionService.getByDataSourceType(new ArrayList<>(databaseTypes), user);
+	public void buildDefinitionParam(List<DataSourceConnectionDto> items, UserDetail user) {
+		if (CollectionUtils.isEmpty(items)) {
+			return;
+		}
+		List<String> databaseTypes = items.stream().map(DataSourceConnectionDto::getDatabase_type).collect(Collectors.toList());
+		List<DataSourceDefinitionDto> definitionDtoList = dataSourceDefinitionService.getByDataSourceType(databaseTypes, user);
 		Map<String, DataSourceDefinitionDto> definitionMap = definitionDtoList.stream().collect(Collectors.toMap(DataSourceDefinitionDto::getPdkHash, Function.identity(), (f1, f2) -> f1));
 
 		for (DataSourceConnectionDto item : items) {
-			if (!isAgentReq()) {
-				if ((DataSourceEnum.isMongoDB(item.getDatabase_type()) || DataSourceEnum.isGridFs(item.getDatabase_type()))
-						&& StringUtils.isNotBlank(item.getDatabase_uri())) {
-					item.setDatabase_uri(UriRootConvertUtils.hidePassword(item.getDatabase_uri()));
-				}
-			}
-
 			//不需要这个操作了。引擎会更新这个东西，另外每次更新databasetypes的时候，需要更新这个  参考： updateCapabilities方法
-            if (definitionMap.containsKey(item.getDatabase_type())) {
+			if (definitionMap.containsKey(item.getDatabase_type())) {
 				DataSourceDefinitionDto definitionDto = definitionMap.get(item.getPdkHash());
 				item.setCapabilities(definitionDto.getCapabilities());
 				item.setDefinitionPdkId(definitionDto.getPdkId());
@@ -483,8 +476,23 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				item.setDefinitionScope(definitionDto.getScope());
 				item.setDefinitionBuildNumber(String.valueOf(definitionDto.getBuildNumber()));
 				item.setDefinitionTags(definitionDto.getTags());
-            }
+			}
+		}
+	}
 
+	private Map<ObjectId, DataSourceConnectionDto> buildFindResult(boolean noSchema, List<DataSourceConnectionDto> items, UserDetail user) {
+		Map<String, DataSourceConnectionDto> connectMap = new HashMap<>();
+		Map<ObjectId, DataSourceConnectionDto> newResultObj = new HashMap<>();
+
+		buildDefinitionParam(items, user);
+
+		for (DataSourceConnectionDto item : items) {
+			if (!isAgentReq()) {
+				if ((DataSourceEnum.isMongoDB(item.getDatabase_type()) || DataSourceEnum.isGridFs(item.getDatabase_type()))
+						&& StringUtils.isNotBlank(item.getDatabase_uri())) {
+					item.setDatabase_uri(UriRootConvertUtils.hidePassword(item.getDatabase_uri()));
+				}
+			}
 			desensitizeMongoConnection(item);
 
 			hiddenMqPasswd(item);

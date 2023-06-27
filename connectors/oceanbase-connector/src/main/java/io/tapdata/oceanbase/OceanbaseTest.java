@@ -7,6 +7,8 @@ import io.tapdata.pdk.apis.entity.TestItem;
 
 import java.util.function.Consumer;
 
+import static io.tapdata.base.ConnectorBase.testItem;
+
 public class OceanbaseTest extends CommonDbTest implements AutoCloseable {
 
     public OceanbaseTest(OceanbaseConfig oceanbaseConfig, Consumer<TestItem> consumer) {
@@ -26,6 +28,7 @@ public class OceanbaseTest extends CommonDbTest implements AutoCloseable {
 
     @Override
     public Boolean testStreamRead() {
+        consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY));
         return true;
     }
 }

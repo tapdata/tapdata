@@ -7,6 +7,8 @@ import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Element;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
@@ -66,6 +68,8 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     private ClientMongoOperator clientMongoOperator;
     private final Map<String, MilestoneStatus> dataNodeInitMap = new HashMap<>();
     private final Set<String> targetNodes = new HashSet<>();
+	private final AtomicLong snapshotTableCounts = new AtomicLong(0);
+	private final AtomicLong snapshotTableProgress = new AtomicLong(0);
 
     public MilestoneAspectTask() {
         observerHandlers.register(PDKNodeInitAspect.class, this::handlePDKNodeInit);
@@ -75,17 +79,11 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         observerHandlers.register(ProcessorNodeCloseAspect.class, this::handleProcessNodeClose);
         observerHandlers.register(TableInitFuncAspect.class, this::handleTableInit);
 
-        AtomicLong snapshotTableCounts = new AtomicLong(0);
-        AtomicLong snapshotTableProgress = new AtomicLong(0);
         nodeRegister(SnapshotReadBeginAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> {
             m.setProgress(0L);
             m.setTotals((long) aspect.getTables().size());
-            snapshotTableCounts.addAndGet(m.getTotals());
             setRunning(m);
-            taskMilestone(KPI_SNAPSHOT, (tm) -> {
-                tm.setTotals(snapshotTableCounts.get());
-                setRunning(tm);
-            });
+            taskMilestone(KPI_SNAPSHOT, this::setRunning);
         });
         nodeRegister(SnapshotReadEndAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> setFinish(m));
         nodeRegister(SnapshotReadErrorAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> {
@@ -96,7 +94,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
             m.addProgress(1);
             snapshotTableProgress.addAndGet(1);
             taskMilestone(KPI_SNAPSHOT, (tm) -> {
-                tm.setProgress(snapshotTableCounts.get());
+                tm.setProgress(snapshotTableProgress.get());
             });
         });
         nodeRegister(Snapshot2CDCAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> {
@@ -127,7 +125,9 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         nodeRegister(SnapshotWriteBeginAspect.class, KPI_SNAPSHOT_WRITE, (aspect, m) -> setRunning(m));
         nodeRegister(SnapshotWriteEndAspect.class, KPI_SNAPSHOT_WRITE, (aspect, m) -> {
             setFinish(m);
-            taskMilestone(KPI_SNAPSHOT, this::setFinish);
+						if (snapshotTableProgress.get() >= snapshotTableCounts.get()) {
+							taskMilestone(KPI_SNAPSHOT, this::setFinish);
+						}
         });
         nodeRegister(CDCWriteBeginAspect.class, (nodeId, aspect) -> {
             if (hasSnapshot()) {
@@ -191,6 +191,18 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         DataProcessorContext dataProcessorContext = aspect.getDataProcessorContext();
         String nodeId = nodeId(dataProcessorContext);
         nodeMilestones(nodeId, KPI_NODE, this::setRunning);
+			Node<?> node = dataProcessorContext.getNode();
+			if (null == node.predecessors() || node.predecessors().isEmpty()) {
+				if (node instanceof TableNode) {
+					snapshotTableCounts.addAndGet(1);
+				} else if (node instanceof DatabaseNode) {
+					DatabaseNode databaseNode = (DatabaseNode) node;
+					snapshotTableCounts.addAndGet(databaseNode.tableSize());
+				}
+				taskMilestone(KPI_SNAPSHOT, (tm) -> {
+					tm.setTotals(snapshotTableCounts.get());
+				});
+			}
         dataNodeInitMap.computeIfPresent(nodeId, (k, v) -> MilestoneStatus.RUNNING);
         return null;
     }

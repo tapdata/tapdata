@@ -270,8 +270,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			DataParentNode dataParentNode = (DataParentNode) getNode();
 			final Boolean initialConcurrent = dataParentNode.getInitialConcurrent();
 			if (initialConcurrent != null) {
-				this.initialConcurrent = initialConcurrent;
 				this.initialConcurrentWriteNum = dataParentNode.getInitialConcurrentWriteNum() != null ? dataParentNode.getInitialConcurrentWriteNum() : 8;
+				this.initialConcurrent = initialConcurrent && initialConcurrentWriteNum > 1;
 				if (initialConcurrent) {
 					this.initialPartitionConcurrentProcessor = initConcurrentProcessor(initialConcurrentWriteNum);
 					this.initialPartitionConcurrentProcessor.start();
@@ -279,8 +279,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 			final Boolean cdcConcurrent = dataParentNode.getCdcConcurrent();
 			if (cdcConcurrent != null) {
-				this.cdcConcurrent = cdcConcurrent;
 				this.cdcConcurrentWriteNum = dataParentNode.getCdcConcurrentWriteNum() != null ? dataParentNode.getCdcConcurrentWriteNum() : 4;
+				this.cdcConcurrent = cdcConcurrent && cdcConcurrentWriteNum > 1;
 				if (cdcConcurrent) {
 					this.cdcPartitionConcurrentProcessor = initConcurrentProcessor(cdcConcurrentWriteNum);
 					this.cdcPartitionConcurrentProcessor.start();

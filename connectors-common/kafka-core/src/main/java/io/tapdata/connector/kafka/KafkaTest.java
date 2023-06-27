@@ -114,6 +114,7 @@ public class KafkaTest extends CommonDbTest {
     }
 
     public Boolean testStreamRead() {
+        consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY));
         return true;
     }
 }

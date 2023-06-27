@@ -106,7 +106,7 @@ public class FieldChangeRuleGroup {
                 break;
             case MutiDataType:
                 Double multiple = rule.getMultiple();
-                if (multiple != 0 && multiple > 1) {
+                if (multiple > 0) {
                     if (exprResult.getParams() != null && !exprResult.getParams().isEmpty()) {
                         TapType tapType = PdkSchemaConvert.getJsonParser().fromJson(f.getTapType(), TapType.class);
                         if (tapType instanceof TapString) {
