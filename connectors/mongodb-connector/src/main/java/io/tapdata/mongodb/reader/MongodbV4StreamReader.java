@@ -1,7 +1,15 @@
 package io.tapdata.mongodb.reader;
 
-import com.mongodb.*;
-import com.mongodb.client.*;
+import com.mongodb.ConnectionString;
+import com.mongodb.MongoCommandException;
+import com.mongodb.MongoInterruptedException;
+import com.mongodb.MongoNamespace;
+import com.mongodb.MongoQueryException;
+import com.mongodb.client.ChangeStreamIterable;
+import com.mongodb.client.MongoChangeStreamCursor;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Aggregates;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
@@ -16,7 +24,6 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.exception.TapPdkOffsetOutOfLogEx;
-import io.tapdata.exception.TapPdkRetryableEx;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.mongodb.MongodbUtil;
 import io.tapdata.mongodb.entity.MongodbConfig;
@@ -32,11 +39,15 @@ import org.bson.codecs.DecoderContext;
 import org.bson.codecs.DocumentCodec;
 import org.bson.conversions.Bson;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static io.tapdata.base.ConnectorBase.*;
+import static io.tapdata.base.ConnectorBase.deleteDMLEvent;
+import static io.tapdata.base.ConnectorBase.insertRecordEvent;
+import static io.tapdata.base.ConnectorBase.list;
+import static io.tapdata.base.ConnectorBase.updateDMLEvent;
 import static java.util.Collections.singletonList;
 
 /**
@@ -220,10 +231,6 @@ public class MongodbV4StreamReader implements MongodbStreamReader {
 					if (mongoCommandException.getErrorCode() == 10334) {
 						fullDocumentOption = FullDocument.DEFAULT;
 						continue;
-					}
-
-					if (mongoCommandException.getErrorCode() == 211) {
-						throw new TapPdkRetryableEx(connectorContext.getSpecification().getId(), throwable);
 					}
 				}
 
