@@ -26,6 +26,7 @@ import io.tapdata.connector.vika.view.GetDatasheetViewRespone;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -111,9 +112,9 @@ public class VikaConnector extends ConnectorBase {
             if (tapMapValue != null && tapMapValue.getValue() != null) return toJson(tapMapValue.getValue());
             return "null";
         });
-        codecRegistry.registerFromTapValue(TapTimeValue.class, FieldTypeEnum.Text.name(), tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss"));
-        codecRegistry.registerFromTapValue(TapDateValue.class, FieldTypeEnum.Text.name(), tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, FieldTypeEnum.Text.name(), tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd HH:mm:ss"));
+        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss"));
+        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd HH:mm:ss"));
     }
 
     @Override
