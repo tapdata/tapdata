@@ -1,23 +1,17 @@
-FROM ghcr.io/tapdata/tapdata/tldp/runtime:0.2
+FROM ghcr.io/tapdata/tapdata/tldp/runtime-ee:0.5
 
-COPY manager /tapdata/apps/manager
-COPY iengine /tapdata/apps/iengine
-RUN mkdir -p /tapdata/apps/plugin-kit /tapdata/apps/connectors-common /tapdata/apps/connectors /tapdata/apps/build
-COPY plugin-kit /tapdata/apps/plugin-kit
-COPY connectors-common /tapdata/apps/connectors-common
-COPY connectors /tapdata/apps/connectors
-COPY build /tapdata/apps/build
-COPY tapdata-cli /tapdata/apps/tapdata-cli
+ENV JAVA_TOOL_OPTIONS -Dfile.encoding=UTF8
+COPY connectors/dist.tar.gz /tapdata/apps/connectors/dist.tar.gz
+COPY manager/ /tapdata/apps/manager/
+COPY iengine/ /tapdata/apps/iengine/
+COPY tapdata-cli/target/pdk.jar /tapdata/apps/lib/pdk-deploy.jar
 COPY docker-entrypoint.sh /tapdata/docker-entrypoint.sh
-RUN chmod +x /tapdata/docker-entrypoint.sh
+RUN chmod +x /tapdata/docker-entrypoint.sh && mkdir -p /tapdata/data/db/
 
-COPY tapshell /tapdata/apps/tapshell
+# Add tini
+ENV TINI_VERSION v0.19.0
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
+RUN chmod +x /tini
+ENTRYPOINT ["/tini", "--"]
 
-RUN cd /tapdata/apps/tapshell && \
-    pip3 install poetry && \
-    poetry export -f requirements.txt --output requirements.txt --without-hashes && \
-    pip3 install --no-cache-dir -r requirements.txt
-
-RUN mkdir -p /tapdata/data/db/
-
-ENTRYPOINT [ "bash", "-c", "/tapdata/docker-entrypoint.sh" ]
+CMD ["bash", "-c", "/tapdata/docker-entrypoint.sh"]

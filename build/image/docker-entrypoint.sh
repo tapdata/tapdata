@@ -29,54 +29,22 @@ start_mongo() {
 }
 
 start_server() {
-    if [[ "x"$tapdata_run_env != "xlocal" ]]; then
-        if [[ "x"$mode == "xuse" ]]; then
-            cd /tapdata/apps
-            cd manager && bash bin/start.sh && cd -
-            cd iengine && bash bin/start.sh && cd -
-        fi
+    # 1. start manager server
+    # 2. register connectors
+    # 3. start iengine server
+    cd /tapdata/apps/manager/bin && bash start.sh
+    cd /tapdata/apps/iengine/bin && bash start.sh
+}
 
-        if [[ "x"$mode == "xdev" ]]; then
-            cd /tapdata-source
-            cd manager/dist && bash bin/start.sh && cd -
-            cd iengine/dist && bash bin/start.sh && cd -
-        fi
-
-        if [[ "x"$mode == "xtest" ]]; then
-            cd /tapdata/apps
-            cd manager && bash bin/start.sh && cd -
-            cd iengine && bash bin/start.sh && cd -
-        fi
-    fi
-
-    if [[ "x"$mode == "xuse" ]]; then
-        cd /tapdata/apps/tapshell
-        bash register-all-connectors.sh
-        echo "register_connector_complete !"
-    fi
-
-    if [[ "x"$mode == "xtest" ]]; then
-        cd /tapdata-source/tapshell
-        bash register-all-connectors.sh
-        echo "register_connector_complete !"
-        cp ../build/test.sh ./
-        cp -r ../build/test ./
-        chmod u+x test.sh
-        bash ./test.sh
-        if [[ $? -ne 0 ]]; then
-            exit 127
-        else
-            exit 0
-        fi
-    fi
+unzip_files() {
+    tar xzf /tapdata/apps/connectors/dist.tar.gz -C /tapdata/apps/
 }
 
 _main() {
+    unzip_files
     start_mongo
     start_server
-    if [[ $mode != "test" ]]; then
-        sleep infinity
-    fi
+    sleep infinity
 }
 
 _main "$@"
