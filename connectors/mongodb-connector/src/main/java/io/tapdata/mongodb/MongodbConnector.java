@@ -1,24 +1,7 @@
 package io.tapdata.mongodb;
 
-import com.mongodb.MongoClientException;
-import com.mongodb.MongoCommandException;
-import com.mongodb.MongoConfigurationException;
-import com.mongodb.MongoConnectionPoolClearedException;
-import com.mongodb.MongoInterruptedException;
-import com.mongodb.MongoNodeIsRecoveringException;
-import com.mongodb.MongoNotPrimaryException;
-import com.mongodb.MongoQueryException;
-import com.mongodb.MongoSecurityException;
-import com.mongodb.MongoServerUnavailableException;
-import com.mongodb.MongoSocketClosedException;
-import com.mongodb.MongoSocketException;
-import com.mongodb.MongoSocketOpenException;
-import com.mongodb.MongoSocketReadException;
-import com.mongodb.MongoSocketReadTimeoutException;
-import com.mongodb.MongoSocketWriteException;
-import com.mongodb.MongoTimeoutException;
-import com.mongodb.MongoWriteConcernException;
-import com.mongodb.MongoWriteException;
+import com.mongodb.*;
+import com.mongodb.bulk.BulkWriteError;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
@@ -56,6 +39,7 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ParagraphFormatter;
+import io.tapdata.exception.TapPdkTerminateByServerEx;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.mongodb.entity.MongodbConfig;
 import io.tapdata.mongodb.reader.MongodbStreamReader;
@@ -120,6 +104,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
@@ -821,7 +806,31 @@ public class MongodbConnector extends ConnectorBase {
 			}
 		}
 
-		mongodbWriter.writeRecord(tapRecordEvents, table, writeListResultConsumer);
+		try {
+			mongodbWriter.writeRecord(tapRecordEvents, table, writeListResultConsumer);
+		} catch (Throwable e) {
+			if (e instanceof MongoBulkWriteException) {
+				MongoBulkWriteException mongoBulkWriteException = (MongoBulkWriteException) e;
+				List<BulkWriteError> writeErrors = mongoBulkWriteException.getWriteErrors();
+				AtomicReference<Throwable> throwableAtomicReference = new AtomicReference<>();
+				BulkWriteError bulkWriteError = writeErrors.stream().filter(writeError -> {
+					int code = writeError.getCode();
+					String message = writeError.getMessage();
+					if (code == 133
+							&& Pattern.compile("Write results unavailable from failing to.*a host in the shard.*:: caused by :: Could not find host matching read preference \\{ mode: \"primary\" } for set.*").matcher(message).matches()) {
+						throwableAtomicReference.set(new TapPdkTerminateByServerEx(connectorContext.getSpecification().getId(), e));
+					} else if (code == 10107
+							&& Pattern.compile(".*not master.*").matcher(message).matches()) {
+						throwableAtomicReference.set(new TapPdkTerminateByServerEx(connectorContext.getSpecification().getId(), e));
+					}
+					return throwableAtomicReference.get() != null;
+				}).findFirst().orElse(null);
+				if (null != bulkWriteError) {
+					throw throwableAtomicReference.get();
+				}
+			}
+			throw e;
+		}
 	}
 
 	private void queryByAdvanceFilter(TapConnectorContext connectorContext, TapAdvanceFilter tapAdvanceFilter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
@@ -1011,48 +1020,67 @@ public class MongodbConnector extends ConnectorBase {
 	 * @param tapReadOffsetConsumer
 	 */
 	private void batchRead(TapConnectorContext connectorContext, TapTable table, Object offset, int eventBatchSize, BiConsumer<List<TapEvent>, Object> tapReadOffsetConsumer) throws Throwable {
-		List<TapEvent> tapEvents = list();
-		MongoCursor<Document> mongoCursor;
-		MongoCollection<Document> collection = getMongoCollection(table.getId());
-		final int batchSize = eventBatchSize > 0 ? eventBatchSize : 5000;
-		if (offset == null) {
-			mongoCursor = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize).iterator();
-		} else {
-			MongoBatchOffset mongoOffset = (MongoBatchOffset) offset;//fromJson(offset, MongoOffset.class);
-			Object offsetValue = mongoOffset.value();
-			if (offsetValue != null) {
-				mongoCursor = collection.find(queryCondition(COLLECTION_ID_FIELD, offsetValue)).sort(Sorts.ascending(COLLECTION_ID_FIELD))
-						.batchSize(batchSize).iterator();
-			} else {
-				mongoCursor = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize).iterator();
-				TapLogger.warn(TAG, "Offset format is illegal {}, no offset value has been found. Final offset will be null to do the batchRead", offset);
-			}
-		}
-
-		Document lastDocument;
-
 		try {
-			while (mongoCursor.hasNext()) {
-				if (!isAlive()) return;
-				lastDocument = mongoCursor.next();
-				tapEvents.add(insertRecordEvent(lastDocument, table.getId()));
-
-				if (tapEvents.size() == eventBatchSize) {
-					Object value = lastDocument.get(COLLECTION_ID_FIELD);
-					batchOffset = new MongoBatchOffset(COLLECTION_ID_FIELD, value);
-					tapReadOffsetConsumer.accept(tapEvents, batchOffset);
-					tapEvents = list();
+			List<TapEvent> tapEvents = list();
+			MongoCursor<Document> mongoCursor;
+			MongoCollection<Document> collection = getMongoCollection(table.getId());
+			final int batchSize = eventBatchSize > 0 ? eventBatchSize : 5000;
+			if (offset == null) {
+				mongoCursor = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize).iterator();
+			} else {
+				MongoBatchOffset mongoOffset = (MongoBatchOffset) offset;//fromJson(offset, MongoOffset.class);
+				Object offsetValue = mongoOffset.value();
+				if (offsetValue != null) {
+					mongoCursor = collection.find(queryCondition(COLLECTION_ID_FIELD, offsetValue)).sort(Sorts.ascending(COLLECTION_ID_FIELD))
+							.batchSize(batchSize).iterator();
+				} else {
+					mongoCursor = collection.find().sort(Sorts.ascending(COLLECTION_ID_FIELD)).batchSize(batchSize).iterator();
+					TapLogger.warn(TAG, "Offset format is illegal {}, no offset value has been found. Final offset will be null to do the batchRead", offset);
 				}
 			}
-			if (!tapEvents.isEmpty()) {
-				tapReadOffsetConsumer.accept(tapEvents, null);
+
+			Document lastDocument;
+
+			try {
+				while (mongoCursor.hasNext()) {
+					if (!isAlive()) return;
+					lastDocument = mongoCursor.next();
+					tapEvents.add(insertRecordEvent(lastDocument, table.getId()));
+
+					if (tapEvents.size() == eventBatchSize) {
+						Object value = lastDocument.get(COLLECTION_ID_FIELD);
+						batchOffset = new MongoBatchOffset(COLLECTION_ID_FIELD, value);
+						tapReadOffsetConsumer.accept(tapEvents, batchOffset);
+						tapEvents = list();
+					}
+				}
+				if (!tapEvents.isEmpty()) {
+					tapReadOffsetConsumer.accept(tapEvents, null);
+				}
+			} catch (Exception e) {
+				if (!isAlive() && e instanceof MongoInterruptedException) {
+					// ignored
+				} else {
+					throw e;
+				}
 			}
 		} catch (Exception e) {
-			if (!isAlive() && e instanceof MongoInterruptedException) {
-				// ignored
-			} else {
-				throw e;
+			if (e instanceof MongoQueryException) {
+				String message = e.getMessage();
+				int code = ((MongoQueryException) e).getCode();
+				Throwable throwable = null;
+				if (code == 6
+						&& Pattern.compile("Query failed with error code 6 and error message 'Error on remote shard.*:: caused by :: interrupted at shutdown' on server.*").matcher(message).matches()) {
+					throwable = new TapPdkTerminateByServerEx(connectorContext.getSpecification().getId(), e);
+				} else if (code == 133
+						&& Pattern.compile("Query failed with error code 133 and error message 'Encountered non-retryable error during query :: caused by :: Could not find host matching read preference \\{ mode: \"primary\" } for set.*").matcher(message).matches()) {
+					throwable = new TapPdkTerminateByServerEx(connectorContext.getSpecification().getId(), e);
+				}
+				if (null != throwable) {
+					throw throwable;
+				}
 			}
+			throw e;
 		}
 	}
 
