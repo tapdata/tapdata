@@ -66,6 +66,5 @@ jobs:
             password: ${{ secrets.GITHUB_TOKEN }}
         - name: Push Image
           run: |
-            tag=`cd tapdata && git describe --tag --long HEAD`
-            docker_tag="ghcr.io/tapdata/${{ env.CURRENT_BRANCH }}:$tag"
+            docker_tag=`cat tapdata/build/image/tag`
             docker push $docker_tag
