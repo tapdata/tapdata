@@ -30,7 +30,7 @@ print_message() {
 }
 
 get_env() {
-    MONGO_URI=${MONGO_URI:-"mongodb://127.0.0.1:27017/tapdata"}  # mongodb uri
+    MONGO_URI=${MONGO_URI}  # mongodb uri
     ACCESS_CODE=${ACCESS_CODE:-"3324cfdf-7d3e-4792-bd32-571638d4562f"}  # access code
 
     print_message "MONGO_URI: $MONGO_URI" "blue" false
@@ -139,7 +139,14 @@ _main() {
     fi
     if [[ $? -ne 0 ]]; then
         print_message "Start mongo failed" "red" true
-        exit 1
+        ps -ef | grep -v grep | grep mongo > /dev/null
+        if [[ $? -eq 0 ]]; then
+            print_message "Mongodb is already start" "green" false
+        else
+            print_message "Mongodb is not start" "red" false
+            exit 1
+        fi
+        MONGO_URI="mongodb://127.0.0.1:27017/tapdata"
     else
         print_message "Start mongo success" "green" true
     fi

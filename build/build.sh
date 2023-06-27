@@ -96,7 +96,7 @@ build() {
   #   $_in_docker: if in docker, this variable will be set to yes
   #   $tapdata_build_image: the docker build image which cached all dependencies
   # 1. Build project in docker.
-  if [[ $tapdata_build_env == "docker" && $_in_docker == "yes" ]]; then
+  if [[ $tapdata_build_env == "docker" && $_in_docker == "" ]]; then
     # if tapdata-build-container not running
     docker ps | grep tapdata-build-container &> /dev/null
     if [[ $? -ne 0 ]]; then
